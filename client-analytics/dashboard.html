@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
@@ -42,120 +42,253 @@
             opacity: 0.9;
         }
 
-        .filters {
+        /* Client selector */
+        .client-selector {
             background: white;
-            padding: 20px 25px;
+            padding: 15px 25px;
             border-radius: 16px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.12);
-            margin-bottom: 25px;
-            display: flex;
-            gap: 20px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .filter-group {
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
         }
 
-        .filters label {
+        .client-selector label {
             font-weight: 600;
             color: #555;
-            font-size: 0.9em;
         }
 
-        .filters select {
-            padding: 10px 16px;
+        .client-selector select {
+            flex: 1;
+            padding: 12px 16px;
             border: 2px solid #e5e7eb;
             border-radius: 10px;
-            font-size: 0.95em;
+            font-size: 1em;
             background: white;
             cursor: pointer;
             transition: all 0.2s ease;
-            min-width: 180px;
         }
 
-        .filters select:hover {
+        .client-selector select:hover {
             border-color: #667eea;
         }
 
-        .filters select:focus {
+        .client-selector select:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
         }
 
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px;
-            margin-bottom: 25px;
-        }
-
-        .stat-card {
+        /* Tabs */
+        .tabs {
             background: white;
-            padding: 24px;
             border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            text-align: center;
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+            margin-bottom: 25px;
+            overflow: hidden;
         }
 
-        .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+        .tab-buttons {
+            display: flex;
+            border-bottom: 2px solid #f3f4f6;
         }
 
-        .stat-card h3 {
-            font-size: 0.8em;
-            color: #888;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
+        .tab-button {
+            flex: 1;
+            padding: 18px;
+            background: none;
+            border: none;
+            font-size: 1.05em;
+            font-weight: 600;
+            color: #6b7280;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
         }
 
-        .stat-card .value {
-            font-size: 2.4em;
-            font-weight: 700;
+        .tab-button:hover {
+            background: #f9fafb;
             color: #667eea;
-            margin-bottom: 6px;
-            line-height: 1.1;
         }
 
-        .stat-card .subtitle {
-            font-size: 0.85em;
+        .tab-button.active {
+            color: #667eea;
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Platform metrics grid */
+        .platform-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .platform-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            padding: 25px;
+            border-radius: 12px;
+            border: 2px solid #e5e7eb;
+            transition: all 0.2s ease;
+        }
+
+        .platform-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+        }
+
+        .platform-card h3 {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .platform-card.youtube h3 { color: #FF0000; }
+        .platform-card.instagram h3 { color: #E1306C; }
+        .platform-card.tiktok h3 { color: #00f2ea; }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .metric-row:last-child {
+            border-bottom: none;
+        }
+
+        .metric-label {
+            font-size: 0.9em;
+            color: #6b7280;
+        }
+
+        .metric-value {
+            font-size: 1.3em;
+            font-weight: 700;
+        }
+
+        .metric-value.positive {
             color: #10b981;
+        }
+
+        /* Top performers */
+        .top-performers {
+            margin-top: 30px;
+        }
+
+        .top-performers h2 {
+            font-size: 1.4em;
+            margin-bottom: 20px;
+            color: #1f2937;
+        }
+
+        .leaderboards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .leaderboard {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid #e5e7eb;
+        }
+
+        .leaderboard h3 {
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f3f4f6;
+        }
+
+        .leaderboard.youtube h3 { color: #FF0000; }
+        .leaderboard.instagram h3 { color: #E1306C; }
+        .leaderboard.tiktok h3 { color: #00f2ea; }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            margin: 8px 0;
+            background: #f9fafb;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .leaderboard-item:hover {
+            background: #f3f4f6;
+            transform: translateX(4px);
+        }
+
+        .rank {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #9ca3af;
+            min-width: 35px;
+        }
+
+        .rank.top3 {
+            color: #f59e0b;
+        }
+
+        .client-name {
+            flex: 1;
             font-weight: 500;
+            color: #374151;
         }
 
-        .stat-card .subtitle.neutral {
-            color: #888;
+        .client-value {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #667eea;
         }
 
-        .stat-card.youtube .value { color: #FF0000; }
-        .stat-card.instagram .value { color: #E1306C; }
-        .stat-card.tiktok .value { color: #00f2ea; }
+        /* Charts */
+        .charts-section {
+            margin-top: 30px;
+        }
 
         .charts-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
             gap: 25px;
         }
 
-        .chart-container {
+        .chart-card {
             background: white;
             padding: 25px;
-            border-radius: 16px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            border: 2px solid #e5e7eb;
         }
 
-        .chart-container h2 {
+        .chart-card h3 {
+            font-size: 1.2em;
             margin-bottom: 20px;
-            color: #333;
-            font-size: 1.3em;
-            font-weight: 600;
+            color: #1f2937;
         }
 
         .chart-wrapper {
@@ -163,6 +296,7 @@
             height: 350px;
         }
 
+        /* Loading & errors */
         .loading {
             text-align: center;
             color: white;
@@ -199,8 +333,11 @@
         .no-data {
             text-align: center;
             padding: 60px 20px;
-            color: #888;
+            color: #6b7280;
             font-size: 1.1em;
+            background: white;
+            border-radius: 12px;
+            border: 2px dashed #e5e7eb;
         }
 
         .last-updated {
@@ -211,31 +348,17 @@
             font-size: 0.9em;
         }
 
-        @media (min-width: 1024px) {
+        @media (max-width: 768px) {
             .charts-grid {
-                grid-template-columns: 1fr 1fr;
+                grid-template-columns: 1fr;
             }
-        }
 
-        @media (max-width: 600px) {
-            header h1 {
-                font-size: 1.8em;
+            .leaderboards {
+                grid-template-columns: 1fr;
             }
-            
-            .filters {
-                padding: 15px;
-            }
-            
-            .filter-group {
-                width: 100%;
-            }
-            
-            .filters select {
-                flex: 1;
-            }
-            
-            .stat-card .value {
-                font-size: 2em;
+
+            .platform-metrics {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -244,87 +367,116 @@
     <div class="container">
         <header>
             <h1>📊 Client Analytics</h1>
-            <p>Daily social media performance tracking</p>
+            <p>Track daily, weekly, and monthly social media performance</p>
         </header>
 
         <div id="loading" class="loading">Loading data</div>
         <div id="error" class="error" style="display: none;"></div>
 
         <div id="dashboard" style="display: none;">
-            <div class="filters">
-                <div class="filter-group">
-                    <label for="clientFilter">Client:</label>
-                    <select id="clientFilter">
-                        <option value="all">All Clients</option>
-                    </select>
+            <!-- Client selector -->
+            <div class="client-selector">
+                <label for="clientSelect">View:</label>
+                <select id="clientSelect">
+                    <option value="all">📊 All Clients Overview</option>
+                </select>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="daily">📅 Daily</button>
+                    <button class="tab-button" data-tab="weekly">📈 Weekly</button>
+                    <button class="tab-button" data-tab="monthly">📊 Monthly</button>
                 </div>
-                
-                <div class="filter-group">
-                    <label for="platformFilter">Platform:</label>
-                    <select id="platformFilter">
-                        <option value="all">All Platforms</option>
-                        <option value="YouTube">YouTube</option>
-                        <option value="Instagram">Instagram</option>
-                        <option value="TikTok">TikTok</option>
-                    </select>
+
+                <!-- Daily tab -->
+                <div id="daily" class="tab-content active">
+                    <div class="platform-metrics" id="dailyMetrics"></div>
+                    <div class="top-performers">
+                        <h2>🏆 Today's Top Performers</h2>
+                        <div class="leaderboards" id="dailyLeaderboards"></div>
+                    </div>
+                </div>
+
+                <!-- Weekly tab -->
+                <div id="weekly" class="tab-content">
+                    <div class="platform-metrics" id="weeklyMetrics"></div>
+                    <div class="charts-section">
+                        <h2>📈 7-Day Trends</h2>
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3>Followers Gained</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="weeklyFollowersChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Views</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="weeklyViewsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="top-performers">
+                        <h2>🏆 Top Performers (7 Days)</h2>
+                        <div class="leaderboards" id="weeklyLeaderboards"></div>
+                    </div>
+                </div>
+
+                <!-- Monthly tab -->
+                <div id="monthly" class="tab-content">
+                    <div class="platform-metrics" id="monthlyMetrics"></div>
+                    <div class="charts-section">
+                        <h2>📊 30-Day Trends</h2>
+                        <div class="charts-grid">
+                            <div class="chart-card">
+                                <h3>Followers Gained</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="monthlyFollowersChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="chart-card">
+                                <h3>Views</h3>
+                                <div class="chart-wrapper">
+                                    <canvas id="monthlyViewsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="top-performers">
+                        <h2>🏆 Top Performers (30 Days)</h2>
+                        <div class="leaderboards" id="monthlyLeaderboards"></div>
+                    </div>
                 </div>
             </div>
 
-            <div id="noData" class="no-data" style="display: none;">
-                No data available for the selected filters.
-            </div>
-
-            <div id="dashboardContent">
-                <div class="stats-grid" id="statsGrid"></div>
-                <div class="charts-grid">
-                    <div class="chart-container">
-                        <h2>📈 Daily Followers Gained</h2>
-                        <div class="chart-wrapper">
-                            <canvas id="followersChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <h2>👁️ Total Views</h2>
-                        <div class="chart-wrapper">
-                            <canvas id="viewsChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <h2>🎯 Followers by Platform</h2>
-                        <div class="chart-wrapper">
-                            <canvas id="platformBarChart"></canvas>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <h2>📊 Platform Distribution</h2>
-                        <div class="chart-wrapper">
-                            <canvas id="platformPieChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
             <div class="last-updated" id="lastUpdated"></div>
         </div>
     </div>
 
     <script>
-        // Configuration
+        // Config
         const SHEET_ID = '1iZ7OL_B1XWrLnL8CzoH3xOGCANIl5UTY_oX0NBz-HlI';
-        const SHEET_NAME = 'Sheet1';
-        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${SHEET_NAME}`;
+        const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
 
-        // Platform colors
-        const COLORS = {
-            'YouTube': { bg: 'rgba(255, 0, 0, 0.15)', border: '#FF0000' },
-            'Instagram': { bg: 'rgba(225, 48, 108, 0.15)', border: '#E1306C' },
-            'TikTok': { bg: 'rgba(0, 242, 234, 0.15)', border: '#00f2ea' }
+        const PLATFORM_ICONS = {
+            'YouTube': '🎥',
+            'Instagram': '📸',
+            'TikTok': '🎵'
         };
 
-        // Global state
+        const PLATFORM_COLORS = {
+            'YouTube': '#FF0000',
+            'Instagram': '#E1306C',
+            'TikTok': '#00f2ea'
+        };
+
         let allData = [];
         let charts = {};
-        let filtersInitialized = false;
+        let currentTab = 'daily';
+        let selectedClient = 'all';
 
         // Parse CSV
         function parseCSV(csv) {
@@ -334,15 +486,13 @@
             const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
             
             return lines.slice(1).map(line => {
-                // Handle CSV with possible commas in values
                 const values = [];
                 let current = '';
                 let inQuotes = false;
                 
                 for (const char of line) {
-                    if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === ',' && !inQuotes) {
+                    if (char === '"') inQuotes = !inQuotes;
+                    else if (char === ',' && !inQuotes) {
                         values.push(current.trim());
                         current = '';
                     } else {
@@ -362,312 +512,234 @@
         // Fetch data
         async function fetchData() {
             const response = await fetch(CSV_URL);
-            if (!response.ok) throw new Error('Failed to fetch data from Google Sheets');
+            if (!response.ok) throw new Error('Failed to fetch data');
             
             const csv = await response.text();
             const data = parseCSV(csv);
             
             return data.map(row => ({
                 date: row.Date || row.date || '',
-                client: row.Client || row['Client Name'] || row.client || '',
+                client: row.Client || row.client || '',
                 platform: row.Platform || row.platform || '',
-                followersGained: parseInt(row['Followers '] || row['Followers Gained'] || row.Followers || 0) || 0,
-                views: parseInt(row.Views || row.views || 0) || 0
+                followersGained: parseInt(row['Followers Gained'] || row.Followers || 0) || 0,
+                views: parseInt(row['Views Gained'] || row.Views || 0) || 0
             })).filter(row => row.date && row.client);
         }
 
-        // Get unique sorted dates
-        function getUniqueDates(data) {
-            return [...new Set(data.map(d => d.date))].sort();
+        // Get date ranges
+        function getDateRange(data, days) {
+            const dates = [...new Set(data.map(d => d.date))].sort().reverse();
+            const targetDates = dates.slice(0, days);
+            return data.filter(row => targetDates.includes(row.date));
         }
 
-        // Create stats cards
-        function createStatsCards(data) {
-            const statsGrid = document.getElementById('statsGrid');
-            statsGrid.innerHTML = '';
+        function getLatestDate(data) {
+            const dates = [...new Set(data.map(d => d.date))].sort();
+            return dates[dates.length - 1];
+        }
 
-            if (data.length === 0) return;
+        // Filter data by client
+        function getClientData(client) {
+            if (client === 'all') return allData;
+            return allData.filter(row => row.client === client);
+        }
 
-            const dates = getUniqueDates(data);
-            const platforms = [...new Set(data.map(d => d.platform))];
-            
-            // Total followers gained (all data)
-            const totalFollowers = data.reduce((sum, row) => sum + row.followersGained, 0);
-            
-            // Calculate days in data
-            const numDays = dates.length;
-            const dateLabel = numDays === 1 ? 'Today' : `Last ${numDays} days`;
-
-            // Total card
-            statsGrid.innerHTML += `
-                <div class="stat-card">
-                    <h3>Total Followers Gained</h3>
-                    <div class="value">+${totalFollowers.toLocaleString()}</div>
-                    <div class="subtitle">${dateLabel}</div>
-                </div>
-            `;
-
-            // Per-platform cards
-            platforms.forEach(platform => {
-                const platformData = data.filter(d => d.platform === platform);
-                const followers = platformData.reduce((sum, row) => sum + row.followersGained, 0);
-                const platformClass = platform.toLowerCase().replace(/\s+/g, '');
-                
-                statsGrid.innerHTML += `
-                    <div class="stat-card ${platformClass}">
-                        <h3>${platform}</h3>
-                        <div class="value">+${followers.toLocaleString()}</div>
-                        <div class="subtitle neutral">${platformData.length} data points</div>
-                    </div>
-                `;
-            });
-
-            // Total views card (if views > 0)
-            const totalViews = data.reduce((sum, row) => sum + row.views, 0);
-            if (totalViews > 0) {
-                statsGrid.innerHTML += `
-                    <div class="stat-card">
-                        <h3>Total Views</h3>
-                        <div class="value">${totalViews.toLocaleString()}</div>
-                        <div class="subtitle neutral">${dateLabel}</div>
-                    </div>
-                `;
+        // Render platform metrics
+        function renderPlatformMetrics(data, containerId) {
+            const container = document.getElementById(containerId);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
             }
+
+            const platforms = ['Instagram', 'YouTube', 'TikTok'];
+            
+            container.innerHTML = platforms.map(platform => {
+                const platformData = data.filter(d => d.platform === platform);
+                const totalFollowers = platformData.reduce((sum, r) => sum + r.followersGained, 0);
+                const totalViews = platformData.reduce((sum, r) => sum + r.views, 0);
+                
+                return `
+                    <div class="platform-card ${platform.toLowerCase()}">
+                        <h3>${PLATFORM_ICONS[platform]} ${platform}</h3>
+                        <div class="metric-row">
+                            <span class="metric-label">Followers Gained</span>
+                            <span class="metric-value positive">+${totalFollowers.toLocaleString()}</span>
+                        </div>
+                        <div class="metric-row">
+                            <span class="metric-label">Views</span>
+                            <span class="metric-value">${totalViews.toLocaleString()}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
-        // Create all charts
-        function createCharts(data) {
-            if (data.length === 0) return;
+        // Render leaderboards
+        function renderLeaderboards(data, containerId) {
+            const container = document.getElementById(containerId);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<div class="no-data">No data available</div>';
+                return;
+            }
 
-            const dates = getUniqueDates(data);
-            const platforms = [...new Set(data.map(d => d.platform))];
-            const clients = [...new Set(data.map(d => d.client))];
+            const platforms = ['Instagram', 'YouTube', 'TikTok'];
+            
+            container.innerHTML = platforms.map(platform => {
+                const platformData = data.filter(d => d.platform === platform);
+                
+                // Aggregate by client
+                const clientTotals = {};
+                platformData.forEach(row => {
+                    if (!clientTotals[row.client]) {
+                        clientTotals[row.client] = { followers: 0, views: 0 };
+                    }
+                    clientTotals[row.client].followers += row.followersGained;
+                    clientTotals[row.client].views += row.views;
+                });
 
-            // Followers line chart
-            charts.followersChart = new Chart(document.getElementById('followersChart'), {
+                // Sort and get top 10
+                const sorted = Object.entries(clientTotals)
+                    .sort((a, b) => b[1].followers - a[1].followers)
+                    .slice(0, 10);
+
+                const items = sorted.map(([client, stats], index) => `
+                    <div class="leaderboard-item">
+                        <span class="rank ${index < 3 ? 'top3' : ''}">#${index + 1}</span>
+                        <span class="client-name">${client}</span>
+                        <span class="client-value">+${stats.followers.toLocaleString()}</span>
+                    </div>
+                `).join('');
+
+                return `
+                    <div class="leaderboard ${platform.toLowerCase()}">
+                        <h3>${PLATFORM_ICONS[platform]} ${platform} Top 10</h3>
+                        ${items || '<div class="no-data">No data</div>'}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Render charts
+        function renderChart(canvasId, data, label) {
+            const ctx = document.getElementById(canvasId);
+            if (!ctx) return;
+
+            if (charts[canvasId]) {
+                charts[canvasId].destroy();
+            }
+
+            const dates = [...new Set(data.map(d => d.date))].sort();
+            const platforms = ['Instagram', 'YouTube', 'TikTok'];
+
+            const datasets = platforms.map(platform => {
+                const platformData = dates.map(date => {
+                    const rows = data.filter(d => d.date === date && d.platform === platform);
+                    return label === 'Followers' 
+                        ? rows.reduce((sum, r) => sum + r.followersGained, 0)
+                        : rows.reduce((sum, r) => sum + r.views, 0);
+                });
+
+                return {
+                    label: platform,
+                    data: platformData,
+                    borderColor: PLATFORM_COLORS[platform],
+                    backgroundColor: PLATFORM_COLORS[platform] + '33',
+                    borderWidth: 2.5,
+                    tension: 0.3,
+                    fill: true
+                };
+            });
+
+            charts[canvasId] = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: platforms.map(platform => {
-                        const platformData = dates.map(date => {
-                            const rows = data.filter(d => d.date === date && d.platform === platform);
-                            return rows.reduce((sum, r) => sum + r.followersGained, 0);
-                        });
-                        return {
-                            label: platform,
-                            data: platformData,
-                            backgroundColor: COLORS[platform]?.bg || 'rgba(102, 126, 234, 0.15)',
-                            borderColor: COLORS[platform]?.border || '#667eea',
-                            borderWidth: 2.5,
-                            tension: 0.3,
-                            pointRadius: dates.length > 14 ? 0 : 4,
-                            pointHoverRadius: 6
-                        };
-                    })
-                },
+                data: { labels: dates, datasets },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: { intersect: false, mode: 'index' },
                     plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } }
+                        legend: { position: 'top' }
                     },
                     scales: {
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
-                        x: { grid: { display: false } }
+                        y: { beginAtZero: true }
                     }
                 }
             });
-
-            // Views line chart
-            charts.viewsChart = new Chart(document.getElementById('viewsChart'), {
-                type: 'line',
-                data: {
-                    labels: dates,
-                    datasets: platforms.map(platform => {
-                        const platformData = dates.map(date => {
-                            const rows = data.filter(d => d.date === date && d.platform === platform);
-                            return rows.reduce((sum, r) => sum + r.views, 0);
-                        });
-                        return {
-                            label: platform,
-                            data: platformData,
-                            backgroundColor: COLORS[platform]?.bg || 'rgba(102, 126, 234, 0.15)',
-                            borderColor: COLORS[platform]?.border || '#667eea',
-                            borderWidth: 2.5,
-                            tension: 0.3,
-                            fill: true,
-                            pointRadius: dates.length > 14 ? 0 : 4,
-                            pointHoverRadius: 6
-                        };
-                    })
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { intersect: false, mode: 'index' },
-                    plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, padding: 15 } }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-
-            // Platform bar chart
-            const platformTotals = platforms.map(platform => 
-                data.filter(d => d.platform === platform).reduce((sum, r) => sum + r.followersGained, 0)
-            );
-
-            charts.platformBarChart = new Chart(document.getElementById('platformBarChart'), {
-                type: 'bar',
-                data: {
-                    labels: platforms,
-                    datasets: [{
-                        label: 'Followers Gained',
-                        data: platformTotals,
-                        backgroundColor: platforms.map(p => COLORS[p]?.border || '#667eea'),
-                        borderRadius: 8,
-                        borderSkipped: false
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-
-            // Platform pie chart
-            charts.platformPieChart = new Chart(document.getElementById('platformPieChart'), {
-                type: 'doughnut',
-                data: {
-                    labels: platforms,
-                    datasets: [{
-                        data: platformTotals,
-                        backgroundColor: platforms.map(p => COLORS[p]?.border || '#667eea'),
-                        borderWidth: 0,
-                        hoverOffset: 10
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '60%',
-                    plugins: {
-                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } }
-                    }
-                }
-            });
-        }
-
-        // Populate client dropdown (only once)
-        function populateClientFilter(data) {
-            if (filtersInitialized) return;
-            
-            const clients = [...new Set(data.map(d => d.client))].sort();
-            const select = document.getElementById('clientFilter');
-            
-            clients.forEach(client => {
-                const option = document.createElement('option');
-                option.value = client;
-                option.textContent = client;
-                select.appendChild(option);
-            });
-            
-            filtersInitialized = true;
-        }
-
-        // Get filtered data
-        function getFilteredData() {
-            const clientFilter = document.getElementById('clientFilter').value;
-            const platformFilter = document.getElementById('platformFilter').value;
-            
-            return allData.filter(row => {
-                const matchClient = clientFilter === 'all' || row.client === clientFilter;
-                const matchPlatform = platformFilter === 'all' || row.platform === platformFilter;
-                return matchClient && matchPlatform;
-            });
-        }
-
-        // Destroy all charts
-        function destroyCharts() {
-            Object.values(charts).forEach(chart => {
-                if (chart && typeof chart.destroy === 'function') {
-                    chart.destroy();
-                }
-            });
-            charts = {};
         }
 
         // Render dashboard
         function renderDashboard() {
-            const data = getFilteredData();
-            
-            destroyCharts();
-            
-            const noDataEl = document.getElementById('noData');
-            const contentEl = document.getElementById('dashboardContent');
-            
-            if (data.length === 0) {
-                noDataEl.style.display = 'block';
-                contentEl.style.display = 'none';
-                return;
-            }
-            
-            noDataEl.style.display = 'none';
-            contentEl.style.display = 'block';
-            
-            createStatsCards(data);
-            createCharts(data);
+            const data = getClientData(selectedClient);
+            if (data.length === 0) return;
+
+            // Daily
+            const latestDate = getLatestDate(data);
+            const dailyData = data.filter(d => d.date === latestDate);
+            renderPlatformMetrics(dailyData, 'dailyMetrics');
+            renderLeaderboards(dailyData, 'dailyLeaderboards');
+
+            // Weekly
+            const weeklyData = getDateRange(data, 7);
+            renderPlatformMetrics(weeklyData, 'weeklyMetrics');
+            renderLeaderboards(weeklyData, 'weeklyLeaderboards');
+            renderChart('weeklyFollowersChart', weeklyData, 'Followers');
+            renderChart('weeklyViewsChart', weeklyData, 'Views');
+
+            // Monthly
+            const monthlyData = getDateRange(data, 30);
+            renderPlatformMetrics(monthlyData, 'monthlyMetrics');
+            renderLeaderboards(monthlyData, 'monthlyLeaderboards');
+            renderChart('monthlyFollowersChart', monthlyData, 'Followers');
+            renderChart('monthlyViewsChart', monthlyData, 'Views');
+
+            // Update last updated
+            document.getElementById('lastUpdated').textContent = `Last updated: ${latestDate}`;
         }
 
-        // Initialize
+        // Init
         async function init() {
             try {
                 allData = await fetchData();
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('dashboard').style.display = 'block';
-                
-                populateClientFilter(allData);
-                
-                // Set up filter listeners (only once)
-                if (!filtersInitialized) {
-                    document.getElementById('clientFilter').addEventListener('change', renderDashboard);
-                    document.getElementById('platformFilter').addEventListener('change', renderDashboard);
-                }
-                
+
+                // Populate client dropdown
+                const clients = [...new Set(allData.map(d => d.client))].sort();
+                const select = document.getElementById('clientSelect');
+                clients.forEach(client => {
+                    const option = document.createElement('option');
+                    option.value = client;
+                    option.textContent = client;
+                    select.appendChild(option);
+                });
+
+                // Tab switching
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        btn.classList.add('active');
+                        document.getElementById(btn.dataset.tab).classList.add('active');
+                        currentTab = btn.dataset.tab;
+                    });
+                });
+
+                // Client selector
+                select.addEventListener('change', (e) => {
+                    selectedClient = e.target.value;
+                    renderDashboard();
+                });
+
                 renderDashboard();
-                
-                if (allData.length > 0) {
-                    const dates = getUniqueDates(allData);
-                    const lastDate = dates[dates.length - 1];
-                    document.getElementById('lastUpdated').textContent = `Last updated: ${lastDate} • Auto-refreshes every 5 minutes`;
-                }
-                
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = `Error: ${error.message}. Make sure the Google Sheet is public (view-only).`;
+                document.getElementById('error').textContent = `Error: ${error.message}`;
             }
         }
 
-        // Start
         init();
-        setInterval(() => {
-            allData = [];
-            filtersInitialized = false;
-            init();
-        }, 5 * 60 * 1000);
     </script>
 </body>
 </html>

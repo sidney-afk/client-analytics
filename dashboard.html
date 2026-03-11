@@ -645,6 +645,12 @@
             
             container.innerHTML = platforms.map(platform => {
                 const platformData = data.filter(d => d.platform === platform);
+                
+                // Skip platform if no data exists (for individual client view)
+                if (selectedClient !== 'all' && platformData.length === 0) {
+                    return '';
+                }
+                
                 const totalFollowers = platformData.reduce((sum, r) => sum + r.followersGained, 0);
                 const totalViews = platformData.reduce((sum, r) => sum + r.views, 0);
                 

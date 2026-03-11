@@ -473,6 +473,95 @@
             'TikTok': '#00f2ea'
         };
 
+        // Social Blade URLs mapping
+        const SOCIALBLADE_URLS = {
+            "Jessica Winterstern": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCbg4YuPi0hrXVqz9XoMkGRA",
+                "Instagram": "https://socialblade.com/instagram/user/thefeminineheart",
+                "TikTok": "https://socialblade.com/tiktok/user/thefeminineheart"
+            },
+            "Morgan Burton": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCX4KEhXS_HRAxRmqulpIW8w",
+                "Instagram": "https://socialblade.com/instagram/user/morgancarringtonburton",
+                "TikTok": "https://socialblade.com/tiktok/user/morgancarringtonburton"
+            },
+            "Dr. Sonia Chopra": {
+                "YouTube": "https://socialblade.com/youtube/channel/UC_caIBdFY1E_KhlWamMkl9A",
+                "Instagram": "https://socialblade.com/instagram/user/drsoniachopra",
+                "TikTok": "https://socialblade.com/tiktok/user/drsoniachopra"
+            },
+            "Alyssa Nobriga": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCtvvqCw3YZRJsbPMOWzBQ7Q",
+                "Instagram": "https://socialblade.com/instagram/user/alyssanobriga",
+                "TikTok": "https://socialblade.com/tiktok/user/alyssanobriga"
+            },
+            "Doug Cartwright": {
+                "Instagram": "https://socialblade.com/instagram/user/doug_cartwright",
+                "TikTok": "https://socialblade.com/tiktok/user/doug_cartwright"
+            },
+            "Dr. Rocco Piazza": {
+                "YouTube": "https://socialblade.com/youtube/channel/UC6bPEuBQ8lVb_uEDxKHwObg",
+                "Instagram": "https://socialblade.com/instagram/user/roccopiazzamd",
+                "TikTok": "https://socialblade.com/tiktok/user/piazzacenter"
+            },
+            "Edward Mannix": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCXUWnzLRnHvV1aFRUKJGePA",
+                "Instagram": "https://socialblade.com/instagram/user/edwardmannix",
+                "TikTok": "https://socialblade.com/tiktok/user/edward.mannix"
+            },
+            "Alli Schaper": {
+                "YouTube": "https://socialblade.com/youtube/channel/UClHiIkO01iVRz39WwxWx-kg",
+                "Instagram": "https://socialblade.com/instagram/user/allischaper"
+            },
+            "Eben & Annie": {
+                "Instagram": "https://socialblade.com/instagram/user/annie_and_eben"
+            },
+            "Baya Voce": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCPu4owIqTTxo9AmSedA0nqg",
+                "Instagram": "https://socialblade.com/instagram/user/bayavoce",
+                "TikTok": "https://socialblade.com/tiktok/user/bayavoce"
+            },
+            "Jordan Marks": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCUtl5MPeU827dt3TPmU3BgA",
+                "Instagram": "https://socialblade.com/instagram/user/jordan_mindbody",
+                "TikTok": "https://socialblade.com/tiktok/user/jordan.mindbody"
+            },
+            "Miki Agrawal": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCQiZvvqE9ZQCfK4yGDeCHcw",
+                "Instagram": "https://socialblade.com/instagram/user/mikiagrawal",
+                "TikTok": "https://socialblade.com/tiktok/user/mikiagrawal"
+            },
+            "Erica Matluck": {
+                "Instagram": "https://socialblade.com/instagram/user/drericamatluck"
+            },
+            "Natalie MacNeil": {
+                "YouTube": "https://socialblade.com/youtube/channel/UC_gNaN7_2GKTrQfFQvBguow",
+                "Instagram": "https://socialblade.com/instagram/user/nataliemacneil"
+            },
+            "John Wineland": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCTif0aTpBjQ27lRC5q6vJLw",
+                "Instagram": "https://socialblade.com/instagram/user/john_wineland",
+                "TikTok": "https://socialblade.com/tiktok/user/john_wineland"
+            },
+            "David Kessler": {
+                "YouTube": "https://socialblade.com/youtube/channel/UC3nSTGZ3mBqgQTfSuZ5Bl9A",
+                "Instagram": "https://socialblade.com/instagram/user/iamdavidkessler",
+                "TikTok": "https://socialblade.com/tiktok/user/iamdavidkessler"
+            },
+            "Chelsey Scaffidi": {
+                "Instagram": "https://socialblade.com/instagram/user/chelseyscaffidi",
+                "TikTok": "https://socialblade.com/tiktok/user/chelseyscaffidi"
+            },
+            "Danielle Robin": {
+                "Instagram": "https://socialblade.com/instagram/user/dani__robin"
+            },
+            "Morgan Burch": {
+                "YouTube": "https://socialblade.com/youtube/channel/UCjF8q8v46XqehBI_jrG_2HA",
+                "Instagram": "https://socialblade.com/instagram/user/goodmorgantherapy",
+                "TikTok": "https://socialblade.com/tiktok/user/goodmorgantherapy"
+            }
+        };
+
         let allData = [];
         let charts = {};
         let currentTab = 'daily';
@@ -559,9 +648,15 @@
                 const totalFollowers = platformData.reduce((sum, r) => sum + r.followersGained, 0);
                 const totalViews = platformData.reduce((sum, r) => sum + r.views, 0);
                 
+                // Add Social Blade link if viewing individual client
+                let socialBladeLink = '';
+                if (selectedClient !== 'all' && SOCIALBLADE_URLS[selectedClient]?.[platform]) {
+                    socialBladeLink = `<a href="${SOCIALBLADE_URLS[selectedClient][platform]}" target="_blank" style="margin-left: 8px; text-decoration: none; font-size: 0.9em;" title="View on Social Blade">🔗</a>`;
+                }
+                
                 return `
                     <div class="platform-card ${platform.toLowerCase()}">
-                        <h3>${PLATFORM_ICONS[platform]} ${platform}</h3>
+                        <h3>${PLATFORM_ICONS[platform]} ${platform}${socialBladeLink}</h3>
                         <div class="metric-row">
                             <span class="metric-label">Followers Gained</span>
                             <span class="metric-value positive">+${totalFollowers.toLocaleString()}</span>
@@ -672,23 +767,29 @@
             const data = getClientData(selectedClient);
             if (data.length === 0) return;
 
+            // Show/hide leaderboards based on view
+            const showLeaderboards = selectedClient === 'all';
+            document.querySelectorAll('.top-performers').forEach(el => {
+                el.style.display = showLeaderboards ? 'block' : 'none';
+            });
+
             // Daily
             const latestDate = getLatestDate(data);
             const dailyData = data.filter(d => d.date === latestDate);
             renderPlatformMetrics(dailyData, 'dailyMetrics');
-            renderLeaderboards(dailyData, 'dailyLeaderboards');
+            if (showLeaderboards) renderLeaderboards(dailyData, 'dailyLeaderboards');
 
             // Weekly
             const weeklyData = getDateRange(data, 7);
             renderPlatformMetrics(weeklyData, 'weeklyMetrics');
-            renderLeaderboards(weeklyData, 'weeklyLeaderboards');
+            if (showLeaderboards) renderLeaderboards(weeklyData, 'weeklyLeaderboards');
             renderChart('weeklyFollowersChart', weeklyData, 'Followers');
             renderChart('weeklyViewsChart', weeklyData, 'Views');
 
             // Monthly
             const monthlyData = getDateRange(data, 30);
             renderPlatformMetrics(monthlyData, 'monthlyMetrics');
-            renderLeaderboards(monthlyData, 'monthlyLeaderboards');
+            if (showLeaderboards) renderLeaderboards(monthlyData, 'monthlyLeaderboards');
             renderChart('monthlyFollowersChart', monthlyData, 'Followers');
             renderChart('monthlyViewsChart', monthlyData, 'Views');
 

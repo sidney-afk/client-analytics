@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SyncView</title>
+    <title>SyncView — Client Analytics</title>
     <link rel="icon" type="image/png" href="syncview-favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -241,7 +241,7 @@
         .col-gain { width: 60px; }
 
         /* ── CLIENT DETAIL ── */
-        .client-view { animation: fadeIn 0.15s ease; max-width: 980px; margin: 0 auto; }
+        .client-view { animation: fadeIn 0.15s ease; max-width: 980px; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
         .detail-hero {
@@ -285,48 +285,48 @@
         .gains-divider { width: 1px; height: 24px; background: var(--border-light); margin: 0 12px; flex-shrink: 0; }
 
         /* ── PLATFORM SECTIONS ── */
-        .platform-section { margin-bottom: 11px; border-radius: 14px; overflow: hidden; border: none; }
-        .platform-section.ig { background: linear-gradient(135deg, #c9006a 0%, #e8510a 100%); }
-        .platform-section.tt { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a4a 60%, #0d1a3a 100%); }
-        .platform-section.yt { background: linear-gradient(135deg, #7a0000 0%, #cc0000 60%, #a00000 100%); }
+        .platform-section { margin-bottom: 11px; border-radius: 11px; overflow: hidden; border: 1px solid; }
+        .platform-section.ig { border-color: var(--ig-mid); }
+        .platform-section.tt { border-color: var(--tt-mid); }
+        .platform-section.yt { border-color: var(--yt-mid); }
 
-        .platform-section-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.12); }
-        .ig .platform-section-header { background: transparent; }
-        .tt .platform-section-header { background: transparent; }
-        .yt .platform-section-header { background: transparent; }
+        .platform-section-header { padding: 11px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid; }
+        .ig .platform-section-header { background: var(--ig-light); border-color: var(--ig-mid); }
+        .tt .platform-section-header { background: var(--tt-light); border-color: var(--tt-mid); }
+        .yt .platform-section-header { background: var(--yt-light); border-color: var(--yt-mid); }
 
         .platform-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.82rem; }
-        .ig .platform-name { color: #fff; }
-        .tt .platform-name { color: #fff; }
-        .yt .platform-name { color: #fff; }
+        .ig .platform-name { color: var(--ig-dark); }
+        .tt .platform-name { color: var(--tt-dark); }
+        .yt .platform-name { color: var(--yt-dark); }
         .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .ig .platform-pill { background: rgba(255,255,255,0.7); }
-        .tt .platform-pill { background: rgba(255,255,255,0.7); }
-        .yt .platform-pill { background: rgba(255,255,255,0.7); }
+        .ig .platform-pill { background: var(--ig); }
+        .tt .platform-pill { background: #666; }
+        .yt .platform-pill { background: var(--yt); }
 
-        .platform-handle-link { font-size: 0.71rem; color: rgba(255,255,255,0.6); font-weight: 400; text-decoration: none; transition: color 0.15s; }
-        .ig .platform-handle-link:hover { color: #fff; }
-        .tt .platform-handle-link:hover { color: #fff; }
-        .yt .platform-handle-link:hover { color: #fff; }
+        .platform-handle-link { font-size: 0.71rem; color: var(--text-muted); font-weight: 400; text-decoration: none; transition: color 0.15s; }
+        .ig .platform-handle-link:hover { color: var(--ig); }
+        .tt .platform-handle-link:hover { color: var(--tt-dark); }
+        .yt .platform-handle-link:hover { color: var(--yt); }
 
-        .metrics-row { display: grid; padding: 18px 20px 20px; background: transparent; }
+        .metrics-row { display: grid; padding: 16px 18px; background: var(--white); }
         .ig .metrics-row { grid-template-columns: repeat(4, 1fr); }
         .tt .metrics-row { grid-template-columns: repeat(3, 1fr); }
         .yt .metrics-row { grid-template-columns: repeat(2, 1fr); }
 
-        .metric-block { padding: 0 18px 0 0; border-right: 1px solid rgba(255,255,255,0.15); }
+        .metric-block { padding: 0 18px 0 0; border-right: 1px solid var(--border-light); }
         .metric-block:last-child { border-right: none; padding-right: 0; }
         .metric-block:not(:first-child) { padding-left: 18px; }
 
-        .m-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(255,255,255,0.6); margin-bottom: 7px; }
-        .m-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
-        .m-value.empty { color: rgba(255,255,255,0.25); font-size: 1.1rem; font-weight: 400; }
+        .m-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 7px; }
+        .m-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .m-value.empty { color: #ddd; font-size: 1.1rem; font-weight: 400; }
 
         .m-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 0.71rem; font-weight: 600; margin-top: 6px; padding: 2px 7px; border-radius: 20px; }
-        .m-delta.up   { background: rgba(255,255,255,0.2); color: #a8ffb0; }
-        .m-delta.down { background: rgba(0,0,0,0.2); color: #ffb0b0; }
-        .m-delta.flat { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
-        .m-delta.none { color: rgba(255,255,255,0.4); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+        .m-delta.up   { background: var(--up-bg); color: var(--up); }
+        .m-delta.down { background: var(--dn-bg); color: var(--dn); }
+        .m-delta.flat { background: #f2f2f0; color: var(--text-muted); }
+        .m-delta.none { color: var(--text-muted); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
 
         /* ── CHART ── */
         .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 20px; margin-top: 11px; }
@@ -344,6 +344,119 @@
             border-radius: 20px; padding: 4px 12px;
             font-size: 0.71rem; font-weight: 600; color: var(--ig-dark);
             margin-bottom: 18px;
+        }
+
+        /* ── TOP VIDEOS ── */
+        .top-videos-section {
+            border-top: 1px solid rgba(255,255,255,0.12);
+            padding: 16px 20px 20px;
+        }
+        .tv-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .tv-title {
+            font-size: 0.67rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.1em; color: rgba(255,255,255,0.55);
+        }
+        .tv-tabs {
+            display: flex; gap: 4px;
+        }
+        .tv-tab {
+            padding: 3px 10px; border-radius: 20px; font-size: 0.68rem;
+            font-weight: 600; cursor: pointer; border: 1px solid rgba(255,255,255,0.2);
+            background: transparent; color: rgba(255,255,255,0.45);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: all 0.15s;
+        }
+        .tv-tab.active {
+            background: rgba(255,255,255,0.18); color: #fff;
+            border-color: rgba(255,255,255,0.3);
+        }
+        .tv-tab:hover:not(.active) { color: rgba(255,255,255,0.7); }
+
+        .tv-grid { display: flex; flex-direction: column; gap: 10px; }
+
+        /* Card with thumbnail (IG + YT) */
+        .tv-card {
+            display: flex; gap: 12px; align-items: flex-start;
+            background: rgba(0,0,0,0.18); border-radius: 10px;
+            padding: 11px 13px; transition: background 0.15s;
+        }
+        .tv-card:hover { background: rgba(0,0,0,0.28); }
+
+        .tv-thumb-wrap { position: relative; flex-shrink: 0; }
+        .tv-thumb {
+            width: 72px; height: 72px; border-radius: 8px;
+            object-fit: cover; display: block;
+            background: rgba(255,255,255,0.08);
+        }
+        .tv-rank {
+            position: absolute; top: -5px; left: -5px;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: rgba(255,255,255,0.95); color: #111;
+            font-size: 0.6rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .tv-thumb-placeholder {
+            width: 72px; height: 72px; border-radius: 8px;
+            background: rgba(255,255,255,0.08);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; flex-shrink: 0;
+        }
+
+        .tv-body { flex: 1; min-width: 0; }
+        .tv-caption {
+            font-size: 0.76rem; color: rgba(255,255,255,0.85);
+            line-height: 1.45; margin-bottom: 8px;
+            display: -webkit-box; -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .tv-caption.expanded { display: block; -webkit-line-clamp: unset; }
+        .tv-read-more {
+            font-size: 0.68rem; color: rgba(255,255,255,0.45);
+            cursor: pointer; background: none; border: none;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            padding: 0; margin-bottom: 8px; display: block;
+        }
+        .tv-read-more:hover { color: rgba(255,255,255,0.7); }
+
+        .tv-stats {
+            display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+        }
+        .tv-stat {
+            display: flex; align-items: center; gap: 4px;
+            font-size: 0.72rem; color: rgba(255,255,255,0.6);
+            font-variant-numeric: tabular-nums;
+        }
+        .tv-stat strong { color: #fff; font-weight: 600; }
+        .tv-link {
+            margin-left: auto; font-size: 0.68rem;
+            color: rgba(255,255,255,0.45); text-decoration: none;
+            white-space: nowrap; transition: color 0.15s;
+            display: flex; align-items: center; gap: 3px;
+        }
+        .tv-link:hover { color: #fff; }
+
+        /* TikTok card (no thumb) */
+        .tv-card-tt {
+            display: flex; gap: 10px; align-items: flex-start;
+            background: rgba(255,255,255,0.05); border-radius: 10px;
+            padding: 11px 13px; transition: background 0.15s;
+            border-left: 3px solid rgba(255,255,255,0.15);
+        }
+        .tv-card-tt:hover { background: rgba(255,255,255,0.09); }
+        .tv-rank-tt {
+            flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+            background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.7);
+            font-size: 0.62rem; font-weight: 800;
+            display: flex; align-items: center; justify-content: center;
+            margin-top: 1px;
+        }
+
+        .tv-empty {
+            font-size: 0.77rem; color: rgba(255,255,255,0.35);
+            font-style: italic; padding: 8px 0;
         }
 
         /* ── STATES ── */
@@ -392,9 +505,11 @@
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
     const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
     const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
+    const TOP_VIDEOS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
 
     let allData   = [];
     let clientMap = {};
+    let topVideosData = [];
     let growthChart = null;
     let sortCol = 'ig_followers';
     let sortDir = 'desc';
@@ -438,9 +553,10 @@
 
     /* ── Fetch ── */
     async function fetchAll() {
-        const [mr, cr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL)]);
+        const [mr, cr, tvr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL), fetch(TOP_VIDEOS_URL)]);
         allData = parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
+        topVideosData = parseCSV(await tvr.text());
     }
 
     function latestPerClient() {
@@ -640,6 +756,103 @@
         return `<div class="gains-bar"><span class="gains-bar-label">Today's Gains</span>${sections.join('')}${note}</div>`;
     }
 
+    /* ── Top Videos ── */
+    function getTopVideos(clientName, platform) {
+        // Get the latest scraped_date for this client+platform
+        const rows = topVideosData.filter(r => r.client_name === clientName && r.platform === platform);
+        if (!rows.length) return { week: [], month: [] };
+        const latestDate = rows.map(r => r.scraped_date).sort().reverse()[0];
+        const latest = rows.filter(r => r.scraped_date === latestDate);
+        return {
+            week:  latest.filter(r => r.period === 'week').sort((a,b) => Number(a.rank) - Number(b.rank)),
+            month: latest.filter(r => r.period === 'month').sort((a,b) => Number(a.rank) - Number(b.rank))
+        };
+    }
+
+    function fmtStat(v) {
+        const x = Number(v);
+        if (!x || isNaN(x)) return '0';
+        if (x >= 1e6) return (x/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+        if (x >= 1e3) return (x/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+        return x.toLocaleString();
+    }
+
+    function tvCaption(text, uid) {
+        if (!text) return '';
+        const short = text.length > 120;
+        const preview = short ? text.substring(0, 120).trimEnd() + '…' : text;
+        return `<div class="tv-caption" id="cap-${uid}">${preview.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+        ${short ? `<button class="tv-read-more" onclick="(function(b){const c=document.getElementById('cap-${uid}');const exp=c.classList.toggle('expanded');b.textContent=exp?'show less':'read more';})(this)">read more</button>` : ''}`;
+    }
+
+    function tvStats(row, platform) {
+        const parts = [];
+        if (Number(row.views))    parts.push(`<span class="tv-stat">👁 <strong>${fmtStat(row.views)}</strong></span>`);
+        if (Number(row.likes))    parts.push(`<span class="tv-stat">♥ <strong>${fmtStat(row.likes)}</strong></span>`);
+        if (Number(row.comments)) parts.push(`<span class="tv-stat">💬 <strong>${fmtStat(row.comments)}</strong></span>`);
+        if (Number(row.shares) && platform === 'tiktok') parts.push(`<span class="tv-stat">↗ <strong>${fmtStat(row.shares)}</strong></span>`);
+        return parts.join('');
+    }
+
+    function renderTopVideoCard(row, platform, idx) {
+        const uid = `${platform}-${row.period}-${row.rank}-${idx}`;
+        const link = row.video_url ? `<a class="tv-link" href="${row.video_url}" target="_blank" rel="noopener">Watch ↗</a>` : '';
+
+        if (platform === 'tiktok') {
+            return `<div class="tv-card-tt">
+                <div class="tv-rank-tt">${row.rank}</div>
+                <div class="tv-body">
+                    ${tvCaption(row.caption, uid)}
+                    <div class="tv-stats">${tvStats(row, platform)}${link}</div>
+                </div>
+            </div>`;
+        }
+
+        const thumb = row.thumbnail_url
+            ? `<img class="tv-thumb" src="${row.thumbnail_url}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            : `<div class="tv-thumb-placeholder">🎬</div>`;
+
+        return `<div class="tv-card">
+            <div class="tv-thumb-wrap">
+                ${thumb}
+                <div class="tv-rank">${row.rank}</div>
+            </div>
+            <div class="tv-body">
+                ${tvCaption(row.caption, uid)}
+                <div class="tv-stats">${tvStats(row, platform)}${link}</div>
+            </div>
+        </div>`;
+    }
+
+    function renderTopVideosSection(clientName, platform, sectionId) {
+        const { week, month } = getTopVideos(clientName, platform);
+        if (!week.length && !month.length) return '';
+
+        const renderList = (rows) => rows.length
+            ? rows.map((r, i) => renderTopVideoCard(r, platform, i)).join('')
+            : `<div class="tv-empty">No data for this period yet.</div>`;
+
+        return `
+        <div class="top-videos-section">
+            <div class="tv-header">
+                <span class="tv-title">Top Videos</span>
+                <div class="tv-tabs">
+                    <button class="tv-tab active" onclick="tvSwitch('${sectionId}','week',this)">This Week</button>
+                    <button class="tv-tab" onclick="tvSwitch('${sectionId}','month',this)">This Month</button>
+                </div>
+            </div>
+            <div id="${sectionId}-week" class="tv-grid">${renderList(week)}</div>
+            <div id="${sectionId}-month" class="tv-grid" style="display:none">${renderList(month)}</div>
+        </div>`;
+    }
+
+    function tvSwitch(sectionId, period, btn) {
+        document.getElementById(sectionId+'-week').style.display  = period === 'week'  ? '' : 'none';
+        document.getElementById(sectionId+'-month').style.display = period === 'month' ? '' : 'none';
+        btn.closest('.tv-tabs').querySelectorAll('.tv-tab').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+
     /* ── Single Client ── */
     function renderClient(name, history, clientOnly) {
         const today = history[history.length - 1];
@@ -689,6 +902,7 @@
                         ${mBlock('Avg Likes',       today, prev, 'ig_avg_likes')}
                     ` : noData}
                 </div>
+                ${renderTopVideosSection(name, 'instagram', 'tv-ig')}
             </div>
             <div class="platform-section tt">
                 <div class="platform-section-header">
@@ -702,6 +916,7 @@
                         ${mBlock('Avg Views',       today, prev, 'tiktok_avg_plays')}
                     ` : noData}
                 </div>
+                ${renderTopVideosSection(name, 'tiktok', 'tv-tt')}
             </div>
             <div class="platform-section yt">
                 <div class="platform-section-header">
@@ -714,6 +929,7 @@
                         ${mBlock('Total Views',       today, prev, 'yt_total_views')}
                     ` : noData}
                 </div>
+                ${renderTopVideosSection(name, 'youtube', 'tv-yt')}
             </div>
             <div class="chart-section">
                 <div class="chart-top">

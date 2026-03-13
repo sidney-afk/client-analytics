@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
     <title>SyncView</title>
     <link rel="icon" type="image/png" href="syncview-favicon.png">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -983,7 +984,7 @@
         return `
         <a class="video-card" href="${videoUrl}" target="_blank" rel="noopener">
             <div class="video-card-thumb">
-                ${thumbUrl ? `<img src="${thumbUrl}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+                ${thumbUrl ? `<img src="${thumbUrl}" alt="" loading="lazy" referrerpolicy="no-referrer" crossorigin="anonymous" onerror="this.style.display='none'">` : ''}
                 <div class="video-rank-badge">#${n(v.rank)}</div>
             </div>
             <div class="video-card-body">

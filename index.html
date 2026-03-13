@@ -180,7 +180,6 @@
         .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); border-bottom-color: var(--tt-mid); }
         .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); border-bottom-color: var(--yt-mid); }
 
-        /* platform group header */
         .overview-table th.group-ig {
             color: var(--ig-dark); background: var(--ig-light);
             border-bottom: 1px solid var(--ig-mid);
@@ -234,14 +233,13 @@
         .g-down { color: var(--dn); font-size: 0.73rem; font-weight: 600; }
         .g-none { color: #d8d8d3; font-size: 0.73rem; }
 
-        /* col widths */
         .col-name { width: 130px; }
         .col-date { width: 80px; }
         .col-num  { width: 80px; }
         .col-gain { width: 60px; }
 
         /* ── CLIENT DETAIL ── */
-        .client-view { animation: fadeIn 0.15s ease; max-width: 980px; }
+        .client-view { animation: fadeIn 0.15s ease; max-width: 980px; margin: 0 auto; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
         .detail-hero {
@@ -285,48 +283,290 @@
         .gains-divider { width: 1px; height: 24px; background: var(--border-light); margin: 0 12px; flex-shrink: 0; }
 
         /* ── PLATFORM SECTIONS ── */
-        .platform-section { margin-bottom: 11px; border-radius: 11px; overflow: hidden; border: 1px solid; }
-        .platform-section.ig { border-color: var(--ig-mid); }
-        .platform-section.tt { border-color: var(--tt-mid); }
-        .platform-section.yt { border-color: var(--yt-mid); }
+        .platform-section { margin-bottom: 11px; border-radius: 14px; overflow: hidden; border: none; }
+        .platform-section.ig { background: linear-gradient(135deg, #c9006a 0%, #e8510a 100%); }
+        .platform-section.tt { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a4a 60%, #0d1a3a 100%); }
+        .platform-section.yt { background: linear-gradient(135deg, #7a0000 0%, #cc0000 60%, #a00000 100%); }
 
-        .platform-section-header { padding: 11px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid; }
-        .ig .platform-section-header { background: var(--ig-light); border-color: var(--ig-mid); }
-        .tt .platform-section-header { background: var(--tt-light); border-color: var(--tt-mid); }
-        .yt .platform-section-header { background: var(--yt-light); border-color: var(--yt-mid); }
+        .platform-section-header { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.12); }
 
-        .platform-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.82rem; }
-        .ig .platform-name { color: var(--ig-dark); }
-        .tt .platform-name { color: var(--tt-dark); }
-        .yt .platform-name { color: var(--yt-dark); }
-        .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .ig .platform-pill { background: var(--ig); }
-        .tt .platform-pill { background: #666; }
-        .yt .platform-pill { background: var(--yt); }
+        .platform-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.82rem; color: #fff; }
+        .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: rgba(255,255,255,0.7); }
 
-        .platform-handle-link { font-size: 0.71rem; color: var(--text-muted); font-weight: 400; text-decoration: none; transition: color 0.15s; }
-        .ig .platform-handle-link:hover { color: var(--ig); }
-        .tt .platform-handle-link:hover { color: var(--tt-dark); }
-        .yt .platform-handle-link:hover { color: var(--yt); }
+        .platform-handle-link { font-size: 0.71rem; color: rgba(255,255,255,0.6); font-weight: 400; text-decoration: none; transition: color 0.15s; }
+        .platform-handle-link:hover { color: #fff; }
 
-        .metrics-row { display: grid; padding: 16px 18px; background: var(--white); }
+        .metrics-row { display: grid; padding: 18px 20px 20px; background: transparent; }
         .ig .metrics-row { grid-template-columns: repeat(4, 1fr); }
         .tt .metrics-row { grid-template-columns: repeat(3, 1fr); }
         .yt .metrics-row { grid-template-columns: repeat(2, 1fr); }
 
-        .metric-block { padding: 0 18px 0 0; border-right: 1px solid var(--border-light); }
+        .metric-block { padding: 0 18px 0 0; border-right: 1px solid rgba(255,255,255,0.15); }
         .metric-block:last-child { border-right: none; padding-right: 0; }
         .metric-block:not(:first-child) { padding-left: 18px; }
 
-        .m-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 7px; }
-        .m-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-        .m-value.empty { color: #ddd; font-size: 1.1rem; font-weight: 400; }
+        .m-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(255,255,255,0.6); margin-bottom: 7px; }
+        .m-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: #fff; font-variant-numeric: tabular-nums; }
+        .m-value.empty { color: rgba(255,255,255,0.25); font-size: 1.1rem; font-weight: 400; }
 
         .m-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 0.71rem; font-weight: 600; margin-top: 6px; padding: 2px 7px; border-radius: 20px; }
-        .m-delta.up   { background: var(--up-bg); color: var(--up); }
-        .m-delta.down { background: var(--dn-bg); color: var(--dn); }
-        .m-delta.flat { background: #f2f2f0; color: var(--text-muted); }
-        .m-delta.none { color: var(--text-muted); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+        .m-delta.up   { background: rgba(255,255,255,0.2); color: #a8ffb0; }
+        .m-delta.down { background: rgba(0,0,0,0.2); color: #ffb0b0; }
+        .m-delta.flat { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
+        .m-delta.none { color: rgba(255,255,255,0.4); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+
+        /* ── TOP VIDEOS SECTION (inside platform cards) ── */
+        .top-videos-section {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding: 16px 20px 20px;
+        }
+        .top-videos-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            gap: 10px;
+        }
+        .top-videos-title {
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            color: rgba(255,255,255,0.55);
+        }
+        .period-toggle {
+            display: flex;
+            gap: 0;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.15);
+        }
+        .period-btn {
+            padding: 5px 14px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            background: rgba(255,255,255,0.06);
+            color: rgba(255,255,255,0.45);
+            transition: all 0.15s;
+        }
+        .period-btn:hover { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.7); }
+        .period-btn.active {
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+        }
+
+        /* Video cards container: horizontal scroll */
+        .video-cards-scroll {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+            scroll-snap-type: x proximity;
+            -webkit-overflow-scrolling: touch;
+        }
+        .video-cards-scroll::-webkit-scrollbar { height: 4px; }
+        .video-cards-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
+        .video-cards-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+        .video-cards-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+        /* ── Video card WITH thumbnail (IG, YT) ── */
+        .video-card {
+            flex: 0 0 280px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: row;
+            scroll-snap-align: start;
+            transition: background 0.15s, border-color 0.15s;
+            text-decoration: none;
+        }
+        .video-card:hover {
+            background: rgba(255,255,255,0.13);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .video-card-thumb {
+            width: 90px;
+            min-height: 120px;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        .video-card-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .video-rank-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: rgba(0,0,0,0.65);
+            backdrop-filter: blur(6px);
+            color: #fff;
+            font-size: 0.6rem;
+            font-weight: 800;
+            padding: 2px 7px;
+            border-radius: 5px;
+            letter-spacing: 0.02em;
+        }
+
+        .video-card-body {
+            flex: 1;
+            padding: 10px 12px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-width: 0;
+        }
+
+        .video-caption {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.85);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .video-caption-full {
+            -webkit-line-clamp: unset;
+        }
+        .read-more-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.45);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.64rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            margin-bottom: 8px;
+            text-align: left;
+            transition: color 0.15s;
+        }
+        .read-more-btn:hover { color: rgba(255,255,255,0.7); }
+
+        .video-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3px 10px;
+        }
+        .video-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .video-stat-icon {
+            flex-shrink: 0;
+            opacity: 0.45;
+        }
+        .video-stat-val {
+            font-size: 0.69rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.9);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .video-link-arrow {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.12);
+            flex-shrink: 0;
+            margin-top: auto;
+            align-self: flex-end;
+            transition: background 0.15s;
+        }
+        .video-card:hover .video-link-arrow { background: rgba(255,255,255,0.22); }
+
+        /* ── Video card WITHOUT thumbnail (TikTok) ── */
+        .video-card-tt {
+            flex: 0 0 220px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            scroll-snap-align: start;
+            transition: background 0.15s, border-color 0.15s;
+            text-decoration: none;
+            position: relative;
+        }
+        .video-card-tt:hover {
+            background: rgba(255,255,255,0.12);
+            border-color: rgba(255,255,255,0.2);
+        }
+
+        .tt-rank-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.6);
+            font-size: 0.6rem;
+            font-weight: 800;
+            padding: 3px 8px;
+            border-radius: 5px;
+            letter-spacing: 0.02em;
+            margin-bottom: 8px;
+            width: fit-content;
+        }
+
+        .tt-caption {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.8);
+            line-height: 1.4;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            margin-bottom: 10px;
+            flex: 1;
+        }
+        .tt-caption-full { -webkit-line-clamp: unset; }
+
+        .tt-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px 8px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+        .tt-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .tt-stat-icon { flex-shrink: 0; opacity: 0.4; }
+        .tt-stat-val {
+            font-size: 0.69rem;
+            font-weight: 700;
+            color: rgba(255,255,255,0.85);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .top-videos-empty {
+            padding: 18px 0;
+            text-align: center;
+            color: rgba(255,255,255,0.35);
+            font-size: 0.78rem;
+            font-style: italic;
+        }
 
         /* ── CHART ── */
         .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 20px; margin-top: 11px; }
@@ -353,132 +593,11 @@
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .error-state { background: var(--white); border: 1px solid #fecaca; border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
 
-        /* ── TOP VIDEOS ── */
-        .tv-section {
-            border-top: 1px solid rgba(255,255,255,0.12);
-            padding: 16px 20px 20px;
-        }
-        .tv-header {
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 14px;
-        }
-        .tv-label {
-            font-size: 0.63rem; font-weight: 700; text-transform: uppercase;
-            letter-spacing: 0.12em; color: rgba(255,255,255,0.45);
-        }
-        .tv-tabs {
-            display: flex; gap: 3px;
-            background: rgba(0,0,0,0.25); border-radius: 20px; padding: 3px;
-        }
-        .tv-tab {
-            padding: 4px 13px; border-radius: 16px;
-            font-size: 0.68rem; font-weight: 700;
-            cursor: pointer; border: none; background: transparent;
-            color: rgba(255,255,255,0.45); transition: all 0.15s;
-            font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: 0.02em;
-        }
-        .tv-tab.active { background: rgba(255,255,255,0.18); color: #fff; }
-
-        .tv-scroll {
-            display: flex; gap: 10px;
-            overflow-x: auto; padding-bottom: 2px;
-            scrollbar-width: none;
-        }
-        .tv-scroll::-webkit-scrollbar { display: none; }
-
-        /* Instagram card — portrait */
-        .tv-card-ig {
-            flex: 0 0 148px; border-radius: 12px; overflow: hidden;
-            background: rgba(0,0,0,0.3); position: relative;
-            cursor: pointer; transition: transform 0.18s;
-            text-decoration: none; display: block;
-        }
-        .tv-card-ig:hover { transform: translateY(-3px); }
-
-        .tv-thumb-ig {
-            width: 100%; aspect-ratio: 9/16; object-fit: cover;
-            display: block; background: rgba(255,255,255,0.06);
-        }
-        .tv-thumb-ig-empty {
-            width: 100%; aspect-ratio: 9/16;
-            background: rgba(255,255,255,0.06);
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        /* TikTok card — no thumb */
-        .tv-card-tt {
-            flex: 0 0 196px; border-radius: 12px;
-            background: rgba(255,255,255,0.07);
-            border: 1px solid rgba(255,255,255,0.1);
-            padding: 14px; cursor: pointer;
-            transition: all 0.18s; position: relative;
-            text-decoration: none; display: block;
-        }
-        .tv-card-tt:hover { background: rgba(255,255,255,0.12); transform: translateY(-3px); }
-
-        .tv-tt-icon {
-            width: 34px; height: 34px; border-radius: 9px;
-            background: rgba(255,255,255,0.1);
-            display: flex; align-items: center; justify-content: center;
-            margin-bottom: 10px;
-        }
-
-        /* YouTube card — landscape */
-        .tv-card-yt {
-            flex: 0 0 210px; border-radius: 12px; overflow: hidden;
-            background: rgba(0,0,0,0.3); position: relative;
-            cursor: pointer; transition: transform 0.18s;
-            text-decoration: none; display: block;
-        }
-        .tv-card-yt:hover { transform: translateY(-3px); }
-
-        .tv-thumb-yt {
-            width: 100%; aspect-ratio: 16/9; object-fit: cover;
-            display: block; background: rgba(255,255,255,0.06);
-        }
-        .tv-thumb-yt-empty {
-            width: 100%; aspect-ratio: 16/9;
-            background: rgba(255,255,255,0.06);
-            display: flex; align-items: center; justify-content: center;
-        }
-
-        /* Shared card internals */
-        .tv-card-body { padding: 10px; }
-        .tv-rank-badge {
-            position: absolute; top: 8px; left: 8px;
-            width: 20px; height: 20px; border-radius: 50%;
-            background: rgba(0,0,0,0.55); backdrop-filter: blur(6px);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.6rem; font-weight: 800; color: #fff; line-height: 1;
-        }
-        .tv-rank-inline {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 18px; height: 18px; border-radius: 50%;
-            background: rgba(255,255,255,0.15);
-            font-size: 0.6rem; font-weight: 800; color: #fff;
-            margin-bottom: 8px; flex-shrink: 0;
-        }
-        .tv-caption {
-            font-size: 0.69rem; line-height: 1.45;
-            color: rgba(255,255,255,0.78); margin-bottom: 9px;
-        }
-        .tv-read-more {
-            color: rgba(255,255,255,0.4); cursor: pointer;
-            font-size: 0.64rem; text-decoration: underline;
-            background: none; border: none; font-family: inherit;
-            padding: 0;
-        }
-        .tv-stats {
-            display: flex; flex-wrap: wrap; gap: 6px 10px;
-        }
-        .tv-stat {
-            display: flex; align-items: center; gap: 3px;
-            font-size: 0.62rem; color: rgba(255,255,255,0.5); font-weight: 500;
-        }
-        .tv-stat b { color: rgba(255,255,255,0.85); font-weight: 700; }
-        .tv-no-data {
-            color: rgba(255,255,255,0.3); font-size: 0.76rem;
-            font-style: italic; padding: 8px 0;
+        /* ── Responsive ── */
+        @media (max-width: 700px) {
+            .video-card { flex: 0 0 250px; }
+            .video-card-tt { flex: 0 0 200px; }
+            .video-card-thumb { width: 76px; min-height: 100px; }
         }
     </style>
 </head>
@@ -518,16 +637,21 @@
 
 <script>
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
-    const METRICS_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
-    const CLIENTS_URL    = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
-    const TOP_VIDEOS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
+    const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
+    const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
+    const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
 
     let allData   = [];
     let clientMap = {};
-    let topVideosData = [];
+    let topVideos = [];
     let growthChart = null;
     let sortCol = 'ig_followers';
     let sortDir = 'desc';
+
+    // Track active period per platform per client
+    let activePeriods = {};
+    function getPeriodKey(client, platform) { return `${client}__${platform}`; }
+    function getActivePeriod(client, platform) { return activePeriods[getPeriodKey(client, platform)] || 'week'; }
 
     /* ── CSV ── */
     function splitLine(line) {
@@ -561,17 +685,32 @@
         return x.toLocaleString();
     }
     function fmtDate(d) {
-        if (!d) return '—';
+        if (!d) return '';
         const p = d.split('-');
         return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
     }
+    function fmtCompact(v) {
+        const x = n(v);
+        if (!x) return '0';
+        if (x >= 1e6) return (x/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+        if (x >= 1e3) return (x/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+        return x.toLocaleString();
+    }
+
+    /* ── SVG icons for stats ── */
+    const ICON = {
+        views: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.5"/></svg>`,
+        likes: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 14s-5.5-3.5-5.5-7A3.5 3.5 0 0 1 8 4.5 3.5 3.5 0 0 1 13.5 7C13.5 10.5 8 14 8 14z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        comments: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v8H5l-3 3V3z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        shares: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 9l4-5 4 5M8 4v9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    };
 
     /* ── Fetch ── */
     async function fetchAll() {
-        const [mr, cr, tvr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL), fetch(TOP_VIDEOS_URL)]);
+        const [mr, cr, tr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL), fetch(TOPVIDS_URL)]);
         allData = parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
-        try { topVideosData = parseCSV(await tvr.text()); } catch(e) { topVideosData = []; }
+        topVideos = parseCSV(await tr.text());
     }
 
     function latestPerClient() {
@@ -597,6 +736,19 @@
         [...new Set(allData.map(r => r.client_name))].sort().forEach(c => {
             const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
         });
+    }
+
+    /* ── Top Videos helpers ── */
+    function getTopVideos(clientName, platform, period) {
+        const plat = platform.toLowerCase();
+        const per  = period.toLowerCase();
+        return topVideos
+            .filter(v =>
+                v.client_name === clientName &&
+                (v.platform || '').toLowerCase() === plat &&
+                (v.period || '').toLowerCase().includes(per)
+            )
+            .sort((a,b) => n(a.rank) - n(b.rank));
     }
 
     /* ── Sort ── */
@@ -771,128 +923,133 @@
         return `<div class="gains-bar"><span class="gains-bar-label">Today's Gains</span>${sections.join('')}${note}</div>`;
     }
 
-    /* ── Top Videos helpers ── */
-    function truncCaption(text, max = 90) {
-        if (!text) return { short: '', truncated: false };
-        const clean = text.replace(/\n/g, ' ').trim();
-        // Try to break at a sentence boundary
-        const sentMatch = clean.match(/^.{20,}?[.!?](?:\s|$)/);
-        const cutAt = sentMatch ? sentMatch[0].length : max;
-        const breakAt = Math.min(cutAt, max);
-        if (clean.length <= breakAt + 15) return { short: clean, truncated: false };
-        return { short: clean.substring(0, breakAt).trim(), truncated: true, full: clean };
-    }
+    /* ── Top Videos HTML builder ── */
+    function buildTopVideosSection(clientName, platform, containerId) {
+        const period = getActivePeriod(clientName, platform);
+        const videos = getTopVideos(clientName, platform, period);
+        const isTikTok = platform.toLowerCase() === 'tiktok';
 
-    function tvStat(icon, val) {
-        const f = fmt(val) || (Number(val) > 0 ? Number(val).toLocaleString() : null);
-        if (!f) return '';
-        return `<div class="tv-stat">${icon} <b>${f}</b></div>`;
-    }
+        const weekActive = period === 'week' ? 'active' : '';
+        const monthActive = period === 'month' ? 'active' : '';
 
-    function switchTvTab(uid, period) {
-        const wrap = document.getElementById('tv-' + uid);
-        if (!wrap) return;
-        wrap.querySelectorAll('.tv-tab').forEach(t => t.classList.toggle('active', t.dataset.period === period));
-        wrap.querySelectorAll('.tv-period').forEach(p => p.style.display = p.dataset.period === period ? 'flex' : 'none');
-    }
+        const weekVideos = getTopVideos(clientName, platform, 'week');
+        const monthVideos = getTopVideos(clientName, platform, 'month');
+        const hasAnyData = weekVideos.length > 0 || monthVideos.length > 0;
 
-    function expandCaption(btnEl, full) {
-        const cap = btnEl.previousElementSibling;
-        if (cap) cap.textContent = full;
-        btnEl.style.display = 'none';
-    }
+        if (!hasAnyData) return '';
 
-    function renderTopVideos(clientName, platform) {
-        const uid = platform + '-' + clientName.replace(/\s+/g, '_');
-        const rows = topVideosData.filter(r => r.client_name === clientName && r.platform === platform);
-        if (!rows.length) return '';
-
-        const weekRows  = rows.filter(r => r.period === 'week').sort((a,b) => Number(a.rank) - Number(b.rank));
-        const monthRows = rows.filter(r => r.period === 'month').sort((a,b) => Number(a.rank) - Number(b.rank));
-        if (!weekRows.length && !monthRows.length) return '';
-
-        function igCard(r) {
-            const cap = truncCaption(r.caption);
-            const readMore = cap.truncated
-                ? `<button class="tv-read-more" onclick="event.preventDefault();expandCaption(this,'${(cap.full||'').replace(/'/g,"&#39;")}')">read more</button>`
-                : '';
-            const thumb = r.thumbnail_url
-                ? `<img class="tv-thumb-ig" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.style.display='none'">`
-                : `<div class="tv-thumb-ig-empty"><svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14" stroke="rgba(255,255,255,0.2)" stroke-width="1.5" stroke-linecap="round"/></svg></div>`;
-            return `<a class="tv-card-ig" href="${r.video_url || '#'}" target="_blank" rel="noopener">
-                ${thumb}
-                <div class="tv-rank-badge">${r.rank}</div>
-                <div class="tv-card-body">
-                    <p class="tv-caption">${cap.short}</p>${readMore}
-                    <div class="tv-stats">
-                        ${tvStat('👁', r.views)}
-                        ${tvStat('❤️', r.likes)}
-                        ${tvStat('💬', r.comments)}
-                    </div>
-                </div>
-            </a>`;
+        let cardsHtml = '';
+        if (!videos.length) {
+            cardsHtml = `<div class="top-videos-empty">No top videos for this period yet</div>`;
+        } else if (isTikTok) {
+            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildTTCard(v)).join('')}</div>`;
+        } else {
+            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildThumbCard(v)).join('')}</div>`;
         }
 
-        function ttCard(r) {
-            const cap = truncCaption(r.caption);
-            const readMore = cap.truncated
-                ? `<button class="tv-read-more" onclick="event.preventDefault();expandCaption(this,'${(cap.full||'').replace(/'/g,"&#39;")}')">read more</button>`
-                : '';
-            return `<a class="tv-card-tt" href="${r.video_url || '#'}" target="_blank" rel="noopener">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-                    <div class="tv-tt-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="rgba(255,255,255,0.7)"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.78 1.52V6.76a4.85 4.85 0 01-1.01-.07z"/></svg>
-                    </div>
-                    <div class="tv-rank-inline">${r.rank}</div>
-                </div>
-                <p class="tv-caption">${cap.short}</p>${readMore}
-                <div class="tv-stats">
-                    ${tvStat('▶', r.views)}
-                    ${tvStat('❤️', r.likes)}
-                    ${tvStat('💬', r.comments)}
-                    ${tvStat('↗', r.shares)}
-                </div>
-            </a>`;
-        }
-
-        function ytCard(r) {
-            const cap = truncCaption(r.caption, 80);
-            const readMore = cap.truncated
-                ? `<button class="tv-read-more" onclick="event.preventDefault();expandCaption(this,'${(cap.full||'').replace(/'/g,"&#39;")}')">read more</button>`
-                : '';
-            const thumb = r.thumbnail_url
-                ? `<img class="tv-thumb-yt" src="${r.thumbnail_url}" alt="" loading="lazy" onerror="this.style.display='none'">`
-                : `<div class="tv-thumb-yt-empty"><svg width="20" height="14" fill="none" viewBox="0 0 24 24"><path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/></svg></div>`;
-            return `<a class="tv-card-yt" href="${r.video_url || '#'}" target="_blank" rel="noopener">
-                ${thumb}
-                <div class="tv-rank-badge">${r.rank}</div>
-                <div class="tv-card-body">
-                    <p class="tv-caption">${cap.short}</p>${readMore}
-                    <div class="tv-stats">
-                        ${tvStat('👁', r.views)}
-                        ${tvStat('❤️', r.likes)}
-                        ${tvStat('💬', r.comments)}
-                    </div>
-                </div>
-            </a>`;
-        }
-
-        const cardFn = platform === 'instagram' ? igCard : platform === 'tiktok' ? ttCard : ytCard;
-
-        const weekHtml  = weekRows.length  ? weekRows.map(cardFn).join('')  : `<p class="tv-no-data">No data yet for this week</p>`;
-        const monthHtml = monthRows.length ? monthRows.map(cardFn).join('') : `<p class="tv-no-data">No data yet for this month</p>`;
-
-        return `<div class="tv-section" id="tv-${uid}">
-            <div class="tv-header">
-                <span class="tv-label">Top Content</span>
-                <div class="tv-tabs">
-                    <button class="tv-tab active" data-period="week" onclick="switchTvTab('${uid}','week')">This Week</button>
-                    <button class="tv-tab" data-period="month" onclick="switchTvTab('${uid}','month')">This Month</button>
+        return `
+        <div class="top-videos-section" id="${containerId}">
+            <div class="top-videos-head">
+                <span class="top-videos-title">Top Performing</span>
+                <div class="period-toggle">
+                    <button class="period-btn ${weekActive}" onclick="switchPeriod('${clientName}','${platform}','week','${containerId}')">Week</button>
+                    <button class="period-btn ${monthActive}" onclick="switchPeriod('${clientName}','${platform}','month','${containerId}')">Month</button>
                 </div>
             </div>
-            <div class="tv-period tv-scroll" data-period="week" style="display:flex">${weekHtml}</div>
-            <div class="tv-period tv-scroll" data-period="month" style="display:none">${monthHtml}</div>
+            ${cardsHtml}
         </div>`;
+    }
+
+    function truncateCaption(caption) {
+        if (!caption) return '';
+        // Split on sentence boundaries and take first ~120 chars or 2 sentences
+        const sentences = caption.match(/[^.!?]+[.!?]+/g) || [caption];
+        let result = '';
+        for (let i = 0; i < Math.min(2, sentences.length); i++) {
+            if ((result + sentences[i]).length > 130 && result.length > 0) break;
+            result += sentences[i];
+        }
+        return result.trim() || caption.substring(0, 120);
+    }
+
+    function buildThumbCard(v) {
+        const caption = v.caption || '';
+        const truncated = truncateCaption(caption);
+        const needsReadMore = caption.length > truncated.length + 5;
+        const uid = 'vc_' + Math.random().toString(36).substring(2, 9);
+        const thumbUrl = v.thumbnail_url || '';
+        const videoUrl = v.video_url || '#';
+
+        return `
+        <a class="video-card" href="${videoUrl}" target="_blank" rel="noopener">
+            <div class="video-card-thumb">
+                ${thumbUrl ? `<img src="${thumbUrl}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+                <div class="video-rank-badge">#${n(v.rank)}</div>
+            </div>
+            <div class="video-card-body">
+                <div>
+                    <div class="video-caption" id="${uid}">${truncated}</div>
+                    ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this,\`${caption.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`,\`${truncated.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`)">read more</button>` : ''}
+                </div>
+                <div class="video-stats">
+                    <div class="video-stat"><span class="video-stat-icon">${ICON.views}</span><span class="video-stat-val">${fmtCompact(v.views)}</span></div>
+                    <div class="video-stat"><span class="video-stat-icon">${ICON.likes}</span><span class="video-stat-val">${fmtCompact(v.likes)}</span></div>
+                    <div class="video-stat"><span class="video-stat-icon">${ICON.comments}</span><span class="video-stat-val">${fmtCompact(v.comments)}</span></div>
+                    <div class="video-stat"><span class="video-stat-icon">${ICON.shares}</span><span class="video-stat-val">${fmtCompact(v.shares)}</span></div>
+                </div>
+            </div>
+        </a>`;
+    }
+
+    function buildTTCard(v) {
+        const caption = v.caption || '';
+        const truncated = truncateCaption(caption);
+        const needsReadMore = caption.length > truncated.length + 5;
+        const uid = 'tc_' + Math.random().toString(36).substring(2, 9);
+        const videoUrl = v.video_url || '#';
+
+        return `
+        <a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener">
+            <div class="tt-rank-badge">#${n(v.rank)}</div>
+            <div class="tt-caption" id="${uid}">${truncated}</div>
+            ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this,\`${caption.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`,\`${truncated.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`)" style="margin-top:-4px">read more</button>` : ''}
+            <div class="tt-stats">
+                <div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span><span class="tt-stat-val">${fmtCompact(v.views)}</span></div>
+                <div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div>
+                <div class="tt-stat"><span class="tt-stat-icon">${ICON.comments}</span><span class="tt-stat-val">${fmtCompact(v.comments)}</span></div>
+                <div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>
+            </div>
+        </a>`;
+    }
+
+    /* ── Toggle caption ── */
+    function toggleCaption(uid, btn, full, short) {
+        const el = document.getElementById(uid);
+        if (!el) return;
+        const isExpanded = el.classList.contains('video-caption-full') || el.classList.contains('tt-caption-full');
+        if (isExpanded) {
+            el.classList.remove('video-caption-full', 'tt-caption-full');
+            el.textContent = short;
+            btn.textContent = 'read more';
+        } else {
+            el.classList.add('video-caption-full', 'tt-caption-full');
+            el.textContent = full;
+            btn.textContent = 'show less';
+        }
+    }
+
+    /* ── Switch period ── */
+    function switchPeriod(clientName, platform, period, containerId) {
+        activePeriods[getPeriodKey(clientName, platform)] = period;
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const parent = container.parentElement;
+        const newHtml = buildTopVideosSection(clientName, platform, containerId);
+        const temp = document.createElement('div');
+        temp.innerHTML = newHtml;
+        if (temp.firstElementChild) {
+            container.replaceWith(temp.firstElementChild);
+        }
     }
 
     /* ── Single Client ── */
@@ -920,6 +1077,11 @@
                 Share with client
             </button>` : '';
 
+        // Build top videos sections for each platform
+        const igTopVids = buildTopVideosSection(name, 'instagram', `tv-ig-${name.replace(/\s+/g,'_')}`);
+        const ttTopVids = buildTopVideosSection(name, 'tiktok',    `tv-tt-${name.replace(/\s+/g,'_')}`);
+        const ytTopVids = buildTopVideosSection(name, 'youtube',   `tv-yt-${name.replace(/\s+/g,'_')}`);
+
         return `
         <div class="client-view">
             ${clientOnly ? `<div class="client-only-badge">📊 Your Analytics Dashboard</div>` : ''}
@@ -944,7 +1106,7 @@
                         ${mBlock('Avg Likes',       today, prev, 'ig_avg_likes')}
                     ` : noData}
                 </div>
-                ${renderTopVideos(name, 'instagram')}
+                ${igTopVids}
             </div>
             <div class="platform-section tt">
                 <div class="platform-section-header">
@@ -958,7 +1120,7 @@
                         ${mBlock('Avg Views',       today, prev, 'tiktok_avg_plays')}
                     ` : noData}
                 </div>
-                ${renderTopVideos(name, 'tiktok')}
+                ${ttTopVids}
             </div>
             <div class="platform-section yt">
                 <div class="platform-section-header">
@@ -971,7 +1133,7 @@
                         ${mBlock('Total Views',       today, prev, 'yt_total_views')}
                     ` : noData}
                 </div>
-                ${renderTopVideos(name, 'youtube')}
+                ${ytTopVids}
             </div>
             <div class="chart-section">
                 <div class="chart-top">
@@ -1031,7 +1193,6 @@
     function render(sel, clientOnly) {
         const content = document.getElementById('content');
 
-        // Update back button
         const titleRow = document.getElementById('titleRow');
         const existingBack = titleRow.querySelector('.back-btn');
         if (sel !== 'all' && !clientOnly) {

@@ -52,7 +52,7 @@
         .header {
             background: var(--white);
             border-bottom: 1px solid var(--border);
-            padding: 0 40px;
+            padding: 0 32px;
             height: 60px;
             display: flex;
             align-items: center;
@@ -63,260 +63,294 @@
         }
         .logo { display: flex; align-items: center; gap: 9px; }
         .logo img { width: 25px; height: 25px; border-radius: 6px; }
-        .logo-text { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; color: var(--text-primary); }
-        .header-meta { font-size: 0.77rem; color: var(--text-muted); font-weight: 400; }
+        .logo-text { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
+        .header-meta { font-size: 0.77rem; color: var(--text-muted); }
 
         /* ── MAIN ── */
-        .main { max-width: 1100px; margin: 0 auto; padding: 36px 40px 80px; }
-
-        /* client-view uses wider max */
-        .main.wide { max-width: 1100px; }
+        .main { padding: 32px 32px 80px; }
 
         .page-top {
             display: flex;
             align-items: flex-end;
             justify-content: space-between;
-            gap: 24px;
+            gap: 20px;
             flex-wrap: wrap;
-            margin-bottom: 30px;
+            margin-bottom: 24px;
         }
-        .page-title { font-size: 1.75rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
-        .page-sub   { font-size: 0.83rem; color: var(--text-secondary); margin-top: 4px; font-weight: 400; }
+        .page-title-row { display: flex; align-items: center; gap: 12px; }
+        .back-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 12px;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+        }
+        .back-btn:hover { border-color: #aaa; color: var(--text-primary); }
 
-        /* ── SELECTOR (hidden in client-only mode) ── */
+        .page-title { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+        .page-sub   { font-size: 0.82rem; color: var(--text-secondary); margin-top: 3px; }
+
+        /* ── SELECTOR ── */
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
-        .selector-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
+        .selector-label { font-size: 0.71rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
         .client-select {
             appearance: none;
             background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 9px 34px 9px 13px;
+            padding: 9px 32px 9px 13px;
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-size: 0.87rem;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
-            min-width: 210px;
+            min-width: 200px;
         }
         .client-select:focus { outline: none; border-color: #aaa; }
 
-        /* ── OVERVIEW TABLE ── */
+        /* ── OVERVIEW CARD ── */
         .overview-wrap {
             background: var(--white);
             border: 1px solid var(--border);
             border-radius: 14px;
             overflow: hidden;
         }
+
+        /* ── OVERVIEW HEAD with filter pills ── */
         .overview-head {
-            padding: 16px 22px;
+            padding: 14px 20px;
             border-bottom: 1px solid var(--border-light);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
         }
         .section-label {
-            font-size: 0.68rem; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.11em; color: var(--text-muted);
+            font-size: 0.67rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.11em;
+            color: var(--text-muted); flex-shrink: 0;
         }
+        .pills { display: flex; gap: 6px; flex-wrap: wrap; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 4px 11px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.13s;
+            white-space: nowrap;
+            background: #f2f2f0;
+            color: var(--text-muted);
+        }
+        .pill:hover { background: #e8e8e5; color: var(--text-secondary); }
+        .pill.active-ig { background: var(--ig-light); color: var(--ig-dark); border-color: var(--ig-mid); }
+        .pill.active-tt { background: var(--tt-light); color: var(--tt-dark); border-color: var(--tt-mid); }
+        .pill.active-yt { background: var(--yt-light); color: var(--yt-dark); border-color: var(--yt-mid); }
+        .pill.active-name { background: #f0f0ff; color: #3b3bb0; border-color: #c7c7f0; }
+        .pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .pill-arrow { font-size: 0.65rem; opacity: 0.6; }
 
-        .overview-table { width: 100%; border-collapse: collapse; }
+        /* ── TABLE ── */
+        .overview-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+
         .overview-table th {
             padding: 8px 10px;
-            font-size: 0.64rem;
+            font-size: 0.63rem;
             font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.05em;
             background: #f9f9f7;
-            white-space: normal;
-            word-break: break-word;
             border-bottom: 1px solid var(--border-light);
             text-align: center;
+            vertical-align: bottom;
             line-height: 1.3;
-            min-width: 60px;
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.12s;
+            overflow: hidden;
         }
-        .overview-table th:first-child { text-align: left; min-width: 110px; cursor: default; }
-        .overview-table th:nth-child(2) { text-align: center; min-width: 70px; cursor: pointer; }
-        .overview-table th:hover:not(:first-child) { background: #f2f2ef; }
         .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); border-bottom-color: var(--ig-mid); }
         .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); border-bottom-color: var(--tt-mid); }
         .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); border-bottom-color: var(--yt-mid); }
-        .overview-table th.ig-h:hover { background: #fae8f0; }
-        .overview-table th.tt-h:hover { background: #ececec; }
-        .overview-table th.yt-h:hover { background: #ffe8e8; }
-        .overview-table th.sorted { opacity: 1; }
-        .sort-arrow { display: inline-block; margin-left: 3px; opacity: 0.5; font-size: 0.6rem; }
-        .sort-arrow.active { opacity: 1; }
+
+        /* platform group header */
+        .overview-table th.group-ig {
+            color: var(--ig-dark); background: var(--ig-light);
+            border-bottom: 1px solid var(--ig-mid);
+            border-left: 2px solid var(--ig-mid);
+            font-size: 0.7rem; letter-spacing: 0.08em;
+        }
+        .overview-table th.group-tt {
+            color: var(--tt-dark); background: var(--tt-light);
+            border-bottom: 1px solid var(--tt-mid);
+            border-left: 2px solid var(--tt-mid);
+            font-size: 0.7rem; letter-spacing: 0.08em;
+        }
+        .overview-table th.group-yt {
+            color: var(--yt-dark); background: var(--yt-light);
+            border-bottom: 1px solid var(--yt-mid);
+            border-left: 2px solid var(--yt-mid);
+            font-size: 0.7rem; letter-spacing: 0.08em;
+        }
+        .overview-table th.ig-h { border-left: 2px solid var(--ig-mid); }
+        .overview-table th.tt-h { border-left: 2px solid var(--tt-mid); }
+        .overview-table th.yt-h { border-left: 2px solid var(--yt-mid); }
+        .overview-table th.ig-h + .ig-h,
+        .overview-table th.tt-h + .tt-h,
+        .overview-table th.yt-h + .yt-h { border-left: none; }
 
         .overview-table td {
-            padding: 10px 10px;
+            padding: 11px 10px;
             font-size: 0.83rem;
             border-bottom: 1px solid var(--border-light);
-            vertical-align: middle;
             font-variant-numeric: tabular-nums;
             text-align: center;
             font-weight: 400;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        .overview-table td:first-child { text-align: left; }
+        .overview-table td:first-child { text-align: left; font-weight: 600; }
         .overview-table tr:last-child td { border-bottom: none; }
         .overview-table tr:hover td { cursor: pointer; background: #f9f9f8 !important; }
-        .overview-table td.ig-c { background: #fffcfd; }
-        .overview-table td.tt-c { background: #fefefe; }
-        .overview-table td.yt-c { background: #fffcfc; }
+        .overview-table td.ig-c { background: #fffcfd; border-left: 2px solid var(--ig-mid); }
+        .overview-table td.tt-c { background: #fefefe; border-left: 2px solid var(--tt-mid); }
+        .overview-table td.yt-c { background: #fffcfc; border-left: 2px solid var(--yt-mid); }
+        .overview-table td.ig-c + .ig-c,
+        .overview-table td.tt-c + .tt-c,
+        .overview-table td.yt-c + .yt-c { border-left: none; }
 
-        .client-link { font-weight: 600; color: var(--text-primary); }
-        .num.has { color: var(--text-primary); font-weight: 500; }
         .num { color: var(--text-secondary); }
+        .num.has { color: var(--text-primary); font-weight: 500; }
         .g-up   { color: var(--up); font-size: 0.73rem; font-weight: 600; }
         .g-down { color: var(--dn); font-size: 0.73rem; font-weight: 600; }
-        .g-none { color: var(--text-muted); font-size: 0.73rem; }
+        .g-none { color: #d8d8d3; font-size: 0.73rem; }
+
+        /* col widths */
+        .col-name { width: 130px; }
+        .col-date { width: 80px; }
+        .col-num  { width: 80px; }
+        .col-gain { width: 60px; }
 
         /* ── CLIENT DETAIL ── */
-        .client-view { animation: fadeIn 0.15s ease; }
+        .client-view { animation: fadeIn 0.15s ease; max-width: 980px; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
         .detail-hero {
             display: flex; align-items: flex-start;
             justify-content: space-between; gap: 16px; flex-wrap: wrap;
-            margin-bottom: 22px;
+            margin-bottom: 20px;
         }
         .detail-name { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
-        .detail-meta { font-size: 0.77rem; color: var(--text-muted); margin-top: 6px; font-weight: 400; }
+        .detail-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 5px; }
         .detail-meta em { font-style: italic; }
 
-        /* Share button */
         .share-btn {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 9px 16px;
-            background: var(--white);
-            border: 1px solid var(--border);
+            background: var(--white); border: 1px solid var(--border);
             border-radius: 8px;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.82rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.15s;
-            white-space: nowrap;
-            flex-shrink: 0;
+            font-size: 0.81rem; font-weight: 600; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0;
         }
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
-        .share-btn svg { flex-shrink: 0; }
 
-        /* ── TODAY'S GAINS BAR ── */
+        /* ── GAINS BAR ── */
         .gains-bar {
-            background: var(--white);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 14px 20px;
-            margin-bottom: 14px;
-            display: flex;
-            align-items: center;
-            gap: 0;
-            flex-wrap: wrap;
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 11px; padding: 13px 18px;
+            margin-bottom: 12px;
+            display: flex; align-items: center; gap: 0; flex-wrap: wrap;
         }
-        .gains-bar-label {
-            font-size: 0.68rem; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.1em;
-            color: var(--text-muted); margin-right: 24px;
-            white-space: nowrap; flex-shrink: 0;
-        }
-        .gains-list { display: flex; flex-wrap: wrap; gap: 6px 18px; flex: 1; }
-        .gain-item  { display: flex; align-items: baseline; gap: 6px; }
+        .gains-bar-label { font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-right: 22px; white-space: nowrap; flex-shrink: 0; }
+        .gains-list { display: flex; flex-wrap: wrap; gap: 5px 16px; flex: 1; }
+        .gain-item  { display: flex; align-items: baseline; gap: 5px; }
         .gain-platform-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; position: relative; top: -1px; }
-        .gain-name  { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; }
-        .gain-val   { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .gain-name  { font-size: 0.74rem; color: var(--text-muted); font-weight: 500; }
+        .gain-val   { font-size: 0.81rem; font-weight: 700; font-variant-numeric: tabular-nums; }
         .gain-val.up   { color: var(--up); }
         .gain-val.down { color: var(--dn); }
         .gain-val.flat { color: var(--text-muted); }
-        .gain-val.none { color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.71rem; }
-        .gains-divider { width: 1px; height: 26px; background: var(--border-light); margin: 0 14px; flex-shrink: 0; }
+        .gain-val.none { color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.7rem; }
+        .gains-divider { width: 1px; height: 24px; background: var(--border-light); margin: 0 12px; flex-shrink: 0; }
 
         /* ── PLATFORM SECTIONS ── */
-        .platform-section { margin-bottom: 12px; border-radius: 12px; overflow: hidden; border: 1px solid; }
+        .platform-section { margin-bottom: 11px; border-radius: 11px; overflow: hidden; border: 1px solid; }
         .platform-section.ig { border-color: var(--ig-mid); }
         .platform-section.tt { border-color: var(--tt-mid); }
         .platform-section.yt { border-color: var(--yt-mid); }
 
-        .platform-section-header {
-            padding: 11px 20px;
-            display: flex; align-items: center; justify-content: space-between;
-            border-bottom: 1px solid;
-        }
+        .platform-section-header { padding: 11px 18px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid; }
         .ig .platform-section-header { background: var(--ig-light); border-color: var(--ig-mid); }
         .tt .platform-section-header { background: var(--tt-light); border-color: var(--tt-mid); }
         .yt .platform-section-header { background: var(--yt-light); border-color: var(--yt-mid); }
 
-        .platform-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.83rem; }
+        .platform-name { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.82rem; }
         .ig .platform-name { color: var(--ig-dark); }
         .tt .platform-name { color: var(--tt-dark); }
         .yt .platform-name { color: var(--yt-dark); }
-
         .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
         .ig .platform-pill { background: var(--ig); }
         .tt .platform-pill { background: #666; }
         .yt .platform-pill { background: var(--yt); }
 
-        .platform-handle-link {
-            font-size: 0.72rem; color: var(--text-muted); font-weight: 400;
-            text-decoration: none; transition: color 0.15s;
-        }
+        .platform-handle-link { font-size: 0.71rem; color: var(--text-muted); font-weight: 400; text-decoration: none; transition: color 0.15s; }
         .ig .platform-handle-link:hover { color: var(--ig); }
         .tt .platform-handle-link:hover { color: var(--tt-dark); }
         .yt .platform-handle-link:hover { color: var(--yt); }
 
-        .metrics-row { display: grid; padding: 18px 20px; background: var(--white); }
+        .metrics-row { display: grid; padding: 16px 18px; background: var(--white); }
         .ig .metrics-row { grid-template-columns: repeat(4, 1fr); }
         .tt .metrics-row { grid-template-columns: repeat(3, 1fr); }
         .yt .metrics-row { grid-template-columns: repeat(2, 1fr); }
 
-        .metric-block { padding: 0 20px 0 0; border-right: 1px solid var(--border-light); }
+        .metric-block { padding: 0 18px 0 0; border-right: 1px solid var(--border-light); }
         .metric-block:last-child { border-right: none; padding-right: 0; }
-        .metric-block:not(:first-child) { padding-left: 20px; }
+        .metric-block:not(:first-child) { padding-left: 18px; }
 
-        .m-label { font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 8px; }
-        .m-value { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .m-label { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 7px; }
+        .m-value { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.025em; line-height: 1; color: var(--text-primary); font-variant-numeric: tabular-nums; }
         .m-value.empty { color: #ddd; font-size: 1.1rem; font-weight: 400; }
 
-        .m-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; margin-top: 6px; padding: 2px 7px; border-radius: 20px; }
+        .m-delta { display: inline-flex; align-items: center; gap: 3px; font-size: 0.71rem; font-weight: 600; margin-top: 6px; padding: 2px 7px; border-radius: 20px; }
         .m-delta.up   { background: var(--up-bg); color: var(--up); }
         .m-delta.down { background: var(--dn-bg); color: var(--dn); }
         .m-delta.flat { background: #f2f2f0; color: var(--text-muted); }
-        .m-delta.none { color: var(--text-muted); font-size: 0.69rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+        .m-delta.none { color: var(--text-muted); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
 
         /* ── CHART ── */
-        .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 22px; margin-top: 12px; }
-        .chart-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; flex-wrap: wrap; gap: 12px; }
-        .chart-title { font-size: 0.88rem; font-weight: 700; letter-spacing: -0.01em; }
-        .chart-legend { display: flex; gap: 16px; }
-        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
+        .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 20px; margin-top: 11px; }
+        .chart-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+        .chart-title { font-size: 0.87rem; font-weight: 700; letter-spacing: -0.01em; }
+        .chart-legend { display: flex; gap: 14px; }
+        .leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; color: var(--text-secondary); font-weight: 500; }
         .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
         .chart-wrap { position: relative; height: 210px; }
 
-        /* ── CLIENT-ONLY MODE (shared link) ── */
+        /* ── CLIENT-ONLY BADGE ── */
         .client-only-badge {
             display: inline-flex; align-items: center; gap: 7px;
             background: var(--ig-light); border: 1px solid var(--ig-mid);
             border-radius: 20px; padding: 4px 12px;
-            font-size: 0.72rem; font-weight: 600; color: var(--ig-dark);
-            margin-bottom: 20px;
+            font-size: 0.71rem; font-weight: 600; color: var(--ig-dark);
+            margin-bottom: 18px;
         }
 
         /* ── STATES ── */
         .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; gap: 14px; }
         .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: #777; border-radius: 50%; animation: spin 0.75s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { font-size: 0.83rem; color: var(--text-muted); font-weight: 400; }
+        .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .error-state { background: var(--white); border: 1px solid #fecaca; border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
-
-        @media (max-width: 768px) {
-            .main { padding: 24px 16px 60px; }
-            .header { padding: 0 16px; }
-            .ig .metrics-row, .tt .metrics-row { grid-template-columns: repeat(2,1fr); }
-            .gains-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
-        }
     </style>
 </head>
 <body>
@@ -332,8 +366,10 @@
 <main class="main" id="mainWrap">
     <div class="page-top" id="pageTop">
         <div>
-            <div class="page-title">Client Analytics</div>
-            <div class="page-sub">Instagram · TikTok · YouTube</div>
+            <div class="page-title-row" id="titleRow">
+                <div class="page-title" id="pageTitle">Client Analytics</div>
+            </div>
+            <div class="page-sub" id="pageSub">Instagram · TikTok · YouTube</div>
         </div>
         <div class="selector-wrap" id="selectorWrap">
             <span class="selector-label">Client</span>
@@ -385,7 +421,6 @@
         });
     }
 
-    /* ── Numbers ── */
     function n(v) { const x = Number(v); return isNaN(x) ? 0 : x; }
     function fmt(v) {
         const x = n(v);
@@ -394,8 +429,6 @@
         if (x >= 1e3) return (x/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
         return x.toLocaleString();
     }
-
-    /* ── Date DD/MM/YYYY ── */
     function fmtDate(d) {
         if (!d) return '—';
         const p = d.split('-');
@@ -409,7 +442,6 @@
         parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
     }
 
-    /* ── Helpers ── */
     function latestPerClient() {
         const map = {};
         allData.forEach(r => { if (!map[r.client_name] || r.date > map[r.client_name].date) map[r.client_name] = r; });
@@ -435,17 +467,41 @@
         });
     }
 
-    /* ── Sort rows ── */
+    /* ── Sort ── */
+    const SORT_COLS = {
+        'client_name':           { label: 'Name',           pill: 'active-name' },
+        'ig_followers':          { label: 'IG Followers',   pill: 'active-ig' },
+        'ig_total_post_views':   { label: 'IG Views',       pill: 'active-ig' },
+        'tiktok_followers':      { label: 'TT Followers',   pill: 'active-tt' },
+        'tiktok_total_post_plays':{ label: 'TT Views',      pill: 'active-tt' },
+        'yt_subscribers':        { label: 'YT Subscribers', pill: 'active-yt' },
+        'yt_total_views':        { label: 'YT Views',       pill: 'active-yt' },
+    };
+
     function sortedRows(rows) {
         return [...rows].sort((a, b) => {
             if (sortCol === 'client_name') {
-                return sortDir === 'asc'
-                    ? a.client_name.localeCompare(b.client_name)
-                    : b.client_name.localeCompare(a.client_name);
+                const r = a.client_name.localeCompare(b.client_name);
+                return sortDir === 'asc' ? r : -r;
             }
             const va = n(a[sortCol]), vb = n(b[sortCol]);
             return sortDir === 'asc' ? va - vb : vb - va;
         });
+    }
+
+    function setSort(col) {
+        if (sortCol === col) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+        else { sortCol = col; sortDir = col === 'client_name' ? 'asc' : 'desc'; }
+        render('all');
+    }
+
+    function filterPillsHTML() {
+        return Object.entries(SORT_COLS).map(([col, cfg]) => {
+            const isActive = sortCol === col;
+            const cls = isActive ? cfg.pill : '';
+            const arrow = isActive ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
+            return `<button class="pill ${cls}" onclick="setSort('${col}')">${cfg.label}${arrow ? `<span class="pill-arrow">${arrow}</span>` : ''}</button>`;
+        }).join('');
     }
 
     /* ── URLs ── */
@@ -467,35 +523,23 @@
         const arr  = diff > 0 ? '↑' : '↓';
         return `<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span>`;
     }
-
-    /* ── Metric block ── */
     function mBlock(label, today, prev, key) {
         const f = fmt(today[key]);
-        return `
-        <div class="metric-block">
+        return `<div class="metric-block">
             <div class="m-label">${label}</div>
             <div class="m-value ${f ? '' : 'empty'}">${f || '—'}</div>
             ${f ? deltaBadge(today, prev, key) : ''}
         </div>`;
     }
 
-    /* ── Gain cell for overview ── */
+    /* ── Gain cell ── */
     function gainCell(today, prev, key, cls) {
         const f = fmt(today[key]);
-        if (!f || !prev) return `<td class="${cls} num"><span class="g-none">—</span></td>`;
+        if (!f || !prev) return `<td class="${cls}"><span class="g-none">—</span></td>`;
         const diff = n(today[key]) - n(prev[key]);
-        if (diff === 0) return `<td class="${cls} num"><span class="g-none">±0</span></td>`;
+        if (diff === 0) return `<td class="${cls}"><span class="g-none">±0</span></td>`;
         const sign = diff > 0 ? '+' : '';
-        return `<td class="${cls} num"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span></td>`;
-    }
-
-    /* ── Sort header ── */
-    function thSort(label, key, cls, colspan) {
-        const isActive = sortCol === key;
-        const arrow = isActive ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
-        const arrowCls = isActive ? 'sort-arrow active' : 'sort-arrow';
-        const colAttr = colspan ? `colspan="${colspan}"` : '';
-        return `<th class="${cls}" ${colAttr} onclick="setSort('${key}')" style="${cls.includes('ig')?'border-left:2px solid var(--ig-mid)':cls.includes('tt')?'border-left:2px solid var(--tt-mid)':cls.includes('yt')?'border-left:2px solid var(--yt-mid)':''}">${label}<span class="${arrowCls}">${arrow}</span></th>`;
+        return `<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span></td>`;
     }
 
     /* ── Overview Table ── */
@@ -503,57 +547,63 @@
         const rows = sortedRows(rawRows);
         const prevMap = prevPerClient();
 
-        const numCell = (val, cls) => {
+        const nc = (val, cls) => {
             const f = fmt(val);
-            return `<td class="${cls} num ${f?'has':''}">${f || '<span style="color:#ddd">—</span>'}</td>`;
+            return `<td class="${cls} num ${f?'has':''}">${f || '<span class="g-none">—</span>'}</td>`;
         };
-
-        const nameArrow = sortCol === 'client_name' ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
-        const dateArrow = sortCol === 'date' ? (sortDir === 'desc' ? ' ↓' : ' ↑') : ' ↕';
 
         return `
         <div class="overview-wrap">
-            <div class="overview-head"><span class="section-label">All Clients — Latest Snapshot</span></div>
+            <div class="overview-head">
+                <span class="section-label">All Clients</span>
+                <div class="pills">${filterPillsHTML()}</div>
+            </div>
             <table class="overview-table">
+                <colgroup>
+                    <col class="col-name">
+                    <col class="col-date">
+                    <col class="col-num"><col class="col-gain"><col class="col-num">
+                    <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
+                    <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
+                </colgroup>
                 <thead>
                     <tr>
-                        <th rowspan="2" style="vertical-align:bottom;text-align:left" onclick="setSort('client_name')">Client<span class="sort-arrow ${sortCol==='client_name'?'active':''}">${nameArrow}</span></th>
-                        <th rowspan="2" style="vertical-align:bottom;text-align:center" onclick="setSort('date')">Date<span class="sort-arrow ${sortCol==='date'?'active':''}">${dateArrow}</span></th>
-                        <th colspan="3" class="ig-h" style="text-align:center;border-left:2px solid var(--ig-mid)">Instagram</th>
-                        <th colspan="4" class="tt-h" style="text-align:center;border-left:2px solid var(--tt-mid)">TikTok</th>
-                        <th colspan="4" class="yt-h" style="text-align:center;border-left:2px solid var(--yt-mid)">YouTube</th>
+                        <th rowspan="2" style="text-align:left;vertical-align:bottom">Client</th>
+                        <th rowspan="2" style="vertical-align:bottom">Date</th>
+                        <th colspan="3" class="group-ig">Instagram</th>
+                        <th colspan="4" class="group-tt">TikTok</th>
+                        <th colspan="4" class="group-yt">YouTube</th>
                     </tr>
                     <tr>
-                        ${thSort('Total Followers', 'ig_followers', 'ig-h', null)}
-                        ${thSort('+Followers', '__ig_flw_gain', 'ig-h', null)}
-                        ${thSort('Total Views', 'ig_total_post_views', 'ig-h', null)}
-                        ${thSort('Total Followers', 'tiktok_followers', 'tt-h', null)}
-                        ${thSort('+Followers', '__tt_flw_gain', 'tt-h', null)}
-                        ${thSort('Total Views', 'tiktok_total_post_plays', 'tt-h', null)}
-                        ${thSort('+Views', '__tt_views_gain', 'tt-h', null)}
-                        ${thSort('Total Subscribers', 'yt_subscribers', 'yt-h', null)}
-                        ${thSort('+Subscribers', '__yt_sub_gain', 'yt-h', null)}
-                        ${thSort('Total Views', 'yt_total_views', 'yt-h', null)}
-                        ${thSort('+Views', '__yt_views_gain', 'yt-h', null)}
+                        <th class="ig-h">Followers</th>
+                        <th class="ig-h">+</th>
+                        <th class="ig-h">Total Views</th>
+                        <th class="tt-h">Followers</th>
+                        <th class="tt-h">+</th>
+                        <th class="tt-h">Total Views</th>
+                        <th class="tt-h">+</th>
+                        <th class="yt-h">Subscribers</th>
+                        <th class="yt-h">+</th>
+                        <th class="yt-h">Total Views</th>
+                        <th class="yt-h">+</th>
                     </tr>
                 </thead>
                 <tbody>
                 ${rows.map(r => {
                     const p = prevMap[r.client_name] || null;
-                    return `
-                    <tr onclick="selectClient('${r.client_name}')">
-                        <td class="client-link">${r.client_name}</td>
-                        <td style="color:var(--text-muted);font-size:0.76rem;text-align:center;white-space:nowrap">${fmtDate(r.date)}</td>
-                        ${numCell(r.ig_followers, 'ig-c')}
+                    return `<tr onclick="selectClient('${r.client_name}')">
+                        <td style="font-weight:600">${r.client_name}</td>
+                        <td style="color:var(--text-muted);font-size:0.76rem">${fmtDate(r.date)}</td>
+                        ${nc(r.ig_followers, 'ig-c')}
                         ${gainCell(r, p, 'ig_followers', 'ig-c')}
-                        ${numCell(r.ig_total_post_views, 'ig-c')}
-                        ${numCell(r.tiktok_followers, 'tt-c')}
+                        ${nc(r.ig_total_post_views, 'ig-c')}
+                        ${nc(r.tiktok_followers, 'tt-c')}
                         ${gainCell(r, p, 'tiktok_followers', 'tt-c')}
-                        ${numCell(r.tiktok_total_post_plays, 'tt-c')}
+                        ${nc(r.tiktok_total_post_plays, 'tt-c')}
                         ${gainCell(r, p, 'tiktok_total_post_plays', 'tt-c')}
-                        ${numCell(r.yt_subscribers, 'yt-c')}
+                        ${nc(r.yt_subscribers, 'yt-c')}
                         ${gainCell(r, p, 'yt_subscribers', 'yt-c')}
-                        ${numCell(r.yt_total_views, 'yt-c')}
+                        ${nc(r.yt_total_views, 'yt-c')}
                         ${gainCell(r, p, 'yt_total_views', 'yt-c')}
                     </tr>`;
                 }).join('')}
@@ -568,32 +618,22 @@
             const val = n(today[key]);
             if (!val) return '';
             let html = '';
-            if (!prev) {
-                html = `<span class="gain-val none">—</span>`;
-            } else {
+            if (!prev) html = `<span class="gain-val none">—</span>`;
+            else {
                 const diff = val - n(prev[key]);
                 if (diff === 0) html = `<span class="gain-val flat">±0</span>`;
-                else {
-                    const sign = diff > 0 ? '+' : '';
-                    html = `<span class="gain-val ${diff>0?'up':'down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span>`;
-                }
+                else { const sign = diff > 0 ? '+' : ''; html = `<span class="gain-val ${diff>0?'up':'down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span>`; }
             }
-            return `<div class="gain-item">
-                <div class="gain-platform-dot" style="background:${dotColor}"></div>
-                <span class="gain-name">${label}</span>${html}
-            </div>`;
+            return `<div class="gain-item"><div class="gain-platform-dot" style="background:${dotColor}"></div><span class="gain-name">${label}</span>${html}</div>`;
         }
-
         const igItems = [gainItem('#E1306C','Followers','ig_followers'), gainItem('#E1306C','Views','ig_total_post_views')].filter(Boolean);
         const ttItems = [gainItem('#666','Followers','tiktok_followers'), gainItem('#666','Views','tiktok_total_post_plays')].filter(Boolean);
         const ytItems = [gainItem('#e60000','Subscribers','yt_subscribers'), gainItem('#e60000','Views','yt_total_views')].filter(Boolean);
-
         const sections = [];
         if (igItems.length) sections.push(`<div class="gains-list">${igItems.join('')}</div>`);
         if (ttItems.length) { if (sections.length) sections.push('<div class="gains-divider"></div>'); sections.push(`<div class="gains-list">${ttItems.join('')}</div>`); }
         if (ytItems.length) { if (sections.length) sections.push('<div class="gains-divider"></div>'); sections.push(`<div class="gains-list">${ytItems.join('')}</div>`); }
-
-        const note = prev ? '' : `<span style="font-size:0.69rem;color:var(--text-muted);font-style:italic;margin-left:auto">shows after 2+ days of data</span>`;
+        const note = prev ? '' : `<span style="font-size:0.68rem;color:var(--text-muted);font-style:italic;margin-left:auto">shows after 2+ days</span>`;
         return `<div class="gains-bar"><span class="gains-bar-label">Today's Gains</span>${sections.join('')}${note}</div>`;
     }
 
@@ -602,42 +642,29 @@
         const today = history[history.length - 1];
         const prev  = history.length >= 2 ? history[history.length - 2] : null;
         const info  = clientMap[name] || {};
-
         const igHandle = info.instagram_handle || '';
         const ttHandle = info.tiktok_handle    || '';
         const ytId     = info.youtube_channel_id || '';
-
-        const hasIG = n(today.ig_followers)     || n(today.ig_avg_likes);
+        const hasIG = n(today.ig_followers) || n(today.ig_avg_likes);
         const hasTT = n(today.tiktok_followers) || n(today.tiktok_avg_plays);
-        const hasYT = n(today.yt_subscribers)   || n(today.yt_total_views);
-        const noData = `<div style="padding:16px 0;color:var(--text-muted);font-size:0.82rem">No data available</div>`;
-
-        const compareNote = prev
-            ? `comparing vs ${fmtDate(prev.date)}`
-            : `<em>daily changes will show once you have 2+ days of data</em>`;
-
+        const hasYT = n(today.yt_subscribers) || n(today.yt_total_views);
+        const noData = `<div style="padding:14px 0;color:var(--text-muted);font-size:0.82rem">No data available</div>`;
+        const compareNote = prev ? `comparing vs ${fmtDate(prev.date)}` : `<em>daily changes show after 2+ days</em>`;
         const legends = [
             hasIG ? `<div class="leg-item"><div class="leg-dot" style="background:var(--ig)"></div>Instagram</div>` : '',
             hasTT ? `<div class="leg-item"><div class="leg-dot" style="background:#888"></div>TikTok</div>` : '',
             hasYT ? `<div class="leg-item"><div class="leg-dot" style="background:var(--yt)"></div>YouTube</div>` : '',
         ].filter(Boolean).join('');
 
-        const shareUrl = `${location.origin}${location.pathname}#${encodeURIComponent(name)}`;
-
-        const clientOnlyBadge = clientOnly
-            ? `<div class="client-only-badge">📊 Your Analytics Dashboard</div>` : '';
-
         const shareBtnHtml = !clientOnly ? `
             <button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Share with client
             </button>` : '';
 
         return `
         <div class="client-view">
-            ${clientOnlyBadge}
+            ${clientOnly ? `<div class="client-only-badge">📊 Your Analytics Dashboard</div>` : ''}
             <div class="detail-hero">
                 <div>
                     <div class="detail-name">${name}</div>
@@ -645,9 +672,7 @@
                 </div>
                 ${shareBtnHtml}
             </div>
-
             ${gainsBar(today, prev)}
-
             <div class="platform-section ig">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>Instagram</span>
@@ -662,7 +687,6 @@
                     ` : noData}
                 </div>
             </div>
-
             <div class="platform-section tt">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>TikTok</span>
@@ -676,7 +700,6 @@
                     ` : noData}
                 </div>
             </div>
-
             <div class="platform-section yt">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>YouTube</span>
@@ -689,7 +712,6 @@
                     ` : noData}
                 </div>
             </div>
-
             <div class="chart-section">
                 <div class="chart-top">
                     <span class="chart-title">Follower Growth Over Time</span>
@@ -710,7 +732,7 @@
             btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;
             setTimeout(() => {
                 btn.classList.remove('copied');
-                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;
             }, 2500);
         });
     }
@@ -720,7 +742,6 @@
         const ctx = document.getElementById('growthChart');
         if (!ctx) return;
         if (growthChart) { growthChart.destroy(); growthChart = null; }
-
         const labels = history.map(r => fmtDate(r.date));
         const ds = [];
         const push = (label, key, color, bg) => {
@@ -730,21 +751,13 @@
         push('Instagram', 'ig_followers',    '#E1306C', 'rgba(225,48,108,0.06)');
         push('TikTok',    'tiktok_followers', '#888',    'rgba(0,0,0,0.03)');
         push('YouTube',   'yt_subscribers',  '#e60000', 'rgba(230,0,0,0.04)');
-
-        if (!ds.length) {
-            ctx.parentElement.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`;
-            return;
-        }
-
+        if (!ds.length) { ctx.parentElement.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`; return; }
         growthChart = new Chart(ctx, {
             type: 'line', data: { labels, datasets: ds },
             options: {
                 responsive: true, maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { backgroundColor: '#fff', titleColor: '#111', bodyColor: '#666', borderColor: '#e4e4e0', borderWidth: 1, padding: 12, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y ? c.parsed.y.toLocaleString() : '—'}` } }
-                },
+                plugins: { legend: { display: false }, tooltip: { backgroundColor: '#fff', titleColor: '#111', bodyColor: '#666', borderColor: '#e4e4e0', borderWidth: 1, padding: 12, callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y ? c.parsed.y.toLocaleString() : '—'}` } } },
                 scales: {
                     x: { grid: { color: '#ededea' }, ticks: { color: '#c8c8c2', font: { size: 11 }, maxTicksLimit: 10 } },
                     y: { grid: { color: '#ededea' }, ticks: { color: '#c8c8c2', font: { size: 11 }, callback: v => fmt(v) || v } }
@@ -753,16 +766,25 @@
         });
     }
 
-    /* ── Sort handler ── */
-    function setSort(col) {
-        if (sortCol === col) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-        else { sortCol = col; sortDir = 'desc'; }
-        render('all');
-    }
-
     /* ── Render ── */
     function render(sel, clientOnly) {
         const content = document.getElementById('content');
+
+        // Update back button
+        const titleRow = document.getElementById('titleRow');
+        const existingBack = titleRow.querySelector('.back-btn');
+        if (sel !== 'all' && !clientOnly) {
+            if (!existingBack) {
+                const btn = document.createElement('button');
+                btn.className = 'back-btn';
+                btn.innerHTML = '← All Clients';
+                btn.onclick = () => { location.hash = ''; document.getElementById('clientSelect').value = 'all'; render('all'); };
+                titleRow.insertBefore(btn, titleRow.firstChild);
+            }
+        } else {
+            if (existingBack) existingBack.remove();
+        }
+
         if (sel === 'all') {
             content.innerHTML = renderOverview(latestPerClient());
             return;
@@ -783,20 +805,17 @@
     async function init() {
         try {
             await fetchAll();
-
             const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
             if (dates[0]) document.getElementById('lastUpdated').textContent = `Updated ${fmtDate(dates[0])}`;
 
-            // Check for hash → client-only mode
             const hash = decodeURIComponent(location.hash.replace('#', ''));
             const clientNames = [...new Set(allData.map(r => r.client_name))];
             const isClientOnly = hash && clientNames.includes(hash);
 
             if (isClientOnly) {
-                // Hide selector and subtitle, show only client view
                 document.getElementById('selectorWrap').style.display = 'none';
-                document.querySelector('.page-sub').style.display = 'none';
-                document.querySelector('.page-title').textContent = 'Your Analytics';
+                document.getElementById('pageSub').style.display = 'none';
+                document.getElementById('pageTitle').textContent = 'Your Analytics';
                 render(hash, true);
             } else {
                 populateDropdown();
@@ -812,11 +831,7 @@
                 }
             }
         } catch (err) {
-            document.getElementById('content').innerHTML = `
-                <div class="error-state">
-                    Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br>
-                    <small style="color:#aaa">${err.message}</small>
-                </div>`;
+            document.getElementById('content').innerHTML = `<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
         }
     }
 

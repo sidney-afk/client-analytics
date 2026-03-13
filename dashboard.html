@@ -10,24 +10,32 @@
     <style>
         :root {
             --white: #ffffff;
-            --bg: #f7f7f5;
-            --surface: #ffffff;
-            --border: #e8e8e4;
-            --border-light: #f0f0ec;
+            --bg: #f5f5f3;
+            --border: #e6e6e2;
+            --border-light: #efefeb;
             --text-primary: #111110;
             --text-secondary: #6b6b67;
-            --text-muted: #a8a8a3;
-            --ig: #E1306C;
-            --ig-bg: #fff0f5;
-            --tiktok: #010101;
-            --tiktok-bg: #f5f5f5;
-            --yt: #FF0000;
-            --yt-bg: #fff5f5;
-            --positive: #16a34a;
-            --positive-bg: #f0fdf4;
-            --negative: #dc2626;
-            --negative-bg: #fef2f2;
-            --accent: #2563eb;
+            --text-muted: #b0b0aa;
+
+            --ig:        #E1306C;
+            --ig-light:  #fdf0f5;
+            --ig-mid:    #f5c6d8;
+            --ig-dark:   #b01d54;
+
+            --tt:        #111111;
+            --tt-light:  #f5f5f5;
+            --tt-mid:    #ddd;
+            --tt-dark:   #444;
+
+            --yt:        #e60000;
+            --yt-light:  #fff4f4;
+            --yt-mid:    #ffc9c9;
+            --yt-dark:   #b50000;
+
+            --up:   #15803d;
+            --up-bg:#f0fdf4;
+            --dn:   #dc2626;
+            --dn-bg:#fef2f2;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -39,12 +47,12 @@
             min-height: 100vh;
         }
 
-        /* ── HEADER ── */
+        /* HEADER */
         .header {
             background: var(--white);
             border-bottom: 1px solid var(--border);
             padding: 0 40px;
-            height: 64px;
+            height: 62px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -52,820 +60,604 @@
             top: 0;
             z-index: 100;
         }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logo img {
-            width: 28px;
-            height: 28px;
-            border-radius: 6px;
-        }
-
+        .logo { display: flex; align-items: center; gap: 9px; }
+        .logo img { width: 26px; height: 26px; border-radius: 6px; }
         .logo-text {
             font-family: 'Syne', sans-serif;
-            font-weight: 700;
-            font-size: 1.1rem;
+            font-weight: 800;
+            font-size: 1.05rem;
             letter-spacing: -0.02em;
-            color: var(--text-primary);
         }
+        .header-meta { font-size: 0.78rem; color: var(--text-muted); }
 
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
+        /* LAYOUT */
+        .main { max-width: 1320px; margin: 0 auto; padding: 36px 40px 80px; }
 
-        .last-updated {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-        }
-
-        /* ── MAIN ── */
-        .main {
-            max-width: 1280px;
-            margin: 0 auto;
-            padding: 32px 40px 60px;
-        }
-
-        /* ── PAGE TITLE ── */
-        .page-header {
-            margin-bottom: 32px;
+        .page-top {
             display: flex;
             align-items: flex-end;
             justify-content: space-between;
             gap: 24px;
             flex-wrap: wrap;
+            margin-bottom: 32px;
         }
-
         .page-title {
             font-family: 'Syne', sans-serif;
-            font-size: 2rem;
+            font-size: 1.9rem;
             font-weight: 800;
             letter-spacing: -0.04em;
-            color: var(--text-primary);
             line-height: 1;
         }
+        .page-sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px; font-weight: 300; }
 
-        .page-subtitle {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin-top: 6px;
-            font-weight: 300;
-        }
-
-        /* ── CLIENT SELECTOR ── */
-        .selector-wrap {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
-        }
-
-        .selector-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            font-weight: 500;
-        }
-
+        /* SELECTOR */
+        .selector-wrap { display: flex; align-items: center; gap: 10px; }
+        .selector-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
         .client-select {
             appearance: none;
-            -webkit-appearance: none;
-            background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6b67' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+            background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
             border: 1px solid var(--border);
             border-radius: 8px;
-            padding: 9px 36px 9px 14px;
+            padding: 9px 34px 9px 13px;
             font-family: 'DM Sans', sans-serif;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
-            min-width: 220px;
+            min-width: 210px;
             transition: border-color 0.15s;
         }
+        .client-select:focus { outline: none; border-color: #999; }
 
-        .client-select:hover { border-color: #c0c0bb; }
-        .client-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(37,99,235,0.08); }
-
-        /* ── OVERVIEW GRID (all clients) ── */
-        .overview-table-wrap {
+        /* OVERVIEW TABLE */
+        .overview-wrap {
             background: var(--white);
             border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
+            border-radius: 14px;
+            overflow: auto;
         }
-
-        .overview-table-header {
-            padding: 20px 24px 16px;
+        .overview-head {
+            padding: 18px 24px;
             border-bottom: 1px solid var(--border-light);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
         }
-
-        .section-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 0.85rem;
+        .section-label {
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: var(--text-secondary);
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
         }
 
-        .overview-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        .overview-table { width: 100%; border-collapse: collapse; }
         .overview-table th {
-            text-align: left;
-            padding: 10px 16px;
-            font-size: 0.75rem;
-            font-weight: 500;
+            padding: 9px 14px;
+            font-size: 0.68rem;
+            font-weight: 600;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.07em;
-            border-bottom: 1px solid var(--border-light);
-            background: #fafafa;
+            background: #fafaf8;
             white-space: nowrap;
+            border-bottom: 1px solid var(--border-light);
+            text-align: right;
         }
-
-        .overview-table th.platform-header {
-            text-align: center;
-        }
+        .overview-table th:first-child,
+        .overview-table th:nth-child(2) { text-align: left; }
+        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); border-bottom-color: var(--ig-mid); }
+        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); border-bottom-color: var(--tt-mid); }
+        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); border-bottom-color: var(--yt-mid); }
 
         .overview-table td {
-            padding: 14px 16px;
-            font-size: 0.88rem;
+            padding: 12px 14px;
+            font-size: 0.84rem;
             border-bottom: 1px solid var(--border-light);
             vertical-align: middle;
-        }
-
-        .overview-table tr:last-child td { border-bottom: none; }
-
-        .overview-table tr:hover td { background: #fafaf9; }
-
-        .client-name-cell {
-            font-weight: 500;
-            color: var(--text-primary);
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .client-name-cell:hover { color: var(--accent); }
-
-        .metric-cell {
-            text-align: center;
             font-variant-numeric: tabular-nums;
-            color: var(--text-secondary);
+            text-align: right;
         }
+        .overview-table td:first-child,
+        .overview-table td:nth-child(2) { text-align: left; }
+        .overview-table tr:last-child td { border-bottom: none; }
+        .overview-table tr:hover td { cursor: pointer; background: #fafaf9 !important; }
+        .overview-table td.ig-c { background: #fffbfd; }
+        .overview-table td.tt-c { background: #fefefe; }
+        .overview-table td.yt-c { background: #fffbfb; }
 
-        .metric-cell.has-data {
-            color: var(--text-primary);
-            font-weight: 400;
-        }
+        .client-link { font-weight: 500; color: var(--text-primary); }
+        .num { color: var(--text-secondary); }
+        .num.has { color: var(--text-primary); }
 
-        .platform-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            padding: 3px 8px;
-            border-radius: 20px;
-        }
+        /* CLIENT DETAIL */
+        .client-view { animation: fadeIn 0.18s ease; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
 
-        .platform-badge.ig { background: var(--ig-bg); color: var(--ig); }
-        .platform-badge.tt { background: var(--tiktok-bg); color: var(--tiktok); }
-        .platform-badge.yt { background: var(--yt-bg); color: var(--yt); }
-
-        .dash { color: var(--border); }
-
-        /* ── SINGLE CLIENT VIEW ── */
-        .client-view { animation: fadeIn 0.2s ease; }
-
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-
-        .client-hero {
-            margin-bottom: 28px;
-        }
-
-        .client-name-display {
+        .detail-hero { margin-bottom: 26px; }
+        .detail-name {
             font-family: 'Syne', sans-serif;
-            font-size: 2.2rem;
+            font-size: 2.1rem;
             font-weight: 800;
             letter-spacing: -0.04em;
             line-height: 1;
         }
+        .detail-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 7px; }
+        .detail-meta em { font-style: italic; }
 
-        .client-date {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            margin-top: 6px;
-        }
-
-        /* Platform sections */
-        .platforms-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-            margin-bottom: 28px;
-        }
-
-        @media (max-width: 900px) { .platforms-grid { grid-template-columns: 1fr; } }
-
-        .platform-card {
-            background: var(--white);
-            border: 1px solid var(--border);
-            border-radius: 12px;
+        /* PLATFORM SECTIONS */
+        .platform-section {
+            margin-bottom: 16px;
+            border-radius: 14px;
             overflow: hidden;
+            border: 1px solid;
         }
+        .platform-section.ig { border-color: var(--ig-mid); }
+        .platform-section.tt { border-color: var(--tt-mid); }
+        .platform-section.yt { border-color: var(--yt-mid); }
 
-        .platform-card-header {
-            padding: 16px 20px 14px;
+        .platform-section-header {
+            padding: 13px 22px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid;
         }
+        .ig .platform-section-header { background: var(--ig-light); border-color: var(--ig-mid); }
+        .tt .platform-section-header { background: var(--tt-light); border-color: var(--tt-mid); }
+        .yt .platform-section-header { background: var(--yt-light); border-color: var(--yt-mid); }
 
-        .platform-label {
+        .platform-name {
             display: flex;
             align-items: center;
             gap: 8px;
             font-family: 'Syne', sans-serif;
             font-weight: 700;
-            font-size: 0.9rem;
-            letter-spacing: 0.02em;
+            font-size: 0.85rem;
         }
+        .ig .platform-name { color: var(--ig-dark); }
+        .tt .platform-name { color: var(--tt-dark); }
+        .yt .platform-name { color: var(--yt-dark); }
 
-        .platform-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
+        .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .ig .platform-pill { background: var(--ig); }
+        .tt .platform-pill { background: #555; }
+        .yt .platform-pill { background: var(--yt); }
 
-        .platform-dot.ig { background: var(--ig); }
-        .platform-dot.tt { background: var(--tiktok); box-shadow: 0 0 0 1px #e0e0e0; }
-        .platform-dot.yt { background: var(--yt); }
+        .platform-handle { font-size: 0.73rem; color: var(--text-muted); font-weight: 300; }
 
-        .platform-handle {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-family: 'DM Sans', sans-serif;
-            font-weight: 300;
-        }
-
-        .platform-metrics {
-            padding: 20px;
+        .metrics-row {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
+            padding: 20px 22px;
+            background: var(--white);
+            gap: 0;
         }
+        .ig .metrics-row { grid-template-columns: repeat(4, 1fr); }
+        .tt .metrics-row { grid-template-columns: repeat(3, 1fr); }
+        .yt .metrics-row { grid-template-columns: repeat(2, 1fr); }
 
-        .metric-item { }
+        .metric-block {
+            padding: 4px 22px 4px 0;
+            border-right: 1px solid var(--border-light);
+        }
+        .metric-block:last-child { border-right: none; padding-right: 0; }
+        .metric-block:not(:first-child) { padding-left: 22px; }
 
-        .metric-label {
-            font-size: 0.72rem;
-            font-weight: 500;
+        .m-label {
+            font-size: 0.68rem;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.07em;
+            letter-spacing: 0.09em;
             color: var(--text-muted);
-            margin-bottom: 5px;
+            margin-bottom: 9px;
         }
-
-        .metric-value {
+        .m-value {
             font-family: 'Syne', sans-serif;
-            font-size: 1.45rem;
+            font-size: 1.65rem;
             font-weight: 700;
             letter-spacing: -0.03em;
-            color: var(--text-primary);
             line-height: 1;
+            color: var(--text-primary);
         }
+        .m-value.empty { color: #ddd; font-size: 1.1rem; }
 
-        .metric-value.no-data {
-            color: var(--border);
-            font-size: 1.1rem;
+        .m-delta {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.73rem;
+            font-weight: 500;
+            margin-top: 7px;
+            padding: 2px 7px;
+            border-radius: 20px;
         }
+        .m-delta.up   { background: var(--up-bg);  color: var(--up); }
+        .m-delta.down { background: var(--dn-bg);  color: var(--dn); }
+        .m-delta.flat { background: #f3f3f1; color: var(--text-muted); }
+        .m-delta.none { color: var(--text-muted); font-size: 0.7rem; margin-top: 7px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
 
-        /* ── HISTORY CHART ── */
+        /* CHART */
         .chart-section {
             background: var(--white);
             border: 1px solid var(--border);
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 24px;
+            margin-top: 16px;
         }
-
-        .chart-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 12px;
+        .chart-top {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
         }
+        .chart-title { font-family: 'Syne', sans-serif; font-size: 0.92rem; font-weight: 700; letter-spacing: -0.02em; }
+        .chart-legend { display: flex; gap: 16px; }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); }
+        .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .chart-wrap { position: relative; height: 220px; }
 
-        .chart-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 1rem;
-            font-weight: 700;
-            letter-spacing: -0.02em;
-        }
-
-        .chart-legend {
-            display: flex;
-            gap: 16px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.78rem;
-            color: var(--text-secondary);
-        }
-
-        .legend-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 240px;
-        }
-
-        /* ── LOADING / ERROR ── */
+        /* STATES */
         .loading-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 80px 20px;
-            gap: 16px;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; padding: 100px 20px; gap: 14px;
         }
-
         .spinner {
-            width: 32px;
-            height: 32px;
+            width: 28px; height: 28px;
             border: 2px solid var(--border);
-            border-top-color: var(--accent);
+            border-top-color: #555;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 0.75s linear infinite;
         }
-
         @keyframes spin { to { transform: rotate(360deg); } }
-
-        .loading-text {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-
+        .loading-text { font-size: 0.85rem; color: var(--text-muted); }
         .error-state {
-            background: var(--white);
-            border: 1px solid #fecaca;
-            border-radius: 12px;
-            padding: 32px;
-            text-align: center;
-            color: var(--negative);
-            font-size: 0.9rem;
+            background: var(--white); border: 1px solid #fecaca;
+            border-radius: 12px; padding: 32px; text-align: center;
+            color: var(--dn); font-size: 0.88rem;
         }
 
-        .no-data-card {
-            background: var(--bg);
-            border-radius: 8px;
-            padding: 24px;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            grid-column: 1 / -1;
+        @media (max-width: 768px) {
+            .main { padding: 24px 16px 60px; }
+            .header { padding: 0 16px; }
+            .ig .metrics-row, .tt .metrics-row { grid-template-columns: repeat(2,1fr); }
+            .yt .metrics-row { grid-template-columns: repeat(2,1fr); }
         }
     </style>
 </head>
 <body>
 
-    <header class="header">
-        <div class="logo">
-            <img src="syncview-favicon.png" alt="SyncView">
-            <span class="logo-text">SyncView</span>
-        </div>
-        <div class="header-right">
-            <span class="last-updated" id="lastUpdated"></span>
-        </div>
-    </header>
+<header class="header">
+    <div class="logo">
+        <img src="syncview-favicon.png" alt="SyncView">
+        <span class="logo-text">SyncView</span>
+    </div>
+    <span class="header-meta" id="lastUpdated"></span>
+</header>
 
-    <main class="main">
-        <div class="page-header">
-            <div>
-                <div class="page-title">Client Analytics</div>
-                <div class="page-subtitle">Social metrics across Instagram, TikTok & YouTube</div>
+<main class="main">
+    <div class="page-top">
+        <div>
+            <div class="page-title">Client Analytics</div>
+            <div class="page-sub">Instagram · TikTok · YouTube</div>
+        </div>
+        <div class="selector-wrap">
+            <span class="selector-label">Client</span>
+            <select class="client-select" id="clientSelect">
+                <option value="all">All Clients</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="content">
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <span class="loading-text">Loading analytics…</span>
+        </div>
+    </div>
+</main>
+
+<script>
+    const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
+    const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
+    const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
+
+    let allData   = [];
+    let clientMap = {};
+    let growthChart = null;
+
+    /* CSV */
+    function splitLine(line) {
+        const out = []; let cur = '', q = false;
+        for (const ch of line) {
+            if (ch === '"') q = !q;
+            else if (ch === ',' && !q) { out.push(cur); cur = ''; }
+            else cur += ch;
+        }
+        out.push(cur);
+        return out.map(v => v.replace(/^"|"$/g, '').trim());
+    }
+    function parseCSV(text) {
+        const lines = text.trim().split('\n').filter(l => l.trim());
+        if (lines.length < 2) return [];
+        const headers = splitLine(lines[0]);
+        return lines.slice(1).map(line => {
+            const vals = splitLine(line);
+            const obj = {};
+            headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+            return obj;
+        });
+    }
+
+    /* Numbers */
+    function n(v) { const x = Number(v); return isNaN(x) ? 0 : x; }
+    function fmt(v) {
+        const x = n(v);
+        if (!x) return null;
+        if (x >= 1e6) return (x/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+        if (x >= 1e3) return (x/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+        return x.toLocaleString();
+    }
+
+    /* Fetch */
+    async function fetchAll() {
+        const [mr, cr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL)]);
+        allData = parseCSV(await mr.text());
+        parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
+    }
+
+    /* Helpers */
+    function latestPerClient() {
+        const map = {};
+        allData.forEach(r => { if (!map[r.client_name] || r.date > map[r.client_name].date) map[r.client_name] = r; });
+        return Object.values(map).sort((a,b) => a.client_name.localeCompare(b.client_name));
+    }
+    function clientHistory(name) {
+        return allData.filter(r => r.client_name === name).sort((a,b) => a.date.localeCompare(b.date));
+    }
+    function populateDropdown() {
+        const sel = document.getElementById('clientSelect');
+        [...new Set(allData.map(r => r.client_name))].sort().forEach(c => {
+            const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+        });
+    }
+
+    /* Delta badge */
+    function deltaBadge(today, prev, key) {
+        if (!prev) return `<span class="m-delta none">no previous day yet</span>`;
+        const diff = n(today[key]) - n(prev[key]);
+        if (diff === 0) return `<span class="m-delta flat">no change</span>`;
+        const sign = diff > 0 ? '+' : '';
+        const cls  = diff > 0 ? 'up' : 'down';
+        const arr  = diff > 0 ? '↑' : '↓';
+        const val  = Math.abs(diff);
+        return `<span class="m-delta ${cls}">${arr} ${sign}${fmt(val) || val.toLocaleString()}</span>`;
+    }
+
+    /* Metric block */
+    function mBlock(label, today, prev, key) {
+        const f = fmt(today[key]);
+        return `
+        <div class="metric-block">
+            <div class="m-label">${label}</div>
+            <div class="m-value ${f ? '' : 'empty'}">${f || '—'}</div>
+            ${f ? deltaBadge(today, prev, key) : ''}
+        </div>`;
+    }
+
+    /* Overview Table */
+    function renderOverview(rows) {
+        const cell = (val, cls) => {
+            const f = fmt(val);
+            return `<td class="${cls} num ${f?'has':''}">${f || '<span style="color:#ddd">—</span>'}</td>`;
+        };
+        return `
+        <div class="overview-wrap">
+            <div class="overview-head"><span class="section-label">All Clients — Latest Snapshot</span></div>
+            <table class="overview-table">
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="vertical-align:bottom;text-align:left">Client</th>
+                        <th rowspan="2" style="vertical-align:bottom;text-align:left">Date</th>
+                        <th colspan="4" class="ig-h" style="text-align:center;border-left:2px solid var(--ig-mid)">Instagram</th>
+                        <th colspan="3" class="tt-h" style="text-align:center;border-left:2px solid var(--tt-mid)">TikTok</th>
+                        <th colspan="2" class="yt-h" style="text-align:center;border-left:2px solid var(--yt-mid)">YouTube</th>
+                    </tr>
+                    <tr>
+                        <th class="ig-h" style="border-left:2px solid var(--ig-mid)">Followers</th>
+                        <th class="ig-h">Views</th>
+                        <th class="ig-h">Avg Views</th>
+                        <th class="ig-h">Avg Likes</th>
+                        <th class="tt-h" style="border-left:2px solid var(--tt-mid)">Followers</th>
+                        <th class="tt-h">Views</th>
+                        <th class="tt-h">Avg Views</th>
+                        <th class="yt-h" style="border-left:2px solid var(--yt-mid)">Subscribers</th>
+                        <th class="yt-h">Views</th>
+                    </tr>
+                </thead>
+                <tbody>
+                ${rows.map(r => `
+                    <tr onclick="selectClient('${r.client_name}')">
+                        <td class="client-link">${r.client_name}</td>
+                        <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${r.date||'—'}</td>
+                        ${cell(r.ig_followers,         'ig-c')}
+                        ${cell(r.ig_total_post_views,  'ig-c')}
+                        ${cell(r.ig_avg_views,         'ig-c')}
+                        ${cell(r.ig_avg_likes,         'ig-c')}
+                        ${cell(r.tiktok_followers,        'tt-c')}
+                        ${cell(r.tiktok_total_post_plays, 'tt-c')}
+                        ${cell(r.tiktok_avg_plays,        'tt-c')}
+                        ${cell(r.yt_subscribers, 'yt-c')}
+                        ${cell(r.yt_total_views, 'yt-c')}
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    }
+
+    /* Single Client */
+    function renderClient(name, history) {
+        const today = history[history.length - 1];
+        const prev  = history.length >= 2 ? history[history.length - 2] : null;
+        const info  = clientMap[name] || {};
+
+        const igHandle = info.instagram_handle ? `@${info.instagram_handle}` : '';
+        const ttHandle = info.tiktok_handle    ? `@${info.tiktok_handle}`    : '';
+        const ytId     = info.youtube_channel_id || '';
+
+        const hasIG = n(today.ig_followers)      || n(today.ig_avg_likes);
+        const hasTT = n(today.tiktok_followers)  || n(today.tiktok_avg_plays);
+        const hasYT = n(today.yt_subscribers)    || n(today.yt_total_views);
+
+        const noData = `<div style="padding:18px 0;color:var(--text-muted);font-size:0.82rem">No data available</div>`;
+
+        const igHTML = hasIG ? `
+            ${mBlock('Followers',     today, prev, 'ig_followers')}
+            ${mBlock('Views',         today, prev, 'ig_total_post_views')}
+            ${mBlock('Avg Views',     today, prev, 'ig_avg_views')}
+            ${mBlock('Avg Likes',     today, prev, 'ig_avg_likes')}
+        ` : noData;
+
+        const ttHTML = hasTT ? `
+            ${mBlock('Followers',  today, prev, 'tiktok_followers')}
+            ${mBlock('Views',      today, prev, 'tiktok_total_post_plays')}
+            ${mBlock('Avg Views',  today, prev, 'tiktok_avg_plays')}
+        ` : noData;
+
+        const ytHTML = hasYT ? `
+            ${mBlock('Subscribers', today, prev, 'yt_subscribers')}
+            ${mBlock('Views',       today, prev, 'yt_total_views')}
+        ` : noData;
+
+        const legends = [
+            hasIG ? `<div class="leg-item"><div class="leg-dot" style="background:var(--ig)"></div>Instagram</div>` : '',
+            hasTT ? `<div class="leg-item"><div class="leg-dot" style="background:#888"></div>TikTok</div>` : '',
+            hasYT ? `<div class="leg-item"><div class="leg-dot" style="background:var(--yt)"></div>YouTube</div>` : '',
+        ].filter(Boolean).join('');
+
+        const compareNote = prev
+            ? `comparing vs ${prev.date}`
+            : `<em>daily changes will show once you have 2+ days of data</em>`;
+
+        return `
+        <div class="client-view">
+            <div class="detail-hero">
+                <div class="detail-name">${name}</div>
+                <div class="detail-meta">
+                    Last scraped ${today.date || 'unknown'}
+                    · ${history.length} data point${history.length !== 1 ? 's' : ''}
+                    · ${compareNote}
+                </div>
             </div>
-            <div class="selector-wrap">
-                <span class="selector-label">Client</span>
-                <select class="client-select" id="clientSelect">
-                    <option value="all">All Clients</option>
-                </select>
+
+            <div class="platform-section ig">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>Instagram</span>
+                    <span class="platform-handle">${igHandle}</span>
+                </div>
+                <div class="metrics-row">${igHTML}</div>
             </div>
-        </div>
 
-        <div id="content">
-            <div class="loading-state">
-                <div class="spinner"></div>
-                <span class="loading-text">Loading analytics…</span>
+            <div class="platform-section tt">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>TikTok</span>
+                    <span class="platform-handle">${ttHandle}</span>
+                </div>
+                <div class="metrics-row">${ttHTML}</div>
             </div>
-        </div>
-    </main>
 
-    <script>
-        const SHEET_ID = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
-        const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
-        const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
-
-        let allData = [];
-        let clientsMap = {};
-        let growthChart = null;
-
-        // ── CSV parser ──
-        function parseCSV(text) {
-            const lines = text.trim().split('\n').filter(l => l.trim());
-            if (lines.length < 2) return [];
-            const headers = splitCSVLine(lines[0]);
-            return lines.slice(1).map(line => {
-                const vals = splitCSVLine(line);
-                const obj = {};
-                headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
-                return obj;
-            });
-        }
-
-        function splitCSVLine(line) {
-            const result = [];
-            let cur = '', inQ = false;
-            for (const ch of line) {
-                if (ch === '"') inQ = !inQ;
-                else if (ch === ',' && !inQ) { result.push(cur); cur = ''; }
-                else cur += ch;
-            }
-            result.push(cur);
-            return result.map(v => v.replace(/^"|"$/g, '').trim());
-        }
-
-        // ── Number formatter ──
-        function fmt(n) {
-            if (n === null || n === undefined || n === '' || isNaN(n)) return null;
-            const num = Number(n);
-            if (num === 0) return null;
-            if (num >= 1_000_000) return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-            if (num >= 1_000) return (num / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
-            return num.toLocaleString();
-        }
-
-        function raw(n) {
-            const num = Number(n);
-            return isNaN(num) ? 0 : num;
-        }
-
-        // ── Fetch ──
-        async function fetchAll() {
-            const [metricsRes, clientsRes] = await Promise.all([
-                fetch(METRICS_URL),
-                fetch(CLIENTS_URL)
-            ]);
-            const metricsCSV = await metricsRes.text();
-            const clientsCSV = await clientsRes.text();
-
-            allData = parseCSV(metricsCSV);
-
-            const clientRows = parseCSV(clientsCSV);
-            clientRows.forEach(r => {
-                const name = r.client_name || r['client_name'];
-                if (name) clientsMap[name] = r;
-            });
-
-            return allData;
-        }
-
-        // ── Latest row per client ──
-        function getLatestPerClient(data) {
-            const map = {};
-            data.forEach(row => {
-                const cn = row.client_name;
-                if (!map[cn] || row.date > map[cn].date) map[cn] = row;
-            });
-            return Object.values(map).sort((a,b) => a.client_name.localeCompare(b.client_name));
-        }
-
-        // ── All rows for one client, sorted by date ──
-        function getClientHistory(data, client) {
-            return data
-                .filter(r => r.client_name === client)
-                .sort((a, b) => a.date.localeCompare(b.date));
-        }
-
-        // ── Populate client dropdown ──
-        function populateDropdown(data) {
-            const sel = document.getElementById('clientSelect');
-            const clients = [...new Set(data.map(r => r.client_name))].sort();
-            clients.forEach(c => {
-                const opt = document.createElement('option');
-                opt.value = c;
-                opt.textContent = c;
-                sel.appendChild(opt);
-            });
-        }
-
-        // ── Render overview table ──
-        function renderOverview(latestRows) {
-            return `
-            <div class="overview-table-wrap">
-                <div class="overview-table-header">
-                    <span class="section-title">All Clients — Latest Data</span>
+            <div class="platform-section yt">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>YouTube</span>
+                    <span class="platform-handle">${ytId ? ytId.slice(0,16)+'…' : ''}</span>
                 </div>
-                <table class="overview-table">
-                    <thead>
-                        <tr>
-                            <th>Client</th>
-                            <th>Date</th>
-                            <th class="platform-header"><span class="platform-badge ig">Instagram</span></th>
-                            <th class="platform-header" style="text-align:center">IG Avg Likes</th>
-                            <th class="platform-header"><span class="platform-badge tt">TikTok</span></th>
-                            <th class="platform-header" style="text-align:center">TT Avg Plays</th>
-                            <th class="platform-header"><span class="platform-badge yt">YouTube</span></th>
-                            <th class="platform-header" style="text-align:center">YT Total Views</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${latestRows.map(row => {
-                            const igF = fmt(row.ig_followers);
-                            const ttF = fmt(row.tiktok_followers);
-                            const ytS = fmt(row.yt_subscribers);
-                            return `
-                            <tr>
-                                <td class="client-name-cell" onclick="selectClient('${row.client_name}')">${row.client_name}</td>
-                                <td style="color:var(--text-muted);font-size:0.82rem">${row.date || '—'}</td>
-                                <td class="metric-cell ${igF ? 'has-data' : ''}">${igF || '<span class="dash">—</span>'}</td>
-                                <td class="metric-cell ${fmt(row.ig_avg_likes) ? 'has-data' : ''}">${fmt(row.ig_avg_likes) || '<span class="dash">—</span>'}</td>
-                                <td class="metric-cell ${ttF ? 'has-data' : ''}">${ttF || '<span class="dash">—</span>'}</td>
-                                <td class="metric-cell ${fmt(row.tiktok_avg_plays) ? 'has-data' : ''}">${fmt(row.tiktok_avg_plays) || '<span class="dash">—</span>'}</td>
-                                <td class="metric-cell ${ytS ? 'has-data' : ''}">${ytS || '<span class="dash">—</span>'}</td>
-                                <td class="metric-cell ${fmt(row.yt_total_views) ? 'has-data' : ''}">${fmt(row.yt_total_views) || '<span class="dash">—</span>'}</td>
-                            </tr>`;
-                        }).join('')}
-                    </tbody>
-                </table>
-            </div>`;
-        }
+                <div class="metrics-row">${ytHTML}</div>
+            </div>
 
-        // ── Render single client ──
-        function renderClient(clientName, latest, history) {
-            const cInfo = clientsMap[clientName] || {};
-
-            const igHandle = cInfo.instagram_handle || '';
-            const ttHandle = cInfo.tiktok_handle || '';
-            const ytId = cInfo.youtube_channel_id || '';
-
-            function metricBlock(label, value) {
-                const f = fmt(value);
-                return `<div class="metric-item">
-                    <div class="metric-label">${label}</div>
-                    <div class="metric-value ${f ? '' : 'no-data'}">${f || '—'}</div>
-                </div>`;
-            }
-
-            const hasIG = raw(latest.ig_followers) > 0 || raw(latest.ig_avg_likes) > 0;
-            const hasTT = raw(latest.tiktok_followers) > 0 || raw(latest.tiktok_avg_plays) > 0;
-            const hasYT = raw(latest.yt_subscribers) > 0 || raw(latest.yt_total_views) > 0;
-
-            return `
-            <div class="client-view">
-                <div class="client-hero">
-                    <div class="client-name-display">${clientName}</div>
-                    <div class="client-date">Last scraped ${latest.date || 'unknown'} · ${history.length} data point${history.length !== 1 ? 's' : ''}</div>
+            <div class="chart-section">
+                <div class="chart-top">
+                    <span class="chart-title">Follower Growth Over Time</span>
+                    <div class="chart-legend">${legends}</div>
                 </div>
+                <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
+            </div>
+        </div>`;
+    }
 
-                <div class="platforms-grid">
-                    <!-- Instagram -->
-                    <div class="platform-card">
-                        <div class="platform-card-header">
-                            <span class="platform-label">
-                                <span class="platform-dot ig"></span>
-                                Instagram
-                            </span>
-                            ${igHandle ? `<span class="platform-handle">@${igHandle}</span>` : ''}
-                        </div>
-                        <div class="platform-metrics">
-                            ${hasIG ? `
-                                ${metricBlock('Followers', latest.ig_followers)}
-                                ${metricBlock('Avg Likes', latest.ig_avg_likes)}
-                                ${metricBlock('Avg Views', latest.ig_avg_views)}
-                                ${metricBlock('Total Post Views', latest.ig_total_post_views)}
-                            ` : `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.85rem;padding:12px 0">No Instagram data</div>`}
-                        </div>
-                    </div>
+    /* Chart */
+    function renderChart(history) {
+        const ctx = document.getElementById('growthChart');
+        if (!ctx) return;
+        if (growthChart) { growthChart.destroy(); growthChart = null; }
 
-                    <!-- TikTok -->
-                    <div class="platform-card">
-                        <div class="platform-card-header">
-                            <span class="platform-label">
-                                <span class="platform-dot tt"></span>
-                                TikTok
-                            </span>
-                            ${ttHandle ? `<span class="platform-handle">@${ttHandle}</span>` : ''}
-                        </div>
-                        <div class="platform-metrics">
-                            ${hasTT ? `
-                                ${metricBlock('Followers', latest.tiktok_followers)}
-                                ${metricBlock('Avg Plays', latest.tiktok_avg_plays)}
-                                ${metricBlock('Total Post Plays', latest.tiktok_total_post_plays)}
-                            ` : `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.85rem;padding:12px 0">No TikTok data</div>`}
-                        </div>
-                    </div>
-
-                    <!-- YouTube -->
-                    <div class="platform-card">
-                        <div class="platform-card-header">
-                            <span class="platform-label">
-                                <span class="platform-dot yt"></span>
-                                YouTube
-                            </span>
-                            ${ytId ? `<span class="platform-handle">${ytId.slice(0,12)}…</span>` : ''}
-                        </div>
-                        <div class="platform-metrics">
-                            ${hasYT ? `
-                                ${metricBlock('Subscribers', latest.yt_subscribers)}
-                                ${metricBlock('Total Views', latest.yt_total_views)}
-                            ` : `<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);font-size:0.85rem;padding:12px 0">No YouTube data</div>`}
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Growth Chart -->
-                <div class="chart-section">
-                    <div class="chart-header">
-                        <span class="chart-title">Follower Growth Over Time</span>
-                        <div class="chart-legend">
-                            ${hasIG ? `<div class="legend-item"><div class="legend-dot" style="background:var(--ig)"></div>Instagram</div>` : ''}
-                            ${hasTT ? `<div class="legend-item"><div class="legend-dot" style="background:#888"></div>TikTok</div>` : ''}
-                            ${hasYT ? `<div class="legend-item"><div class="legend-dot" style="background:var(--yt)"></div>YouTube</div>` : ''}
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <canvas id="growthChart"></canvas>
-                    </div>
-                </div>
-            </div>`;
-        }
-
-        // ── Render chart ──
-        function renderChart(history) {
-            const ctx = document.getElementById('growthChart');
-            if (!ctx) return;
-
-            if (growthChart) { growthChart.destroy(); growthChart = null; }
-
-            const labels = history.map(r => r.date);
-            const datasets = [];
-
-            const igData = history.map(r => raw(r.ig_followers) || null);
-            const ttData = history.map(r => raw(r.tiktok_followers) || null);
-            const ytData = history.map(r => raw(r.yt_subscribers) || null);
-
-            if (igData.some(v => v)) datasets.push({
-                label: 'Instagram',
-                data: igData,
-                borderColor: '#E1306C',
-                backgroundColor: 'rgba(225,48,108,0.06)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: history.length < 10 ? 4 : 2,
+        const labels = history.map(r => r.date);
+        const ds = [];
+        const push = (label, key, color, bg) => {
+            const data = history.map(r => n(r[key]) || null);
+            if (data.some(v => v)) ds.push({
+                label, data, borderColor: color, backgroundColor: bg,
+                fill: true, tension: 0.4, borderWidth: 2,
+                pointRadius: history.length < 8 ? 4 : 2,
                 pointHoverRadius: 6,
-                borderWidth: 2,
             });
-            if (ttData.some(v => v)) datasets.push({
-                label: 'TikTok',
-                data: ttData,
-                borderColor: '#888888',
-                backgroundColor: 'rgba(0,0,0,0.04)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: history.length < 10 ? 4 : 2,
-                pointHoverRadius: 6,
-                borderWidth: 2,
-            });
-            if (ytData.some(v => v)) datasets.push({
-                label: 'YouTube',
-                data: ytData,
-                borderColor: '#FF0000',
-                backgroundColor: 'rgba(255,0,0,0.04)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: history.length < 10 ? 4 : 2,
-                pointHoverRadius: 6,
-                borderWidth: 2,
-            });
+        };
+        push('Instagram', 'ig_followers',    '#E1306C', 'rgba(225,48,108,0.06)');
+        push('TikTok',    'tiktok_followers', '#888',    'rgba(0,0,0,0.03)');
+        push('YouTube',   'yt_subscribers',  '#e60000', 'rgba(230,0,0,0.04)');
 
-            if (!datasets.length) {
-                ctx.parentElement.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.85rem">Not enough data yet — check back after a few days.</div>';
-                return;
-            }
+        if (!ds.length) {
+            ctx.parentElement.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`;
+            return;
+        }
 
-            growthChart = new Chart(ctx, {
-                type: 'line',
-                data: { labels, datasets },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#fff',
-                            titleColor: '#111',
-                            bodyColor: '#6b6b67',
-                            borderColor: '#e8e8e4',
-                            borderWidth: 1,
-                            padding: 12,
-                            callbacks: {
-                                label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y ? ctx.parsed.y.toLocaleString() : '—'}`
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            grid: { color: '#f0f0ec' },
-                            ticks: { color: '#a8a8a3', font: { size: 11, family: 'DM Sans' }, maxTicksLimit: 10 }
-                        },
-                        y: {
-                            grid: { color: '#f0f0ec' },
-                            ticks: {
-                                color: '#a8a8a3',
-                                font: { size: 11, family: 'DM Sans' },
-                                callback: v => fmt(v) || v
-                            }
-                        }
+        growthChart = new Chart(ctx, {
+            type: 'line', data: { labels, datasets: ds },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#fff', titleColor: '#111', bodyColor: '#666',
+                        borderColor: '#e6e6e2', borderWidth: 1, padding: 12,
+                        callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y ? c.parsed.y.toLocaleString() : '—'}` }
                     }
+                },
+                scales: {
+                    x: { grid: { color: '#f0f0ec' }, ticks: { color: '#ccc', font: { size: 11 }, maxTicksLimit: 10 } },
+                    y: { grid: { color: '#f0f0ec' }, ticks: { color: '#ccc', font: { size: 11 }, callback: v => fmt(v) || v } }
                 }
-            });
-        }
-
-        // ── Main render ──
-        function render(selectedClient) {
-            const content = document.getElementById('content');
-
-            if (selectedClient === 'all') {
-                const latest = getLatestPerClient(allData);
-                content.innerHTML = renderOverview(latest);
-                return;
             }
+        });
+    }
 
-            const history = getClientHistory(allData, selectedClient);
-            if (!history.length) {
-                content.innerHTML = `<div class="error-state">No data found for "${selectedClient}"</div>`;
-                return;
-            }
-            const latest = history[history.length - 1];
-            content.innerHTML = renderClient(selectedClient, latest, history);
+    /* Render */
+    function render(sel) {
+        const content = document.getElementById('content');
+        if (sel === 'all') { content.innerHTML = renderOverview(latestPerClient()); return; }
+        const hist = clientHistory(sel);
+        if (!hist.length) { content.innerHTML = `<div class="error-state">No data for "${sel}"</div>`; return; }
+        content.innerHTML = renderClient(sel, hist);
+        setTimeout(() => renderChart(hist), 0);
+    }
 
-            // Chart needs DOM to be ready
-            setTimeout(() => renderChart(history), 0);
+    function selectClient(name) {
+        document.getElementById('clientSelect').value = name;
+        render(name);
+    }
+
+    async function init() {
+        try {
+            await fetchAll();
+            populateDropdown();
+            const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
+            if (dates[0]) document.getElementById('lastUpdated').textContent = `Updated ${dates[0]}`;
+            document.getElementById('clientSelect').addEventListener('change', e => render(e.target.value));
+            render('all');
+        } catch (err) {
+            document.getElementById('content').innerHTML = `
+                <div class="error-state">
+                    Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br>
+                    <small style="color:#aaa">${err.message}</small>
+                </div>`;
         }
+    }
 
-        function selectClient(name) {
-            const sel = document.getElementById('clientSelect');
-            sel.value = name;
-            render(name);
-        }
-
-        // ── Init ──
-        async function init() {
-            try {
-                await fetchAll();
-                populateDropdown(allData);
-
-                if (allData.length) {
-                    const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
-                    document.getElementById('lastUpdated').textContent = `Updated ${dates[0] || ''}`;
-                }
-
-                document.getElementById('clientSelect').addEventListener('change', e => render(e.target.value));
-
-                render('all');
-            } catch (err) {
-                document.getElementById('content').innerHTML = `
-                    <div class="error-state">
-                        Failed to load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br>
-                        <small style="color:#aaa">${err.message}</small>
-                    </div>`;
-            }
-        }
-
-        init();
-    </script>
+    init();
+</script>
 </body>
 </html>

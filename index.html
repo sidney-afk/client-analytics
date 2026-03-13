@@ -49,7 +49,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* ── HEADER ── */
         .header {
             background: var(--white);
             border-bottom: 1px solid var(--border);
@@ -67,7 +66,6 @@
         .logo-text { font-weight: 700; font-size: 1rem; letter-spacing: -0.01em; }
         .header-meta { font-size: 0.77rem; color: var(--text-muted); }
 
-        /* ── MAIN ── */
         .main { padding: 32px 32px 80px; }
 
         .page-top {
@@ -98,7 +96,6 @@
         .page-title { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .page-sub   { font-size: 0.82rem; color: var(--text-secondary); margin-top: 3px; }
 
-        /* ── SELECTOR ── */
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
         .selector-label { font-size: 0.71rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
         .client-select {
@@ -116,7 +113,6 @@
         }
         .client-select:focus { outline: none; border-color: #aaa; }
 
-        /* ── OVERVIEW CARD ── */
         .overview-wrap {
             background: var(--white);
             border: 1px solid var(--border);
@@ -124,7 +120,6 @@
             overflow: hidden;
         }
 
-        /* ── OVERVIEW HEAD with filter pills ── */
         .overview-head {
             padding: 14px 20px;
             border-bottom: 1px solid var(--border-light);
@@ -160,7 +155,6 @@
         .pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
         .pill-arrow { font-size: 0.65rem; opacity: 0.6; }
 
-        /* ── TABLE ── */
         .overview-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
         .overview-table th {
@@ -239,7 +233,6 @@
         .col-num  { width: 80px; }
         .col-gain { width: 60px; }
 
-        /* ── CLIENT DETAIL ── */
         .client-view { animation: fadeIn 0.15s ease; max-width: 980px; margin: 0 auto; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
@@ -264,7 +257,6 @@
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
 
-        /* ── GAINS BAR ── */
         .gains-bar {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 11px; padding: 13px 18px;
@@ -283,7 +275,6 @@
         .gain-val.none { color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.7rem; }
         .gains-divider { width: 1px; height: 24px; background: var(--border-light); margin: 0 12px; flex-shrink: 0; }
 
-        /* ── PLATFORM SECTIONS ── */
         .platform-section { margin-bottom: 11px; border-radius: 14px; overflow: hidden; border: none; }
         .platform-section.ig { background: linear-gradient(135deg, #c9006a 0%, #e8510a 100%); }
         .platform-section.tt { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a4a 60%, #0d1a3a 100%); }
@@ -316,7 +307,6 @@
         .m-delta.flat { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
         .m-delta.none { color: rgba(255,255,255,0.4); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
 
-        /* ── TOP VIDEOS SECTION (inside platform cards) ── */
         .top-videos-section {
             border-top: 1px solid rgba(255,255,255,0.1);
             padding: 16px 20px 20px;
@@ -359,7 +349,6 @@
             color: #fff;
         }
 
-        /* Video cards container: horizontal scroll */
         .video-cards-scroll {
             display: flex;
             gap: 10px;
@@ -373,127 +362,6 @@
         .video-cards-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
         .video-cards-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 
-        /* ── Video card WITH thumbnail (IG, YT) ── */
-        .video-card {
-            flex: 0 0 280px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 10px;
-            overflow: hidden;
-            display: flex;
-            flex-direction: row;
-            scroll-snap-align: start;
-            transition: background 0.15s, border-color 0.15s;
-            text-decoration: none;
-        }
-        .video-card:hover {
-            background: rgba(255,255,255,0.13);
-            border-color: rgba(255,255,255,0.2);
-        }
-
-        .video-card-thumb {
-            width: 90px;
-            min-height: 120px;
-            flex-shrink: 0;
-            background: rgba(0,0,0,0.3);
-            position: relative;
-            overflow: hidden;
-        }
-        .video-card-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-        .video-rank-badge {
-            position: absolute;
-            top: 6px;
-            left: 6px;
-            background: rgba(0,0,0,0.65);
-            backdrop-filter: blur(6px);
-            color: #fff;
-            font-size: 0.6rem;
-            font-weight: 800;
-            padding: 2px 7px;
-            border-radius: 5px;
-            letter-spacing: 0.02em;
-        }
-
-        .video-card-body {
-            flex: 1;
-            padding: 10px 12px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            min-width: 0;
-        }
-
-        .video-caption {
-            font-size: 0.72rem;
-            font-weight: 500;
-            color: rgba(255,255,255,0.85);
-            line-height: 1.4;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            margin-bottom: 8px;
-        }
-        .video-caption-full {
-            -webkit-line-clamp: unset;
-        }
-        .read-more-btn {
-            background: none;
-            border: none;
-            color: rgba(255,255,255,0.45);
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.64rem;
-            font-weight: 600;
-            cursor: pointer;
-            padding: 0;
-            margin-bottom: 8px;
-            text-align: left;
-            transition: color 0.15s;
-        }
-        .read-more-btn:hover { color: rgba(255,255,255,0.7); }
-
-        .video-stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 3px 10px;
-        }
-        .video-stat {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .video-stat-icon {
-            flex-shrink: 0;
-            opacity: 0.45;
-        }
-        .video-stat-val {
-            font-size: 0.69rem;
-            font-weight: 700;
-            color: rgba(255,255,255,0.9);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .video-link-arrow {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.12);
-            flex-shrink: 0;
-            margin-top: auto;
-            align-self: flex-end;
-            transition: background 0.15s;
-        }
-        .video-card:hover .video-link-arrow { background: rgba(255,255,255,0.22); }
-
-        /* ── Video card WITHOUT thumbnail (TikTok) ── */
         .video-card-tt {
             flex: 0 0 220px;
             background: rgba(255,255,255,0.07);
@@ -541,6 +409,21 @@
         }
         .tt-caption-full { -webkit-line-clamp: unset; }
 
+        .read-more-btn {
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.45);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.64rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            margin-bottom: 8px;
+            text-align: left;
+            transition: color 0.15s;
+        }
+        .read-more-btn:hover { color: rgba(255,255,255,0.7); }
+
         .tt-stats {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -569,7 +452,6 @@
             font-style: italic;
         }
 
-        /* ── CHART ── */
         .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 20px; margin-top: 11px; }
         .chart-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
         .chart-title { font-size: 0.87rem; font-weight: 700; letter-spacing: -0.01em; }
@@ -578,7 +460,6 @@
         .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
         .chart-wrap { position: relative; height: 210px; }
 
-        /* ── CLIENT-ONLY BADGE ── */
         .client-only-badge {
             display: inline-flex; align-items: center; gap: 7px;
             background: var(--ig-light); border: 1px solid var(--ig-mid);
@@ -587,18 +468,14 @@
             margin-bottom: 18px;
         }
 
-        /* ── STATES ── */
         .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; gap: 14px; }
         .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: #777; border-radius: 50%; animation: spin 0.75s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .error-state { background: var(--white); border: 1px solid #fecaca; border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
 
-        /* ── Responsive ── */
         @media (max-width: 700px) {
-            .video-card { flex: 0 0 250px; }
             .video-card-tt { flex: 0 0 200px; }
-            .video-card-thumb { width: 76px; min-height: 100px; }
         }
     </style>
 </head>
@@ -649,12 +526,10 @@
     let sortCol = 'ig_followers';
     let sortDir = 'desc';
 
-    // Track active period per platform per client
     let activePeriods = {};
     function getPeriodKey(client, platform) { return `${client}__${platform}`; }
     function getActivePeriod(client, platform) { return activePeriods[getPeriodKey(client, platform)] || 'week'; }
 
-    /* ── CSV ── */
     function splitLine(line) {
         const out = []; let cur = '', q = false;
         for (const ch of line) {
@@ -698,7 +573,6 @@
         return x.toLocaleString();
     }
 
-    /* ── SVG icons for stats ── */
     const ICON = {
         views: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.5"/></svg>`,
         likes: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 14s-5.5-3.5-5.5-7A3.5 3.5 0 0 1 8 4.5 3.5 3.5 0 0 1 13.5 7C13.5 10.5 8 14 8 14z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
@@ -706,7 +580,6 @@
         shares: `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 9l4-5 4 5M8 4v9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     };
 
-    /* ── Fetch ── */
     async function fetchAll() {
         const [mr, cr, tr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL), fetch(TOPVIDS_URL)]);
         allData = parseCSV(await mr.text());
@@ -739,7 +612,6 @@
         });
     }
 
-    /* ── Top Videos helpers ── */
     function getTopVideos(clientName, platform, period) {
         const plat = platform.toLowerCase();
         const per  = period.toLowerCase();
@@ -752,7 +624,6 @@
             .sort((a,b) => n(a.rank) - n(b.rank));
     }
 
-    /* ── Sort ── */
     const SORT_COLS = {
         'client_name':           { label: 'Name',           pill: 'active-name' },
         'ig_followers':          { label: 'IG Followers',   pill: 'active-ig' },
@@ -789,7 +660,6 @@
         }).join('');
     }
 
-    /* ── URLs ── */
     function igUrl(h)  { return h ? `https://instagram.com/${h}` : null; }
     function ttUrl(h)  { return h ? `https://tiktok.com/@${h}` : null; }
     function ytUrl(id) { return id ? `https://youtube.com/channel/${id}` : null; }
@@ -798,7 +668,6 @@
         return `<a href="${url}" target="_blank" rel="noopener" class="platform-handle-link">${label}</a>`;
     }
 
-    /* ── Delta badge ── */
     function deltaBadge(today, prev, key) {
         if (!prev) return `<span class="m-delta none">no previous day yet</span>`;
         const diff = n(today[key]) - n(prev[key]);
@@ -817,7 +686,6 @@
         </div>`;
     }
 
-    /* ── Gain cell ── */
     function gainCell(today, prev, key, cls) {
         const f = fmt(today[key]);
         if (!f || !prev) return `<td class="${cls}"><span class="g-none">—</span></td>`;
@@ -827,7 +695,6 @@
         return `<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span></td>`;
     }
 
-    /* ── Overview Table ── */
     function renderOverview(rawRows) {
         const rows = sortedRows(rawRows);
         const prevMap = prevPerClient();
@@ -899,7 +766,6 @@
         </div>`;
     }
 
-    /* ── Gains Bar ── */
     function gainsBar(today, prev) {
         function gainItem(dotColor, label, key) {
             const val = n(today[key]);
@@ -924,11 +790,9 @@
         return `<div class="gains-bar"><span class="gains-bar-label">Today's Gains</span>${sections.join('')}${note}</div>`;
     }
 
-    /* ── Top Videos HTML builder ── */
     function buildTopVideosSection(clientName, platform, containerId) {
         const period = getActivePeriod(clientName, platform);
         const videos = getTopVideos(clientName, platform, period);
-        const isTikTok = platform.toLowerCase() === 'tiktok';
 
         const weekActive = period === 'week' ? 'active' : '';
         const monthActive = period === 'month' ? 'active' : '';
@@ -939,13 +803,14 @@
 
         if (!hasAnyData) return '';
 
+        // Only TikTok shows shares (IG and YT API don't return shares)
+        const showShares = platform.toLowerCase() === 'tiktok';
+
         let cardsHtml = '';
         if (!videos.length) {
             cardsHtml = `<div class="top-videos-empty">No top videos for this period yet</div>`;
-        } else if (isTikTok) {
-            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildTTCard(v)).join('')}</div>`;
         } else {
-            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildThumbCard(v)).join('')}</div>`;
+            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildVideoCard(v, showShares)).join('')}</div>`;
         }
 
         return `
@@ -963,7 +828,6 @@
 
     function truncateCaption(caption) {
         if (!caption) return '';
-        // Split on sentence boundaries and take first ~120 chars or 2 sentences
         const sentences = caption.match(/[^.!?]+[.!?]+/g) || [caption];
         let result = '';
         for (let i = 0; i < Math.min(2, sentences.length); i++) {
@@ -973,41 +837,17 @@
         return result.trim() || caption.substring(0, 120);
     }
 
-    function buildThumbCard(v) {
-        const caption = v.caption || '';
-        const truncated = truncateCaption(caption);
-        const needsReadMore = caption.length > truncated.length + 5;
-        const uid = 'vc_' + Math.random().toString(36).substring(2, 9);
-        const thumbUrl = v.thumbnail_url || '';
-        const videoUrl = v.video_url || '#';
-
-        return `
-        <a class="video-card" href="${videoUrl}" target="_blank" rel="noopener">
-            <div class="video-card-thumb">
-                ${thumbUrl ? `<img src="${thumbUrl}" alt="" loading="lazy" referrerpolicy="no-referrer" crossorigin="anonymous" onerror="this.style.display='none'">` : ''}
-                <div class="video-rank-badge">#${n(v.rank)}</div>
-            </div>
-            <div class="video-card-body">
-                <div>
-                    <div class="video-caption" id="${uid}">${truncated}</div>
-                    ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this,\`${caption.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`,\`${truncated.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`)">read more</button>` : ''}
-                </div>
-                <div class="video-stats">
-                    <div class="video-stat"><span class="video-stat-icon">${ICON.views}</span><span class="video-stat-val">${fmtCompact(v.views)}</span></div>
-                    <div class="video-stat"><span class="video-stat-icon">${ICON.likes}</span><span class="video-stat-val">${fmtCompact(v.likes)}</span></div>
-                    <div class="video-stat"><span class="video-stat-icon">${ICON.comments}</span><span class="video-stat-val">${fmtCompact(v.comments)}</span></div>
-                    <div class="video-stat"><span class="video-stat-icon">${ICON.shares}</span><span class="video-stat-val">${fmtCompact(v.shares)}</span></div>
-                </div>
-            </div>
-        </a>`;
-    }
-
-    function buildTTCard(v) {
+    /* ── Unified video card (no thumbnail, all platforms) ── */
+    function buildVideoCard(v, showShares) {
         const caption = v.caption || '';
         const truncated = truncateCaption(caption);
         const needsReadMore = caption.length > truncated.length + 5;
         const uid = 'tc_' + Math.random().toString(36).substring(2, 9);
         const videoUrl = v.video_url || '#';
+
+        const sharesRow = showShares
+            ? `<div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>`
+            : '';
 
         return `
         <a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener">
@@ -1018,33 +858,30 @@
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span><span class="tt-stat-val">${fmtCompact(v.views)}</span></div>
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div>
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.comments}</span><span class="tt-stat-val">${fmtCompact(v.comments)}</span></div>
-                <div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>
+                ${sharesRow}
             </div>
         </a>`;
     }
 
-    /* ── Toggle caption ── */
     function toggleCaption(uid, btn, full, short) {
         const el = document.getElementById(uid);
         if (!el) return;
-        const isExpanded = el.classList.contains('video-caption-full') || el.classList.contains('tt-caption-full');
+        const isExpanded = el.classList.contains('tt-caption-full');
         if (isExpanded) {
-            el.classList.remove('video-caption-full', 'tt-caption-full');
+            el.classList.remove('tt-caption-full');
             el.textContent = short;
             btn.textContent = 'read more';
         } else {
-            el.classList.add('video-caption-full', 'tt-caption-full');
+            el.classList.add('tt-caption-full');
             el.textContent = full;
             btn.textContent = 'show less';
         }
     }
 
-    /* ── Switch period ── */
     function switchPeriod(clientName, platform, period, containerId) {
         activePeriods[getPeriodKey(clientName, platform)] = period;
         const container = document.getElementById(containerId);
         if (!container) return;
-        const parent = container.parentElement;
         const newHtml = buildTopVideosSection(clientName, platform, containerId);
         const temp = document.createElement('div');
         temp.innerHTML = newHtml;
@@ -1053,7 +890,6 @@
         }
     }
 
-    /* ── Single Client ── */
     function renderClient(name, history, clientOnly) {
         const today = history[history.length - 1];
         const prev  = history.length >= 2 ? history[history.length - 2] : null;
@@ -1078,7 +914,6 @@
                 Share with client
             </button>` : '';
 
-        // Build top videos sections for each platform
         const igTopVids = buildTopVideosSection(name, 'instagram', `tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids = buildTopVideosSection(name, 'tiktok',    `tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids = buildTopVideosSection(name, 'youtube',   `tv-yt-${name.replace(/\s+/g,'_')}`);
@@ -1146,7 +981,6 @@
         </div>`;
     }
 
-    /* ── Copy share link ── */
     function copyShareLink(encodedName) {
         const url = `${location.origin}${location.pathname}#${encodedName}`;
         navigator.clipboard.writeText(url).then(() => {
@@ -1161,7 +995,6 @@
         });
     }
 
-    /* ── Chart ── */
     function renderChart(history) {
         const ctx = document.getElementById('growthChart');
         if (!ctx) return;
@@ -1190,7 +1023,6 @@
         });
     }
 
-    /* ── Render ── */
     function render(sel, clientOnly) {
         const content = document.getElementById('content');
 
@@ -1224,7 +1056,6 @@
         render(name, false);
     }
 
-    /* ── Init ── */
     async function init() {
         try {
             await fetchAll();

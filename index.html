@@ -803,7 +803,6 @@
 
         if (!hasAnyData) return '';
 
-        // Only TikTok shows shares (IG and YT API don't return shares)
         const showShares = platform.toLowerCase() === 'tiktok';
 
         let cardsHtml = '';
@@ -837,7 +836,6 @@
         return result.trim() || caption.substring(0, 120);
     }
 
-    /* ── Unified video card (no thumbnail, all platforms) ── */
     function buildVideoCard(v, showShares) {
         const caption = v.caption || '';
         const truncated = truncateCaption(caption);
@@ -1025,10 +1023,15 @@
 
     function render(sel, clientOnly) {
         const content = document.getElementById('content');
-
         const titleRow = document.getElementById('titleRow');
+        const pageTitle = document.getElementById('pageTitle');
+        const pageSub = document.getElementById('pageSub');
         const existingBack = titleRow.querySelector('.back-btn');
+
         if (sel !== 'all' && !clientOnly) {
+            // Hide the title and subtitle, show only the back button
+            pageTitle.style.display = 'none';
+            pageSub.style.display = 'none';
             if (!existingBack) {
                 const btn = document.createElement('button');
                 btn.className = 'back-btn';
@@ -1037,6 +1040,9 @@
                 titleRow.insertBefore(btn, titleRow.firstChild);
             }
         } else {
+            // Restore the title and subtitle, remove the back button
+            pageTitle.style.display = '';
+            pageSub.style.display = '';
             if (existingBack) existingBack.remove();
         }
 

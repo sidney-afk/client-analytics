@@ -71,7 +71,7 @@
 
         .page-top {
             display: flex;
-            align-items: flex-end;
+            align-items: center;
             justify-content: space-between;
             gap: 20px;
             flex-wrap: wrap;
@@ -212,6 +212,7 @@
             border-bottom: 1px solid var(--border-light);
             font-variant-numeric: tabular-nums;
             text-align: center;
+            vertical-align: middle;
             font-weight: 400;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -562,41 +563,43 @@
                 <colgroup>
                     <col class="col-name">
                     <col class="col-date">
-                    <col class="col-num"><col class="col-gain"><col class="col-num">
+                    <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
                     <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
                     <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
                 </colgroup>
                 <thead>
                     <tr>
-                        <th rowspan="2" style="text-align:left;vertical-align:bottom">Client</th>
-                        <th rowspan="2" style="vertical-align:bottom">Date</th>
-                        <th colspan="3" class="group-ig">Instagram</th>
+                        <th rowspan="2" style="text-align:left;vertical-align:middle">Client</th>
+                        <th rowspan="2" style="vertical-align:middle">Date</th>
+                        <th colspan="4" class="group-ig">Instagram</th>
                         <th colspan="4" class="group-tt">TikTok</th>
                         <th colspan="4" class="group-yt">YouTube</th>
                     </tr>
                     <tr>
                         <th class="ig-h">Followers</th>
-                        <th class="ig-h">+</th>
+                        <th class="ig-h">+Followers</th>
                         <th class="ig-h">Total Views</th>
+                        <th class="ig-h">+Views</th>
                         <th class="tt-h">Followers</th>
-                        <th class="tt-h">+</th>
+                        <th class="tt-h">+Followers</th>
                         <th class="tt-h">Total Views</th>
-                        <th class="tt-h">+</th>
+                        <th class="tt-h">+Views</th>
                         <th class="yt-h">Subscribers</th>
-                        <th class="yt-h">+</th>
+                        <th class="yt-h">+Subscribers</th>
                         <th class="yt-h">Total Views</th>
-                        <th class="yt-h">+</th>
+                        <th class="yt-h">+Views</th>
                     </tr>
                 </thead>
                 <tbody>
                 ${rows.map(r => {
                     const p = prevMap[r.client_name] || null;
                     return `<tr onclick="selectClient('${r.client_name}')">
-                        <td style="font-weight:600">${r.client_name}</td>
-                        <td style="color:var(--text-muted);font-size:0.76rem">${fmtDate(r.date)}</td>
+                        <td style="font-weight:600;vertical-align:middle">${r.client_name}</td>
+                        <td style="color:var(--text-muted);font-size:0.76rem;vertical-align:middle">${fmtDate(r.date)}</td>
                         ${nc(r.ig_followers, 'ig-c')}
                         ${gainCell(r, p, 'ig_followers', 'ig-c')}
                         ${nc(r.ig_total_post_views, 'ig-c')}
+                        ${gainCell(r, p, 'ig_total_post_views', 'ig-c')}
                         ${nc(r.tiktok_followers, 'tt-c')}
                         ${gainCell(r, p, 'tiktok_followers', 'tt-c')}
                         ${nc(r.tiktok_total_post_plays, 'tt-c')}

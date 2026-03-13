@@ -5,54 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SyncView — Client Analytics</title>
     <link rel="icon" type="image/png" href="syncview-favicon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         :root {
-            --white: #ffffff;
-            --bg: #f5f5f3;
-            --border: #e6e6e2;
-            --border-light: #efefeb;
-            --text-primary: #111110;
+            --white:  #ffffff;
+            --bg:     #f4f4f2;
+            --border: #e4e4e0;
+            --border-light: #ededea;
+            --text-primary:   #111110;
             --text-secondary: #6b6b67;
-            --text-muted: #b0b0aa;
+            --text-muted:     #b4b4ae;
 
-            --ig:        #E1306C;
-            --ig-light:  #fdf0f5;
-            --ig-mid:    #f5c6d8;
-            --ig-dark:   #b01d54;
+            --ig:       #E1306C;
+            --ig-light: #fdf0f5;
+            --ig-mid:   #f4c2d5;
+            --ig-dark:  #a81950;
 
-            --tt:        #111111;
-            --tt-light:  #f5f5f5;
-            --tt-mid:    #ddd;
-            --tt-dark:   #444;
+            --tt:       #111111;
+            --tt-light: #f5f5f5;
+            --tt-mid:   #d8d8d8;
+            --tt-dark:  #3a3a3a;
 
-            --yt:        #e60000;
-            --yt-light:  #fff4f4;
-            --yt-mid:    #ffc9c9;
-            --yt-dark:   #b50000;
+            --yt:       #e60000;
+            --yt-light: #fff4f4;
+            --yt-mid:   #ffbebe;
+            --yt-dark:  #aa0000;
 
-            --up:   #15803d;
-            --up-bg:#f0fdf4;
-            --dn:   #dc2626;
-            --dn-bg:#fef2f2;
+            --up:    #16a34a;
+            --up-bg: #f0fdf4;
+            --dn:    #dc2626;
+            --dn-bg: #fef2f2;
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: 'DM Sans', sans-serif;
+            font-family: 'Plus Jakarta Sans', sans-serif;
             background: var(--bg);
             color: var(--text-primary);
             min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* HEADER */
+        /* ── HEADER ── */
         .header {
             background: var(--white);
             border-bottom: 1px solid var(--border);
             padding: 0 40px;
-            height: 62px;
+            height: 60px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -61,17 +62,17 @@
             z-index: 100;
         }
         .logo { display: flex; align-items: center; gap: 9px; }
-        .logo img { width: 26px; height: 26px; border-radius: 6px; }
+        .logo img { width: 25px; height: 25px; border-radius: 6px; }
         .logo-text {
-            font-family: 'Syne', sans-serif;
-            font-weight: 800;
-            font-size: 1.05rem;
-            letter-spacing: -0.02em;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: -0.01em;
+            color: var(--text-primary);
         }
-        .header-meta { font-size: 0.78rem; color: var(--text-muted); }
+        .header-meta { font-size: 0.77rem; color: var(--text-muted); font-weight: 400; }
 
-        /* LAYOUT */
-        .main { max-width: 1320px; margin: 0 auto; padding: 36px 40px 80px; }
+        /* ── MAIN ── */
+        .main { max-width: 1340px; margin: 0 auto; padding: 36px 40px 80px; }
 
         .page-top {
             display: flex;
@@ -79,37 +80,47 @@
             justify-content: space-between;
             gap: 24px;
             flex-wrap: wrap;
-            margin-bottom: 32px;
+            margin-bottom: 30px;
         }
         .page-title {
-            font-family: 'Syne', sans-serif;
-            font-size: 1.9rem;
+            font-size: 1.75rem;
             font-weight: 800;
-            letter-spacing: -0.04em;
-            line-height: 1;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            color: var(--text-primary);
         }
-        .page-sub { font-size: 0.85rem; color: var(--text-secondary); margin-top: 5px; font-weight: 300; }
+        .page-sub {
+            font-size: 0.83rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-weight: 400;
+        }
 
-        /* SELECTOR */
+        /* ── SELECTOR ── */
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
-        .selector-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+        .selector-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            font-weight: 600;
+        }
         .client-select {
             appearance: none;
             background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
             border: 1px solid var(--border);
             border-radius: 8px;
             padding: 9px 34px 9px 13px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: 0.88rem;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.87rem;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
             min-width: 210px;
-            transition: border-color 0.15s;
         }
-        .client-select:focus { outline: none; border-color: #999; }
+        .client-select:focus { outline: none; border-color: #aaa; }
 
-        /* OVERVIEW TABLE */
+        /* ── OVERVIEW TABLE ── */
         .overview-wrap {
             background: var(--white);
             border: 1px solid var(--border);
@@ -117,26 +128,26 @@
             overflow: auto;
         }
         .overview-head {
-            padding: 18px 24px;
+            padding: 16px 22px;
             border-bottom: 1px solid var(--border-light);
         }
         .section-label {
-            font-size: 0.7rem;
-            font-weight: 600;
+            font-size: 0.68rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.11em;
             color: var(--text-muted);
         }
 
         .overview-table { width: 100%; border-collapse: collapse; }
         .overview-table th {
-            padding: 9px 14px;
-            font-size: 0.68rem;
-            font-weight: 600;
+            padding: 8px 13px;
+            font-size: 0.67rem;
+            font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.07em;
-            background: #fafaf8;
+            background: #f9f9f7;
             white-space: nowrap;
             border-bottom: 1px solid var(--border-light);
             text-align: right;
@@ -148,44 +159,105 @@
         .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); border-bottom-color: var(--yt-mid); }
 
         .overview-table td {
-            padding: 12px 14px;
-            font-size: 0.84rem;
+            padding: 11px 13px;
+            font-size: 0.83rem;
             border-bottom: 1px solid var(--border-light);
             vertical-align: middle;
             font-variant-numeric: tabular-nums;
             text-align: right;
+            font-weight: 400;
         }
         .overview-table td:first-child,
         .overview-table td:nth-child(2) { text-align: left; }
         .overview-table tr:last-child td { border-bottom: none; }
-        .overview-table tr:hover td { cursor: pointer; background: #fafaf9 !important; }
-        .overview-table td.ig-c { background: #fffbfd; }
+        .overview-table tr:hover td { cursor: pointer; background: #f9f9f8 !important; }
+        .overview-table td.ig-c { background: #fffcfd; }
         .overview-table td.tt-c { background: #fefefe; }
-        .overview-table td.yt-c { background: #fffbfb; }
+        .overview-table td.yt-c { background: #fffcfc; }
 
-        .client-link { font-weight: 500; color: var(--text-primary); }
+        .client-link { font-weight: 600; color: var(--text-primary); }
         .num { color: var(--text-secondary); }
-        .num.has { color: var(--text-primary); }
+        .num.has { color: var(--text-primary); font-weight: 500; }
+        .gain-cell { white-space: nowrap; }
+        .g-up   { color: var(--up); font-size: 0.75rem; font-weight: 600; }
+        .g-down { color: var(--dn); font-size: 0.75rem; font-weight: 600; }
+        .g-none { color: var(--text-muted); font-size: 0.75rem; }
 
-        /* CLIENT DETAIL */
-        .client-view { animation: fadeIn 0.18s ease; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+        /* ── CLIENT DETAIL ── */
+        .client-view { animation: fadeIn 0.15s ease; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
 
-        .detail-hero { margin-bottom: 26px; }
+        .detail-hero { margin-bottom: 22px; }
         .detail-name {
-            font-family: 'Syne', sans-serif;
-            font-size: 2.1rem;
+            font-size: 2rem;
             font-weight: 800;
-            letter-spacing: -0.04em;
-            line-height: 1;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            color: var(--text-primary);
         }
-        .detail-meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 7px; }
+        .detail-meta { font-size: 0.77rem; color: var(--text-muted); margin-top: 6px; font-weight: 400; }
         .detail-meta em { font-style: italic; }
 
-        /* PLATFORM SECTIONS */
-        .platform-section {
+        /* ── TODAY'S GAINS BAR ── */
+        .gains-bar {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 22px;
             margin-bottom: 16px;
-            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 0;
+            flex-wrap: wrap;
+        }
+        .gains-bar-label {
+            font-size: 0.68rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-right: 28px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .gains-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 20px;
+            flex: 1;
+        }
+        .gain-item {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+        }
+        .gain-platform-dot {
+            width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+            position: relative; top: -1px;
+        }
+        .gain-name {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .gain-val {
+            font-size: 0.82rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+        .gain-val.up   { color: var(--up); }
+        .gain-val.down { color: var(--dn); }
+        .gain-val.flat { color: var(--text-muted); }
+        .gain-val.none { color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.73rem; }
+        .gains-divider {
+            width: 1px; height: 28px; background: var(--border-light);
+            margin: 0 16px; flex-shrink: 0;
+        }
+
+        /* ── PLATFORM SECTIONS ── */
+        .platform-section {
+            margin-bottom: 14px;
+            border-radius: 12px;
             overflow: hidden;
             border: 1px solid;
         }
@@ -194,7 +266,7 @@
         .platform-section.yt { border-color: var(--yt-mid); }
 
         .platform-section-header {
-            padding: 13px 22px;
+            padding: 12px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -208,9 +280,9 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            font-family: 'Syne', sans-serif;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.83rem;
+            letter-spacing: 0.01em;
         }
         .ig .platform-name { color: var(--ig-dark); }
         .tt .platform-name { color: var(--tt-dark); }
@@ -218,14 +290,23 @@
 
         .platform-pill { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
         .ig .platform-pill { background: var(--ig); }
-        .tt .platform-pill { background: #555; }
+        .tt .platform-pill { background: #666; }
         .yt .platform-pill { background: var(--yt); }
 
-        .platform-handle { font-size: 0.73rem; color: var(--text-muted); font-weight: 300; }
+        .platform-handle-link {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        .ig .platform-handle-link:hover { color: var(--ig); }
+        .tt .platform-handle-link:hover { color: var(--tt-dark); }
+        .yt .platform-handle-link:hover { color: var(--yt); }
 
         .metrics-row {
             display: grid;
-            padding: 20px 22px;
+            padding: 18px 20px;
             background: var(--white);
             gap: 0;
         }
@@ -234,77 +315,77 @@
         .yt .metrics-row { grid-template-columns: repeat(2, 1fr); }
 
         .metric-block {
-            padding: 4px 22px 4px 0;
+            padding: 0 20px 0 0;
             border-right: 1px solid var(--border-light);
         }
         .metric-block:last-child { border-right: none; padding-right: 0; }
-        .metric-block:not(:first-child) { padding-left: 22px; }
+        .metric-block:not(:first-child) { padding-left: 20px; }
 
         .m-label {
-            font-size: 0.68rem;
-            font-weight: 600;
+            font-size: 0.67rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.09em;
             color: var(--text-muted);
-            margin-bottom: 9px;
+            margin-bottom: 8px;
         }
         .m-value {
-            font-family: 'Syne', sans-serif;
-            font-size: 1.65rem;
-            font-weight: 700;
-            letter-spacing: -0.03em;
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -0.025em;
             line-height: 1;
             color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
         }
-        .m-value.empty { color: #ddd; font-size: 1.1rem; }
+        .m-value.empty { color: #ddd; font-size: 1.1rem; font-weight: 400; }
 
         .m-delta {
             display: inline-flex;
             align-items: center;
             gap: 3px;
-            font-size: 0.73rem;
-            font-weight: 500;
-            margin-top: 7px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            margin-top: 6px;
             padding: 2px 7px;
             border-radius: 20px;
         }
         .m-delta.up   { background: var(--up-bg);  color: var(--up); }
         .m-delta.down { background: var(--dn-bg);  color: var(--dn); }
-        .m-delta.flat { background: #f3f3f1; color: var(--text-muted); }
-        .m-delta.none { color: var(--text-muted); font-size: 0.7rem; margin-top: 7px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+        .m-delta.flat { background: #f2f2f0; color: var(--text-muted); }
+        .m-delta.none { color: var(--text-muted); font-size: 0.69rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
 
-        /* CHART */
+        /* ── CHART ── */
         .chart-section {
             background: var(--white);
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 24px;
-            margin-top: 16px;
+            border-radius: 12px;
+            padding: 22px;
+            margin-top: 14px;
         }
         .chart-top {
             display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+            margin-bottom: 18px; flex-wrap: wrap; gap: 12px;
         }
-        .chart-title { font-family: 'Syne', sans-serif; font-size: 0.92rem; font-weight: 700; letter-spacing: -0.02em; }
+        .chart-title { font-size: 0.88rem; font-weight: 700; letter-spacing: -0.01em; }
         .chart-legend { display: flex; gap: 16px; }
-        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--text-secondary); font-weight: 500; }
         .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
-        .chart-wrap { position: relative; height: 220px; }
+        .chart-wrap { position: relative; height: 210px; }
 
-        /* STATES */
+        /* ── STATES ── */
         .loading-state {
             display: flex; flex-direction: column; align-items: center;
             justify-content: center; padding: 100px 20px; gap: 14px;
         }
         .spinner {
-            width: 28px; height: 28px;
+            width: 26px; height: 26px;
             border: 2px solid var(--border);
-            border-top-color: #555;
+            border-top-color: #777;
             border-radius: 50%;
             animation: spin 0.75s linear infinite;
         }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-text { font-size: 0.85rem; color: var(--text-muted); }
+        .loading-text { font-size: 0.83rem; color: var(--text-muted); font-weight: 400; }
         .error-state {
             background: var(--white); border: 1px solid #fecaca;
             border-radius: 12px; padding: 32px; text-align: center;
@@ -315,7 +396,7 @@
             .main { padding: 24px 16px 60px; }
             .header { padding: 0 16px; }
             .ig .metrics-row, .tt .metrics-row { grid-template-columns: repeat(2,1fr); }
-            .yt .metrics-row { grid-template-columns: repeat(2,1fr); }
+            .gains-bar { flex-direction: column; align-items: flex-start; gap: 12px; }
         }
     </style>
 </head>
@@ -360,7 +441,7 @@
     let clientMap = {};
     let growthChart = null;
 
-    /* CSV */
+    /* ── CSV ── */
     function splitLine(line) {
         const out = []; let cur = '', q = false;
         for (const ch of line) {
@@ -383,7 +464,7 @@
         });
     }
 
-    /* Numbers */
+    /* ── Numbers ── */
     function n(v) { const x = Number(v); return isNaN(x) ? 0 : x; }
     function fmt(v) {
         const x = n(v);
@@ -393,18 +474,40 @@
         return x.toLocaleString();
     }
 
-    /* Fetch */
+    /* ── Date format: YYYY-MM-DD → DD/MM/YYYY ── */
+    function fmtDate(d) {
+        if (!d) return '—';
+        const parts = d.split('-');
+        if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        return d;
+    }
+
+    /* ── Fetch ── */
     async function fetchAll() {
         const [mr, cr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL)]);
         allData = parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
     }
 
-    /* Helpers */
+    /* ── Helpers ── */
     function latestPerClient() {
         const map = {};
         allData.forEach(r => { if (!map[r.client_name] || r.date > map[r.client_name].date) map[r.client_name] = r; });
         return Object.values(map).sort((a,b) => a.client_name.localeCompare(b.client_name));
+    }
+    function prevPerClient() {
+        // second-most-recent row per client
+        const sorted = {};
+        allData.forEach(r => {
+            if (!sorted[r.client_name]) sorted[r.client_name] = [];
+            sorted[r.client_name].push(r);
+        });
+        const prev = {};
+        Object.entries(sorted).forEach(([name, rows]) => {
+            rows.sort((a,b) => b.date.localeCompare(a.date));
+            if (rows.length >= 2) prev[name] = rows[1];
+        });
+        return prev;
     }
     function clientHistory(name) {
         return allData.filter(r => r.client_name === name).sort((a,b) => a.date.localeCompare(b.date));
@@ -416,7 +519,17 @@
         });
     }
 
-    /* Delta badge */
+    /* ── Handle URLs ── */
+    function igUrl(handle)  { return handle ? `https://instagram.com/${handle}` : null; }
+    function ttUrl(handle)  { return handle ? `https://tiktok.com/@${handle}` : null; }
+    function ytUrl(id)      { return id ? `https://youtube.com/channel/${id}` : null; }
+
+    function handleLink(url, label, extraClass) {
+        if (!url) return '';
+        return `<a href="${url}" target="_blank" rel="noopener" class="platform-handle-link ${extraClass||''}">${label}</a>`;
+    }
+
+    /* ── Delta badge (for metric blocks) ── */
     function deltaBadge(today, prev, key) {
         if (!prev) return `<span class="m-delta none">no previous day yet</span>`;
         const diff = n(today[key]) - n(prev[key]);
@@ -424,11 +537,10 @@
         const sign = diff > 0 ? '+' : '';
         const cls  = diff > 0 ? 'up' : 'down';
         const arr  = diff > 0 ? '↑' : '↓';
-        const val  = Math.abs(diff);
-        return `<span class="m-delta ${cls}">${arr} ${sign}${fmt(val) || val.toLocaleString()}</span>`;
+        return `<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span>`;
     }
 
-    /* Metric block */
+    /* ── Metric block ── */
     function mBlock(label, today, prev, key) {
         const f = fmt(today[key]);
         return `
@@ -439,12 +551,82 @@
         </div>`;
     }
 
-    /* Overview Table */
+    /* ── Gain cell for overview table ── */
+    function gainCell(today, prev, key, cls) {
+        const f = fmt(today[key]);
+        if (!f) return `<td class="${cls} num gain-cell"><span class="g-none">—</span></td>`;
+        if (!prev) return `<td class="${cls} num gain-cell"><span class="g-none">—</span></td>`;
+        const diff = n(today[key]) - n(prev[key]);
+        if (diff === 0) return `<td class="${cls} num gain-cell"><span class="g-none">±0</span></td>`;
+        const cls2 = diff > 0 ? 'g-up' : 'g-down';
+        const sign = diff > 0 ? '+' : '';
+        return `<td class="${cls} num gain-cell"><span class="${cls2}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span></td>`;
+    }
+
+    /* ── Today's Gains bar ── */
+    function gainsBar(today, prev) {
+        function gainItem(dotColor, platformName, label, key) {
+            const val = n(today[key]);
+            if (!val) return '';
+            let html = '';
+            if (!prev) {
+                html = `<span class="gain-val none">—</span>`;
+            } else {
+                const diff = val - n(prev[key]);
+                if (diff === 0) html = `<span class="gain-val flat">±0</span>`;
+                else {
+                    const sign = diff > 0 ? '+' : '';
+                    html = `<span class="gain-val ${diff>0?'up':'down'}">${sign}${fmt(Math.abs(diff)) || Math.abs(diff).toLocaleString()}</span>`;
+                }
+            }
+            return `<div class="gain-item">
+                <div class="gain-platform-dot" style="background:${dotColor}"></div>
+                <span class="gain-name">${label}</span>
+                ${html}
+            </div>`;
+        }
+
+        const igFollowers = gainItem('#E1306C', 'ig', 'Followers',   'ig_followers');
+        const igViews     = gainItem('#E1306C', 'ig', 'Views',       'ig_total_post_views');
+        const ttFollowers = gainItem('#666',    'tt', 'Followers',   'tiktok_followers');
+        const ttViews     = gainItem('#666',    'tt', 'Views',       'tiktok_total_post_plays');
+        const ytSubs      = gainItem('#e60000', 'yt', 'Subscribers', 'yt_subscribers');
+        const ytViews     = gainItem('#e60000', 'yt', 'Views',       'yt_total_views');
+
+        const igItems = [igFollowers, igViews].filter(Boolean);
+        const ttItems = [ttFollowers, ttViews].filter(Boolean);
+        const ytItems = [ytSubs, ytViews].filter(Boolean);
+
+        const sections = [];
+        if (igItems.length) sections.push(`<div class="gains-list">${igItems.join('')}</div>`);
+        if (ttItems.length) {
+            if (sections.length) sections.push('<div class="gains-divider"></div>');
+            sections.push(`<div class="gains-list">${ttItems.join('')}</div>`);
+        }
+        if (ytItems.length) {
+            if (sections.length) sections.push('<div class="gains-divider"></div>');
+            sections.push(`<div class="gains-list">${ytItems.join('')}</div>`);
+        }
+
+        const note = prev ? '' : `<span style="font-size:0.69rem;color:var(--text-muted);font-style:italic;margin-left:auto">gains show after 2+ days</span>`;
+
+        return `
+        <div class="gains-bar">
+            <span class="gains-bar-label">Today's Gains</span>
+            ${sections.join('')}
+            ${note}
+        </div>`;
+    }
+
+    /* ── Overview Table ── */
     function renderOverview(rows) {
-        const cell = (val, cls) => {
+        const prevMap = prevPerClient();
+
+        const numCell = (val, cls) => {
             const f = fmt(val);
             return `<td class="${cls} num ${f?'has':''}">${f || '<span style="color:#ddd">—</span>'}</td>`;
         };
+
         return `
         <div class="overview-wrap">
             <div class="overview-head"><span class="section-label">All Clients — Latest Snapshot</span></div>
@@ -453,75 +635,74 @@
                     <tr>
                         <th rowspan="2" style="vertical-align:bottom;text-align:left">Client</th>
                         <th rowspan="2" style="vertical-align:bottom;text-align:left">Date</th>
-                        <th colspan="4" class="ig-h" style="text-align:center;border-left:2px solid var(--ig-mid)">Instagram</th>
-                        <th colspan="3" class="tt-h" style="text-align:center;border-left:2px solid var(--tt-mid)">TikTok</th>
-                        <th colspan="2" class="yt-h" style="text-align:center;border-left:2px solid var(--yt-mid)">YouTube</th>
+                        <th colspan="5" class="ig-h" style="text-align:center;border-left:2px solid var(--ig-mid)">Instagram</th>
+                        <th colspan="5" class="tt-h" style="text-align:center;border-left:2px solid var(--tt-mid)">TikTok</th>
+                        <th colspan="4" class="yt-h" style="text-align:center;border-left:2px solid var(--yt-mid)">YouTube</th>
                     </tr>
                     <tr>
-                        <th class="ig-h" style="border-left:2px solid var(--ig-mid)">Followers</th>
-                        <th class="ig-h">Views</th>
+                        <th class="ig-h" style="border-left:2px solid var(--ig-mid)">Total Followers</th>
+                        <th class="ig-h">+Followers</th>
+                        <th class="ig-h">Total Views</th>
                         <th class="ig-h">Avg Views</th>
                         <th class="ig-h">Avg Likes</th>
-                        <th class="tt-h" style="border-left:2px solid var(--tt-mid)">Followers</th>
-                        <th class="tt-h">Views</th>
+                        <th class="tt-h" style="border-left:2px solid var(--tt-mid)">Total Followers</th>
+                        <th class="tt-h">+Followers</th>
+                        <th class="tt-h">Total Views</th>
                         <th class="tt-h">Avg Views</th>
-                        <th class="yt-h" style="border-left:2px solid var(--yt-mid)">Subscribers</th>
-                        <th class="yt-h">Views</th>
+                        <th class="tt-h">+Views</th>
+                        <th class="yt-h" style="border-left:2px solid var(--yt-mid)">Total Subscribers</th>
+                        <th class="yt-h">+Subscribers</th>
+                        <th class="yt-h">Total Views</th>
+                        <th class="yt-h">+Views</th>
                     </tr>
                 </thead>
                 <tbody>
-                ${rows.map(r => `
+                ${rows.map(r => {
+                    const p = prevMap[r.client_name] || null;
+                    return `
                     <tr onclick="selectClient('${r.client_name}')">
                         <td class="client-link">${r.client_name}</td>
-                        <td style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap">${r.date||'—'}</td>
-                        ${cell(r.ig_followers,         'ig-c')}
-                        ${cell(r.ig_total_post_views,  'ig-c')}
-                        ${cell(r.ig_avg_views,         'ig-c')}
-                        ${cell(r.ig_avg_likes,         'ig-c')}
-                        ${cell(r.tiktok_followers,        'tt-c')}
-                        ${cell(r.tiktok_total_post_plays, 'tt-c')}
-                        ${cell(r.tiktok_avg_plays,        'tt-c')}
-                        ${cell(r.yt_subscribers, 'yt-c')}
-                        ${cell(r.yt_total_views, 'yt-c')}
-                    </tr>`).join('')}
+                        <td style="color:var(--text-muted);font-size:0.76rem;white-space:nowrap">${fmtDate(r.date)}</td>
+                        ${numCell(r.ig_followers, 'ig-c')}
+                        ${gainCell(r, p, 'ig_followers', 'ig-c')}
+                        ${numCell(r.ig_total_post_views, 'ig-c')}
+                        ${numCell(r.ig_avg_views, 'ig-c')}
+                        ${numCell(r.ig_avg_likes, 'ig-c')}
+                        ${numCell(r.tiktok_followers, 'tt-c')}
+                        ${gainCell(r, p, 'tiktok_followers', 'tt-c')}
+                        ${numCell(r.tiktok_total_post_plays, 'tt-c')}
+                        ${numCell(r.tiktok_avg_plays, 'tt-c')}
+                        ${gainCell(r, p, 'tiktok_total_post_plays', 'tt-c')}
+                        ${numCell(r.yt_subscribers, 'yt-c')}
+                        ${gainCell(r, p, 'yt_subscribers', 'yt-c')}
+                        ${numCell(r.yt_total_views, 'yt-c')}
+                        ${gainCell(r, p, 'yt_total_views', 'yt-c')}
+                    </tr>`;
+                }).join('')}
                 </tbody>
             </table>
         </div>`;
     }
 
-    /* Single Client */
+    /* ── Single Client ── */
     function renderClient(name, history) {
         const today = history[history.length - 1];
         const prev  = history.length >= 2 ? history[history.length - 2] : null;
         const info  = clientMap[name] || {};
 
-        const igHandle = info.instagram_handle ? `@${info.instagram_handle}` : '';
-        const ttHandle = info.tiktok_handle    ? `@${info.tiktok_handle}`    : '';
+        const igHandle = info.instagram_handle || '';
+        const ttHandle = info.tiktok_handle    || '';
         const ytId     = info.youtube_channel_id || '';
 
-        const hasIG = n(today.ig_followers)      || n(today.ig_avg_likes);
-        const hasTT = n(today.tiktok_followers)  || n(today.tiktok_avg_plays);
-        const hasYT = n(today.yt_subscribers)    || n(today.yt_total_views);
+        const hasIG = n(today.ig_followers) || n(today.ig_avg_likes);
+        const hasTT = n(today.tiktok_followers) || n(today.tiktok_avg_plays);
+        const hasYT = n(today.yt_subscribers) || n(today.yt_total_views);
 
-        const noData = `<div style="padding:18px 0;color:var(--text-muted);font-size:0.82rem">No data available</div>`;
+        const noData = `<div style="padding:16px 0;color:var(--text-muted);font-size:0.82rem">No data available</div>`;
 
-        const igHTML = hasIG ? `
-            ${mBlock('Followers',     today, prev, 'ig_followers')}
-            ${mBlock('Views',         today, prev, 'ig_total_post_views')}
-            ${mBlock('Avg Views',     today, prev, 'ig_avg_views')}
-            ${mBlock('Avg Likes',     today, prev, 'ig_avg_likes')}
-        ` : noData;
-
-        const ttHTML = hasTT ? `
-            ${mBlock('Followers',  today, prev, 'tiktok_followers')}
-            ${mBlock('Views',      today, prev, 'tiktok_total_post_plays')}
-            ${mBlock('Avg Views',  today, prev, 'tiktok_avg_plays')}
-        ` : noData;
-
-        const ytHTML = hasYT ? `
-            ${mBlock('Subscribers', today, prev, 'yt_subscribers')}
-            ${mBlock('Views',       today, prev, 'yt_total_views')}
-        ` : noData;
+        const compareNote = prev
+            ? `comparing vs ${fmtDate(prev.date)}`
+            : `<em>daily changes will show once you have 2+ days of data</em>`;
 
         const legends = [
             hasIG ? `<div class="leg-item"><div class="leg-dot" style="background:var(--ig)"></div>Instagram</div>` : '',
@@ -529,43 +710,59 @@
             hasYT ? `<div class="leg-item"><div class="leg-dot" style="background:var(--yt)"></div>YouTube</div>` : '',
         ].filter(Boolean).join('');
 
-        const compareNote = prev
-            ? `comparing vs ${prev.date}`
-            : `<em>daily changes will show once you have 2+ days of data</em>`;
-
         return `
         <div class="client-view">
             <div class="detail-hero">
                 <div class="detail-name">${name}</div>
                 <div class="detail-meta">
-                    Last scraped ${today.date || 'unknown'}
+                    Last scraped ${fmtDate(today.date)}
                     · ${history.length} data point${history.length !== 1 ? 's' : ''}
                     · ${compareNote}
                 </div>
             </div>
 
+            ${gainsBar(today, prev)}
+
             <div class="platform-section ig">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>Instagram</span>
-                    <span class="platform-handle">${igHandle}</span>
+                    ${handleLink(igUrl(igHandle), igHandle ? `@${igHandle}` : '', '')}
                 </div>
-                <div class="metrics-row">${igHTML}</div>
+                <div class="metrics-row">
+                    ${hasIG ? `
+                        ${mBlock('Total Followers', today, prev, 'ig_followers')}
+                        ${mBlock('Total Views',     today, prev, 'ig_total_post_views')}
+                        ${mBlock('Avg Views',       today, prev, 'ig_avg_views')}
+                        ${mBlock('Avg Likes',       today, prev, 'ig_avg_likes')}
+                    ` : noData}
+                </div>
             </div>
 
             <div class="platform-section tt">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>TikTok</span>
-                    <span class="platform-handle">${ttHandle}</span>
+                    ${handleLink(ttUrl(ttHandle), ttHandle ? `@${ttHandle}` : '', '')}
                 </div>
-                <div class="metrics-row">${ttHTML}</div>
+                <div class="metrics-row">
+                    ${hasTT ? `
+                        ${mBlock('Total Followers', today, prev, 'tiktok_followers')}
+                        ${mBlock('Total Views',     today, prev, 'tiktok_total_post_plays')}
+                        ${mBlock('Avg Views',       today, prev, 'tiktok_avg_plays')}
+                    ` : noData}
+                </div>
             </div>
 
             <div class="platform-section yt">
                 <div class="platform-section-header">
                     <span class="platform-name"><span class="platform-pill"></span>YouTube</span>
-                    <span class="platform-handle">${ytId ? ytId.slice(0,16)+'…' : ''}</span>
+                    ${handleLink(ytUrl(ytId), ytId ? 'Open Channel ↗' : '', '')}
                 </div>
-                <div class="metrics-row">${ytHTML}</div>
+                <div class="metrics-row">
+                    ${hasYT ? `
+                        ${mBlock('Total Subscribers', today, prev, 'yt_subscribers')}
+                        ${mBlock('Total Views',       today, prev, 'yt_total_views')}
+                    ` : noData}
+                </div>
             </div>
 
             <div class="chart-section">
@@ -578,13 +775,13 @@
         </div>`;
     }
 
-    /* Chart */
+    /* ── Chart ── */
     function renderChart(history) {
         const ctx = document.getElementById('growthChart');
         if (!ctx) return;
         if (growthChart) { growthChart.destroy(); growthChart = null; }
 
-        const labels = history.map(r => r.date);
+        const labels = history.map(r => fmtDate(r.date));
         const ds = [];
         const push = (label, key, color, bg) => {
             const data = history.map(r => n(r[key]) || null);
@@ -613,19 +810,19 @@
                     legend: { display: false },
                     tooltip: {
                         backgroundColor: '#fff', titleColor: '#111', bodyColor: '#666',
-                        borderColor: '#e6e6e2', borderWidth: 1, padding: 12,
+                        borderColor: '#e4e4e0', borderWidth: 1, padding: 12,
                         callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y ? c.parsed.y.toLocaleString() : '—'}` }
                     }
                 },
                 scales: {
-                    x: { grid: { color: '#f0f0ec' }, ticks: { color: '#ccc', font: { size: 11 }, maxTicksLimit: 10 } },
-                    y: { grid: { color: '#f0f0ec' }, ticks: { color: '#ccc', font: { size: 11 }, callback: v => fmt(v) || v } }
+                    x: { grid: { color: '#ededea' }, ticks: { color: '#c8c8c2', font: { size: 11, family: 'Plus Jakarta Sans' }, maxTicksLimit: 10 } },
+                    y: { grid: { color: '#ededea' }, ticks: { color: '#c8c8c2', font: { size: 11, family: 'Plus Jakarta Sans' }, callback: v => fmt(v) || v } }
                 }
             }
         });
     }
 
-    /* Render */
+    /* ── Render ── */
     function render(sel) {
         const content = document.getElementById('content');
         if (sel === 'all') { content.innerHTML = renderOverview(latestPerClient()); return; }
@@ -645,7 +842,7 @@
             await fetchAll();
             populateDropdown();
             const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
-            if (dates[0]) document.getElementById('lastUpdated').textContent = `Updated ${dates[0]}`;
+            if (dates[0]) document.getElementById('lastUpdated').textContent = `Updated ${fmtDate(dates[0])}`;
             document.getElementById('clientSelect').addEventListener('change', e => render(e.target.value));
             render('all');
         } catch (err) {

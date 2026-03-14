@@ -389,8 +389,8 @@
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            // mh: value + computed delta badge (— when no prev, real diff when prev exists)
-            // Used for: Followers (IG/TT), Subs (YT), Views (YT)
+            // mh: value + computed delta badge
+            // Shows real ↑/↓/±0 when prev row exists; muted — when only 1 day of data
             const mh=(label,key)=>{
                 const f=fmt(r[key]);if(!f)return'';
                 let gh='';
@@ -398,6 +398,8 @@
                     const d=n(r[key])-n(p[key]);
                     if(d===0) gh=`<span class="card-metric-gain flat">±0</span>`;
                     else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}
+                } else {
+                    gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;
                 }
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
             };

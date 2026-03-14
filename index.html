@@ -139,16 +139,34 @@
         .share-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.81rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
-        .gains-bar { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 13px 18px; margin-bottom: 12px; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
-        .gains-bar-label { font-size: 0.67rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-right: 22px; white-space: nowrap; flex-shrink: 0; }
-        .gains-list { display: flex; flex-wrap: wrap; gap: 5px 16px; flex: 1; }
-        .gain-item { display: flex; align-items: baseline; gap: 5px; }
-        .gain-platform-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; position: relative; top: -1px; }
-        .gain-name { font-size: 0.74rem; color: var(--text-muted); font-weight: 500; }
-        .gain-val { font-size: 0.81rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-        .gain-val.up { color: var(--up); } .gain-val.down { color: var(--dn); } .gain-val.flat { color: var(--text-muted); }
-        .gain-val.none { color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.7rem; }
-        .gains-divider { width: 1px; height: 24px; background: var(--border-light); margin: 0 12px; flex-shrink: 0; }
+        /* ── Today's Gains bar ── */
+        .gains-bar { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
+        .gains-bar-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; padding-right: 14px; border-right: 1px solid var(--border-light); margin-right: 4px; }
+        .gains-platform-card { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 150px; padding: 10px 14px; border-radius: 10px; }
+        .gains-platform-card.gp-ig { background: var(--ig-light); }
+        .gains-platform-card.gp-tt { background: var(--tt-light); }
+        .gains-platform-card.gp-yt { background: var(--yt-light); }
+        .gains-platform-header { display: flex; align-items: center; gap: 6px; }
+        .gains-platform-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+        .gp-ig .gains-platform-dot { background: var(--ig); }
+        .gp-tt .gains-platform-dot { background: #555; }
+        .gp-yt .gains-platform-dot { background: var(--yt); }
+        .gains-platform-name { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; }
+        .gp-ig .gains-platform-name { color: var(--ig-dark); }
+        .gp-tt .gains-platform-name { color: var(--tt-dark); }
+        .gp-yt .gains-platform-name { color: var(--yt-dark); }
+        .gains-metrics-row { display: flex; gap: 10px; flex-wrap: wrap; }
+        .gain-chip { display: inline-flex; flex-direction: column; gap: 2px; }
+        .gain-chip-label { font-size: 0.56rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .gain-chip-val { display: inline-flex; align-items: center; gap: 4px; }
+        .gain-chip-num { font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+        .gain-chip-num.empty { color: var(--text-muted); font-weight: 400; font-size: 0.74rem; }
+        .gain-delta { display: inline-flex; align-items: center; font-size: 0.67rem; font-weight: 700; padding: 1px 6px; border-radius: 20px; font-variant-numeric: tabular-nums; }
+        .gain-delta.up { background: #dcfce7; color: var(--up); }
+        .gain-delta.down { background: var(--dn-bg); color: var(--dn); }
+        .gain-delta.flat { background: var(--bg); color: var(--text-muted); }
+        .gain-delta.none { background: transparent; color: var(--text-muted); font-weight: 400; font-style: italic; font-size: 0.65rem; }
+        .gains-no-data-note { font-size: 0.68rem; color: var(--text-muted); font-style: italic; display: flex; align-items: center; padding-left: 4px; }
         .platform-section { margin-bottom: 11px; border-radius: 14px; overflow: hidden; border: none; }
         .platform-section.ig { background: linear-gradient(135deg, #c9006a 0%, #e8510a 100%); }
         .platform-section.tt { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a4a 60%, #0d1a3a 100%); }
@@ -427,16 +445,66 @@
     }
 
     function gainsBar(today,prev){
-        function gainItem(dotColor,label,key){const val=n(today[key]);if(!val)return'';let html='';if(!prev)html=`<span class="gain-val none">—</span>`;else{const diff=val-n(prev[key]);if(diff===0)html=`<span class="gain-val flat">±0</span>`;else{const sign=diff>0?'+':'';html=`<span class="gain-val ${diff>0?'up':'down'}">${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;}}return`<div class="gain-item"><div class="gain-platform-dot" style="background:${dotColor}"></div><span class="gain-name">${label}</span>${html}</div>`;}
-        const igItems=[gainItem('#E1306C','Followers','ig_followers'),gainItemDiff('#E1306C','Views/Month',today,'ig_views_this_month'),gainItemDiff('#E1306C','+Avg Views',today,'ig_avg_views_diff')].filter(Boolean);
-        const ttItems=[gainItem('#666','Followers','tiktok_followers'),gainItemDiff('#666','Plays/Month',today,'tiktok_plays_this_month'),gainItemDiff('#666','+Avg Plays',today,'tiktok_avg_plays_diff')].filter(Boolean);
-        const ytItems=[gainItem('#e60000','Subscribers','yt_subscribers'),gainItem('#e60000','Views','yt_total_views')].filter(Boolean);
-        const sections=[];
-        if(igItems.length)sections.push(`<div class="gains-list">${igItems.join('')}</div>`);
-        if(ttItems.length){if(sections.length)sections.push('<div class="gains-divider"></div>');sections.push(`<div class="gains-list">${ttItems.join('')}</div>`);}
-        if(ytItems.length){if(sections.length)sections.push('<div class="gains-divider"></div>');sections.push(`<div class="gains-list">${ytItems.join('')}</div>`);}
-        const note=prev?'':`<span style="font-size:0.68rem;color:var(--text-muted);font-style:italic;margin-left:auto">shows after 2+ days</span>`;
-        return`<div class="gains-bar"><span class="gains-bar-label">Today's Gains</span>${sections.join('')}${note}</div>`;
+        // chip: a single metric cell with label + value + optional delta badge
+        function chip(label, value, delta) {
+            const numFmt = fmt(value);
+            const numHtml = numFmt
+                ? `<span class="gain-chip-num">${numFmt}</span>`
+                : `<span class="gain-chip-num empty">—</span>`;
+            let deltaHtml = '';
+            if (delta !== null && delta !== undefined) {
+                const d = n(delta);
+                if (d > 0)      deltaHtml = `<span class="gain-delta up">↑ +${fmt(d)||d.toLocaleString()}</span>`;
+                else if (d < 0) deltaHtml = `<span class="gain-delta down">↓ ${fmt(d)||d.toLocaleString()}</span>`;
+                else            deltaHtml = `<span class="gain-delta flat">±0</span>`;
+            }
+            return `<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${numHtml}${deltaHtml}</div></div>`;
+        }
+        // diff chip: value IS the delta (pre-computed from sheet), no separate base value shown
+        function chipDiff(label, diffVal) {
+            if (diffVal === '' || diffVal === undefined || diffVal === null) return '';
+            const d = n(diffVal);
+            let deltaHtml = '';
+            if (d > 0)      deltaHtml = `<span class="gain-delta up">↑ +${fmt(d)||d.toLocaleString()}</span>`;
+            else if (d < 0) deltaHtml = `<span class="gain-delta down">↓ ${fmt(d)||d.toLocaleString()}</span>`;
+            else            deltaHtml = `<span class="gain-delta flat">±0</span>`;
+            return `<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;
+        }
+
+        const hasIG = n(today.ig_followers)||n(today.ig_views_this_month);
+        const hasTT = n(today.tiktok_followers)||n(today.tiktok_plays_this_month);
+        const hasYT = n(today.yt_subscribers)||n(today.yt_total_views);
+
+        // Compute prev-based deltas for follower fields
+        const igFolDiff  = prev ? n(today.ig_followers)      - n(prev.ig_followers)      : null;
+        const ttFolDiff  = prev ? n(today.tiktok_followers)  - n(prev.tiktok_followers)  : null;
+        const ytSubDiff  = prev ? n(today.yt_subscribers)    - n(prev.yt_subscribers)    : null;
+        const ytViewDiff = prev ? n(today.yt_total_views)    - n(prev.yt_total_views)    : null;
+
+        let cards = '';
+        if (hasIG) cards += `<div class="gains-platform-card gp-ig">
+            <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div>
+            <div class="gains-metrics-row">
+                ${chip('Followers', today.ig_followers, igFolDiff)}
+                ${chip('Views / Mo', today.ig_views_this_month, null)}
+                ${chipDiff('Avg Views Δ', today.ig_avg_views_diff)}
+            </div></div>`;
+        if (hasTT) cards += `<div class="gains-platform-card gp-tt">
+            <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div>
+            <div class="gains-metrics-row">
+                ${chip('Followers', today.tiktok_followers, ttFolDiff)}
+                ${chip('Plays / Mo', today.tiktok_plays_this_month, null)}
+                ${chipDiff('Avg Plays Δ', today.tiktok_avg_plays_diff)}
+            </div></div>`;
+        if (hasYT) cards += `<div class="gains-platform-card gp-yt">
+            <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div>
+            <div class="gains-metrics-row">
+                ${chip('Subscribers', today.yt_subscribers, ytSubDiff)}
+                ${chip('Total Views', today.yt_total_views, ytViewDiff)}
+            </div></div>`;
+
+        const note = prev ? '' : `<span class="gains-no-data-note">Deltas show after 2+ days</span>`;
+        return `<div class="gains-bar"><span class="gains-bar-label">Today's<br>Gains</span>${cards}${note}</div>`;
     }
 
     function buildTopVideosSection(clientName,platform,containerId){
@@ -476,7 +544,7 @@
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
-        const igAgeRestricted = name === 'John Winland';
+        const igAgeRestricted = name.toLowerCase() === 'john winland';
         const igAgeBadge = igAgeRestricted
             ? `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`
             : '';
@@ -535,6 +603,7 @@
         updateClientTrigger(name);
         history.pushState({client:name},'','#'+encodeURIComponent(name));
         render(name,false);
+        window.scrollTo({top:0,behavior:'instant'});
     }
 
     // ─── Handle browser Back / Forward buttons ────────────────────────────────
@@ -544,9 +613,11 @@
         if(hash&&clientNames.includes(hash)){
             updateClientTrigger(hash);
             render(hash,false);
+            window.scrollTo({top:0,behavior:'instant'});
         } else {
             updateClientTrigger('All Clients');
             render('all');
+            window.scrollTo({top:0,behavior:'instant'});
         }
     });
 

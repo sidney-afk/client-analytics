@@ -123,54 +123,55 @@
         .overview-head {
             padding: 10px 4px 14px;
             display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 8px;
         }
         .section-label {
             font-size: 0.67rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.11em;
             color: var(--text-muted); flex-shrink: 0;
         }
-        .pills { display: flex; gap: 0; flex-wrap: wrap; }
+        .pills { display: flex; gap: 0; }
 
-        /* Sort control: dropdown + direction toggle */
+        /* Sort control: minimal pill, no borders */
         .sort-control {
             display: inline-flex; align-items: center; gap: 0;
-            border-radius: 8px; overflow: hidden;
-            border: 1px solid var(--border);
-            background: var(--white);
+            border-radius: 20px;
+            background: var(--bg);
+            overflow: hidden;
+            border: none;
         }
         .sort-select {
             appearance: none;
-            background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 10px center;
+            background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 10 10'%3E%3Cpath fill='%23b4b4ae' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 8px center;
             border: none;
-            padding: 6px 28px 6px 12px;
+            padding: 5px 24px 5px 12px;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.76rem;
+            font-size: 0.72rem;
             font-weight: 600;
-            color: var(--text-primary);
+            color: var(--text-secondary);
             cursor: pointer;
-            min-width: 130px;
+            min-width: 110px;
         }
         .sort-select:focus { outline: none; }
         .sort-dir-btn {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 32px; height: 100%;
-            border: none; border-left: 1px solid var(--border);
-            background: var(--bg);
+            width: 28px;
+            border: none;
+            border-left: 1px solid var(--border-light);
+            background: transparent;
             cursor: pointer;
-            font-size: 0.78rem;
-            color: var(--text-secondary);
+            font-size: 0.72rem;
+            color: var(--text-muted);
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-weight: 700;
-            padding: 6px 0;
+            padding: 5px 0;
             transition: all 0.13s;
         }
-        .sort-dir-btn:hover { background: #e8e8e5; color: var(--text-primary); }
+        .sort-dir-btn:hover { color: var(--text-primary); }
 
-        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; table-layout: fixed; }
-        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; table-layout: fixed; }
 
         /* ── Header rows ── */
         .overview-table th {
@@ -242,12 +243,14 @@
             position: relative;
             overflow: hidden;
             color: var(--text-primary);
+            padding: 0 10px 0 14px;
         }
         .overview-table td:first-child .cell-inner {
             display: flex;
             align-items: center;
             gap: 0;
-            min-height: 20px;
+            height: 100%;
+            min-height: 42px;
         }
         /* Gradient accent strip on left edge */
         .overview-table td:first-child::before {
@@ -260,9 +263,7 @@
         .overview-table td:last-child {
             border-radius: 0 10px 10px 0;
         }
-        /* Row gap via transparent top-border acting as spacing */
-        .overview-table tbody tr td { border-top: 10px solid transparent; }
-        .overview-table tbody tr { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.06)); }
+        .overview-table tbody tr { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.07)); }
         .overview-table tbody tr:hover td { cursor: default; background: #f7f7f5; }
 
         /* Row gradient accents (cycling muted tones) */
@@ -851,7 +852,7 @@
                     const badge = idx < 3 ? `<span class="top-rank-badge">${idx+1}</span>` : '';
                     const eyeIcon = `<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
                     return `<tr class="${topCls} ${accentCls}">
-                        <td style="padding-left:14px"><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
+                        <td><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
                         <td style="font-size:0.76rem">${fmtDate(r.date)}</td>
                         ${nc(r.ig_followers, 'main-metric')}
                         ${gainCell(r, p, 'ig_followers', '')}

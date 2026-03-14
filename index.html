@@ -913,11 +913,16 @@
         return result.trim() || caption.substring(0, 120);
     }
 
+    // Safe store for captions — avoids embedding raw text in onclick attributes,
+    // which breaks when captions contain backticks, ${}, quotes, etc.
+    const captionStore = {};
+
     function buildVideoCard(v, showShares) {
         const caption = v.caption || '';
         const truncated = truncateCaption(caption);
         const needsReadMore = caption.length > truncated.length + 5;
         const uid = 'tc_' + Math.random().toString(36).substring(2, 9);
+        captionStore[uid] = { full: caption, short: truncated };
         const videoUrl = v.video_url || '#';
         const sharesRow = showShares
             ? `<div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>`
@@ -926,7 +931,7 @@
         <a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener">
             <div class="tt-rank-badge">#${n(v.rank)}</div>
             <div class="tt-caption" id="${uid}">${truncated}</div>
-            ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this,\`${caption.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`,\`${truncated.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`)" style="margin-top:-4px">read more</button>` : ''}
+            ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this)" style="margin-top:-4px">read more</button>` : ''}
             <div class="tt-stats">
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span><span class="tt-stat-val">${fmtCompact(v.views)}</span></div>
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div>
@@ -936,17 +941,18 @@
         </a>`;
     }
 
-    function toggleCaption(uid, btn, full, short) {
+    function toggleCaption(uid, btn) {
+        const store = captionStore[uid];
         const el = document.getElementById(uid);
-        if (!el) return;
+        if (!el || !store) return;
         const isExpanded = el.classList.contains('tt-caption-full');
         if (isExpanded) {
             el.classList.remove('tt-caption-full');
-            el.textContent = short;
+            el.textContent = store.short;
             btn.textContent = 'read more';
         } else {
             el.classList.add('tt-caption-full');
-            el.textContent = full;
+            el.textContent = store.full;
             btn.textContent = 'show less';
         }
     }
@@ -1038,7 +1044,8 @@
     }
 
     function copyShareLink(encodedName) {
-        const url = `${location.origin}${location.pathname}#${encodedName}`;
+        // Use ?c= query param for client-only links — distinct from internal #hash navigation
+        const url = `${location.origin}${location.pathname}?c=${encodedName}`;
         navigator.clipboard.writeText(url).then(() => {
             const btn = document.getElementById('shareBtn');
             if (!btn) return;
@@ -1121,18 +1128,27 @@
             await fetchAll();
             const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
             if (dates[0]) document.getElementById('lastUpdated').textContent = `Updated ${fmtDate(dates[0])}`;
-            const hash = decodeURIComponent(location.hash.replace('#', ''));
             const clientNames = [...new Set(allData.map(r => r.client_name))];
-            const isClientOnly = hash && clientNames.includes(hash);
-            if (isClientOnly) {
+
+            // ?c=ClientName  →  client-only shareable link (no back button, ever)
+            const qParam = new URLSearchParams(location.search).get('c');
+            const clientFromQuery = qParam ? decodeURIComponent(qParam) : null;
+            if (clientFromQuery && clientNames.includes(clientFromQuery)) {
                 document.getElementById('selectorWrap').style.display = 'none';
                 document.getElementById('pageSub').style.display = 'none';
                 document.getElementById('pageTitle').textContent = 'Your Analytics';
-                render(hash, true);
+                render(clientFromQuery, true);
+                return;
+            }
+
+            // #ClientName  →  internal agency navigation (back button shown, refreshing keeps it)
+            const hash = decodeURIComponent(location.hash.replace('#', ''));
+            populateDropdown();
+            if (hash && clientNames.includes(hash)) {
+                updateClientTrigger(hash);
+                render(hash, false);
             } else {
-                populateDropdown();
-                if (hash && clientNames.includes(hash)) { updateClientTrigger(hash); render(hash, false); }
-                else render('all');
+                render('all');
             }
         } catch (err) {
             document.getElementById('content').innerHTML = `<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

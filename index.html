@@ -595,7 +595,8 @@
     }
     function fmtCompact(v) {
         const x = n(v);
-        if (!x) return '0';
+        if (v === '' || v === undefined || v === null) return '—';
+        if (!x && v !== '0' && v !== 0) return '—';
         if (x >= 1e6) return (x/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
         if (x >= 1e3) return (x/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
         return x.toLocaleString();
@@ -612,7 +613,36 @@
         const [mr, cr, tr] = await Promise.all([fetch(METRICS_URL), fetch(CLIENTS_URL), fetch(TOPVIDS_URL)]);
         allData = parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r => { if (r.client_name) clientMap[r.client_name] = r; });
-        topVideos = parseCSV(await tr.text());
+        const rawVideos = parseCSV(await tr.text());
+        if (rawVideos.length > 0) console.log('[SyncView] TopVideos actual columns:', Object.keys(rawVideos[0]));
+        topVideos = rawVideos.map(normalizeVideoRow);
+    }
+
+    // Normalize a TopVideos row so stats are always at standard keys,
+    // regardless of what column headers the sheet actually uses.
+    function normalizeVideoRow(r) {
+        function pick(/* candidate keys */) {
+            for (const k of arguments) {
+                const v = r[k] ?? r[k.toLowerCase()] ?? r[k.toUpperCase()];
+                if (v !== undefined && v !== '') return v;
+            }
+            return '';
+        }
+        return {
+            ...r,
+            // identity / routing
+            client_name : pick('client_name','client'),
+            platform    : pick('platform'),
+            period      : pick('period'),
+            rank        : pick('rank','position'),
+            video_url   : pick('video_url','url','link','video_link','post_url','post_link'),
+            caption     : pick('caption','title','description','text','post_caption','post_text'),
+            // stats — cover every naming convention we've seen
+            views       : pick('views','view_count','video_views','play_count','plays','total_views','impressions','reach'),
+            likes       : pick('likes','like_count','total_likes','hearts','favorites','digg_count'),
+            comments    : pick('comments','comment_count','total_comments'),
+            shares      : pick('shares','share_count','total_shares','reposts','repost_count'),
+        };
     }
 
     function latestPerClient() {

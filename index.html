@@ -98,23 +98,6 @@
 
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
         .selector-label { font-size: 0.67rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; }
-        .client-select {
-            appearance: none;
-            background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23b4b4ae' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
-            border: none;
-            border-radius: 20px;
-            padding: 7px 30px 7px 14px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--text-secondary);
-            cursor: pointer;
-            min-width: 160px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-            transition: box-shadow 0.15s;
-        }
-        .client-select:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-        .client-select:focus { outline: none; }
 
         .overview-wrap {
             background: transparent;
@@ -175,6 +158,10 @@
         }
         .dropdown-item:hover { background: var(--bg); color: var(--text-primary); }
         .dropdown-item.active { background: var(--bg); color: var(--text-primary); font-weight: 700; }
+        .client-drop-menu { max-height: 320px; overflow-y: auto; min-width: 200px; right: 0; left: auto; }
+        .client-drop-menu::-webkit-scrollbar { width: 4px; }
+        .client-drop-menu::-webkit-scrollbar-track { background: transparent; }
+        .client-drop-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
         /* Sort direction button */
         .sort-dir-btn {
@@ -212,7 +199,7 @@
         /* ═══════════════════════════════════════════
            TABLE VIEW
            ═══════════════════════════════════════════ */
-        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; table-layout: fixed; }
 
         .overview-table th {
             padding: 8px 10px;
@@ -229,14 +216,15 @@
             color: var(--text-muted);
         }
 
-        /* Platform group headers + sub-headers: connected card */
+        /* Platform group headers */
         .overview-table th.group-ig { color: var(--ig-dark); background: var(--ig-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
         .overview-table th.group-tt { color: var(--tt-dark); background: var(--tt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
         .overview-table th.group-yt { color: var(--yt-dark); background: var(--yt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
 
-        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; border-radius: 0; }
-        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; border-radius: 0; }
-        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; border-radius: 0; }
+        /* Sub-headers: bridge the border-spacing gap with a colored top-border */
+        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--ig-light); }
+        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--tt-light); }
+        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--yt-light); }
         .overview-table th.ig-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.tt-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.yt-h-first { border-radius: 0 0 0 10px; }
@@ -244,7 +232,7 @@
         .overview-table th.tt-h-last { border-radius: 0 0 10px 0; }
         .overview-table th.yt-h-last { border-radius: 0 0 10px 0; }
 
-        /* Data rows: all white, gap via border-top */
+        /* Data rows */
         .overview-table td {
             padding: 12px 10px;
             font-size: 0.83rem;
@@ -257,34 +245,40 @@
             white-space: nowrap;
             background: var(--white);
             color: var(--text-secondary);
-            border-top: 8px solid transparent;
         }
         .overview-table td:first-child {
             text-align: left; font-weight: 600;
             border-radius: 10px 0 0 10px;
-            position: relative;
-            overflow: hidden;
             color: var(--text-primary);
             padding: 0 10px 0 14px;
+            position: relative; overflow: hidden;
         }
         .overview-table td:first-child .cell-inner {
             display: flex; align-items: center; gap: 0;
             height: 100%; min-height: 42px;
         }
-        .overview-table td:first-child::before {
-            content: ''; position: absolute;
-            left: 0; top: 0; bottom: 0; width: 4px;
-            border-radius: 10px 0 0 10px;
+        .overview-table td:last-child {
+            border-radius: 0 10px 10px 0;
+            position: relative;
+            overflow: hidden;
         }
-        .overview-table td:last-child { border-radius: 0 10px 10px 0; }
+        /* Bottom accent strip (dark purple) */
+        .overview-table td:last-child::after {
+            content: ''; position: absolute;
+            right: 0; bottom: 0; left: -2000px;
+            height: 3px;
+            background: #6c5ce7;
+            border-radius: 0 0 10px 0;
+        }
+        .overview-table td:first-child::after {
+            content: ''; position: absolute;
+            left: 0; bottom: 0; right: -2000px;
+            height: 3px;
+            background: #6c5ce7;
+            border-radius: 0 0 0 10px;
+        }
         .overview-table tbody tr { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.07)); }
         .overview-table tbody tr:hover td { cursor: default; background: #f8f8f6; }
-
-        .row-accent-0 td:first-child::before { background: linear-gradient(180deg, #e8b4c8, #d4a0b8); }
-        .row-accent-1 td:first-child::before { background: linear-gradient(180deg, #b4c8e8, #a0b8d4); }
-        .row-accent-2 td:first-child::before { background: linear-gradient(180deg, #c8d4b4, #b8c8a0); }
-        .row-accent-3 td:first-child::before { background: linear-gradient(180deg, #d4c0e0, #c4b0d0); }
-        .row-accent-4 td:first-child::before { background: linear-gradient(180deg, #e0ccb4, #d0bca4); }
 
         .top-rank-badge {
             display: inline-flex; align-items: center; justify-content: center;
@@ -345,16 +339,12 @@
             position: relative;
         }
         .client-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-2px); }
-        .client-card::before {
+        .client-card::after {
             content: ''; position: absolute;
-            left: 0; top: 0; bottom: 0; width: 4px;
+            left: 0; right: 0; bottom: 0; height: 3px;
+            background: #6c5ce7;
+            border-radius: 0 0 14px 14px;
         }
-
-        .card-accent-0::before { background: linear-gradient(180deg, #e8b4c8, #d4a0b8); }
-        .card-accent-1::before { background: linear-gradient(180deg, #b4c8e8, #a0b8d4); }
-        .card-accent-2::before { background: linear-gradient(180deg, #c8d4b4, #b8c8a0); }
-        .card-accent-3::before { background: linear-gradient(180deg, #d4c0e0, #c4b0d0); }
-        .card-accent-4::before { background: linear-gradient(180deg, #e0ccb4, #d0bca4); }
 
         .card-head {
             padding: 14px 16px 10px;
@@ -672,9 +662,12 @@
         </div>
         <div class="selector-wrap" id="selectorWrap">
             <span class="selector-label">Client</span>
-            <select class="client-select" id="clientSelect">
-                <option value="all">All Clients</option>
-            </select>
+            <div class="custom-dropdown" id="clientDropWrap">
+                <button class="dropdown-trigger" id="clientDropTrigger" onclick="toggleClientDrop()">
+                    All Clients <span class="dd-arrow">▾</span>
+                </button>
+                <div class="dropdown-menu client-drop-menu" id="clientDropMenu"></div>
+            </div>
         </div>
     </div>
 
@@ -779,9 +772,34 @@
         return allData.filter(r => r.client_name === name).sort((a,b) => a.date.localeCompare(b.date));
     }
     function populateDropdown() {
-        const sel = document.getElementById('clientSelect');
-        [...new Set(allData.map(r => r.client_name))].sort().forEach(c => {
-            const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o);
+        const menu = document.getElementById('clientDropMenu');
+        const names = [...new Set(allData.map(r => r.client_name))].sort();
+        menu.innerHTML = `<button class="dropdown-item active" onclick="pickClient('all')">All Clients</button>` +
+            names.map(c => `<button class="dropdown-item" onclick="pickClient('${c}')">${c}</button>`).join('');
+    }
+    function toggleClientDrop() {
+        const menu = document.getElementById('clientDropMenu');
+        const trigger = document.getElementById('clientDropTrigger');
+        if (!menu) return;
+        menu.classList.toggle('open');
+        trigger.classList.toggle('open');
+        if (menu.classList.contains('open')) {
+            const close = (e) => { if (!menu.contains(e.target) && !trigger.contains(e.target)) { menu.classList.remove('open'); trigger.classList.remove('open'); document.removeEventListener('click', close); } };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
+    }
+    function pickClient(val) {
+        toggleClientDrop();
+        if (val === 'all') { location.hash = ''; updateClientTrigger('All Clients'); render('all'); }
+        else selectClient(val);
+    }
+    function updateClientTrigger(label) {
+        const trigger = document.getElementById('clientDropTrigger');
+        if (trigger) trigger.innerHTML = `${label} <span class="dd-arrow">▾</span>`;
+        // Update active state
+        const menu = document.getElementById('clientDropMenu');
+        if (menu) menu.querySelectorAll('.dropdown-item').forEach(btn => {
+            btn.classList.toggle('active', btn.textContent === label);
         });
     }
 
@@ -864,7 +882,7 @@
         const prevMap = prevPerClient();
         return `<div class="cards-grid">${rows.map((r, idx) => {
             const p = prevMap[r.client_name] || null;
-            const accentCls = `card-accent-${idx % 5}`;
+            
             const rankBadge = idx < 3 ? `<span class="card-rank card-rank-${idx+1}">${idx+1}</span>` : '';
             function mh(label, key) {
                 const f = fmt(r[key]); if (!f) return '';
@@ -879,7 +897,7 @@
             if (hasIG) pl += `<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views','ig_total_post_views')}</div>`;
             if (hasTT) pl += `<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views','tiktok_total_post_plays')}</div>`;
             if (hasYT) pl += `<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
-            return `<div class="client-card ${accentCls}" onclick="selectClient('${r.client_name}')">
+            return `<div class="client-card" onclick="selectClient('${r.client_name}')">
                 <div class="card-head"><div style="display:flex;align-items:center">${rankBadge}<span class="card-client-name">${r.client_name}</span></div><span class="card-date">${fmtDate(r.date)}</span></div>
                 <div class="card-platforms">${pl}</div>
             </div>`;
@@ -956,10 +974,10 @@
                 ${rows.map((r, idx) => {
                     const p = prevMap[r.client_name] || null;
                     const topCls = idx < 3 ? `top-rank top-${idx+1}` : '';
-                    const accentCls = `row-accent-${idx % 5}`;
+                    
                     const badge = idx < 3 ? `<span class="top-rank-badge">${idx+1}</span>` : '';
                     const eyeIcon = `<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
-                    return `<tr class="${topCls} ${accentCls}">
+                    return `<tr class="${topCls}">
                         <td><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
                         <td style="font-size:0.76rem">${fmtDate(r.date)}</td>
                         ${nc(r.ig_followers, 'col-ig main-metric')}${gainCell(r, p, 'ig_followers', 'col-ig')}${nc(r.ig_total_post_views, 'col-ig')}${gainCell(r, p, 'ig_total_post_views', 'col-ig')}
@@ -1247,7 +1265,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'back-btn';
                 btn.innerHTML = '← All Clients';
-                btn.onclick = () => { location.hash = ''; document.getElementById('clientSelect').value = 'all'; render('all'); };
+                btn.onclick = () => { location.hash = ''; updateClientTrigger('All Clients'); render('all'); };
                 titleRow.insertBefore(btn, titleRow.firstChild);
             }
         } else if (!clientOnly) {
@@ -1269,7 +1287,7 @@
     }
 
     function selectClient(name) {
-        document.getElementById('clientSelect').value = name;
+        updateClientTrigger(name);
         location.hash = encodeURIComponent(name);
         render(name, false);
     }
@@ -1291,12 +1309,8 @@
                 render(hash, true);
             } else {
                 populateDropdown();
-                document.getElementById('clientSelect').addEventListener('change', e => {
-                    if (e.target.value === 'all') { location.hash = ''; render('all'); }
-                    else selectClient(e.target.value);
-                });
                 if (hash && clientNames.includes(hash)) {
-                    document.getElementById('clientSelect').value = hash;
+                    updateClientTrigger(hash);
                     render(hash, false);
                 } else {
                     render('all');

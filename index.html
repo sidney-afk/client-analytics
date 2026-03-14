@@ -97,21 +97,24 @@
         .page-sub   { font-size: 0.82rem; color: var(--text-secondary); margin-top: 3px; }
 
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
-        .selector-label { font-size: 0.71rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 600; }
+        .selector-label { font-size: 0.67rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; }
         .client-select {
             appearance: none;
-            background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 9px 32px 9px 13px;
+            background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23b4b4ae' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+            border: none;
+            border-radius: 20px;
+            padding: 7px 30px 7px 14px;
             font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.87rem;
-            font-weight: 500;
-            color: var(--text-primary);
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-secondary);
             cursor: pointer;
-            min-width: 200px;
+            min-width: 160px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            transition: box-shadow 0.15s;
         }
-        .client-select:focus { outline: none; border-color: #aaa; }
+        .client-select:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .client-select:focus { outline: none; }
 
         .overview-wrap {
             background: transparent;
@@ -209,7 +212,7 @@
         /* ═══════════════════════════════════════════
            TABLE VIEW
            ═══════════════════════════════════════════ */
-        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; table-layout: fixed; }
+        .overview-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
 
         .overview-table th {
             padding: 8px 10px;
@@ -226,14 +229,14 @@
             color: var(--text-muted);
         }
 
-        /* Platform group headers: solid card spanning both rows */
-        .overview-table th.group-ig { color: var(--ig-dark); background: var(--ig-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
-        .overview-table th.group-tt { color: var(--tt-dark); background: var(--tt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
-        .overview-table th.group-yt { color: var(--yt-dark); background: var(--yt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
+        /* Platform group headers + sub-headers: connected card */
+        .overview-table th.group-ig { color: var(--ig-dark); background: var(--ig-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
+        .overview-table th.group-tt { color: var(--tt-dark); background: var(--tt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
+        .overview-table th.group-yt { color: var(--yt-dark); background: var(--yt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
 
-        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; }
-        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; }
-        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; }
+        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; border-radius: 0; }
+        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; border-radius: 0; }
+        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; border-radius: 0; }
         .overview-table th.ig-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.tt-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.yt-h-first { border-radius: 0 0 0 10px; }
@@ -241,6 +244,7 @@
         .overview-table th.tt-h-last { border-radius: 0 0 10px 0; }
         .overview-table th.yt-h-last { border-radius: 0 0 10px 0; }
 
+        /* Data rows: all white, gap via border-top */
         .overview-table td {
             padding: 12px 10px;
             font-size: 0.83rem;
@@ -253,6 +257,7 @@
             white-space: nowrap;
             background: var(--white);
             color: var(--text-secondary);
+            border-top: 8px solid transparent;
         }
         .overview-table td:first-child {
             text-align: left; font-weight: 600;
@@ -273,7 +278,7 @@
         }
         .overview-table td:last-child { border-radius: 0 10px 10px 0; }
         .overview-table tbody tr { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.07)); }
-        .overview-table tbody tr:hover td { cursor: default; background: #f7f7f5; }
+        .overview-table tbody tr:hover td { cursor: default; background: #f8f8f6; }
 
         .row-accent-0 td:first-child::before { background: linear-gradient(180deg, #e8b4c8, #d4a0b8); }
         .row-accent-1 td:first-child::before { background: linear-gradient(180deg, #b4c8e8, #a0b8d4); }
@@ -281,15 +286,6 @@
         .row-accent-3 td:first-child::before { background: linear-gradient(180deg, #d4c0e0, #c4b0d0); }
         .row-accent-4 td:first-child::before { background: linear-gradient(180deg, #e0ccb4, #d0bca4); }
 
-        .overview-table tbody tr:nth-child(even) td { background: #fafaf8; }
-        .overview-table tbody tr:nth-child(even):hover td { background: #f3f3f0; }
-
-        .overview-table tbody tr.top-1 td { background: #fffdf5; }
-        .overview-table tbody tr.top-2 td { background: #fdfcf8; }
-        .overview-table tbody tr.top-3 td { background: #fbfbf8; }
-        .overview-table tbody tr.top-1:hover td { background: #f9f7ee; }
-        .overview-table tbody tr.top-2:hover td { background: #f7f6ef; }
-        .overview-table tbody tr.top-3:hover td { background: #f5f4ef; }
         .top-rank-badge {
             display: inline-flex; align-items: center; justify-content: center;
             width: 18px; height: 18px; border-radius: 50%;
@@ -299,10 +295,19 @@
         .top-2 .top-rank-badge { background: #f1f1f1; color: #6b6b67; }
         .top-3 .top-rank-badge { background: #fde8d8; color: #c2410c; }
 
-        .overview-table td.main-metric { font-weight: 600; font-size: 0.87rem; color: var(--text-primary); }
+        /* Platform-colored numbers */
+        .overview-table td.col-ig { color: var(--ig-dark); }
+        .overview-table td.col-ig.num.has { color: var(--ig-dark); font-weight: 500; }
+        .overview-table td.col-ig.main-metric { color: var(--ig-dark); font-weight: 700; font-size: 0.87rem; }
+        .overview-table td.col-tt { color: var(--tt-dark); }
+        .overview-table td.col-tt.num.has { color: var(--tt-dark); font-weight: 500; }
+        .overview-table td.col-tt.main-metric { color: var(--tt-dark); font-weight: 700; font-size: 0.87rem; }
+        .overview-table td.col-yt { color: var(--yt-dark); }
+        .overview-table td.col-yt.num.has { color: var(--yt-dark); font-weight: 500; }
+        .overview-table td.col-yt.main-metric { color: var(--yt-dark); font-weight: 700; font-size: 0.87rem; }
 
-        .num { color: var(--text-secondary); }
-        .num.has { color: var(--text-primary); font-weight: 500; }
+        .num { color: var(--text-muted); }
+        .num.has { font-weight: 500; }
         .g-up   { color: var(--up); font-size: 0.73rem; font-weight: 600; }
         .g-down { color: var(--dn); font-size: 0.73rem; font-weight: 600; }
         .g-none { color: #d8d8d3; font-size: 0.73rem; }
@@ -813,14 +818,14 @@
         });
     }
 
-    let viewMode = 'table';
+    let viewMode = localStorage.getItem('syncview_viewMode') || 'table';
 
     function setSort(col) {
         if (sortCol !== col) { sortCol = col; sortDir = col === 'client_name' ? 'asc' : 'desc'; }
         render('all');
     }
     function toggleSortDir() { sortDir = sortDir === 'desc' ? 'asc' : 'desc'; render('all'); }
-    function setViewMode(mode) { viewMode = mode; render('all'); }
+    function setViewMode(mode) { viewMode = mode; localStorage.setItem('syncview_viewMode', mode); render('all'); }
 
     function toggleDropdown() {
         const menu = document.getElementById('sortDropMenu');
@@ -957,9 +962,9 @@
                     return `<tr class="${topCls} ${accentCls}">
                         <td><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
                         <td style="font-size:0.76rem">${fmtDate(r.date)}</td>
-                        ${nc(r.ig_followers, 'main-metric')}${gainCell(r, p, 'ig_followers', '')}${nc(r.ig_total_post_views, '')}${gainCell(r, p, 'ig_total_post_views', '')}
-                        ${nc(r.tiktok_followers, 'main-metric')}${gainCell(r, p, 'tiktok_followers', '')}${nc(r.tiktok_total_post_plays, '')}${gainCell(r, p, 'tiktok_total_post_plays', '')}
-                        ${nc(r.yt_subscribers, 'main-metric')}${gainCell(r, p, 'yt_subscribers', '')}${nc(r.yt_total_views, '')}${gainCell(r, p, 'yt_total_views', '')}
+                        ${nc(r.ig_followers, 'col-ig main-metric')}${gainCell(r, p, 'ig_followers', 'col-ig')}${nc(r.ig_total_post_views, 'col-ig')}${gainCell(r, p, 'ig_total_post_views', 'col-ig')}
+                        ${nc(r.tiktok_followers, 'col-tt main-metric')}${gainCell(r, p, 'tiktok_followers', 'col-tt')}${nc(r.tiktok_total_post_plays, 'col-tt')}${gainCell(r, p, 'tiktok_total_post_plays', 'col-tt')}
+                        ${nc(r.yt_subscribers, 'col-yt main-metric')}${gainCell(r, p, 'yt_subscribers', 'col-yt')}${nc(r.yt_total_views, 'col-yt')}${gainCell(r, p, 'yt_total_views', 'col-yt')}
                     </tr>`;
                 }).join('')}
                 </tbody>

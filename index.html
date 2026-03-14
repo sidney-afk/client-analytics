@@ -116,64 +116,101 @@
         .overview-wrap {
             background: transparent;
             border: none;
-            border-radius: 14px;
             overflow: visible;
         }
 
-        .overview-head {
-            padding: 10px 4px 14px;
+        /* ── Controls bar ── */
+        .overview-controls {
             display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 0 16px;
+            gap: 12px;
         }
-        .section-label {
-            font-size: 0.67rem; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 0.11em;
-            color: var(--text-muted); flex-shrink: 0;
-        }
-        .pills { display: flex; gap: 0; }
+        .controls-left { display: flex; align-items: center; gap: 10px; }
 
-        /* Sort control: minimal pill, no borders */
-        .sort-control {
-            display: inline-flex; align-items: center; gap: 0;
+        /* Custom dropdown */
+        .custom-dropdown { position: relative; user-select: none; }
+        .dropdown-trigger {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 12px;
             border-radius: 20px;
-            background: var(--bg);
-            overflow: hidden;
+            background: var(--white);
             border: none;
-        }
-        .sort-select {
-            appearance: none;
-            background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 10 10'%3E%3Cpath fill='%23b4b4ae' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 8px center;
-            border: none;
-            padding: 5px 24px 5px 12px;
-            font-family: 'Plus Jakarta Sans', sans-serif;
-            font-size: 0.72rem;
-            font-weight: 600;
-            color: var(--text-secondary);
             cursor: pointer;
-            min-width: 110px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.74rem; font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.15s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
         }
-        .sort-select:focus { outline: none; }
+        .dropdown-trigger:hover { color: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .dropdown-trigger .dd-arrow { font-size: 0.6rem; opacity: 0.5; transition: transform 0.2s; }
+        .dropdown-trigger.open .dd-arrow { transform: rotate(180deg); }
+        .dropdown-menu {
+            position: absolute; top: calc(100% + 6px); left: 0;
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            padding: 6px;
+            min-width: 160px;
+            z-index: 50;
+            opacity: 0; transform: translateY(-4px); pointer-events: none;
+            transition: all 0.15s ease;
+        }
+        .dropdown-menu.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .dropdown-item {
+            display: block; width: 100%;
+            padding: 7px 12px;
+            border: none; background: transparent;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.74rem; font-weight: 500;
+            color: var(--text-secondary);
+            text-align: left; cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.1s;
+        }
+        .dropdown-item:hover { background: var(--bg); color: var(--text-primary); }
+        .dropdown-item.active { background: var(--bg); color: var(--text-primary); font-weight: 700; }
+
+        /* Sort direction button */
         .sort-dir-btn {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 28px;
+            width: 28px; height: 28px; border-radius: 50%;
             border: none;
-            border-left: 1px solid var(--border-light);
-            background: transparent;
+            background: var(--white);
             cursor: pointer;
             font-size: 0.72rem;
             color: var(--text-muted);
             font-family: 'Plus Jakarta Sans', sans-serif;
             font-weight: 700;
-            padding: 5px 0;
+            transition: all 0.13s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .sort-dir-btn:hover { color: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+
+        /* View toggle */
+        .view-toggle {
+            display: inline-flex; align-items: center; gap: 0;
+            border-radius: 8px; overflow: hidden;
+            background: var(--white);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        }
+        .view-toggle-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 34px; height: 30px;
+            border: none; background: transparent;
+            cursor: pointer; color: var(--text-muted);
             transition: all 0.13s;
         }
-        .sort-dir-btn:hover { color: var(--text-primary); }
+        .view-toggle-btn:hover { color: var(--text-secondary); }
+        .view-toggle-btn.active { background: var(--text-primary); color: var(--white); }
 
+        /* ═══════════════════════════════════════════
+           TABLE VIEW
+           ═══════════════════════════════════════════ */
         .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 5px; table-layout: fixed; }
 
-        /* ── Header rows ── */
         .overview-table th {
             padding: 8px 10px;
             font-size: 0.63rem;
@@ -181,7 +218,7 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
             text-align: center;
-            vertical-align: bottom;
+            vertical-align: middle;
             line-height: 1.3;
             overflow: hidden;
             background: transparent;
@@ -189,41 +226,21 @@
             color: var(--text-muted);
         }
 
-        /* Platform group headers (top row): background + top rounded corners */
-        .overview-table th.group-ig {
-            color: var(--ig-dark); background: var(--ig-light);
-            border-radius: 10px 10px 0 0;
-            font-size: 0.7rem; letter-spacing: 0.08em;
-            padding: 9px 10px 5px;
-        }
-        .overview-table th.group-tt {
-            color: var(--tt-dark); background: var(--tt-light);
-            border-radius: 10px 10px 0 0;
-            font-size: 0.7rem; letter-spacing: 0.08em;
-            padding: 9px 10px 5px;
-        }
-        .overview-table th.group-yt {
-            color: var(--yt-dark); background: var(--yt-light);
-            border-radius: 10px 10px 0 0;
-            font-size: 0.7rem; letter-spacing: 0.08em;
-            padding: 9px 10px 5px;
-        }
+        /* Platform group headers: solid card spanning both rows */
+        .overview-table th.group-ig { color: var(--ig-dark); background: var(--ig-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
+        .overview-table th.group-tt { color: var(--tt-dark); background: var(--tt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
+        .overview-table th.group-yt { color: var(--yt-dark); background: var(--yt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 5px; }
 
-        /* Sub-header row: same platform tint + bottom rounded corners on first/last */
-        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 5px 10px 8px; }
-        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 5px 10px 8px; }
-        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 5px 10px 8px; }
-
-        /* Bottom-left radius on first sub-header of each group */
+        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; }
+        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; }
+        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; }
         .overview-table th.ig-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.tt-h-first { border-radius: 0 0 0 10px; }
         .overview-table th.yt-h-first { border-radius: 0 0 0 10px; }
-        /* Bottom-right radius on last sub-header of each group */
         .overview-table th.ig-h-last { border-radius: 0 0 10px 0; }
         .overview-table th.tt-h-last { border-radius: 0 0 10px 0; }
         .overview-table th.yt-h-last { border-radius: 0 0 10px 0; }
 
-        /* ── Light data rows with shadow ── */
         .overview-table td {
             padding: 12px 10px;
             font-size: 0.83rem;
@@ -246,38 +263,27 @@
             padding: 0 10px 0 14px;
         }
         .overview-table td:first-child .cell-inner {
-            display: flex;
-            align-items: center;
-            gap: 0;
-            height: 100%;
-            min-height: 42px;
+            display: flex; align-items: center; gap: 0;
+            height: 100%; min-height: 42px;
         }
-        /* Gradient accent strip on left edge */
         .overview-table td:first-child::before {
-            content: '';
-            position: absolute;
-            left: 0; top: 0; bottom: 0;
-            width: 4px;
+            content: ''; position: absolute;
+            left: 0; top: 0; bottom: 0; width: 4px;
             border-radius: 10px 0 0 10px;
         }
-        .overview-table td:last-child {
-            border-radius: 0 10px 10px 0;
-        }
+        .overview-table td:last-child { border-radius: 0 10px 10px 0; }
         .overview-table tbody tr { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.07)); }
         .overview-table tbody tr:hover td { cursor: default; background: #f7f7f5; }
 
-        /* Row gradient accents (cycling muted tones) */
         .row-accent-0 td:first-child::before { background: linear-gradient(180deg, #e8b4c8, #d4a0b8); }
         .row-accent-1 td:first-child::before { background: linear-gradient(180deg, #b4c8e8, #a0b8d4); }
         .row-accent-2 td:first-child::before { background: linear-gradient(180deg, #c8d4b4, #b8c8a0); }
         .row-accent-3 td:first-child::before { background: linear-gradient(180deg, #d4c0e0, #c4b0d0); }
         .row-accent-4 td:first-child::before { background: linear-gradient(180deg, #e0ccb4, #d0bca4); }
 
-        /* Zebra striping */
         .overview-table tbody tr:nth-child(even) td { background: #fafaf8; }
         .overview-table tbody tr:nth-child(even):hover td { background: #f3f3f0; }
 
-        /* Top 3 highlight */
         .overview-table tbody tr.top-1 td { background: #fffdf5; }
         .overview-table tbody tr.top-2 td { background: #fdfcf8; }
         .overview-table tbody tr.top-3 td { background: #fbfbf8; }
@@ -287,24 +293,20 @@
         .top-rank-badge {
             display: inline-flex; align-items: center; justify-content: center;
             width: 18px; height: 18px; border-radius: 50%;
-            font-size: 0.58rem; font-weight: 800; margin-right: 6px;
-            flex-shrink: 0;
+            font-size: 0.58rem; font-weight: 800; margin-right: 6px; flex-shrink: 0;
         }
         .top-1 .top-rank-badge { background: #fef3c7; color: #b45309; }
         .top-2 .top-rank-badge { background: #f1f1f1; color: #6b6b67; }
         .top-3 .top-rank-badge { background: #fde8d8; color: #c2410c; }
 
-        /* Bolder main metric columns (followers/subscribers) */
         .overview-table td.main-metric { font-weight: 600; font-size: 0.87rem; color: var(--text-primary); }
 
-        /* Number styles */
         .num { color: var(--text-secondary); }
         .num.has { color: var(--text-primary); font-weight: 500; }
         .g-up   { color: var(--up); font-size: 0.73rem; font-weight: 600; }
         .g-down { color: var(--dn); font-size: 0.73rem; font-weight: 600; }
         .g-none { color: #d8d8d3; font-size: 0.73rem; }
 
-        /* Eye icon (borderless) + clickable client name */
         .client-name-link {
             color: var(--text-primary); text-decoration: none; font-weight: 600;
             cursor: pointer; transition: color 0.15s;
@@ -319,6 +321,80 @@
             color: var(--text-muted);
         }
         .client-view-btn:hover { color: var(--text-primary); }
+
+        /* ═══════════════════════════════════════════
+           CARD VIEW
+           ═══════════════════════════════════════════ */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 14px;
+        }
+        .client-card {
+            background: var(--white);
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: box-shadow 0.2s, transform 0.2s;
+            cursor: pointer;
+            position: relative;
+        }
+        .client-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-2px); }
+        .client-card::before {
+            content: ''; position: absolute;
+            left: 0; top: 0; bottom: 0; width: 4px;
+        }
+
+        .card-accent-0::before { background: linear-gradient(180deg, #e8b4c8, #d4a0b8); }
+        .card-accent-1::before { background: linear-gradient(180deg, #b4c8e8, #a0b8d4); }
+        .card-accent-2::before { background: linear-gradient(180deg, #c8d4b4, #b8c8a0); }
+        .card-accent-3::before { background: linear-gradient(180deg, #d4c0e0, #c4b0d0); }
+        .card-accent-4::before { background: linear-gradient(180deg, #e0ccb4, #d0bca4); }
+
+        .card-head {
+            padding: 14px 16px 10px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .card-client-name {
+            font-size: 0.92rem; font-weight: 700; color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+        .card-date { font-size: 0.68rem; color: var(--text-muted); }
+        .card-rank {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; border-radius: 50%;
+            font-size: 0.6rem; font-weight: 800; margin-right: 7px; flex-shrink: 0;
+        }
+        .card-rank-1 { background: #fef3c7; color: #b45309; }
+        .card-rank-2 { background: #f1f1f1; color: #6b6b67; }
+        .card-rank-3 { background: #fde8d8; color: #c2410c; }
+
+        .card-platforms { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 8px; }
+        .card-platform {
+            border-radius: 10px;
+            padding: 10px 14px;
+            display: flex; flex-wrap: wrap; gap: 4px 16px;
+        }
+        .card-platform.cp-ig { background: var(--ig-light); }
+        .card-platform.cp-tt { background: var(--tt-light); }
+        .card-platform.cp-yt { background: var(--yt-light); }
+        .card-platform-label {
+            width: 100%;
+            font-size: 0.6rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            margin-bottom: 2px;
+        }
+        .cp-ig .card-platform-label { color: var(--ig-dark); }
+        .cp-tt .card-platform-label { color: var(--tt-dark); }
+        .cp-yt .card-platform-label { color: var(--yt-dark); }
+        .card-metric { display: flex; flex-direction: column; gap: 1px; }
+        .card-metric-label { font-size: 0.57rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+        .card-metric-val { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .card-metric-val.empty { color: var(--text-muted); font-weight: 400; font-size: 0.76rem; }
+        .card-metric-gain { font-size: 0.65rem; font-weight: 600; }
+        .card-metric-gain.up { color: var(--up); }
+        .card-metric-gain.down { color: var(--dn); }
+        .card-metric-gain.flat { color: var(--text-muted); }
 
         .col-name { width: 130px; }
         .col-date { width: 80px; }
@@ -737,30 +813,72 @@
         });
     }
 
+    let viewMode = 'table';
+
     function setSort(col) {
-        if (sortCol !== col) {
-            sortCol = col;
-            sortDir = col === 'client_name' ? 'asc' : 'desc';
+        if (sortCol !== col) { sortCol = col; sortDir = col === 'client_name' ? 'asc' : 'desc'; }
+        render('all');
+    }
+    function toggleSortDir() { sortDir = sortDir === 'desc' ? 'asc' : 'desc'; render('all'); }
+    function setViewMode(mode) { viewMode = mode; render('all'); }
+
+    function toggleDropdown() {
+        const menu = document.getElementById('sortDropMenu');
+        const trigger = document.getElementById('sortDropTrigger');
+        if (!menu) return;
+        menu.classList.toggle('open');
+        trigger.classList.toggle('open');
+        if (menu.classList.contains('open')) {
+            const close = (e) => { if (!menu.contains(e.target) && !trigger.contains(e.target)) { menu.classList.remove('open'); trigger.classList.remove('open'); document.removeEventListener('click', close); } };
+            setTimeout(() => document.addEventListener('click', close), 0);
         }
-        render('all');
     }
 
-    function filterPillsHTML() {
+    function controlsHTML() {
         const arrow = sortDir === 'desc' ? '↓' : '↑';
-        const options = Object.entries(SORT_COLS).map(([col, cfg]) => {
-            const sel = sortCol === col ? ' selected' : '';
-            return `<option value="${col}"${sel}>${cfg.label}</option>`;
-        }).join('');
-        return `
-            <div class="sort-control">
-                <select class="sort-select" onchange="setSort(this.value)">${options}</select>
-                <button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir === 'desc' ? 'Descending' : 'Ascending'}">${arrow}</button>
-            </div>`;
+        const currentLabel = SORT_COLS[sortCol]?.label || 'Sort';
+        const items = Object.entries(SORT_COLS).map(([col, cfg]) => `<button class="dropdown-item ${sortCol===col?'active':''}" onclick="setSort('${col}');toggleDropdown()">${cfg.label}</button>`).join('');
+        const tableIcon = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.3"/></svg>`;
+        const cardIcon = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>`;
+        return `<div class="overview-controls">
+            <div class="controls-left">
+                <div class="custom-dropdown">
+                    <button class="dropdown-trigger" id="sortDropTrigger" onclick="toggleDropdown()">${currentLabel} <span class="dd-arrow">▾</span></button>
+                    <div class="dropdown-menu" id="sortDropMenu">${items}</div>
+                </div>
+                <button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir==='desc'?'Descending':'Ascending'}">${arrow}</button>
+            </div>
+            <div class="view-toggle">
+                <button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button>
+                <button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button>
+            </div>
+        </div>`;
     }
 
-    function toggleSortDir() {
-        sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-        render('all');
+    function renderCardView(rows) {
+        const prevMap = prevPerClient();
+        return `<div class="cards-grid">${rows.map((r, idx) => {
+            const p = prevMap[r.client_name] || null;
+            const accentCls = `card-accent-${idx % 5}`;
+            const rankBadge = idx < 3 ? `<span class="card-rank card-rank-${idx+1}">${idx+1}</span>` : '';
+            function mh(label, key) {
+                const f = fmt(r[key]); if (!f) return '';
+                let gh = '';
+                if (p) { const d = n(r[key]) - n(p[key]); if (d !== 0) { const s = d > 0 ? '+' : ''; gh = `<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`; } }
+                return `<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
+            }
+            const hasIG = n(r.ig_followers) || n(r.ig_total_post_views);
+            const hasTT = n(r.tiktok_followers) || n(r.tiktok_total_post_plays);
+            const hasYT = n(r.yt_subscribers) || n(r.yt_total_views);
+            let pl = '';
+            if (hasIG) pl += `<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views','ig_total_post_views')}</div>`;
+            if (hasTT) pl += `<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views','tiktok_total_post_plays')}</div>`;
+            if (hasYT) pl += `<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
+            return `<div class="client-card ${accentCls}" onclick="selectClient('${r.client_name}')">
+                <div class="card-head"><div style="display:flex;align-items:center">${rankBadge}<span class="card-client-name">${r.client_name}</span></div><span class="card-date">${fmtDate(r.date)}</span></div>
+                <div class="card-platforms">${pl}</div>
+            </div>`;
+        }).join('')}</div>`;
     }
 
     function igUrl(h)  { return h ? `https://instagram.com/${h}` : null; }
@@ -801,22 +919,16 @@
     function renderOverview(rawRows) {
         const rows = sortedRows(rawRows);
         const prevMap = prevPerClient();
+        const nc = (val, cls) => { const f = fmt(val); return `<td class="${cls} num ${f?'has':''}">${f || '<span class="g-none">—</span>'}</td>`; };
 
-        const nc = (val, cls) => {
-            const f = fmt(val);
-            return `<td class="${cls} num ${f?'has':''}">${f || '<span class="g-none">—</span>'}</td>`;
-        };
+        if (viewMode === 'cards') return `<div class="overview-wrap">${controlsHTML()}${renderCardView(rows)}</div>`;
 
         return `
         <div class="overview-wrap">
-            <div class="overview-head">
-                <span class="section-label">All Clients</span>
-                <div class="pills">${filterPillsHTML()}</div>
-            </div>
+            ${controlsHTML()}
             <table class="overview-table">
                 <colgroup>
-                    <col class="col-name">
-                    <col class="col-date">
+                    <col class="col-name"><col class="col-date">
                     <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
                     <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
                     <col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain">
@@ -830,18 +942,9 @@
                         <th colspan="4" class="group-yt">YouTube</th>
                     </tr>
                     <tr>
-                        <th class="ig-h ig-h-first">Followers</th>
-                        <th class="ig-h">+Followers</th>
-                        <th class="ig-h">Total Views</th>
-                        <th class="ig-h ig-h-last">+Views</th>
-                        <th class="tt-h tt-h-first">Followers</th>
-                        <th class="tt-h">+Followers</th>
-                        <th class="tt-h">Total Views</th>
-                        <th class="tt-h tt-h-last">+Views</th>
-                        <th class="yt-h yt-h-first">Subscribers</th>
-                        <th class="yt-h">+Subscribers</th>
-                        <th class="yt-h">Total Views</th>
-                        <th class="yt-h yt-h-last">+Views</th>
+                        <th class="ig-h ig-h-first">Followers</th><th class="ig-h">+Followers</th><th class="ig-h">Total Views</th><th class="ig-h ig-h-last">+Views</th>
+                        <th class="tt-h tt-h-first">Followers</th><th class="tt-h">+Followers</th><th class="tt-h">Total Views</th><th class="tt-h tt-h-last">+Views</th>
+                        <th class="yt-h yt-h-first">Subscribers</th><th class="yt-h">+Subscribers</th><th class="yt-h">Total Views</th><th class="yt-h yt-h-last">+Views</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -854,18 +957,9 @@
                     return `<tr class="${topCls} ${accentCls}">
                         <td><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
                         <td style="font-size:0.76rem">${fmtDate(r.date)}</td>
-                        ${nc(r.ig_followers, 'main-metric')}
-                        ${gainCell(r, p, 'ig_followers', '')}
-                        ${nc(r.ig_total_post_views, '')}
-                        ${gainCell(r, p, 'ig_total_post_views', '')}
-                        ${nc(r.tiktok_followers, 'main-metric')}
-                        ${gainCell(r, p, 'tiktok_followers', '')}
-                        ${nc(r.tiktok_total_post_plays, '')}
-                        ${gainCell(r, p, 'tiktok_total_post_plays', '')}
-                        ${nc(r.yt_subscribers, 'main-metric')}
-                        ${gainCell(r, p, 'yt_subscribers', '')}
-                        ${nc(r.yt_total_views, '')}
-                        ${gainCell(r, p, 'yt_total_views', '')}
+                        ${nc(r.ig_followers, 'main-metric')}${gainCell(r, p, 'ig_followers', '')}${nc(r.ig_total_post_views, '')}${gainCell(r, p, 'ig_total_post_views', '')}
+                        ${nc(r.tiktok_followers, 'main-metric')}${gainCell(r, p, 'tiktok_followers', '')}${nc(r.tiktok_total_post_plays, '')}${gainCell(r, p, 'tiktok_total_post_plays', '')}
+                        ${nc(r.yt_subscribers, 'main-metric')}${gainCell(r, p, 'yt_subscribers', '')}${nc(r.yt_total_views, '')}${gainCell(r, p, 'yt_total_views', '')}
                     </tr>`;
                 }).join('')}
                 </tbody>

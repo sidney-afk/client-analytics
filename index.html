@@ -132,27 +132,42 @@
             text-transform: uppercase; letter-spacing: 0.11em;
             color: var(--text-muted); flex-shrink: 0;
         }
-        .pills { display: flex; gap: 6px; flex-wrap: wrap; }
-        .pill {
-            display: inline-flex; align-items: center; gap: 5px;
-            padding: 4px 11px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.13s;
-            white-space: nowrap;
-            background: #f2f2f0;
-            color: var(--text-muted);
+        .pills { display: flex; gap: 0; flex-wrap: wrap; }
+
+        /* Sort control: dropdown + direction toggle */
+        .sort-control {
+            display: inline-flex; align-items: center; gap: 0;
+            border-radius: 8px; overflow: hidden;
+            border: 1px solid var(--border);
+            background: var(--white);
         }
-        .pill:hover { background: #e8e8e5; color: var(--text-secondary); }
-        .pill.active-ig { background: var(--ig-light); color: var(--ig-dark); border-color: var(--ig-mid); }
-        .pill.active-tt { background: var(--tt-light); color: var(--tt-dark); border-color: var(--tt-mid); }
-        .pill.active-yt { background: var(--yt-light); color: var(--yt-dark); border-color: var(--yt-mid); }
-        .pill.active-name { background: #f0f0ff; color: #3b3bb0; border-color: #c7c7f0; }
-        .pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-        .pill-arrow { font-size: 0.65rem; opacity: 0.6; }
+        .sort-select {
+            appearance: none;
+            background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 10 10'%3E%3Cpath fill='%23999' d='M5 7L0 2h10z'/%3E%3C/svg%3E") no-repeat right 10px center;
+            border: none;
+            padding: 6px 28px 6px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.76rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            cursor: pointer;
+            min-width: 130px;
+        }
+        .sort-select:focus { outline: none; }
+        .sort-dir-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 32px; height: 100%;
+            border: none; border-left: 1px solid var(--border);
+            background: var(--bg);
+            cursor: pointer;
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            padding: 6px 0;
+            transition: all 0.13s;
+        }
+        .sort-dir-btn:hover { background: #e8e8e5; color: var(--text-primary); }
 
         .overview-table { width: 100%; border-collapse: separate; border-spacing: 0 6px; table-layout: fixed; }
         .overview-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
@@ -228,6 +243,12 @@
             overflow: hidden;
             color: var(--text-primary);
         }
+        .overview-table td:first-child .cell-inner {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            min-height: 20px;
+        }
         /* Gradient accent strip on left edge */
         .overview-table td:first-child::before {
             content: '';
@@ -240,7 +261,7 @@
             border-radius: 0 10px 10px 0;
         }
         /* Row gap via transparent top-border acting as spacing */
-        .overview-table tbody tr td { border-top: 6px solid transparent; }
+        .overview-table tbody tr td { border-top: 10px solid transparent; }
         .overview-table tbody tr { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.06)); }
         .overview-table tbody tr:hover td { cursor: default; background: #f7f7f5; }
 
@@ -716,18 +737,29 @@
     }
 
     function setSort(col) {
-        if (sortCol === col) sortDir = sortDir === 'desc' ? 'asc' : 'desc';
-        else { sortCol = col; sortDir = col === 'client_name' ? 'asc' : 'desc'; }
+        if (sortCol !== col) {
+            sortCol = col;
+            sortDir = col === 'client_name' ? 'asc' : 'desc';
+        }
         render('all');
     }
 
     function filterPillsHTML() {
-        return Object.entries(SORT_COLS).map(([col, cfg]) => {
-            const isActive = sortCol === col;
-            const cls = isActive ? cfg.pill : '';
-            const arrow = isActive ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '';
-            return `<button class="pill ${cls}" onclick="setSort('${col}')">${cfg.label}${arrow ? `<span class="pill-arrow">${arrow}</span>` : ''}</button>`;
+        const arrow = sortDir === 'desc' ? '↓' : '↑';
+        const options = Object.entries(SORT_COLS).map(([col, cfg]) => {
+            const sel = sortCol === col ? ' selected' : '';
+            return `<option value="${col}"${sel}>${cfg.label}</option>`;
         }).join('');
+        return `
+            <div class="sort-control">
+                <select class="sort-select" onchange="setSort(this.value)">${options}</select>
+                <button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir === 'desc' ? 'Descending' : 'Ascending'}">${arrow}</button>
+            </div>`;
+    }
+
+    function toggleSortDir() {
+        sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+        render('all');
     }
 
     function igUrl(h)  { return h ? `https://instagram.com/${h}` : null; }
@@ -819,7 +851,7 @@
                     const badge = idx < 3 ? `<span class="top-rank-badge">${idx+1}</span>` : '';
                     const eyeIcon = `<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
                     return `<tr class="${topCls} ${accentCls}">
-                        <td style="padding-left:14px">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</td>
+                        <td style="padding-left:14px"><div class="cell-inner">${badge}<a class="client-name-link" onclick="selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}</div></td>
                         <td style="font-size:0.76rem">${fmtDate(r.date)}</td>
                         ${nc(r.ig_followers, 'main-metric')}
                         ${gainCell(r, p, 'ig_followers', '')}

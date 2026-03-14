@@ -558,24 +558,44 @@
     function getPeriodKey(client, platform) { return `${client}__${platform}`; }
     function getActivePeriod(client, platform) { return activePeriods[getPeriodKey(client, platform)] || 'week'; }
 
-    function splitLine(line) {
-        const out = []; let cur = '', q = false;
-        for (const ch of line) {
-            if (ch === '"') q = !q;
-            else if (ch === ',' && !q) { out.push(cur); cur = ''; }
-            else cur += ch;
-        }
-        out.push(cur);
-        return out.map(v => v.replace(/^"|"$/g, '').trim());
-    }
+    // Properly handles quoted fields with embedded newlines and commas
     function parseCSV(text) {
-        const lines = text.trim().split('\n').filter(l => l.trim());
-        if (lines.length < 2) return [];
-        const headers = splitLine(lines[0]);
-        return lines.slice(1).map(line => {
-            const vals = splitLine(line);
+        const rows = [];
+        let field = '';
+        let fields = [];
+        let inQuotes = false;
+        let i = 0;
+
+        const commit = () => { fields.push(field.trim()); field = ''; };
+        const commitRow = () => {
+            commit();
+            if (fields.some(f => f !== '')) rows.push(fields);
+            fields = [];
+        };
+
+        while (i < text.length) {
+            const ch = text[i];
+            const next = text[i + 1];
+
+            if (inQuotes) {
+                if (ch === '"' && next === '"') { field += '"'; i += 2; continue; } // escaped quote
+                if (ch === '"') { inQuotes = false; i++; continue; }
+                field += ch; i++; continue;
+            }
+
+            if (ch === '"') { inQuotes = true; i++; continue; }
+            if (ch === ',') { commit(); i++; continue; }
+            if (ch === '\r' && next === '\n') { commitRow(); i += 2; continue; }
+            if (ch === '\n' || ch === '\r') { commitRow(); i++; continue; }
+            field += ch; i++;
+        }
+        if (field !== '' || fields.length > 0) commitRow();
+
+        if (rows.length < 2) return [];
+        const headers = rows[0].map(h => h.replace(/^"|"$/g, ''));
+        return rows.slice(1).map(vals => {
             const obj = {};
-            headers.forEach((h, i) => obj[h] = (vals[i] || '').trim());
+            headers.forEach((h, idx) => obj[h] = (vals[idx] || '').replace(/^"|"$/g, ''));
             return obj;
         });
     }

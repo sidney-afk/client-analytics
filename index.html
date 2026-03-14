@@ -383,7 +383,8 @@
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            function mh(label,key){
+            // mh: shows value + delta badge. Always shows delta slot (— when no prev).
+            const mh=(label,key)=>{
                 const f=fmt(r[key]);if(!f)return'';
                 let gh='';
                 if(p){
@@ -392,37 +393,26 @@
                     else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}
                 }
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
-            }
-            const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
-            let pl='';
-            // mhDiff: shows a pre-computed diff from the sheet as a gain badge (no base value)
-            // Shows if key exists in the row, even if value is 0
-            function mhDiff(label,diffKey){
+            };
+            // mhDiff: shows a pre-computed diff column from sheet as the delta badge only
+            const mhDiff=(label,diffKey)=>{
                 if(!(diffKey in r))return'';
                 const d=n(r[diffKey]);
                 const s=d>0?'+':'';
                 const cls=d>0?'up':d<0?'down':'flat';
                 const badge=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span>${badge}</div>`;
-            }
+            };
+            const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
+            let pl='';
             const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             if(hasIG) {
                 pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views This Month','ig_views_this_month')}${mhDiff('Avg Views Δ','ig_avg_views_diff')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
-            if(hasTT)pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views This Month','tiktok_plays_this_month')}${mhDiff('Avg Views Δ','tiktok_avg_plays_diff')}</div>`;
-            if(hasYT){
-                // YouTube: show static totals + delta badge (delta needs prev row)
-                function mhYT(label,key){
-                    const f=fmt(r[key]);
-                    if(!f)return'';
-                    let gh='';
-                    if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}
-                    return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
-                }
-                pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mhYT('Subs','yt_subscribers')}${mhYT('Views','yt_total_views')}</div>`;
-            }
+            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views This Month','tiktok_plays_this_month')}${mhDiff('Avg Views Δ','tiktok_avg_plays_diff')}</div>`;
+            if(hasYT) pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             // <a> tag so right-click "Open in new tab" works natively
             const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             const cardAgeBadge = cardAgeRestricted ? `<span title="Instagram is age-restricted — not scraped" style="font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;letter-spacing:0.03em;white-space:nowrap;">🔞 IG</span>` : '';

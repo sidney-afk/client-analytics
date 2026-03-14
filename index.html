@@ -360,7 +360,13 @@
     function sortedRows(rows){return[...rows].sort((a,b)=>{if(sortCol==='client_name'){const r=a.client_name.localeCompare(b.client_name);return sortDir==='asc'?r:-r;}const va=n(a[sortCol]),vb=n(b[sortCol]);return sortDir==='asc'?va-vb:vb-va;});}
 
     let viewMode=localStorage.getItem('syncview_viewMode')||'table';
-    function setSort(col){if(sortCol!==col){sortCol=col;sortDir=col==='client_name'?'asc':'desc';}render('all');}
+    function setSort(col){
+        if(sortCol!==col){sortCol=col;sortDir=col==='client_name'?'asc':'desc';}
+        // Close dropdown before re-render (render destroys the DOM, making toggleDropdown a no-op)
+        const _m=document.getElementById('sortDropMenu'),_t=document.getElementById('sortDropTrigger');
+        if(_m){_m.classList.remove('open');}if(_t){_t.classList.remove('open');}
+        render('all');
+    }
     function toggleSortDir(){sortDir=sortDir==='desc'?'asc':'desc';render('all');}
     function setViewMode(mode){viewMode=mode;localStorage.setItem('syncview_viewMode',mode);render('all');}
     function toggleDropdown(){
@@ -383,7 +389,8 @@
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            // mh: shows value + delta badge. Always shows delta slot (— when no prev, real delta when prev exists).
+            // mh: value + computed delta badge (— when no prev, real diff when prev exists)
+            // Used for: Followers (IG/TT), Subs (YT), Views (YT)
             const mh=(label,key)=>{
                 const f=fmt(r[key]);if(!f)return'';
                 let gh='';
@@ -391,12 +398,16 @@
                     const d=n(r[key])-n(p[key]);
                     if(d===0) gh=`<span class="card-metric-gain flat">±0</span>`;
                     else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}
-                } else {
-                    gh=`<span class="card-metric-gain flat" style="opacity:0.4">—</span>`;
                 }
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
             };
-            // mhDiff: shows a pre-computed diff column from sheet as the delta badge only
+            // mhVal: value only, no delta — for Views This Month (resets monthly, daily diff is meaningless)
+            const mhVal=(label,key)=>{
+                const f=fmt(r[key]);if(!f)return'';
+                return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span></div>`;
+            };
+            // mhDiff: pre-computed delta from sheet, shown as a badge only (no base value)
+            // Used for: Avg Views Δ (IG), Avg Views Δ (TT)
             const mhDiff=(label,diffKey)=>{
                 if(!(diffKey in r))return'';
                 const d=n(r[diffKey]);
@@ -409,11 +420,11 @@
             let pl='';
             const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             if(hasIG) {
-                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views This Month','ig_views_this_month')}${mhDiff('Avg Views Δ','ig_avg_views_diff')}</div>`;
+                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhVal('Views This Month','ig_views_this_month')}${mhDiff('Avg Views Δ','ig_avg_views_diff')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
-            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views This Month','tiktok_plays_this_month')}${mhDiff('Avg Views Δ','tiktok_avg_plays_diff')}</div>`;
+            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhVal('Views This Month','tiktok_plays_this_month')}${mhDiff('Avg Views Δ','tiktok_avg_plays_diff')}</div>`;
             if(hasYT) pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             // <a> tag so right-click "Open in new tab" works natively
             const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';

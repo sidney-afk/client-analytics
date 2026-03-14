@@ -233,7 +233,7 @@
 </head>
 <body>
 <header class="header">
-    <div class="logo">
+    <div class="logo" onclick="pickClient('all')" style="cursor:pointer;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </div>
@@ -383,7 +383,7 @@
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            // mh: shows value + delta badge. Always shows delta slot (— when no prev).
+            // mh: shows value + delta badge. Always shows delta slot (— when no prev, real delta when prev exists).
             const mh=(label,key)=>{
                 const f=fmt(r[key]);if(!f)return'';
                 let gh='';
@@ -391,6 +391,8 @@
                     const d=n(r[key])-n(p[key]);
                     if(d===0) gh=`<span class="card-metric-gain flat">±0</span>`;
                     else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}
+                } else {
+                    gh=`<span class="card-metric-gain flat" style="opacity:0.4">—</span>`;
                 }
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
             };

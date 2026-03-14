@@ -383,7 +383,16 @@
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            function mh(label,key){const f=fmt(r[key]);if(!f)return'';let gh='';if(p){const d=n(r[key])-n(p[key]);if(d!==0){const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;}
+            function mh(label,key){
+                const f=fmt(r[key]);if(!f)return'';
+                let gh='';
+                if(p){
+                    const d=n(r[key])-n(p[key]);
+                    if(d===0) gh=`<span class="card-metric-gain flat">±0</span>`;
+                    else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}
+                }
+                return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
+            }
             const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             // mhDiff: shows a pre-computed diff from the sheet as a gain badge (no base value)
@@ -396,16 +405,26 @@
                 const badge=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span>${badge}</div>`;
             }
-            const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john winland';
+            const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             if(hasIG) {
                 pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views This Month','ig_views_this_month')}${mhDiff('Avg Views Δ','ig_avg_views_diff')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
             if(hasTT)pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views This Month','tiktok_plays_this_month')}${mhDiff('Avg Views Δ','tiktok_avg_plays_diff')}</div>`;
-            if(hasYT)pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
+            if(hasYT){
+                // YouTube: show static totals + delta badge (delta needs prev row)
+                function mhYT(label,key){
+                    const f=fmt(r[key]);
+                    if(!f)return'';
+                    let gh='';
+                    if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}
+                    return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
+                }
+                pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mhYT('Subs','yt_subscribers')}${mhYT('Views','yt_total_views')}</div>`;
+            }
             // <a> tag so right-click "Open in new tab" works natively
-            const cardAgeRestricted = r.client_name.toLowerCase() === 'john winland';
+            const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             const cardAgeBadge = cardAgeRestricted ? `<span title="Instagram is age-restricted — not scraped" style="font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;letter-spacing:0.03em;white-space:nowrap;">🔞 IG</span>` : '';
             return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${cardAgeBadge}<button class="card-eye-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button></div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
         }).join('')}</div>`;
@@ -434,9 +453,13 @@
             const p=prevMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
             const eyeIcon=`<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
             // href on <a> enables right-click "Open in new tab"; preventDefault keeps SPA feel on normal click
-            const isAgeRestricted = r.client_name.toLowerCase() === 'john winland';
+            const isAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             const ageBadgeCell = isAgeRestricted ? `<span title="Instagram is age-restricted — not scraped" style="display:inline-flex;align-items:center;font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:0.03em;flex-shrink:0;">🔞 IG restricted</span>` : '';
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,p,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainCell(r,p,'ig_avg_views_diff','col-ig')}${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainCell(r,p,'tiktok_avg_plays_diff','col-tt')}${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}</tr>`;
+            const igRestrictedCell = `<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
+            const igCols = isAgeRestricted
+                ? igRestrictedCell + igRestrictedCell + igRestrictedCell + igRestrictedCell
+                : `${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,p,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainCell(r,p,'ig_avg_views_diff','col-ig')}`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainCell(r,p,'tiktok_avg_plays_diff','col-tt')}${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 
@@ -518,15 +541,13 @@
         if (hasIG) cards += `<div class="gains-platform-card gp-ig">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div>
             <div class="gains-metrics-row">
-                ${chip('Followers', today.ig_followers, igFolDiff)}
-                ${chip('Views / Mo', today.ig_views_this_month, null)}
+                ${chipDeltaOnly('Followers Δ', igFolDiff)}
                 ${chipDiff('Avg Views Δ', today.ig_avg_views_diff)}
             </div></div>`;
         if (hasTT) cards += `<div class="gains-platform-card gp-tt">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div>
             <div class="gains-metrics-row">
-                ${chip('Followers', today.tiktok_followers, ttFolDiff)}
-                ${chip('Views / Mo', today.tiktok_plays_this_month, null)}
+                ${chipDeltaOnly('Followers Δ', ttFolDiff)}
                 ${chipDiff('Avg Views Δ', today.tiktok_avg_plays_diff)}
             </div></div>`;
         if (hasYT) cards += `<div class="gains-platform-card gp-yt">
@@ -577,7 +598,7 @@
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
-        const igAgeRestricted = name.toLowerCase() === 'john winland';
+        const igAgeRestricted = name.toLowerCase() === 'john wineland';
         const igAgeBadge = igAgeRestricted
             ? `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`
             : '';

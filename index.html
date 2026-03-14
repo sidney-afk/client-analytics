@@ -217,20 +217,15 @@
         }
 
         /* Platform group headers */
-        .overview-table th.group-ig { color: var(--ig-dark); background: var(--ig-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
-        .overview-table th.group-tt { color: var(--tt-dark); background: var(--tt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
-        .overview-table th.group-yt { color: var(--yt-dark); background: var(--yt-light); border-radius: 10px 10px 0 0; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
+        .overview-table th.group-ig { color: var(--ig-dark); background: transparent; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
+        .overview-table th.group-tt { color: var(--tt-dark); background: transparent; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
+        .overview-table th.group-yt { color: var(--yt-dark); background: transparent; font-size: 0.7rem; letter-spacing: 0.08em; padding: 9px 10px 4px; }
 
         /* Sub-headers: bridge the border-spacing gap with a colored top-border */
-        .overview-table th.ig-h { color: var(--ig-dark); background: var(--ig-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--ig-light); }
-        .overview-table th.tt-h { color: var(--tt-dark); background: var(--tt-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--tt-light); }
-        .overview-table th.yt-h { color: var(--yt-dark); background: var(--yt-light); padding: 4px 10px 8px; border-radius: 0; border-top: 6px solid var(--yt-light); }
-        .overview-table th.ig-h-first { border-radius: 0 0 0 10px; }
-        .overview-table th.tt-h-first { border-radius: 0 0 0 10px; }
-        .overview-table th.yt-h-first { border-radius: 0 0 0 10px; }
-        .overview-table th.ig-h-last { border-radius: 0 0 10px 0; }
-        .overview-table th.tt-h-last { border-radius: 0 0 10px 0; }
-        .overview-table th.yt-h-last { border-radius: 0 0 10px 0; }
+        .overview-table th.ig-h { color: var(--ig-dark); background: transparent; padding: 4px 10px 8px; border-radius: 0; border-bottom: 2px solid var(--ig-mid); }
+        .overview-table th.tt-h { color: var(--tt-dark); background: transparent; padding: 4px 10px 8px; border-radius: 0; border-bottom: 2px solid var(--tt-mid); }
+        .overview-table th.yt-h { color: var(--yt-dark); background: transparent; padding: 4px 10px 8px; border-radius: 0; border-bottom: 2px solid var(--yt-mid); }
+
 
         /* Data rows */
         .overview-table td {
@@ -266,14 +261,14 @@
         .overview-table td:last-child::after {
             content: ''; position: absolute;
             right: 0; bottom: 0; left: -2000px;
-            height: 3px;
+            height: 1px;
             background: #6c5ce7;
             border-radius: 0 0 10px 0;
         }
         .overview-table td:first-child::after {
             content: ''; position: absolute;
             left: 0; bottom: 0; right: -2000px;
-            height: 3px;
+            height: 1px;
             background: #6c5ce7;
             border-radius: 0 0 0 10px;
         }

@@ -95,6 +95,30 @@
 
         .page-title { font-size: 1.7rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .page-sub   { font-size: 0.82rem; color: var(--text-secondary); margin-top: 3px; }
+        /* Overview: centred big title */
+        #pageTop.overview-mode {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 10px;
+        }
+        #pageTop.overview-mode .page-title { font-size: 2.4rem; }
+        #pageTop.overview-mode .page-sub { font-size: 0.86rem; margin-top: 4px; }
+        #pageTop.overview-mode #selectorWrap { margin-top: 2px; }
+
+        .card-client-link {
+            cursor: pointer; transition: color 0.15s;
+        }
+        .card-client-link:hover { color: var(--text-secondary); }
+        .card-eye-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 22px; height: 22px; border-radius: 5px;
+            background: transparent; border: none;
+            cursor: pointer; color: var(--text-muted);
+            transition: color 0.15s;
+            flex-shrink: 0;
+        }
+        .card-eye-btn:hover { color: var(--text-primary); }
 
         .selector-wrap { display: flex; align-items: center; gap: 10px; }
         .selector-label { font-size: 0.67rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; }
@@ -320,11 +344,8 @@
             border-radius: 14px;
             overflow: hidden;
             box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            transition: box-shadow 0.2s, transform 0.2s;
-            cursor: pointer;
             position: relative;
         }
-        .client-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.1); transform: translateY(-2px); }
         .client-card::after {
             content: ''; position: absolute;
             left: 0; right: 0; bottom: 0; height: 3px;
@@ -515,7 +536,7 @@
 </header>
 
 <main class="main" id="mainWrap">
-    <div class="page-top" id="pageTop">
+    <div class="page-top overview-mode" id="pageTop">
         <div>
             <div class="page-title-row" id="titleRow">
                 <div class="page-title" id="pageTitle">Client Analytics</div>
@@ -807,8 +828,17 @@
             if (hasIG) pl += `<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mh('Views','ig_total_post_views')}</div>`;
             if (hasTT) pl += `<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mh('Views','tiktok_total_post_plays')}</div>`;
             if (hasYT) pl += `<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
-            return `<div class="client-card" onclick="selectClient('${r.client_name}')">
-                <div class="card-head"><div style="display:flex;align-items:center">${rankBadge}<span class="card-client-name">${r.client_name}</span></div><span class="card-date">${fmtDate(r.date)}</span></div>
+            return `<div class="client-card">
+                <div class="card-head">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                        ${rankBadge}
+                        <span class="card-client-name card-client-link" onclick="selectClient('${r.client_name}')">${r.client_name}</span>
+                        <button class="card-eye-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}">
+                            <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg>
+                        </button>
+                    </div>
+                    <span class="card-date">${fmtDate(r.date)}</span>
+                </div>
                 <div class="card-platforms">${pl}</div>
             </div>`;
         }).join('')}</div>`;
@@ -933,19 +963,22 @@
         const hasAnyData = weekVideos.length > 0 || monthVideos.length > 0;
         if (!hasAnyData) return '';
         const showShares = platform.toLowerCase() === 'tiktok';
+        const isIG = platform.toLowerCase() === 'instagram';
         let cardsHtml = '';
         if (!videos.length) {
             cardsHtml = `<div class="top-videos-empty">No top videos for this period yet</div>`;
         } else {
-            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildVideoCard(v, showShares)).join('')}</div>`;
+            cardsHtml = `<div class="video-cards-scroll">${videos.map(v => buildVideoCard(v, showShares, isIG)).join('')}</div>`;
         }
         return `
         <div class="top-videos-section" id="${containerId}">
             <div class="top-videos-head">
-                <span class="top-videos-title">Top Performing</span>
-                <div class="period-toggle">
-                    <button class="period-btn ${weekActive}" onclick="switchPeriod('${clientName}','${platform}','week','${containerId}')">Week</button>
-                    <button class="period-btn ${monthActive}" onclick="switchPeriod('${clientName}','${platform}','month','${containerId}')">Month</button>
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <span class="top-videos-title">Top Performing</span>
+                    <div class="period-toggle">
+                        <button class="period-btn ${weekActive}" onclick="switchPeriod('${clientName}','${platform}','week','${containerId}')">Week</button>
+                        <button class="period-btn ${monthActive}" onclick="switchPeriod('${clientName}','${platform}','month','${containerId}')">Month</button>
+                    </div>
                 </div>
             </div>
             ${cardsHtml}
@@ -967,7 +1000,7 @@
     // which breaks when captions contain backticks, ${}, quotes, etc.
     const captionStore = {};
 
-    function buildVideoCard(v, showShares) {
+    function buildVideoCard(v, showShares, isIG) {
         const caption = v.caption || '';
         const truncated = truncateCaption(caption);
         const needsReadMore = caption.length > truncated.length + 5;
@@ -977,13 +1010,27 @@
         const sharesRow = showShares
             ? `<div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>`
             : '';
+
+        // For Instagram: if views=0 but has likes or comments, it's likely a carousel (no view count)
+        const viewsVal = n(v.views);
+        const hasEngagement = n(v.likes) > 0 || n(v.comments) > 0;
+        const isCarousel = isIG && viewsVal === 0 && hasEngagement;
+        const viewsDisplay = isCarousel
+            ? `<span title="Carousels don't have view counts" style="opacity:0.45;display:inline-flex;align-items:center;">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex-shrink:0">
+                  <path d="M2 2L14 14M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9M9.88 9.88A3 3 0 0 1 5.12 5.12M1 8s2-5 7-5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.4"/>
+                </svg>
+               </span>`
+            : `<span class="tt-stat-val">${fmtCompact(v.views)}</span>`;
+
         return `
         <a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener">
             <div class="tt-rank-badge">#${n(v.rank)}</div>
             <div class="tt-caption" id="${uid}">${truncated}</div>
             ${needsReadMore ? `<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this)" style="margin-top:-4px">read more</button>` : ''}
             <div class="tt-stats">
-                <div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span><span class="tt-stat-val">${fmtCompact(v.views)}</span></div>
+                <div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span>${viewsDisplay}</div>
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div>
                 <div class="tt-stat"><span class="tt-stat-icon">${ICON.comments}</span><span class="tt-stat-val">${fmtCompact(v.comments)}</span></div>
                 ${sharesRow}
@@ -1042,6 +1089,39 @@
         const igTopVids = buildTopVideosSection(name, 'instagram', `tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids = buildTopVideosSection(name, 'tiktok',    `tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids = buildTopVideosSection(name, 'youtube',   `tv-yt-${name.replace(/\s+/g,'_')}`);
+        const igSection = hasIG ? `
+            <div class="platform-section ig">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>Instagram</span>
+                    ${handleLink(igUrl(igHandle), igHandle ? `@${igHandle}` : '')}
+                </div>
+                <div class="metrics-row">
+                    ${mBlock('Total Followers', today, prev, 'ig_followers')}${mBlock('Total Views', today, prev, 'ig_total_post_views')}${mBlock('Avg Views', today, prev, 'ig_avg_views')}${mBlock('Avg Likes', today, prev, 'ig_avg_likes')}
+                </div>
+                ${igTopVids}
+            </div>` : '';
+        const ttSection = hasTT ? `
+            <div class="platform-section tt">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>TikTok</span>
+                    ${handleLink(ttUrl(ttHandle), ttHandle ? `@${ttHandle}` : '')}
+                </div>
+                <div class="metrics-row">
+                    ${mBlock('Total Followers', today, prev, 'tiktok_followers')}${mBlock('Total Views', today, prev, 'tiktok_total_post_plays')}${mBlock('Avg Views', today, prev, 'tiktok_avg_plays')}
+                </div>
+                ${ttTopVids}
+            </div>` : '';
+        const ytSection = hasYT ? `
+            <div class="platform-section yt">
+                <div class="platform-section-header">
+                    <span class="platform-name"><span class="platform-pill"></span>YouTube</span>
+                    ${handleLink(ytUrl(ytId), ytId ? 'Open Channel ↗' : '')}
+                </div>
+                <div class="metrics-row">
+                    ${mBlock('Total Subscribers', today, prev, 'yt_subscribers')}${mBlock('Total Views', today, prev, 'yt_total_views')}
+                </div>
+                ${ytTopVids}
+            </div>` : '';
         return `
         <div class="client-view">
             ${clientOnly ? `<div class="client-only-badge">📊 Your Analytics Dashboard</div>` : ''}
@@ -1053,36 +1133,9 @@
                 ${shareBtnHtml}
             </div>
             ${gainsBar(today, prev)}
-            <div class="platform-section ig">
-                <div class="platform-section-header">
-                    <span class="platform-name"><span class="platform-pill"></span>Instagram</span>
-                    ${handleLink(igUrl(igHandle), igHandle ? `@${igHandle}` : '')}
-                </div>
-                <div class="metrics-row">
-                    ${hasIG ? `${mBlock('Total Followers', today, prev, 'ig_followers')}${mBlock('Total Views', today, prev, 'ig_total_post_views')}${mBlock('Avg Views', today, prev, 'ig_avg_views')}${mBlock('Avg Likes', today, prev, 'ig_avg_likes')}` : noData}
-                </div>
-                ${igTopVids}
-            </div>
-            <div class="platform-section tt">
-                <div class="platform-section-header">
-                    <span class="platform-name"><span class="platform-pill"></span>TikTok</span>
-                    ${handleLink(ttUrl(ttHandle), ttHandle ? `@${ttHandle}` : '')}
-                </div>
-                <div class="metrics-row">
-                    ${hasTT ? `${mBlock('Total Followers', today, prev, 'tiktok_followers')}${mBlock('Total Views', today, prev, 'tiktok_total_post_plays')}${mBlock('Avg Views', today, prev, 'tiktok_avg_plays')}` : noData}
-                </div>
-                ${ttTopVids}
-            </div>
-            <div class="platform-section yt">
-                <div class="platform-section-header">
-                    <span class="platform-name"><span class="platform-pill"></span>YouTube</span>
-                    ${handleLink(ytUrl(ytId), ytId ? 'Open Channel ↗' : '')}
-                </div>
-                <div class="metrics-row">
-                    ${hasYT ? `${mBlock('Total Subscribers', today, prev, 'yt_subscribers')}${mBlock('Total Views', today, prev, 'yt_total_views')}` : noData}
-                </div>
-                ${ytTopVids}
-            </div>
+            ${igSection}
+            ${ttSection}
+            ${ytSection}
             <div class="chart-section">
                 <div class="chart-top">
                     <span class="chart-title">Follower Growth Over Time</span>
@@ -1142,8 +1195,10 @@
         const pageSub = document.getElementById('pageSub');
         const selectorWrap = document.getElementById('selectorWrap');
         const titleRow = document.getElementById('titleRow');
+        const pageTop = document.getElementById('pageTop');
         const existingBack = titleRow.querySelector('.back-btn');
         if (sel !== 'all' && !clientOnly) {
+            pageTop.classList.remove('overview-mode');
             pageTitle.style.display = 'none';
             pageSub.style.display = 'none';
             selectorWrap.style.display = 'none';
@@ -1155,6 +1210,7 @@
                 titleRow.insertBefore(btn, titleRow.firstChild);
             }
         } else if (!clientOnly) {
+            pageTop.classList.add('overview-mode');
             pageTitle.style.display = '';
             pageSub.style.display = '';
             selectorWrap.style.display = '';

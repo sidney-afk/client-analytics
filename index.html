@@ -122,9 +122,9 @@
         .card-metric-label { font-size: 0.57rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255,255,255,0.55); }
         .card-metric-val { font-size: 0.88rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
         .card-metric-val.empty { color: rgba(255,255,255,0.3); font-weight: 400; font-size: 0.76rem; }
-        .card-metric-gain { font-size: 0.65rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; }
-        .card-metric-gain.up { background: rgba(255,255,255,0.18); color: #a8ffb0; }
-        .card-metric-gain.down { background: rgba(0,0,0,0.2); color: #ffb0b0; }
+        .card-metric-gain { font-size: 0.65rem; font-weight: 700; padding: 0; }
+        .card-metric-gain.up { background: transparent; color: #a8ffb0; }
+        .card-metric-gain.down { background: transparent; color: #ffb0b0; }
         .card-metric-gain.flat { background: transparent; color: rgba(255,255,255,0.35); }
         .col-name { width: 130px; } .col-date { width: 80px; } .col-num { width: 80px; } .col-gain { width: 60px; }
         .client-view { animation: fadeIn 0.15s ease; max-width: 980px; margin: 0 auto; }
@@ -419,11 +419,11 @@
             let pl='';
             const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             if(hasIG) {
-                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhVal('Views This Month','ig_views_this_month')}${mhDiff('Views Gained','ig_views_gained_today')}</div>`;
+                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhVal('Views This Month','ig_views_this_month')}${mhDiff('Views +','ig_views_gained_today')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
-            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhVal('Views This Month','tiktok_plays_this_month')}${mhDiff('Views Gained','tiktok_plays_gained_today')}</div>`;
+            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhVal('Views This Month','tiktok_plays_this_month')}${mhDiff('Views +','tiktok_plays_gained_today')}</div>`;
             if(hasYT) pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             // <a> tag so right-click "Open in new tab" works natively
             const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
@@ -543,14 +543,14 @@
         if (hasIG) cards += `<div class="gains-platform-card gp-ig">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div>
             <div class="gains-metrics-row">
-                ${chipDeltaOnly('Followers Δ', igFolDiff)}
-                ${chipDiff('Views Gained', today.ig_views_gained_today)}
+                ${chipDeltaOnly('Followers', igFolDiff)}
+                ${chipDiff('Views', today.ig_views_gained_today)}
             </div></div>`;
         if (hasTT) cards += `<div class="gains-platform-card gp-tt">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div>
             <div class="gains-metrics-row">
-                ${chipDeltaOnly('Followers Δ', ttFolDiff)}
-                ${chipDiff('Views Gained', today.tiktok_plays_gained_today)}
+                ${chipDeltaOnly('Followers', ttFolDiff)}
+                ${chipDiff('Views', today.tiktok_plays_gained_today)}
             </div></div>`;
         if (hasYT) cards += `<div class="gains-platform-card gp-yt">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div>
@@ -604,9 +604,9 @@
         const igAgeBadge = igAgeRestricted
             ? `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`
             : '';
-        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockDiff('Views Gained',today,'ig_avg_views','ig_views_gained_today')}${mBlock('Views This Month',today,prev,'ig_views_this_month')}${mBlock('Avg Likes',today,prev,'ig_avg_likes')}</div>${igTopVids}`:''} ${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`
+        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockDiff('Avg Views',today,'ig_avg_views','ig_views_gained_today')}${mBlock('Views This Month',today,prev,'ig_views_this_month')}${mBlock('Avg Likes',today,prev,'ig_avg_likes')}</div>${igTopVids}`:''} ${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`
             : '';
-        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockDiff('Views Gained',today,'tiktok_avg_plays','tiktok_plays_gained_today')}${mBlock('Views This Month',today,prev,'tiktok_plays_this_month')}</div>${ttTopVids}</div>`:'';
+        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockDiff('Avg Views',today,'tiktok_avg_plays','tiktok_plays_gained_today')}${mBlock('Views This Month',today,prev,'tiktok_plays_this_month')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
         return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev)}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
     }

@@ -445,8 +445,17 @@
         return`<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;
     }
     function mBlock(label,today,prev,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${f?deltaBadge(today,prev,key):''}</div>`;}
+    function mBlockNoD(label,today,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div></div>`;}
     function gainCell(today,prev,key,cls){const f=fmt(today[key]);if(!f||!prev)return`<td class="${cls}"><span class="g-none">—</span></td>`;const diff=n(today[key])-n(prev[key]);if(diff===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;const sign=diff>0?'+':'';return`<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span></td>`;}
 
+    // ncDelta: displays a pre-computed delta value directly (no today-prev calc)
+    function ncDelta(val,cls){
+        const x=n(val);
+        if(!val&&val!=='0')return`<td class="${cls}"><span class="g-none">—</span></td>`;
+        if(x===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;
+        const sign=x>0?'+':'';
+        return`<td class="${cls}"><span class="${x>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(x))||Math.abs(x).toLocaleString()}</span></td>`;
+    }
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
@@ -460,8 +469,19 @@
             const igRestrictedCell = `<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
             const igCols = isAgeRestricted
                 ? igRestrictedCell + igRestrictedCell + igRestrictedCell + igRestrictedCell
-                : `${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,p,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainCell(r,p,'ig_views_gained_today','col-ig')}`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainCell(r,p,'tiktok_plays_gained_today','col-tt')}${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}</tr>`;
+                : `${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,p,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${ncDelta(r.ig_views_gained_today,'col-ig')}`;
+            // "no platform" cells — used when a client doesn't have a platform at all
+            const noPlat=(cls,label)=>`<td class="${cls}" style="opacity:0.3;font-style:italic;font-size:0.7rem;text-align:center;">No ${label}</td>`;
+            const noCell=(cls)=>`<td class="${cls}" style="opacity:0.15;text-align:center;font-size:0.7rem;">·</td>`;
+            const hasTTrow=n(r.tiktok_followers)||n(r.tiktok_plays_this_month);
+            const hasYTrow=n(r.yt_subscribers)||n(r.yt_total_views);
+            const ttCols=hasTTrow
+                ?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ncDelta(r.tiktok_plays_gained_today,'col-tt')}`
+                :`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
+            const ytCols=hasYTrow
+                ?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}`
+                :`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 
@@ -604,9 +624,9 @@
         const igAgeBadge = igAgeRestricted
             ? `<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`
             : '';
-        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockDiff('Avg Views',today,'ig_avg_views','ig_views_gained_today')}${mBlock('Views This Month',today,prev,'ig_views_this_month')}${mBlock('Avg Likes',today,prev,'ig_avg_likes')}</div>${igTopVids}`:''} ${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`
+        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlock('Avg Views',today,prev,'ig_avg_views')}${mBlockDiff('Views This Month',today,'ig_views_this_month','ig_views_gained_today')}${mBlockNoD('Avg Likes',today,'ig_avg_likes')}</div>${igTopVids}`:''} ${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`
             : '';
-        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockDiff('Avg Views',today,'tiktok_avg_plays','tiktok_plays_gained_today')}${mBlock('Views This Month',today,prev,'tiktok_plays_this_month')}</div>${ttTopVids}</div>`:'';
+        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlock('Avg Views',today,prev,'tiktok_avg_plays')}${mBlockDiff('Views This Month',today,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
         return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev)}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
     }

@@ -282,7 +282,10 @@
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
                 <div class="search-box" id="searchBox">
-                    <input class="search-input" id="searchInput" type="text" placeholder="Search clients…" oninput="onSearchInput()" autocomplete="off">
+                    <div style="position:relative;">
+                        <input class="search-input" id="searchInput" type="text" placeholder="Search clients…" oninput="onSearchInput()" onkeydown="onSearchKey(event)" autocomplete="off" style="position:relative;z-index:1;background:transparent;">
+                        <div id="searchGhost" style="position:absolute;top:0;left:0;padding:7px 10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.78rem;font-weight:500;color:transparent;pointer-events:none;white-space:nowrap;overflow:hidden;z-index:0;width:100%;"></div>
+                    </div>
                     <div id="searchResults"></div>
                 </div>
             </div>
@@ -410,25 +413,54 @@
     }
 
     const SORT_COLS={
-        'client_name':              {label:'Name'},
-        'ig_followers':             {label:'IG Followers'},
-        'ig_views_gained_today':    {label:'IG +Followers Today'},
-        'ig_views_this_month':      {label:'IG Views/Month'},
-        'ig_views_gained_today_v':  {label:'IG +Views Today'},
-        'tiktok_followers':         {label:'TT Followers'},
-        'tiktok_views_gained_today':{label:'TT +Followers Today'},
-        'tiktok_plays_this_month':  {label:'TT Views/Month'},
-        'tiktok_plays_gained_today':{label:'TT +Views Today'},
-        'yt_subscribers':           {label:'YT Subscribers'},
-        'yt_total_views':           {label:'YT Views'},
+        'client_name':           {label:'Name'},
+        'ig_followers':          {label:'IG Followers'},
+        '_ig_fol_delta':         {label:'IG +Followers'},
+        'ig_views_this_month':   {label:'IG Views/Month'},
+        'ig_views_gained_today': {label:'IG +Views'},
+        'tiktok_followers':      {label:'TT Followers'},
+        '_tt_fol_delta':         {label:'TT +Followers'},
+        'tiktok_plays_this_month':{label:'TT Views/Month'},
+        'tiktok_plays_gained_today':{label:'TT +Views'},
+        'yt_subscribers':        {label:'YT Subscribers'},
+        'yt_total_views':        {label:'YT Views'},
     };
-    // Map sortable col keys to actual data keys (some are aliases for display)
-    const SORT_KEY_MAP={
-        'ig_views_gained_today_v': 'ig_views_gained_today',
-        'tiktok_views_gained_today': 'tiktok_plays_gained_today',
-    };
-    function sortKey(col){return SORT_KEY_MAP[col]||col;}
-    function sortedRows(rows){return[...rows].sort((a,b)=>{if(sortCol==='client_name'){const r=a.client_name.localeCompare(b.client_name);return sortDir==='asc'?r:-r;}const k=sortKey(sortCol);const va=n(a[k]),vb=n(b[k]);return sortDir==='asc'?va-vb:vb-va;});}
+    // Pseudo-cols prefixed _ are computed from prev row, not read directly from data
+    const PSEUDO_COLS=new Set(['_ig_fol_delta','_tt_fol_delta']);
+    function sortedRows(rows){
+        const prevMap=prevPerClient();
+        // For a row, get its numeric sort value — handles pseudo-cols and no-platform rows
+        function val(r,col){
+            if(col==='_ig_fol_delta'){
+                const p=prevMap[r.client_name];
+                if(!p)return -Infinity; // no prev → sort to bottom
+                return n(r.ig_followers)-n(p.ig_followers);
+            }
+            if(col==='_tt_fol_delta'){
+                const p=prevMap[r.client_name];
+                if(!p)return -Infinity;
+                return n(r.tiktok_followers)-n(p.tiktok_followers);
+            }
+            // For pre-computed deltas and regular cols: treat missing platform as -Infinity
+            const v=n(r[col]);
+            // If the value is 0 AND the client has no data for that platform, push to bottom
+            if(v===0){
+                if(col.startsWith('ig_')&&!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;
+                if(col.startsWith('tiktok_')&&!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;
+                if(col.startsWith('yt_')&&!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;
+            }
+            return v;
+        }
+        return[...rows].sort((a,b)=>{
+            if(sortCol==='client_name'){const r=a.client_name.localeCompare(b.client_name);return sortDir==='asc'?r:-r;}
+            const va=val(a,sortCol),vb=val(b,sortCol);
+            // Always push -Infinity to bottom regardless of sort direction
+            if(va===-Infinity&&vb===-Infinity)return 0;
+            if(va===-Infinity)return 1;
+            if(vb===-Infinity)return -1;
+            return sortDir==='asc'?va-vb:vb-va;
+        });
+    }
 
     let viewMode=localStorage.getItem('syncview_viewMode')||'table';
     function setSort(col){
@@ -450,10 +482,10 @@
     function controlsHTML(){
         const arrow=sortDir==='desc'?'↓':'↑';
         const PILL_LABELS={
-            'client_name':'Name','ig_followers':'IG Followers',
-            'ig_views_gained_today':'IG +Followers','ig_views_this_month':'IG Views/Mo',
-            'ig_views_gained_today_v':'IG +Views',
-            'tiktok_followers':'TT Followers','tiktok_views_gained_today':'TT +Followers',
+            'client_name':'Name',
+            'ig_followers':'IG Followers','_ig_fol_delta':'IG +Followers',
+            'ig_views_this_month':'IG Views/Mo','ig_views_gained_today':'IG +Views',
+            'tiktok_followers':'TT Followers','_tt_fol_delta':'TT +Followers',
             'tiktok_plays_this_month':'TT Views/Mo','tiktok_plays_gained_today':'TT +Views',
             'yt_subscribers':'YT Subs','yt_total_views':'YT Views',
         };
@@ -513,13 +545,19 @@
             const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
+            // Platform handles for card links
+            const cardInfo=clientMap[r.client_name]||{};
+            const cardIgH=cardInfo.instagram_handle||'';
+            const cardTtH=cardInfo.tiktok_handle||'';
+            const cardYtId=cardInfo.youtube_channel_id||'';
+            const platLink=(url,label)=>url?`<a href="${url}" target="_blank" rel="noopener" style="font-size:0.58rem;font-weight:600;color:rgba(255,255,255,0.55);text-decoration:none;letter-spacing:0.02em;white-space:nowrap;transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.55)'">${label}</a>`:'';
             if(hasIG) {
-                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhValDiff('Views This Month','ig_views_this_month','ig_views_gained_today')}</div>`;
+                pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhValDiff('Views This Month','ig_views_this_month','ig_views_gained_today')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
-            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhValDiff('Views This Month','tiktok_plays_this_month','tiktok_plays_gained_today')}</div>`;
-            if(hasYT) pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
+            if(hasTT) pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhValDiff('Views This Month','tiktok_plays_this_month','tiktok_plays_gained_today')}</div>`;
+            if(hasYT) pl+=`<div class="card-platform cp-yt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">YouTube</span>${platLink(cardYtId?'https://youtube.com/channel/'+cardYtId:null,'Channel ↗')}</div>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             // <a> tag so right-click "Open in new tab" works natively
             const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             const cardAgeBadge = cardAgeRestricted ? `<span title="Instagram is age-restricted — not scraped" style="font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;letter-spacing:0.03em;white-space:nowrap;">🔞 IG</span>` : '';
@@ -566,7 +604,7 @@
           <th colspan="4" class="group-tt">TikTok</th>
           <th colspan="4" class="group-yt">YouTube</th>
         </tr><tr>
-          ${sTh('ig_followers','Followers','ig-h')}${sTh('ig_views_gained_today','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('ig_views_gained_today_v','+Views','ig-h')}
+          ${sTh('ig_followers','Followers','ig-h')}${sTh('ig_views_gained_today','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('ig_views_gained_today','+Views','ig-h')}
           ${sTh('tiktok_followers','Followers','tt-h')}${sTh('tiktok_views_gained_today','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/Month','tt-h')}${sTh('tiktok_plays_gained_today','+Views','tt-h')}
           ${sTh('yt_subscribers','Subscribers','yt-h')}${sThInert('+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sThInert('+Views','yt-h')}
         </tr></thead>`;
@@ -849,6 +887,32 @@
     function onSearchInput(){
         const q=document.getElementById('searchInput').value;
         renderSearchResults(q);
+        updateSearchGhost(q);
+    }
+
+    function updateSearchGhost(q){
+        const ghost=document.getElementById('searchGhost');
+        const inp=document.getElementById('searchInput');
+        if(!ghost||!inp)return;
+        const q2=q.trim().toLowerCase();
+        if(!q2){ghost.innerHTML='';inp.style.background='transparent';return;}
+        const allNames=[...new Set(allData.map(r=>r.client_name))].sort();
+        const first=allNames.find(n=>n.toLowerCase().includes(q2));
+        if(!first){ghost.innerHTML='';return;}
+        // Show typed part in transparent, rest in muted — plus Enter hint
+        const idx=first.toLowerCase().indexOf(q2);
+        const before=first.slice(0,idx+q.length); // hide the typed portion (same as input)
+        const rest=first.slice(idx+q.length);
+        ghost.innerHTML=`<span style="color:transparent">${before}</span><span style="color:var(--text-muted);opacity:0.5">${rest}</span><span style="margin-left:6px;font-size:0.65rem;color:var(--text-muted);opacity:0.45;background:var(--border);border-radius:3px;padding:1px 4px;">↵</span>`;
+    }
+
+    function onSearchKey(e){
+        if(e.key!=='Enter')return;
+        const q=document.getElementById('searchInput')?.value.trim();
+        if(!q)return;
+        const allNames=[...new Set(allData.map(r=>r.client_name))].sort();
+        const first=allNames.find(n=>n.toLowerCase().includes(q.toLowerCase()));
+        if(first)searchGoTo(first);
     }
 
     function highlightMatch(name,q){

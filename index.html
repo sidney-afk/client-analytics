@@ -36,7 +36,9 @@
         #pageTop.overview-mode .page-sub { font-size: 0.86rem; margin-top: 4px; }
         #pageTop.overview-mode #selectorWrap { margin-top: 2px; }
         /* ── Pinned clients ── */
-        .pins-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; margin-top: 10px; min-height: 32px; }
+        .pins-area { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 10px; }
+        .pins-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; min-height: 32px; }
+        .pins-add-row { position: relative; display: flex; justify-content: center; }
         .pin-pill {
             display: inline-flex; align-items: center; gap: 6px;
             padding: 5px 13px; border-radius: 99px;
@@ -74,7 +76,7 @@
         .pin-edit-btn:hover { color: var(--text-primary); background: var(--border-light); }
         .pin-edit-btn.active { color: var(--text-primary); background: var(--bg); }
         /* Pin selector dropdown */
-        .pin-selector-wrap { position: relative; }
+        .pins-add-row { position: relative; }
         .pin-selector-dropdown {
             position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(-4px) scale(0.98);
             background: var(--white); border-radius: 14px;
@@ -404,7 +406,7 @@
                 <div class="dropdown-menu client-drop-menu" id="clientDropMenu"></div>
             </div>
         </div>
-        <div class="pins-row" id="pinsRow"></div>
+        <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"></div></div>
     </div>
     <div id="content">
         <div class="loading-state">
@@ -929,12 +931,12 @@
         }
         if(sel==='all'){
             content.innerHTML=renderOverview(latestPerClient());
-            const pr=document.getElementById('pinsRow');
+            const pr=document.getElementById('pinsArea');
             if(pr)pr.style.display='';
             return;
         }
         // Hide pins row in client-specific views
-        const _pr=document.getElementById('pinsRow');
+        const _pr=document.getElementById('pinsArea');
         if(_pr)_pr.style.display='none';
         const hist=clientHistory(sel);
         if(!hist.length){content.innerHTML=`<div class="error-state">No data for "${sel}"</div>`;return;}
@@ -1106,56 +1108,80 @@
     let pinsEditMode = false;
     let pinSelectorOpen = false;
 
+    const PIN_ICON_SVG = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 1h6v1l-1 4 2 2v1H9v5l-1 1-1-1V9H3V8l2-2L4 2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><line x1="8" y1="9" x2="8" y2="15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+    const PEN_ICON_SVG  = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const CHECK_SVG     = '<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
     function getPins(){ try{ return JSON.parse(localStorage.getItem(PINS_KEY)||'[]'); }catch{ return []; } }
     function savePins(pins){ localStorage.setItem(PINS_KEY, JSON.stringify(pins)); }
 
     function togglePin(name){
         let pins = getPins();
-        if(pins.includes(name)){
-            pins = pins.filter(p=>p!==name);
-        } else {
-            if(pins.length >= MAX_PINS) return; // full
-            pins.push(name);
-        }
+        if(pins.includes(name)) pins = pins.filter(p=>p!==name);
+        else { if(pins.length >= MAX_PINS) return; pins.push(name); }
         savePins(pins);
         renderPins();
-        renderPinSelector();
     }
 
     function removePin(name){
-        savePins(getPins().filter(p=>p!==name));
-        if(getPins().length <= 1) pinsEditMode = false;
+        const pins = getPins().filter(p=>p!==name);
+        savePins(pins);
+        // Exit edit mode only when 0 pins remain; allow editing down to 1
+        if(pins.length === 0) pinsEditMode = false;
+        // Never auto-open selector on remove
+        pinSelectorOpen = false;
         renderPins();
-        renderPinSelector();
+    }
+
+    function togglePinsEdit(){
+        pinsEditMode = !pinsEditMode;
+        pinSelectorOpen = false; // close selector when entering/leaving edit
+        renderPins();
+    }
+
+    function togglePinSelector(){
+        pinSelectorOpen = !pinSelectorOpen;
+        const dd = document.getElementById('pinSelectorDropdown');
+        if(!dd) return;
+        dd.classList.toggle('open', pinSelectorOpen);
+        if(pinSelectorOpen){
+            renderPinSelectorList();
+            const close = (e)=>{
+                const addRow = document.getElementById('pinsAddRow');
+                if(addRow && !addRow.contains(e.target)){
+                    pinSelectorOpen = false;
+                    dd.classList.remove('open');
+                    document.removeEventListener('click', close);
+                }
+            };
+            setTimeout(()=>document.addEventListener('click', close), 0);
+        }
     }
 
     function renderPins(){
-        const row = document.getElementById('pinsRow');
-        if(!row) return;
+        const row    = document.getElementById('pinsRow');
+        const addRow = document.getElementById('pinsAddRow');
+        const area   = document.getElementById('pinsArea');
+        if(!row || !addRow) return;
         const pins = getPins();
-        const penSvg = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-        const pinSvg = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M9 2l1 4 4 1-3 3 1 4-3-2-3 2 1-4-3-3 4-1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-        // Build DOM directly instead of innerHTML to avoid quote-nesting issues
+        // ── Pills row ────────────────────────────────────────────────────────
         row.innerHTML = '';
 
-        // Edit button (2+ pins only)
-        if(pins.length > 1){
+        // Edit button — show when 1+ pins (allow editing down to 0)
+        if(pins.length >= 1){
             const editBtn = document.createElement('button');
             editBtn.className = 'pin-edit-btn' + (pinsEditMode ? ' active' : '');
             editBtn.title = pinsEditMode ? 'Done editing' : 'Edit pins';
-            editBtn.innerHTML = penSvg;
+            editBtn.innerHTML = PEN_ICON_SVG;
             editBtn.onclick = togglePinsEdit;
             row.appendChild(editBtn);
         }
 
-        // Pin pills
         pins.forEach(name => {
             const pill = document.createElement('div');
             pill.className = 'pin-pill';
-            if(!pinsEditMode){
-                pill.onclick = () => selectClient(name);
-            }
+            if(!pinsEditMode) pill.onclick = () => selectClient(name);
             const nameSpan = document.createElement('span');
             nameSpan.textContent = name;
             pill.appendChild(nameSpan);
@@ -1170,51 +1196,32 @@
             row.appendChild(pill);
         });
 
-        // Add button (< MAX_PINS)
+        // ── Add button row — always separate, anchored, only when < MAX_PINS ─
+        addRow.innerHTML = '';
         if(pins.length < MAX_PINS){
-            const wrap = document.createElement('div');
-            wrap.className = 'pin-selector-wrap';
-            wrap.id = 'pinSelectorWrap';
-            wrap.innerHTML =
-                '<button class="pin-add-btn" id="pinAddBtn" title="Pin a client">' +
-                pinSvg + ' Pin client <span style="opacity:0.6;font-size:0.68rem;">' + pins.length + '/' + MAX_PINS + '</span></button>' +
-                '<div class="pin-selector-dropdown" id="pinSelectorDropdown">' +
-                '<div class="pin-selector-header"><span class="pin-selector-title">Pin a client</span>' +
-                '<span class="pin-selector-count">' + pins.length + ' / ' + MAX_PINS + '</span></div>' +
-                '<div class="pin-selector-list" id="pinSelectorList"></div></div>';
-            row.appendChild(wrap);
-            wrap.querySelector('#pinAddBtn').onclick = togglePinSelector;
+            const addBtn = document.createElement('button');
+            addBtn.className = 'pin-add-btn';
+            addBtn.title = 'Pin a client';
+            addBtn.innerHTML = PIN_ICON_SVG + ' Pin client <span style="opacity:0.6;font-size:0.68rem;">' + pins.length + '/' + MAX_PINS + '</span>';
+            addBtn.onclick = togglePinSelector;
+            addRow.appendChild(addBtn);
 
-            // Re-open selector if it was open
-            if(pinSelectorOpen){
-                const dd = document.getElementById('pinSelectorDropdown');
-                if(dd){ dd.classList.add('open'); renderPinSelectorList(); }
-            }
+            // Dropdown — anchored inside addRow so it never shifts
+            const dd = document.createElement('div');
+            dd.className = 'pin-selector-dropdown' + (pinSelectorOpen ? ' open' : '');
+            dd.id = 'pinSelectorDropdown';
+            dd.innerHTML =
+                '<div class="pin-selector-header">' +
+                '<span class="pin-selector-title">Pin a client</span>' +
+                '<span class="pin-selector-count">' + pins.length + ' / ' + MAX_PINS + '</span>' +
+                '</div><div class="pin-selector-list" id="pinSelectorList"></div>';
+            addRow.appendChild(dd);
+
+            if(pinSelectorOpen) renderPinSelectorList();
         }
-    }
 
-    function togglePinsEdit(){
-        pinsEditMode = !pinsEditMode;
-        renderPins();
-    }
-
-    function togglePinSelector(){
-        pinSelectorOpen = !pinSelectorOpen;
-        const dd = document.getElementById('pinSelectorDropdown');
-        if(!dd) return;
-        dd.classList.toggle('open', pinSelectorOpen);
-        if(pinSelectorOpen){
-            renderPinSelectorList();
-            const close = (e)=>{
-                const wrap = document.getElementById('pinSelectorWrap');
-                if(wrap && !wrap.contains(e.target)){
-                    pinSelectorOpen = false;
-                    dd.classList.remove('open');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(()=>document.addEventListener('click', close), 0);
-        }
+        // Hide area entirely if no pins and not needed
+        if(area) area.style.display = (pins.length === 0 && !pinSelectorOpen) ? '' : '';
     }
 
     function renderPinSelectorList(){
@@ -1222,7 +1229,6 @@
         if(!list) return;
         const pins = getPins();
         const allNames = [...new Set(allData.map(r=>r.client_name))].sort();
-        const checkSvg = '<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         list.innerHTML = '';
         allNames.forEach(name => {
             const isPinned = pins.includes(name);
@@ -1234,15 +1240,13 @@
             nameSpan.textContent = name;
             const check = document.createElement('span');
             check.className = 'pin-check';
-            if(isPinned) check.innerHTML = checkSvg;
+            if(isPinned) check.innerHTML = CHECK_SVG;
             item.appendChild(nameSpan);
             item.appendChild(check);
             if(!disabled) item.onclick = () => togglePin(name);
             list.appendChild(item);
         });
     }
-
-    function renderPinSelector(){ renderPins(); } // alias kept for removePin calls
 
     async function init(){
         try{

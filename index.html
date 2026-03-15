@@ -488,6 +488,68 @@
     }
     function latestPerClient(){const h=_buildHistories();return Object.values(h).map(rows=>rows[rows.length-1]);}
     function prevPerClient(){const h=_buildHistories();const prev={};Object.entries(h).forEach(([name,rows])=>{if(rows.length>=2)prev[name]=rows[rows.length-2];});return prev;}
+    // getWeekRow(history): returns the row closest to 7 days before today's row
+    // "today" is history[history.length-1]
+    function getWeekRow(history){
+        if(history.length < 2) return null;
+        const todayRow = history[history.length-1];
+        const todayDate = new Date(todayRow.date);
+        const targetDate = new Date(todayDate);
+        targetDate.setDate(targetDate.getDate() - 7);
+        // Find row with date closest to (but not after) targetDate
+        // If no row that old, return the oldest available row
+        let best = null;
+        for(let i = 0; i < history.length - 1; i++){
+            const d = new Date(history[i].date);
+            if(d <= todayDate){ // exclude today itself
+                if(!best || Math.abs(d - targetDate) < Math.abs(new Date(best.date) - targetDate)){
+                    best = history[i];
+                }
+            }
+        }
+        return best;
+    }
+
+    // sumWeeklyViews: sum a pre-computed daily column over the last 7 rows (excluding today)
+    function sumWeeklyViews(history, key){
+        if(history.length < 2) return null;
+        const todayIdx = history.length - 1;
+        const startIdx = Math.max(0, todayIdx - 7);
+        let total = 0; let hasAny = false;
+        for(let i = startIdx; i < todayIdx; i++){
+            const v = n(history[i][key]);
+            if(v){ total += v; hasAny = true; }
+        }
+        // Include today too
+        const todayVal = n(history[todayIdx][key]);
+        if(todayVal){ total += todayVal; hasAny = true; }
+        return hasAny ? total : null;
+    }
+
+    // Returns a map of {clientName: rowClosestTo7DaysAgo}
+    function weekPrevPerClient(){
+        const h = _buildHistories();
+        const result = {};
+        Object.entries(h).forEach(([name, rows]) => {
+            if(rows.length < 2) return;
+            const latest = rows[rows.length - 1];
+            const latestDate = new Date(latest.date);
+            const target = new Date(latestDate);
+            target.setDate(target.getDate() - 7);
+            // Find the row whose date is closest to (but not after) target
+            let best = null;
+            for(let i = rows.length - 2; i >= 0; i--){
+                const d = new Date(rows[i].date);
+                if(d <= target){ best = rows[i]; break; }
+                if(!best || Math.abs(d - target) < Math.abs(new Date(best.date) - target)){
+                    best = rows[i];
+                }
+            }
+            if(best) result[name] = best;
+        });
+        return result;
+    }
+
     function clientHistory(name){
         // Sort by date asc, then by original index asc for same-date rows (matches latestPerClient tiebreak)
         const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
@@ -547,7 +609,7 @@
     // Pseudo-cols prefixed _ are computed from prev row, not read directly from data
     const PSEUDO_COLS=new Set(['_ig_fol_delta','_tt_fol_delta']);
     function sortedRows(rows){
-        const prevMap=prevPerClient();
+        const prevMap=gainMode==='week'?weekPrevPerClient():prevPerClient();
         // For a row, get its numeric sort value — handles pseudo-cols and no-platform rows
         function val(r,col){
             if(col==='_ig_fol_delta'){
@@ -591,6 +653,9 @@
     }
 
     let viewMode=localStorage.getItem('syncview_viewMode')||'table';
+    let gainMode=localStorage.getItem('syncview_gainMode')||'day'; // 'day' | 'week'
+    let gainPeriod=localStorage.getItem('syncview_gainPeriod')||'day'; // 'day' | 'week'
+    function setGainPeriod(p){ gainPeriod=p; localStorage.setItem('syncview_gainPeriod',p); render('all'); }
     function setSort(col){
         if(sortCol===col){sortDir=sortDir==='desc'?'asc':'desc';}
         else{sortCol=col;sortDir=col==='client_name'?'asc':'desc';}
@@ -600,6 +665,7 @@
     }
     function toggleSortDir(){sortDir=sortDir==='desc'?'asc':'desc';render('all');}
     function setViewMode(mode){viewMode=mode;localStorage.setItem('syncview_viewMode',mode);render('all');}
+    function setGainMode(mode){gainMode=mode;localStorage.setItem('syncview_gainMode',mode);render('all');}
     function toggleDropdown(){
         const menu=document.getElementById('sortDropMenu'),trigger=document.getElementById('sortDropTrigger');
         if(!menu)return;
@@ -621,13 +687,17 @@
         const items=Object.entries(SORT_COLS).map(([col,cfg])=>`<button class="dropdown-item ${sortCol===col?'active':''}" onclick="setSort('${col}')">${cfg.label}</button>`).join('');
         const tableIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.3"/></svg>`;
         const cardIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>`;
-        return `<div class="overview-controls"><div class="controls-left"><div class="custom-dropdown"><button class="dropdown-trigger" id="sortDropTrigger" onclick="toggleDropdown()">${currentLabel} <span class="dd-arrow">▾</span></button><div class="dropdown-menu" id="sortDropMenu">${items}</div></div><button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir==='desc'?'Descending':'Ascending'}">${arrow}</button></div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
+        const periodToggle=`<div style="display:inline-flex;align-items:center;border-radius:20px;overflow:hidden;background:var(--white);box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border);">
+            <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='day'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('day')">Day</button>
+            <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='week'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('week')">Week</button>
+        </div>`;
+        return `<div class="overview-controls"><div class="controls-left"><div class="custom-dropdown"><button class="dropdown-trigger" id="sortDropTrigger" onclick="toggleDropdown()">${currentLabel} <span class="dd-arrow">▾</span></button><div class="dropdown-menu" id="sortDropMenu">${items}</div></div><button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir==='desc'?'Descending':'Ascending'}">${arrow}</button>${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
     }
 
-    function renderCardView(rows){
+    function renderCardView(rows,deltaMap){
         const prevMap=prevPerClient();
         return `<div class="cards-grid">${rows.map((r,idx)=>{
-            const p=prevMap[r.client_name]||null;
+            const p=(deltaMap||prevPerClient())[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
             // mh: value + computed delta badge
             // Shows real ↑/↓/±0 when prev row exists; muted — when only 1 day of data
@@ -719,8 +789,19 @@
     }
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();
+        // deltaMap: for gain columns, use week-row when in week mode
+        const deltaMap = gainPeriod==='week'
+            ? (() => {
+                const m={};
+                Object.keys(prevMap).forEach(name=>{
+                    const hist=clientHistory(name);
+                    m[name]=getWeekRow(hist);
+                });
+                return m;
+              })()
+            : prevMap;
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
-        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows)}</div>`;
+        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
         return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
         const sTh=(col,label,cls,extra='')=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
         const sThInert=(label,cls)=>`<th class="${cls}">${label}</th>`;
@@ -737,15 +818,18 @@
           ${sTh('yt_subscribers','Subscribers','yt-h')}${sTh('_yt_sub_delta','+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sTh('_yt_view_delta','+Views','yt-h')}
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
-            const p=prevMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
+            const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
             const eyeIcon=`<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
             // href on <a> enables right-click "Open in new tab"; preventDefault keeps SPA feel on normal click
             const isAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             const ageBadgeCell = isAgeRestricted ? `<span title="Instagram is age-restricted — not scraped" style="display:inline-flex;align-items:center;font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:0.03em;flex-shrink:0;">🔞 IG restricted</span>` : '';
             const igRestrictedCell = `<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
+            // Weekly: sum daily view gains; weekly fol delta uses weekRow
+            const igWeekViews = gainPeriod==='week' ? sumWeeklyViews(clientHistory(r.client_name),'ig_views_gained_today') : null;
+            const ttWeekViews = gainPeriod==='week' ? sumWeeklyViews(clientHistory(r.client_name),'tiktok_plays_gained_today') : null;
             const igCols = isAgeRestricted
                 ? igRestrictedCell + igRestrictedCell + igRestrictedCell + igRestrictedCell
-                : `${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,p,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${ncDelta(r.ig_views_gained_today,'col-ig')}`;
+                : `${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainPeriod==='week'?ncDelta(igWeekViews,'col-ig'):ncDelta(r.ig_views_gained_today,'col-ig')}`;
             // "no platform" band — spans all 4 cols with a muted label in the first, dotted rest
             const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;">
                 <span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;">
@@ -756,10 +840,10 @@
             const hasTTrow=n(r.tiktok_followers)||n(r.tiktok_plays_this_month);
             const hasYTrow=n(r.yt_subscribers)||n(r.yt_total_views);
             const ttCols=hasTTrow
-                ?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ncDelta(r.tiktok_plays_gained_today,'col-tt')}`
+                ?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainPeriod==='week'?ncDelta(ttWeekViews,'col-tt'):ncDelta(r.tiktok_plays_gained_today,'col-tt')}`
                 :`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow
-                ?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}`
+                ?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`
                 :`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
@@ -788,7 +872,7 @@
         return`<div class="gain-item"><div class="gain-platform-dot" style="background:${dotColor}"></div><span class="gain-name">${label}</span>${html}</div>`;
     }
 
-    function gainsBar(today,prev){
+    function gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,forcePeriod){
         // chip: a single metric cell with label + value + optional delta badge
         function chip(label, value, delta) {
             const numFmt = fmt(value);
@@ -833,24 +917,30 @@
         const hasTT = n(today.tiktok_followers)||n(today.tiktok_plays_this_month);
         const hasYT = n(today.yt_subscribers)||n(today.yt_total_views);
 
-        // Compute prev-based deltas for follower fields
-        const igFolDiff  = prev ? n(today.ig_followers)      - n(prev.ig_followers)      : null;
-        const ttFolDiff  = prev ? n(today.tiktok_followers)  - n(prev.tiktok_followers)  : null;
-        const ytSubDiff  = prev ? n(today.yt_subscribers)    - n(prev.yt_subscribers)    : null;
-        const ytViewDiff = prev ? n(today.yt_total_views)    - n(prev.yt_total_views)    : null;
+        // Compute deltas — use weekRow when in week mode, prev when in day mode
+        const activePeriod = forcePeriod || gainPeriod;
+        const dRow = activePeriod==='week' ? weekRow : prev;
+        const igFolDiff  = dRow ? n(today.ig_followers)     - n(dRow.ig_followers)     : null;
+        const ttFolDiff  = dRow ? n(today.tiktok_followers) - n(dRow.tiktok_followers) : null;
+        const ytSubDiff  = dRow ? n(today.yt_subscribers)   - n(dRow.yt_subscribers)   : null;
+        const ytViewDiff = dRow ? n(today.yt_total_views)   - n(dRow.yt_total_views)   : null;
+        // Views gains: use pre-summed weekly or today's pre-computed daily
+        const igViewsGain  = activePeriod==='week' ? igWeekViews  : n(today.ig_views_gained_today)||null;
+        const ttViewsGain  = activePeriod==='week' ? ttWeekViews  : n(today.tiktok_plays_gained_today)||null;
+        const periodLabel  = activePeriod==='week' ? "This Week's" : "Today's";
 
         let cards = '';
         if (hasIG) cards += `<div class="gains-platform-card gp-ig">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div>
             <div class="gains-metrics-row">
                 ${chipDeltaOnly('Followers', igFolDiff)}
-                ${chipDiff('Views', today.ig_views_gained_today)}
+                ${chipDiff('Views', igViewsGain)}
             </div></div>`;
         if (hasTT) cards += `<div class="gains-platform-card gp-tt">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">TikTok</span></div>
             <div class="gains-metrics-row">
                 ${chipDeltaOnly('Followers', ttFolDiff)}
-                ${chipDiff('Views', today.tiktok_plays_gained_today)}
+                ${chipDiff('Views', ttViewsGain)}
             </div></div>`;
         if (hasYT) cards += `<div class="gains-platform-card gp-yt">
             <div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">YouTube</span></div>
@@ -859,8 +949,8 @@
                 ${chipDeltaOnly('Total Views', ytViewDiff)}
             </div></div>`;
 
-        const note = prev ? '' : `<span class="gains-no-data-note">Deltas show after 2+ days</span>`;
-        return `<div class="gains-bar"><span class="gains-bar-label">Today's<br>Gains</span>${cards}${note}</div>`;
+        const note = dRow ? '' : `<span class="gains-no-data-note">Gains show after ${activePeriod==='week'?'7+':'2+'} days</span>`;
+        return `<div class="gains-bar"><span class="gains-bar-label">${periodLabel}<br>Gains</span>${cards}${note}</div>`;
     }
 
     function buildTopVideosSection(clientName,platform,containerId){
@@ -891,6 +981,19 @@
 
     function renderClient(name,history,clientOnly){
         const today=history[history.length-1],prev=history.length>=2?history[history.length-2]:null;
+        // Weekly prev: row closest to 7 days before today
+        const todayDate=new Date(today.date);
+        const weekTarget=new Date(todayDate); weekTarget.setDate(weekTarget.getDate()-7);
+        let weekPrev=null;
+        for(let i=history.length-2;i>=0;i--){
+            const d=new Date(history[i].date);
+            if(d<=weekTarget){weekPrev=history[i];break;}
+            if(!weekPrev||Math.abs(d-weekTarget)<Math.abs(new Date(weekPrev.date)-weekTarget)) weekPrev=history[i];
+        }
+        const activePrev=gainMode==='week'?weekPrev:prev;
+        const weekRow=getWeekRow(history);
+        const igWeekViews=sumWeeklyViews(history,'ig_views_gained_today');
+        const ttWeekViews=sumWeeklyViews(history,'tiktok_plays_gained_today');
         const info=clientMap[name]||{};
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
@@ -908,7 +1011,7 @@
             : '';
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockDiff('Views This Month',today,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
-        return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev)}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
+        return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'day')}${weekRow ? gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'week') : ''}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
     }
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}

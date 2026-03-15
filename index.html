@@ -39,22 +39,67 @@
         .card-client-link:hover { color: var(--text-secondary); }
         .card-eye-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); transition: color 0.15s; flex-shrink: 0; }
         .card-eye-btn:hover { color: var(--text-primary); }
-        .selector-wrap { display: flex; align-items: center; gap: 10px; }
-        /* ── Search widget ── */
-        .search-wrap { position: relative; }
-        .search-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--white); cursor: pointer; color: var(--text-muted); box-shadow: 0 1px 3px rgba(0,0,0,0.06); transition: all 0.15s; }
-        .search-icon-btn:hover { color: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-        .search-icon-btn.active { background: var(--text-primary); color: var(--white); }
-        .search-box { position: absolute; top: calc(100% + 8px); right: 0; width: 240px; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 8px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.98); pointer-events: none; transition: all 0.18s ease; transform-origin: top right; }
-        .search-box.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
-        .search-input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 500; color: var(--text-primary); background: var(--bg); outline: none; transition: border-color 0.15s; }
-        .search-input:focus { border-color: #aaa; }
-        .search-section-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); padding: 8px 8px 4px; }
-        .search-suggestion { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; transition: background 0.1s; font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); }
+        .selector-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
+        /* ── Prominent inline search bar ── */
+        .search-bar-wrap { position: relative; }
+        .search-bar-pill {
+            display: flex; align-items: center;
+            background: var(--white);
+            border: 1.5px solid var(--border);
+            border-radius: 99px;
+            padding: 0 14px 0 20px;
+            gap: 10px;
+            width: 340px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+            transition: border-color 0.18s, box-shadow 0.18s;
+        }
+        .search-bar-pill:focus-within {
+            border-color: #aaa;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.11);
+        }
+        .search-bar-input {
+            flex: 1; border: none; outline: none; background: transparent;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85rem; font-weight: 500;
+            color: var(--text-primary);
+            padding: 11px 0;
+            min-width: 0;
+        }
+        .search-bar-input::placeholder { color: var(--text-muted); font-weight: 400; }
+        .search-bar-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; border-radius: 50%; border: none;
+            background: var(--text-primary); color: var(--white);
+            cursor: pointer; flex-shrink: 0; transition: background 0.15s;
+        }
+        .search-bar-icon:hover { background: #333; }
+        .search-ghost-overlay {
+            position: absolute;
+            top: 0; left: 20px; right: 54px;
+            pointer-events: none;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85rem; font-weight: 500;
+            white-space: nowrap; overflow: hidden;
+            display: flex; align-items: center;
+            height: 100%;
+            color: transparent;
+        }
+        .search-dropdown {
+            position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+            background: var(--white); border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+            padding: 6px; z-index: 60;
+            opacity: 0; transform: translateY(-6px) scale(0.99);
+            pointer-events: none; transition: all 0.16s ease;
+            transform-origin: top center;
+        }
+        .search-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .search-section-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); padding: 8px 12px 4px; }
+        .search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
         .search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
-        .search-suggestion .s-icon { font-size: 0.7rem; opacity: 0.5; flex-shrink: 0; }
+        .search-suggestion .s-icon { color: var(--text-muted); flex-shrink: 0; }
         .search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
-        .search-empty { padding: 10px 10px 6px; font-size: 0.75rem; color: var(--text-muted); font-style: italic; text-align: center; }
+        .search-empty { padding: 12px; font-size: 0.78rem; color: var(--text-muted); font-style: italic; text-align: center; }
         .selector-label { font-size: 0.67rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.09em; font-weight: 700; }
         .overview-wrap { background: transparent; border: none; overflow: visible; }
         .overview-controls { display: flex; align-items: center; justify-content: space-between; padding: 0 0 16px; gap: 12px; }
@@ -270,24 +315,28 @@
             <div class="page-sub" id="pageSub">Instagram · TikTok · YouTube</div>
         </div>
         <div class="selector-wrap" id="selectorWrap">
-            <span class="selector-label">Client</span>
+            <!-- Prominent search bar -->
+            <div class="search-bar-wrap" id="searchWrap">
+                <div class="search-bar-pill">
+                    <input class="search-bar-input" id="searchInput" type="text"
+                        placeholder="Search clients…"
+                        oninput="onSearchInput()" onkeydown="onSearchKey(event)"
+                        onfocus="onSearchFocus()" autocomplete="off">
+                    <div class="search-ghost-overlay" id="searchGhost"></div>
+                    <button class="search-bar-icon" onclick="onSearchIconClick()" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <div class="search-dropdown" id="searchBox">
+                    <div id="searchResults"></div>
+                </div>
+            </div>
+            <!-- All Clients dropdown — secondary -->
             <div class="custom-dropdown" id="clientDropWrap">
                 <button class="dropdown-trigger" id="clientDropTrigger" onclick="toggleClientDrop()">
                     All Clients <span class="dd-arrow">▾</span>
                 </button>
                 <div class="dropdown-menu client-drop-menu" id="clientDropMenu"></div>
-            </div>
-            <div class="search-wrap" id="searchWrap">
-                <button class="search-icon-btn" id="searchIconBtn" onclick="toggleSearch()" title="Search clients">
-                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                </button>
-                <div class="search-box" id="searchBox">
-                    <div style="position:relative;">
-                        <input class="search-input" id="searchInput" type="text" placeholder="Search clients…" oninput="onSearchInput()" onkeydown="onSearchKey(event)" autocomplete="off" style="position:relative;z-index:1;background:transparent;">
-                        <div id="searchGhost" style="position:absolute;top:0;left:0;padding:7px 10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.78rem;font-weight:500;color:transparent;pointer-events:none;white-space:nowrap;overflow:hidden;z-index:0;width:100%;"></div>
-                    </div>
-                    <div id="searchResults"></div>
-                </div>
             </div>
         </div>
     </div>
@@ -856,35 +905,43 @@
         localStorage.setItem(RECENT_KEY,JSON.stringify(r));
     }
 
-    function toggleSearch(){
+    function openSearchDropdown(){
         const box=document.getElementById('searchBox');
-        const btn=document.getElementById('searchIconBtn');
+        if(!box||box.classList.contains('open'))return;
+        box.classList.add('open');
+        const close=(e)=>{
+            const wrap=document.getElementById('searchWrap');
+            if(wrap&&!wrap.contains(e.target)){
+                box.classList.remove('open');
+                document.removeEventListener('click',close);
+            }
+        };
+        setTimeout(()=>document.addEventListener('click',close),0);
+    }
+    function onSearchFocus(){
+        renderSearchResults(document.getElementById('searchInput')?.value||'');
+        openSearchDropdown();
+    }
+    function onSearchIconClick(){
         const inp=document.getElementById('searchInput');
-        if(!box)return;
-        const opening=!box.classList.contains('open');
-        box.classList.toggle('open');
-        btn.classList.toggle('active');
-        if(opening){
-            inp.value='';
-            renderSearchResults('');
-            setTimeout(()=>inp.focus(),120);
-            // close on outside click
-            const close=(e)=>{
-                const wrap=document.getElementById('searchWrap');
-                if(wrap&&!wrap.contains(e.target)){
-                    box.classList.remove('open');
-                    btn.classList.remove('active');
-                    document.removeEventListener('click',close);
-                }
-            };
-            setTimeout(()=>document.addEventListener('click',close),0);
+        const q=inp?.value.trim();
+        if(q){
+            // If there's text, go to first match
+            const allNames=[...new Set(allData.map(r=>r.client_name))].sort();
+            const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));
+            const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));
+            const first=[...starts,...contains][0];
+            if(first){searchGoTo(first);return;}
         }
+        inp?.focus();
+        openSearchDropdown();
     }
 
     function onSearchInput(){
         const q=document.getElementById('searchInput').value;
         renderSearchResults(q);
         updateSearchGhost(q);
+        openSearchDropdown();
     }
 
     function updateSearchGhost(q){
@@ -892,17 +949,21 @@
         const inp=document.getElementById('searchInput');
         if(!ghost||!inp)return;
         const q2=q.trim().toLowerCase();
-        if(!q2){ghost.innerHTML='';inp.style.background='transparent';return;}
+        if(!q2){ghost.innerHTML='';return;}
         const allNames=[...new Set(allData.map(r=>r.client_name))].sort();
         const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));
         const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));
         const first=[...starts,...contains][0];
         if(!first){ghost.innerHTML='';return;}
-        // Show typed part in transparent, rest in muted — plus Enter hint
-        const idx=first.toLowerCase().indexOf(q2);
-        const before=first.slice(0,idx+q.length); // hide the typed portion (same as input)
-        const rest=first.slice(idx+q.length);
-        ghost.innerHTML=`<span style="color:transparent">${before}</span><span style="color:var(--text-muted);opacity:0.5">${rest}</span><span style="margin-left:6px;font-size:0.65rem;color:var(--text-muted);opacity:0.45;background:var(--border);border-radius:3px;padding:1px 4px;">↵</span>`;
+        // For a starts-with match: show typed text (transparent) + completion suffix (muted)
+        if(first.toLowerCase().startsWith(q2)){
+            const typed=first.slice(0,q.length);
+            const rest=first.slice(q.length);
+            ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            // Contains match — just show the Enter hint
+            ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;
+        }
     }
 
     function onSearchKey(e){
@@ -955,11 +1016,12 @@
 
     function searchGoTo(name){
         addRecent(name);
-        // Close search
         const box=document.getElementById('searchBox');
-        const btn=document.getElementById('searchIconBtn');
+        const inp=document.getElementById('searchInput');
+        const ghost=document.getElementById('searchGhost');
         if(box)box.classList.remove('open');
-        if(btn)btn.classList.remove('active');
+        if(inp){inp.value='';inp.blur();}
+        if(ghost)ghost.innerHTML='';
         selectClient(name);
     }
 

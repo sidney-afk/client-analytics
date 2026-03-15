@@ -35,6 +35,71 @@
         #pageTop.overview-mode .page-title { font-size: 2.4rem; }
         #pageTop.overview-mode .page-sub { font-size: 0.86rem; margin-top: 4px; }
         #pageTop.overview-mode #selectorWrap { margin-top: 2px; }
+        /* ── Pinned clients ── */
+        .pins-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: center; margin-top: 10px; min-height: 32px; }
+        .pin-pill {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 13px; border-radius: 99px;
+            background: var(--white); border: 1.5px solid var(--border);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600; color: var(--text-primary);
+            cursor: pointer; transition: all 0.15s;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            user-select: none;
+        }
+        .pin-pill:hover { border-color: #bbb; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+        .pin-pill .pin-remove {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; border-radius: 50%;
+            background: var(--border); color: var(--text-muted);
+            font-size: 0.6rem; line-height: 1; transition: all 0.13s;
+            flex-shrink: 0;
+        }
+        .pin-pill .pin-remove:hover { background: var(--dn); color: #fff; }
+        .pin-add-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 12px; border-radius: 99px;
+            background: transparent; border: 1.5px dashed var(--border);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.72rem; font-weight: 600; color: var(--text-muted);
+            cursor: pointer; transition: all 0.15s;
+        }
+        .pin-add-btn:hover { border-color: #aaa; color: var(--text-secondary); background: var(--white); }
+        .pin-edit-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 24px; height: 24px; border-radius: 50%; border: none;
+            background: transparent; color: var(--text-muted);
+            cursor: pointer; transition: all 0.15s;
+        }
+        .pin-edit-btn:hover { color: var(--text-primary); background: var(--border-light); }
+        .pin-edit-btn.active { color: var(--text-primary); background: var(--bg); }
+        /* Pin selector dropdown */
+        .pin-selector-wrap { position: relative; }
+        .pin-selector-dropdown {
+            position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%) translateY(-4px) scale(0.98);
+            background: var(--white); border-radius: 14px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.13);
+            padding: 8px; z-index: 70; min-width: 220px;
+            opacity: 0; pointer-events: none; transition: all 0.16s ease;
+            transform-origin: top center;
+        }
+        .pin-selector-dropdown.open { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); pointer-events: auto; }
+        .pin-selector-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px 8px; }
+        .pin-selector-title { font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .pin-selector-count { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); background: var(--bg); border-radius: 6px; padding: 2px 7px; }
+        .pin-selector-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 7px 10px; border-radius: 8px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);
+            transition: background 0.1s;
+        }
+        .pin-selector-item:hover { background: var(--bg); color: var(--text-primary); }
+        .pin-selector-item.pinned { color: var(--text-primary); font-weight: 700; }
+        .pin-selector-item .pin-check { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; transition: all 0.13s; }
+        .pin-selector-item.pinned .pin-check { background: var(--text-primary); border-color: var(--text-primary); display: flex; align-items: center; justify-content: center; }
+        .pin-selector-list { max-height: 240px; overflow-y: auto; }
+        .pin-selector-list::-webkit-scrollbar { width: 4px; }
+        .pin-selector-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
         .card-client-link { cursor: pointer; transition: color 0.15s; text-decoration: none; color: inherit; }
         .card-client-link:hover { color: var(--text-secondary); }
         .card-eye-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; background: transparent; border: none; cursor: pointer; color: var(--text-muted); transition: color 0.15s; flex-shrink: 0; }
@@ -339,6 +404,7 @@
                 <div class="dropdown-menu client-drop-menu" id="clientDropMenu"></div>
             </div>
         </div>
+        <div class="pins-row" id="pinsRow"></div>
     </div>
     <div id="content">
         <div class="loading-state">
@@ -861,7 +927,15 @@
             pageTitle.style.display='';pageSub.style.display='';selectorWrap.style.display='';
             if(existingBack)existingBack.remove();
         }
-        if(sel==='all'){content.innerHTML=renderOverview(latestPerClient());return;}
+        if(sel==='all'){
+            content.innerHTML=renderOverview(latestPerClient());
+            const pr=document.getElementById('pinsRow');
+            if(pr)pr.style.display='';
+            return;
+        }
+        // Hide pins row in client-specific views
+        const _pr=document.getElementById('pinsRow');
+        if(_pr)_pr.style.display='none';
         const hist=clientHistory(sel);
         if(!hist.length){content.innerHTML=`<div class="error-state">No data for "${sel}"</div>`;return;}
         content.innerHTML=renderClient(sel,hist,clientOnly);
@@ -1025,6 +1099,128 @@
         selectClient(name);
     }
 
+
+    // ── Pinned Clients ───────────────────────────────────────────────────────
+    const PINS_KEY = 'syncview_pinned_clients';
+    const MAX_PINS = 3;
+    let pinsEditMode = false;
+    let pinSelectorOpen = false;
+
+    function getPins(){ try{ return JSON.parse(localStorage.getItem(PINS_KEY)||'[]'); }catch{ return []; } }
+    function savePins(pins){ localStorage.setItem(PINS_KEY, JSON.stringify(pins)); }
+
+    function togglePin(name){
+        let pins = getPins();
+        if(pins.includes(name)){
+            pins = pins.filter(p=>p!==name);
+        } else {
+            if(pins.length >= MAX_PINS) return; // full
+            pins.push(name);
+        }
+        savePins(pins);
+        renderPins();
+        renderPinSelector();
+    }
+
+    function removePin(name){
+        savePins(getPins().filter(p=>p!==name));
+        if(getPins().length <= 1) pinsEditMode = false;
+        renderPins();
+        renderPinSelector();
+    }
+
+    function renderPins(){
+        const row = document.getElementById('pinsRow');
+        if(!row) return;
+        const pins = getPins();
+        const allNames = [...new Set(allData.map(r=>r.client_name))].sort();
+        let html = '';
+
+        // Edit button (only when 2+ pins)
+        if(pins.length > 1){
+            const penSvg = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            html += `<button class="pin-edit-btn${pinsEditMode?' active':''}" onclick="togglePinsEdit()" title="${pinsEditMode?'Done editing':'Edit pins'}">${penSvg}</button>`;
+        }
+
+        // Existing pin pills
+        pins.forEach(name => {
+            const removeBtn = pinsEditMode
+                ? `<span class="pin-remove" onclick="event.stopPropagation();removePin('${name}')" title="Remove">✕</span>`
+                : '';
+            html += `<div class="pin-pill" onclick="${pinsEditMode?'':'selectClient(''+name+'')'}">${name}${removeBtn}</div>`;
+        });
+
+        // Add button (when < MAX_PINS)
+        if(pins.length < MAX_PINS){
+            const count = `${pins.length}/${MAX_PINS}`;
+            const pinSvg = `<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M9 2l1 4 4 1-3 3 1 4-3-2-3 2 1-4-3-3 4-1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+            html += `<div class="pin-selector-wrap" id="pinSelectorWrap">
+                <button class="pin-add-btn" onclick="togglePinSelector()" title="Pin a client">
+                    ${pinSvg} Pin client <span style="opacity:0.6;font-size:0.68rem;">${count}</span>
+                </button>
+                <div class="pin-selector-dropdown" id="pinSelectorDropdown">
+                    <div class="pin-selector-header">
+                        <span class="pin-selector-title">Pin a client</span>
+                        <span class="pin-selector-count">${pins.length} / ${MAX_PINS}</span>
+                    </div>
+                    <div class="pin-selector-list" id="pinSelectorList"></div>
+                </div>
+            </div>`;
+        }
+
+        row.innerHTML = html;
+
+        // If selector was open, re-open it and populate
+        if(pinSelectorOpen && pins.length < MAX_PINS){
+            const dd = document.getElementById('pinSelectorDropdown');
+            if(dd){ dd.classList.add('open'); renderPinSelectorList(); }
+        }
+    }
+
+    function togglePinsEdit(){
+        pinsEditMode = !pinsEditMode;
+        renderPins();
+    }
+
+    function togglePinSelector(){
+        pinSelectorOpen = !pinSelectorOpen;
+        const dd = document.getElementById('pinSelectorDropdown');
+        if(!dd) return;
+        dd.classList.toggle('open', pinSelectorOpen);
+        if(pinSelectorOpen){
+            renderPinSelectorList();
+            const close = (e)=>{
+                const wrap = document.getElementById('pinSelectorWrap');
+                if(wrap && !wrap.contains(e.target)){
+                    pinSelectorOpen = false;
+                    dd.classList.remove('open');
+                    document.removeEventListener('click', close);
+                }
+            };
+            setTimeout(()=>document.addEventListener('click', close), 0);
+        }
+    }
+
+    function renderPinSelectorList(){
+        const list = document.getElementById('pinSelectorList');
+        if(!list) return;
+        const pins = getPins();
+        const allNames = [...new Set(allData.map(r=>r.client_name))].sort();
+        const checkSvg = `<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+        list.innerHTML = allNames.map(name => {
+            const isPinned = pins.includes(name);
+            const disabled = !isPinned && pins.length >= MAX_PINS;
+            return `<div class="pin-selector-item${isPinned?' pinned':''}" 
+                style="${disabled?'opacity:0.35;cursor:default;':''}"
+                onclick="${disabled?'':'togglePin(''+name+'')'}" >
+                <span>${name}</span>
+                <span class="pin-check">${isPinned?checkSvg:''}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function renderPinSelector(){ renderPins(); } // alias kept for removePin calls
+
     async function init(){
         try{
             await fetchAll();
@@ -1041,6 +1237,7 @@
             }
             const hash=decodeURIComponent(location.hash.replace('#',''));
             populateDropdown();
+            renderPins();
             if(hash&&clientNames.includes(hash)){updateClientTrigger(hash);render(hash,false);}
             else{render('all');}
         }catch(err){

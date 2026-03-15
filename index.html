@@ -1133,47 +1133,63 @@
         const row = document.getElementById('pinsRow');
         if(!row) return;
         const pins = getPins();
-        const allNames = [...new Set(allData.map(r=>r.client_name))].sort();
-        let html = '';
+        const penSvg = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        const pinSvg = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M9 2l1 4 4 1-3 3 1 4-3-2-3 2 1-4-3-3 4-1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-        // Edit button (only when 2+ pins)
+        // Build DOM directly instead of innerHTML to avoid quote-nesting issues
+        row.innerHTML = '';
+
+        // Edit button (2+ pins only)
         if(pins.length > 1){
-            const penSvg = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-            html += `<button class="pin-edit-btn${pinsEditMode?' active':''}" onclick="togglePinsEdit()" title="${pinsEditMode?'Done editing':'Edit pins'}">${penSvg}</button>`;
+            const editBtn = document.createElement('button');
+            editBtn.className = 'pin-edit-btn' + (pinsEditMode ? ' active' : '');
+            editBtn.title = pinsEditMode ? 'Done editing' : 'Edit pins';
+            editBtn.innerHTML = penSvg;
+            editBtn.onclick = togglePinsEdit;
+            row.appendChild(editBtn);
         }
 
-        // Existing pin pills
+        // Pin pills
         pins.forEach(name => {
-            const removeBtn = pinsEditMode
-                ? `<span class="pin-remove" onclick="event.stopPropagation();removePin('${name}')" title="Remove">✕</span>`
-                : '';
-            html += `<div class="pin-pill" onclick="${pinsEditMode?'':'selectClient(''+name+'')'}">${name}${removeBtn}</div>`;
+            const pill = document.createElement('div');
+            pill.className = 'pin-pill';
+            if(!pinsEditMode){
+                pill.onclick = () => selectClient(name);
+            }
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            pill.appendChild(nameSpan);
+            if(pinsEditMode){
+                const rm = document.createElement('span');
+                rm.className = 'pin-remove';
+                rm.title = 'Remove';
+                rm.textContent = '✕';
+                rm.onclick = (e) => { e.stopPropagation(); removePin(name); };
+                pill.appendChild(rm);
+            }
+            row.appendChild(pill);
         });
 
-        // Add button (when < MAX_PINS)
+        // Add button (< MAX_PINS)
         if(pins.length < MAX_PINS){
-            const count = `${pins.length}/${MAX_PINS}`;
-            const pinSvg = `<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M9 2l1 4 4 1-3 3 1 4-3-2-3 2 1-4-3-3 4-1z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-            html += `<div class="pin-selector-wrap" id="pinSelectorWrap">
-                <button class="pin-add-btn" onclick="togglePinSelector()" title="Pin a client">
-                    ${pinSvg} Pin client <span style="opacity:0.6;font-size:0.68rem;">${count}</span>
-                </button>
-                <div class="pin-selector-dropdown" id="pinSelectorDropdown">
-                    <div class="pin-selector-header">
-                        <span class="pin-selector-title">Pin a client</span>
-                        <span class="pin-selector-count">${pins.length} / ${MAX_PINS}</span>
-                    </div>
-                    <div class="pin-selector-list" id="pinSelectorList"></div>
-                </div>
-            </div>`;
-        }
+            const wrap = document.createElement('div');
+            wrap.className = 'pin-selector-wrap';
+            wrap.id = 'pinSelectorWrap';
+            wrap.innerHTML =
+                '<button class="pin-add-btn" id="pinAddBtn" title="Pin a client">' +
+                pinSvg + ' Pin client <span style="opacity:0.6;font-size:0.68rem;">' + pins.length + '/' + MAX_PINS + '</span></button>' +
+                '<div class="pin-selector-dropdown" id="pinSelectorDropdown">' +
+                '<div class="pin-selector-header"><span class="pin-selector-title">Pin a client</span>' +
+                '<span class="pin-selector-count">' + pins.length + ' / ' + MAX_PINS + '</span></div>' +
+                '<div class="pin-selector-list" id="pinSelectorList"></div></div>';
+            row.appendChild(wrap);
+            wrap.querySelector('#pinAddBtn').onclick = togglePinSelector;
 
-        row.innerHTML = html;
-
-        // If selector was open, re-open it and populate
-        if(pinSelectorOpen && pins.length < MAX_PINS){
-            const dd = document.getElementById('pinSelectorDropdown');
-            if(dd){ dd.classList.add('open'); renderPinSelectorList(); }
+            // Re-open selector if it was open
+            if(pinSelectorOpen){
+                const dd = document.getElementById('pinSelectorDropdown');
+                if(dd){ dd.classList.add('open'); renderPinSelectorList(); }
+            }
         }
     }
 
@@ -1206,17 +1222,24 @@
         if(!list) return;
         const pins = getPins();
         const allNames = [...new Set(allData.map(r=>r.client_name))].sort();
-        const checkSvg = `<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-        list.innerHTML = allNames.map(name => {
+        const checkSvg = '<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        list.innerHTML = '';
+        allNames.forEach(name => {
             const isPinned = pins.includes(name);
             const disabled = !isPinned && pins.length >= MAX_PINS;
-            return `<div class="pin-selector-item${isPinned?' pinned':''}" 
-                style="${disabled?'opacity:0.35;cursor:default;':''}"
-                onclick="${disabled?'':'togglePin(''+name+'')'}" >
-                <span>${name}</span>
-                <span class="pin-check">${isPinned?checkSvg:''}</span>
-            </div>`;
-        }).join('');
+            const item = document.createElement('div');
+            item.className = 'pin-selector-item' + (isPinned ? ' pinned' : '');
+            if(disabled) item.style.cssText = 'opacity:0.35;cursor:default;';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            const check = document.createElement('span');
+            check.className = 'pin-check';
+            if(isPinned) check.innerHTML = checkSvg;
+            item.appendChild(nameSpan);
+            item.appendChild(check);
+            if(!disabled) item.onclick = () => togglePin(name);
+            list.appendChild(item);
+        });
     }
 
     function renderPinSelector(){ renderPins(); } // alias kept for removePin calls

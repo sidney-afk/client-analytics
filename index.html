@@ -540,7 +540,9 @@
         'tiktok_plays_this_month':{label:'TT Views/Month'},
         'tiktok_plays_gained_today':{label:'TT +Views'},
         'yt_subscribers':        {label:'YT Subscribers'},
+        '_yt_sub_delta':         {label:'YT +Subscribers'},
         'yt_total_views':        {label:'YT Views'},
+        '_yt_view_delta':        {label:'YT +Views'},
     };
     // Pseudo-cols prefixed _ are computed from prev row, not read directly from data
     const PSEUDO_COLS=new Set(['_ig_fol_delta','_tt_fol_delta']);
@@ -562,6 +564,18 @@
             // "No platform" = the primary identifier (followers/subscribers) is absent.
             if(col.startsWith('ig_')&&!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;
             if(col.startsWith('tiktok_')&&!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;
+            if(col==='_yt_sub_delta'){
+                const p=prevMap[r.client_name];
+                if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;
+                if(!p)return -Infinity;
+                return n(r.yt_subscribers)-n(p.yt_subscribers);
+            }
+            if(col==='_yt_view_delta'){
+                const p=prevMap[r.client_name];
+                if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;
+                if(!p)return -Infinity;
+                return n(r.yt_total_views)-n(p.yt_total_views);
+            }
             if(col.startsWith('yt_')&&!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;
             return n(r[col]);
         }
@@ -601,7 +615,7 @@
             'ig_views_this_month':'IG Views/Mo','ig_views_gained_today':'IG +Views',
             'tiktok_followers':'TT Followers','_tt_fol_delta':'TT +Followers',
             'tiktok_plays_this_month':'TT Views/Mo','tiktok_plays_gained_today':'TT +Views',
-            'yt_subscribers':'YT Subs','yt_total_views':'YT Views',
+            'yt_subscribers':'YT Subs','_yt_sub_delta':'YT +Subs','yt_total_views':'YT Views','_yt_view_delta':'YT +Views',
         };
         const currentLabel=PILL_LABELS[sortCol]||'Sort';
         const items=Object.entries(SORT_COLS).map(([col,cfg])=>`<button class="dropdown-item ${sortCol===col?'active':''}" onclick="setSort('${col}')">${cfg.label}</button>`).join('');
@@ -720,7 +734,7 @@
         </tr><tr>
           ${sTh('ig_followers','Followers','ig-h')}${sTh('_ig_fol_delta','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('ig_views_gained_today','+Views','ig-h')}
           ${sTh('tiktok_followers','Followers','tt-h')}${sTh('_tt_fol_delta','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/Month','tt-h')}${sTh('tiktok_plays_gained_today','+Views','tt-h')}
-          ${sTh('yt_subscribers','Subscribers','yt-h')}${sThInert('+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sThInert('+Views','yt-h')}
+          ${sTh('yt_subscribers','Subscribers','yt-h')}${sTh('_yt_sub_delta','+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sTh('_yt_view_delta','+Views','yt-h')}
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';

@@ -80,19 +80,29 @@
         .overview-table td:first-child::after { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; background: #6c5ce7; border-radius: 3px; }
         .overview-table tbody tr { filter: drop-shadow(0 2px 4px rgba(0,0,0,0.07)); }
         .overview-table tbody tr:hover td { cursor: default; background: #f8f8f6; }
+        .overview-table tbody tr:hover td.col-ig,
+        .overview-table tbody tr:hover td.col-ig.num.has,
+        .overview-table tbody tr:hover td.col-ig.main-metric { background: #f9eef4; }
+        .overview-table tbody tr:hover td.col-tt,
+        .overview-table tbody tr:hover td.col-tt.num.has,
+        .overview-table tbody tr:hover td.col-tt.main-metric { background: #f0f0f0; }
+        .overview-table tbody tr:hover td.col-yt,
+        .overview-table tbody tr:hover td.col-yt.num.has,
+        .overview-table tbody tr:hover td.col-yt.main-metric { background: #fceef0; }
         .top-rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; font-size: 0.58rem; font-weight: 800; margin-right: 6px; flex-shrink: 0; }
         .top-1 .top-rank-badge { background: #fef3c7; color: #b45309; }
         .top-2 .top-rank-badge { background: #f1f1f1; color: #6b6b67; }
         .top-3 .top-rank-badge { background: #fde8d8; color: #c2410c; }
-        .overview-table td.col-ig { color: var(--ig-dark); }
-        .overview-table td.col-ig.num.has { color: var(--ig-dark); font-weight: 500; }
-        .overview-table td.col-ig.main-metric { color: var(--ig-dark); font-weight: 700; font-size: 0.87rem; }
-        .overview-table td.col-tt { color: var(--tt-dark); }
-        .overview-table td.col-tt.num.has { color: var(--tt-dark); font-weight: 500; }
-        .overview-table td.col-tt.main-metric { color: var(--tt-dark); font-weight: 700; font-size: 0.87rem; }
-        .overview-table td.col-yt { color: var(--yt-dark); }
-        .overview-table td.col-yt.num.has { color: var(--yt-dark); font-weight: 500; }
-        .overview-table td.col-yt.main-metric { color: var(--yt-dark); font-weight: 700; font-size: 0.87rem; }
+        /* Overview table: subtle per-platform tinted backgrounds + left accent border on group start */
+        .overview-table td.col-ig { color: var(--text-secondary); background: #fdf6f9; }
+        .overview-table td.col-ig.num.has { color: var(--text-primary); font-weight: 500; background: #fdf6f9; }
+        .overview-table td.col-ig.main-metric { color: var(--ig-dark); font-weight: 700; font-size: 0.87rem; background: #fdf6f9; border-left: 2px solid #f4c2d5; }
+        .overview-table td.col-tt { color: var(--text-secondary); background: #f7f7f7; }
+        .overview-table td.col-tt.num.has { color: var(--text-primary); font-weight: 500; background: #f7f7f7; }
+        .overview-table td.col-tt.main-metric { color: var(--tt-dark); font-weight: 700; font-size: 0.87rem; background: #f7f7f7; border-left: 2px solid #d0d0d0; }
+        .overview-table td.col-yt { color: var(--text-secondary); background: #fff7f7; }
+        .overview-table td.col-yt.num.has { color: var(--text-primary); font-weight: 500; background: #fff7f7; }
+        .overview-table td.col-yt.main-metric { color: var(--yt-dark); font-weight: 700; font-size: 0.87rem; background: #fff7f7; border-left: 2px solid #ffbebe; }
         .num { color: var(--text-muted); }
         .num.has { font-weight: 500; }
         .g-up { color: var(--up); font-size: 0.73rem; font-weight: 600; }
@@ -428,7 +438,6 @@
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span></div>`;
             };
             // mhDiff: pre-computed delta from sheet, shown as a badge only (no base value)
-            // Used for: Avg Views Δ (IG), Avg Views Δ (TT)
             const mhDiff=(label,diffKey)=>{
                 if(!(diffKey in r))return'';
                 const d=n(r[diffKey]);
@@ -437,15 +446,28 @@
                 const badge=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;
                 return`<div class="card-metric"><span class="card-metric-label">${label}</span>${badge}</div>`;
             };
+            // mhValDiff: shows value + pre-computed sheet diff badge beneath it
+            // Used for: Views This Month (IG/TT) — value is the total, badge is today's gain
+            const mhValDiff=(label,valueKey,diffKey)=>{
+                const f=fmt(r[valueKey]);if(!f)return'';
+                let gh='';
+                if(diffKey in r){
+                    const d=n(r[diffKey]);
+                    const s=d>0?'+':'';
+                    const cls=d>0?'up':d<0?'down':'flat';
+                    gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;
+                }
+                return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;
+            };
             const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             const cardIsAgeRestricted = r.client_name.toLowerCase() === 'john wineland';
             if(hasIG) {
-                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhVal('Views This Month','ig_views_this_month')}${mhDiff('Views +','ig_views_gained_today')}</div>`;
+                pl+=`<div class="card-platform cp-ig"><span class="card-platform-label">Instagram</span>${mh('Followers','ig_followers')}${mhValDiff('Views This Month','ig_views_this_month','ig_views_gained_today')}</div>`;
             } else if(cardIsAgeRestricted) {
                 pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;
             }
-            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhVal('Views This Month','tiktok_plays_this_month')}${mhDiff('Views +','tiktok_plays_gained_today')}</div>`;
+            if(hasTT) pl+=`<div class="card-platform cp-tt"><span class="card-platform-label">TikTok</span>${mh('Followers','tiktok_followers')}${mhValDiff('Views This Month','tiktok_plays_this_month','tiktok_plays_gained_today')}</div>`;
             if(hasYT) pl+=`<div class="card-platform cp-yt"><span class="card-platform-label">YouTube</span>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             // <a> tag so right-click "Open in new tab" works natively
             const cardAgeRestricted = r.client_name.toLowerCase() === 'john wineland';

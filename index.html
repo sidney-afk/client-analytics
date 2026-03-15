@@ -1168,16 +1168,6 @@
         // ── Pills row ────────────────────────────────────────────────────────
         row.innerHTML = '';
 
-        // Edit button — show when 1+ pins (allow editing down to 0)
-        if(pins.length >= 1){
-            const editBtn = document.createElement('button');
-            editBtn.className = 'pin-edit-btn' + (pinsEditMode ? ' active' : '');
-            editBtn.title = pinsEditMode ? 'Done editing' : 'Edit pins';
-            editBtn.innerHTML = PEN_ICON_SVG;
-            editBtn.onclick = togglePinsEdit;
-            row.appendChild(editBtn);
-        }
-
         pins.forEach(name => {
             const pill = document.createElement('div');
             pill.className = 'pin-pill';
@@ -1195,6 +1185,18 @@
             }
             row.appendChild(pill);
         });
+
+        // Edit / Done button on the RIGHT (only when 1+ pins)
+        if(pins.length >= 1){
+            const editBtn = document.createElement('button');
+            editBtn.className = 'pin-edit-btn' + (pinsEditMode ? ' active' : '');
+            editBtn.title = pinsEditMode ? 'Done' : 'Edit pins';
+            editBtn.innerHTML = pinsEditMode
+                ? '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                : PEN_ICON_SVG;
+            editBtn.onclick = togglePinsEdit;
+            row.appendChild(editBtn);
+        }
 
         // ── Add button row — always separate, anchored, only when < MAX_PINS ─
         addRow.innerHTML = '';
@@ -1243,7 +1245,7 @@
             if(isPinned) check.innerHTML = CHECK_SVG;
             item.appendChild(nameSpan);
             item.appendChild(check);
-            if(!disabled) item.onclick = () => togglePin(name);
+            if(!disabled) item.onclick = (e) => { e.stopPropagation(); togglePin(name); };
             list.appendChild(item);
         });
     }

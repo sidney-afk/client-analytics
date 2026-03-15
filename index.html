@@ -1204,7 +1204,7 @@
 
         // ── Add button row: show when 0 pins, OR when in edit mode with slots free ─
         addRow.innerHTML = '';
-        const showAddBtn = pins.length < MAX_PINS && (pins.length === 0 || pinsEditMode);
+        const showAddBtn = pins.length < MAX_PINS && (pins.length === 0 || pinsEditMode || pinSelectorOpen);
         if(showAddBtn){
             const addBtn = document.createElement('button');
             addBtn.className = 'pin-add-btn';

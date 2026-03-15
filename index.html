@@ -1126,9 +1126,7 @@
     function removePin(name){
         const pins = getPins().filter(p=>p!==name);
         savePins(pins);
-        // Exit edit mode only when 0 pins remain; allow editing down to 1
         if(pins.length === 0) pinsEditMode = false;
-        // Never auto-open selector on remove
         pinSelectorOpen = false;
         renderPins();
     }
@@ -1139,23 +1137,29 @@
         renderPins();
     }
 
-    function togglePinSelector(){
-        pinSelectorOpen = !pinSelectorOpen;
+    function closePinSelector(){
+        pinSelectorOpen = false;
         const dd = document.getElementById('pinSelectorDropdown');
-        if(!dd) return;
-        dd.classList.toggle('open', pinSelectorOpen);
-        if(pinSelectorOpen){
+        if(dd) dd.classList.remove('open');
+    }
+
+    function togglePinSelector(){
+        if(pinSelectorOpen){ closePinSelector(); return; }
+        pinSelectorOpen = true;
+        const dd = document.getElementById('pinSelectorDropdown');
+        if(dd){
+            dd.classList.add('open');
             renderPinSelectorList();
-            const close = (e)=>{
-                const addRow = document.getElementById('pinsAddRow');
-                if(addRow && !addRow.contains(e.target)){
-                    pinSelectorOpen = false;
-                    dd.classList.remove('open');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(()=>document.addEventListener('click', close), 0);
         }
+        // Close on outside click
+        const close = (e)=>{
+            const addRow = document.getElementById('pinsAddRow');
+            if(addRow && !addRow.contains(e.target)){
+                closePinSelector();
+                document.removeEventListener('click', close);
+            }
+        };
+        setTimeout(()=>document.addEventListener('click', close), 0);
     }
 
     function renderPins(){
@@ -1198,9 +1202,10 @@
             row.appendChild(editBtn);
         }
 
-        // ── Add button row — always separate, anchored, only when < MAX_PINS ─
+        // ── Add button row: show when 0 pins, OR when in edit mode with slots free ─
         addRow.innerHTML = '';
-        if(pins.length < MAX_PINS){
+        const showAddBtn = pins.length < MAX_PINS && (pins.length === 0 || pinsEditMode);
+        if(showAddBtn){
             const addBtn = document.createElement('button');
             addBtn.className = 'pin-add-btn';
             addBtn.title = 'Pin a client';
@@ -1208,18 +1213,36 @@
             addBtn.onclick = togglePinSelector;
             addRow.appendChild(addBtn);
 
-            // Dropdown — anchored inside addRow so it never shifts
+            // Dropdown — anchored inside addRow so it never shifts with pills
             const dd = document.createElement('div');
             dd.className = 'pin-selector-dropdown' + (pinSelectorOpen ? ' open' : '');
             dd.id = 'pinSelectorDropdown';
-            dd.innerHTML =
-                '<div class="pin-selector-header">' +
-                '<span class="pin-selector-title">Pin a client</span>' +
+
+            // Header with title, count, and close button
+            const hdr = document.createElement('div');
+            hdr.className = 'pin-selector-header';
+            hdr.innerHTML = '<span class="pin-selector-title">Pin a client</span>' +
+                '<div style="display:flex;align-items:center;gap:8px;">' +
                 '<span class="pin-selector-count">' + pins.length + ' / ' + MAX_PINS + '</span>' +
-                '</div><div class="pin-selector-list" id="pinSelectorList"></div>';
+                '<button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" ' +
+                'id="pinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>';
+            dd.appendChild(hdr);
+
+            const list = document.createElement('div');
+            list.className = 'pin-selector-list';
+            list.id = 'pinSelectorList';
+            dd.appendChild(list);
+
             addRow.appendChild(dd);
 
+            // Wire close button
+            const closeBtn = dd.querySelector('#pinDropCloseBtn');
+            if(closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); closePinSelector(); };
+
             if(pinSelectorOpen) renderPinSelectorList();
+        } else if(!showAddBtn && pinSelectorOpen){
+            // Was open but button is now hidden — close it
+            pinSelectorOpen = false;
         }
 
         // Hide area entirely if no pins and not needed

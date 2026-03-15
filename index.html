@@ -367,7 +367,7 @@
 </head>
 <body>
 <header class="header">
-    <div class="logo" onclick="pickClient('all')" style="cursor:pointer;" title="Back to overview">
+    <div class="logo" onclick="goHome()" style="cursor:pointer;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </div>
@@ -1271,6 +1271,12 @@
             if(!disabled) item.onclick = (e) => { e.stopPropagation(); togglePin(name); };
             list.appendChild(item);
         });
+    }
+
+    function goHome(){
+        history.pushState({},'',location.pathname+location.search);
+        updateClientTrigger('All Clients');
+        render('all');
     }
 
     async function init(){

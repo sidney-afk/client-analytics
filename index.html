@@ -315,9 +315,31 @@
         function pick(){for(const k of arguments){const v=r[k]??r[k.toLowerCase()]??r[k.toUpperCase()];if(v!==undefined&&v!=='')return v;}return'';}
         return{...r,client_name:pick('client_name','client'),platform:pick('platform'),period:pick('period'),rank:pick('rank','position'),video_url:pick('video_url','url','link','video_link','post_url','post_link'),caption:pick('caption','title','description','text','post_caption','post_text'),views:pick('views','view_count','video_views','play_count','plays','total_views','impressions','reach'),likes:pick('likes','like_count','total_likes','hearts','favorites','digg_count'),comments:pick('comments','comment_count','total_comments'),shares:pick('shares','share_count','total_shares','reposts','repost_count')};
     }
-    function latestPerClient(){const map={};allData.forEach(r=>{if(!map[r.client_name]||r.date>map[r.client_name].date)map[r.client_name]=r;});return Object.values(map);}
-    function prevPerClient(){const sorted={};allData.forEach(r=>{if(!sorted[r.client_name])sorted[r.client_name]=[];sorted[r.client_name].push(r);});const prev={};Object.entries(sorted).forEach(([name,rows])=>{rows.sort((a,b)=>b.date.localeCompare(a.date));if(rows.length>=2)prev[name]=rows[1];});return prev;}
-    function clientHistory(name){return allData.filter(r=>r.client_name===name).sort((a,b)=>a.date.localeCompare(b.date));}
+    // Build a sorted history per client once, shared by both latestPerClient and prevPerClient.
+    // Rows with the same date are ordered by their original allData index (stable tiebreak)
+    // so that "latest" is always the physically last scraped row, and "prev" is always
+    // the one immediately before it — guaranteed consistent across all views.
+    function _buildHistories(){
+        const map={};
+        allData.forEach((r,i)=>{
+            if(!map[r.client_name])map[r.client_name]=[];
+            map[r.client_name].push({r,i});
+        });
+        const out={};
+        Object.entries(map).forEach(([name,items])=>{
+            items.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
+            out[name]=items.map(x=>x.r);
+        });
+        return out;
+    }
+    function latestPerClient(){const h=_buildHistories();return Object.values(h).map(rows=>rows[rows.length-1]);}
+    function prevPerClient(){const h=_buildHistories();const prev={};Object.entries(h).forEach(([name,rows])=>{if(rows.length>=2)prev[name]=rows[rows.length-2];});return prev;}
+    function clientHistory(name){
+        // Sort by date asc, then by original index asc for same-date rows (matches latestPerClient tiebreak)
+        const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
+        indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
+        return indexed.map(x=>x.r);
+    }
 
     function populateDropdown(){
         const menu=document.getElementById('clientDropMenu');

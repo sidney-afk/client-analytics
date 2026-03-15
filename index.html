@@ -745,7 +745,7 @@
                 ?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,p,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ncDelta(r.tiktok_plays_gained_today,'col-tt')}`
                 :`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow
-                ?`${nc(r.yt_subscribers,'col-yt main-metric')}<td class="col-yt"><span class="g-none" title="No delta — YouTube data is overwritten daily">—</span></td>${nc(r.yt_total_views,'col-yt')}<td class="col-yt"><span class="g-none" title="No delta — YouTube data is overwritten daily">—</span></td>`
+                ?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,p,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,p,'yt_total_views','col-yt')}`
                 :`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;

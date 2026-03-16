@@ -520,16 +520,24 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL)]);
+        const [mr,cr,tr]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         const rawVideos=parseCSV(await tr.text());
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
-        allBriefs=parseCSV(await br.text()).map(r=>{
-            try{ r._parsed=JSON.parse(r.raw_json); }catch(e){ r._parsed=null; }
-            return r;
-        });
+        // Briefs are optional — fetch separately so a missing/private sheet never blocks load
+        fetchBriefs();
+    }
+    async function fetchBriefs(){
+        try{
+            const br=await fetch(BRIEFS_URL);
+            const txt=await br.text();
+            allBriefs=parseCSV(txt).map(r=>{
+                try{ r._parsed=JSON.parse(r.raw_json); }catch(e){ r._parsed=null; }
+                return r;
+            });
+        }catch(e){ allBriefs=[]; }
     }
     function normalizeVideoRow(r){
         function pick(){for(const k of arguments){const v=r[k]??r[k.toLowerCase()]??r[k.toUpperCase()];if(v!==undefined&&v!=='')return v;}return'';}

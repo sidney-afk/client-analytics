@@ -363,6 +363,63 @@
         .loading-text { font-size: 0.83rem; color: var(--text-muted); }
         .error-state { background: var(--white); border: 1px solid #fecaca; border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
         @media (max-width: 700px) { .video-card-tt { flex: 0 0 200px; } }
+
+        /* ── Analytics / Brief toggle ── */
+        .view-mode-toggle { display: inline-flex; border-radius: 10px; overflow: hidden; border: 1.5px solid var(--border); background: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.07); margin-bottom: 20px; }
+        .view-mode-btn { padding: 7px 20px; border: none; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.79rem; font-weight: 600; cursor: pointer; transition: all 0.15s; color: var(--text-muted); background: transparent; }
+        .view-mode-btn.active { background: var(--text-primary); color: var(--white); }
+
+        /* ── Brief page ── */
+        .brief-view { max-width: 980px; margin: 0 auto; animation: fadeIn 0.15s ease; }
+        .brief-generate-area { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 60px 20px; text-align: center; }
+        .brief-generate-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+        .brief-generate-sub { font-size: 0.83rem; color: var(--text-muted); max-width: 380px; line-height: 1.5; }
+        .brief-generate-btn { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.84rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .brief-generate-btn:hover { background: #333; }
+        .brief-generate-btn:disabled { opacity: 0.5; cursor: default; }
+        .brief-polling { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 60px 20px; }
+        .brief-polling-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); }
+        .brief-polling-sub { font-size: 0.8rem; color: var(--text-muted); }
+        .brief-polling-bar { width: 200px; height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; }
+        .brief-polling-bar-fill { height: 100%; width: 30%; background: var(--text-primary); border-radius: 3px; animation: briefPoll 2s ease-in-out infinite; }
+        @keyframes briefPoll { 0%{width:5%;margin-left:0} 50%{width:40%;margin-left:30%} 100%{width:5%;margin-left:95%} }
+
+        .brief-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+        .brief-date-select { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+
+        .brief-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 2px solid var(--border-light); padding-bottom: 0; }
+        .brief-tab { padding: 8px 16px; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); cursor: pointer; border-radius: 8px 8px 0 0; transition: all 0.13s; position: relative; top: 2px; }
+        .brief-tab:hover { color: var(--text-secondary); }
+        .brief-tab.active { color: var(--text-primary); background: var(--white); border: 1.5px solid var(--border-light); border-bottom: 2px solid var(--white); }
+
+        .brief-section { animation: fadeIn 0.12s ease; }
+        .brief-section-title { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 12px; }
+        .brief-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+        .brief-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+        .brief-card-label { font-size: 0.63rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 6px; }
+        .brief-card-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; line-height: 1.3; }
+        .brief-card-text { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
+        .brief-card-accent { border-left: 3px solid var(--text-primary); padding-left: 12px; }
+
+        .brief-exec-block { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 12px; }
+        .brief-exec-label { font-size: 0.63rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-muted); margin-bottom: 8px; }
+        .brief-exec-text { font-size: 0.84rem; color: var(--text-primary); line-height: 1.6; }
+        .brief-priority-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+        .brief-priority-item { display: flex; align-items: flex-start; gap: 10px; font-size: 0.82rem; color: var(--text-primary); line-height: 1.4; }
+        .brief-priority-num { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.6rem; font-weight: 800; flex-shrink: 0; margin-top: 1px; }
+
+        .brief-source-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+        .brief-source-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+        .brief-source-handle { font-size: 0.72rem; font-weight: 700; color: var(--ig-dark); }
+        .brief-source-views { font-size: 0.7rem; font-weight: 700; color: var(--up); }
+        .brief-source-desc { font-size: 0.78rem; color: var(--text-secondary); line-height: 1.5; }
+        .brief-source-link { font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-decoration: none; transition: color 0.13s; }
+        .brief-source-link:hover { color: var(--text-primary); }
+
+        .brief-methodology { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; font-size: 0.78rem; color: var(--text-secondary); display: flex; gap: 20px; flex-wrap: wrap; }
+        .brief-meth-item { display: flex; flex-direction: column; gap: 2px; }
+        .brief-meth-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); }
+        .brief-meth-val { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
     </style>
 </head>
 <body>
@@ -420,8 +477,13 @@
     const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
     const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Sheet1`;
     const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
+    const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Briefs`;
+    const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
-    let allData = [], clientMap = {}, topVideos = [], growthChart = null;
+    let allData = [], clientMap = {}, topVideos = [], allBriefs = [], growthChart = null;
+    let activeBriefTab = {}; // clientName → active tab key
+    let briefViewClients = new Set(); // clients currently in brief view
+    let pollIntervals = {}; // clientName → interval id
     let sortCol = 'ig_followers', sortDir = 'desc';
     let activePeriods = {};
     function getPeriodKey(c,p){return c+'__'+p;}
@@ -458,12 +520,16 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL)]);
+        const [mr,cr,tr,br]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         const rawVideos=parseCSV(await tr.text());
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
+        allBriefs=parseCSV(await br.text()).map(r=>{
+            try{ r._parsed=JSON.parse(r.raw_json); }catch(e){ r._parsed=null; }
+            return r;
+        });
     }
     function normalizeVideoRow(r){
         function pick(){for(const k of arguments){const v=r[k]??r[k.toLowerCase()]??r[k.toUpperCase()];if(v!==undefined&&v!=='')return v;}return'';}
@@ -980,6 +1046,10 @@
     function switchPeriod(clientName,platform,period,containerId){activePeriods[getPeriodKey(clientName,platform)]=period;const container=document.getElementById(containerId);if(!container)return;const newHtml=buildTopVideosSection(clientName,platform,containerId);const temp=document.createElement('div');temp.innerHTML=newHtml;if(temp.firstElementChild)container.replaceWith(temp.firstElementChild);}
 
     function renderClient(name,history,clientOnly){
+        // Check if this client is in brief view
+        if(briefViewClients.has(name)){
+            return renderBriefView(name, clientOnly);
+        }
         const today=history[history.length-1],prev=history.length>=2?history[history.length-2]:null;
         // Weekly prev: row closest to 7 days before today
         const todayDate=new Date(today.date);
@@ -1011,7 +1081,11 @@
             : '';
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockDiff('Views This Month',today,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
-        return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'day')}${weekRow ? gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'week') : ''}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
+        const viewToggle = clientOnly ? '' : `<div class="view-mode-toggle">
+            <button class="view-mode-btn active" onclick="setBriefView('${name}',false)">📊 Analytics</button>
+            <button class="view-mode-btn" onclick="setBriefView('${name}',true)">🔍 Brief</button>
+        </div>`;
+        return`<div class="client-view">${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}${viewToggle}<div class="detail-hero"><div><div class="detail-name">${name}</div><div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div></div>${shareBtnHtml}</div>${gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'day')}${weekRow ? gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'week') : ''}${igSection}${ttSection}${ytSection}<div class="chart-section"><div class="chart-top"><span class="chart-title">Follower Growth Over Time</span><div class="chart-legend">${legends}</div></div><div class="chart-wrap"><canvas id="growthChart"></canvas></div></div></div>`;
     }
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}
@@ -1388,6 +1462,219 @@
             if(!disabled) item.onclick = (e) => { e.stopPropagation(); togglePin(name); };
             list.appendChild(item);
         });
+    }
+
+
+    // ── Brief View ─────────────────────────────────────────────────────────────
+    function setBriefView(name, isBrief){
+        if(isBrief) briefViewClients.add(name);
+        else briefViewClients.delete(name);
+        const hist = clientHistory(name);
+        const content = document.getElementById('content');
+        content.innerHTML = renderClient(name, hist, false);
+        if(!isBrief) setTimeout(()=>renderChart(hist),0);
+    }
+
+    function getClientBriefs(name){
+        return allBriefs
+            .filter(r=>r.client_name===name && r._parsed)
+            .sort((a,b)=>b.id.localeCompare(a.id)); // newest first
+    }
+
+    function renderBriefView(name, clientOnly){
+        const briefs = getClientBriefs(name);
+        const viewToggle = clientOnly ? '' : `<div class="view-mode-toggle">
+            <button class="view-mode-btn" onclick="setBriefView('${name}',false)">📊 Analytics</button>
+            <button class="view-mode-btn active" onclick="setBriefView('${name}',true)">🔍 Brief</button>
+        </div>`;
+
+        // No briefs yet — show generate button
+        if(!briefs.length){
+            const isPolling = !!pollIntervals[name];
+            const generateArea = isPolling
+                ? `<div class="brief-polling">
+                    <div class="brief-polling-bar"><div class="brief-polling-bar-fill"></div></div>
+                    <div class="brief-polling-title">Generating brief…</div>
+                    <div class="brief-polling-sub">This usually takes 3–10 minutes. The page will update automatically.</div>
+                  </div>`
+                : `<div class="brief-generate-area">
+                    <div class="brief-generate-title">No brief yet for ${name}</div>
+                    <div class="brief-generate-sub">Generate a research brief by analyzing viral competitor content on Instagram.</div>
+                    <button class="brief-generate-btn" onclick="generateBrief('${name}')">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      Generate Brief
+                    </button>
+                  </div>`;
+            return `<div class="brief-view">${viewToggle}${generateArea}</div>`;
+        }
+
+        // Pick active brief
+        const briefKey = 'brief_date_'+name.split(' ').join('_');
+        const savedDate = localStorage.getItem(briefKey);
+        let activeBrief = briefs.find(b=>b.id===savedDate) || briefs[0];
+        const d = activeBrief._parsed;
+
+        // Date selector
+        const dateOptions = briefs.map(b=>`<option value="${b.id}" ${b.id===activeBrief.id?'selected':''}>${new Date(b.id).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</option>`).join('');
+        const dateSelect = briefs.length > 1
+            ? `<select class="brief-date-select" onchange="selectBriefDate('${name}',this.value)"><option disabled>Select date</option>${dateOptions}</select>`
+            : `<span class="brief-date-select">${new Date(activeBrief.id).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>`;
+
+        // Active tab
+        const tab = activeBriefTab[name] || 'summary';
+
+        const tabs = [
+            {key:'summary', label:'Executive Summary'},
+            {key:'resonating', label:'What's Resonating'},
+            {key:'comments', label:'Comment Intel'},
+            {key:'gap', label:'The Gap'},
+            {key:'hooks', label:'Hook Analysis'},
+            {key:'sources', label:'Sources'},
+        ];
+        const tabBar = `<div class="brief-tabs">${tabs.map(t=>`<button class="brief-tab${tab===t.key?' active':''}" onclick="setBriefTab('${name}','${t.key}')">${t.label}</button>`).join('')}</div>`;
+
+        // Methodology bar
+        const m = d.methodology||{};
+        const methBar = `<div class="brief-methodology">
+            <div class="brief-meth-item"><span class="brief-meth-label">Accounts Analyzed</span><span class="brief-meth-val">${(m.accounts||[]).length}</span></div>
+            <div class="brief-meth-item"><span class="brief-meth-label">Total Reels</span><span class="brief-meth-val">${m.totalReels||'—'}</span></div>
+            <div class="brief-meth-item"><span class="brief-meth-label">Date Range</span><span class="brief-meth-val">${m.dateRange||'—'}</span></div>
+            <div class="brief-meth-item"><span class="brief-meth-label">Accounts</span><span class="brief-meth-val" style="font-size:0.73rem;font-weight:500;">${(m.accounts||[]).join(', ')}</span></div>
+        </div>`;
+
+        let content = '';
+        if(tab==='summary'){
+            const ex = d.executiveSummary||{};
+            const priorities = (ex.actionPriorities||[]).map((p,i)=>`<li class="brief-priority-item"><span class="brief-priority-num">${i+1}</span><span>${p}</span></li>`).join('');
+            content = `<div class="brief-section">
+                <div class="brief-exec-block"><div class="brief-exec-label">What Is Resonating</div><div class="brief-exec-text">${ex.whatIsResonating||'—'}</div></div>
+                <div class="brief-exec-block"><div class="brief-exec-label">The Gap</div><div class="brief-exec-text">${ex.theGap||'—'}</div></div>
+                <div class="brief-exec-block"><div class="brief-exec-label">Hook Patterns</div><div class="brief-exec-text">${ex.hookPatterns||'—'}</div></div>
+                ${priorities?`<div class="brief-exec-block"><div class="brief-exec-label">Action Priorities</div><ul class="brief-priority-list">${priorities}</ul></div>`:''}
+            </div>`;
+        } else if(tab==='resonating'){
+            content = `<div class="brief-section"><div class="brief-cards-grid">${(d.resonating||[]).map(r=>`<div class="brief-card">
+                <div class="brief-card-label">Pattern</div>
+                <div class="brief-card-title">${r.label||'—'}</div>
+                <div class="brief-card-text" style="margin-bottom:8px"><strong>Why it works:</strong> ${r.whyItWorks||'—'}</div>
+                <div class="brief-card-text brief-card-accent"><strong>For ${name}:</strong> ${r.forClient||'—'}</div>
+            </div>`).join('')}</div></div>`;
+        } else if(tab==='comments'){
+            const ci = d.commentIntelligence||{};
+            const topComments = (ci.topComments||[]).map(c=>`<div class="brief-card">
+                <div class="brief-card-label">Comment</div>
+                <div class="brief-card-title" style="font-style:italic">"${c.text||'—'}"</div>
+                <div class="brief-card-text" style="margin-bottom:6px"><strong>Reveals:</strong> ${c.whatItReveals||'—'}</div>
+                <div class="brief-card-text brief-card-accent"><strong>Opportunity:</strong> ${c.opportunity||'—'}</div>
+            </div>`).join('');
+            const patterns = (ci.patterns||[]).map(p=>`<div class="brief-card">
+                <div class="brief-card-label">Pattern</div>
+                <div class="brief-card-title">${p.label||'—'}</div>
+                <div class="brief-card-text" style="margin-bottom:6px">${p.pattern||'—'}</div>
+                <div class="brief-card-text brief-card-accent"><strong>Action:</strong> ${p.action||'—'}</div>
+            </div>`).join('');
+            content = `<div class="brief-section">
+                ${topComments?`<div class="brief-section-title">Top Comments</div><div class="brief-cards-grid" style="margin-bottom:20px">${topComments}</div>`:''}
+                ${patterns?`<div class="brief-section-title">Patterns</div><div class="brief-cards-grid">${patterns}</div>`:''}
+            </div>`;
+        } else if(tab==='gap'){
+            content = `<div class="brief-section"><div class="brief-cards-grid">${(d.theGap||[]).map(g=>`<div class="brief-card">
+                <div class="brief-card-label">Gap</div>
+                <div class="brief-card-title">${g.label||'—'}</div>
+                <div class="brief-card-text" style="margin-bottom:8px">${g.gap||'—'}</div>
+                <div class="brief-card-text brief-card-accent"><strong>Opportunity:</strong> ${g.opportunity||'—'}</div>
+            </div>`).join('')}</div></div>`;
+        } else if(tab==='hooks'){
+            content = `<div class="brief-section"><div class="brief-cards-grid">${(d.hookAnalysis||[]).map(h=>`<div class="brief-card">
+                <div class="brief-card-label">Reel #${h.reelNumber||'?'} · ${h.name||''}</div>
+                <div class="brief-card-title" style="font-style:italic">"${h.hook||'—'}"</div>
+                <div class="brief-card-text" style="margin-bottom:8px"><strong>Formula:</strong> ${h.formula||'—'}</div>
+                <div class="brief-card-text brief-card-accent"><strong>Steal this:</strong> ${h.stealThis||'—'}</div>
+            </div>`).join('')}</div></div>`;
+        } else if(tab==='sources'){
+            content = `<div class="brief-section">${methBar}<div class="brief-cards-grid">${(d.sources||[]).map(s=>`<div class="brief-source-card">
+                <div class="brief-source-header">
+                    <span class="brief-source-handle">${s.handle||s.name||'—'}</span>
+                    <span class="brief-source-views">👁 ${s.views||'—'}</span>
+                </div>
+                <div class="brief-source-desc">${s.description||'—'}</div>
+                ${s.url?`<a href="${s.url}" target="_blank" rel="noopener" class="brief-source-link">View reel ↗</a>`:''}
+            </div>`).join('')}</div></div>`;
+        }
+
+        const generateAgainBtn = `<button style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;background:var(--white);border:1px solid var(--border);border-radius:8px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.76rem;font-weight:600;color:var(--text-secondary);cursor:pointer;" onclick="generateBrief('${name}')">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M1 8a7 7 0 1 0 7-7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M1 3v5h5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Regenerate
+        </button>`;
+
+        return `<div class="brief-view">${viewToggle}
+            <div class="brief-header">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="font-size:1.3rem;font-weight:800;letter-spacing:-0.02em;">${name} — Brief</div>
+                    ${dateSelect}
+                </div>
+                ${generateAgainBtn}
+            </div>
+            ${tabBar}
+            ${content}
+        </div>`;
+    }
+
+    function setBriefTab(name, tab){
+        activeBriefTab[name] = tab;
+        // Re-render just the brief content in place
+        const content = document.getElementById('content');
+        const hist = clientHistory(name);
+        content.innerHTML = renderClient(name, hist, false);
+    }
+
+    function selectBriefDate(name, dateId){
+        const briefKey = 'brief_date_'+name.split(' ').join('_');
+        localStorage.setItem(briefKey, dateId);
+        const content = document.getElementById('content');
+        content.innerHTML = renderClient(name, clientHistory(name), false);
+    }
+
+    async function generateBrief(name){
+        // Start polling before POST so we catch it even if POST is slow
+        startBriefPolling(name, Date.now());
+        // Update UI immediately to polling state
+        briefViewClients.add(name);
+        const content = document.getElementById('content');
+        content.innerHTML = renderClient(name, clientHistory(name), false);
+        try{
+            await fetch(BRIEF_WEBHOOK, {
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({clientName:name})
+            });
+        }catch(e){
+            console.warn('[SyncView] Webhook POST failed:', e);
+        }
+    }
+
+    function startBriefPolling(name, startedAt){
+        if(pollIntervals[name]) clearInterval(pollIntervals[name]);
+        pollIntervals[name] = setInterval(async ()=>{
+            try{
+                const res = await fetch(BRIEFS_URL);
+                const text = await res.text();
+                const rows = parseCSV(text).map(r=>{
+                    try{ r._parsed=JSON.parse(r.raw_json); }catch(e){ r._parsed=null; }
+                    return r;
+                });
+                // Look for a row for this client with id newer than startedAt
+                const newBrief = rows.find(r=>r.client_name===name && r._parsed && new Date(r.id).getTime() > startedAt);
+                if(newBrief){
+                    clearInterval(pollIntervals[name]);
+                    delete pollIntervals[name];
+                    allBriefs = rows; // update global
+                    // Re-render to show the new brief
+                    const content = document.getElementById('content');
+                    content.innerHTML = renderClient(name, clientHistory(name), false);
+                }
+            }catch(e){ console.warn('[SyncView] Poll error:', e); }
+        }, 30000);
     }
 
     function goHome(){

@@ -690,6 +690,9 @@
         return{...r,client_name:pick('client_name','client'),platform:pick('platform'),period:pick('period'),rank:pick('rank','position'),video_url:pick('video_url','url','link','video_link','post_url','post_link'),caption:pick('caption','title','description','text','post_caption','post_text'),views:pick('views','view_count','video_views','play_count','plays','total_views','impressions','reach'),likes:pick('likes','like_count','total_likes','hearts','favorites','digg_count'),comments:pick('comments','comment_count','total_comments'),shares:pick('shares','share_count','total_shares','reposts','repost_count')};
     }
 
+    // When the scraper runs multiple times per day, multiple rows share the same date.
+    // We keep only the LAST scraping per date so that prevPerClient() always points
+    // to the previous DAY and sumWeeklyViews() doesn't double-count same-day runs.
     function _buildHistories(){
         const map={};
         allData.forEach((r,i)=>{
@@ -699,7 +702,14 @@
         const out={};
         Object.entries(map).forEach(([name,items])=>{
             items.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
-            out[name]=items.map(x=>x.r);
+            // Deduplicate: keep only the LAST scraping per date
+            const deduped=[];
+            for(let i=0;i<items.length;i++){
+                if(i===items.length-1||items[i].r.date!==items[i+1].r.date){
+                    deduped.push(items[i]);
+                }
+            }
+            out[name]=deduped.map(x=>x.r);
         });
         return out;
     }
@@ -759,7 +769,14 @@
     function clientHistory(name){
         const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
         indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
-        return indexed.map(x=>x.r);
+        // Deduplicate: keep only the LAST scraping per date (same logic as _buildHistories)
+        const deduped=[];
+        for(let i=0;i<indexed.length;i++){
+            if(i===indexed.length-1||indexed[i].r.date!==indexed[i+1].r.date){
+                deduped.push(indexed[i]);
+            }
+        }
+        return deduped.map(x=>x.r);
     }
 
     // ── Brief helpers ────────────────────────────────────────────────────────

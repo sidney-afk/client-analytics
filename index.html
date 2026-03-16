@@ -271,7 +271,6 @@
         .error-state { background: var(--white); border: 1px solid #fecaca; border-radius: 12px; padding: 32px; text-align: center; color: var(--dn); font-size: 0.88rem; }
         @media (max-width: 700px) { .video-card-tt { flex: 0 0 200px; } }
 
-        /* ─── View Tab Toggle (Analytics / Brief) ─────────────────────── */
         .view-tab-toggle {
             display: inline-flex; align-items: center;
             background: var(--bg); border: 1px solid var(--border);
@@ -296,7 +295,6 @@
             background: #16a34a; display: inline-block; flex-shrink: 0;
         }
 
-        /* ─── Brief Wrapper & Meta ─────────────────────────────────────── */
         .brief-wrap { animation: fadeIn 0.15s ease; }
         .brief-meta-bar {
             display: flex; align-items: center; justify-content: space-between;
@@ -336,7 +334,6 @@
         }
         .brief-action-btn.primary:hover { background: #333; border-color: #333; }
 
-        /* ─── Brief Section Tabs ───────────────────────────────────────── */
         .brief-section-tabs {
             display: flex; gap: 0; overflow-x: auto; flex-wrap: nowrap;
             border-bottom: 2px solid var(--border); margin-bottom: 20px;
@@ -353,7 +350,6 @@
         .brief-section-tab:hover { color: var(--text-secondary); }
         .brief-section-tab.active { color: var(--text-primary); border-bottom-color: var(--text-primary); }
 
-        /* ─── Brief Cards ──────────────────────────────────────────────── */
         .brief-cards-grid {
             display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px;
         }
@@ -383,7 +379,6 @@
         .brief-card-sub strong { color: var(--text-primary); font-weight: 700; }
         .brief-card-accent { border-left: 3px solid #6c5ce7; padding-left: 12px; }
 
-        /* ─── Executive Summary ────────────────────────────────────────── */
         .brief-exec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media (max-width: 600px) { .brief-exec-grid { grid-template-columns: 1fr; } }
         .brief-exec-card {
@@ -409,7 +404,6 @@
             color: var(--white); font-size: 0.6rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
         }
 
-        /* ─── Source Cards ─────────────────────────────────────────────── */
         .source-card {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
@@ -453,7 +447,6 @@
         }
         .brief-method-chip-val { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); }
 
-        /* ─── Hook Cards ───────────────────────────────────────────────── */
         .hook-card {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 12px; overflow: hidden;
@@ -484,7 +477,6 @@
         }
         .hook-steal-text { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
 
-        /* ─── Comment Cards ────────────────────────────────────────────── */
         .comment-card {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;
@@ -513,7 +505,6 @@
             display: flex; align-items: center; gap: 5px; padding-top: 4px;
         }
 
-        /* ─── Generate Prompt & Loading ────────────────────────────────── */
         .brief-generate-prompt {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 16px; padding: 56px 32px;
@@ -627,11 +618,10 @@
     let briefs = [];
     let sortCol = 'ig_followers', sortDir = 'desc';
     let activePeriods = {};
-    // Brief state
-    let clientViewTab = {};      // { clientName: 'analytics' | 'brief' }
-    let activeBriefTab = {};     // { clientName: 'exec' | 'resonating' | 'comments' | 'gap' | 'hooks' | 'sources' }
-    let activeBriefId = {};      // { clientName: brief id string }
-    let briefPollingState = {};  // { clientName: { intervalId, triggerTime, loading } }
+    let clientViewTab = {};
+    let activeBriefTab = {};
+    let activeBriefId = {};
+    let briefPollingState = {};
 
     function getPeriodKey(c,p){return c+'__'+p;}
     function getActivePeriod(c,p){return activePeriods[getPeriodKey(c,p)]||'week';}
@@ -690,9 +680,6 @@
         return{...r,client_name:pick('client_name','client'),platform:pick('platform'),period:pick('period'),rank:pick('rank','position'),video_url:pick('video_url','url','link','video_link','post_url','post_link'),caption:pick('caption','title','description','text','post_caption','post_text'),views:pick('views','view_count','video_views','play_count','plays','total_views','impressions','reach'),likes:pick('likes','like_count','total_likes','hearts','favorites','digg_count'),comments:pick('comments','comment_count','total_comments'),shares:pick('shares','share_count','total_shares','reposts','repost_count')};
     }
 
-    // When the scraper runs multiple times per day, multiple rows share the same date.
-    // We keep only the LAST scraping per date so that prevPerClient() always points
-    // to the previous DAY and sumWeeklyViews() doesn't double-count same-day runs.
     function _buildHistories(){
         const map={};
         allData.forEach((r,i)=>{
@@ -702,7 +689,6 @@
         const out={};
         Object.entries(map).forEach(([name,items])=>{
             items.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
-            // Deduplicate: keep only the LAST scraping per date
             const deduped=[];
             for(let i=0;i<items.length;i++){
                 if(i===items.length-1||items[i].r.date!==items[i+1].r.date){
@@ -732,18 +718,16 @@
         }
         return best;
     }
-    function sumWeeklyViews(history, key){
-        if(history.length < 2) return null;
-        const todayIdx = history.length - 1;
-        const startIdx = Math.max(0, todayIdx - 7);
-        let total = 0; let hasAny = false;
-        for(let i = startIdx; i < todayIdx; i++){
-            const v = n(history[i][key]);
-            if(v){ total += v; hasAny = true; }
+    function clientHistory(name){
+        const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
+        indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
+        const deduped=[];
+        for(let i=0;i<indexed.length;i++){
+            if(i===indexed.length-1||indexed[i].r.date!==indexed[i+1].r.date){
+                deduped.push(indexed[i]);
+            }
         }
-        const todayVal = n(history[todayIdx][key]);
-        if(todayVal){ total += todayVal; hasAny = true; }
-        return hasAny ? total : null;
+        return deduped.map(x=>x.r);
     }
     function weekPrevPerClient(){
         const h = _buildHistories();
@@ -766,45 +750,30 @@
         });
         return result;
     }
-    function clientHistory(name){
-        const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
-        indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
-        // Deduplicate: keep only the LAST scraping per date (same logic as _buildHistories)
-        const deduped=[];
-        for(let i=0;i<indexed.length;i++){
-            if(i===indexed.length-1||indexed[i].r.date!==indexed[i+1].r.date){
-                deduped.push(indexed[i]);
-            }
-        }
-        return deduped.map(x=>x.r);
-    }
 
     // ── Brief helpers ────────────────────────────────────────────────────────
     function getClientBriefs(name){
         return briefs
             .filter(b=>b.client_name===name&&b.raw_json)
-            .sort((a,b)=>b.id.localeCompare(a.id)); // newest first
+            .sort((a,b)=>b.id.localeCompare(a.id));
     }
     function getActiveBrief(name){
         const all=getClientBriefs(name);
         if(!all.length)return null;
         const id=activeBriefId[name];
         if(id){const found=all.find(b=>b.id===id);if(found)return found;}
-        return all[0]; // default to newest
+        return all[0];
     }
     function parseBriefData(brief){
         if(!brief)return null;
         try{return JSON.parse(brief.raw_json);}catch(e){console.error('[SyncView] brief parse error',e);return null;}
     }
 
-    // ── Brief generation & polling ───────────────────────────────────────────
     async function generateBrief(encodedName){
         const name=decodeURIComponent(encodedName);
         const triggerTime=new Date();
         briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
-        // Re-render the brief container to show loading state
         refreshBriefView(name);
-        // Fire webhook — use no-cors to avoid CORS errors; request still fires
         try{
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
@@ -875,21 +844,14 @@
         refreshBriefView(name);
     }
 
-    // ── Brief rendering ──────────────────────────────────────────────────────
     function renderBriefContent(name){
         const ps=briefPollingState[name];
-        if(ps?.loading){
-            return renderBriefLoading(name,ps);
-        }
+        if(ps?.loading){return renderBriefLoading(name,ps);}
         const allBriefs=getClientBriefs(name);
-        if(!allBriefs.length){
-            return renderBriefGeneratePrompt(name);
-        }
+        if(!allBriefs.length){return renderBriefGeneratePrompt(name);}
         const activeBrief=getActiveBrief(name);
         const data=parseBriefData(activeBrief);
-        if(!data){
-            return `<div class="error-state">Could not parse brief data. The brief may be malformed.</div>`;
-        }
+        if(!data){return `<div class="error-state">Could not parse brief data. The brief may be malformed.</div>`;}
         return renderBriefFull(name,data,allBriefs,activeBrief.id);
     }
 
@@ -929,32 +891,27 @@
         const briefDate=data.date?fmtDate(data.date):(activeId?fmtIsoDate(activeId):'');
         const accounts=(data.methodology?.accounts||[]).join(', ')||'—';
         const totalReels=data.methodology?.totalReels||'—';
-
-        // Date selector (only if multiple briefs)
         let dateSelector='';
         if(allBriefs.length>1){
             const opts=allBriefs.map(b=>`<option value="${b.id}" ${b.id===activeId?'selected':''}>${fmtIsoDate(b.id)}</option>`).join('');
             dateSelector=`<select class="brief-date-select" onchange="selectBriefById('${enc}',this.value)">${opts}</select>`;
         }
-
         const tabs=[
-            {id:'exec',   label:'Executive Summary'},
+            {id:'exec',label:'Executive Summary'},
             {id:'resonating',label:'What\'s Resonating'},
-            {id:'comments',  label:'Comment Intel'},
-            {id:'gap',       label:'The Gap'},
-            {id:'hooks',     label:'Hook Analysis'},
-            {id:'sources',   label:'Sources'},
+            {id:'comments',label:'Comment Intel'},
+            {id:'gap',label:'The Gap'},
+            {id:'hooks',label:'Hook Analysis'},
+            {id:'sources',label:'Sources'},
         ];
         const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
-
         let tabContent='';
-        if(tab==='exec')          tabContent=renderBriefTab_exec(data);
-        else if(tab==='resonating') tabContent=renderBriefTab_resonating(data);
-        else if(tab==='comments')   tabContent=renderBriefTab_comments(data);
-        else if(tab==='gap')        tabContent=renderBriefTab_gap(data);
-        else if(tab==='hooks')      tabContent=renderBriefTab_hooks(data);
-        else if(tab==='sources')    tabContent=renderBriefTab_sources(data);
-
+        if(tab==='exec')tabContent=renderBriefTab_exec(data);
+        else if(tab==='resonating')tabContent=renderBriefTab_resonating(data);
+        else if(tab==='comments')tabContent=renderBriefTab_comments(data);
+        else if(tab==='gap')tabContent=renderBriefTab_gap(data);
+        else if(tab==='hooks')tabContent=renderBriefTab_hooks(data);
+        else if(tab==='sources')tabContent=renderBriefTab_sources(data);
         return `<div class="brief-wrap">
             <div class="brief-meta-bar">
                 <div class="brief-meta-left">
@@ -971,9 +928,7 @@
                 </div>
             </div>
             ${tabBar}
-            <div id="briefViewContainer" style="display:contents;">
-                ${tabContent}
-            </div>
+            <div id="briefViewContainer" style="display:contents;">${tabContent}</div>
         </div>`;
     }
 
@@ -981,38 +936,17 @@
         const s=data.executiveSummary||{};
         const priorities=Array.isArray(s.actionPriorities)?s.actionPriorities:[];
         return `<div class="brief-exec-grid">
-            <div class="brief-exec-card">
-                <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div>
-                <div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div>
-            </div>
-            <div class="brief-exec-card">
-                <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div>
-                <div class="brief-exec-card-body">${s.theGap||'No data'}</div>
-            </div>
-            <div class="brief-exec-card">
-                <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div>
-                <div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div>
-            </div>
-            <div class="brief-exec-card">
-                <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">⚡</span> Action Priorities</div>
-                <div class="brief-action-list">${priorities.length
-                    ? priorities.map((p,i)=>`<div class="brief-action-item"><span class="brief-action-num">${i+1}</span><span>${p}</span></div>`).join('')
-                    : '<span style="font-size:0.82rem;color:var(--text-muted)">No priorities listed</span>'
-                }</div>
-            </div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">⚡</span> Action Priorities</div><div class="brief-action-list">${priorities.length?priorities.map((p,i)=>`<div class="brief-action-item"><span class="brief-action-num">${i+1}</span><span>${p}</span></div>`).join(''):'<span style="font-size:0.82rem;color:var(--text-muted)">No priorities listed</span>'}</div></div>
         </div>`;
     }
 
     function renderBriefTab_resonating(data){
         const items=Array.isArray(data.resonating)?data.resonating:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`
-            <div class="brief-card">
-                <span class="brief-card-badge">✦ Pattern</span>
-                <div class="brief-card-label">${item.label||'—'}</div>
-                <div class="brief-card-body">${item.whyItWorks||''}</div>
-                ${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}
-            </div>`).join('')}</div>`;
+        return`<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_comments(data){
@@ -1021,28 +955,10 @@
         const patterns=Array.isArray(ci.patterns)?ci.patterns:[];
         let html='';
         if(topComments.length){
-            html+=`<div class="brief-section-header">Top Comments</div>
-                <div class="brief-cards-grid">${topComments.map(c=>`
-                <div class="comment-card">
-                    <div class="comment-text">${c.text||'—'}</div>
-                    <div class="comment-insight">
-                        <span class="comment-insight-label">What it reveals</span>
-                        <span class="comment-insight-body">${c.whatItReveals||'—'}</span>
-                    </div>
-                    ${c.opportunity?`<div class="comment-insight">
-                        <span class="comment-insight-label">Opportunity</span>
-                        <span class="comment-insight-body">${c.opportunity}</span>
-                    </div>`:''}
-                </div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header">Top Comments</div><div class="brief-cards-grid">${topComments.map(c=>`<div class="comment-card"><div class="comment-text">${c.text||'—'}</div><div class="comment-insight"><span class="comment-insight-label">What it reveals</span><span class="comment-insight-body">${c.whatItReveals||'—'}</span></div>${c.opportunity?`<div class="comment-insight"><span class="comment-insight-label">Opportunity</span><span class="comment-insight-body">${c.opportunity}</span></div>`:''}</div>`).join('')}</div>`;
         }
         if(patterns.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Comment Patterns</div>
-                <div class="brief-cards-grid brief-patterns-grid">${patterns.map(p=>`
-                <div class="brief-pattern-card">
-                    <div class="brief-pattern-label">${p.label||'—'}</div>
-                    <div class="brief-pattern-body">${p.pattern||''}</div>
-                    ${p.action?`<div class="brief-pattern-action">→ ${p.action}</div>`:''}
-                </div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header" style="margin-top:24px;">Comment Patterns</div><div class="brief-cards-grid brief-patterns-grid">${patterns.map(p=>`<div class="brief-pattern-card"><div class="brief-pattern-label">${p.label||'—'}</div><div class="brief-pattern-body">${p.pattern||''}</div>${p.action?`<div class="brief-pattern-action">→ ${p.action}</div>`:''}</div>`).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No comment intelligence data.</div>`;
         return html;
@@ -1051,30 +967,13 @@
     function renderBriefTab_gap(data){
         const items=Array.isArray(data.theGap)?data.theGap:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`
-            <div class="brief-card">
-                <span class="brief-card-badge">🕳 Gap</span>
-                <div class="brief-card-label">${item.label||'—'}</div>
-                <div class="brief-card-body">${item.gap||''}</div>
-                ${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}
-            </div>`).join('')}</div>`;
+        return`<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_hooks(data){
         const items=Array.isArray(data.hookAnalysis)?data.hookAnalysis:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`
-            <div class="hook-card">
-                <div class="hook-card-top">
-                    <div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div>
-                    <div class="hook-text">"${item.hook||'—'}"</div>
-                    ${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}
-                </div>
-                ${item.stealThis?`<div class="hook-steal-wrap">
-                    <span class="hook-steal-label">Steal this →</span>
-                    <span class="hook-steal-text">${item.stealThis}</span>
-                </div>`:''}
-            </div>`).join('')}</div>`;
+        return`<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_sources(data){
@@ -1082,55 +981,19 @@
         const sources=Array.isArray(data.sources)?data.sources:[];
         const accountStats=Array.isArray(m.accountStats)?m.accountStats:[];
         let html='';
-        // Methodology chips
         if(m.totalReels||m.dateRange||m.accounts?.length){
-            html+=`<div class="brief-methodology-bar">
-                ${m.dateRange?`<div class="brief-method-chip"><span class="brief-method-chip-label">Date Range</span><span class="brief-method-chip-val">${m.dateRange}</span></div>`:''}
-                ${m.totalReels?`<div class="brief-method-chip"><span class="brief-method-chip-label">Reels Analysed</span><span class="brief-method-chip-val">${m.totalReels}</span></div>`:''}
-                ${m.accounts?.length?`<div class="brief-method-chip"><span class="brief-method-chip-label">Accounts</span><span class="brief-method-chip-val">${m.accounts.length}</span></div>`:''}
-            </div>`;
+            html+=`<div class="brief-methodology-bar">${m.dateRange?`<div class="brief-method-chip"><span class="brief-method-chip-label">Date Range</span><span class="brief-method-chip-val">${m.dateRange}</span></div>`:''}${m.totalReels?`<div class="brief-method-chip"><span class="brief-method-chip-label">Reels Analysed</span><span class="brief-method-chip-val">${m.totalReels}</span></div>`:''}${m.accounts?.length?`<div class="brief-method-chip"><span class="brief-method-chip-label">Accounts</span><span class="brief-method-chip-val">${m.accounts.length}</span></div>`:''}</div>`;
         }
-        // Account stats
         if(accountStats.length){
-            html+=`<div class="brief-section-header">Account Stats</div>
-                <div class="brief-cards-grid">${accountStats.map(a=>`
-                <div class="brief-card" style="gap:6px;">
-                    <div class="brief-card-label">${a.handle||'—'}</div>
-                    <div style="display:flex;gap:12px;flex-wrap:wrap;">
-                        ${a.avgViews?`<div><div class="brief-card-section-label">Avg Views</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.avgViews}</div></div>`:''}
-                        ${a.postCount?`<div><div class="brief-card-section-label">Posts</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.postCount}</div></div>`:''}
-                    </div>
-                    ${a.bestReel?`<div class="brief-card-body" style="font-size:0.77rem;">${a.bestReel}</div>`:''}
-                </div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>`<div class="brief-card" style="gap:6px;"><div class="brief-card-label">${a.handle||'—'}</div><div style="display:flex;gap:12px;flex-wrap:wrap;">${a.avgViews?`<div><div class="brief-card-section-label">Avg Views</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.avgViews}</div></div>`:''}${a.postCount?`<div><div class="brief-card-section-label">Posts</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.postCount}</div></div>`:''}</div>${a.bestReel?`<div class="brief-card-body" style="font-size:0.77rem;">${a.bestReel}</div>`:''}</div>`).join('')}</div>`;
         }
-        // Top sources
         if(sources.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div>
-                <div class="brief-cards-grid">${sources.map(s=>`
-                <div class="source-card">
-                    <div class="source-card-header">
-                        <div class="source-card-left">
-                            <span class="source-rank-badge">#${s.reelNumber||'?'}</span>
-                            <div>
-                                <div class="source-handle">${s.handle||s.name||'—'}</div>
-                                ${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}
-                            </div>
-                        </div>
-                        ${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}
-                    </div>
-                    ${s.accountAvg?`<div class="source-avg">Account avg: ${s.accountAvg}</div>`:''}
-                    ${s.description?`<div class="source-desc">${s.description}</div>`:''}
-                    ${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener">
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        View Reel ↗
-                    </a>`:''}
-                </div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>`<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div>${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}</div>${s.accountAvg?`<div class="source-avg">Account avg: ${s.accountAvg}</div>`:''}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No source data.</div>`;
         return html;
     }
 
-    // ────────────────────────────────────────────────────────────────────────
     function populateDropdown(){
         const menu=document.getElementById('clientDropMenu');
         const names=[...new Set(allData.map(r=>r.client_name))].sort();
@@ -1144,13 +1007,8 @@
     }
     function pickClient(val){
         toggleClientDrop();
-        if(val==='all'){
-            history.pushState({},'',location.pathname+location.search);
-            updateClientTrigger('All Clients');
-            render('all');
-        } else {
-            selectClient(val);
-        }
+        if(val==='all'){history.pushState({},'',location.pathname+location.search);updateClientTrigger('All Clients');render('all');}
+        else{selectClient(val);}
     }
     function updateClientTrigger(label){
         const trigger=document.getElementById('clientDropTrigger');
@@ -1164,27 +1022,33 @@
         return topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per)).sort((a,b)=>n(a.rank)-n(b.rank));
     }
 
+    // ── FIX: Sort columns now use _ig_view_delta and _tt_view_delta
+    // instead of the unreliable ig_views_gained_today / tiktok_plays_gained_today fields
     const SORT_COLS={
-        'client_name':           {label:'Name'},
-        'ig_followers':          {label:'IG Followers'},
-        '_ig_fol_delta':         {label:'IG +Followers'},
-        'ig_views_this_month':   {label:'IG Views/Month'},
-        'ig_views_gained_today': {label:'IG +Views'},
-        'tiktok_followers':      {label:'TT Followers'},
-        '_tt_fol_delta':         {label:'TT +Followers'},
+        'client_name':            {label:'Name'},
+        'ig_followers':           {label:'IG Followers'},
+        '_ig_fol_delta':          {label:'IG +Followers'},
+        'ig_views_this_month':    {label:'IG Views/Month'},
+        '_ig_view_delta':         {label:'IG +Views'},
+        'tiktok_followers':       {label:'TT Followers'},
+        '_tt_fol_delta':          {label:'TT +Followers'},
         'tiktok_plays_this_month':{label:'TT Views/Month'},
-        'tiktok_plays_gained_today':{label:'TT +Views'},
-        'yt_subscribers':        {label:'YT Subscribers'},
-        '_yt_sub_delta':         {label:'YT +Subscribers'},
-        'yt_total_views':        {label:'YT Views'},
-        '_yt_view_delta':        {label:'YT +Views'},
+        '_tt_view_delta':         {label:'TT +Views'},
+        'yt_subscribers':         {label:'YT Subscribers'},
+        '_yt_sub_delta':          {label:'YT +Subscribers'},
+        'yt_total_views':         {label:'YT Views'},
+        '_yt_view_delta':         {label:'YT +Views'},
     };
-    const PSEUDO_COLS=new Set(['_ig_fol_delta','_tt_fol_delta']);
+    const PSEUDO_COLS=new Set(['_ig_fol_delta','_tt_fol_delta','_ig_view_delta','_tt_view_delta']);
+
     function sortedRows(rows){
         const prevMap=gainMode==='week'?weekPrevPerClient():prevPerClient();
         function val(r,col){
             if(col==='_ig_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_followers)-n(p.ig_followers);}
             if(col==='_tt_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_followers)-n(p.tiktok_followers);}
+            // ── FIX: compute +Views delta from monthly totals (reliable) not gained_today (buggy)
+            if(col==='_ig_view_delta'){const p=prevMap[r.client_name];if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(!p)return -Infinity;return n(r.ig_views_this_month)-n(p.ig_views_this_month);}
+            if(col==='_tt_view_delta'){const p=prevMap[r.client_name];if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(!p)return -Infinity;return n(r.tiktok_plays_this_month)-n(p.tiktok_plays_this_month);}
             if(col.startsWith('ig_')&&!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;
             if(col.startsWith('tiktok_')&&!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;
             if(col==='_yt_sub_delta'){const p=prevMap[r.client_name];if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;if(!p)return -Infinity;return n(r.yt_subscribers)-n(p.yt_subscribers);}
@@ -1225,7 +1089,22 @@
 
     function controlsHTML(){
         const arrow=sortDir==='desc'?'↓':'↑';
-        const PILL_LABELS={'client_name':'Name','ig_followers':'IG Followers','_ig_fol_delta':'IG +Followers','ig_views_this_month':'IG Views/Mo','ig_views_gained_today':'IG +Views','tiktok_followers':'TT Followers','_tt_fol_delta':'TT +Followers','tiktok_plays_this_month':'TT Views/Mo','tiktok_plays_gained_today':'TT +Views','yt_subscribers':'YT Subs','_yt_sub_delta':'YT +Subs','yt_total_views':'YT Views','_yt_view_delta':'YT +Views'};
+        // ── FIX: updated keys to match new SORT_COLS
+        const PILL_LABELS={
+            'client_name':'Name',
+            'ig_followers':'IG Followers',
+            '_ig_fol_delta':'IG +Followers',
+            'ig_views_this_month':'IG Views/Mo',
+            '_ig_view_delta':'IG +Views',
+            'tiktok_followers':'TT Followers',
+            '_tt_fol_delta':'TT +Followers',
+            'tiktok_plays_this_month':'TT Views/Mo',
+            '_tt_view_delta':'TT +Views',
+            'yt_subscribers':'YT Subs',
+            '_yt_sub_delta':'YT +Subs',
+            'yt_total_views':'YT Views',
+            '_yt_view_delta':'YT +Views'
+        };
         const currentLabel=PILL_LABELS[sortCol]||'Sort';
         const items=Object.entries(SORT_COLS).map(([col,cfg])=>`<button class="dropdown-item ${sortCol===col?'active':''}" onclick="setSort('${col}')">${cfg.label}</button>`).join('');
         const tableIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.3"/></svg>`;
@@ -1240,21 +1119,23 @@
     function renderCardView(rows,deltaMap){
         const prevMap=prevPerClient();
         return `<div class="cards-grid">${rows.map((r,idx)=>{
-            const p=(deltaMap||prevPerClient())[r.client_name]||null;
+            const p=(deltaMap||prevMap)[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
-            const mh=(label,key)=>{const f=fmt(r[key]);if(!f)return'';let gh='';if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
-            const mhValDiff=(label,valueKey,diffKey)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(diffKey in r){const d=n(r[diffKey]);const s=d>0?'+':'';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
+            // ── FIX: mh uses correct '-' sign for losses
+            const mh=(label,key)=>{const f=fmt(r[key]);if(!f)return'';let gh='';if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'-';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
+            // ── FIX: mhValDiff now computes delta from monthly totals vs prev, no longer uses gained_today
+            const mhValDiff=(label,valueKey)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(p){const d=n(r[valueKey])-n(p[valueKey]);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             const cardIsAgeRestricted=r.client_name.toLowerCase()==='john wineland';
             const cardInfo=clientMap[r.client_name]||{};
             const cardIgH=cardInfo.instagram_handle||'',cardTtH=cardInfo.tiktok_handle||'',cardYtId=cardInfo.youtube_channel_id||'';
             const platLink=(url,label)=>url?`<a href="${url}" target="_blank" rel="noopener" style="font-size:0.58rem;font-weight:600;color:rgba(255,255,255,0.55);text-decoration:none;letter-spacing:0.02em;white-space:nowrap;transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.55)'">${label}</a>`:'';
-            if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhValDiff('Views This Month','ig_views_this_month','ig_views_gained_today')}</div>`;}
+            if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhValDiff('Views This Month','ig_views_this_month')}</div>`;}
             else if(cardIsAgeRestricted){pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;}
-            if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhValDiff('Views This Month','tiktok_plays_this_month','tiktok_plays_gained_today')}</div>`;
+            if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhValDiff('Views This Month','tiktok_plays_this_month')}</div>`;
             if(hasYT)pl+=`<div class="card-platform cp-yt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">YouTube</span>${platLink(cardYtId?'https://youtube.com/channel/'+cardYtId:null,'Channel ↗')}</div>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
-            const cardAgeBadge=cardIsAgeRestricted?`<span title="Instagram is age-restricted — not scraped" style="font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;letter-spacing:0.03em;white-space:nowrap;">🔞 IG</span>`:'';
+            const cardAgeBadge=cardIsAgeRestricted?`<span title="Instagram age-restricted — not scraped" style="font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;letter-spacing:0.03em;white-space:nowrap;">🔞 IG</span>`:'';
             return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${cardAgeBadge}<button class="card-eye-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button></div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
         }).join('')}</div>`;
     }
@@ -1268,61 +1149,45 @@
         if(!prev)return`<span class="m-delta none">no previous day yet</span>`;
         const diff=n(today[key])-n(prev[key]);
         if(diff===0)return`<span class="m-delta flat">no change</span>`;
-        const sign=diff>0?'+':'',cls=diff>0?'up':'down',arr=diff>0?'↑':'↓';
+        // ── FIX: correct '-' sign for losses
+        const sign=diff>0?'+':'-',cls=diff>0?'up':'down',arr=diff>0?'↑':'↓';
         return`<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;
     }
     function mBlock(label,today,prev,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${f?deltaBadge(today,prev,key):''}</div>`;}
     function mBlockNoD(label,today,key){const f=fmt(today[key]);return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div></div>`;}
-    function gainCell(today,prev,key,cls){const f=fmt(today[key]);if(!f||!prev)return`<td class="${cls}"><span class="g-none">—</span></td>`;const diff=n(today[key])-n(prev[key]);if(diff===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;const sign=diff>0?'+':'';return`<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span></td>`;}
-    function ncDelta(val,cls){const x=n(val);if(!val&&val!=='0')return`<td class="${cls}"><span class="g-none">—</span></td>`;if(x===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;const sign=x>0?'+':'';return`<td class="${cls}"><span class="${x>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(x))||Math.abs(x).toLocaleString()}</span></td>`;}
 
-    function renderOverview(rawRows){
-        const rows=sortedRows(rawRows),prevMap=prevPerClient();
-        const deltaMap=gainPeriod==='week'?(()=>{const m={};Object.keys(prevMap).forEach(name=>{const hist=clientHistory(name);m[name]=getWeekRow(hist);});return m;})():prevMap;
-        const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
-        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
-        return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
-        const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
-        const nameCol=sortCol==='client_name'?`<span style="display:inline-flex;align-items:center;gap:3px;">Client <span style="font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span></span>`:'Client';
-        return`<thead><tr>
-          <th rowspan="2" style="text-align:left;vertical-align:middle;cursor:pointer;" onclick="setSort('client_name')" title="Sort by name">${nameCol}</th>
-          <th rowspan="2" style="vertical-align:middle">Date</th>
-          <th colspan="4" class="group-ig">Instagram</th>
-          <th colspan="4" class="group-tt">TikTok</th>
-          <th colspan="4" class="group-yt">YouTube</th>
-        </tr><tr>
-          ${sTh('ig_followers','Followers','ig-h')}${sTh('_ig_fol_delta','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('ig_views_gained_today','+Views','ig-h')}
-          ${sTh('tiktok_followers','Followers','tt-h')}${sTh('_tt_fol_delta','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/Month','tt-h')}${sTh('tiktok_plays_gained_today','+Views','tt-h')}
-          ${sTh('yt_subscribers','Subscribers','yt-h')}${sTh('_yt_sub_delta','+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sTh('_yt_view_delta','+Views','yt-h')}
-        </tr></thead>`;
-      })()}<tbody>${rows.map((r,idx)=>{
-            const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
-            const eyeIcon=`<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
-            const isAgeRestricted=r.client_name.toLowerCase()==='john wineland';
-            const ageBadgeCell=isAgeRestricted?`<span title="Instagram is age-restricted — not scraped" style="display:inline-flex;align-items:center;font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:0.03em;flex-shrink:0;">🔞 IG restricted</span>`:'';
-            const igRestrictedCell=`<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
-            const igWeekViews=gainPeriod==='week'?sumWeeklyViews(clientHistory(r.client_name),'ig_views_gained_today'):null;
-            const ttWeekViews=gainPeriod==='week'?sumWeeklyViews(clientHistory(r.client_name),'tiktok_plays_gained_today'):null;
-            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainPeriod==='week'?ncDelta(igWeekViews,'col-ig'):ncDelta(r.ig_views_gained_today,'col-ig')}`;
-            const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> No ${label}</span></td>`;
-            const noCell=(cls)=>`<td class="${cls}" style="text-align:center;"><span style="color:var(--border);font-size:0.75rem;font-weight:300;">—</span></td>`;
-            const hasTTrow=n(r.tiktok_followers)||n(r.tiktok_plays_this_month);
-            const hasYTrow=n(r.yt_subscribers)||n(r.yt_total_views);
-            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainPeriod==='week'?ncDelta(ttWeekViews,'col-tt'):ncDelta(r.tiktok_plays_gained_today,'col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
-            const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
-        }).join('')}</tbody></table></div>`;
+    // ── FIX: gainCell now shows '-' for negative deltas
+    function gainCell(today,prev,key,cls){
+        const f=fmt(today[key]);
+        if(!f||!prev)return`<td class="${cls}"><span class="g-none">—</span></td>`;
+        const diff=n(today[key])-n(prev[key]);
+        if(diff===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;
+        const sign=diff>0?'+':'-';
+        return`<td class="${cls}"><span class="${diff>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span></td>`;
+    }
+
+    // ── FIX: ncDelta now shows '-' for negative values
+    function ncDelta(val,cls){
+        const x=n(val);
+        if(!val&&val!=='0')return`<td class="${cls}"><span class="g-none">—</span></td>`;
+        if(x===0)return`<td class="${cls}"><span class="g-none">±0</span></td>`;
+        const sign=x>0?'+':'-';
+        return`<td class="${cls}"><span class="${x>0?'g-up':'g-down'}">${sign}${fmt(Math.abs(x))||Math.abs(x).toLocaleString()}</span></td>`;
     }
 
     function mBlockDiff(label,today,valueKey,diffKey){
         const f=fmt(today[valueKey]);const diff=n(today[diffKey]);let delta='';
-        if(f){if(diff===0)delta=`<span class="m-delta flat">no change</span>`;else{const sign=diff>0?'+':'',cls=diff>0?'up':'down',arr=diff>0?'↑':'↓';delta=`<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;}}
+        if(f){if(diff===0)delta=`<span class="m-delta flat">no change</span>`;else{
+            // ── FIX: correct '-' sign
+            const sign=diff>0?'+':'-',cls=diff>0?'up':'down',arr=diff>0?'↑':'↓';
+            delta=`<span class="m-delta ${cls}">${arr} ${sign}${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;
+        }}
         return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${delta}</div>`;
     }
 
     function gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,forcePeriod){
         function chip(label,value,delta){const numFmt=fmt(value);const numHtml=numFmt?`<span class="gain-chip-num">${numFmt}</span>`:`<span class="gain-chip-num empty">—</span>`;let deltaHtml='';if(delta!==null&&delta!==undefined){const d=n(delta);if(d>0)deltaHtml=`<span class="gain-delta up">↑ +${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">↓ ${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;}return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${numHtml}${deltaHtml}</div></div>`;}
-        function chipDiff(label,diffVal){if(diffVal===''||diffVal===undefined||diffVal===null)return'';const d=n(diffVal);let deltaHtml='';if(d>0)deltaHtml=`<span class="gain-delta up">+${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;}
+        function chipDiff(label,diffVal){if(diffVal===null||diffVal===undefined)return'';const d=n(diffVal);let deltaHtml='';if(d>0)deltaHtml=`<span class="gain-delta up">+${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;}
         function chipDeltaOnly(label,diff){let deltaHtml='';if(diff===null||diff===undefined){deltaHtml=`<span class="gain-chip-num empty">—</span>`;}else{const d=n(diff);if(d>0)deltaHtml=`<span class="gain-delta up">+${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;}return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${deltaHtml}</div></div>`;}
         const hasIG=n(today.ig_followers)||n(today.ig_views_this_month);
         const hasTT=n(today.tiktok_followers)||n(today.tiktok_plays_this_month);
@@ -1333,8 +1198,9 @@
         const ttFolDiff=dRow?n(today.tiktok_followers)-n(dRow.tiktok_followers):null;
         const ytSubDiff=dRow?n(today.yt_subscribers)-n(dRow.yt_subscribers):null;
         const ytViewDiff=dRow?n(today.yt_total_views)-n(dRow.yt_total_views):null;
-        const igViewsGain=activePeriod==='week'?igWeekViews:n(today.ig_views_gained_today)||null;
-        const ttViewsGain=activePeriod==='week'?ttWeekViews:n(today.tiktok_plays_gained_today)||null;
+        // ── FIX: compute views gain from monthly delta vs dRow (reliable) instead of gained_today (buggy)
+        const igViewsGain=dRow?(n(today.ig_views_this_month)-n(dRow.ig_views_this_month)):null;
+        const ttViewsGain=dRow?(n(today.tiktok_plays_this_month)-n(dRow.tiktok_plays_this_month)):null;
         const periodLabel=activePeriod==='week'?"This Week's":"Today's";
         let cards='';
         if(hasIG)cards+=`<div class="gains-platform-card gp-ig"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',igFolDiff)}${chipDiff('Views',igViewsGain)}</div></div>`;
@@ -1372,13 +1238,7 @@
 
     function renderClient(name,history,clientOnly){
         const today=history[history.length-1],prev=history.length>=2?history[history.length-2]:null;
-        const todayDate=new Date(today.date);
-        const weekTarget=new Date(todayDate); weekTarget.setDate(weekTarget.getDate()-7);
-        let weekPrev=null;
-        for(let i=history.length-2;i>=0;i--){const d=new Date(history[i].date);if(d<=weekTarget){weekPrev=history[i];break;}if(!weekPrev||Math.abs(d-weekTarget)<Math.abs(new Date(weekPrev.date)-weekTarget))weekPrev=history[i];}
         const weekRow=getWeekRow(history);
-        const igWeekViews=sumWeeklyViews(history,'ig_views_gained_today');
-        const ttWeekViews=sumWeeklyViews(history,'tiktok_plays_gained_today');
         const info=clientMap[name]||{};
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
@@ -1394,7 +1254,6 @@
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockDiff('Views This Month',today,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
 
-        // ── Analytics content ──────────────────────────────────────────────
         const analyticsContent=`
             ${clientOnly?`<div class="client-only-badge">📊 Your Analytics Dashboard</div>`:''}
             <div class="detail-hero">
@@ -1404,8 +1263,8 @@
                 </div>
                 ${shareBtnHtml}
             </div>
-            ${gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'day')}
-            ${weekRow?gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,'week'):''}
+            ${gainsBar(today,prev,weekRow,null,null,'day')}
+            ${weekRow?gainsBar(today,prev,weekRow,null,null,'week'):''}
             ${igSection}${ttSection}${ytSection}
             <div class="chart-section">
                 <div class="chart-top">
@@ -1415,7 +1274,6 @@
                 <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
             </div>`;
 
-        // ── View tab toggle (not shown in client-only/shared view) ─────────
         const enc=encodeURIComponent(name);
         const tab=clientViewTab[name]||'analytics';
         const hasBrief=getClientBriefs(name).length>0;
@@ -1441,6 +1299,44 @@
         }
 
         return`<div class="client-view">${toggleHtml}${analyticsContent}</div>`;
+    }
+
+    function renderOverview(rawRows){
+        const rows=sortedRows(rawRows),prevMap=prevPerClient();
+        const deltaMap=gainPeriod==='week'?(()=>{const m={};Object.keys(prevMap).forEach(name=>{const hist=clientHistory(name);m[name]=getWeekRow(hist);});return m;})():prevMap;
+        const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
+        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
+        return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
+        const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
+        const nameCol=sortCol==='client_name'?`<span style="display:inline-flex;align-items:center;gap:3px;">Client <span style="font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span></span>`:'Client';
+        return`<thead><tr>
+          <th rowspan="2" style="text-align:left;vertical-align:middle;cursor:pointer;" onclick="setSort('client_name')" title="Sort by name">${nameCol}</th>
+          <th rowspan="2" style="vertical-align:middle">Date</th>
+          <th colspan="4" class="group-ig">Instagram</th>
+          <th colspan="4" class="group-tt">TikTok</th>
+          <th colspan="4" class="group-yt">YouTube</th>
+        </tr><tr>
+          ${sTh('ig_followers','Followers','ig-h')}${sTh('_ig_fol_delta','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('_ig_view_delta','+Views','ig-h')}
+          ${sTh('tiktok_followers','Followers','tt-h')}${sTh('_tt_fol_delta','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/Month','tt-h')}${sTh('_tt_view_delta','+Views','tt-h')}
+          ${sTh('yt_subscribers','Subscribers','yt-h')}${sTh('_yt_sub_delta','+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sTh('_yt_view_delta','+Views','yt-h')}
+        </tr></thead>`;
+      })()}<tbody>${rows.map((r,idx)=>{
+            const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
+            const eyeIcon=`<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
+            const isAgeRestricted=r.client_name.toLowerCase()==='john wineland';
+            const ageBadgeCell=isAgeRestricted?`<span title="Instagram is age-restricted — not scraped" style="display:inline-flex;align-items:center;font-size:0.55rem;font-weight:700;background:#fdf0f5;color:#a81950;border:1px solid #f4c2d5;border-radius:4px;padding:1px 5px;margin-left:5px;letter-spacing:0.03em;flex-shrink:0;">🔞 IG restricted</span>`:'';
+            const igRestrictedCell=`<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
+            const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> No ${label}</span></td>`;
+            const noCell=(cls)=>`<td class="${cls}" style="text-align:center;"><span style="color:var(--border);font-size:0.75rem;font-weight:300;">—</span></td>`;
+            const hasTTrow=n(r.tiktok_followers)||n(r.tiktok_plays_this_month);
+            const hasYTrow=n(r.yt_subscribers)||n(r.yt_total_views);
+            // ── FIX: IG +Views now uses gainCell vs monthly totals (not the buggy gained_today field)
+            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${gainCell(r,dp,'ig_views_this_month','col-ig')}`;
+            // ── FIX: TT +Views now uses gainCell vs monthly totals (not the buggy gained_today field)
+            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${gainCell(r,dp,'tiktok_plays_this_month','col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
+            const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${ageBadgeCell}${eyeIcon}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
+        }).join('')}</tbody></table></div>`;
     }
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}
@@ -1506,7 +1402,6 @@
         }
     });
 
-    // ── Search ────────────────────────────────────────────────────────────────
     const RECENT_KEY='syncview_recent_searches';
     function getRecent(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');}catch{return[];}}
     function addRecent(name){let r=getRecent().filter(n=>n!==name);r.unshift(name);r=r.slice(0,3);localStorage.setItem(RECENT_KEY,JSON.stringify(r));}
@@ -1520,7 +1415,6 @@
     function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">↩</span><span>${name}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
     function searchGoTo(name){addRecent(name);const box=document.getElementById('searchBox');const inp=document.getElementById('searchInput');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(inp){inp.value='';inp.blur();}if(ghost)ghost.innerHTML='';selectClient(name);}
 
-    // ── Pinned Clients ────────────────────────────────────────────────────────
     const PINS_KEY='syncview_pinned_clients';
     const MAX_PINS=3;
     let pinsEditMode=false;

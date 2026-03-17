@@ -389,6 +389,91 @@
         }
         .mr-opportunity strong { color: #065f46; font-weight: 700; }
 
+        /* MR generating spinner icon */
+        .mr-generating-icon {
+            width: 56px; height: 56px; display: flex; align-items: center;
+            justify-content: center; background: #f5f3ff;
+            border-radius: 50%; margin-bottom: 4px;
+        }
+
+        /* MR keyword panel */
+        .mr-kw-panel {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; display: flex;
+            flex-direction: column; gap: 16px;
+            animation: fadeIn 0.15s ease;
+        }
+        .mr-kw-panel-header {
+            display: flex; align-items: flex-start;
+            justify-content: space-between; gap: 12px;
+        }
+        .mr-kw-panel-title {
+            font-size: 0.96rem; font-weight: 700; color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+        .mr-kw-panel-sub {
+            font-size: 0.78rem; color: var(--text-muted); margin-top: 3px;
+        }
+        .mr-kw-close {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+            background: var(--bg); cursor: pointer; flex-shrink: 0;
+            color: var(--text-muted); transition: all 0.12s;
+        }
+        .mr-kw-close:hover { border-color: #bbb; color: var(--text-primary); }
+        .mr-kw-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+        }
+        @media (max-width: 520px) { .mr-kw-grid { grid-template-columns: 1fr; } }
+        .mr-kw-field {
+            display: flex; align-items: center; gap: 0;
+            border: 1px solid var(--border); border-radius: 9px;
+            background: var(--bg); overflow: hidden;
+            transition: border-color 0.12s;
+        }
+        .mr-kw-field:focus-within {
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124,58,237,0.08);
+            background: var(--white);
+        }
+        .mr-kw-input {
+            flex: 1; border: none; background: transparent; outline: none;
+            padding: 9px 10px 9px 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.82rem; color: var(--text-primary);
+        }
+        .mr-kw-input::placeholder { color: var(--text-muted); }
+        .mr-kw-remove {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px; flex-shrink: 0; border: none;
+            background: transparent; cursor: pointer; color: var(--text-muted);
+            transition: color 0.12s;
+        }
+        .mr-kw-remove:hover { color: var(--dn); }
+        .mr-kw-add {
+            display: inline-flex; align-items: center; gap: 6px;
+            border: none; background: transparent; cursor: pointer;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+            padding: 0; transition: color 0.12s; width: fit-content;
+        }
+        .mr-kw-add:hover { color: #7c3aed; }
+        .mr-kw-count {
+            font-size: 0.68rem; font-weight: 700;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; padding: 1px 5px;
+        }
+        .mr-kw-count-note {
+            font-size: 0.72rem; color: var(--text-muted);
+        }
+        .mr-kw-actions {
+            display: flex; align-items: center; justify-content: flex-end;
+            gap: 8px; padding-top: 4px; border-top: 1px solid var(--border-light);
+        }
+        .mr-kw-submit {
+            min-width: 160px; justify-content: center;
+        }
+
         .brief-wrap { animation: fadeIn 0.15s ease; }
         .brief-meta-bar {
             display: flex; align-items: center; justify-content: space-between;
@@ -721,6 +806,7 @@
     let activeBriefSection = {};
     let activeMRBriefTab = {};
     let activeMRBriefId = {};
+    let mrKeywordState = {};
 
     function getPeriodKey(c,p){return c+'__'+p;}
     function getActivePeriod(c,p){return activePeriods[getPeriodKey(c,p)]||'week';}
@@ -904,6 +990,74 @@
         activeMRBriefId[name]=id;
         refreshBriefView(name);
     }
+    function _initMRKeywordState(name){
+        if(!mrKeywordState[name]){
+            mrKeywordState[name]={showPanel:false,keywords:['','','',''],submitting:false,submitted:false,error:null};
+        }
+    }
+    function _captureMRKeywordValues(name){
+        const inputs=document.querySelectorAll('[data-mr-keyword]');
+        if(!inputs.length)return;
+        const kw=[];
+        inputs.forEach(inp=>kw.push(inp.value));
+        mrKeywordState[name].keywords=kw;
+    }
+    function openMRKeywordPanel(encodedName){
+        const name=decodeURIComponent(encodedName);
+        _initMRKeywordState(name);
+        mrKeywordState[name].showPanel=true;
+        refreshBriefView(name);
+    }
+    function closeMRKeywordPanel(encodedName){
+        const name=decodeURIComponent(encodedName);
+        if(mrKeywordState[name])mrKeywordState[name].showPanel=false;
+        refreshBriefView(name);
+    }
+    function addMRKeyword(encodedName){
+        const name=decodeURIComponent(encodedName);
+        _initMRKeywordState(name);
+        _captureMRKeywordValues(name);
+        if(mrKeywordState[name].keywords.length>=8)return;
+        mrKeywordState[name].keywords.push('');
+        refreshBriefView(name);
+        // focus the new field
+        requestAnimationFrame(()=>{
+            const inputs=document.querySelectorAll('[data-mr-keyword]');
+            if(inputs.length)inputs[inputs.length-1].focus();
+        });
+    }
+    function removeMRKeyword(encodedName,idx){
+        const name=decodeURIComponent(encodedName);
+        _initMRKeywordState(name);
+        _captureMRKeywordValues(name);
+        const kw=mrKeywordState[name].keywords;
+        if(kw.length<=1){kw[0]='';refreshBriefView(name);return;}
+        kw.splice(idx,1);
+        refreshBriefView(name);
+    }
+    async function submitMRBriefRequest(encodedName){
+        const name=decodeURIComponent(encodedName);
+        _initMRKeywordState(name);
+        _captureMRKeywordValues(name);
+        const state=mrKeywordState[name];
+        if(state.submitting)return;
+        const keywords=state.keywords.map(k=>k.trim()).filter(Boolean);
+        state.submitting=true;
+        state.error=null;
+        refreshBriefView(name);
+        try{
+            await fetch('https://synchrosocial.app.n8n.cloud/webhook/generate-market-brief',{
+                method:'POST',
+                headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({clientName:name,keywords}),
+            });
+        }catch(e){
+            console.warn('[SyncView] MR brief webhook error (may still have fired):',e);
+        }
+        state.submitting=false;
+        state.submitted=true;
+        refreshBriefView(name);
+    }
 
     async function generateBrief(encodedName){
         const name=decodeURIComponent(encodedName);
@@ -1028,15 +1182,76 @@
     }
 
     function renderMRBriefGeneratePrompt(name){
+        const enc=encodeURIComponent(name);
+        const state=mrKeywordState[name];
+
+        // ── Submitted / generating state ─────────────────────────────────────
+        if(state?.submitted){
+            return`<div class="brief-generate-prompt">
+                <div class="mr-generating-icon">
+                    <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#7c3aed" stroke-width="2" stroke-dasharray="22 66" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.1s" repeatCount="indefinite"/></circle></svg>
+                </div>
+                <div class="brief-prompt-title" style="font-size:1rem;">Brief is being generated…</div>
+                <div class="brief-prompt-sub" style="max-width:340px;">This takes a few minutes. The brief will appear here automatically once it's ready — just reload the page.</div>
+            </div>`;
+        }
+
+        // ── Keyword panel ────────────────────────────────────────────────────
+        if(state?.showPanel){
+            const keywords=state.keywords;
+            const canAdd=keywords.length<8;
+            const isSubmitting=state.submitting;
+            const filledCount=keywords.filter(k=>k.trim()).length;
+
+            const fields=keywords.map((kw,i)=>`
+                <div class="mr-kw-field">
+                    <input class="mr-kw-input" data-mr-keyword="${i}" type="text"
+                        placeholder="Keyword ${i+1}"
+                        value="${kw.replace(/"/g,'&quot;')}"
+                        ${isSubmitting?'disabled':''}
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();addMRKeyword('${enc}');}"
+                    />
+                    <button class="mr-kw-remove" onclick="removeMRKeyword('${enc}',${i})" title="Remove" ${isSubmitting?'disabled':''}>
+                        <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                    </button>
+                </div>`).join('');
+
+            return`<div class="mr-kw-panel">
+                <div class="mr-kw-panel-header">
+                    <div>
+                        <div class="mr-kw-panel-title">Research keywords</div>
+                        <div class="mr-kw-panel-sub">Guide the analysis with up to 8 keywords or phrases</div>
+                    </div>
+                    <button class="mr-kw-close" onclick="closeMRKeywordPanel('${enc}')" title="Cancel" ${isSubmitting?'disabled':''}>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <div class="mr-kw-grid">${fields}</div>
+                ${canAdd&&!isSubmitting?`<button class="mr-kw-add" onclick="addMRKeyword('${enc}')">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                    Add keyword <span class="mr-kw-count">${keywords.length}/8</span>
+                </button>`:`<div class="mr-kw-count-note">${keywords.length}/8 keywords</div>`}
+                <div class="mr-kw-actions">
+                    <button class="brief-action-btn" onclick="closeMRKeywordPanel('${enc}')" ${isSubmitting?'disabled':''}>Cancel</button>
+                    <button class="brief-action-btn primary mr-kw-submit" onclick="submitMRBriefRequest('${enc}')" ${isSubmitting?'disabled':''}>
+                        ${isSubmitting
+                            ?`<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.8" stroke-dasharray="9 28" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 8 8" to="360 8 8" dur="0.9s" repeatCount="indefinite"/></circle></svg> Generating…`
+                            :`<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M1 8h12M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Generate Brief${filledCount?` · ${filledCount} keyword${filledCount!==1?'s':''}`:''}` }
+                    </button>
+                </div>
+            </div>`;
+        }
+
+        // ── Default empty state ───────────────────────────────────────────────
         return`<div class="brief-generate-prompt">
             <div class="brief-prompt-icon">🌐</div>
             <div class="brief-prompt-title">No Market Research Brief yet</div>
             <div class="brief-prompt-sub">Analyse the top 100 viral reels in your niche — what's working, content gaps, hook patterns, and 20 ready-to-film angles.</div>
-            <button class="brief-gen-btn-lg" disabled style="opacity:0.45;cursor:not-allowed;">
+            <button class="brief-gen-btn-lg" onclick="openMRKeywordPanel('${enc}')">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Generate Market Research Brief
             </button>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Coming soon · Takes 5–15 minutes</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 5–15 minutes</div>
         </div>`;
     }
 

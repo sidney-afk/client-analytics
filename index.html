@@ -145,7 +145,7 @@
         .g-none { color: #d8d8d3; font-size: 0.73rem; }
         .client-name-link { color: var(--text-primary); text-decoration: none; font-weight: 600; cursor: pointer; transition: color 0.15s; }
         .client-name-link:hover { color: var(--text-secondary); }
-        .client-view-btn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: transparent; border: none; cursor: pointer; transition: all 0.15s; flex-shrink: 0; margin-left: 7px; color: var(--text-muted); }
+        .client-view-btn { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: transparent; border: none; cursor: pointer; transition: all 0.15s; flex-shrink: 0; margin-left: 0; margin-right: 6px; color: var(--text-muted); }
         .client-view-btn:hover { color: var(--text-primary); }
         .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
         .client-card { background: var(--white); border-radius: 14px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); position: relative; }
@@ -1931,7 +1931,7 @@
             const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${igViewDeltaCell}`;
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${eyeIcon}${_socIcons}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 

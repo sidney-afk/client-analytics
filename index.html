@@ -488,6 +488,52 @@
         }
         .brief-meta-date { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
         .brief-meta-sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 1px; }
+        .brief-meta-subtle { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+        .brief-regen-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; border-radius: 8px;
+            border: 1px solid var(--border); background: var(--white);
+            color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+        }
+        .brief-regen-btn:hover { border-color: #aaa; color: var(--text-secondary); }
+        .brief-tab-summary {
+            font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
+            margin-bottom: 16px; max-width: 640px;
+        }
+        .brief-tab-summary.loading {
+            color: var(--text-muted); font-style: italic;
+        }
+        .general-brief-card {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 14px; padding: 24px 28px;
+            border-left: 3px solid #7c3aed; margin-bottom: 20px;
+        }
+        .general-brief-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 16px; gap: 12px;
+        }
+        .general-brief-title {
+            font-size: 0.96rem; font-weight: 700; color: var(--text-primary);
+            letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px;
+        }
+        .general-brief-section { margin-bottom: 14px; }
+        .general-brief-section-label {
+            font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.1em; color: #7c3aed; margin-bottom: 6px;
+        }
+        .general-brief-section-body {
+            font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;
+        }
+        .general-brief-generate {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 9px 18px; border-radius: 9px;
+            background: var(--bg); border: 1px solid var(--border);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.78rem; font-weight: 600; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.15s;
+        }
+        .general-brief-generate:hover { border-color: #aaa; color: var(--text-primary); }
+        .general-brief-generate:disabled { opacity: 0.5; cursor: not-allowed; }
         .brief-meta-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .brief-date-select {
             -webkit-appearance: none; appearance: none;
@@ -807,6 +853,127 @@
     let activeMRBriefTab = {};
     let activeMRBriefId = {};
     let mrKeywordState = {};
+    let tabSummaryCache = {}; // { "clientName__briefType__tabId": { loading, text, error } }
+    let generalBriefState = {}; // { [clientName]: { loading, data, error } }
+
+    const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
+    const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
+
+    function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
+
+    async function fetchTabSummary(name, briefType, tabId, tabData) {
+        const key = getTabSummaryKey(name, briefType, tabId);
+        if (tabSummaryCache[key]?.text || tabSummaryCache[key]?.loading) return;
+        tabSummaryCache[key] = { loading: true, text: null, error: null };
+        refreshBriefView(name);
+        try {
+            const resp = await fetch(TAB_SUMMARY_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientName: name, briefType, tabId, tabData })
+            });
+            const result = await resp.json();
+            tabSummaryCache[key] = { loading: false, text: result.summary || '', error: null };
+        } catch (e) {
+            console.warn('[SyncView] Tab summary error:', e);
+            tabSummaryCache[key] = { loading: false, text: null, error: 'Could not generate summary' };
+        }
+        refreshBriefView(name);
+    }
+
+    function renderTabSummary(name, briefType, tabId, tabData) {
+        const key = getTabSummaryKey(name, briefType, tabId);
+        const state = tabSummaryCache[key];
+        if (!state) {
+            // Trigger async fetch (fire-and-forget)
+            setTimeout(() => fetchTabSummary(name, briefType, tabId, tabData), 0);
+            return `<div class="brief-tab-summary loading">Generating summary…</div>`;
+        }
+        if (state.loading) return `<div class="brief-tab-summary loading">Generating summary…</div>`;
+        if (state.error) return '';
+        if (state.text) return `<div class="brief-tab-summary">${state.text}</div>`;
+        return '';
+    }
+
+    function renderGeneralBrief(name) {
+        const enc = encodeURIComponent(name);
+        const state = generalBriefState[name];
+        const hasMR = getClientMRBriefs(name).length > 0;
+        const hasComp = getClientBriefs(name).length > 0;
+        if (!hasMR && !hasComp) return '';
+
+        if (!state || (!state.loading && !state.data)) {
+            return `<div class="general-brief-card" style="text-align:center;border-left-color:var(--border);padding:20px 28px;">
+                <button class="general-brief-generate" onclick="generateGeneralBrief('${enc}')" ${!hasMR||!hasComp?'disabled title="Requires both Market Research and Competitors briefs"':''}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    Generate Synthesis Brief
+                </button>
+                ${!hasMR||!hasComp?`<div style="font-size:0.7rem;color:var(--text-muted);margin-top:6px;">Requires both Market Research and Competitors briefs</div>`:''}
+            </div>`;
+        }
+
+        if (state.loading) {
+            return `<div class="general-brief-card" style="text-align:center;">
+                <div style="display:flex;gap:4px;justify-content:center;" class="brief-progress-dots">
+                    <div class="brief-progress-dot"></div><div class="brief-progress-dot"></div><div class="brief-progress-dot"></div>
+                </div>
+                <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-top:8px;">Synthesising briefs…</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Analysing both Market Research and Competitors data with Claude</div>
+            </div>`;
+        }
+
+        if (state.error) {
+            return `<div class="general-brief-card" style="border-left-color:var(--dn);">
+                <div style="font-size:0.82rem;color:var(--dn);margin-bottom:8px;">Could not generate synthesis.</div>
+                <button class="general-brief-generate" onclick="generateGeneralBrief('${enc}')">Try Again</button>
+            </div>`;
+        }
+
+        const d = state.data;
+        return `<div class="general-brief-card">
+            <div class="general-brief-header">
+                <div class="general-brief-title">
+                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="#7c3aed" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    What's Working
+                </div>
+                <button class="brief-regen-btn" onclick="generateGeneralBrief('${enc}')" title="Regenerate synthesis">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+            ${d.whatsWorking?`<div class="general-brief-section"><div class="general-brief-section-body">${d.whatsWorking}</div></div>`:''}
+            ${d.whatItMeans?`<div class="general-brief-section"><div class="general-brief-section-label">What It Means</div><div class="general-brief-section-body">${d.whatItMeans}</div></div>`:''}
+            ${d.whyItWorks?`<div class="general-brief-section"><div class="general-brief-section-label">Why It Works</div><div class="general-brief-section-body">${d.whyItWorks}</div></div>`:''}
+        </div>`;
+    }
+
+    async function generateGeneralBrief(encodedName) {
+        const name = decodeURIComponent(encodedName);
+        const hasMR = getClientMRBriefs(name).length > 0;
+        const hasComp = getClientBriefs(name).length > 0;
+        if (!hasMR || !hasComp) return;
+
+        generalBriefState[name] = { loading: true, data: null, error: null };
+        refreshBriefView(name);
+
+        const mrBrief = getActiveMRBrief(name);
+        const compBrief = getActiveBrief(name);
+        const mrData = parseMRBriefData(mrBrief);
+        const compData = parseBriefData(compBrief);
+
+        try {
+            const resp = await fetch(GENERAL_BRIEF_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientName: name, mrData, competitorsData: compData })
+            });
+            const result = await resp.json();
+            generalBriefState[name] = { loading: false, data: result, error: null };
+        } catch (e) {
+            console.warn('[SyncView] General brief error:', e);
+            generalBriefState[name] = { loading: false, data: null, error: 'Failed to generate synthesis' };
+        }
+        refreshBriefView(name);
+    }
 
     function getPeriodKey(c,p){return c+'__'+p;}
     function getActivePeriod(c,p){return activePeriods[getPeriodKey(c,p)]||'week';}
@@ -1147,12 +1314,10 @@
             <button class="brief-cat-btn ${section==='market'?'active':''}" onclick="setActiveBriefSection('${enc}','market')">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12M8 2a6 6 0 0 0 0 12M2 8h12" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
                 Market Research
-                ${hasMR?'<span class="brief-cat-dot"></span>':''}
             </button>
             <button class="brief-cat-btn ${section==='competitors'?'active':''}" onclick="setActiveBriefSection('${enc}','competitors')">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/></svg>
                 Competitors
-                ${hasComp?'<span class="brief-cat-dot"></span>':''}
             </button>
         </div>`;
 
@@ -1169,7 +1334,7 @@
             }
         }
 
-        return `<div>${categoryToggle}${bodyContent}</div>`;
+        return `<div>${categoryToggle}${renderGeneralBrief(name)}${bodyContent}</div>`;
     }
 
     function renderMRBriefContent(name){
@@ -1282,12 +1447,12 @@
         const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveMRBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
 
         let tabContent='';
-        if(tab==='overview')tabContent=renderMRTab_overview(data);
-        else if(tab==='landscape')tabContent=renderMRTab_landscape(data);
-        else if(tab==='topics')tabContent=renderMRTab_topics(data);
-        else if(tab==='hooks')tabContent=renderMRTab_hooks(data);
-        else if(tab==='angles')tabContent=renderMRTab_angles(data);
-        else if(tab==='gap')tabContent=renderMRTab_gap(data);
+        if(tab==='overview')tabContent=renderMRTab_overview(data,name);
+        else if(tab==='landscape')tabContent=renderMRTab_landscape(data,name);
+        else if(tab==='topics')tabContent=renderMRTab_topics(data,name);
+        else if(tab==='hooks')tabContent=renderMRTab_hooks(data,name);
+        else if(tab==='angles')tabContent=renderMRTab_angles(data,name);
+        else if(tab==='gap')tabContent=renderMRTab_gap(data,name);
         else if(tab==='sources')tabContent=renderMRTab_sources(data);
 
         const statChips=[
@@ -1300,11 +1465,15 @@
         return`<div class="brief-wrap">
             <div class="brief-meta-bar">
                 <div class="brief-meta-left">
-                    <span class="brief-meta-eyebrow">Market Research Brief</span>
-                    <span class="brief-meta-date">${data.clientName||name} · ${briefDate}</span>
-                    ${statChips?`<div class="brief-methodology-bar" style="margin:4px 0 0;">${statChips}</div>`:''}
+                    ${statChips?`<div class="brief-methodology-bar" style="margin:0;">${statChips}</div>`:''}
+                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                 </div>
-                <div class="brief-meta-right">${dateSelector}</div>
+                <div class="brief-meta-right">
+                    ${dateSelector}
+                    <button class="brief-regen-btn" onclick="openMRKeywordPanel('${enc}')" title="Regenerate market research brief">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                </div>
             </div>
             ${tabBar}
             ${tabContent}
@@ -1345,15 +1514,19 @@
         const enc=encodeURIComponent(name);
         const tab=activeBriefTab[name]||'exec';
         const briefDate=data.date?fmtDate(data.date):(activeId?fmtIsoDate(activeId):'');
-        const accounts=(data.methodology?.accounts||[]).join(', ')||'—';
+        const accountList=data.methodology?.accounts||[];
         const totalReels=data.methodology?.totalReels||'—';
+        const compStatChips=[
+            {label:'Reels Analysed',val:totalReels},
+            ...accountList.map(a=>({label:'Competitor',val:a}))
+        ].filter(c=>c.val&&c.val!=='—').map(c=>`<div class="brief-method-chip"><span class="brief-method-chip-label">${c.label}</span><span class="brief-method-chip-val">${c.val}</span></div>`).join('');
         let dateSelector='';
         if(allBriefs.length>1){
             const opts=allBriefs.map(b=>`<option value="${b.id}" ${b.id===activeId?'selected':''}>${fmtIsoDate(b.id)}</option>`).join('');
             dateSelector=`<select class="brief-date-select" onchange="selectBriefById('${enc}',this.value)">${opts}</select>`;
         }
         const tabs=[
-            {id:'exec',label:'Executive Summary'},
+            {id:'exec',label:'Overview'},
             {id:'resonating',label:'What\'s Resonating'},
             {id:'comments',label:'Comment Intel'},
             {id:'gap',label:'The Gap'},
@@ -1362,24 +1535,22 @@
         ];
         const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
         let tabContent='';
-        if(tab==='exec')tabContent=renderBriefTab_exec(data);
-        else if(tab==='resonating')tabContent=renderBriefTab_resonating(data);
-        else if(tab==='comments')tabContent=renderBriefTab_comments(data);
-        else if(tab==='gap')tabContent=renderBriefTab_gap(data);
-        else if(tab==='hooks')tabContent=renderBriefTab_hooks(data);
+        if(tab==='exec')tabContent=renderBriefTab_exec(data,name);
+        else if(tab==='resonating')tabContent=renderBriefTab_resonating(data,name);
+        else if(tab==='comments')tabContent=renderBriefTab_comments(data,name);
+        else if(tab==='gap')tabContent=renderBriefTab_gap(data,name);
+        else if(tab==='hooks')tabContent=renderBriefTab_hooks(data,name);
         else if(tab==='sources')tabContent=renderBriefTab_sources(data);
         return `<div class="brief-wrap">
             <div class="brief-meta-bar">
                 <div class="brief-meta-left">
-                    <span class="brief-meta-eyebrow">Research Brief</span>
-                    <span class="brief-meta-date">${data.clientName||name} · ${briefDate}</span>
-                    <span class="brief-meta-sub">${totalReels} reels analysed · ${accounts}</span>
+                    ${compStatChips?`<div class="brief-methodology-bar" style="margin:0;">${compStatChips}</div>`:''}
+                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                 </div>
                 <div class="brief-meta-right">
                     ${dateSelector}
-                    <button class="brief-action-btn" onclick="generateBrief('${enc}')" title="Generate a new brief">
+                    <button class="brief-regen-btn" onclick="generateBrief('${enc}')" title="Regenerate brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        Regenerate
                     </button>
                 </div>
             </div>
@@ -1388,10 +1559,10 @@
         </div>`;
     }
 
-    function renderBriefTab_exec(data){
+    function renderBriefTab_exec(data,name){
         const s=data.executiveSummary||{};
         const priorities=Array.isArray(s.actionPriorities)?s.actionPriorities:[];
-        return `<div class="brief-exec-grid">
+        return `${renderTabSummary(name,'comp','exec',{summary:s.whatIsResonating?.substring?.(0,150)})}<div class="brief-exec-grid">
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
@@ -1399,13 +1570,13 @@
         </div>`;
     }
 
-    function renderBriefTab_resonating(data){
+    function renderBriefTab_resonating(data,name){
         const items=Array.isArray(data.resonating)?data.resonating:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','resonating',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
     }
 
-    function renderBriefTab_comments(data){
+    function renderBriefTab_comments(data,name){
         const ci=data.commentIntelligence||{};
         const topComments=Array.isArray(ci.topComments)?ci.topComments:[];
         const patterns=Array.isArray(ci.patterns)?ci.patterns:[];
@@ -1417,19 +1588,19 @@
             html+=`<div class="brief-section-header" style="margin-top:24px;">Comment Patterns</div><div class="brief-cards-grid brief-patterns-grid">${patterns.map(p=>`<div class="brief-pattern-card"><div class="brief-pattern-label">${p.label||'—'}</div><div class="brief-pattern-body">${p.pattern||''}</div>${p.action?`<div class="brief-pattern-action">→ ${p.action}</div>`:''}</div>`).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No comment intelligence data.</div>`;
-        return html;
+        return renderTabSummary(name,'comp','comments',{commentsCount:topComments.length,patternsCount:patterns.length})+html;
     }
 
-    function renderBriefTab_gap(data){
+    function renderBriefTab_gap(data,name){
         const items=Array.isArray(data.theGap)?data.theGap:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','gap',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
     }
 
-    function renderBriefTab_hooks(data){
+    function renderBriefTab_hooks(data,name){
         const items=Array.isArray(data.hookAnalysis)?data.hookAnalysis:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
-        return`<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','hooks',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_sources(data){
@@ -1457,10 +1628,10 @@
     const _mrHookBadge=(type)=>type?`<span class="mr-hook-type-badge">${type}</span>`:'';
     const _mrForClient=(text)=>text?`<div class="mr-for-client"><span class="mr-for-client-label">For this client</span>${text}</div>`:'';
 
-    function renderMRTab_overview(data){
+    function renderMRTab_overview(data,name){
         const summary=data.executiveSummary||'';
         if(!summary)return _mrEmpty('No executive summary available.');
-        return`<div class="mr-overview-wrap">
+        return`<div class="mr-overview-wrap">${renderTabSummary(name,'mr','overview',{summary:summary?.substring?.(0,200)})}
             <div class="mr-summary-card">
                 <div class="mr-summary-eyebrow">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
@@ -1471,10 +1642,10 @@
         </div>`;
     }
 
-    function renderMRTab_landscape(data){
+    function renderMRTab_landscape(data,name){
         const items=Array.isArray(data.landscapeAnalysis)?data.landscapeAnalysis:[];
         if(!items.length)return _mrEmpty();
-        return`<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','landscape',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <span class="brief-card-badge">📊 Landscape</span>
                 <div class="brief-card-label">${item.label||'—'}</div>
@@ -1485,10 +1656,10 @@
             </div>`).join('')}</div>`;
     }
 
-    function renderMRTab_topics(data){
+    function renderMRTab_topics(data,name){
         const items=Array.isArray(data.topicClusters)?data.topicClusters:[];
         if(!items.length)return _mrEmpty();
-        return`<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','topics',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
                     <span class="brief-card-badge">🗂 Cluster</span>
@@ -1502,10 +1673,10 @@
             </div>`).join('')}</div>`;
     }
 
-    function renderMRTab_hooks(data){
+    function renderMRTab_hooks(data,name){
         const items=Array.isArray(data.hookAnalysis)?data.hookAnalysis:[];
         if(!items.length)return _mrEmpty('No hook analysis data.');
-        return`<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','hooks',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="hook-card">
                 <div class="hook-card-top">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
@@ -1521,10 +1692,10 @@
             </div>`).join('')}</div>`;
     }
 
-    function renderMRTab_angles(data){
+    function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
         if(!items.length)return _mrEmpty('No filming angles data.');
-        return`<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','angles',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card" style="gap:12px;">
                 <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
                     <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
@@ -1536,10 +1707,10 @@
             </div>`).join('')}</div>`;
     }
 
-    function renderMRTab_gap(data){
+    function renderMRTab_gap(data,name){
         const items=Array.isArray(data.theGap)?data.theGap:[];
         if(!items.length)return _mrEmpty();
-        return`<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','gap',{count:items.length})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card mr-gap-card">
                 <span class="mr-gap-badge">🕳 Gap</span>
                 <div class="brief-card-label">${item.label||'—'}</div>

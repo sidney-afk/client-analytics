@@ -968,7 +968,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: name, mrData, competitorsData: compData })
             });
+            console.log('[SyncView] General brief response status:', resp.status, resp.statusText);
             const text = await resp.text();
+            console.log('[SyncView] General brief response body:', text.substring(0, 500));
             if (!text) throw new Error('Webhook returned empty response — make sure the n8n workflow has a "Respond to Webhook" node at the end');
             const result = JSON.parse(text);
             generalBriefState[name] = { loading: false, data: result, error: null };

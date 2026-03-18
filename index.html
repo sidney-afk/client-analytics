@@ -872,7 +872,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: name, briefType, tabId, tabData })
             });
-            const result = await resp.json();
+            const text = await resp.text();
+            if (!text) { tabSummaryCache[key] = { loading: false, text: null, error: 'Empty response' }; refreshBriefView(name); return; }
+            const result = JSON.parse(text);
             tabSummaryCache[key] = { loading: false, text: result.summary || '', error: null };
         } catch (e) {
             console.warn('[SyncView] Tab summary error:', e);
@@ -966,7 +968,9 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: name, mrData, competitorsData: compData })
             });
-            const result = await resp.json();
+            const text = await resp.text();
+            if (!text) throw new Error('Webhook returned empty response — make sure the n8n workflow has a "Respond to Webhook" node at the end');
+            const result = JSON.parse(text);
             generalBriefState[name] = { loading: false, data: result, error: null };
         } catch (e) {
             console.warn('[SyncView] General brief error:', e);

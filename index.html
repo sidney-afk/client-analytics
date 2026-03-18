@@ -884,7 +884,7 @@
     let activeMRBriefId = {};
     let mrKeywordState = {};
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
-    let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v2') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null }; } return r; } catch { return {}; } })();
+    let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v3') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null }; } return r; } catch { return {}; } })();
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -950,6 +950,41 @@
         tabs.forEach(tabId => setTimeout(() => fetchTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)), 0));
     }
 
+    function extractBullets(d) {
+        // Strategy 1: direct bullets array
+        if (Array.isArray(d?.bullets)) return d.bullets.filter(x => typeof x === 'string');
+        // Strategy 2: nested under .json (n8n sometimes wraps)
+        if (Array.isArray(d?.json?.bullets)) return d.json.bullets.filter(x => typeof x === 'string');
+        // Strategy 3: whatsWorking is a JSON string containing bullets
+        if (typeof d?.whatsWorking === 'string') {
+            try { const p = JSON.parse(d.whatsWorking); if (Array.isArray(p.bullets)) return p.bullets.filter(x => typeof x === 'string'); if (Array.isArray(p)) return p.filter(x => typeof x === 'string'); } catch {}
+        }
+        // Strategy 4: entire data might be double-stringified
+        if (typeof d === 'string') {
+            try { const p = JSON.parse(d); return extractBullets(p); } catch {}
+        }
+        // Strategy 5: look for any string that contains a JSON array with bullets
+        try {
+            const s = JSON.stringify(d);
+            // Find "bullets":[...] pattern
+            const m = s.match(/"bullets"\s*:\s*(\[[\s\S]*?\])/);
+            if (m) { const arr = JSON.parse(m[1]); if (Array.isArray(arr)) return arr.filter(x => typeof x === 'string'); }
+        } catch {}
+        // Strategy 6: find any JSON array in stringified data
+        try {
+            const s = JSON.stringify(d);
+            const m = s.match(/\[[\s\S]*\]/);
+            if (m) { const arr = JSON.parse(m[0]); if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'string') return arr; }
+        } catch {}
+        // Strategy 7: whatsWorking as plain text fallback
+        if (typeof d?.whatsWorking === 'string' && d.whatsWorking.length > 10) return [d.whatsWorking];
+        // Strategy 8: any string value in d that looks like content
+        for (const v of Object.values(d || {})) {
+            if (typeof v === 'string' && v.length > 20 && !v.startsWith('{') && !v.startsWith('[')) return [v];
+        }
+        return ['Unable to parse synthesis. Please regenerate.'];
+    }
+
     function renderGeneralBrief(name) {
         const enc = encodeURIComponent(name);
         const state = generalBriefState[name];
@@ -985,12 +1020,8 @@
         }
 
         const d = state.data;
-        let bullets = d.bullets;
-        if (!Array.isArray(bullets)) {
-            try { bullets = JSON.parse(d.whatsWorking).bullets; } catch {}
-            if (!Array.isArray(bullets)) { try { const m = JSON.stringify(d).match(/\[[\s\S]*\]/); if (m) bullets = JSON.parse(m[0]).filter(x => typeof x === 'string'); } catch {} }
-            if (!Array.isArray(bullets)) bullets = d.whatsWorking ? [d.whatsWorking] : [];
-        }
+        let bullets = extractBullets(d);
+        console.log('[SyncView] Extracted bullets:', bullets);
         return `<div class="general-brief-card">
             <div class="general-brief-header">
                 <div class="general-brief-title">
@@ -1052,11 +1083,19 @@
             });
             console.log('[SyncView] General brief response status:', resp.status, resp.statusText);
             const text = await resp.text();
-            console.log('[SyncView] General brief response body:', text.substring(0, 500));
+            console.log('[SyncView] General brief raw response:', text.substring(0, 800));
             if (!text) throw new Error('Webhook returned empty response — make sure the n8n workflow has a "Respond to Webhook" node at the end');
-            const result = JSON.parse(text);
-            generalBriefState[name] = { loading: false, data: result, error: null };
-            try { localStorage.setItem('syncview_generalBriefState_v2', JSON.stringify(generalBriefState)); } catch {}
+            let result = JSON.parse(text);
+            // Unwrap n8n nesting: if response is [{ json: {...} }] or { json: {...} }
+            if (Array.isArray(result) && result[0]) result = result[0];
+            if (result.json) result = result.json;
+            // If result is still a string (double-stringified), parse again
+            if (typeof result === 'string') { try { result = JSON.parse(result); } catch {} }
+            // Pre-extract bullets so we store clean data
+            const bullets = extractBullets(result);
+            console.log('[SyncView] Parsed bullets:', bullets);
+            generalBriefState[name] = { loading: false, data: { bullets }, error: null };
+            try { localStorage.setItem('syncview_generalBriefState_v3', JSON.stringify(generalBriefState)); } catch {}
         } catch (e) {
             console.warn('[SyncView] General brief error:', e);
             generalBriefState[name] = { loading: false, data: null, error: 'Failed to generate synthesis' };

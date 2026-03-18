@@ -962,11 +962,36 @@
         const mrData = parseMRBriefData(mrBrief);
         const compData = parseBriefData(compBrief);
 
+        // Trim to only what the n8n workflow actually uses (Code in JavaScript3 node)
+        const trimmedMR = {
+            executiveSummary: (mrData?.executiveSummary || '').substring(0, 500),
+            landscapeAnalysis: (mrData?.landscapeAnalysis || []).slice(0, 3).map(i => ({ label: i.label || '', what: i.what || '' })),
+            topicClusters: (mrData?.topicClusters || []).slice(0, 3).map(i => ({ name: i.name || '' })),
+            hookAnalysis: (mrData?.hookAnalysis || []).slice(0, 3).map(i => ({ openingLine: i.openingLine || '' })),
+            theGap: (mrData?.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
+            filmingAngles: (mrData?.filmingAngles || []).slice(0, 3).map(i => ({ hook: i.hook || '' })),
+            totalReels: mrData?.totalReels || 0,
+        };
+        const trimmedComp = {
+            executiveSummary: {
+                whatIsResonating: (compData?.executiveSummary?.whatIsResonating || '').substring(0, 300),
+                theGap: (compData?.executiveSummary?.theGap || '').substring(0, 300),
+                hookPatterns: (compData?.executiveSummary?.hookPatterns || '').substring(0, 300),
+                actionPriorities: compData?.executiveSummary?.actionPriorities || [],
+            },
+            resonating: (compData?.resonating || []).slice(0, 3).map(i => ({ label: i.label || '' })),
+            theGap: (compData?.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
+            methodology: { accounts: compData?.methodology?.accounts || [] },
+        };
+
+        const payload = { clientName: name, mrData: trimmedMR, competitorsData: trimmedComp };
+        console.log('[SyncView] General brief payload size:', JSON.stringify(payload).length, 'bytes');
+
         try {
             const resp = await fetch(GENERAL_BRIEF_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientName: name, mrData, competitorsData: compData })
+                body: JSON.stringify(payload)
             });
             console.log('[SyncView] General brief response status:', resp.status, resp.statusText);
             const text = await resp.text();

@@ -488,7 +488,7 @@
         }
         .brief-meta-date { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
         .brief-meta-sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 1px; }
-        .brief-meta-subtle { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; margin-top: 4px; }
+        .brief-meta-subtle { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; opacity: 0.7; }
         .brief-regen-btn {
             display: inline-flex; align-items: center; justify-content: center;
             width: 32px; height: 32px; border-radius: 8px;
@@ -516,13 +516,17 @@
             font-size: 0.96rem; font-weight: 700; color: var(--text-primary);
             letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px;
         }
-        .general-brief-section { margin-bottom: 14px; }
-        .general-brief-section-label {
-            font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
-            letter-spacing: 0.1em; color: #7c3aed; margin-bottom: 6px;
+        .general-brief-bullets {
+            margin: 0; padding: 0 0 0 18px;
+            list-style: none;
         }
-        .general-brief-section-body {
-            font-size: 0.85rem; color: var(--text-secondary); line-height: 1.7;
+        .general-brief-bullets li {
+            font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6;
+            padding: 4px 0; position: relative; padding-left: 6px;
+        }
+        .general-brief-bullets li::before {
+            content: '▸'; position: absolute; left: -16px;
+            color: #7c3aed; font-size: 0.7rem; top: 5px;
         }
         .general-brief-generate {
             display: inline-flex; align-items: center; gap: 7px;
@@ -932,19 +936,19 @@
         }
 
         const d = state.data;
+        // Support new bullets format and legacy whatsWorking/whatItMeans/whyItWorks
+        const bullets = d.bullets || (d.whatsWorking ? [d.whatsWorking, d.whatItMeans, d.whyItWorks].filter(Boolean) : []);
         return `<div class="general-brief-card">
             <div class="general-brief-header">
                 <div class="general-brief-title">
                     <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="#7c3aed" stroke-width="1.3" stroke-linejoin="round"/></svg>
-                    What's Working
+                    Synthesis
                 </div>
                 <button class="brief-regen-btn" onclick="generateGeneralBrief('${enc}')" title="Regenerate synthesis">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </button>
             </div>
-            ${d.whatsWorking?`<div class="general-brief-section"><div class="general-brief-section-body">${d.whatsWorking}</div></div>`:''}
-            ${d.whatItMeans?`<div class="general-brief-section"><div class="general-brief-section-label">What It Means</div><div class="general-brief-section-body">${d.whatItMeans}</div></div>`:''}
-            ${d.whyItWorks?`<div class="general-brief-section"><div class="general-brief-section-label">Why It Works</div><div class="general-brief-section-body">${d.whyItWorks}</div></div>`:''}
+            <ul class="general-brief-bullets">${bullets.map(b=>`<li>${b}</li>`).join('')}</ul>
         </div>`;
     }
 
@@ -1365,7 +1369,7 @@
             }
         }
 
-        return `<div>${categoryToggle}${renderGeneralBrief(name)}${bodyContent}</div>`;
+        return `<div>${renderGeneralBrief(name)}${categoryToggle}${bodyContent}</div>`;
     }
 
     function renderMRBriefContent(name){
@@ -1497,9 +1501,9 @@
             <div class="brief-meta-bar">
                 <div class="brief-meta-left">
                     ${statChips?`<div class="brief-methodology-bar" style="margin:0;">${statChips}</div>`:''}
-                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                 </div>
                 <div class="brief-meta-right">
+                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                     ${dateSelector}
                     <button class="brief-regen-btn" onclick="openMRKeywordPanel('${enc}')" title="Regenerate market research brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -1576,9 +1580,9 @@
             <div class="brief-meta-bar">
                 <div class="brief-meta-left">
                     ${compStatChips?`<div class="brief-methodology-bar" style="margin:0;">${compStatChips}</div>`:''}
-                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                 </div>
                 <div class="brief-meta-right">
+                    <span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span>
                     ${dateSelector}
                     <button class="brief-regen-btn" onclick="generateBrief('${enc}')" title="Regenerate brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>

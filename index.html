@@ -1549,7 +1549,8 @@
 
     function renderMRBriefContent(name){
         const allBriefs=getClientMRBriefs(name);
-        if(!allBriefs.length){return renderMRBriefGeneratePrompt(name);}
+        const state=mrKeywordState[name];
+        if(!allBriefs.length||state?.showPanel||state?.submitted){return renderMRBriefGeneratePrompt(name);}
         const activeBrief=getActiveMRBrief(name);
         const data=parseMRBriefData(activeBrief);
         if(!data){return`<div class="error-state">Could not parse market research brief. The data may be malformed.</div>`;}

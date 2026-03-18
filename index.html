@@ -827,6 +827,81 @@
             margin-top: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);
         }
         .brief-section-header:first-child { margin-top: 0; }
+
+        /* Video Production Form */
+        .vp-section { margin-top: 48px; }
+        .vp-section-title {
+            font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em;
+            color: var(--text-primary); margin-bottom: 20px; text-align: center;
+        }
+        .vp-form-card {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 16px; padding: 32px; max-width: 780px; margin: 0 auto;
+        }
+        .vp-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .vp-field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 200px; }
+        .vp-label {
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-secondary);
+        }
+        .vp-input, .vp-select, .vp-textarea {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85rem; padding: 10px 14px;
+            border: 1px solid var(--border); border-radius: 9px;
+            background: var(--bg); color: var(--text-primary);
+            outline: none; transition: border-color 0.15s;
+        }
+        .vp-input:focus, .vp-select:focus, .vp-textarea:focus {
+            border-color: var(--text-secondary);
+        }
+        .vp-textarea { resize: vertical; min-height: 80px; }
+        .vp-video-block {
+            background: var(--bg); border: 1px solid var(--border-light);
+            border-radius: 12px; padding: 18px 20px; margin-bottom: 12px;
+        }
+        .vp-video-header {
+            font-size: 0.78rem; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;
+        }
+        .vp-remove-btn {
+            background: none; border: none; cursor: pointer;
+            color: var(--text-muted); font-size: 0.72rem; font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            padding: 3px 8px; border-radius: 6px; transition: all 0.15s;
+        }
+        .vp-remove-btn:hover { color: var(--dn); background: var(--dn-bg); }
+        .vp-video-fields { display: flex; gap: 10px; flex-wrap: wrap; }
+        .vp-video-fields .vp-field { min-width: 160px; }
+        .vp-add-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 9px 18px; border-radius: 9px; margin-top: 4px;
+            background: var(--bg); border: 1px dashed var(--border);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.15s;
+        }
+        .vp-add-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+        .vp-submit-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 13px 32px; border-radius: 10px; margin-top: 20px;
+            background: var(--text-primary); color: var(--white);
+            border: none; font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.88rem; font-weight: 700; cursor: pointer;
+            transition: all 0.15s; letter-spacing: -0.01em;
+        }
+        .vp-submit-btn:hover { background: #333; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.15); }
+        .vp-submit-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+        .vp-submit-row { text-align: center; }
+        .vp-toast {
+            position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%);
+            padding: 12px 28px; border-radius: 10px; font-size: 0.84rem; font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif; z-index: 999;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.15); opacity: 0; transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        .vp-toast.success { background: var(--up); color: #fff; }
+        .vp-toast.error { background: var(--dn); color: #fff; }
+        .vp-toast.show { opacity: 1; }
     </style>
 </head>
 <body>
@@ -846,6 +921,7 @@
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </div>
+    <a href="#video-production" onclick="event.preventDefault();document.getElementById('videoProductionSection')?.scrollIntoView({behavior:'smooth'})" style="font-size:0.8rem;font-weight:600;color:var(--text-secondary);text-decoration:none;padding:6px 14px;border-radius:7px;border:1px solid var(--border);background:var(--white);transition:all 0.15s;cursor:pointer;" onmouseover="this.style.borderColor='var(--text-secondary)'" onmouseout="this.style.borderColor='var(--border)'">Video Production</a>
     <span class="header-meta" id="lastUpdated"></span>
 </header>
 <main class="main" id="mainWrap">
@@ -910,6 +986,7 @@
     const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Briefs`;
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
+    const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null;
     let briefs = [];
@@ -2269,11 +2346,114 @@
         return`<div class="client-view">${toggleHtml}${analyticsContent}</div>`;
     }
 
+    let vpVideoCount = 12;
+    function vpBuildVideoBlock(i) {
+        return `<div class="vp-video-block" id="vpVideo${i}">
+            <div class="vp-video-header"><span>Video ${i}</span>${i > 1 ? `<button class="vp-remove-btn" onclick="vpRemoveVideo(${i})">Remove</button>` : ''}</div>
+            <div class="vp-video-fields">
+                <div class="vp-field"><label class="vp-label">Main Camera</label><input class="vp-input" type="url" placeholder="Paste link…" data-video="${i}" data-type="main_cam"></div>
+                <div class="vp-field"><label class="vp-label">Side Camera</label><input class="vp-input" type="url" placeholder="Paste link…" data-video="${i}" data-type="side_cam"></div>
+                <div class="vp-field"><label class="vp-label">Audio</label><input class="vp-input" type="url" placeholder="Paste link…" data-video="${i}" data-type="audio"></div>
+            </div>
+        </div>`;
+    }
+    function vpRenderVideos() {
+        let html = '';
+        for (let i = 1; i <= vpVideoCount; i++) html += vpBuildVideoBlock(i);
+        return html;
+    }
+    function vpAddVideo() {
+        vpVideoCount++;
+        const container = document.getElementById('vpVideosContainer');
+        if (container) container.insertAdjacentHTML('beforeend', vpBuildVideoBlock(vpVideoCount));
+    }
+    function vpRemoveVideo(i) {
+        const el = document.getElementById('vpVideo' + i);
+        if (el) el.remove();
+    }
+    function vpShowToast(msg, type) {
+        let toast = document.getElementById('vpToast');
+        if (!toast) { toast = document.createElement('div'); toast.id = 'vpToast'; toast.className = 'vp-toast'; document.body.appendChild(toast); }
+        toast.textContent = msg;
+        toast.className = 'vp-toast ' + type;
+        requestAnimationFrame(() => { toast.classList.add('show'); });
+        setTimeout(() => { toast.classList.remove('show'); }, 3500);
+    }
+    async function vpSubmitForm() {
+        const clientName = document.getElementById('vpClient')?.value;
+        const date = document.getElementById('vpDate')?.value;
+        const notes = document.getElementById('vpNotes')?.value || '';
+        if (!clientName) { vpShowToast('Please select a client.', 'error'); return; }
+        if (!date) { vpShowToast('Please select a date.', 'error'); return; }
+        const videoBlocks = document.querySelectorAll('#vpVideosContainer .vp-video-block');
+        const videos = [];
+        videoBlocks.forEach(block => {
+            const inputs = block.querySelectorAll('input[data-video]');
+            const vid = {};
+            inputs.forEach(inp => { vid[inp.dataset.type] = inp.value.trim(); });
+            const num = inputs[0]?.dataset.video || '';
+            if (vid.main_cam || vid.side_cam || vid.audio) {
+                videos.push({ number: parseInt(num), main_cam: vid.main_cam || '', side_cam: vid.side_cam || '', audio: vid.audio || '' });
+            }
+        });
+        if (!videos.length) { vpShowToast('Please add at least one video link.', 'error'); return; }
+        const btn = document.getElementById('vpSubmitBtn');
+        btn.disabled = true; btn.textContent = 'Submitting…';
+        try {
+            const resp = await fetch(VIDEO_FORM_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client_name: clientName, date, notes, videos,
+                    team_id: 'VID',
+                    title: clientName + ' \u00b7 ' + new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                })
+            });
+            if (!resp.ok) throw new Error('Request failed');
+            vpShowToast('Video production issue created!', 'success');
+            videoBlocks.forEach(block => { block.querySelectorAll('input').forEach(inp => { inp.value = ''; }); });
+            document.getElementById('vpNotes').value = '';
+        } catch (e) {
+            vpShowToast('Failed to submit. Please try again.', 'error');
+        }
+        btn.disabled = false; btn.textContent = 'Create Linear Issue';
+    }
+    function vpSectionHTML() {
+        const clientNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const today = new Date().toISOString().split('T')[0];
+        const options = clientNames.map(n => `<option value="${n}">${n}</option>`).join('');
+        return `<div class="vp-section" id="videoProductionSection">
+            <div class="vp-section-title">Video Production</div>
+            <div class="vp-form-card">
+                <div class="vp-row">
+                    <div class="vp-field">
+                        <label class="vp-label">Client</label>
+                        <select class="vp-select" id="vpClient"><option value="">Select client…</option>${options}</select>
+                    </div>
+                    <div class="vp-field">
+                        <label class="vp-label">Date</label>
+                        <input class="vp-input" type="date" id="vpDate" value="${today}">
+                    </div>
+                </div>
+                <div id="vpVideosContainer">${vpRenderVideos()}</div>
+                <button class="vp-add-btn" onclick="vpAddVideo()">+ Add Video</button>
+                <div style="margin-top:20px;">
+                    <div class="vp-field">
+                        <label class="vp-label">Notes</label>
+                        <textarea class="vp-textarea" id="vpNotes" placeholder="Additional notes for this session…"></textarea>
+                    </div>
+                </div>
+                <div class="vp-submit-row">
+                    <button class="vp-submit-btn" id="vpSubmitBtn" onclick="vpSubmitForm()">Create Linear Issue</button>
+                </div>
+            </div>
+        </div>`;
+    }
+
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();
         const deltaMap=gainPeriod==='week'?(()=>{const m={};Object.keys(prevMap).forEach(name=>{const hist=clientHistory(name);m[name]=getWeekRow(hist);});return m;})():prevMap;
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
-        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
+        if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}${vpSectionHTML()}</div>`;
         return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
         const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
         const nameCol=sortCol==='client_name'?`<span style="display:inline-flex;align-items:center;gap:3px;">Client <span style="font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span></span>`:'Client';
@@ -2314,7 +2494,7 @@
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
-        }).join('')}</tbody></table></div>`;
+        }).join('')}</tbody></table>${vpSectionHTML()}</div>`;
     }
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}

@@ -896,7 +896,7 @@
         document.getElementById('confirmMsg').textContent = msg;
         document.getElementById('confirmOverlay').classList.add('active');
         _confirmCb = onYes;
-        document.getElementById('confirmYes').onclick = () => { dismissConfirm(); if (_confirmCb) _confirmCb(); };
+        document.getElementById('confirmYes').onclick = () => { const cb = _confirmCb; dismissConfirm(); if (cb) cb(); };
     }
     function dismissConfirm() {
         document.getElementById('confirmOverlay').classList.remove('active');

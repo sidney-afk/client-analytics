@@ -1554,11 +1554,19 @@
         const name=decodeURIComponent(encodedName);
         clientViewTab[name]=tab;
         try { localStorage.setItem('syncview_clientViewTab', JSON.stringify(clientViewTab)); } catch {}
+        if(tab==='analytics'&&currentNav==='brief'){
+            currentNav='home';localStorage.setItem(NAV_KEY,'home');
+            document.getElementById('navHome').classList.add('active');
+            document.getElementById('navBrief').classList.remove('active');
+        } else if(tab==='brief'&&currentNav==='home'){
+            currentNav='brief';localStorage.setItem(NAV_KEY,'brief');
+            document.getElementById('navHome').classList.remove('active');
+            document.getElementById('navBrief').classList.add('active');
+        }
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
         if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
-        const heroEl=document.querySelector('.detail-name');
-        if(heroEl){const y=heroEl.getBoundingClientRect().top+window.scrollY-72;window.scrollTo({top:Math.max(0,y),behavior:'instant'});}
+        window.scrollTo({top:0,behavior:'instant'});
         else{window.scrollTo({top:0,behavior:'instant'});}
     }
 
@@ -2404,7 +2412,7 @@
             if(!existingBack){
                 const btn=document.createElement('button');
                 btn.className='back-btn';btn.innerHTML='← All Clients';
-                btn.onclick=()=>{ if(currentNav==='brief'){navTo('brief');}else{history.back();} };
+                btn.onclick=()=>{ if(currentNav==='brief'){navTo('brief');}else{navTo('home');} };
                 titleRow.insertBefore(btn,titleRow.firstChild);
             }
         } else if(!clientOnly){
@@ -2485,7 +2493,7 @@
     }
     function renderPinSelectorList(){const list=document.getElementById('pinSelectorList');if(!list)return;const pins=getPins();const allNames=[...new Set(allData.map(r=>r.client_name))].sort();list.innerHTML='';allNames.forEach(name=>{const isPinned=pins.includes(name);const disabled=!isPinned&&pins.length>=MAX_PINS;const item=document.createElement('div');item.className='pin-selector-item'+(isPinned?' pinned':'');if(disabled)item.style.cssText='opacity:0.35;cursor:default;';const nameSpan=document.createElement('span');nameSpan.textContent=name;const check=document.createElement('span');check.className='pin-check';if(isPinned)check.innerHTML=CHECK_SVG;item.appendChild(nameSpan);item.appendChild(check);if(!disabled)item.onclick=(e)=>{e.stopPropagation();togglePin(name);};list.appendChild(item);});}
 
-    function goHome(){navTo('home');history.pushState({},'',location.pathname+location.search);updateClientTrigger('All Clients');render('all');}
+    function goHome(){navTo('home');}
 
     /* ── Linear View ── */
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
@@ -2559,13 +2567,11 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
-            const hash = decodeURIComponent(location.hash.replace('#', ''));
-            const clientNames = [...new Set(allData.map(r => r.client_name))];
-            if (hash && clientNames.includes(hash)) {
-                render(hash, false);
-            } else {
-                render('all');
+            if (location.hash) {
+                history.pushState({}, '', location.pathname + location.search);
             }
+            updateClientTrigger('All Clients');
+            render('all');
         }
     }
 

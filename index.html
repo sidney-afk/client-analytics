@@ -1023,6 +1023,7 @@
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
     let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v5') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
+    let pendingBriefs = (() => { try { return JSON.parse(localStorage.getItem('syncview_pendingBriefs_v1') || '{}'); } catch { return {}; } })();
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -1692,7 +1693,12 @@
         }
         state.submitting=false;
         state.submitted=true;
+        const triggerTime=new Date();
+        pendingBriefs[name]={triggerISO:triggerTime.toISOString()};
+        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+        briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
         refreshBriefView(name);
+        startBriefPolling(name,triggerTime);
     }
 
     async function generateBrief(encodedName){
@@ -1716,6 +1722,15 @@
     function startBriefPolling(name,triggerTime){
         stopBriefPolling(name);
         async function poll(){
+            const elapsed=new Date()-triggerTime;
+            if(elapsed>30*60*1000){
+                stopBriefPolling(name);
+                delete pendingBriefs[name];
+                try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+                briefPollingState[name]={loading:false,error:'Brief generation timed out. Please try again.'};
+                refreshBriefView(name);
+                return;
+            }
             await fetchBriefs();
             const newBrief=briefs.find(b=>
                 b.client_name===name&&b.raw_json&&
@@ -1723,6 +1738,8 @@
             );
             if(newBrief){
                 stopBriefPolling(name);
+                delete pendingBriefs[name];
+                try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
                 briefPollingState[name]={loading:false};
                 refreshBriefView(name);
                 return;
@@ -1730,8 +1747,8 @@
             briefPollingState[name]={...briefPollingState[name],lastChecked:new Date()};
             const el=document.getElementById('briefPollMsg_'+encodeURIComponent(name));
             if(el){
-                const elapsed=Math.round((new Date()-triggerTime)/60000);
-                el.textContent=`Checking every 30s · ${elapsed} min elapsed`;
+                const mins=Math.round(elapsed/60000);
+                el.textContent=`Checking every 30s · ${mins} min elapsed`;
             }
         }
         const intervalId=setInterval(poll,30000);
@@ -1784,6 +1801,7 @@
     function renderBriefContent(name){
         const ps=briefPollingState[name];
         if(ps?.loading){return renderBriefLoading(name,ps);}
+        if(ps?.error){return renderBriefError(name,ps.error);}
 
         const enc=encodeURIComponent(name);
         const section=activeBriefSection[name]||'market';
@@ -2046,6 +2064,19 @@
             <div class="brief-loading-sub">Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
             <button onclick="stopBriefPolling('${name}');briefPollingState['${name}']={loading:false};refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
+        </div>`;
+    }
+
+    function renderBriefError(name,msg){
+        const enc=encodeURIComponent(name);
+        return`<div class="brief-generate-prompt">
+            <div class="brief-prompt-icon" style="font-size:1.4rem;">⚠️</div>
+            <div class="brief-prompt-title" style="color:var(--text-primary);">Generation failed</div>
+            <div class="brief-prompt-sub">${msg||'Something went wrong. Please try again.'}</div>
+            <button class="brief-gen-btn-lg" onclick="briefPollingState['${name}']={loading:false};delete pendingBriefs['${name}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}refreshBriefView('${name}')">
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8h14M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Try Again
+            </button>
         </div>`;
     }
 
@@ -3421,6 +3452,14 @@
         async function init(){
         try{
             await fetchAll();
+            // Resume polling for any pending briefs (persists across page refresh)
+            Object.entries(pendingBriefs).forEach(([name,{triggerISO}])=>{
+                const triggerTime=new Date(triggerISO);
+                const alreadyDone=briefs.find(b=>b.client_name===name&&b.raw_json&&new Date(b.id)>triggerTime);
+                if(alreadyDone){delete pendingBriefs[name];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}return;}
+                briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+                startBriefPolling(name,triggerTime);
+            });
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
             if(dates[0])document.getElementById('lastUpdated').textContent=`Updated ${fmtDate(dates[0])}`;
             const clientNames=[...new Set(allData.map(r=>r.client_name))];

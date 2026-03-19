@@ -1549,7 +1549,10 @@
     }
     function _initMRKeywordState(name){
         if(!mrKeywordState[name]){
-            mrKeywordState[name]={showPanel:false,keywords:['','','',''],submitting:false,submitted:false,error:null};
+            const raw=clientMap[name]?.specific_keywords||'';
+            const fromSheet=raw.split(',').map(k=>k.trim()).filter(Boolean).slice(0,8);
+            const keywords=Array.from({length:8},(_,i)=>fromSheet[i]||'');
+            mrKeywordState[name]={showPanel:false,keywords,submitting:false,submitted:false,error:null};
         }
     }
     function _captureMRKeywordValues(name){
@@ -1864,8 +1867,11 @@
             {label:'TikTok',val:ttIn},
             {label:'Transcribed',val:transcribed},
         ].filter(c=>c.val).map(c=>`<div class="brief-method-chip"><span class="brief-method-chip-label">${c.label}</span><span class="brief-method-chip-val">${c.val}</span></div>`).join('');
+        const keywordChips=Array.isArray(data.keywords)&&data.keywords.length
+            ?data.keywords.map(k=>`<div class="brief-method-chip"><span class="brief-method-chip-label">Keyword</span><span class="brief-method-chip-val">${k}</span></div>`).join('')
+            :'';
 
-        const infoChips=statChips?`<div class="brief-methodology-bar" style="margin:0;">${statChips}</div>`:'';
+        const infoChips=(statChips||keywordChips)?`<div class="brief-methodology-bar" style="margin:0;">${statChips}${keywordChips}</div>`:'';
         return`<div class="brief-wrap">
             <div class="brief-tab-header">
                 ${tabBar}

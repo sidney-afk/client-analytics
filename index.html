@@ -1567,7 +1567,6 @@
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
         if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
         window.scrollTo({top:0,behavior:'instant'});
-        else{window.scrollTo({top:0,behavior:'instant'});}
     }
 
     function setActiveBriefTab(encodedName,tab){

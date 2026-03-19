@@ -554,6 +554,11 @@
             content: '▸'; position: absolute; left: -16px;
             color: var(--text-muted); font-size: 0.7rem; top: 6px;
         }
+        .general-brief-sections { display: flex; flex-direction: column; gap: 14px; }
+        .general-brief-section { display: flex; gap: 10px; align-items: flex-start; }
+        .general-brief-section-icon { flex-shrink: 0; width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; margin-top: 1px; }
+        .general-brief-section-label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 3px; }
+        .general-brief-section-body { font-size: 0.82rem; color: var(--text-primary); line-height: 1.6; }
         .general-brief-generate {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 9px 18px; border-radius: 9px;
@@ -1014,7 +1019,7 @@
     let activeMRBriefId = {};
     let mrKeywordState = {};
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
-    let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v4') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
+    let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v5') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
@@ -1166,6 +1171,16 @@
         return ['Unable to parse synthesis. Please regenerate.'];
     }
 
+    function parseSynthesis(d) {
+        // New format: 3 structured sections
+        if (d?.overviewSynthesis || d?.hookSynthesis || d?.landscapeSynthesis) {
+            return { type: 'sections', overviewSynthesis: d.overviewSynthesis || '', hookSynthesis: d.hookSynthesis || '', landscapeSynthesis: d.landscapeSynthesis || '' };
+        }
+        // Old format fallback: bullets
+        const bullets = extractBullets(d);
+        return { type: 'bullets', bullets };
+    }
+
     function renderGeneralBrief(name) {
         const enc = encodeURIComponent(name);
         const state = generalBriefState[name];
@@ -1203,14 +1218,34 @@
         }
 
         const d = state.data;
-        let bullets = extractBullets(d);
-        console.log('[SyncView] Extracted bullets:', bullets);
+        const synthesis = parseSynthesis(d);
+        console.log('[SyncView] Parsed synthesis:', synthesis);
 
         // Build "based on" attribution
         let basedOnParts = [];
         if (state.mrBriefId) basedOnParts.push('Market Research (' + fmtIsoDate(state.mrBriefId) + ')');
         if (state.compBriefId) basedOnParts.push('Competitors (' + fmtIsoDate(state.compBriefId) + ')');
         const basedOn = basedOnParts.length ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;">Based on: ${basedOnParts.join(' · ')}</div>` : '';
+
+        let contentHtml;
+        if (synthesis.type === 'sections') {
+            contentHtml = `<div class="general-brief-sections">
+                ${synthesis.overviewSynthesis ? `<div class="general-brief-section">
+                    <div class="general-brief-section-icon" style="background:#f0e6ff;color:#7c3aed;">✦</div>
+                    <div><div class="general-brief-section-label">Overview</div><div class="general-brief-section-body">${synthesis.overviewSynthesis}</div></div>
+                </div>` : ''}
+                ${synthesis.hookSynthesis ? `<div class="general-brief-section">
+                    <div class="general-brief-section-icon" style="background:#fef3c7;color:#d97706;">🪝</div>
+                    <div><div class="general-brief-section-label">Hooks</div><div class="general-brief-section-body">${synthesis.hookSynthesis}</div></div>
+                </div>` : ''}
+                ${synthesis.landscapeSynthesis ? `<div class="general-brief-section">
+                    <div class="general-brief-section-icon" style="background:#dbeafe;color:#2563eb;">📊</div>
+                    <div><div class="general-brief-section-label">Landscape</div><div class="general-brief-section-body">${synthesis.landscapeSynthesis}</div></div>
+                </div>` : ''}
+            </div>`;
+        } else {
+            contentHtml = `<ul class="general-brief-bullets">${synthesis.bullets.map(b=>`<li>${b}</li>`).join('')}</ul>`;
+        }
 
         return `<div class="general-brief-card">
             <div class="general-brief-header">
@@ -1219,7 +1254,7 @@
                     Synthesis
                 </div>
             </div>
-            <ul class="general-brief-bullets">${bullets.map(b=>`<li>${b}</li>`).join('')}</ul>
+            ${contentHtml}
             ${basedOn}
         </div>`;
     }
@@ -1244,11 +1279,13 @@
         const compData = compBrief ? parseBriefData(compBrief) : null;
 
         // Trim to only what the n8n workflow actually uses (Code in JavaScript3 node)
+        // Send richer data for structured synthesis (overview + hooks + landscape sections)
+        const mrExecSummary = typeof mrData?.executiveSummary === 'object' ? (mrData.executiveSummary.summary || '') : (mrData?.executiveSummary || '');
         const trimmedMR = mrData ? {
-            executiveSummary: (mrData.executiveSummary || '').substring(0, 500),
-            landscapeAnalysis: (mrData.landscapeAnalysis || []).slice(0, 3).map(i => ({ label: i.label || '', what: i.what || '' })),
-            topicClusters: (mrData.topicClusters || []).slice(0, 3).map(i => ({ name: i.name || '' })),
-            hookAnalysis: (mrData.hookAnalysis || []).slice(0, 3).map(i => ({ openingLine: i.openingLine || '' })),
+            executiveSummary: mrExecSummary.substring(0, 500),
+            landscapeAnalysis: (mrData.landscapeAnalysis || []).slice(0, 5).map(i => ({ label: i.label || '', what: i.what || '', whyItWorks: (i.whyItWorks || '').substring(0, 100) })),
+            topicClusters: (mrData.topicClusters || []).slice(0, 5).map(i => ({ name: i.name || '', whatWorks: (i.whatWorks || '').substring(0, 100) })),
+            hookAnalysis: (mrData.hookAnalysis || []).slice(0, 5).map(i => ({ openingLine: i.openingLine || '', hookType: i.hookType || '', views: i.views || '' })),
             theGap: (mrData.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
             filmingAngles: (mrData.filmingAngles || []).slice(0, 3).map(i => ({ hook: i.hook || '' })),
             totalReels: mrData.totalReels || 0,
@@ -1260,7 +1297,9 @@
                 hookPatterns: (compData.executiveSummary?.hookPatterns || '').substring(0, 300),
                 actionPriorities: compData.executiveSummary?.actionPriorities || [],
             },
-            resonating: (compData.resonating || []).slice(0, 3).map(i => ({ label: i.label || '' })),
+            resonating: (compData.resonating || []).slice(0, 5).map(i => ({ label: i.label || '', whyItWorks: (i.whyItWorks || '').substring(0, 100) })),
+            hookAnalysis: (compData.hookAnalysis || []).slice(0, 5).map(i => ({ hook: i.hook || '', formula: (i.formula || '').substring(0, 100) })),
+            commentIntelligence: { patterns: (compData.commentIntelligence?.patterns || []).slice(0, 3).map(p => ({ label: p.label || '', pattern: (p.pattern || '').substring(0, 100) })) },
             theGap: (compData.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
             methodology: { accounts: compData.methodology?.accounts || [] },
         } : null;
@@ -1286,11 +1325,17 @@
             if (result.json) result = result.json;
             // If result is still a string (double-stringified), parse again
             if (typeof result === 'string') { try { result = JSON.parse(result); } catch {} }
-            // Pre-extract bullets so we store clean data
-            const bullets = extractBullets(result);
-            console.log('[SyncView] Parsed bullets:', bullets);
-            generalBriefState[name] = { loading: false, data: { bullets }, error: null, mrBriefId: currentMRId, compBriefId: currentCompId };
-            try { localStorage.setItem('syncview_generalBriefState_v4', JSON.stringify(generalBriefState)); } catch {}
+            // Store structured synthesis data (new format: overviewSynthesis/hookSynthesis/landscapeSynthesis, old fallback: bullets)
+            let cleanData;
+            if (result?.overviewSynthesis || result?.hookSynthesis || result?.landscapeSynthesis) {
+                cleanData = { overviewSynthesis: result.overviewSynthesis || '', hookSynthesis: result.hookSynthesis || '', landscapeSynthesis: result.landscapeSynthesis || '' };
+            } else {
+                const bullets = extractBullets(result);
+                cleanData = { bullets };
+            }
+            console.log('[SyncView] Parsed synthesis:', cleanData);
+            generalBriefState[name] = { loading: false, data: cleanData, error: null, mrBriefId: currentMRId, compBriefId: currentCompId };
+            try { localStorage.setItem('syncview_generalBriefState_v5', JSON.stringify(generalBriefState)); } catch {}
         } catch (e) {
             console.warn('[SyncView] General brief error:', e);
             generalBriefState[name] = { loading: false, data: null, error: 'Failed to generate synthesis', mrBriefId: currentMRId, compBriefId: currentCompId };
@@ -1324,6 +1369,8 @@
     function fmtDate(d){if(!d)return'';const p=d.split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:d;}
     function fmtCompact(v){const x=n(v);if(v===''||v===undefined||v===null)return'—';if(!x&&v!=='0'&&v!==0)return'—';if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
     function fmtIsoDate(iso){if(!iso)return'';try{const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);if(m){const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${m[4]}:${m[5]}`;}return iso;}catch{return iso;}}
+    function parseViewCount(v){if(!v)return 0;const s=String(v).replace(/,/g,'').trim();if(s.endsWith('M'))return parseFloat(s)*1e6;if(s.endsWith('K'))return parseFloat(s)*1e3;return parseFloat(s)||0;}
+    function isPhrase(text){return(text||'').split(/\s+/).filter(w=>w.length>0).length>=3;}
 
     const ICON={
         views:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.5"/></svg>`,
@@ -1953,7 +2000,7 @@
     }
 
     function renderBriefTab_hooks(data,name){
-        const items=Array.isArray(data.hookAnalysis)?data.hookAnalysis:[];
+        const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.hook)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
         return`${renderTabSummary(name,'comp','hooks',{count:items.length,summary:items.slice(0,3).map(i=>(i.hook||'').substring(0,60)).join(' | ')})}<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
     }
@@ -1984,16 +2031,36 @@
     const _mrForClient=(text)=>text?`<div class="mr-for-client"><span class="mr-for-client-label">For this client</span>${text}</div>`:'';
 
     function renderMRTab_overview(data,name){
-        const summary=data.executiveSummary||'';
-        if(!summary)return _mrEmpty('No executive summary available.');
-        return`<div class="mr-overview-wrap">${renderTabSummary(name,'mr','overview',{summary:summary?.substring?.(0,200)})}
+        const raw=data.executiveSummary;
+        // Support new structured format { summary, highlights } and old string format
+        const isStructured = typeof raw === 'object' && raw !== null;
+        const summaryText = isStructured ? (raw.summary || '') : (raw || '');
+        const highlights = isStructured ? (raw.highlights || {}) : {};
+        if(!summaryText && !Object.keys(highlights).length) return _mrEmpty('No executive summary available.');
+
+        const highlightItems = [
+            { key: 'landscape', label: 'Landscape', icon: '📊' },
+            { key: 'topicClusters', label: 'Topic Clusters', icon: '🗂' },
+            { key: 'hooks', label: 'Hooks', icon: '🪝' },
+            { key: 'filmingAngles', label: 'Filming Angles', icon: '🎬' },
+            { key: 'gap', label: 'The Gap', icon: '🎯' },
+        ].filter(h => highlights[h.key]);
+
+        const highlightsHtml = highlightItems.length ? `<div class="brief-exec-grid" style="margin-top:16px;">${highlightItems.map(h => `
+            <div class="brief-exec-card" style="padding:14px 16px;">
+                <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">${h.icon}</span> ${h.label}</div>
+                <div class="brief-exec-card-body" style="font-size:0.82rem;">${highlights[h.key]}</div>
+            </div>`).join('')}</div>` : '';
+
+        return`<div class="mr-overview-wrap">${renderTabSummary(name,'mr','overview',{summary:summaryText?.substring?.(0,200)})}
             <div class="mr-summary-card">
                 <div class="mr-summary-eyebrow">
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
                     Executive Summary
                 </div>
-                <p class="mr-summary-body">${summary}</p>
+                <p class="mr-summary-body">${summaryText}</p>
             </div>
+            ${highlightsHtml}
         </div>`;
     }
 
@@ -2029,7 +2096,7 @@
     }
 
     function renderMRTab_hooks(data,name){
-        const items=Array.isArray(data.hookAnalysis)?data.hookAnalysis:[];
+        const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
         return`${renderTabSummary(name,'mr','hooks',{count:items.length,summary:items.slice(0,3).map(i=>i.openingLine||'').join(' | ')})}<div class="brief-cards-grid">${items.map(item=>`
             <div class="hook-card">

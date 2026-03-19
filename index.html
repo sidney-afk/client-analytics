@@ -888,6 +888,17 @@
         .linear-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
         .linear-search-empty { padding: 12px; font-size: 0.78rem; color: var(--text-muted); font-style: italic; text-align: center; }
         .linear-search-loading { padding: 12px; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
+        .editor-search-wrap { position: relative; }
+        .editor-search-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 14px 0 20px; gap: 10px; width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.07); transition: border-color 0.18s, box-shadow 0.18s; }
+        .editor-search-pill:focus-within { border-color: #aaa; box-shadow: 0 4px 18px rgba(0,0,0,0.11); }
+        .editor-search-input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); padding: 11px 0; min-width: 0; }
+        .editor-search-input::placeholder { color: var(--text-muted); font-weight: 400; }
+        .editor-search-ghost { position: absolute; top: 0; left: 20px; right: 14px; pointer-events: none; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; display: flex; align-items: center; height: 100%; color: transparent; }
+        .editor-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; }
+        .editor-search-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .editor-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+        .editor-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
+        .editor-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
     </style>
 </head>
 <body>
@@ -2701,6 +2712,108 @@
         saveLinearForm();
     }
 
+    // Editor search bar handlers
+    function onEditorSearchInput() {
+        const q = document.getElementById('linearEditorSearch')?.value || '';
+        renderEditorSearchResults(q);
+        updateEditorSearchGhost(q);
+        openEditorSearchDropdown();
+        // Clear hidden value if user types something that doesn't match
+        const match = videoEditors.find(e => e.video_editor.toLowerCase() === q.trim().toLowerCase());
+        document.getElementById('linearEditor').value = match ? match.email : '';
+        saveLinearForm();
+    }
+
+    function onEditorSearchKey(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const q = document.getElementById('linearEditorSearch')?.value?.trim().toLowerCase() || '';
+            const names = videoEditors.map(e => e.video_editor);
+            const starts = names.filter(n => n.toLowerCase().startsWith(q));
+            const contains = names.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+            const first = [...starts, ...contains][0];
+            if (first) {
+                const ed = videoEditors.find(e => e.video_editor === first);
+                if (ed) selectEditor(ed.email, ed.video_editor);
+            }
+        } else if (e.key === 'Escape') {
+            closeEditorDropdown();
+            document.getElementById('linearEditorSearch')?.blur();
+        }
+    }
+
+    function onEditorSearchFocus() {
+        const q = document.getElementById('linearEditorSearch')?.value || '';
+        renderEditorSearchResults(q);
+        openEditorSearchDropdown();
+    }
+
+    function openEditorSearchDropdown() {
+        const dd = document.getElementById('editorSearchDropdown');
+        if (dd) dd.classList.add('open');
+    }
+
+    function closeEditorDropdown() {
+        const dd = document.getElementById('editorSearchDropdown');
+        const ghost = document.getElementById('editorSearchGhost');
+        if (dd) dd.classList.remove('open');
+        if (ghost) ghost.innerHTML = '';
+    }
+
+    function updateEditorSearchGhost(q) {
+        const ghost = document.getElementById('editorSearchGhost');
+        if (!ghost) return;
+        const q2 = q.trim().toLowerCase();
+        if (!q2) { ghost.innerHTML = ''; return; }
+        const names = videoEditors.map(e => e.video_editor);
+        const starts = names.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const first = [...starts, ...contains][0];
+        if (!first) { ghost.innerHTML = ''; return; }
+        if (first.toLowerCase().startsWith(q2)) {
+            const typed = first.slice(0, q.length);
+            const rest = first.slice(q.length);
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;
+        }
+    }
+
+    function renderEditorSearchResults(q) {
+        const el = document.getElementById('editorSearchResults');
+        if (!el) return;
+        if (!videoEditors.length) { el.innerHTML = '<div class="linear-search-empty">No editors loaded</div>'; return; }
+        const q2 = q.trim().toLowerCase();
+        if (!q2) {
+            el.innerHTML = videoEditors.map(e =>
+                `<div class="editor-search-suggestion" onclick="selectEditor('${e.email.replace(/'/g, "\\'")}', '${e.video_editor.replace(/'/g, "\\'")}')"><span>${e.video_editor}</span></div>`
+            ).join('');
+            return;
+        }
+        const starts = videoEditors.filter(e => e.video_editor.toLowerCase().startsWith(q2));
+        const contains = videoEditors.filter(e => !e.video_editor.toLowerCase().startsWith(q2) && e.video_editor.toLowerCase().includes(q2));
+        const matches = [...starts, ...contains];
+        if (!matches.length) { el.innerHTML = '<div class="linear-search-empty">No editors found</div>'; return; }
+        el.innerHTML = matches.map(e =>
+            `<div class="editor-search-suggestion" onclick="selectEditor('${e.email.replace(/'/g, "\\'")}', '${e.video_editor.replace(/'/g, "\\'")}')"><span>${highlightMatch(e.video_editor, q.trim())}</span></div>`
+        ).join('');
+    }
+
+    function selectEditor(email, name) {
+        const inp = document.getElementById('linearEditorSearch');
+        const hidden = document.getElementById('linearEditor');
+        if (inp) inp.value = name;
+        if (hidden) hidden.value = email;
+        closeEditorDropdown();
+        saveLinearForm();
+    }
+
+    // Close editor dropdown on outside click
+    document.addEventListener('click', function(e) {
+        const wrap = document.getElementById('editorSearchWrap');
+        if (wrap && !wrap.contains(e.target)) closeEditorDropdown();
+    });
+
     function buildLinearTitle() {
         const client = document.getElementById('linearClientSearch')?.value || '';
         const date = document.getElementById('linearDate')?.value || '';
@@ -2726,6 +2839,7 @@
             client: document.getElementById('linearClientSearch')?.value || '',
             date: document.getElementById('linearDate')?.value || '',
             editor: document.getElementById('linearEditor')?.value || '',
+            editorName: document.getElementById('linearEditorSearch')?.value || '',
             filmingPlans: document.getElementById('linearFilmingPlans')?.value || '',
             generalDrive: document.getElementById('linearGeneralDrive')?.value || '',
             notes: document.getElementById('linearNotes')?.value || '',
@@ -2808,9 +2922,7 @@
         </div>` : '';
         linearJustCreated = false;
 
-        const editorOptions = videoEditors.map(e =>
-            `<option value="${e.email}" ${savedEditor === e.email ? 'selected' : ''}>${e.video_editor}</option>`
-        ).join('');
+        const savedEditorName = savedEditor ? (videoEditors.find(e => e.email === savedEditor)?.video_editor || saved.editorName || '') : (saved.editorName || '');
 
         return `<div class="linear-view">
             ${successBanner}
@@ -2839,10 +2951,20 @@
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">Video Editor</label>
-                    <select class="linear-select" id="linearEditor" onchange="saveLinearForm()">
-                        <option value="">Select an editor…</option>
-                        ${editorOptions}
-                    </select>
+                    <div class="editor-search-wrap" id="editorSearchWrap">
+                        <div class="editor-search-pill">
+                            <input class="editor-search-input" id="linearEditorSearch" type="text"
+                                placeholder="Search editors…"
+                                value="${savedEditorName.replace(/"/g, '&quot;')}"
+                                oninput="onEditorSearchInput()" onkeydown="onEditorSearchKey(event)"
+                                onfocus="onEditorSearchFocus()" autocomplete="off">
+                            <div class="editor-search-ghost" id="editorSearchGhost"></div>
+                        </div>
+                        <div class="editor-search-dropdown" id="editorSearchDropdown">
+                            <div id="editorSearchResults"></div>
+                        </div>
+                    </div>
+                    <input type="hidden" id="linearEditor" value="${savedEditor}">
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">Title</label>

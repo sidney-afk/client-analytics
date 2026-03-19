@@ -1563,6 +1563,7 @@
             document.getElementById('navHome').classList.remove('active');
             document.getElementById('navBrief').classList.add('active');
         }
+        history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
         if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
@@ -2436,18 +2437,39 @@
 
     function selectClient(name){
         updateClientTrigger(name);
-        history.pushState({client:name},'','#'+encodeURIComponent(name));
+        const tab = clientViewTab[name] || 'analytics';
+        history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
         render(name,false);
         window.scrollTo({top:0,behavior:'instant'});
     }
 
-    window.addEventListener('popstate',()=>{
-        const hash=decodeURIComponent(location.hash.replace('#',''));
-        const clientNames=[...new Set(allData.map(r=>r.client_name))];
-        if(hash&&clientNames.includes(hash)){
-            updateClientTrigger(hash);render(hash,false);window.scrollTo({top:0,behavior:'instant'});
+    window.addEventListener('popstate',(e)=>{
+        const state=e.state;
+        if(state&&state.client){
+            const nav=state.nav||'home';
+            currentNav=nav;
+            localStorage.setItem(NAV_KEY,nav);
+            document.getElementById('navHome').classList.toggle('active',nav==='home');
+            document.getElementById('navBrief').classList.toggle('active',nav==='brief');
+            document.getElementById('navLinear').classList.remove('active');
+            const tab=state.clientTab||'analytics';
+            clientViewTab[state.client]=tab;
+            updateClientTrigger(state.client);
+            document.getElementById('pageTop').style.display='';
+            const hist=clientHistory(state.client);
+            document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
+            if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
+            window.scrollTo({top:0,behavior:'instant'});
+        } else if(state&&state.nav){
+            navTo(state.nav,false);
         } else {
-            updateClientTrigger('All Clients');render('all');window.scrollTo({top:0,behavior:'instant'});
+            const hash=decodeURIComponent(location.hash.replace('#',''));
+            const clientNames=[...new Set(allData.map(r=>r.client_name))];
+            if(hash&&clientNames.includes(hash)){
+                updateClientTrigger(hash);render(hash,false);window.scrollTo({top:0,behavior:'instant'});
+            } else {
+                updateClientTrigger('All Clients');render('all');window.scrollTo({top:0,behavior:'instant'});
+            }
         }
     });
 
@@ -2546,12 +2568,17 @@
         try { return JSON.parse(localStorage.getItem(LINEAR_FORM_KEY) || '{}'); } catch { return {}; }
     }
 
-    function navTo(page) {
+    function navTo(page, push = true) {
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navBrief').classList.toggle('active', page === 'brief');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+
+        const state = {nav: page, client: null};
+        const url = location.pathname + location.search.replace(/#.*$/, '');
+        if (push) history.pushState(state, '', url);
+        else history.replaceState(state, '', url);
 
         const pageTop = document.getElementById('pageTop');
         const content = document.getElementById('content');
@@ -2566,9 +2593,6 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
-            if (location.hash) {
-                history.pushState({}, '', location.pathname + location.search);
-            }
             updateClientTrigger('All Clients');
             render('all');
         }
@@ -2824,12 +2848,12 @@
                 document.getElementById('pageTitle').textContent='Your Analytics';
                 render(clientFromQuery,true);return;
             }
-            const savedNav=localStorage.getItem(NAV_KEY);if(savedNav==='linear'||savedNav==='brief'){populateDropdown();renderPins();navTo(savedNav);return;}
+            const savedNav=localStorage.getItem(NAV_KEY);if(savedNav==='linear'||savedNav==='brief'){populateDropdown();renderPins();navTo(savedNav,false);return;}
             const hash=decodeURIComponent(location.hash.replace('#',''));
             populateDropdown();
             renderPins();
             if(hash&&clientNames.includes(hash)){updateClientTrigger(hash);render(hash,false);}
-            else{render('all');}
+            else{navTo('home',false);}
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
         }

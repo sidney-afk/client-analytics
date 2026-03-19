@@ -1621,7 +1621,13 @@
         }
         state.submitting=false;
         state.submitted=true;
+        const triggerTime=new Date();
+        const key=name+'__mr';
+        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'mr'};
+        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
         refreshBriefView(name);
+        startBriefPolling(name,triggerTime,'mr');
     }
 
     function _initCompAccountState(name){
@@ -1694,69 +1700,76 @@
         state.submitting=false;
         state.submitted=true;
         const triggerTime=new Date();
-        pendingBriefs[name]={triggerISO:triggerTime.toISOString()};
+        const key=name+'__comp';
+        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'comp'};
         try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-        briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
         refreshBriefView(name);
-        startBriefPolling(name,triggerTime);
+        startBriefPolling(name,triggerTime,'comp');
     }
 
     async function generateBrief(encodedName){
         const name=decodeURIComponent(encodedName);
         const triggerTime=new Date();
-        briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+        const key=name+'__comp';
+        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
         refreshBriefView(name);
+        const competitors=(clientMap[name]?.competitors||'').split(',').map(c=>c.trim()).filter(Boolean);
         try{
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
-                mode:'no-cors',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({clientName:name})
+                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||''})
             });
         }catch(e){
-            console.log('[SyncView] Webhook triggered (CORS response blocked, which is normal)');
+            console.warn('[SyncView] Comp brief webhook error (may still have fired):',e);
         }
-        startBriefPolling(name,triggerTime);
+        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'comp'};
+        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+        startBriefPolling(name,triggerTime,'comp');
     }
 
-    function startBriefPolling(name,triggerTime){
-        stopBriefPolling(name);
+    function startBriefPolling(name,triggerTime,type){
+        const key=name+'__'+type;
+        stopBriefPolling(name,type);
         async function poll(){
             const elapsed=new Date()-triggerTime;
-            if(elapsed>30*60*1000){
-                stopBriefPolling(name);
-                delete pendingBriefs[name];
+            if(elapsed>15*60*1000){
+                stopBriefPolling(name,type);
+                delete pendingBriefs[key];
                 try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-                briefPollingState[name]={loading:false,error:'Brief generation timed out. Please try again.'};
+                briefPollingState[key]={loading:false,error:'Brief generation timed out (15 min). The workflow may have failed — please try again.'};
                 refreshBriefView(name);
                 return;
             }
             await fetchBriefs();
-            const newBrief=briefs.find(b=>
+            const briefList=type==='mr'?mrBriefs:briefs;
+            const newBrief=briefList.find(b=>
                 b.client_name===name&&b.raw_json&&
                 new Date(b.id)>triggerTime
             );
             if(newBrief){
-                stopBriefPolling(name);
-                delete pendingBriefs[name];
+                stopBriefPolling(name,type);
+                delete pendingBriefs[key];
                 try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-                briefPollingState[name]={loading:false};
+                briefPollingState[key]={loading:false};
                 refreshBriefView(name);
                 return;
             }
-            briefPollingState[name]={...briefPollingState[name],lastChecked:new Date()};
-            const el=document.getElementById('briefPollMsg_'+encodeURIComponent(name));
+            briefPollingState[key]={...briefPollingState[key],lastChecked:new Date()};
+            const el=document.getElementById('briefPollMsg_'+encodeURIComponent(key));
             if(el){
                 const mins=Math.round(elapsed/60000);
                 el.textContent=`Checking every 30s · ${mins} min elapsed`;
             }
         }
         const intervalId=setInterval(poll,30000);
-        briefPollingState[name]={...briefPollingState[name],intervalId,lastChecked:null};
+        briefPollingState[key]={...briefPollingState[key],intervalId,lastChecked:null};
     }
 
-    function stopBriefPolling(name){
-        const s=briefPollingState[name];
+    function stopBriefPolling(name,type){
+        const key=name+'__'+type;
+        const s=briefPollingState[key];
         if(s?.intervalId){clearInterval(s.intervalId);}
     }
 
@@ -1799,10 +1812,6 @@
     }
 
     function renderBriefContent(name){
-        const ps=briefPollingState[name];
-        if(ps?.loading){return renderBriefLoading(name,ps);}
-        if(ps?.error){return renderBriefError(name,ps.error);}
-
         const enc=encodeURIComponent(name);
         const section=activeBriefSection[name]||'market';
         const hasMR=getClientMRBriefs(name).length>0;
@@ -1823,7 +1832,10 @@
         if(section==='market'){
             bodyContent=renderMRBriefContent(name);
         } else {
-            if(!hasComp){bodyContent=renderBriefGeneratePrompt(name);}
+            const compPs=briefPollingState[name+'__comp'];
+            if(compPs?.loading){bodyContent=renderBriefLoading(name,'comp',compPs);}
+            else if(compPs?.error){bodyContent=renderBriefError(name,'comp',compPs.error);}
+            else if(!hasComp){bodyContent=renderBriefGeneratePrompt(name);}
             else{
                 const activeBrief=getActiveBrief(name);
                 const data=parseBriefData(activeBrief);
@@ -1836,6 +1848,9 @@
     }
 
     function renderMRBriefContent(name){
+        const mrPs=briefPollingState[name+'__mr'];
+        if(mrPs?.loading){return renderBriefLoading(name,'mr',mrPs);}
+        if(mrPs?.error){return renderBriefError(name,'mr',mrPs.error);}
         const allBriefs=getClientMRBriefs(name);
         const state=mrKeywordState[name];
         if(!allBriefs.length||state?.showPanel||state?.submitted){return renderMRBriefGeneratePrompt(name);}
@@ -2051,29 +2066,32 @@
         </div>`;
     }
 
-    function renderBriefLoading(name,ps){
-        const enc=encodeURIComponent(name);
+    function renderBriefLoading(name,type,ps){
+        const key=name+'__'+type;
+        const enc=encodeURIComponent(key);
         const elapsed=ps.triggerTime?Math.round((new Date()-ps.triggerTime)/60000):0;
+        const label=type==='mr'?'market research':'competitor';
         return `<div class="brief-loading-wrap">
             <div style="display:flex;gap:4px;" class="brief-progress-dots">
                 <div class="brief-progress-dot"></div>
                 <div class="brief-progress-dot"></div>
                 <div class="brief-progress-dot"></div>
             </div>
-            <div class="brief-loading-title">Generating brief…</div>
-            <div class="brief-loading-sub">Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.</div>
+            <div class="brief-loading-title">Generating ${label} brief…</div>
+            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 5–15 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.'}</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
-            <button onclick="stopBriefPolling('${name}');briefPollingState['${name}']={loading:false};refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
+            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
         </div>`;
     }
 
-    function renderBriefError(name,msg){
-        const enc=encodeURIComponent(name);
+    function renderBriefError(name,type,msg){
+        const key=name+'__'+type;
+        const label=type==='mr'?'Market research':'Competitor';
         return`<div class="brief-generate-prompt">
-            <div class="brief-prompt-icon" style="font-size:1.4rem;">⚠️</div>
-            <div class="brief-prompt-title" style="color:var(--text-primary);">Generation failed</div>
+            <div class="brief-prompt-icon" style="font-size:1.4rem;"></div>
+            <div class="brief-prompt-title" style="color:var(--text-primary);">${label} brief generation failed</div>
             <div class="brief-prompt-sub">${msg||'Something went wrong. Please try again.'}</div>
-            <button class="brief-gen-btn-lg" onclick="briefPollingState['${name}']={loading:false};delete pendingBriefs['${name}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}refreshBriefView('${name}')">
+            <button class="brief-gen-btn-lg" onclick="briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView('${name}')">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8h14M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Try Again
             </button>
@@ -2624,7 +2642,7 @@
         const enc=encodeURIComponent(name);
         const tab=clientViewTab[name]||'analytics';
         const hasBrief=getClientBriefs(name).length>0||getClientMRBriefs(name).length>0;
-        const isPolling=briefPollingState[name]?.loading;
+        const isPolling=briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
 
         let toggleHtml='';
         if(!clientOnly){
@@ -3453,12 +3471,17 @@
         try{
             await fetchAll();
             // Resume polling for any pending briefs (persists across page refresh)
-            Object.entries(pendingBriefs).forEach(([name,{triggerISO}])=>{
+            Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
                 const triggerTime=new Date(triggerISO);
-                const alreadyDone=briefs.find(b=>b.client_name===name&&b.raw_json&&new Date(b.id)>triggerTime);
-                if(alreadyDone){delete pendingBriefs[name];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}return;}
-                briefPollingState[name]={loading:true,triggerTime,intervalId:null,lastChecked:null};
-                startBriefPolling(name,triggerTime);
+                // Extract client name from key (format: "ClientName__type")
+                const sep=key.lastIndexOf('__');
+                const clientName=sep>-1?key.substring(0,sep):key;
+                const briefType=type||(sep>-1?key.substring(sep+2):'comp');
+                const briefList=briefType==='mr'?mrBriefs:briefs;
+                const alreadyDone=briefList.find(b=>b.client_name===clientName&&b.raw_json&&new Date(b.id)>triggerTime);
+                if(alreadyDone){delete pendingBriefs[key];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}return;}
+                briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+                startBriefPolling(clientName,triggerTime,briefType);
             });
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
             if(dates[0])document.getElementById('lastUpdated').textContent=`Updated ${fmtDate(dates[0])}`;
@@ -3471,10 +3494,12 @@
                 document.getElementById('pageTitle').textContent='Your Analytics';
                 render(clientFromQuery,true);return;
             }
-            const savedNav=localStorage.getItem(NAV_KEY);if(savedNav==='linear'||savedNav==='brief'){populateDropdown();renderPins();navTo(savedNav,false);return;}
+            const savedNav=localStorage.getItem(NAV_KEY);
             const hash=decodeURIComponent(location.hash.replace('#',''));
             populateDropdown();
             renderPins();
+            if(savedNav==='brief'&&hash&&clientNames.includes(hash)){selectClientBrief(hash);return;}
+            if(savedNav==='linear'||savedNav==='brief'){navTo(savedNav,false);return;}
             if(hash&&clientNames.includes(hash)){updateClientTrigger(hash);render(hash,false);}
             else{navTo('home',false);}
         }catch(err){

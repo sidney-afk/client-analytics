@@ -1305,15 +1305,21 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br,mrb]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL)]);
+        const [mr,cr,tr,br,mrb]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now())]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         const rawVideos=parseCSV(await tr.text());
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
         briefs=parseCSV(await br.text());
-        mrBriefs=parseCSV(await mrb.text());
+        const mrbText=await mrb.text();
+        console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
+        mrBriefs=parseCSV(mrbText);
         console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
+        if(mrBriefs.length>0){
+            console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
+            mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
+        }
     }
 
     async function fetchBriefs(){

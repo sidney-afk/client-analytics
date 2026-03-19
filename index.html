@@ -897,6 +897,10 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Home
         </button>
+        <button class="header-nav-btn" id="navBrief" onclick="navTo('brief')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="6" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="6" y1="11" x2="9" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Brief
+        </button>
         <button class="header-nav-btn" id="navLinear" onclick="navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
@@ -2537,6 +2541,7 @@
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
+        document.getElementById('navBrief').classList.toggle('active', page === 'brief');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
 
         const pageTop = document.getElementById('pageTop');
@@ -2545,6 +2550,10 @@
         if (page === 'linear') {
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'brief') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderBriefNav();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
@@ -2656,10 +2665,13 @@
 
     function onVideoLinkBlur(el) {
         if (el.value.trim()) saveLastLink(el.value.trim());
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             const card = el.closest?.('.linear-video-card');
-            if (card) { const hint = card.querySelector('.video-link-hint'); if (hint) hint.classList.remove('visible'); }
-        }, 150);
+            if (card && !card.querySelector('input:focus')) {
+                const hint = card.querySelector('.video-link-hint');
+                if (hint) hint.classList.remove('visible');
+            }
+        });
     }
 
     function onVideoLinkKeydown(e, el) {
@@ -2711,6 +2723,8 @@
             btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Created!`;
             status.textContent = 'Issue submitted to Linear via n8n.';
             localStorage.removeItem(LINEAR_FORM_KEY);
+            localStorage.removeItem(LAST_LINK_KEY);
+            navTo('linear');
             setTimeout(() => {
                 btn.disabled = false;
                 btn.classList.remove('success');
@@ -2722,10 +2736,85 @@
             btn.textContent = 'Create Issue';
             status.textContent = 'Webhook triggered (CORS response blocked, which is normal).';
             localStorage.removeItem(LINEAR_FORM_KEY);
+            localStorage.removeItem(LAST_LINK_KEY);
+            navTo('linear');
         }
     }
 
-    async function init(){
+    function renderBriefNav() {
+        const clientNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const recent = getRecent().filter(n => clientNames.includes(n));
+        const pins = getPins().filter(n => clientNames.includes(n));
+
+        const pinPills = pins.map(name =>
+            `<div class="pin-pill" onclick="selectClientBrief('${name}')" style="cursor:pointer;">
+                <span>${name}</span>
+            </div>`
+        ).join('');
+
+        return `<div class="linear-view" style="max-width:700px;">
+            <div class="linear-form-title">Client Briefs</div>
+            <div class="linear-form-sub">Search or select a client to view their brief</div>
+            <div style="margin-bottom:24px;">
+                <div class="search-bar-pill" style="width:100%;max-width:100%;">
+                    <input class="search-bar-input" id="briefSearchInput" type="text"
+                        placeholder="Search clients…"
+                        oninput="onBriefSearchInput()" onkeydown="onBriefSearchKey(event)"
+                        autocomplete="off">
+                    <button class="search-bar-icon" onclick="onBriefSearchGo()" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <div id="briefSearchResults" style="margin-top:8px;"></div>
+            </div>
+            ${pins.length ? `<div style="margin-bottom:18px;"><div class="linear-label" style="margin-bottom:8px;">Pinned Clients</div><div class="pins-row" style="justify-content:flex-start;">${pinPills}</div></div>` : ''}
+            <div class="linear-label" style="margin-bottom:8px;">All Clients</div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+                ${clientNames.map(name => `<div style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.84rem;font-weight:500;color:var(--text-secondary);transition:background 0.1s;" onmouseover="this.style.background='var(--bg)';this.style.color='var(--text-primary)'" onmouseout="this.style.background='';this.style.color='var(--text-secondary)'" onclick="selectClientBrief('${name}')">${name}</div>`).join('')}
+            </div>
+        </div>`;
+    }
+
+    function selectClientBrief(name) {
+        localStorage.setItem(NAV_KEY, 'home');
+        currentNav = 'home';
+        document.getElementById('navHome').classList.add('active');
+        document.getElementById('navBrief').classList.remove('active');
+        document.getElementById('navLinear').classList.remove('active');
+        document.getElementById('pageTop').style.display = '';
+        clientViewTab[name] = 'brief';
+        selectClient(name);
+    }
+
+    function onBriefSearchInput() {
+        const q = document.getElementById('briefSearchInput')?.value?.trim().toLowerCase() || '';
+        const el = document.getElementById('briefSearchResults');
+        if (!el) return;
+        if (!q) { el.innerHTML = ''; return; }
+        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const starts = allNames.filter(n => n.toLowerCase().startsWith(q));
+        const contains = allNames.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+        const matches = [...starts, ...contains].slice(0, 6);
+        if (!matches.length) { el.innerHTML = '<div style="padding:8px 12px;color:var(--text-muted);font-size:0.8rem;font-style:italic;">No clients found</div>'; return; }
+        el.innerHTML = matches.map(name => `<div style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.84rem;font-weight:500;color:var(--text-secondary);transition:background 0.1s;" onmouseover="this.style.background='var(--bg)';this.style.color='var(--text-primary)'" onmouseout="this.style.background='';this.style.color='var(--text-secondary)'" onclick="selectClientBrief('${name}')">${name}</div>`).join('');
+    }
+
+    function onBriefSearchKey(e) {
+        if (e.key !== 'Enter') return;
+        onBriefSearchGo();
+    }
+
+    function onBriefSearchGo() {
+        const q = document.getElementById('briefSearchInput')?.value?.trim().toLowerCase() || '';
+        if (!q) return;
+        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const starts = allNames.filter(n => n.toLowerCase().startsWith(q));
+        const contains = allNames.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
+        const first = [...starts, ...contains][0];
+        if (first) selectClientBrief(first);
+    }
+
+        async function init(){
         try{
             await fetchAll();
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
@@ -2739,7 +2828,7 @@
                 document.getElementById('pageTitle').textContent='Your Analytics';
                 render(clientFromQuery,true);return;
             }
-            if(localStorage.getItem(NAV_KEY)==='linear'){navTo('linear');populateDropdown();renderPins();return;}
+            const savedNav=localStorage.getItem(NAV_KEY);if(savedNav==='linear'||savedNav==='brief'){populateDropdown();renderPins();navTo(savedNav);return;}
             const hash=decodeURIComponent(location.hash.replace('#',''));
             populateDropdown();
             renderPins();

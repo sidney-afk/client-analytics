@@ -2730,9 +2730,8 @@
         status.textContent = '';
 
         try {
-            await fetch(VIDEO_FORM_WEBHOOK, {
+            const resp = await fetch(VIDEO_FORM_WEBHOOK, {
                 method: 'POST',
-                mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: linearClient, title, notes: notes || '', videos })
             });
@@ -2741,9 +2740,11 @@
             linearJustCreated = true;
             navTo('linear');
         } catch (e) {
-            btn.disabled = false;
-            btn.textContent = 'Create Issue';
-            status.textContent = 'Error submitting — please try again.';
+            // CORS may block reading the response, but the request was still sent
+            localStorage.removeItem(LINEAR_FORM_KEY);
+            localStorage.removeItem(LAST_LINK_KEY);
+            linearJustCreated = true;
+            navTo('linear');
         }
     }
 

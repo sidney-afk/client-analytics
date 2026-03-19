@@ -987,7 +987,7 @@
     let mrKeywordState = {};
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
     let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v4') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
-    let tabSummaryBriefIds = {}; // tracks which brief ID was used per "clientName__briefType"
+    let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -1058,7 +1058,7 @@
         if (briefId && tabSummaryBriefIds[trackKey] && tabSummaryBriefIds[trackKey] !== briefId) {
             invalidateTabSummaries(name, briefType);
         }
-        if (briefId) tabSummaryBriefIds[trackKey] = briefId;
+        if (briefId) { tabSummaryBriefIds[trackKey] = briefId; try { localStorage.setItem('syncview_tabSummaryBriefIds_v1', JSON.stringify(tabSummaryBriefIds)); } catch {} }
         const tabs = briefType === 'mr' ? ['overview','landscape','topics','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
         tabs.forEach(tabId => setTimeout(() => fetchTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)), 0));
     }
@@ -1289,7 +1289,7 @@
         if(field!==''||fields.length>0)commitRow();
         if(rows.length<2)return[];
         const headers=rows[0].map(h=>h.replace(/^"|"$/g,''));
-        return rows.slice(1).map(vals=>{const obj={};headers.forEach((h,idx)=>obj[h]=(vals[idx]||'').replace(/^"|"$/g,''));return obj;});
+        return rows.slice(1).map(vals=>{const obj={};headers.forEach((h,idx)=>obj[h]=vals[idx]||'');return obj;});
     }
     function n(v){const x=Number(v);return isNaN(x)?0:x;}
     function fmt(v){const x=n(v);if(!x)return null;if(x>=1e6)return(x/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(x>=1e3)return(x/1e3).toFixed(1).replace(/\.0$/,'')+'K';return x.toLocaleString();}
@@ -1433,9 +1433,21 @@
     function parseMRBriefData(brief){
         if(!brief)return null;
         try{
-            const raw=(brief.raw_json||'')+(brief.raw_json_2||'')+(brief.raw_json_3||'');
-            return JSON.parse(raw);
-        }catch(e){console.error('[SyncView] MR brief parse error',e);return null;}
+            const p1=brief.raw_json||'';
+            const p2=brief.raw_json_2||'';
+            const p3=brief.raw_json_3||'';
+            console.log('[SyncView] MR brief parts:',{p1len:p1.length,p2len:p2.length,p3len:p3.length,p1start:p1.substring(0,80),p2start:p2.substring(0,80)});
+            const raw=p1+p2+p3;
+            const data=JSON.parse(raw);
+            console.log('[SyncView] MR brief parsed OK, keys:',Object.keys(data),'filmingAngles:',data.filmingAngles?.length,'theGap:',data.theGap?.length);
+            return data;
+        }catch(e){
+            const p1=brief.raw_json||'';
+            const p2=brief.raw_json_2||'';
+            const raw=p1+p2+(brief.raw_json_3||'');
+            console.error('[SyncView] MR brief parse error',e,'rawLen:',raw.length,'last100:',raw.slice(-100));
+            return null;
+        }
     }
     function setActiveBriefSection(encodedName,section){
         const name=decodeURIComponent(encodedName);

@@ -987,7 +987,7 @@
     let mrKeywordState = {};
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
     let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v4') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
-    let tabSummaryBriefIds = {}; // tracks which brief ID was used per "clientName__briefType"
+    let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -1058,7 +1058,7 @@
         if (briefId && tabSummaryBriefIds[trackKey] && tabSummaryBriefIds[trackKey] !== briefId) {
             invalidateTabSummaries(name, briefType);
         }
-        if (briefId) tabSummaryBriefIds[trackKey] = briefId;
+        if (briefId) { tabSummaryBriefIds[trackKey] = briefId; try { localStorage.setItem('syncview_tabSummaryBriefIds_v1', JSON.stringify(tabSummaryBriefIds)); } catch {} }
         const tabs = briefType === 'mr' ? ['overview','landscape','topics','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
         tabs.forEach(tabId => setTimeout(() => fetchTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)), 0));
     }

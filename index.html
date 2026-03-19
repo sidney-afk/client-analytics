@@ -873,6 +873,7 @@
         .linear-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .linear-submit-btn.success { background: var(--up); }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .linear-success-banner { display: flex; align-items: center; gap: 8px; background: #1a3a2a; border: 1px solid #2d6a45; color: #4ade80; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
     </style>
 </head>
 <body>
@@ -2493,6 +2494,7 @@
     const NAV_KEY = 'syncview_nav';
     let currentNav = 'home';
     const LINEAR_VIDEO_COUNT = 12;
+    let linearJustCreated = false;
 
     function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
     function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
@@ -2586,7 +2588,14 @@
             titleDisplay = `${savedClient} · ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         }
 
+        const successBanner = linearJustCreated ? `<div class="linear-success-banner" id="linearSuccessBanner">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Issue created in Linear!
+        </div>` : '';
+        linearJustCreated = false;
+
         return `<div class="linear-view">
+            ${successBanner}
             <div class="linear-form-title">Create Linear Issue</div>
             <div class="linear-form-sub">Submit a video production task to Linear</div>
             <div class="linear-form">
@@ -2719,25 +2728,14 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: client, title, notes: notes || '', videos })
             });
-            btn.classList.add('success');
-            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Created!`;
-            status.textContent = 'Issue submitted to Linear via n8n.';
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);
+            linearJustCreated = true;
             navTo('linear');
-            setTimeout(() => {
-                btn.disabled = false;
-                btn.classList.remove('success');
-                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Create Issue`;
-                status.textContent = '';
-            }, 3000);
         } catch (e) {
             btn.disabled = false;
             btn.textContent = 'Create Issue';
-            status.textContent = 'Webhook triggered (CORS response blocked, which is normal).';
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
-            navTo('linear');
+            status.textContent = 'Error submitting — please try again.';
         }
     }
 

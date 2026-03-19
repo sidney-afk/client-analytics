@@ -861,8 +861,7 @@
         .linear-video-card:hover .linear-video-remove { opacity: 1; }
         .linear-title-display { padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--border-light); background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); min-height: 42px; display: flex; align-items: center; }
         .linear-title-display.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
-        .video-link-hint { font-size: 0.68rem; color: var(--text-muted); margin-top: 4px; padding: 0 2px; display: none; }
-        .video-link-hint.visible { display: block; }
+        .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; }
         .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
         .linear-video-field-row { display: flex; gap: 8px; }
         .linear-video-field-row .linear-input { flex: 1; padding: 9px 12px; font-size: 0.8rem; }
@@ -2636,18 +2635,18 @@
         return `<div class="linear-video-card" id="videoCard_${num}">
             <div class="linear-video-header">
                 <span class="linear-video-num">Video ${num}</span>
+                <span class="video-link-hint">⇧ Shift — paste last link</span>
                 <button class="linear-video-remove" onclick="removeLinearVideo(${num})" title="Remove">
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
             </div>
             <div class="linear-video-fields">
                 <input class="linear-input" id="vid_main_${num}" type="url" placeholder="Main camera link" value="${(data.main_cam || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onfocus="onVideoLinkFocus(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
                 <input class="linear-input" id="vid_side_${num}" type="url" placeholder="Side camera link" value="${(data.side_cam || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onfocus="onVideoLinkFocus(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
                 <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
-                    oninput="onVideoLinkInput(this)" onfocus="onVideoLinkFocus(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
-                <div class="video-link-hint" id="hint_${num}">⇧ Shift — paste last link</div>
+                    oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
             </div>
         </div>`;
     }
@@ -2665,22 +2664,8 @@
         saveLinearForm();
     }
 
-    function onVideoLinkFocus(el) {
-        const last = getLastLink();
-        if (!last) return;
-        const card = el.closest('.linear-video-card');
-        if (card) { const hint = card.querySelector('.video-link-hint'); if (hint) hint.classList.add('visible'); }
-    }
-
     function onVideoLinkBlur(el) {
         if (el.value.trim()) saveLastLink(el.value.trim());
-        requestAnimationFrame(() => {
-            const card = el.closest?.('.linear-video-card');
-            if (card && !card.querySelector('input:focus')) {
-                const hint = card.querySelector('.video-link-hint');
-                if (hint) hint.classList.remove('visible');
-            }
-        });
     }
 
     function onVideoLinkKeydown(e, el) {
@@ -2691,8 +2676,6 @@
                 el.value = last;
                 saveLastLink(last);
                 saveLinearForm();
-                const card = el.closest('.linear-video-card');
-                if (card) { const hint = card.querySelector('.video-link-hint'); if (hint) hint.classList.remove('visible'); }
             }
         }
     }

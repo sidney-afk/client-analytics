@@ -1337,7 +1337,7 @@
             console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
             mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
         }
-        videoEditors=parseCSV(await er.text()).filter(r=>r.name);
+        videoEditors=parseCSV(await er.text()).filter(r=>r.video_editor);
         console.log('[SyncView] Loaded',videoEditors.length,'video editors');
     }
 
@@ -2596,7 +2596,11 @@
     async function fetchLinearProjects() {
         linearProjectsLoading = true;
         try {
-            const resp = await fetch(LINEAR_PROJECTS_WEBHOOK + '?_t=' + Date.now());
+            const resp = await fetch(LINEAR_PROJECTS_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}'
+            });
             const data = await resp.json();
             linearProjects = Array.isArray(data) ? data : (data.projects || []);
             console.log('[SyncView] Loaded', linearProjects.length, 'Linear projects');
@@ -2805,7 +2809,7 @@
         linearJustCreated = false;
 
         const editorOptions = videoEditors.map(e =>
-            `<option value="${e.email}" ${savedEditor === e.email ? 'selected' : ''}>${e.name}</option>`
+            `<option value="${e.email}" ${savedEditor === e.email ? 'selected' : ''}>${e.video_editor}</option>`
         ).join('');
 
         return `<div class="linear-view">
@@ -2966,7 +2970,7 @@
 
         // Build editor object from selected email
         const editorObj = editorEmail ? videoEditors.find(e => e.email === editorEmail) : null;
-        const editor = editorObj ? { name: editorObj.name, email: editorObj.email } : null;
+        const editor = editorObj ? { name: editorObj.video_editor, email: editorObj.email } : null;
 
         const cards = document.querySelectorAll('[id^="videoCard_"]');
         const videos = [];

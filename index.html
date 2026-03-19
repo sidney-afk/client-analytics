@@ -1001,6 +1001,7 @@
     const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Competitor%20Briefs`;
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const EDITORS_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Video%20Editors`;
+    const CLIENTS_INFO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null;
@@ -1381,9 +1382,10 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br,mrb,er]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now())]);
+        const [mr,cr,tr,br,mrb,er,ci]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now()),fetch(CLIENTS_INFO_URL)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
+        parseCSV(await ci.text()).forEach(r=>{if(r.client_name&&clientMap[r.client_name])Object.assign(clientMap[r.client_name],r);});
         const rawVideos=parseCSV(await tr.text());
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
@@ -1550,8 +1552,7 @@
     }
     function _initMRKeywordState(name){
         if(!mrKeywordState[name]){
-            const row=clientMap[name]||{};
-            const raw=row.specific_keywords||row['Specific Keywords']||row['specific keywords']||'';
+            const raw=clientMap[name]?.specific_keywords||'';
             const fromSheet=raw.split(',').map(k=>k.trim()).filter(Boolean).slice(0,8);
             const keywords=Array.from({length:8},(_,i)=>fromSheet[i]||'');
             mrKeywordState[name]={showPanel:false,keywords,submitting:false,submitted:false,error:null};
@@ -1623,8 +1624,7 @@
 
     function _initCompAccountState(name){
         if(!compAccountState[name]){
-            const row=clientMap[name]||{};
-            const raw=row.competitors||row['Competitors']||'';
+            const raw=clientMap[name]?.competitors||'';
             const fromSheet=raw.split(',').map(a=>a.trim()).filter(Boolean).slice(0,10);
             const accounts=fromSheet.length>0?fromSheet:[''];
             compAccountState[name]={showPanel:false,accounts,submitting:false,submitted:false,error:null};

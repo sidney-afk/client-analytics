@@ -2404,7 +2404,7 @@
             if(!existingBack){
                 const btn=document.createElement('button');
                 btn.className='back-btn';btn.innerHTML='← All Clients';
-                btn.onclick=()=>history.back();
+                btn.onclick=()=>{ if(currentNav==='brief'){navTo('brief');}else{history.back();} };
                 titleRow.insertBefore(btn,titleRow.firstChild);
             }
         } else if(!clientOnly){
@@ -2767,10 +2767,10 @@
     }
 
     function selectClientBrief(name) {
-        localStorage.setItem(NAV_KEY, 'home');
-        currentNav = 'home';
-        document.getElementById('navHome').classList.add('active');
-        document.getElementById('navBrief').classList.remove('active');
+        localStorage.setItem(NAV_KEY, 'brief');
+        currentNav = 'brief';
+        document.getElementById('navHome').classList.remove('active');
+        document.getElementById('navBrief').classList.add('active');
         document.getElementById('navLinear').classList.remove('active');
         document.getElementById('pageTop').style.display = '';
         clientViewTab[name] = 'brief';

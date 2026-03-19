@@ -2697,6 +2697,12 @@
         }
     }
 
+    // Maps Google Sheets client_name → exact Linear project name where they differ
+    const LINEAR_CLIENT_NAME_MAP = {
+        'Eben & Annie':   'Eben and Annie',
+        'Erica Matluck':  'Dr Erica Matluck',
+    };
+
     async function submitLinearForm() {
         const client = document.getElementById('linearClient')?.value;
         const title = buildLinearTitle();
@@ -2704,6 +2710,8 @@
 
         if (!client) { document.getElementById('linearStatus').textContent = 'Please select a client.'; return; }
         if (!title) { document.getElementById('linearStatus').textContent = 'Please select a date.'; return; }
+
+        const linearClient = LINEAR_CLIENT_NAME_MAP[client] || client;
 
         const videos = [];
         for (let i = 1; i <= LINEAR_VIDEO_COUNT; i++) {
@@ -2726,7 +2734,7 @@
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientName: client, title, notes: notes || '', videos })
+                body: JSON.stringify({ clientName: linearClient, title, notes: notes || '', videos })
             });
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);

@@ -881,7 +881,7 @@
         .linear-search-input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); padding: 11px 0; min-width: 0; }
         .linear-search-input::placeholder { color: var(--text-muted); font-weight: 400; }
         .linear-search-ghost { position: absolute; top: 0; left: 20px; right: 14px; pointer-events: none; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; display: flex; align-items: center; height: 100%; color: transparent; }
-        .linear-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; }
+        .linear-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; max-height: 280px; overflow-y: auto; }
         .linear-search-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
         .linear-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
         .linear-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
@@ -894,7 +894,7 @@
         .editor-search-input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); padding: 11px 0; min-width: 0; }
         .editor-search-input::placeholder { color: var(--text-muted); font-weight: 400; }
         .editor-search-ghost { position: absolute; top: 0; left: 20px; right: 14px; pointer-events: none; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; display: flex; align-items: center; height: 100%; color: transparent; }
-        .editor-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; }
+        .editor-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; max-height: 280px; overflow-y: auto; }
         .editor-search-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
         .editor-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
         .editor-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
@@ -2554,7 +2554,7 @@
     function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[...starts,...contains][0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
     function onSearchInput(){const q=document.getElementById('searchInput').value;renderSearchResults(q);updateSearchGhost(q);openSearchDropdown();}
     function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const q2=q.trim().toLowerCase();if(!q2){ghost.innerHTML='';return;}const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const first=[...starts,...contains][0];if(!first){ghost.innerHTML='';return;}if(first.toLowerCase().startsWith(q2)){const typed=first.slice(0,q.length);const rest=first.slice(q.length);ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;}else{ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;}}
-    function onSearchKey(e){if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
+    function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
     function highlightMatch(name,q){if(!q)return name;const idx=name.toLowerCase().indexOf(q.toLowerCase());if(idx<0)return name;return name.slice(0,idx)+`<span class="s-match">`+name.slice(idx,idx+q.length)+`</span>`+name.slice(idx+q.length);}
     function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">↩</span><span>${name}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
     function searchGoTo(name){addRecent(name);const box=document.getElementById('searchBox');const inp=document.getElementById('searchInput');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(inp){inp.value='';inp.blur();}if(ghost)ghost.innerHTML='';selectClient(name);}
@@ -2609,7 +2609,8 @@
         try {
             const resp = await fetch(LINEAR_PROJECTS_WEBHOOK, { method: 'POST' });
             const data = await resp.json();
-            linearProjects = Array.isArray(data) ? data : (data.projects || []);
+            const raw = Array.isArray(data) ? data : (data.projects || []);
+            linearProjects = [...new Set(raw)];
             console.log('[SyncView] Loaded', linearProjects.length, 'Linear projects');
         } catch (e) {
             console.error('[SyncView] Failed to fetch Linear projects:', e);
@@ -2636,6 +2637,14 @@
     }
 
     function onLinearSearchKey(e) {
+        if (e.key === 'Escape') {
+            const box = document.getElementById('linearSearchDropdown');
+            const ghost = document.getElementById('linearSearchGhost');
+            if (box) box.classList.remove('open');
+            if (ghost) ghost.innerHTML = '';
+            document.getElementById('linearClientSearch')?.blur();
+            return;
+        }
         if (e.key !== 'Enter') return;
         const q = document.getElementById('linearClientSearch')?.value.trim();
         if (!q) return;
@@ -2679,12 +2688,12 @@
     function renderLinearSearchResults(q) {
         const el = document.getElementById('linearSearchResults');
         if (!el) return;
-        if (linearProjectsLoading) { el.innerHTML = '<div class="linear-search-loading">Loading projects…</div>'; return; }
+        if (linearProjectsLoading) { el.innerHTML = '<div class="linear-search-loading">Loading clients…</div>'; return; }
         if (!linearProjects.length) { el.innerHTML = '<div class="linear-search-empty">No projects loaded</div>'; return; }
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             el.innerHTML = linearProjects.slice(0, 8).map(name =>
-                `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span class="s-icon">📋</span><span>${name}</span></div>`
+                `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span>${name}</span></div>`
             ).join('');
             return;
         }
@@ -2693,7 +2702,7 @@
         const matches = [...starts, ...contains];
         if (!matches.length) { el.innerHTML = '<div class="linear-search-empty">No projects found</div>'; return; }
         el.innerHTML = matches.slice(0, 6).map(name =>
-            `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span class="s-icon">📋</span><span>${highlightMatch(name, q.trim())}</span></div>`
+            `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span>${highlightMatch(name, q.trim())}</span></div>`
         ).join('');
     }
 
@@ -2739,8 +2748,7 @@
     }
 
     function onEditorSearchFocus() {
-        const q = document.getElementById('linearEditorSearch')?.value || '';
-        renderEditorSearchResults(q);
+        renderEditorSearchResults('');
         openEditorSearchDropdown();
     }
 
@@ -2930,7 +2938,7 @@
                     <div class="linear-search-wrap" id="linearSearchWrap">
                         <div class="linear-search-pill">
                             <input class="linear-search-input" id="linearClientSearch" type="text"
-                                placeholder="Search Linear projects…"
+                                placeholder="Search clients…"
                                 value="${savedClient.replace(/"/g, '&quot;')}"
                                 oninput="onLinearSearchInput()" onkeydown="onLinearSearchKey(event)"
                                 onfocus="onLinearSearchFocus()" autocomplete="off">

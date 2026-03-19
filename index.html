@@ -1015,7 +1015,7 @@
     let activeBriefTab = {};
     let activeBriefId = {};
     let briefPollingState = {};
-    let activeBriefSection = {};
+    let activeBriefSection = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeBriefSection') || '{}'); } catch { return {}; } })();
     let activeMRBriefTab = {};
     let activeMRBriefId = {};
     let mrKeywordState = {};
@@ -1539,6 +1539,7 @@
     function setActiveBriefSection(encodedName,section){
         const name=decodeURIComponent(encodedName);
         activeBriefSection[name]=section;
+        try{localStorage.setItem('syncview_activeBriefSection',JSON.stringify(activeBriefSection));}catch{}
         refreshBriefView(name);
     }
     function setActiveMRBriefTab(encodedName,tab){
@@ -1684,9 +1685,8 @@
         try{
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
-                mode:'no-cors',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({clientName:name,competitors}),
+                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||''}),
             });
         }catch(e){
             console.warn('[SyncView] Comp brief webhook error (may still have fired):',e);

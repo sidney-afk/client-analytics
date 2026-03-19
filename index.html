@@ -861,7 +861,8 @@
         .linear-video-card:hover .linear-video-remove { opacity: 1; }
         .linear-title-display { padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--border-light); background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); min-height: 42px; display: flex; align-items: center; }
         .linear-title-display.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
-        .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; }
+        .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; position: absolute; bottom: 12px; left: 16px; pointer-events: none; }
+        .linear-video-card { position: relative; padding-bottom: 30px; }
         .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
         .linear-video-field-row { display: flex; gap: 8px; }
         .linear-video-field-row .linear-input { flex: 1; padding: 9px 12px; font-size: 0.8rem; }
@@ -2635,7 +2636,6 @@
         return `<div class="linear-video-card" id="videoCard_${num}">
             <div class="linear-video-header">
                 <span class="linear-video-num">Video ${num}</span>
-                <span class="video-link-hint">⇧ Shift — paste last link</span>
                 <button class="linear-video-remove" onclick="removeLinearVideo(${num})" title="Remove">
                     <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 </button>
@@ -2648,6 +2648,7 @@
                 <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}"
                     oninput="onVideoLinkInput(this)" onblur="onVideoLinkBlur(this)" onkeydown="onVideoLinkKeydown(event,this)">
             </div>
+            <span class="video-link-hint">⇧ Shift — paste last link</span>
         </div>`;
     }
 

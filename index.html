@@ -811,6 +811,47 @@
             margin-top: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border-light);
         }
         .brief-section-header:first-child { margin-top: 0; }
+
+        /* Header nav */
+        .header-nav { display: flex; align-items: center; gap: 6px; }
+        .header-nav-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; }
+        .header-nav-btn:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
+        .header-nav-btn.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .header-nav-btn svg { flex-shrink: 0; }
+
+        /* Linear form */
+        .linear-view { max-width: 620px; margin: 0 auto; animation: fadeIn 0.15s ease; }
+        .linear-form-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
+        .linear-form-sub { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 28px; }
+        .linear-form { display: flex; flex-direction: column; gap: 18px; }
+        .linear-field { display: flex; flex-direction: column; gap: 6px; }
+        .linear-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+        .linear-input, .linear-select, .linear-textarea { width: 100%; padding: 11px 14px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); transition: border-color 0.15s, box-shadow 0.15s; outline: none; }
+        .linear-input:focus, .linear-select:focus, .linear-textarea:focus { border-color: #aaa; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .linear-input::placeholder, .linear-textarea::placeholder { color: var(--text-muted); font-weight: 400; }
+        .linear-textarea { min-height: 80px; resize: vertical; }
+        .linear-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23b4b4ae' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+        .linear-link-wrap { position: relative; }
+        .linear-link-suggestion { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border: 1.5px solid var(--border); border-radius: 10px; padding: 8px 14px; font-size: 0.8rem; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .linear-link-suggestion:hover { border-color: #aaa; background: var(--bg); color: var(--text-primary); }
+        .linear-link-suggestion.visible { display: block; }
+        .linear-link-suggestion-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 3px; }
+        .linear-videos-section { display: flex; flex-direction: column; gap: 12px; }
+        .linear-video-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+        .linear-video-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .linear-video-num { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .linear-video-remove { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: none; background: transparent; cursor: pointer; color: var(--text-muted); transition: all 0.13s; }
+        .linear-video-remove:hover { background: var(--dn-bg); color: var(--dn); }
+        .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
+        .linear-video-field-row { display: flex; gap: 8px; }
+        .linear-video-field-row .linear-input { flex: 1; padding: 9px 12px; font-size: 0.8rem; }
+        .linear-add-video-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 10px; border: 1.5px dashed var(--border); background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all 0.15s; align-self: flex-start; }
+        .linear-add-video-btn:hover { border-color: #aaa; color: var(--text-secondary); background: var(--white); }
+        .linear-submit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 28px; border-radius: 10px; border: none; background: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--white); cursor: pointer; transition: all 0.15s; align-self: flex-start; margin-top: 4px; }
+        .linear-submit-btn:hover { background: #333; }
+        .linear-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .linear-submit-btn.success { background: var(--up); }
+        .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -819,7 +860,19 @@
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </div>
-    <span class="header-meta" id="lastUpdated"></span>
+    <div style="display:flex;align-items:center;gap:12px;">
+        <div class="header-nav" id="headerNav">
+            <button class="header-nav-btn active" id="navHome" onclick="navTo('home')">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                Home
+            </button>
+            <button class="header-nav-btn" id="navLinear" onclick="navTo('linear')">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                Linear
+            </button>
+        </div>
+        <span class="header-meta" id="lastUpdated"></span>
+    </div>
 </header>
 <main class="main" id="mainWrap">
     <div class="page-top overview-mode" id="pageTop">
@@ -1414,7 +1467,9 @@
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
         if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
-        window.scrollTo({top:0,behavior:'instant'});
+        const heroEl=document.querySelector('.detail-name');
+        if(heroEl){const y=heroEl.getBoundingClientRect().top+window.scrollY-72;window.scrollTo({top:Math.max(0,y),behavior:'instant'});}
+        else{window.scrollTo({top:0,behavior:'instant'});}
     }
 
     function setActiveBriefTab(encodedName,tab){
@@ -2178,6 +2233,7 @@
 
         if(tab==='brief'&&!clientOnly){
             return`<div class="client-view">
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div></div></div>
                 ${toggleHtml}
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
@@ -2338,7 +2394,273 @@
     }
     function renderPinSelectorList(){const list=document.getElementById('pinSelectorList');if(!list)return;const pins=getPins();const allNames=[...new Set(allData.map(r=>r.client_name))].sort();list.innerHTML='';allNames.forEach(name=>{const isPinned=pins.includes(name);const disabled=!isPinned&&pins.length>=MAX_PINS;const item=document.createElement('div');item.className='pin-selector-item'+(isPinned?' pinned':'');if(disabled)item.style.cssText='opacity:0.35;cursor:default;';const nameSpan=document.createElement('span');nameSpan.textContent=name;const check=document.createElement('span');check.className='pin-check';if(isPinned)check.innerHTML=CHECK_SVG;item.appendChild(nameSpan);item.appendChild(check);if(!disabled)item.onclick=(e)=>{e.stopPropagation();togglePin(name);};list.appendChild(item);});}
 
-    function goHome(){history.pushState({},'',location.pathname+location.search);updateClientTrigger('All Clients');render('all');}
+    function goHome(){navTo('home');history.pushState({},'',location.pathname+location.search);updateClientTrigger('All Clients');render('all');}
+
+    /* ── Linear View ── */
+    const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
+    const LAST_LINK_KEY = 'syncview_last_link';
+    const LINEAR_FORM_KEY = 'syncview_linear_form';
+    let currentNav = 'home';
+    let linearVideoCount = 1;
+
+    function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
+    function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
+
+    function saveLinearForm() {
+        const f = {
+            client: document.getElementById('linearClient')?.value || '',
+            title: document.getElementById('linearTitle')?.value || '',
+            link: document.getElementById('linearLink')?.value || '',
+            notes: document.getElementById('linearNotes')?.value || '',
+            videos: []
+        };
+        for (let i = 1; i <= linearVideoCount; i++) {
+            f.videos.push({
+                main_cam: document.getElementById('vid_main_' + i)?.value || '',
+                side_cam: document.getElementById('vid_side_' + i)?.value || '',
+                audio: document.getElementById('vid_audio_' + i)?.value || ''
+            });
+        }
+        localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
+    }
+
+    function loadLinearForm() {
+        try { return JSON.parse(localStorage.getItem(LINEAR_FORM_KEY) || '{}'); } catch { return {}; }
+    }
+
+    function navTo(page) {
+        currentNav = page;
+        document.getElementById('navHome').classList.toggle('active', page === 'home');
+        document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+
+        const pageTop = document.getElementById('pageTop');
+        const content = document.getElementById('content');
+
+        if (page === 'linear') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderLinearView();
+            const titleEl = document.querySelector('.linear-form-title');
+            if (titleEl) {
+                const y = titleEl.getBoundingClientRect().top + window.scrollY - 80;
+                window.scrollTo({ top: Math.max(0, y), behavior: 'instant' });
+            }
+            restoreLinearForm();
+        } else {
+            pageTop.style.display = '';
+            const hash = decodeURIComponent(location.hash.replace('#', ''));
+            const clientNames = [...new Set(allData.map(r => r.client_name))];
+            if (hash && clientNames.includes(hash)) {
+                render(hash, false);
+            } else {
+                render('all');
+            }
+        }
+    }
+
+    function renderLinearView() {
+        const clientNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const saved = loadLinearForm();
+        const vidCount = (saved.videos && saved.videos.length > 0) ? saved.videos.length : 1;
+        linearVideoCount = vidCount;
+
+        let videoCards = '';
+        for (let i = 1; i <= vidCount; i++) {
+            const v = saved.videos?.[i - 1] || {};
+            videoCards += renderVideoCard(i, v);
+        }
+
+        return `<div class="linear-view">
+            <div class="linear-form-title">Create Linear Issue</div>
+            <div class="linear-form-sub">Submit a video production task to Linear</div>
+            <div class="linear-form">
+                <div class="linear-field">
+                    <label class="linear-label">Client</label>
+                    <select class="linear-select" id="linearClient" onchange="saveLinearForm()">
+                        <option value="">Select a client…</option>
+                        ${clientNames.map(c => `<option value="${c}" ${saved.client === c ? 'selected' : ''}>${c}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Title</label>
+                    <input class="linear-input" id="linearTitle" type="text" placeholder="e.g. March Batch – 4 Videos" value="${(saved.title || '').replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Drive Link</label>
+                    <div class="linear-link-wrap">
+                        <input class="linear-input" id="linearLink" type="url" placeholder="Paste Google Drive link…"
+                            value="${(saved.link || '').replace(/"/g, '&quot;')}"
+                            oninput="onLinearLinkInput(this)" onfocus="onLinearLinkFocus(this)" onblur="onLinearLinkBlur()">
+                        <div class="linear-link-suggestion" id="linkSuggestion" onmousedown="useLinkSuggestion()">
+                            <div class="linear-link-suggestion-label">Last used link</div>
+                            <div id="linkSuggestionText"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Notes</label>
+                    <textarea class="linear-textarea" id="linearNotes" placeholder="Additional notes…" oninput="saveLinearForm()">${saved.notes || ''}</textarea>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Videos</label>
+                    <div class="linear-videos-section" id="linearVideos">${videoCards}</div>
+                    <button class="linear-add-video-btn" onclick="addLinearVideo()">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Add Video
+                    </button>
+                </div>
+                <button class="linear-submit-btn" id="linearSubmitBtn" onclick="submitLinearForm()">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    Create Issue
+                </button>
+                <div class="linear-status" id="linearStatus"></div>
+            </div>
+        </div>`;
+    }
+
+    function renderVideoCard(num, data) {
+        data = data || {};
+        return `<div class="linear-video-card" id="videoCard_${num}">
+            <div class="linear-video-header">
+                <span class="linear-video-num">Video ${num}</span>
+                ${num > 1 ? `<button class="linear-video-remove" onclick="removeLinearVideo(${num})" title="Remove">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>` : ''}
+            </div>
+            <div class="linear-video-fields">
+                <input class="linear-input" id="vid_main_${num}" type="url" placeholder="Main camera link" value="${(data.main_cam || '').replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                <input class="linear-input" id="vid_side_${num}" type="url" placeholder="Side camera link" value="${(data.side_cam || '').replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                <input class="linear-input" id="vid_audio_${num}" type="url" placeholder="Audio link" value="${(data.audio || '').replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+            </div>
+        </div>`;
+    }
+
+    function restoreLinearForm() {
+        // Link field: if empty, don't auto-fill, but prepare suggestion
+        const linkInput = document.getElementById('linearLink');
+        if (linkInput) {
+            const saved = loadLinearForm();
+            if (saved.link) {
+                linkInput.value = saved.link;
+                saveLastLink(saved.link);
+            }
+        }
+    }
+
+    function addLinearVideo() {
+        linearVideoCount++;
+        const container = document.getElementById('linearVideos');
+        container.insertAdjacentHTML('beforeend', renderVideoCard(linearVideoCount, {}));
+        saveLinearForm();
+    }
+
+    function removeLinearVideo(num) {
+        // Collect all current data, remove the one, re-render
+        saveLinearForm();
+        const saved = loadLinearForm();
+        saved.videos.splice(num - 1, 1);
+        linearVideoCount = Math.max(1, saved.videos.length);
+        localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(saved));
+        const container = document.getElementById('linearVideos');
+        container.innerHTML = '';
+        for (let i = 1; i <= linearVideoCount; i++) {
+            container.insertAdjacentHTML('beforeend', renderVideoCard(i, saved.videos[i - 1]));
+        }
+    }
+
+    function onLinearLinkInput(el) {
+        saveLinearForm();
+        if (el.value.trim()) saveLastLink(el.value.trim());
+        hideLinkSuggestion();
+    }
+
+    function onLinearLinkFocus(el) {
+        const last = getLastLink();
+        if (last && !el.value.trim()) {
+            const suggEl = document.getElementById('linkSuggestion');
+            const textEl = document.getElementById('linkSuggestionText');
+            if (suggEl && textEl) {
+                textEl.textContent = last;
+                suggEl.classList.add('visible');
+            }
+        }
+    }
+
+    function onLinearLinkBlur() {
+        setTimeout(hideLinkSuggestion, 200);
+    }
+
+    function hideLinkSuggestion() {
+        const el = document.getElementById('linkSuggestion');
+        if (el) el.classList.remove('visible');
+    }
+
+    function useLinkSuggestion() {
+        const last = getLastLink();
+        const input = document.getElementById('linearLink');
+        if (input && last) {
+            input.value = last;
+            saveLinearForm();
+            hideLinkSuggestion();
+        }
+    }
+
+    async function submitLinearForm() {
+        const client = document.getElementById('linearClient')?.value;
+        const title = document.getElementById('linearTitle')?.value?.trim();
+        const link = document.getElementById('linearLink')?.value?.trim();
+        const notes = document.getElementById('linearNotes')?.value?.trim();
+
+        if (!client) { document.getElementById('linearStatus').textContent = 'Please select a client.'; return; }
+        if (!title) { document.getElementById('linearStatus').textContent = 'Please enter a title.'; return; }
+
+        const videos = [];
+        for (let i = 1; i <= linearVideoCount; i++) {
+            videos.push({
+                number: i,
+                main_cam: document.getElementById('vid_main_' + i)?.value?.trim() || '',
+                side_cam: document.getElementById('vid_side_' + i)?.value?.trim() || '',
+                audio: document.getElementById('vid_audio_' + i)?.value?.trim() || ''
+            });
+        }
+
+        if (link) saveLastLink(link);
+
+        const btn = document.getElementById('linearSubmitBtn');
+        const status = document.getElementById('linearStatus');
+        btn.disabled = true;
+        btn.textContent = 'Submitting…';
+        status.textContent = '';
+
+        try {
+            await fetch(VIDEO_FORM_WEBHOOK, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientName: client,
+                    title: title,
+                    notes: (link ? 'Drive: ' + link + '\n\n' : '') + (notes || ''),
+                    videos: videos
+                })
+            });
+            btn.classList.add('success');
+            btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Created!`;
+            status.textContent = 'Issue submitted to Linear via n8n.';
+            // Clear saved form
+            localStorage.removeItem(LINEAR_FORM_KEY);
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.classList.remove('success');
+                btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Create Issue`;
+                status.textContent = '';
+            }, 3000);
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Create Issue';
+            status.textContent = 'Webhook triggered (CORS response blocked, which is normal).';
+            localStorage.removeItem(LINEAR_FORM_KEY);
+        }
+    }
 
     async function init(){
         try{

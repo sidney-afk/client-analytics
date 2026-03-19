@@ -874,6 +874,20 @@
         .linear-submit-btn.success { background: var(--up); }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
         .linear-success-banner { display: flex; align-items: center; gap: 8px; background: #1a3a2a; border: 1px solid #2d6a45; color: #4ade80; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
+        /* Linear search bar */
+        .linear-search-wrap { position: relative; }
+        .linear-search-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 14px 0 20px; gap: 10px; width: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.07); transition: border-color 0.18s, box-shadow 0.18s; }
+        .linear-search-pill:focus-within { border-color: #aaa; box-shadow: 0 4px 18px rgba(0,0,0,0.11); }
+        .linear-search-input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); padding: 11px 0; min-width: 0; }
+        .linear-search-input::placeholder { color: var(--text-muted); font-weight: 400; }
+        .linear-search-ghost { position: absolute; top: 0; left: 20px; right: 14px; pointer-events: none; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; white-space: nowrap; overflow: hidden; display: flex; align-items: center; height: 100%; color: transparent; }
+        .linear-search-dropdown { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.13); padding: 6px; z-index: 60; opacity: 0; transform: translateY(-6px) scale(0.99); pointer-events: none; transition: all 0.16s ease; transform-origin: top center; }
+        .linear-search-dropdown.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+        .linear-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
+        .linear-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
+        .linear-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
+        .linear-search-empty { padding: 12px; font-size: 0.78rem; color: var(--text-muted); font-style: italic; text-align: center; }
+        .linear-search-loading { padding: 12px; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
     </style>
 </head>
 <body>
@@ -970,11 +984,14 @@
     const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
     const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Briefs`;
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
+    const EDITORS_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Video%20Editors`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null;
     let briefs = [];
     let mrBriefs = [];
+    let videoEditors = [];
+    let linearProjects = [];
     let sortCol = 'ig_followers', sortDir = 'desc';
     let activePeriods = {};
     let clientViewTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_clientViewTab') || '{}'); } catch { return {}; } })();
@@ -1305,7 +1322,7 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br,mrb]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now())]);
+        const [mr,cr,tr,br,mrb,er]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now())]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         const rawVideos=parseCSV(await tr.text());
@@ -1320,6 +1337,8 @@
             console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
             mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
         }
+        videoEditors=parseCSV(await er.text()).filter(r=>r.name);
+        console.log('[SyncView] Loaded',videoEditors.length,'video editors');
     }
 
     async function fetchBriefs(){
@@ -2561,18 +2580,125 @@
 
     /* ── Linear View ── */
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
+    const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NAV_KEY = 'syncview_nav';
     let currentNav = 'home';
-    const LINEAR_VIDEO_COUNT = 12;
+    const LINEAR_DEFAULT_VIDEO_COUNT = 12;
+    let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
+    let linearProjectsLoading = false;
 
     function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
     function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
 
+    async function fetchLinearProjects() {
+        linearProjectsLoading = true;
+        try {
+            const resp = await fetch(LINEAR_PROJECTS_WEBHOOK + '?_t=' + Date.now());
+            const data = await resp.json();
+            linearProjects = Array.isArray(data) ? data : (data.projects || []);
+            console.log('[SyncView] Loaded', linearProjects.length, 'Linear projects');
+        } catch (e) {
+            console.error('[SyncView] Failed to fetch Linear projects:', e);
+            linearProjects = [];
+        }
+        linearProjectsLoading = false;
+        // Re-render dropdown if open
+        const q = document.getElementById('linearClientSearch')?.value || '';
+        renderLinearSearchResults(q);
+    }
+
+    function onLinearSearchInput() {
+        const q = document.getElementById('linearClientSearch')?.value || '';
+        renderLinearSearchResults(q);
+        updateLinearSearchGhost(q);
+        openLinearSearchDropdown();
+        updateLinearTitle();
+        saveLinearForm();
+    }
+
+    function onLinearSearchFocus() {
+        renderLinearSearchResults(document.getElementById('linearClientSearch')?.value || '');
+        openLinearSearchDropdown();
+    }
+
+    function onLinearSearchKey(e) {
+        if (e.key !== 'Enter') return;
+        const q = document.getElementById('linearClientSearch')?.value.trim();
+        if (!q) return;
+        const names = linearProjects;
+        const starts = names.filter(n => n.toLowerCase().startsWith(q.toLowerCase()));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q.toLowerCase()) && n.toLowerCase().includes(q.toLowerCase()));
+        const first = [...starts, ...contains][0];
+        if (first) selectLinearProject(first);
+    }
+
+    function openLinearSearchDropdown() {
+        const box = document.getElementById('linearSearchDropdown');
+        if (!box || box.classList.contains('open')) return;
+        box.classList.add('open');
+        const close = (e) => {
+            const wrap = document.getElementById('linearSearchWrap');
+            if (wrap && !wrap.contains(e.target)) { box.classList.remove('open'); document.removeEventListener('click', close); }
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+
+    function updateLinearSearchGhost(q) {
+        const ghost = document.getElementById('linearSearchGhost');
+        if (!ghost) return;
+        const q2 = q.trim().toLowerCase();
+        if (!q2) { ghost.innerHTML = ''; return; }
+        const names = linearProjects;
+        const starts = names.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const first = [...starts, ...contains][0];
+        if (!first) { ghost.innerHTML = ''; return; }
+        if (first.toLowerCase().startsWith(q2)) {
+            const typed = first.slice(0, q.length);
+            const rest = first.slice(q.length);
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;
+        }
+    }
+
+    function renderLinearSearchResults(q) {
+        const el = document.getElementById('linearSearchResults');
+        if (!el) return;
+        if (linearProjectsLoading) { el.innerHTML = '<div class="linear-search-loading">Loading projects…</div>'; return; }
+        if (!linearProjects.length) { el.innerHTML = '<div class="linear-search-empty">No projects loaded</div>'; return; }
+        const q2 = q.trim().toLowerCase();
+        if (!q2) {
+            el.innerHTML = linearProjects.slice(0, 8).map(name =>
+                `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span class="s-icon">📋</span><span>${name}</span></div>`
+            ).join('');
+            return;
+        }
+        const starts = linearProjects.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = linearProjects.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const matches = [...starts, ...contains];
+        if (!matches.length) { el.innerHTML = '<div class="linear-search-empty">No projects found</div>'; return; }
+        el.innerHTML = matches.slice(0, 6).map(name =>
+            `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span class="s-icon">📋</span><span>${highlightMatch(name, q.trim())}</span></div>`
+        ).join('');
+    }
+
+    function selectLinearProject(name) {
+        const inp = document.getElementById('linearClientSearch');
+        const box = document.getElementById('linearSearchDropdown');
+        const ghost = document.getElementById('linearSearchGhost');
+        if (inp) inp.value = name;
+        if (box) box.classList.remove('open');
+        if (ghost) ghost.innerHTML = '';
+        updateLinearTitle();
+        saveLinearForm();
+    }
+
     function buildLinearTitle() {
-        const client = document.getElementById('linearClient')?.value || '';
+        const client = document.getElementById('linearClientSearch')?.value || '';
         const date = document.getElementById('linearDate')?.value || '';
         if (!client) return '';
         if (!date) return client;
@@ -2591,19 +2717,24 @@
     }
 
     function saveLinearForm() {
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
         const f = {
-            client: document.getElementById('linearClient')?.value || '',
+            client: document.getElementById('linearClientSearch')?.value || '',
             date: document.getElementById('linearDate')?.value || '',
+            editor: document.getElementById('linearEditor')?.value || '',
+            filmingPlans: document.getElementById('linearFilmingPlans')?.value || '',
+            generalDrive: document.getElementById('linearGeneralDrive')?.value || '',
             notes: document.getElementById('linearNotes')?.value || '',
             videos: []
         };
-        for (let i = 1; i <= LINEAR_VIDEO_COUNT; i++) {
+        cards.forEach(card => {
+            const num = card.id.replace('videoCard_', '');
             f.videos.push({
-                main_cam: document.getElementById('vid_main_' + i)?.value || '',
-                side_cam: document.getElementById('vid_side_' + i)?.value || '',
-                audio: document.getElementById('vid_audio_' + i)?.value || ''
+                main_cam: document.getElementById('vid_main_' + num)?.value || '',
+                side_cam: document.getElementById('vid_side_' + num)?.value || '',
+                audio: document.getElementById('vid_audio_' + num)?.value || ''
             });
-        }
+        });
         localStorage.setItem(LINEAR_FORM_KEY, JSON.stringify(f));
     }
 
@@ -2629,6 +2760,7 @@
         if (page === 'linear') {
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
+            if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'brief') {
             pageTop.style.display = 'none';
@@ -2642,14 +2774,20 @@
     }
 
     function renderLinearView() {
-        const clientNames = [...new Set(allData.map(r => r.client_name))].sort();
         const saved = loadLinearForm();
         const today = new Date().toISOString().split('T')[0];
         const savedDate = saved.date || today;
         const savedClient = saved.client || '';
+        const savedEditor = saved.editor || '';
+        const savedFilmingPlans = saved.filmingPlans || '';
+        const savedGeneralDrive = saved.generalDrive || '';
+
+        // Restore video count from saved data
+        const savedVideoCount = saved.videos?.length || LINEAR_DEFAULT_VIDEO_COUNT;
+        linearVideoCount = Math.max(savedVideoCount, 1);
 
         let videoCards = '';
-        for (let i = 1; i <= LINEAR_VIDEO_COUNT; i++) {
+        for (let i = 1; i <= linearVideoCount; i++) {
             const v = saved.videos?.[i - 1] || {};
             videoCards += renderVideoCard(i, v);
         }
@@ -2666,6 +2804,10 @@
         </div>` : '';
         linearJustCreated = false;
 
+        const editorOptions = videoEditors.map(e =>
+            `<option value="${e.email}" ${savedEditor === e.email ? 'selected' : ''}>${e.name}</option>`
+        ).join('');
+
         return `<div class="linear-view">
             ${successBanner}
             <div class="linear-form-title">Create Linear Issue</div>
@@ -2673,18 +2815,42 @@
             <div class="linear-form">
                 <div class="linear-field">
                     <label class="linear-label">Client</label>
-                    <select class="linear-select" id="linearClient" onchange="updateLinearTitle()">
-                        <option value="">Select a client…</option>
-                        ${clientNames.map(c => `<option value="${c}" ${savedClient === c ? 'selected' : ''}>${c}</option>`).join('')}
-                    </select>
+                    <div class="linear-search-wrap" id="linearSearchWrap">
+                        <div class="linear-search-pill">
+                            <input class="linear-search-input" id="linearClientSearch" type="text"
+                                placeholder="Search Linear projects…"
+                                value="${savedClient.replace(/"/g, '&quot;')}"
+                                oninput="onLinearSearchInput()" onkeydown="onLinearSearchKey(event)"
+                                onfocus="onLinearSearchFocus()" autocomplete="off">
+                            <div class="linear-search-ghost" id="linearSearchGhost"></div>
+                        </div>
+                        <div class="linear-search-dropdown" id="linearSearchDropdown">
+                            <div id="linearSearchResults"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">Date</label>
-                    <input class="linear-input" id="linearDate" type="date" value="${savedDate}" onchange="updateLinearTitle()">
+                    <input class="linear-input" id="linearDate" type="date" value="${savedDate}" onchange="updateLinearTitle(); saveLinearForm();">
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Video Editor</label>
+                    <select class="linear-select" id="linearEditor" onchange="saveLinearForm()">
+                        <option value="">Select an editor…</option>
+                        ${editorOptions}
+                    </select>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">Title</label>
                     <div class="linear-title-display ${savedClient ? '' : 'empty'}" id="linearTitleDisplay">${titleDisplay}</div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Filming Plans</label>
+                    <input class="linear-input" id="linearFilmingPlans" type="url" placeholder="Filming plans link…" value="${savedFilmingPlans.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">General Drive</label>
+                    <input class="linear-input" id="linearGeneralDrive" type="url" placeholder="General drive link…" value="${savedGeneralDrive.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">Notes</label>
@@ -2693,6 +2859,10 @@
                 <div class="linear-field">
                     <label class="linear-label">Videos</label>
                     <div class="linear-videos-section" id="linearVideos">${videoCards}</div>
+                    <button class="linear-add-video-btn" onclick="addLinearVideo()" type="button">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Add Video
+                    </button>
                 </div>
                 <button class="linear-submit-btn" id="linearSubmitBtn" onclick="submitLinearForm()">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -2725,10 +2895,40 @@
     }
 
     function removeLinearVideo(num) {
-        if (!confirm(`Remove Video ${num}? This will clear its links.`)) return;
-        document.getElementById('vid_main_' + num).value = '';
-        document.getElementById('vid_side_' + num).value = '';
-        document.getElementById('vid_audio_' + num).value = '';
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
+        if (cards.length <= 1) return; // Keep at least 1 video
+        const card = document.getElementById('videoCard_' + num);
+        if (!card) return;
+        card.remove();
+        renumberVideoCards();
+        linearVideoCount = document.querySelectorAll('[id^="videoCard_"]').length;
+        saveLinearForm();
+    }
+
+    function renumberVideoCards() {
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
+        cards.forEach((card, idx) => {
+            const newNum = idx + 1;
+            const oldNum = card.id.replace('videoCard_', '');
+            card.id = 'videoCard_' + newNum;
+            card.querySelector('.linear-video-num').textContent = 'Video ' + newNum;
+            card.querySelector('.linear-video-remove').setAttribute('onclick', 'removeLinearVideo(' + newNum + ')');
+            // Rename input IDs
+            const main = card.querySelector('[id^="vid_main_"]');
+            const side = card.querySelector('[id^="vid_side_"]');
+            const audio = card.querySelector('[id^="vid_audio_"]');
+            if (main) main.id = 'vid_main_' + newNum;
+            if (side) side.id = 'vid_side_' + newNum;
+            if (audio) audio.id = 'vid_audio_' + newNum;
+        });
+    }
+
+    function addLinearVideo() {
+        const container = document.getElementById('linearVideos');
+        if (!container) return;
+        linearVideoCount++;
+        const html = renderVideoCard(linearVideoCount, {});
+        container.insertAdjacentHTML('beforeend', html);
         saveLinearForm();
     }
 
@@ -2753,31 +2953,33 @@
         }
     }
 
-    // Maps Google Sheets client_name → exact Linear project name where they differ
-    const LINEAR_CLIENT_NAME_MAP = {
-        'Eben & Annie':   'Eben and Annie',
-        'Erica Matluck':  'Dr Erica Matluck',
-    };
-
     async function submitLinearForm() {
-        const client = document.getElementById('linearClient')?.value;
+        const client = document.getElementById('linearClientSearch')?.value?.trim();
         const title = buildLinearTitle();
         const notes = document.getElementById('linearNotes')?.value?.trim();
+        const editorEmail = document.getElementById('linearEditor')?.value || '';
+        const filmingPlans = document.getElementById('linearFilmingPlans')?.value?.trim() || '';
+        const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
 
         if (!client) { document.getElementById('linearStatus').textContent = 'Please select a client.'; return; }
         if (!title) { document.getElementById('linearStatus').textContent = 'Please select a date.'; return; }
 
-        const linearClient = LINEAR_CLIENT_NAME_MAP[client] || client;
+        // Build editor object from selected email
+        const editorObj = editorEmail ? videoEditors.find(e => e.email === editorEmail) : null;
+        const editor = editorObj ? { name: editorObj.name, email: editorObj.email } : null;
 
+        const cards = document.querySelectorAll('[id^="videoCard_"]');
         const videos = [];
-        for (let i = 1; i <= LINEAR_VIDEO_COUNT; i++) {
+        let num = 1;
+        cards.forEach(card => {
+            const id = card.id.replace('videoCard_', '');
             videos.push({
-                number: i,
-                main_cam: document.getElementById('vid_main_' + i)?.value?.trim() || '',
-                side_cam: document.getElementById('vid_side_' + i)?.value?.trim() || '',
-                audio: document.getElementById('vid_audio_' + i)?.value?.trim() || ''
+                number: num++,
+                main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
+                side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
+                audio: document.getElementById('vid_audio_' + id)?.value?.trim() || ''
             });
-        }
+        });
 
         const btn = document.getElementById('linearSubmitBtn');
         const status = document.getElementById('linearStatus');
@@ -2785,11 +2987,16 @@
         btn.textContent = 'Submitting…';
         status.textContent = '';
 
+        const payload = { clientName: client, title, notes: notes || '', videos };
+        if (editor) payload.editor = editor;
+        if (filmingPlans) payload.filmingPlans = filmingPlans;
+        if (generalDrive) payload.generalDrive = generalDrive;
+
         try {
             const resp = await fetch(VIDEO_FORM_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientName: linearClient, title, notes: notes || '', videos })
+                body: JSON.stringify(payload)
             });
             localStorage.removeItem(LINEAR_FORM_KEY);
             localStorage.removeItem(LAST_LINK_KEY);

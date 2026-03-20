@@ -1436,12 +1436,12 @@
     }
     function latestPerClient(){const h=_buildHistories();return Object.values(h).map(rows=>rows[rows.length-1]);}
     function prevPerClient(){const h=_buildHistories();const prev={};Object.entries(h).forEach(([name,rows])=>{if(rows.length>=2)prev[name]=rows[rows.length-2];});return prev;}
-    function getWeekRow(history){
+    function _findRowDaysAgo(history, daysAgo){
         if(history.length < 2) return null;
         const todayRow = history[history.length-1];
         const todayDate = new Date(todayRow.date);
         const targetDate = new Date(todayDate);
-        targetDate.setDate(targetDate.getDate() - 7);
+        targetDate.setDate(targetDate.getDate() - daysAgo);
         let best = null;
         for(let i = 0; i < history.length - 1; i++){
             const d = new Date(history[i].date);
@@ -1453,6 +1453,8 @@
         }
         return best;
     }
+    function getWeekRow(history){ return _findRowDaysAgo(history, 7); }
+    function getMonthRow(history){ return _findRowDaysAgo(history, 30); }
     function clientHistory(name){
         const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
         indexed.sort((a,b)=>a.r.date.localeCompare(b.r.date)||a.i-b.i);
@@ -1464,7 +1466,7 @@
         }
         return deduped.map(x=>x.r);
     }
-    function weekPrevPerClient(){
+    function _prevPerClientDaysAgo(daysAgo){
         const h = _buildHistories();
         const result = {};
         Object.entries(h).forEach(([name, rows]) => {
@@ -1472,7 +1474,7 @@
             const latest = rows[rows.length - 1];
             const latestDate = new Date(latest.date);
             const target = new Date(latestDate);
-            target.setDate(target.getDate() - 7);
+            target.setDate(target.getDate() - daysAgo);
             let best = null;
             for(let i = rows.length - 2; i >= 0; i--){
                 const d = new Date(rows[i].date);
@@ -1485,6 +1487,8 @@
         });
         return result;
     }
+    function weekPrevPerClient(){ return _prevPerClientDaysAgo(7); }
+    function monthPrevPerClient(){ return _prevPerClientDaysAgo(30); }
 
     // ── Brief helpers ────────────────────────────────────────────────────────
     function getClientBriefs(name){
@@ -2373,11 +2377,11 @@
         'client_name':            {label:'Name'},
         'ig_followers':           {label:'IG Followers'},
         '_ig_fol_delta':          {label:'IG +Followers'},
-        'ig_views_this_month':    {label:'IG Views/Month'},
+        'ig_views_this_month':    {label:'IG Views/30d'},
         '_ig_view_delta':         {label:'IG +Views'},
         'tiktok_followers':       {label:'TT Followers'},
         '_tt_fol_delta':          {label:'TT +Followers'},
-        'tiktok_plays_this_month':{label:'TT Views/Month'},
+        'tiktok_plays_this_month':{label:'TT Views/30d'},
         '_tt_view_delta':         {label:'TT +Views'},
         'yt_subscribers':         {label:'YT Subscribers'},
         '_yt_sub_delta':          {label:'YT +Subscribers'},
@@ -2388,13 +2392,17 @@
 
     function sortedRows(rows){
         const prevMap=gainPeriod==='week'?weekPrevPerClient():prevPerClient();
+        const mPrevMap=monthPrevPerClient();
         function val(r,col){
             if(col==='_ig_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_followers)-n(p.ig_followers);}
             if(col==='_tt_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_followers)-n(p.tiktok_followers);}
             // Day mode: use the direct gained_today field (accurate single-day value from sheet)
-            // Week mode: use monthly total delta vs the 7-days-ago row
+            // Week mode: use cumulative delta vs the 7-days-ago row
             if(col==='_ig_view_delta'){if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.ig_views_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_views_this_month)-n(p.ig_views_this_month);}
             if(col==='_tt_view_delta'){if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.tiktok_plays_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_plays_this_month)-n(p.tiktok_plays_this_month);}
+            // Views/30d columns: sort by 30-day delta
+            if(col==='ig_views_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(!mp)return n(r.ig_views_this_month);return n(r.ig_views_this_month)-n(mp.ig_views_this_month);}
+            if(col==='tiktok_plays_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(!mp)return n(r.tiktok_plays_this_month);return n(r.tiktok_plays_this_month)-n(mp.tiktok_plays_this_month);}
             if(col.startsWith('ig_')&&!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;
             if(col.startsWith('tiktok_')&&!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;
             if(col==='_yt_sub_delta'){const p=prevMap[r.client_name];if(!n(r.yt_subscribers)&&!n(r.yt_total_views))return -Infinity;if(!p)return -Infinity;return n(r.yt_subscribers)-n(p.yt_subscribers);}
@@ -2440,11 +2448,11 @@
             'client_name':'Name',
             'ig_followers':'IG Followers',
             '_ig_fol_delta':'IG +Followers',
-            'ig_views_this_month':'IG Views/Mo',
+            'ig_views_this_month':'IG Views/30d',
             '_ig_view_delta':'IG +Views',
             'tiktok_followers':'TT Followers',
             '_tt_fol_delta':'TT +Followers',
-            'tiktok_plays_this_month':'TT Views/Mo',
+            'tiktok_plays_this_month':'TT Views/30d',
             '_tt_view_delta':'TT +Views',
             'yt_subscribers':'YT Subs',
             '_yt_sub_delta':'YT +Subs',
@@ -2464,8 +2472,10 @@
 
     function renderCardView(rows,deltaMap){
         const prevMap=prevPerClient();
+        const mPrevMap=monthPrevPerClient();
         return `<div class="cards-grid">${rows.map((r,idx)=>{
             const p=(deltaMap||prevMap)[r.client_name]||null;
+            const mp=mPrevMap[r.client_name]||null;
             const rankBadge=idx<3?`<span class="card-rank card-rank-${idx+1}">${idx+1}</span>`:'';
             // ── FIX: mh uses correct '-' sign for losses
             const mh=(label,key)=>{const f=fmt(r[key]);if(!f)return'';let gh='';if(p){const d=n(r[key])-n(p[key]);if(d===0)gh=`<span class="card-metric-gain flat">±0</span>`;else{const s=d>0?'+':'-';gh=`<span class="card-metric-gain ${d>0?'up':'down'}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
@@ -2473,6 +2483,8 @@
             const mhValDiff=(label,valueKey)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(p){const d=n(r[valueKey])-n(p[valueKey]);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             // mhWithDelta: show a pre-computed delta value (used for day mode with gained_today field)
             const mhWithDelta=(label,valueKey,deltaVal)=>{const f=fmt(r[valueKey]);if(!f)return'';let gh='';if(deltaVal!==null&&deltaVal!==undefined){const d=n(deltaVal);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
+            // mhViews30d: show 30-day rolling views (computed delta) with day/week gain indicator
+            const mhViews30d=(label,curKey,monthPrev,deltaVal)=>{const views30d=monthPrev?n(r[curKey])-n(monthPrev[curKey]):n(r[curKey]);const f=views30d>0?fmt(views30d):null;if(!f)return'';let gh='';if(deltaVal!==null&&deltaVal!==undefined){const d=n(deltaVal);const s=d>0?'+':'-';const cls=d>0?'up':d<0?'down':'flat';gh=d===0?`<span class="card-metric-gain flat">±0</span>`:`<span class="card-metric-gain ${cls}">${s}${fmt(Math.abs(d))||Math.abs(d).toLocaleString()}</span>`;}else{gh=`<span class="card-metric-gain flat" style="opacity:0.35;font-weight:400">—</span>`;}return`<div class="card-metric"><span class="card-metric-label">${label}</span><span class="card-metric-val">${f}</span>${gh}</div>`;};
             const hasIG=n(r.ig_followers)||n(r.ig_views_this_month),hasTT=n(r.tiktok_followers)||n(r.tiktok_plays_this_month),hasYT=n(r.yt_subscribers)||n(r.yt_total_views);
             let pl='';
             const cardIsAgeRestricted=r.client_name.toLowerCase()==='john wineland';
@@ -2481,9 +2493,9 @@
             const platLink=(url,label)=>url?`<a href="${url}" target="_blank" rel="noopener" style="font-size:0.58rem;font-weight:600;color:rgba(255,255,255,0.55);text-decoration:none;letter-spacing:0.02em;white-space:nowrap;transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.55)'">${label}</a>`:'';
             const igViewsDelta=gainPeriod==='day'?n(r.ig_views_gained_today):(p!=null?n(r.ig_views_this_month)-n(p.ig_views_this_month):null);
             const ttViewsDelta=gainPeriod==='day'?n(r.tiktok_plays_gained_today):(p!=null?n(r.tiktok_plays_this_month)-n(p.tiktok_plays_this_month):null);
-            if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhWithDelta('Views This Month','ig_views_this_month',igViewsDelta)}</div>`;}
+            if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhViews30d('Views Last 30d','ig_views_this_month',mp,igViewsDelta)}</div>`;}
             else if(cardIsAgeRestricted){pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;}
-            if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhWithDelta('Views This Month','tiktok_plays_this_month',ttViewsDelta)}</div>`;
+            if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhViews30d('Views Last 30d','tiktok_plays_this_month',mp,ttViewsDelta)}</div>`;
             if(hasYT)pl+=`<div class="card-platform cp-yt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">YouTube</span>${platLink(cardYtId?'https://youtube.com/channel/'+cardYtId:null,'Channel ↗')}</div>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
             const _cmkSocI=(url,svg,ttl)=>url?`<a href="${url}" target="_blank" rel="noopener" title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;color:var(--text-muted);text-decoration:none;">${svg}</a>`:`<span title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;color:var(--text-muted);">${svg}</span>`;
             const _cigSvg=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg>`;
@@ -2541,6 +2553,14 @@
         }}
         return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${delta}</div>`;
     }
+    function mBlockViews30d(label,today,monthRow,valueKey,diffKey){
+        const views30d=monthRow?(n(today[valueKey])-n(monthRow[valueKey])):n(today[valueKey]);
+        const f=views30d>0?fmt(views30d):null;const diff=n(today[diffKey]);let delta='';
+        if(f){if(diff===0)delta=`<span class="m-delta flat">no change today</span>`;else if(diff>0){
+            delta=`<span class="m-delta up">↑ +${fmt(diff)||diff.toLocaleString()}</span>`;
+        }else if(diff<0){delta=`<span class="m-delta down">↓ -${fmt(Math.abs(diff))||Math.abs(diff).toLocaleString()}</span>`;}}
+        return`<div class="metric-block"><div class="m-label">${label}</div><div class="m-value ${f?'':'empty'}">${f||'—'}</div>${delta}</div>`;
+    }
 
     function gainsBar(today,prev,weekRow,igWeekViews,ttWeekViews,forcePeriod){
         function chip(label,value,delta){const numFmt=fmt(value);const numHtml=numFmt?`<span class="gain-chip-num">${numFmt}</span>`:`<span class="gain-chip-num empty">—</span>`;let deltaHtml='';if(delta!==null&&delta!==undefined){const d=n(delta);if(d>0)deltaHtml=`<span class="gain-delta up">↑ +${fmt(d)||d.toLocaleString()}</span>`;else if(d<0)deltaHtml=`<span class="gain-delta down">↓ ${fmt(d)||d.toLocaleString()}</span>`;else deltaHtml=`<span class="gain-delta flat">±0</span>`;}return`<div class="gain-chip"><span class="gain-chip-label">${label}</span><div class="gain-chip-val">${numHtml}${deltaHtml}</div></div>`;}
@@ -2555,8 +2575,8 @@
         const ttFolDiff=dRow?n(today.tiktok_followers)-n(dRow.tiktok_followers):null;
         const ytSubDiff=dRow?n(today.yt_subscribers)-n(dRow.yt_subscribers):null;
         const ytViewDiff=dRow?n(today.yt_total_views)-n(dRow.yt_total_views):null;
-        // Day mode: use the direct gained_today field from the sheet (accurate single-day value)
-        // Week mode: use monthly total delta vs the 7-days-ago row
+        // Day mode: use the direct gained_today field from the sheet
+        // Week mode: use cumulative total delta vs the 7-days-ago row
         const igViewsGain=activePeriod==='week'?(dRow?(n(today.ig_views_this_month)-n(dRow.ig_views_this_month)):null):(n(today.ig_views_gained_today)||null);
         const ttViewsGain=activePeriod==='week'?(dRow?(n(today.tiktok_plays_this_month)-n(dRow.tiktok_plays_this_month)):null):(n(today.tiktok_plays_gained_today)||null);
         const periodLabel=activePeriod==='week'?"This Week's":"Today's";
@@ -2597,6 +2617,7 @@
     function renderClient(name,history,clientOnly){
         const today=history[history.length-1],prev=history.length>=2?history[history.length-2]:null;
         const weekRow=getWeekRow(history);
+        const monthRow=getMonthRow(history);
         const info=clientMap[name]||{};
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
@@ -2608,8 +2629,8 @@
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
         const igAgeRestricted=name.toLowerCase()==='john wineland';
         const igAgeBadge=igAgeRestricted?`<span style="display:inline-flex;align-items:center;gap:5px;background:rgba(0,0,0,0.25);border:1px solid rgba(255,255,255,0.18);border-radius:20px;padding:3px 10px;font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.7);letter-spacing:0.04em;">🔞 Age-restricted · not scraped</span>`:'';
-        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockNoD('Avg Views',today,'ig_avg_views')}${mBlockDiff('Views This Month',today,'ig_views_this_month','ig_views_gained_today')}${mBlockNoD('Avg Likes',today,'ig_avg_likes')}</div>${igTopVids}`:''}${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`:'';
-        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockDiff('Views This Month',today,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
+        const igSection=(hasIG||igAgeRestricted)?`<div class="platform-section ig"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>Instagram</span><div style="display:flex;align-items:center;gap:10px;">${igAgeBadge}${handleLink(igUrl(igHandle),igHandle?`@${igHandle}`:'')}</div></div>${hasIG?`<div class="metrics-row">${mBlock('Total Followers',today,prev,'ig_followers')}${mBlockNoD('Avg Views',today,'ig_avg_views')}${mBlockViews30d('Views Last 30d',today,monthRow,'ig_views_this_month','ig_views_gained_today')}${mBlockNoD('Avg Likes',today,'ig_avg_likes')}</div>${igTopVids}`:''}${igAgeRestricted&&!hasIG?`<div style="padding:4px 20px 18px;color:rgba(255,255,255,0.5);font-size:0.79rem;font-style:italic;">Instagram data unavailable — this account is age-restricted and cannot be scraped.</div>`:''}</div>`:'';
+        const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockViews30d('Views Last 30d',today,monthRow,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
 
         const analyticsContent=`
@@ -2663,7 +2684,9 @@
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();
         const deltaMap=gainPeriod==='week'?(()=>{const m={};Object.keys(prevMap).forEach(name=>{const hist=clientHistory(name);m[name]=getWeekRow(hist);});return m;})():prevMap;
+        const mPrevMap=monthPrevPerClient();
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
+        const ncViewsDelta=(curVal,prevVal,cls)=>{if(!prevVal&&prevVal!==0){const f=fmt(curVal);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;}const d=n(curVal)-n(prevVal);const f=fmt(d);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
         if(viewMode==='cards')return`<div class="overview-wrap">${controlsHTML()}${renderCardView(rows,deltaMap)}</div>`;
         return`<div class="overview-wrap">${controlsHTML()}<table class="overview-table"><colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>${(()=>{
         const sTh=(col,label,cls)=>{const active=sortCol===col;const arr=active?`<span style="margin-left:3px;font-size:0.65rem;opacity:0.75">${sortDir==='desc'?'↓':'↑'}</span>`:'';return`<th class="${cls}" style="cursor:pointer;${active?'opacity:1;':''}" onclick="setSort('${col}')" title="Sort by ${label}">${label}${arr}</th>`;};
@@ -2675,8 +2698,8 @@
           <th colspan="4" class="group-tt">TikTok</th>
           <th colspan="4" class="group-yt">YouTube</th>
         </tr><tr>
-          ${sTh('ig_followers','Followers','ig-h')}${sTh('_ig_fol_delta','+Followers','ig-h')}${sTh('ig_views_this_month','Views/Month','ig-h')}${sTh('_ig_view_delta','+Views','ig-h')}
-          ${sTh('tiktok_followers','Followers','tt-h')}${sTh('_tt_fol_delta','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/Month','tt-h')}${sTh('_tt_view_delta','+Views','tt-h')}
+          ${sTh('ig_followers','Followers','ig-h')}${sTh('_ig_fol_delta','+Followers','ig-h')}${sTh('ig_views_this_month','Views/30d','ig-h')}${sTh('_ig_view_delta','+Views','ig-h')}
+          ${sTh('tiktok_followers','Followers','tt-h')}${sTh('_tt_fol_delta','+Followers','tt-h')}${sTh('tiktok_plays_this_month','Views/30d','tt-h')}${sTh('_tt_view_delta','+Views','tt-h')}
           ${sTh('yt_subscribers','Subscribers','yt-h')}${sTh('_yt_sub_delta','+Subscribers','yt-h')}${sTh('yt_total_views','Total Views','yt-h')}${sTh('_yt_view_delta','+Views','yt-h')}
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
@@ -2701,8 +2724,9 @@
             // Day mode: use gained_today directly; Week mode: use monthly delta vs period row
             const igViewDeltaCell=gainPeriod==='day'?ncDelta(r.ig_views_gained_today,'col-ig'):gainCell(r,dp,'ig_views_this_month','col-ig');
             const ttViewDeltaCell=gainPeriod==='day'?ncDelta(r.tiktok_plays_gained_today,'col-tt'):gainCell(r,dp,'tiktok_plays_this_month','col-tt');
-            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${nc(r.ig_views_this_month,'col-ig')}${igViewDeltaCell}`;
-            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${nc(r.tiktok_plays_this_month,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
+            const mp=mPrevMap[r.client_name];
+            const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${ncViewsDelta(r.ig_views_this_month,mp?mp.ig_views_this_month:null,'col-ig')}${igViewDeltaCell}`;
+            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;

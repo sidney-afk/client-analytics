@@ -1068,21 +1068,26 @@
     }
 
     function buildTabData(briefType, tabId, data) {
-        if (briefType === 'mr') {
-            if (tabId === 'overview') return { summary: (data.executiveSummary || '').substring(0, 200) };
-            if (tabId === 'landscape') { const items = data.landscapeAnalysis || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.what||'')).join('; ') }; }
-            if (tabId === 'topics') { const items = data.topicClusters || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.name||'')+': '+(i.whatWorks||'')).join('; ') }; }
-            if (tabId === 'hooks') { const items = data.hookAnalysis || []; const hookTypes = [...new Set(items.map(i=>i.hookType).filter(Boolean))]; const topHooks = items.slice(0,3).map(i=>(i.hookType||'Hook')+': "'+(i.openingLine||'')+'"'+(i.stealThis?' → '+i.stealThis:'')).join('; '); return { count: items.length, summary: 'Analyzed '+items.length+' video hooks. Hook types found: '+(hookTypes.join(', ')||'various')+'. Top hooks: '+topHooks }; }
-            if (tabId === 'angles') { const items = data.filmingAngles || []; return { count: items.length, summary: items.slice(0,3).map(i=>i.hook||'').join(' | ') }; }
-            if (tabId === 'gap') { const items = data.theGap || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.gap||'')).join('; ') }; }
-        } else {
-            if (tabId === 'exec') { const s = data.executiveSummary || {}; return { summary: (s.whatIsResonating || '').substring(0, 150) }; }
-            if (tabId === 'resonating') { const items = data.resonating || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.whyItWorks||'').substring(0,60)).join('; ') }; }
-            if (tabId === 'comments') { const ci = data.commentIntelligence || {}; const p = ci.patterns || []; return { commentsCount: (ci.topComments||[]).length, patternsCount: p.length, summary: p.slice(0,3).map(pp=>(pp.label||'')+': '+(pp.pattern||'').substring(0,60)).join('; ') }; }
-            if (tabId === 'gap') { const items = data.theGap || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.gap||'')).join('; ') }; }
-            if (tabId === 'hooks') { const items = data.hookAnalysis || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.hook||'').substring(0,60)).join(' | ') }; }
-        }
-        return {};
+        const tabSections = {
+            mr: {
+                overview:  data.executiveSummary,
+                landscape: data.landscapeAnalysis,
+                topics:    data.topicClusters,
+                hooks:     data.hookAnalysis,
+                angles:    data.filmingAngles,
+                gap:       data.theGap,
+            },
+            comp: {
+                exec:       data.executiveSummary,
+                resonating: data.resonating,
+                comments:   data.commentIntelligence,
+                gap:        data.theGap,
+                hooks:      data.hookAnalysis,
+            }
+        };
+        const sectionData = (tabSections[briefType] || {})[tabId];
+        if (sectionData === undefined) return {};
+        return { summary: JSON.stringify(sectionData) };
     }
     function invalidateTabSummaries(name, briefType) {
         const prefix = `${name}__${briefType}__`;

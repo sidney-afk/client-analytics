@@ -3401,10 +3401,16 @@
         btn.textContent = 'Submitting…';
         status.textContent = '';
 
-        const payload = { clientName: client, title, notes: notes || '', videos };
+        // Build description: prepend links before notes
+        let descParts = [];
+        if (filmingPlans) descParts.push('Filming Plan: ' + filmingPlans);
+        if (generalDrive) descParts.push('General Drive: ' + generalDrive);
+        if (descParts.length && notes) descParts.push('');  // blank line before notes
+        if (notes) descParts.push(notes);
+        const description = descParts.join('\n');
+
+        const payload = { clientName: client, title, notes: description, videos };
         if (editor) payload.editor = editor;
-        if (filmingPlans) payload.filmingPlans = filmingPlans;
-        if (generalDrive) payload.generalDrive = generalDrive;
 
         try {
             const resp = await fetch(VIDEO_FORM_WEBHOOK, {

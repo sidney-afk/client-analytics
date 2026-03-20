@@ -1,7 +1,7 @@
 # N8N Workflow Fixes — CLIENTS METRICS (Q4n1bagJYBkurEaI)
 
 ## Problem
-ViewSync metrics for Instagram views are wrong:
+ViewSync metrics for Instagram/TikTok views are wrong:
 - **Daily views** undercount because the first day a post is seen, its gains are set to 0
 - **`ig_views_this_month`** is NOT monthly views — it's the sum of lifetime views on the latest ~30 posts from Apify
 - **Weekly views** are wrong because the weekly delta subtracts two unreliable snapshot values
@@ -9,7 +9,7 @@ ViewSync metrics for Instagram views are wrong:
 ### Example (Baya)
 - Baya had a 1M-view viral video, but it barely registered (~200-300K)
 - Once the viral video scrolled out of the latest 30 posts, its views vanished entirely
-- Weekly views showed ~590K instead of the real 1M+ total
+- Weekly views showed ~590K instead of the real total
 
 ## Root Cause
 Two bugs in the CLIENTS METRICS N8N workflow:
@@ -36,9 +36,14 @@ Replace the JavaScript code in these two N8N nodes:
 
 ### What the fixes do:
 - **Compute Post Gains**: For posts published within the last 48 hours that are seen for the first time, counts their current views as today's gain (since most views on a brand-new post are recent)
-- **Compute Diffs**: Accumulates `ig_views_gained_today` into a proper running monthly total instead of using the unreliable snapshot. Resets at the start of each new month.
+- **Compute Diffs**: Makes `ig_views_this_month` a cumulative running total (previous day's total + today's gain). Never resets. The dashboard computes rolling 30-day views and weekly views by subtracting the cumulative value from N days ago.
+
+### Dashboard changes (already applied in `index.html`):
+- "Views/Month" → "Views/30d" (rolling 30-day window)
+- Table, card, and detail views now show `today.cumulative - 30_days_ago.cumulative` instead of the raw value
+- Weekly "+Views" uses `today.cumulative - 7_days_ago.cumulative` (was already doing this, now the underlying data is correct)
 
 ## After Applying
-- The weekly views calculation in the dashboard (`today.ig_views_this_month - weekRow.ig_views_this_month`) will now work correctly since the underlying data is a true cumulative counter
-- Daily views will properly capture initial viral post views
-- Historical data in the sheet will still have old (incorrect) values; the fix is forward-looking
+- Historical data in the sheet still has old (incorrect) values; the fix is forward-looking
+- After 30 days of correct data, the "Views/30d" display will be fully accurate
+- Weekly views will be accurate after 7 days of correct data

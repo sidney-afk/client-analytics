@@ -10,10 +10,10 @@
 // (today - 7_days_ago) was subtracting two meaningless
 // snapshots, producing incorrect weekly view numbers.
 //
-// FIX: Accumulate ig_views_gained_today into a running
-// monthly total. On the 1st of a new month, reset to just
-// today's gains. This makes ig_views_this_month a true
-// cumulative counter of views gained within the month.
+// FIX: Accumulate ig_views_gained_today into a cumulative
+// running total that never resets. The dashboard computes
+// rolling 30-day and 7-day deltas by subtracting the
+// cumulative value from N days ago.
 // ============================================================
 
 let allRows = [];
@@ -24,12 +24,11 @@ const mergedData = $('Restore Gains').first().json;
 const ig_views_gained_today = mergedData.ig_views_gained_today ?? 0;
 const tiktok_plays_gained_today = mergedData.tiktok_plays_gained_today ?? 0;
 
-// --- Accumulate monthly totals from previous row ---
+// --- Accumulate into a cumulative running total (never resets) ---
 const todayStr = new Date().toISOString().split('T')[0];
-const thisMonth = todayStr.substring(0, 7); // "YYYY-MM"
 
-let prevIgViewsThisMonth = 0;
-let prevTiktokPlaysThisMonth = 0;
+let prevIgViews = 0;
+let prevTiktokPlays = 0;
 
 if (allRows.length > 0) {
   // Find the most recent row BEFORE today
@@ -39,17 +38,14 @@ if (allRows.length > 0) {
     .sort((a, b) => b.date.localeCompare(a.date));
 
   if (prevRows.length > 0) {
-    const prev = prevRows[0];
-    // Only carry forward if same month; new month resets to 0
-    if (prev.date.substring(0, 7) === thisMonth) {
-      prevIgViewsThisMonth = Number(prev.ig_views_this_month ?? 0);
-      prevTiktokPlaysThisMonth = Number(prev.tiktok_plays_this_month ?? 0);
-    }
+    prevIgViews = Number(prevRows[0].ig_views_this_month ?? 0);
+    prevTiktokPlays = Number(prevRows[0].tiktok_plays_this_month ?? 0);
   }
 }
 
-const ig_views_this_month = prevIgViewsThisMonth + ig_views_gained_today;
-const tiktok_plays_this_month = prevTiktokPlaysThisMonth + tiktok_plays_gained_today;
+// Cumulative: previous total + today's gain
+const ig_views_this_month = prevIgViews + ig_views_gained_today;
+const tiktok_plays_this_month = prevTiktokPlays + tiktok_plays_gained_today;
 
 return [{
   json: {

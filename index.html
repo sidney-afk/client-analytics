@@ -1530,6 +1530,14 @@
             console.log('[SyncView] MR brief parts:',{p1len:p1.length,p2len:p2.length,p3len:p3.length,p1start:p1.substring(0,80),p2start:p2.substring(0,80)});
             const raw=p1+p2+p3;
             const data=JSON.parse(raw);
+            // Override keywords with actual submitted keywords if available
+            try{
+                const savedKw=JSON.parse(localStorage.getItem('syncview_submittedMRKeywords_v1')||'{}');
+                const clientName=data.clientName||brief.client_name||'';
+                if(savedKw[clientName]&&savedKw[clientName].length>0){
+                    data.keywords=savedKw[clientName];
+                }
+            }catch{}
             console.log('[SyncView] MR brief parsed OK, keys:',Object.keys(data),'filmingAngles:',data.filmingAngles?.length,'theGap:',data.theGap?.length);
             return data;
         }catch(e){
@@ -1614,6 +1622,12 @@
         state.submitting=true;
         state.error=null;
         refreshBriefView(name);
+        // Save the actual submitted keywords so we can display them accurately
+        try{
+            const savedKw=JSON.parse(localStorage.getItem('syncview_submittedMRKeywords_v1')||'{}');
+            savedKw[name]=keywords;
+            localStorage.setItem('syncview_submittedMRKeywords_v1',JSON.stringify(savedKw));
+        }catch{}
         try{
             await fetch('https://synchrosocial.app.n8n.cloud/webhook/generate-market-brief',{
                 method:'POST',

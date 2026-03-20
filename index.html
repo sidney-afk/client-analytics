@@ -1072,7 +1072,7 @@
             if (tabId === 'overview') return { summary: (data.executiveSummary || '').substring(0, 200) };
             if (tabId === 'landscape') { const items = data.landscapeAnalysis || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.what||'')).join('; ') }; }
             if (tabId === 'topics') { const items = data.topicClusters || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.name||'')+': '+(i.whatWorks||'')).join('; ') }; }
-            if (tabId === 'hooks') { const items = data.hookAnalysis || []; return { count: items.length, summary: items.slice(0,3).map(i=>i.openingLine||'').join(' | ') }; }
+            if (tabId === 'hooks') { const items = data.hookAnalysis || []; const hookTypes = [...new Set(items.map(i=>i.hookType).filter(Boolean))]; const topHooks = items.slice(0,3).map(i=>(i.hookType||'Hook')+': "'+(i.openingLine||'')+'"'+(i.stealThis?' → '+i.stealThis:'')).join('; '); return { count: items.length, summary: 'Analyzed '+items.length+' video hooks. Hook types found: '+(hookTypes.join(', ')||'various')+'. Top hooks: '+topHooks }; }
             if (tabId === 'angles') { const items = data.filmingAngles || []; return { count: items.length, summary: items.slice(0,3).map(i=>i.hook||'').join(' | ') }; }
             if (tabId === 'gap') { const items = data.theGap || []; return { count: items.length, summary: items.slice(0,3).map(i=>(i.label||'')+': '+(i.gap||'')).join('; ') }; }
         } else {

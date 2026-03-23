@@ -1068,22 +1068,27 @@
     }
 
     function buildTabData(briefType, tabId, data) {
+        // For overview/exec tabs, build a readable highlights string across all sections
+        if (briefType === 'mr' && tabId === 'overview') {
+            const exec = data.executiveSummary || {};
+            const h = (typeof exec === 'object' && exec.highlights) ? exec.highlights : {};
+            return { summary: 'Executive summary: ' + (exec.summary || exec || '') +
+                '. Landscape: ' + (h.landscape || '') +
+                '. Topic Clusters: ' + (h.topicClusters || '') +
+                '. Hooks: ' + (h.hooks || '') +
+                '. Filming Angles: ' + (h.filmingAngles || '') +
+                '. Gap: ' + (h.gap || '') };
+        }
+        if (briefType === 'comp' && tabId === 'exec') {
+            const s = data.executiveSummary || {};
+            return { summary: 'What is resonating: ' + (s.whatIsResonating || '') +
+                '. The gap: ' + (s.theGap || '') +
+                '. Hook patterns: ' + (s.hookPatterns || '') +
+                '. Action priorities: ' + (Array.isArray(s.actionPriorities) ? s.actionPriorities.join('; ') : '') };
+        }
         const tabSections = {
-            mr: {
-                overview:  data.executiveSummary,
-                landscape: data.landscapeAnalysis,
-                topics:    data.topicClusters,
-                hooks:     data.hookAnalysis,
-                angles:    data.filmingAngles,
-                gap:       data.theGap,
-            },
-            comp: {
-                exec:       data.executiveSummary,
-                resonating: data.resonating,
-                comments:   data.commentIntelligence,
-                gap:        data.theGap,
-                hooks:      data.hookAnalysis,
-            }
+            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
+            comp: { resonating: data.resonating, comments: data.commentIntelligence, gap: data.theGap, hooks: data.hookAnalysis }
         };
         const sectionData = (tabSections[briefType] || {})[tabId];
         if (sectionData === undefined) return {};

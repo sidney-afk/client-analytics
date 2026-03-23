@@ -1106,7 +1106,7 @@
     let activeMRBriefId = {};
     let mrKeywordState = {};
     let compAccountState = {};
-    let savedHooks = (() => { try { return new Set(JSON.parse(localStorage.getItem('syncview_savedHooks') || '[]')); } catch { return new Set(); } })();
+    let savedHooks = (() => { try { const raw = localStorage.getItem('syncview_savedHooks'); console.log('[SyncView] savedHooks raw from localStorage:', raw); const s = new Set(JSON.parse(raw || '[]')); console.log('[SyncView] savedHooks loaded:', [...s]); return s; } catch(e) { console.warn('[SyncView] savedHooks load error:', e); return new Set(); } })();
     let tabSummaryCache = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryCache_v2') || '{}'); } catch { return {}; } })();
     let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v5') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
@@ -1554,8 +1554,9 @@
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const saveKey = _hookSaveKey(clientName, hookData.openingLine || '');
+            console.log('[SyncView] Saving hook key:', saveKey);
             savedHooks.add(saveKey);
-            try { localStorage.setItem('syncview_savedHooks', JSON.stringify([...savedHooks])); } catch {}
+            try { localStorage.setItem('syncview_savedHooks', JSON.stringify([...savedHooks])); console.log('[SyncView] savedHooks persisted:', [...savedHooks]); } catch(e) { console.warn('[SyncView] savedHooks persist error:', e); }
             btn.classList.add('saved');
             btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`;
         } catch(err) {
@@ -2404,7 +2405,9 @@
         return`${renderTabSummary(name,'comp','hooks',buildTabData('comp','hooks',data))}<div class="brief-cards-grid">${items.map((item,idx)=>{
             const stealTemplate=item.stealThis?formatHookTemplate(item.stealThis):'';
             const cardId=`comp-hook-${name.replace(/\s+/g,'-')}-${idx}`;
-            const _compHookSaved = savedHooks.has(_hookSaveKey(name, item.hook||''));
+            const _compHookKey = _hookSaveKey(name, item.hook||'');
+            const _compHookSaved = savedHooks.has(_compHookKey);
+            if(_compHookSaved) console.log('[SyncView] comp hook already saved:', _compHookKey);
             _storeHookCard(cardId, name, {hookType:item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.name||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-top">
@@ -2513,7 +2516,9 @@
         return`${renderTabSummary(name,'mr','hooks',buildTabData('mr','hooks',data))}<div class="brief-cards-grid">${items.map((item,idx)=>{
             const stealTemplate=item.stealThis?formatHookTemplate(item.stealThis):'';
             const cardId=`mr-hook-${name.replace(/\s+/g,'-')}-${idx}`;
-            const _mrHookSaved = savedHooks.has(_hookSaveKey(name, item.openingLine||''));
+            const _mrHookKey = _hookSaveKey(name, item.openingLine||'');
+            const _mrHookSaved = savedHooks.has(_mrHookKey);
+            if(_mrHookSaved) console.log('[SyncView] MR hook already saved:', _mrHookKey);
             _storeHookCard(cardId, name, {hookType:item.hookType||'',openingLine:item.openingLine||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.handle||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-top">

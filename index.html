@@ -1098,11 +1098,11 @@
     let sortCol = 'ig_followers', sortDir = 'desc';
     let activePeriods = {};
     let clientViewTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_clientViewTab') || '{}'); } catch { return {}; } })();
-    let activeBriefTab = {};
+    let activeBriefTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeBriefTab') || '{}'); } catch { return {}; } })();
     let activeBriefId = {};
     let briefPollingState = {};
     let activeBriefSection = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeBriefSection') || '{}'); } catch { return {}; } })();
-    let activeMRBriefTab = {};
+    let activeMRBriefTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeMRBriefTab') || '{}'); } catch { return {}; } })();
     let activeMRBriefId = {};
     let mrKeywordState = {};
     let compAccountState = {};
@@ -1742,6 +1742,7 @@
     function setActiveMRBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeMRBriefTab[name]=tab;
+        try{localStorage.setItem('syncview_activeMRBriefTab',JSON.stringify(activeMRBriefTab));}catch{}
         refreshBriefView(name);
     }
     function selectMRBriefById(encodedName,id){
@@ -2005,6 +2006,7 @@
     function setActiveBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeBriefTab[name]=tab;
+        try{localStorage.setItem('syncview_activeBriefTab',JSON.stringify(activeBriefTab));}catch{}
         refreshBriefView(name);
     }
 

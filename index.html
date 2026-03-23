@@ -2178,7 +2178,7 @@
     function renderBriefTab_exec(data,name){
         const s=data.executiveSummary||{};
         const priorities=Array.isArray(s.actionPriorities)?s.actionPriorities:[];
-        return `${renderTabSummary(name,'comp','exec',{summary:s.whatIsResonating?.substring?.(0,150)})}<div class="brief-exec-grid">
+        return `${renderTabSummary(name,'comp','exec',buildTabData('comp','exec',data))}<div class="brief-exec-grid">
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
@@ -2189,7 +2189,7 @@
     function renderBriefTab_resonating(data,name){
         const items=Array.isArray(data.resonating)?data.resonating:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`${renderTabSummary(name,'comp','resonating',{count:items.length,summary:items.slice(0,3).map(i=>(i.label||'')+': '+(i.whyItWorks||'').substring(0,60)).join('; ')})}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','resonating',buildTabData('comp','resonating',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">✦ Pattern</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.whyItWorks||''}</div>${item.forClient?`<div class="brief-card-sub"><strong>For this client:</strong> ${item.forClient}</div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_comments(data,name){
@@ -2204,19 +2204,19 @@
             html+=`<div class="brief-section-header" style="margin-top:24px;">Comment Patterns</div><div class="brief-cards-grid brief-patterns-grid">${patterns.map(p=>`<div class="brief-pattern-card"><div class="brief-pattern-label">${p.label||'—'}</div><div class="brief-pattern-body">${p.pattern||''}</div>${p.action?`<div class="brief-pattern-action">→ ${p.action}</div>`:''}</div>`).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No comment intelligence data.</div>`;
-        return renderTabSummary(name,'comp','comments',{commentsCount:topComments.length,patternsCount:patterns.length,summary:patterns.slice(0,3).map(p=>(p.label||'')+': '+(p.pattern||'').substring(0,60)).join('; ')})+html;
+        return renderTabSummary(name,'comp','comments',buildTabData('comp','comments',data))+html;
     }
 
     function renderBriefTab_gap(data,name){
         const items=Array.isArray(data.theGap)?data.theGap:[];
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No data in this section.</div>`;
-        return`${renderTabSummary(name,'comp','gap',{count:items.length,summary:items.slice(0,3).map(i=>(i.label||'')+': '+(i.gap||'')).join('; ')})}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','gap',buildTabData('comp','gap',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="brief-card"><span class="brief-card-badge">🕳 Gap</span><div class="brief-card-label">${item.label||'—'}</div><div class="brief-card-body">${item.gap||''}</div>${item.opportunity?`<div class="brief-card-sub"><strong>Opportunity:</strong> ${item.opportunity}</div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.hook)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
-        return`${renderTabSummary(name,'comp','hooks',{count:items.length,summary:items.slice(0,3).map(i=>(i.hook||'').substring(0,60)).join(' | ')})}<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
+        return`${renderTabSummary(name,'comp','hooks',buildTabData('comp','hooks',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
     }
 
     function renderBriefTab_sources(data){
@@ -2266,7 +2266,7 @@
                 <div class="brief-exec-card-body" style="font-size:0.82rem;">${highlights[h.key]}</div>
             </div>`).join('')}</div>` : '';
 
-        return`<div class="mr-overview-wrap">${renderTabSummary(name,'mr','overview',{summary:summaryText?.substring?.(0,200)})}
+        return`<div class="mr-overview-wrap">${renderTabSummary(name,'mr','overview',buildTabData('mr','overview',data))}
             ${highlightsHtml}
         </div>`;
     }
@@ -2274,7 +2274,7 @@
     function renderMRTab_landscape(data,name){
         const items=Array.isArray(data.landscapeAnalysis)?data.landscapeAnalysis:[];
         if(!items.length)return _mrEmpty();
-        return`${renderTabSummary(name,'mr','landscape',{count:items.length,summary:items.slice(0,3).map(i=>(i.label||'')+': '+(i.what||'')).join('; ')})}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','landscape',buildTabData('mr','landscape',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <span class="brief-card-badge">📊 Landscape</span>
                 <div class="brief-card-label">${item.label||'—'}</div>
@@ -2288,7 +2288,7 @@
     function renderMRTab_topics(data,name){
         const items=Array.isArray(data.topicClusters)?data.topicClusters:[];
         if(!items.length)return _mrEmpty();
-        return`${renderTabSummary(name,'mr','topics',{count:items.length,summary:items.slice(0,3).map(i=>(i.name||'')+': '+(i.whatWorks||'')).join('; ')})}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','topics',buildTabData('mr','topics',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
                     <span class="brief-card-badge">🗂 Cluster</span>
@@ -2305,7 +2305,7 @@
     function renderMRTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
-        return`${renderTabSummary(name,'mr','hooks',{count:items.length,summary:items.slice(0,3).map(i=>i.openingLine||'').join(' | ')})}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','hooks',buildTabData('mr','hooks',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="hook-card">
                 <div class="hook-card-top">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
@@ -2324,7 +2324,7 @@
     function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
         if(!items.length)return _mrEmpty('No filming angles data.');
-        return`${renderTabSummary(name,'mr','angles',{count:items.length,summary:items.slice(0,3).map(i=>i.hook||'').join(' | ')})}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card" style="gap:12px;">
                 <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
                     <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
@@ -2339,7 +2339,7 @@
     function renderMRTab_gap(data,name){
         const items=Array.isArray(data.theGap)?data.theGap:[];
         if(!items.length)return _mrEmpty();
-        return`${renderTabSummary(name,'mr','gap',{count:items.length,summary:items.slice(0,3).map(i=>(i.label||'')+': '+(i.gap||'')).join('; ')})}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','gap',buildTabData('mr','gap',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card mr-gap-card">
                 <span class="mr-gap-badge">🕳 Gap</span>
                 <div class="brief-card-label">${item.label||'—'}</div>

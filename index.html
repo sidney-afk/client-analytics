@@ -752,6 +752,79 @@
             letter-spacing: 0.09em; color: var(--text-muted);
         }
         .hook-steal-text { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
+        .hook-template-text {
+            font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55;
+        }
+        .hook-template-bracket {
+            display: inline; background: #eff6ff; border: 1px solid #bfdbfe;
+            border-radius: 4px; padding: 1px 5px; font-size: 0.77rem; font-weight: 700;
+            color: #1d4ed8; font-style: normal;
+        }
+        .hook-card-actions {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 18px 12px; border-top: 1px solid var(--border-light);
+        }
+        .hook-eye-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 7px;
+            border: 1px solid var(--border); background: var(--white);
+            color: var(--text-muted); cursor: pointer; transition: all 0.13s;
+            flex-shrink: 0;
+        }
+        .hook-eye-btn:hover { border-color: #7c3aed; color: #7c3aed; background: #faf5ff; }
+        .hook-add-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 5px 11px; border-radius: 7px; border: 1px solid var(--border);
+            background: var(--white); font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.71rem; font-weight: 700; color: var(--text-secondary);
+            cursor: pointer; transition: all 0.13s; white-space: nowrap;
+        }
+        .hook-add-btn:hover { border-color: #10b981; color: #065f46; background: #f0fdf4; }
+        .hook-add-btn.saved { border-color: #10b981; color: #065f46; background: #f0fdf4; cursor: default; }
+        .hook-add-btn svg { flex-shrink: 0; }
+
+        /* Transcript modal */
+        .transcript-overlay {
+            display: none; position: fixed; inset: 0; z-index: 9998;
+            background: rgba(0,0,0,0.4); backdrop-filter: blur(3px);
+            align-items: center; justify-content: center;
+        }
+        .transcript-overlay.active { display: flex; }
+        .transcript-modal {
+            background: var(--white); border-radius: 16px; padding: 0;
+            max-width: 560px; width: 92%; max-height: 80vh;
+            box-shadow: 0 24px 70px rgba(0,0,0,0.2);
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .transcript-modal-header {
+            display: flex; align-items: flex-start; justify-content: space-between;
+            gap: 12px; padding: 20px 24px 16px; border-bottom: 1px solid var(--border-light);
+        }
+        .transcript-modal-title {
+            font-size: 0.84rem; font-weight: 700; color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+        .transcript-modal-meta {
+            font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;
+        }
+        .transcript-modal-close {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border);
+            background: var(--bg); cursor: pointer; color: var(--text-muted);
+            transition: all 0.12s; flex-shrink: 0;
+        }
+        .transcript-modal-close:hover { border-color: #bbb; color: var(--text-primary); }
+        .transcript-modal-body {
+            overflow-y: auto; padding: 20px 24px; flex: 1;
+        }
+        .transcript-modal-body p {
+            font-size: 0.84rem; color: var(--text-secondary); line-height: 1.75;
+            margin: 0;
+        }
+        .transcript-modal-body .no-transcript {
+            font-size: 0.8rem; color: var(--text-muted); font-style: italic;
+            padding: 12px 0;
+        }
 
         .comment-card {
             background: var(--white); border: 1px solid var(--border);
@@ -1027,6 +1100,10 @@
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
+    // Hook Library: N8N webhook that appends a row to the "Hook Library" sheet.
+    // Create a new N8N workflow with a Webhook trigger → Google Sheets "Append row" node.
+    // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
+    const HOOK_LIBRARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/add-hook-to-library';
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -1384,6 +1461,94 @@
     function fmtIsoDate(iso){if(!iso)return'';try{const m=iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);if(m){const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return`${parseInt(m[3])} ${months[parseInt(m[2])-1]} ${m[1]}, ${m[4]}:${m[5]}`;}return iso;}catch{return iso;}}
     function parseViewCount(v){if(!v)return 0;const s=String(v).replace(/,/g,'').trim();if(s.endsWith('M'))return parseFloat(s)*1e6;if(s.endsWith('K'))return parseFloat(s)*1e3;return parseFloat(s)||0;}
     function isPhrase(text){return(text||'').split(/\s+/).filter(w=>w.length>0).length>=3;}
+
+    // ── Hook Template & Library ───────────────────────────────────────────────
+
+    // Stores hook data keyed by card ID so onclick can reference it safely
+    // without embedding raw JSON into HTML attribute strings.
+    const _hookCardData = {};
+
+    function _storeHookCard(cardId, clientName, hookData, transcript) {
+        _hookCardData[cardId] = { clientName, hookData, transcript };
+    }
+
+    // Converts client-specific text into a bracketed template by detecting
+    // proper nouns and niche-specific phrases and replacing them with [placeholders].
+    // Falls back to showing the raw text if no substitutions are found.
+    function formatHookTemplate(text) {
+        if (!text) return '';
+        // If already has brackets, show as-is with styled brackets
+        if (/\[.+?\]/.test(text)) {
+            return text.replace(/\[([^\]]+)\]/g, '<span class="hook-template-bracket">[$1]</span>');
+        }
+        // Otherwise return as plain text (N8N not yet updated to generate templates)
+        return text;
+    }
+
+    function openTranscriptModal(cardId) {
+        const stored = _hookCardData[cardId];
+        if (!stored) return;
+        const { hookData, transcript } = stored;
+        const overlay = document.getElementById('transcriptOverlay');
+        const title = document.getElementById('transcriptModalTitle');
+        const meta = document.getElementById('transcriptModalMeta');
+        const body = document.getElementById('transcriptModalBody');
+        title.textContent = hookData.handle ? `@${hookData.handle}` : 'Transcript';
+        const metaParts = [];
+        if (hookData.views) metaParts.push(`👁 ${hookData.views}`);
+        if (hookData.url) metaParts.push(`<a href="${hookData.url}" target="_blank" rel="noopener" style="color:var(--text-secondary);font-weight:600;">View reel ↗</a>`);
+        meta.innerHTML = metaParts.join(' &nbsp;·&nbsp; ');
+        const text = transcript || hookData.openingLine || '';
+        if (text.trim()) {
+            body.innerHTML = `<p>${text.replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}</p>`;
+        } else {
+            body.innerHTML = `<p class="no-transcript">Full transcript not available for this brief. Transcripts will appear here after regenerating the brief with the updated workflow.</p>`;
+        }
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+
+    function closeTranscriptModal(e) {
+        if (e && e.target !== document.getElementById('transcriptOverlay')) return;
+        document.getElementById('transcriptOverlay').classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    async function addHookToLibrary(cardId, btn) {
+        const stored = _hookCardData[cardId];
+        if (!stored) return;
+        const { clientName, hookData } = stored;
+        if (!HOOK_LIBRARY_WEBHOOK) {
+            alert('Hook Library webhook not configured yet. See setup instructions.');
+            return;
+        }
+        btn.disabled = true;
+        const plusIcon = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+        btn.innerHTML = `${plusIcon} Saving…`;
+        try {
+            const resp = await fetch(HOOK_LIBRARY_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientName,
+                    hookType: hookData.hookType || '',
+                    openingLine: hookData.openingLine || '',
+                    template: hookData.stealThis || '',
+                    views: hookData.views || '',
+                    sourceUrl: hookData.url || '',
+                    dateAdded: new Date().toISOString().split('T')[0]
+                })
+            });
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            btn.classList.add('saved');
+            btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`;
+        } catch(err) {
+            console.warn('[SyncView] Hook library save error:', err);
+            btn.disabled = false;
+            btn.innerHTML = `${plusIcon} Add to library`;
+            alert('Could not save to Hook Library. Check the webhook is set up.');
+        }
+    }
 
     const ICON={
         views:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.5"/></svg>`,
@@ -2216,7 +2381,26 @@
     function renderBriefTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.hook)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
-        return`${renderTabSummary(name,'comp','hooks',buildTabData('comp','hooks',data))}<div class="brief-cards-grid">${items.map(item=>`<div class="hook-card"><div class="hook-card-top"><div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div><div class="hook-text">"${item.hook||'—'}"</div>${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}</div>${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}</div>`).join('')}</div>`;
+        const eyeIcon=`<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+        const plusIcon=`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+        return`${renderTabSummary(name,'comp','hooks',buildTabData('comp','hooks',data))}<div class="brief-cards-grid">${items.map((item,idx)=>{
+            const stealTemplate=item.stealThis?formatHookTemplate(item.stealThis):'';
+            const cardId=`comp-hook-${name.replace(/\s+/g,'-')}-${idx}`;
+            _storeHookCard(cardId, name, {hookType:item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.name||''}, item.transcript||'');
+            return`<div class="hook-card" id="${cardId}">
+                <div class="hook-card-top">
+                    <div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div>
+                    <div class="hook-text">"${item.hook||'—'}"</div>
+                    ${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}
+                </div>
+                ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
+                <div class="hook-card-actions">
+                    <button class="hook-eye-btn" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
+                    <span style="flex:1;"></span>
+                    ${item.stealThis?`<button class="hook-add-btn" onclick="addHookToLibrary('${cardId}',this)">${plusIcon} Add to library</button>`:''}
+                </div>
+            </div>`;
+        }).join('')}</div>`;
     }
 
     function renderBriefTab_sources(data){
@@ -2305,8 +2489,13 @@
     function renderMRTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
-        return`${renderTabSummary(name,'mr','hooks',buildTabData('mr','hooks',data))}<div class="brief-cards-grid">${items.map(item=>`
-            <div class="hook-card">
+        const eyeIcon=`<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
+        const plusIcon=`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+        return`${renderTabSummary(name,'mr','hooks',buildTabData('mr','hooks',data))}<div class="brief-cards-grid">${items.map((item,idx)=>{
+            const stealTemplate=item.stealThis?formatHookTemplate(item.stealThis):'';
+            const cardId=`mr-hook-${name.replace(/\s+/g,'-')}-${idx}`;
+            _storeHookCard(cardId, name, {hookType:item.hookType||'',openingLine:item.openingLine||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.handle||''}, item.transcript||'');
+            return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-top">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                         <span class="source-rank-badge">#${item.rank||'?'}</span>
@@ -2316,9 +2505,14 @@
                     ${_mrHookBadge(item.hookType)}
                     <div class="hook-text" style="margin-top:10px;">"${item.openingLine||'—'}"</div>
                 </div>
-                ${item.stealThis?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Steal this →</span><span class="hook-steal-text">${item.stealThis}</span></div>`:''}
-                ${item.url?`<div style="padding:8px 18px 12px;">${_mrLink(item.url,'View reel ↗')}</div>`:''}
-            </div>`).join('')}</div>`;
+                ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
+                <div class="hook-card-actions">
+                    <button class="hook-eye-btn" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
+                    ${item.url?`<span style="flex:1;">${_mrLink(item.url,'View reel ↗')}</span>`:'<span style="flex:1;"></span>'}
+                    ${item.stealThis?`<button class="hook-add-btn" onclick="addHookToLibrary('${cardId}',this)">${plusIcon} Add to library</button>`:''}
+                </div>
+            </div>`;
+        }).join('')}</div>`;
     }
 
     function renderMRTab_angles(data,name){
@@ -3555,5 +3749,21 @@
     }
     init();
 </script>
+
+<!-- Transcript preview modal -->
+<div id="transcriptOverlay" class="transcript-overlay" onclick="closeTranscriptModal(event)">
+    <div class="transcript-modal" onclick="event.stopPropagation()">
+        <div class="transcript-modal-header">
+            <div>
+                <div class="transcript-modal-title" id="transcriptModalTitle">Transcript</div>
+                <div class="transcript-modal-meta" id="transcriptModalMeta"></div>
+            </div>
+            <button class="transcript-modal-close" onclick="closeTranscriptModal()">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M1 1l12 12M13 1L1 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="transcript-modal-body" id="transcriptModalBody"></div>
+    </div>
+</div>
 </body>
 </html>

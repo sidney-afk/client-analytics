@@ -1533,10 +1533,7 @@
                     clientName,
                     hookType: hookData.hookType || '',
                     openingLine: hookData.openingLine || '',
-                    template: hookData.stealThis || '',
-                    views: hookData.views || '',
-                    sourceUrl: hookData.url || '',
-                    dateAdded: new Date().toISOString().split('T')[0]
+                    template: hookData.stealThis || ''
                 })
             });
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

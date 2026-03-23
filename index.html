@@ -1065,6 +1065,19 @@
     function dismissConfirm() {
         document.getElementById('confirmOverlay').classList.remove('active');
         _confirmCb = null;
+        // restore cancel button if it was hidden for notify mode
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = '';
+    }
+    function showNotify(title, msg) {
+        document.getElementById('confirmTitle').textContent = title;
+        document.getElementById('confirmMsg').textContent = msg;
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        const yesBtn = document.getElementById('confirmYes');
+        yesBtn.textContent = 'OK';
+        yesBtn.onclick = dismissConfirm;
+        document.getElementById('confirmOverlay').classList.add('active');
     }
 
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
@@ -1519,7 +1532,7 @@
         if (!stored) return;
         const { clientName, hookData } = stored;
         if (!HOOK_LIBRARY_WEBHOOK) {
-            alert('Hook Library webhook not configured yet. See setup instructions.');
+            showNotify('Webhook not configured', 'Hook Library webhook not configured yet. See setup instructions.');
             return;
         }
         btn.disabled = true;
@@ -1543,7 +1556,7 @@
             console.warn('[SyncView] Hook library save error:', err);
             btn.disabled = false;
             btn.innerHTML = `${plusIcon} Add to library`;
-            alert('Could not save to Hook Library. Check the webhook is set up.');
+            showNotify('Could not save', 'Could not save to Hook Library. Check the webhook is set up.');
         }
     }
 

@@ -3639,7 +3639,7 @@
         if (notes) descParts.push(notes);
         const description = descParts.join('\n');
 
-        const payload = { clientName: client, title, notes: description, videos };
+        const payload = { clientName: client, title, notes: description, videos, filmingPlans };
         if (editor) payload.editor = editor;
 
         // Fire both workflows simultaneously — fire-and-forget (CORS may block response reading)

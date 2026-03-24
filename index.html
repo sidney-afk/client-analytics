@@ -2891,7 +2891,7 @@
             ${igSection}${ttSection}${ytSection}
             <div class="chart-section">
                 <div class="chart-top">
-                    <span class="chart-title">Followers Over Time</span>
+                    <span class="chart-title">Followers Over Time <span style="font-weight:400;opacity:0.45;text-transform:none;letter-spacing:0;font-size:0.68rem;margin-left:4px;">· each platform scaled independently</span></span>
                     <div class="chart-legend">${legends}</div>
                 </div>
                 <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
@@ -2985,28 +2985,30 @@
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}
 
-    const _chartOpts=(fmtTip)=>({responsive:true,maintainAspectRatio:false,animation:{duration:600,easing:'easeInOutQuart'},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#111',bodyColor:'#555',borderColor:'rgba(0,0,0,0.08)',borderWidth:1,padding:14,cornerRadius:10,boxPadding:4,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmtTip(c.parsed.y):'—'}`}}},scales:{x:{grid:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},maxTicksLimit:8,padding:4}},y:{grid:{color:'rgba(0,0,0,0.045)',drawTicks:false},border:{display:false,dash:[3,3]},ticks:{color:'#bbb',font:{size:11},padding:10,callback:v=>fmt(v)||v}}}});
+    const _baseOpts=(fmtTip)=>({responsive:true,maintainAspectRatio:false,animation:{duration:600,easing:'easeInOutQuart'},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#111',bodyColor:'#555',borderColor:'rgba(0,0,0,0.08)',borderWidth:1,padding:14,cornerRadius:10,boxPadding:4,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmtTip(c.parsed.y):'—'}`}}}});
+    const _xAxis={grid:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},maxTicksLimit:8,padding:4}};
+    const _mkYAxis=(show)=>({type:'linear',display:show,position:'left',grid:show?{color:'rgba(0,0,0,0.045)',drawTicks:false}:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},padding:10,callback:v=>fmt(v)||v}});
     function _mkGrad(c2d,h,r,g,b){const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${r},${g},${b},0.2)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);return gr;}
     function renderChart(history){
         const ctx=document.getElementById('growthChart');if(!ctx)return;
         if(growthChart){growthChart.destroy();growthChart=null;}
-        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[];
-        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(data.some(v=>v))ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2});};
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[],sc={x:_xAxis};let yi=0;
+        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(!data.some(v=>v))return;const yId='y'+yi;ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});sc[yId]=_mkYAxis(yi===0);yi++;};
         push('Instagram','ig_followers','#E1306C',225,48,108);
         push('TikTok','tiktok_followers','#2EC4B6',46,196,182);
         push('YouTube','yt_subscribers','#FF4444',255,68,68);
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`;return;}
-        growthChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:_chartOpts(v=>v.toLocaleString())});
+        growthChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
     }
     function renderViewsChart(history){
         const ctx=document.getElementById('viewsChart');if(!ctx)return;
         if(viewsChart){viewsChart.destroy();viewsChart=null;}
-        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[];
-        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(data.some(v=>v))ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2});};
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[],sc={x:_xAxis};let yi=0;
+        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(!data.some(v=>v))return;const yId='y'+yi;ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});sc[yId]=_mkYAxis(yi===0);yi++;};
         push('Instagram','ig_views_gained_today','#E1306C',225,48,108);
         push('TikTok','tiktok_plays_gained_today','#2EC4B6',46,196,182);
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
-        viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:_chartOpts(v=>v.toLocaleString())});
+        viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
     }
 
     function render(sel,clientOnly){

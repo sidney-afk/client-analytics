@@ -256,13 +256,13 @@
         .tt-stat-icon { flex-shrink: 0; opacity: 0.4; }
         .tt-stat-val { font-size: 0.69rem; font-weight: 700; color: rgba(255,255,255,0.85); font-variant-numeric: tabular-nums; }
         .top-videos-empty { padding: 18px 0; text-align: center; color: rgba(255,255,255,0.35); font-size: 0.78rem; font-style: italic; }
-        .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 11px; padding: 20px; margin-top: 11px; }
-        .chart-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
-        .chart-title { font-size: 0.87rem; font-weight: 700; letter-spacing: -0.01em; }
-        .chart-legend { display: flex; gap: 14px; }
-        .leg-item { display: flex; align-items: center; gap: 5px; font-size: 0.74rem; color: var(--text-secondary); font-weight: 500; }
-        .leg-dot { width: 7px; height: 7px; border-radius: 50%; }
-        .chart-wrap { position: relative; height: 210px; }
+        .chart-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-top: 14px; box-shadow: 0 1px 5px rgba(0,0,0,0.04); }
+        .chart-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .chart-title { font-weight: 700; color: var(--text-secondary); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.07em; }
+        .chart-legend { display: flex; gap: 16px; }
+        .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-secondary); font-weight: 500; }
+        .leg-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .chart-wrap { position: relative; height: 240px; }
         .client-only-badge { display: inline-flex; align-items: center; gap: 7px; background: var(--ig-light); border: 1px solid var(--ig-mid); border-radius: 20px; padding: 4px 12px; font-size: 0.71rem; font-weight: 600; color: var(--ig-dark); margin-bottom: 18px; }
         .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; gap: 14px; }
         .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: #777; border-radius: 50%; animation: spin 0.75s linear infinite; }
@@ -1090,7 +1090,7 @@
     const CLIENTS_INFO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
-    let allData = [], clientMap = {}, topVideos = [], growthChart = null;
+    let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
     let briefs = [];
     let mrBriefs = [];
     let videoEditors = [];
@@ -2006,7 +2006,7 @@
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
-        if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
+        if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
         window.scrollTo({top:0,behavior:'instant'});
     }
 
@@ -2865,7 +2865,8 @@
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:`<em>daily changes show after 2+ days</em>`;
-        const legends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:var(--ig)"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#888"></div>TikTok</div>`:'',hasYT?`<div class="leg-item"><div class="leg-dot" style="background:var(--yt)"></div>YouTube</div>`:'']. filter(Boolean).join('');
+        const legends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:'',hasYT?`<div class="leg-item"><div class="leg-dot" style="background:#FF4444"></div>YouTube</div>`:''].filter(Boolean).join('');
+        const viewsLegends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:''].filter(Boolean).join('');
         const shareBtnHtml=!clientOnly?`<button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`:'';
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
@@ -2890,10 +2891,17 @@
             ${igSection}${ttSection}${ytSection}
             <div class="chart-section">
                 <div class="chart-top">
-                    <span class="chart-title">Follower Growth Over Time</span>
+                    <span class="chart-title">Followers Over Time</span>
                     <div class="chart-legend">${legends}</div>
                 </div>
                 <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
+            </div>
+            <div class="chart-section">
+                <div class="chart-top">
+                    <span class="chart-title">Daily Views Over Time</span>
+                    <div class="chart-legend">${viewsLegends}</div>
+                </div>
+                <div class="chart-wrap"><canvas id="viewsChart"></canvas></div>
             </div>`;
 
         const enc=encodeURIComponent(name);
@@ -2977,16 +2985,28 @@
 
     function copyShareLink(encodedName){const url=`${location.origin}${location.pathname}?c=${encodedName}`;navigator.clipboard.writeText(url).then(()=>{const btn=document.getElementById('shareBtn');if(!btn)return;btn.classList.add('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied!`;setTimeout(()=>{btn.classList.remove('copied');btn.innerHTML=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client`;},2500);});}
 
+    const _chartOpts=(fmtTip)=>({responsive:true,maintainAspectRatio:false,animation:{duration:600,easing:'easeInOutQuart'},interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(255,255,255,0.97)',titleColor:'#111',bodyColor:'#555',borderColor:'rgba(0,0,0,0.08)',borderWidth:1,padding:14,cornerRadius:10,boxPadding:4,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmtTip(c.parsed.y):'—'}`}}},scales:{x:{grid:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},maxTicksLimit:8,padding:4}},y:{grid:{color:'rgba(0,0,0,0.045)',drawTicks:false},border:{display:false,dash:[3,3]},ticks:{color:'#bbb',font:{size:11},padding:10,callback:v=>fmt(v)||v}}}});
+    function _mkGrad(c2d,h,r,g,b){const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${r},${g},${b},0.2)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);return gr;}
     function renderChart(history){
         const ctx=document.getElementById('growthChart');if(!ctx)return;
         if(growthChart){growthChart.destroy();growthChart=null;}
-        const labels=history.map(r=>fmtDate(r.date)),ds=[];
-        const push=(label,key,color,bg)=>{const data=history.map(r=>n(r[key])||null);if(data.some(v=>v))ds.push({label,data,borderColor:color,backgroundColor:bg,fill:true,tension:0.4,borderWidth:2,pointRadius:history.length<8?4:2,pointHoverRadius:6});};
-        push('Instagram','ig_followers','#E1306C','rgba(225,48,108,0.06)');
-        push('TikTok','tiktok_followers','#888','rgba(0,0,0,0.03)');
-        push('YouTube','yt_subscribers','#e60000','rgba(230,0,0,0.04)');
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[];
+        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(data.some(v=>v))ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2});};
+        push('Instagram','ig_followers','#E1306C',225,48,108);
+        push('TikTok','tiktok_followers','#2EC4B6',46,196,182);
+        push('YouTube','yt_subscribers','#FF4444',255,68,68);
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`;return;}
-        growthChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{display:false},tooltip:{backgroundColor:'#fff',titleColor:'#111',bodyColor:'#666',borderColor:'#e4e4e0',borderWidth:1,padding:12,callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y?c.parsed.y.toLocaleString():'—'}`}}},scales:{x:{grid:{color:'#ededea'},ticks:{color:'#c8c8c2',font:{size:11},maxTicksLimit:10}},y:{grid:{color:'#ededea'},ticks:{color:'#c8c8c2',font:{size:11},callback:v=>fmt(v)||v}}}}});
+        growthChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:_chartOpts(v=>v.toLocaleString())});
+    }
+    function renderViewsChart(history){
+        const ctx=document.getElementById('viewsChart');if(!ctx)return;
+        if(viewsChart){viewsChart.destroy();viewsChart=null;}
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[];
+        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(data.some(v=>v))ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2});};
+        push('Instagram','ig_views_gained_today','#E1306C',225,48,108);
+        push('TikTok','tiktok_plays_gained_today','#2EC4B6',46,196,182);
+        if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
+        viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:_chartOpts(v=>v.toLocaleString())});
     }
 
     function render(sel,clientOnly){
@@ -3018,7 +3038,7 @@
         if(!hist.length){content.innerHTML=`<div class="error-state">No data for "${sel}"</div>`;return;}
         content.innerHTML=renderClient(sel,hist,clientOnly);
         const tab=clientViewTab[sel]||'analytics';
-        if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
+        if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
     }
 
     function selectClient(name){
@@ -3044,7 +3064,7 @@
             document.getElementById('pageTop').style.display='';
             const hist=clientHistory(state.client);
             document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
-            if(tab==='analytics')setTimeout(()=>renderChart(hist),0);
+            if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
             window.scrollTo({top:0,behavior:'instant'});
         } else if(state&&state.nav){
             navTo(state.nav,false);

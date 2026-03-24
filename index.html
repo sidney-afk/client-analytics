@@ -3104,6 +3104,7 @@
 
     /* ── Linear View ── */
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
+    const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
@@ -3641,23 +3642,19 @@
         const payload = { clientName: client, title, notes: description, videos };
         if (editor) payload.editor = editor;
 
-        try {
-            const resp = await fetch(VIDEO_FORM_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
-            navTo('linear');
-        } catch (e) {
-            // CORS may block reading the response, but the request was still sent
-            localStorage.removeItem(LINEAR_FORM_KEY);
-            localStorage.removeItem(LAST_LINK_KEY);
-            linearJustCreated = true;
-            navTo('linear');
-        }
+        // Fire both workflows simultaneously — fire-and-forget (CORS may block response reading)
+        const sendOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        };
+        fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
+        fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
+
+        localStorage.removeItem(LINEAR_FORM_KEY);
+        localStorage.removeItem(LAST_LINK_KEY);
+        linearJustCreated = true;
+        navTo('linear');
     }
 
     function renderBriefNav() {

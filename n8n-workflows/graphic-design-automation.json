@@ -1,0 +1,290 @@
+{
+  "name": "GRAPHIC DESIGN AUTOMATION",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "gda-node-01",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-200, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "graphic-form",
+        "options": {}
+      },
+      "webhookId": "graphic-form-webhook-001"
+    },
+    {
+      "id": "gda-node-02",
+      "name": "Find GRA Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [0, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"query($teamId: String!, $name: String!) { team(id: $teamId) { projects(filter: { name: { eq: $name } }) { nodes { id name } } } }\",\n  \"variables\": {\n    \"name\": \"{{ $json.body.clientName }}\",\n    \"teamId\": \"4789fc53-4e9b-4599-aab8-4e22420931d7\"\n  }\n}\n",
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-03",
+      "name": "Create Parent Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [200, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"mutation($title: String!, $teamId: String!, $description: String, $stateId: String, $projectId: String, $assigneeId: String) { issueCreate(input: { title: $title, teamId: $teamId, description: $description, stateId: $stateId, projectId: $projectId, assigneeId: $assigneeId }) { success issue { id identifier title } } }\",\n  \"variables\": {\n    \"stateId\": \"6ebdc29c-2f9f-4430-a906-fe0a8ff82e64\",\n    \"projectId\": {{ $('Find GRA Project').item.json.data.team.projects.nodes.length > 0 ? '\"' + $('Find GRA Project').item.json.data.team.projects.nodes[0].id + '\"' : 'null' }},\n    \"assigneeId\": \"091b6305-34fd-46ee-b84c-4aeee947c5b8\",\n    \"title\": \"{{ $('Webhook').item.json.body.title }}\",\n    \"teamId\": \"4789fc53-4e9b-4599-aab8-4e22420931d7\",\n    \"description\": \"{{ $('Webhook').item.json.body.notes.replace(/\\\\/g, '\\\\\\\\').replace(/\\\"/g, '\\\\\"').replace(/\\n/g, '\\\\n').replace(/\\r/g, '') }}\"\n  }\n}\n",
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-04",
+      "name": "Prepare Video Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 0],
+      "parameters": {
+        "jsCode": "const response = $('Create Parent Issue').item.json;\n\nif (!response?.data?.issueCreate?.issue?.id) {\n  throw new Error('Linear rejected the mutation: ' + JSON.stringify(response));\n}\n\nconst parentIssueId = response.data.issueCreate.issue.id;\nconst videos = $('Webhook').item.json.body.videos;\n\nreturn videos.map(v => ({\n  json: {\n    parentId: parentIssueId,\n    videoNumber: v.number,\n    mainCam: v.main_cam\n  }\n}));"
+      }
+    },
+    {
+      "id": "gda-node-05",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [600, 0],
+      "parameters": {
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-06",
+      "name": "Extract Drive File ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 120],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const url = $json.mainCam || '';\nconst match = url.match(/\\/file\\/d\\/([a-zA-Z0-9_-]+)/);\nif (!match) {\n  throw new Error('Cannot extract Google Drive file ID from: ' + url);\n}\nreturn [{ json: { ...$json, fileId: match[1] } }];"
+      }
+    },
+    {
+      "id": "gda-node-07",
+      "name": "Download from Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1000, 120],
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.fileId }}",
+          "mode": "id"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-08",
+      "name": "Check File Size",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 120],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const binary = $input.item.binary?.data;\nif (!binary) {\n  return [{ json: { ...$('Extract Drive File ID').item.json, skipTranscription: true, skipReason: 'no_binary' } }];\n}\n\nconst sizeStr = binary.fileSize || '0';\nconst match = sizeStr.match(/([\\d.]+)\\s*(kB|MB|GB)/i);\nif (!match) {\n  return [{ json: { ...$('Extract Drive File ID').item.json, skipTranscription: true, skipReason: 'unknown_size' } }];\n}\n\nconst num = parseFloat(match[1]);\nconst unit = match[2].toUpperCase();\nlet bytes = num;\nif (unit === 'KB') bytes = num * 1024;\nif (unit === 'MB') bytes = num * 1024 * 1024;\nif (unit === 'GB') bytes = num * 1024 * 1024 * 1024;\n\n// Whisper hard limit is 25MB\nif (bytes >= 26214400) {\n  return [{ json: { ...$('Extract Drive File ID').item.json, skipTranscription: true, skipReason: 'file_too_large' } }];\n}\n\nreturn [{\n  json: { ...$('Extract Drive File ID').item.json, skipTranscription: false },\n  binary: $input.item.binary\n}];"
+      }
+    },
+    {
+      "id": "gda-node-09",
+      "name": "Skip Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1400, 120],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check-condition",
+              "leftValue": "={{ $json.skipTranscription }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-10",
+      "name": "Transcribe with Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1600, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-11",
+      "name": "Generate Title with Claude",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [1800, 0],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  model: \"claude-haiku-4-5-20251001\",\n  max_tokens: 60,\n  messages: [{\n    role: \"user\",\n    content: \"Based on this video transcript, write a short descriptive title (max 8 words) for a graphic design task. Output only the title, nothing else.\\n\\nTranscript:\\n\" + $json.text\n  }]\n}) }}\n",
+        "options": {}
+      }
+    },
+    {
+      "id": "gda-node-12",
+      "name": "Fallback Title",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 260],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// File was too large or couldn't be downloaded — use a numbered fallback\nreturn [{\n  json: {\n    ...$json,\n    content: [{ type: 'text', text: 'Video ' + $json.videoNumber }]\n  }\n}];"
+      }
+    },
+    {
+      "id": "gda-node-13",
+      "name": "Create Sub-Issue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [2000, 120],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.linear.app/graphql",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"mutation($title: String!, $teamId: String!, $parentId: String!, $stateId: String, $sortOrder: Float, $assigneeId: String) { issueCreate(input: { title: $title, teamId: $teamId, parentId: $parentId, stateId: $stateId, sortOrder: $sortOrder, assigneeId: $assigneeId }) { success issue { id title } } }\",\n  \"variables\": {\n    \"stateId\": \"6ebdc29c-2f9f-4430-a906-fe0a8ff82e64\",\n    \"assigneeId\": \"091b6305-34fd-46ee-b84c-4aeee947c5b8\",\n    \"title\": \"{{ $json.content[0].text }}\",\n    \"teamId\": \"4789fc53-4e9b-4599-aab8-4e22420931d7\",\n    \"parentId\": \"{{ $('Extract Drive File ID').item.json.parentId }}\",\n    \"sortOrder\": {{ $('Extract Drive File ID').item.json.videoNumber }}\n  }\n}\n",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Find GRA Project", "type": "main", "index": 0 }]
+      ]
+    },
+    "Find GRA Project": {
+      "main": [
+        [{ "node": "Create Parent Issue", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Parent Issue": {
+      "main": [
+        [{ "node": "Prepare Video Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Prepare Video Items": {
+      "main": [
+        [{ "node": "Loop Over Items", "type": "main", "index": 0 }]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [{ "node": "Extract Drive File ID", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Drive File ID": {
+      "main": [
+        [{ "node": "Download from Google Drive", "type": "main", "index": 0 }]
+      ]
+    },
+    "Download from Google Drive": {
+      "main": [
+        [{ "node": "Check File Size", "type": "main", "index": 0 }]
+      ]
+    },
+    "Check File Size": {
+      "main": [
+        [{ "node": "Skip Check", "type": "main", "index": 0 }]
+      ]
+    },
+    "Skip Check": {
+      "main": [
+        [{ "node": "Transcribe with Whisper", "type": "main", "index": 0 }],
+        [{ "node": "Fallback Title", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transcribe with Whisper": {
+      "main": [
+        [{ "node": "Generate Title with Claude", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generate Title with Claude": {
+      "main": [
+        [{ "node": "Create Sub-Issue", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fallback Title": {
+      "main": [
+        [{ "node": "Create Sub-Issue", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create Sub-Issue": {
+      "main": [
+        [{ "node": "Loop Over Items", "type": "main", "index": 0 }]
+      ]
+    }
+  }
+}

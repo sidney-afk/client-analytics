@@ -263,6 +263,14 @@
         .leg-item { display: flex; align-items: center; gap: 6px; font-size: 0.74rem; color: var(--text-secondary); font-weight: 500; }
         .leg-dot { width: 8px; height: 8px; border-radius: 50%; }
         .chart-wrap { position: relative; height: 240px; }
+        .chart-plat-toggle { display: flex; gap: 5px; flex-wrap: wrap; }
+        .chart-plat-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 11px; border: 1px solid var(--border); border-radius: 20px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.71rem; font-weight: 600; background: transparent; color: var(--text-secondary); cursor: pointer; transition: border-color 0.15s, background 0.15s, color 0.15s; }
+        .cpb-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .chart-plat-btn.active { background: var(--bg); border-color: transparent; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+        .chart-plat-btn:hover:not(.active) { border-color: #bbb; color: var(--text); }
+        .chart-mode-toggle { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 2px; gap: 1px; }
+        .chart-mode-btn { padding: 3px 10px; border: none; border-radius: 18px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.68rem; font-weight: 600; background: transparent; color: var(--text-secondary); cursor: pointer; transition: background 0.15s, color 0.15s; }
+        .chart-mode-btn.active { background: var(--white); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
         .client-only-badge { display: inline-flex; align-items: center; gap: 7px; background: var(--ig-light); border: 1px solid var(--ig-mid); border-radius: 20px; padding: 4px 12px; font-size: 0.71rem; font-weight: 600; color: var(--ig-dark); margin-bottom: 18px; }
         .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 100px 20px; gap: 14px; }
         .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: #777; border-radius: 50%; animation: spin 0.75s linear infinite; }
@@ -1091,6 +1099,7 @@
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
+    let followersPlat = 'ig', followersMode = 'total', currentClientHistory = [];
     let briefs = [];
     let mrBriefs = [];
     let videoEditors = [];
@@ -2865,8 +2874,11 @@
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:`<em>daily changes show after 2+ days</em>`;
-        const legends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:'',hasYT?`<div class="leg-item"><div class="leg-dot" style="background:#FF4444"></div>YouTube</div>`:''].filter(Boolean).join('');
         const viewsLegends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:''].filter(Boolean).join('');
+        const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
+        if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
+        const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
+        const platToggle=[hasIG?mkPlatBtn('ig','#E1306C','Instagram'):'',hasTT?mkPlatBtn('tt','#2EC4B6','TikTok'):'',hasYT?mkPlatBtn('yt','#FF4444','YouTube'):''].filter(Boolean).join('');
         const shareBtnHtml=!clientOnly?`<button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`:'';
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
@@ -2891,8 +2903,14 @@
             ${igSection}${ttSection}${ytSection}
             <div class="chart-section">
                 <div class="chart-top">
-                    <span class="chart-title">Followers Over Time <span style="font-weight:400;opacity:0.45;text-transform:none;letter-spacing:0;font-size:0.68rem;margin-left:4px;">· each platform scaled independently</span></span>
-                    <div class="chart-legend">${legends}</div>
+                    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <span class="chart-title">Followers Over Time</span>
+                        <div class="chart-mode-toggle">
+                            <button class="chart-mode-btn${followersMode==='total'?' active':''}" onclick="switchFollowersMode('total',this)">Total</button>
+                            <button class="chart-mode-btn${followersMode==='daily'?' active':''}" onclick="switchFollowersMode('daily',this)">Daily Change</button>
+                        </div>
+                    </div>
+                    <div class="chart-plat-toggle">${platToggle}</div>
                 </div>
                 <div class="chart-wrap"><canvas id="growthChart"></canvas></div>
             </div>
@@ -2989,16 +3007,37 @@
     const _xAxis={grid:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},maxTicksLimit:8,padding:4}};
     const _mkYAxis=(show)=>({type:'linear',display:show,position:'left',grid:show?{color:'rgba(0,0,0,0.045)',drawTicks:false}:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},padding:10,callback:v=>fmt(v)||v}});
     function _mkGrad(c2d,h,r,g,b){const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${r},${g},${b},0.2)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);return gr;}
+    const _platCfg={ig:{label:'Instagram',key:'ig_followers',color:'#E1306C',r:225,g:48,b:108},tt:{label:'TikTok',key:'tiktok_followers',color:'#2EC4B6',r:46,g:196,b:182},yt:{label:'YouTube',key:'yt_subscribers',color:'#FF4444',r:255,g:68,b:68}};
     function renderChart(history){
+        currentClientHistory=history;
         const ctx=document.getElementById('growthChart');if(!ctx)return;
         if(growthChart){growthChart.destroy();growthChart=null;}
-        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[],sc={x:_xAxis};let yi=0;
-        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(!data.some(v=>v))return;const yId='y'+yi;ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});sc[yId]=_mkYAxis(yi===0);yi++;};
-        push('Instagram','ig_followers','#E1306C',225,48,108);
-        push('TikTok','tiktok_followers','#2EC4B6',46,196,182);
-        push('YouTube','yt_subscribers','#FF4444',255,68,68);
-        if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Trend will appear after a few days of data.</div>`;return;}
-        growthChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
+        const pc=_platCfg[followersPlat]||_platCfg.ig;
+        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date));
+        let data,chartType,dataset;
+        if(followersMode==='daily'){
+            data=history.map((r,i)=>i===0?null:n(r[pc.key])-n(history[i-1][pc.key]));
+            chartType='bar';
+            dataset={label:pc.label,data,backgroundColor:data.map(v=>(v??0)>=0?`rgba(${pc.r},${pc.g},${pc.b},0.75)`:'rgba(180,60,60,0.65)'),borderColor:data.map(v=>(v??0)>=0?pc.color:'#b43c3c'),borderWidth:1,borderRadius:3};
+        } else {
+            data=history.map(r=>n(r[pc.key])||null);
+            chartType='line';
+            dataset={label:pc.label,data,borderColor:pc.color,backgroundColor:_mkGrad(c2d,h,pc.r,pc.g,pc.b),fill:true,tension:0.4,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:pc.color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2};
+        }
+        if(!data.some(v=>v!=null&&v!==0)){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">No ${pc.label} follower data available.</div>`;return;}
+        growthChart=new Chart(ctx,{type:chartType,data:{labels,datasets:[dataset]},options:{..._baseOpts(v=>(v>0?'+':'')+v.toLocaleString()),scales:{x:_xAxis,y:_mkYAxis(true)}}});
+    }
+    function switchFollowersMode(mode,btn){
+        followersMode=mode;
+        btn.closest('.chart-mode-toggle').querySelectorAll('.chart-mode-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderChart(currentClientHistory);
+    }
+    function switchFollowersPlat(plat,btn){
+        followersPlat=plat;
+        btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderChart(currentClientHistory);
     }
     function renderViewsChart(history){
         const ctx=document.getElementById('viewsChart');if(!ctx)return;

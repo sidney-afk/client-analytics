@@ -3184,7 +3184,7 @@
             if(!existingBack){
                 const btn=document.createElement('button');
                 btn.className='back-btn';btn.innerHTML='← Back';
-                btn.onclick=()=>{ window.history.back(); };
+                btn.onclick=()=>{ navTo(currentNav); };
                 titleRow.insertBefore(btn,titleRow.firstChild);
             }
         } else if(!clientOnly){
@@ -3974,10 +3974,16 @@
             setTimeout(()=>document.getElementById('passwordInput').style.borderColor='#e0e0de',1500);
         }
     }
-    if(localStorage.getItem(_AUTH_KEY)==='ok'){
-        // Immediately hide header if this is a client share link (prevents flash)
-        if(new URLSearchParams(location.search).get('c')){
+    const _isClientLink=!!new URLSearchParams(location.search).get('c');
+    if(_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+        if(_isClientLink){
+            // Client share link: hide all admin chrome immediately, show clean loader
             document.querySelector('header.header').style.display='none';
+            document.getElementById('pageTop').style.display='none';
+            document.getElementById('content').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;">
+                <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;flex-shrink:0;opacity:0.35"><circle cx="14" cy="14" r="11" stroke="#111" stroke-width="2.5" stroke-dasharray="50 20"/></svg>
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;color:#aaa;font-weight:500;">Loading your analytics…</span>
+            </div>`;
         }
         init();
     } else {

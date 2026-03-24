@@ -2895,7 +2895,11 @@
             if(Array.isArray(result)&&result[0])result=result[0];
             if(result.json)result=result.json;
             if(typeof result==='string'){try{result=JSON.parse(result);}catch{}}
-            const bullets=result.bullets||result.summary||result.content||result;
+            // Handle raw Claude API response format: { content: [{type:"text", text:"..."}] }
+            if(!result.bullets&&result.content&&Array.isArray(result.content)&&result.content[0]?.text){
+                result={bullets:result.content[0].text};
+            }
+            const bullets=result.bullets||result.summary||result;
             contentSummaryState[clientName]={loading:false,data:{bullets:typeof bullets==='string'?bullets:JSON.stringify(bullets)},error:null};
         }catch(e){
             contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary. Make sure the N8N webhook is set up.'};

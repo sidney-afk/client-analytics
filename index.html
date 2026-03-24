@@ -232,6 +232,20 @@
         .m-delta.down { background: rgba(0,0,0,0.2); color: #ffb0b0; }
         .m-delta.flat { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
         .m-delta.none { color: rgba(255,255,255,0.4); font-size: 0.68rem; margin-top: 6px; display: block; font-weight: 400; font-style: italic; background: none; padding: 0; }
+        .content-summary-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px; margin-bottom: 12px; }
+        .cs-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+        .cs-title { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text); }
+        .cs-subtitle { font-size: 0.65rem; color: var(--text-muted); }
+        .cs-generate-btn { background: linear-gradient(135deg,#6c63ff,#a78bfa); color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-family: 'Plus Jakarta Sans',sans-serif; font-size: 0.73rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .cs-generate-btn:hover { opacity: 0.88; }
+        .cs-regen-btn { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; font-family: 'Plus Jakarta Sans',sans-serif; font-size: 0.65rem; font-weight: 600; color: var(--text-muted); cursor: pointer; margin-top: 10px; }
+        .cs-regen-btn:hover { border-color: var(--text-muted); color: var(--text); }
+        .cs-loading { display: flex; align-items: center; gap: 10px; font-size: 0.75rem; color: var(--text-muted); }
+        .cs-spinner { width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: #6c63ff; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .cs-error { font-size: 0.72rem; color: #e05; margin-bottom: 8px; }
+        .cs-bullets { margin: 0 0 4px 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 7px; }
+        .cs-bullets li { font-size: 0.78rem; line-height: 1.5; color: var(--text); }
         .top-videos-section { border-top: 1px solid rgba(255,255,255,0.1); padding: 16px 20px 20px; }
         .top-videos-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 10px; }
         .top-videos-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: rgba(255,255,255,0.55); }
@@ -1120,9 +1134,11 @@
     let generalBriefState = (() => { try { const s = JSON.parse(localStorage.getItem('syncview_generalBriefState_v5') || '{}'); const r = {}; for (const [k, v] of Object.entries(s)) { if (v?.data) r[k] = { loading: false, data: v.data, error: null, mrBriefId: v.mrBriefId || null, compBriefId: v.compBriefId || null }; } return r; } catch { return {}; } })();
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
     let pendingBriefs = (() => { try { return JSON.parse(localStorage.getItem('syncview_pendingBriefs_v1') || '{}'); } catch { return {}; } })();
+    let contentSummaryState = (() => { try { return JSON.parse(localStorage.getItem('syncview_contentSummaryState_v1') || '{}'); } catch { return {}; } })();
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
+    const CONTENT_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-content-summary';
     // Hook Library: N8N webhook that appends a row to the "Hook Library" sheet.
     // Create a new N8N workflow with a Webhook trigger → Google Sheets "Append row" node.
     // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
@@ -2620,7 +2636,15 @@
 
     function getTopVideos(clientName,platform,period){
         const plat=platform.toLowerCase(),per=period.toLowerCase();
-        return topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per)).sort((a,b)=>n(a.rank)-n(b.rank));
+        const filtered=topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per));
+        // Deduplicate by video_url (same post can appear multiple times in sheet)
+        const seen=new Map();
+        for(const v of filtered){
+            const key=(v.video_url&&v.video_url!=='#'&&v.video_url!=='')?v.video_url:(v.caption||'').substring(0,80);
+            if(!seen.has(key)||n(v.views)>n(seen.get(key).views))seen.set(key,v);
+        }
+        // Sort by views descending so highest-viewed content comes first
+        return [...seen.values()].sort((a,b)=>n(b.views)-n(a.views));
     }
 
     // ── FIX: Sort columns now use _ig_view_delta and _tt_view_delta
@@ -2840,27 +2864,103 @@
         return`<div class="gains-bar"><span class="gains-bar-label">${periodLabel}<br>Gains</span>${cards}${note}</div>`;
     }
 
+    // Returns top N monthly videos across all platforms, sorted by views desc, deduped by URL
+    function getTopMonthlyVideos(clientName,topN=5){
+        const all=[];
+        for(const plat of['instagram','tiktok','youtube'])all.push(...getTopVideos(clientName,plat,'month'));
+        const seen=new Set();
+        const deduped=[];
+        for(const v of all){
+            const key=(v.video_url&&v.video_url!=='#'&&v.video_url!=='')?v.video_url:(v.caption||'').substring(0,80);
+            if(!seen.has(key)){seen.add(key);deduped.push(v);}
+        }
+        return deduped.sort((a,b)=>n(b.views)-n(a.views)).slice(0,topN);
+    }
+
+    async function generateContentSummary(clientName){
+        const videos=getTopMonthlyVideos(clientName,5);
+        if(!videos.length){alert('No top monthly videos found for this client.');return;}
+        contentSummaryState[clientName]={loading:true,data:null,error:null};
+        try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
+        refreshContentSummary(clientName);
+        const payload={
+            clientName,
+            videos:videos.map((v,i)=>({rank:i+1,platform:v.platform,url:v.video_url||'',caption:v.caption||'',views:n(v.views),likes:n(v.likes),comments:n(v.comments)}))
+        };
+        try{
+            const resp=await fetch(CONTENT_SUMMARY_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            const text=await resp.text();
+            if(!text)throw new Error('Empty response from webhook');
+            let result=JSON.parse(text);
+            if(Array.isArray(result)&&result[0])result=result[0];
+            if(result.json)result=result.json;
+            if(typeof result==='string'){try{result=JSON.parse(result);}catch{}}
+            const bullets=result.bullets||result.summary||result.content||result;
+            contentSummaryState[clientName]={loading:false,data:{bullets:typeof bullets==='string'?bullets:JSON.stringify(bullets)},error:null};
+        }catch(e){
+            contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary. Make sure the N8N webhook is set up.'};
+        }
+        try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
+        refreshContentSummary(clientName);
+    }
+
+    function refreshContentSummary(clientName){
+        const el=document.getElementById(`content-summary-${clientName.replace(/\s+/g,'_')}`);
+        if(!el)return;
+        const temp=document.createElement('div');
+        temp.innerHTML=buildContentSummarySection(clientName);
+        if(temp.firstElementChild)el.replaceWith(temp.firstElementChild);
+    }
+
+    function buildContentSummarySection(clientName){
+        const id=`content-summary-${clientName.replace(/\s+/g,'_')}`;
+        const enc=encodeURIComponent(clientName);
+        const state=contentSummaryState[clientName];
+        const videos=getTopMonthlyVideos(clientName,5);
+        if(!videos.length)return'';
+        let inner='';
+        if(!state){
+            inner=`<button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">✦ Generate This Month's Performance Summary</button>`;
+        }else if(state.loading){
+            inner=`<div class="cs-loading"><span class="cs-spinner"></span>Downloading transcripts &amp; analysing what's working…</div>`;
+        }else if(state.error){
+            inner=`<div class="cs-error">${state.error}</div><button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">Retry</button>`;
+        }else if(state.data){
+            const raw=state.data.bullets||'';
+            // Render markdown-style bullet points
+            const lines=raw.split('\n').filter(l=>l.trim());
+            const items=lines.map(l=>{
+                const t=l.replace(/^[-•*]\s*/,'').replace(/^\d+\.\s*/,'').trim();
+                // Bold **text** markers
+                const html=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+                return`<li>${html}</li>`;
+            }).join('');
+            inner=`<ul class="cs-bullets">${items}</ul><button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`;
+        }
+        return`<div class="content-summary-section" id="${id}"><div class="cs-header"><span class="cs-title">✦ What's Working This Month</span><span class="cs-subtitle">Based on top ${videos.length} video${videos.length!==1?'s':''} by views</span></div>${inner}</div>`;
+    }
+
     function buildTopVideosSection(clientName,platform,containerId){
         const period=getActivePeriod(clientName,platform),videos=getTopVideos(clientName,platform,period);
         const weekActive=period==='week'?'active':'',monthActive=period==='month'?'active':'';
         const wv=getTopVideos(clientName,platform,'week'),mv=getTopVideos(clientName,platform,'month');
         if(!wv.length&&!mv.length)return'';
         const showShares=platform.toLowerCase()==='tiktok',isIG=platform.toLowerCase()==='instagram';
-        let cardsHtml=videos.length?`<div class="video-cards-scroll">${videos.map(v=>buildVideoCard(v,showShares,isIG)).join('')}</div>`:`<div class="top-videos-empty">No top videos for this period yet</div>`;
+        let cardsHtml=videos.length?`<div class="video-cards-scroll">${videos.map((v,i)=>buildVideoCard(v,showShares,isIG,i+1)).join('')}</div>`:`<div class="top-videos-empty">No top videos for this period yet</div>`;
         return`<div class="top-videos-section" id="${containerId}"><div class="top-videos-head"><div style="display:flex;align-items:center;gap:10px;"><span class="top-videos-title">Top Performing</span><div class="period-toggle"><button class="period-btn ${weekActive}" onclick="switchPeriod('${clientName}','${platform}','week','${containerId}')">Week</button><button class="period-btn ${monthActive}" onclick="switchPeriod('${clientName}','${platform}','month','${containerId}')">Month</button></div></div></div>${cardsHtml}</div>`;
     }
 
     function truncateCaption(caption){if(!caption)return'';const sentences=caption.match(/[^.!?]+[.!?]+/g)||[caption];let result='';for(let i=0;i<Math.min(2,sentences.length);i++){if((result+sentences[i]).length>130&&result.length>0)break;result+=sentences[i];}return result.trim()||caption.substring(0,120);}
     const captionStore={};
 
-    function buildVideoCard(v,showShares,isIG){
+    function buildVideoCard(v,showShares,isIG,rank){
         const caption=v.caption||'',truncated=truncateCaption(caption),needsReadMore=caption.length>truncated.length+5;
         const uid='tc_'+Math.random().toString(36).substring(2,9);
         captionStore[uid]={full:caption,short:truncated};
         const videoUrl=v.video_url||'#',sharesRow=showShares?`<div class="tt-stat"><span class="tt-stat-icon">${ICON.shares}</span><span class="tt-stat-val">${fmtCompact(v.shares)}</span></div>`:'';
         const viewsVal=n(v.views),hasEngagement=n(v.likes)>0||n(v.comments)>0,isCarousel=isIG&&viewsVal===0&&hasEngagement;
         const viewsDisplay=isCarousel?`<span title="Carousels don't have view counts" style="opacity:0.45;display:inline-flex;align-items:center;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="flex-shrink:0"><path d="M2 2L14 14M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9M9.88 9.88A3 3 0 0 1 5.12 5.12M1 8s2-5 7-5" stroke="white" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="white" stroke-width="1.4"/></svg></span>`:`<span class="tt-stat-val">${fmtCompact(v.views)}</span>`;
-        return`<a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener"><div class="tt-rank-badge">#${n(v.rank)}</div><div class="tt-caption" id="${uid}">${truncated}</div>${needsReadMore?`<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this)" style="margin-top:-4px">read more</button>`:''}<div class="tt-stats"><div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span>${viewsDisplay}</div><div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div><div class="tt-stat"><span class="tt-stat-icon">${ICON.comments}</span><span class="tt-stat-val">${fmtCompact(v.comments)}</span></div>${sharesRow}</div></a>`;
+        return`<a class="video-card-tt" href="${videoUrl}" target="_blank" rel="noopener"><div class="tt-rank-badge">#${rank||n(v.rank)}</div><div class="tt-caption" id="${uid}">${truncated}</div>${needsReadMore?`<button class="read-more-btn" onclick="event.preventDefault();event.stopPropagation();toggleCaption('${uid}',this)" style="margin-top:-4px">read more</button>`:''}<div class="tt-stats"><div class="tt-stat"><span class="tt-stat-icon">${ICON.views}</span>${viewsDisplay}</div><div class="tt-stat"><span class="tt-stat-icon">${ICON.likes}</span><span class="tt-stat-val">${fmtCompact(v.likes)}</span></div><div class="tt-stat"><span class="tt-stat-icon">${ICON.comments}</span><span class="tt-stat-val">${fmtCompact(v.comments)}</span></div>${sharesRow}</div></a>`;
     }
 
     function toggleCaption(uid,btn){const store=captionStore[uid],el=document.getElementById(uid);if(!el||!store)return;const isExpanded=el.classList.contains('tt-caption-full');if(isExpanded){el.classList.remove('tt-caption-full');el.textContent=store.short;btn.textContent='read more';}else{el.classList.add('tt-caption-full');el.textContent=store.full;btn.textContent='show less';}}
@@ -2900,6 +3000,7 @@
             </div>
             ${gainsBar(today,prev,weekRow,null,null,'day')}
             ${weekRow?gainsBar(today,prev,weekRow,null,null,'week'):''}
+            ${buildContentSummarySection(name)}
             ${igSection}${ttSection}${ytSection}
             <div class="chart-section">
                 <div class="chart-top">

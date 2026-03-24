@@ -1013,6 +1013,26 @@
         </div>
     </div>
 </div>
+
+<!-- Password gate -->
+<div id="passwordOverlay" style="display:none;position:fixed;inset:0;background:var(--bg,#f5f5f3);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:0;">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:340px;padding:0 24px;">
+        <img src="syncview-favicon.png" alt="SyncView" style="width:36px;height:36px;border-radius:8px;">
+        <div style="text-align:center;">
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:700;color:#111;margin-bottom:6px;">Welcome to SyncView</div>
+            <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.82rem;color:#888;">Enter your password to continue</div>
+        </div>
+        <div style="width:100%;display:flex;flex-direction:column;gap:10px;">
+            <input id="passwordInput" type="password" placeholder="Password" autocomplete="current-password"
+                style="width:100%;box-sizing:border-box;padding:12px 14px;border:1.5px solid #e0e0de;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.9rem;background:#fff;color:#111;outline:none;transition:border-color 0.15s;"
+                onkeydown="if(event.key==='Enter')submitPassword()"
+                onfocus="this.style.borderColor='#111'" onblur="this.style.borderColor='#e0e0de'">
+            <div id="passwordError" style="display:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.78rem;color:#dc2626;text-align:center;">Incorrect password. Please try again.</div>
+            <button onclick="submitPassword()" style="width:100%;padding:12px;background:#111;color:#fff;border:none;border-radius:10px;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;font-weight:600;cursor:pointer;transition:opacity 0.15s;" onmouseover="this.style.opacity='0.85'" onmouseout="this.style.opacity='1'">Continue</button>
+        </div>
+    </div>
+</div>
+
 <header class="header" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;">
     <div class="logo" onclick="goHome()" style="cursor:pointer;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
@@ -2937,6 +2957,7 @@
                 const t=l.replace(/^[-•*]\s*/,'').replace(/^\d+\.\s*/,'').trim();
                 // Bold **text** and markdown links [label](url)
                 const html=t
+                    .replace(/\*\*\[(.+?)\]\*\*/g,'<strong>$1</strong>')
                     .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
                     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:500;">$1</a>');
                 return`<li>${html}</li>`;
@@ -3040,8 +3061,6 @@
                 <button class="view-tab-btn ${tab==='analytics'?'active':''}" onclick="setClientViewTab('${enc}','analytics')">Analytics</button>
                 <button class="view-tab-btn ${tab==='brief'?'active':''}" onclick="setClientViewTab('${enc}','brief')">
                     Brief
-                    ${(hasBrief&&tab!=='brief')?'<span class="brief-indicator"></span>':''}
-                    ${isPolling?'<span class="brief-indicator" style="background:#f59e0b;animation:briefDotPulse 1.4s infinite;"></span>':''}
                 </button>
             </div>`;
         }
@@ -3923,6 +3942,7 @@
                 document.getElementById('selectorWrap').style.display='none';
                 document.getElementById('pageSub').style.display='none';
                 document.getElementById('pageTitle').textContent='Your Analytics';
+                document.querySelector('header.header').style.display='none';
                 render(clientFromQuery,true);return;
             }
             const savedNav=localStorage.getItem(NAV_KEY);
@@ -3937,7 +3957,27 @@
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
         }
     }
-    init();
+
+    const _AUTH_KEY='syncview_auth_v1';
+    function submitPassword(){
+        const v=document.getElementById('passwordInput').value;
+        if(v==='synchrosocial2026'){
+            localStorage.setItem(_AUTH_KEY,'ok');
+            document.getElementById('passwordOverlay').style.display='none';
+            init();
+        } else {
+            document.getElementById('passwordError').style.display='block';
+            document.getElementById('passwordInput').value='';
+            document.getElementById('passwordInput').style.borderColor='#dc2626';
+            setTimeout(()=>document.getElementById('passwordInput').style.borderColor='#e0e0de',1500);
+        }
+    }
+    if(localStorage.getItem(_AUTH_KEY)==='ok'){
+        init();
+    } else {
+        document.getElementById('passwordOverlay').style.display='flex';
+        setTimeout(()=>document.getElementById('passwordInput').focus(),50);
+    }
 </script>
 
 <!-- Transcript preview modal -->

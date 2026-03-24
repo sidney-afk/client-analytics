@@ -2935,8 +2935,10 @@
             const lines=raw.split('\n').filter(l=>l.trim());
             const items=lines.map(l=>{
                 const t=l.replace(/^[-•*]\s*/,'').replace(/^\d+\.\s*/,'').trim();
-                // Bold **text** markers
-                const html=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+                // Bold **text** and markdown links [label](url)
+                const html=t
+                    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+                    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:500;">$1</a>');
                 return`<li>${html}</li>`;
             }).join('');
             inner=`<ul class="cs-bullets">${items}</ul><button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`;

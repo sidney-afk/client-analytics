@@ -1911,8 +1911,8 @@
         startBriefPolling(name,triggerTime,'mr');
     }
 
-    function _initCompAccountState(name){
-        if(!compAccountState[name]){
+    function _initCompAccountState(name,forceRefresh){
+        if(!compAccountState[name]||forceRefresh){
             const raw=clientMap[name]?.competitors||'';
             const fromSheet=raw.split(',').map(a=>a.trim()).filter(Boolean).slice(0,10);
             const accounts=fromSheet.length>0?fromSheet:[''];
@@ -1929,7 +1929,7 @@
     }
     function openCompAccountPanel(encodedName){
         const name=decodeURIComponent(encodedName);
-        _initCompAccountState(name);
+        _initCompAccountState(name,true);
         compAccountState[name].showPanel=true;
         refreshBriefView(name);
     }
@@ -2412,7 +2412,7 @@
                 <div class="brief-tab-header-right">
                     ${dateSelector}
                     <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                    <button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>generateBrief('${enc}'))" title="Regenerate brief">
+                    <button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>openCompAccountPanel('${enc}'))" title="Regenerate brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
                 </div>

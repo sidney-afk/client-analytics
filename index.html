@@ -748,52 +748,63 @@
         .hook-card {
             background: var(--white); border: 1px solid var(--border);
             border-radius: 12px; overflow: hidden;
+            display: flex; flex-direction: column;
         }
-        .hook-card-top { padding: 16px 18px 14px; border-bottom: 1px solid var(--border-light); }
-        .hook-card-reel {
-            font-size: 0.62rem; font-weight: 800; text-transform: uppercase;
-            letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px;
+        .hook-card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px 0;
         }
+        .hook-card-views {
+            font-size: 0.78rem; font-weight: 700; color: var(--text-secondary);
+            display: inline-flex; align-items: center; gap: 4px;
+        }
+        .hook-card-views svg { color: var(--text-muted); }
+        .hook-card-body { padding: 10px 18px 16px; flex: 1; }
         .hook-text {
             font-size: 0.9rem; font-weight: 600; color: var(--text-primary);
-            line-height: 1.5; font-style: italic;
+            line-height: 1.55;
         }
+        .hook-card-meta {
+            display: flex; align-items: center; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+        }
+        .hook-type-label {
+            font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--text-muted);
+        }
+        .hook-eye-btn-inline {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 22px; height: 22px; border-radius: 5px;
+            border: none; background: transparent;
+            color: var(--text-muted); cursor: pointer; transition: all 0.13s;
+            flex-shrink: 0; padding: 0;
+        }
+        .hook-eye-btn-inline:hover { color: #7c3aed; background: #faf5ff; }
         .hook-formula-pill {
-            display: inline-flex; align-items: center;
-            background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-            padding: 4px 10px; font-size: 0.73rem; font-weight: 500; color: var(--text-secondary);
-            margin-top: 10px; line-height: 1.4;
+            font-size: 0.75rem; font-weight: 500; color: var(--text-muted);
+            line-height: 1.45; margin-top: 10px; font-style: italic;
         }
-        .hook-formula-pill strong { color: var(--text-primary); margin-right: 4px; font-weight: 700; }
+        .hook-formula-pill strong { color: var(--text-secondary); margin-right: 3px; font-weight: 600; font-style: normal; }
         .hook-steal-wrap {
-            padding: 12px 18px; background: #fafaf8;
-            display: flex; flex-direction: column; gap: 4px;
+            padding: 12px 18px 14px; border-top: 1px solid var(--border-light);
         }
         .hook-steal-label {
-            font-size: 0.59rem; font-weight: 800; text-transform: uppercase;
-            letter-spacing: 0.09em; color: var(--text-muted);
+            font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 5px;
         }
         .hook-steal-text { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
         .hook-template-text {
             font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55;
         }
         .hook-template-bracket {
-            display: inline; background: #eff6ff; border: 1px solid #bfdbfe;
+            display: inline; background: #f3f0ff; border: 1px solid #ddd6fe;
             border-radius: 4px; padding: 1px 5px; font-size: 0.77rem; font-weight: 700;
-            color: #1d4ed8; font-style: normal;
+            color: #6d28d9; font-style: normal;
         }
         .hook-card-actions {
-            display: flex; align-items: center; gap: 8px;
+            display: flex; align-items: center; justify-content: flex-end;
             padding: 10px 18px 12px; border-top: 1px solid var(--border-light);
+            margin-top: auto;
         }
-        .hook-eye-btn {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 28px; height: 28px; border-radius: 7px;
-            border: 1px solid var(--border); background: var(--white);
-            color: var(--text-muted); cursor: pointer; transition: all 0.13s;
-            flex-shrink: 0;
-        }
-        .hook-eye-btn:hover { border-color: #7c3aed; color: #7c3aed; background: #faf5ff; }
         .hook-add-btn {
             display: inline-flex; align-items: center; gap: 5px;
             padding: 5px 11px; border-radius: 7px; border: 1px solid var(--border);
@@ -801,7 +812,7 @@
             font-size: 0.71rem; font-weight: 700; color: var(--text-secondary);
             cursor: pointer; transition: all 0.13s; white-space: nowrap;
         }
-        .hook-add-btn:hover { border-color: #10b981; color: #065f46; background: #f0fdf4; }
+        .hook-add-btn:hover { border-color: #7c3aed; color: #5b21b6; background: #faf5ff; }
         .hook-add-btn.saved { border-color: #10b981; color: #065f46; background: #f0fdf4; cursor: default; }
         .hook-add-btn svg { flex-shrink: 0; }
 
@@ -2462,15 +2473,19 @@
             if(_compHookSaved) console.log('[SyncView] comp hook already saved:', _compHookKey);
             _storeHookCard(cardId, name, {hookType:item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.name||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
-                <div class="hook-card-top">
-                    ${item.views?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="flex:1;"></span><span class="source-views-badge">👁 ${item.views}</span></div>`:''}
+                <div class="hook-card-header">
+                    ${item.views?`<span class="hook-card-views"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${item.views}</span>`:'<span></span>'}
+                    ${item.url?_mrLink(item.url,'View reel ↗'):''}
+                </div>
+                <div class="hook-card-body">
                     <div class="hook-text">"${item.hook||'—'}"</div>
+                    <div class="hook-card-meta">
+                        <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
+                    </div>
                     ${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}
                 </div>
-                ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
+                ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
-                    <button class="hook-eye-btn" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
-                    ${item.url?`<span style="flex:1;">${_mrLink(item.url,'View reel ↗')}</span>`:'<span style="flex:1;"></span>'}
                     ${item.stealThis?`<button class="hook-add-btn${_compHookSaved?' saved':''}" ${_compHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_compHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
                 </div>
             </div>`;
@@ -2573,18 +2588,19 @@
             if(_mrHookSaved) console.log('[SyncView] MR hook already saved:', _mrHookKey);
             _storeHookCard(cardId, name, {hookType:item.hookType||'',openingLine:item.openingLine||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.handle||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
-                <div class="hook-card-top">
-                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                        ${_mrHookBadge(item.hookType)}
-                        <span style="flex:1;"></span>
-                        ${item.views?`<span class="source-views-badge">👁 ${item.views}</span>`:''}
-                    </div>
-                    <div class="hook-text">"${item.openingLine||'—'}"</div>
+                <div class="hook-card-header">
+                    ${item.views?`<span class="hook-card-views"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${item.views}</span>`:'<span></span>'}
+                    ${item.url?_mrLink(item.url,'View reel ↗'):''}
                 </div>
-                ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
+                <div class="hook-card-body">
+                    <div class="hook-text">"${item.openingLine||'—'}"</div>
+                    <div class="hook-card-meta">
+                        ${item.hookType?`<span class="hook-type-label">${item.hookType}</span>`:''}
+                        <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
+                    </div>
+                </div>
+                ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
-                    <button class="hook-eye-btn" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
-                    ${item.url?`<span style="flex:1;">${_mrLink(item.url,'View reel ↗')}</span>`:'<span style="flex:1;"></span>'}
                     ${item.stealThis?`<button class="hook-add-btn${_mrHookSaved?' saved':''}" ${_mrHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_mrHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
                 </div>
             </div>`;

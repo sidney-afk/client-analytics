@@ -971,6 +971,9 @@
         .linear-submit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 28px; border-radius: 10px; border: none; background: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--white); cursor: pointer; transition: all 0.15s; align-self: flex-start; margin-top: 4px; }
         .linear-submit-btn:hover { background: #333; }
         .linear-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .linear-submit-btn.secondary { background: transparent; color: var(--text-primary); border: 1.5px solid var(--text-primary); }
+        .linear-submit-btn.secondary:hover { background: var(--text-primary); color: var(--white); }
+        .linear-submit-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
         .linear-submit-btn.success { background: var(--up); }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
         .linear-success-banner { display: flex; align-items: center; gap: 8px; background: #1a3a2a; border: 1px solid #2d6a45; color: #4ade80; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
@@ -3694,10 +3697,14 @@
                         Add Video
                     </button>
                 </div>
-                <button class="linear-submit-btn" id="linearSubmitBtn" onclick="submitLinearForm()">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                    Create Issue
-                </button>
+                <div class="linear-submit-btns">
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Create Video Issue</button>
+                    <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Create Thumbnail Issue</button>
+                    <button class="linear-submit-btn" id="linearSubmitBtnBoth" onclick="submitLinearForm('both')">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Create Both
+                    </button>
+                </div>
                 <div class="linear-status" id="linearStatus"></div>
             </div>
         </div>`;
@@ -3783,7 +3790,7 @@
         }
     }
 
-    async function submitLinearForm() {
+    async function submitLinearForm(mode) {
         const client = document.getElementById('linearClientSearch')?.value?.trim();
         const title = buildLinearTitle();
         const notes = document.getElementById('linearNotes')?.value?.trim();
@@ -3811,10 +3818,11 @@
             });
         });
 
-        const btn = document.getElementById('linearSubmitBtn');
+        const allBtns = ['linearSubmitBtnVideo', 'linearSubmitBtnThumbnail', 'linearSubmitBtnBoth'].map(id => document.getElementById(id));
         const status = document.getElementById('linearStatus');
-        btn.disabled = true;
-        btn.textContent = 'Submitting…';
+        allBtns.forEach(b => { if (b) b.disabled = true; });
+        const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
+        if (activeBtn) activeBtn.textContent = 'Submitting…';
         status.textContent = '';
 
         // Build description: prepend links before notes
@@ -3828,14 +3836,14 @@
         const payload = { clientName: client, title, notes: description, videos, filmingPlans };
         if (editor) payload.editor = editor;
 
-        // Fire both workflows simultaneously — fire-and-forget (CORS may block response reading)
+        // Fire the relevant webhook(s) — fire-and-forget (CORS may block response reading)
         const sendOptions = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         };
-        fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
-        fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
+        if (mode === 'video' || mode === 'both') fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
+        if (mode === 'thumbnail' || mode === 'both') fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
 
         localStorage.removeItem(LINEAR_FORM_KEY);
         localStorage.removeItem(LAST_LINK_KEY);

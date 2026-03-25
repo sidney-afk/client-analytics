@@ -2461,6 +2461,7 @@
     }
 
     function renderBriefTab_hooks(data,name){
+        const sources=Array.isArray(data.sources)?data.sources:[];
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.hook)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No hook analysis data.</div>`;
         const eyeIcon=`<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
@@ -2471,18 +2472,20 @@
             const _compHookKey = _hookSaveKey(name, item.hook||'');
             const _compHookSaved = savedHooks.has(_compHookKey);
             if(_compHookSaved) console.log('[SyncView] comp hook already saved:', _compHookKey);
-            _storeHookCard(cardId, name, {hookType:item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.name||''}, item.transcript||'');
+            // Try to find URL from sources if not in hook data
+            const reelUrl=item.url||(item.reelNumber&&sources.find(s=>s.reelNumber===item.reelNumber)?.url)||'';
+            _storeHookCard(cardId, name, {hookType:item.hookType||item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:reelUrl,handle:item.name||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-header">
                     ${item.views?`<span class="hook-card-views"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${item.views}</span>`:'<span></span>'}
-                    ${item.url?_mrLink(item.url,'View reel ↗'):''}
+                    ${reelUrl?_mrLink(reelUrl,'View reel ↗'):''}
                 </div>
                 <div class="hook-card-body">
                     <div class="hook-text">"${item.hook||'—'}"</div>
                     <div class="hook-card-meta">
+                        ${item.hookType?`<span class="hook-type-label">${item.hookType}</span>`:''}
                         <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
                     </div>
-                    ${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}
                 </div>
                 ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
@@ -2576,7 +2579,7 @@
     }
 
     function renderMRTab_hooks(data,name){
-        const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
+        const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)&&parseViewCount(item.views)>=100000).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
         const eyeIcon=`<svg width="14" height="14" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg>`;
         const plusIcon=`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;

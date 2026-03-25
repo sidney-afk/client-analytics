@@ -2110,7 +2110,7 @@
             const compPs=briefPollingState[name+'__comp'];
             if(compPs?.loading){bodyContent=renderBriefLoading(name,'comp',compPs);}
             else if(compPs?.error){bodyContent=renderBriefError(name,'comp',compPs.error);}
-            else if(!hasComp){bodyContent=renderBriefGeneratePrompt(name);}
+            else if(!hasComp||compAccountState[name]?.showPanel||compAccountState[name]?.submitted){bodyContent=renderBriefGeneratePrompt(name);}
             else{
                 const activeBrief=getActiveBrief(name);
                 const data=parseBriefData(activeBrief);

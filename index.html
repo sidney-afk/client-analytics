@@ -1209,7 +1209,11 @@
         }
         if (state.loading) return `<div class="brief-tab-summary loading">Generating summary…</div>`;
         if (state.error) return '';
-        if (state.text) return `<div class="brief-tab-summary">${state.text}</div>`;
+        if (state.text) {
+            // Strip markdown formatting (# headers, **bold**, *italic*) that Claude sometimes returns
+            const clean = state.text.replace(/^#{1,6}\s+/gm, '').replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1');
+            return `<div class="brief-tab-summary">${clean}</div>`;
+        }
         return '';
     }
 
@@ -2571,12 +2575,11 @@
             return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-top">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-                        <span class="source-rank-badge">#${item.rank||'?'}</span>
-                        <span style="font-size:0.83rem;font-weight:700;color:var(--text-secondary);">${item.handle||''}</span>
+                        ${_mrHookBadge(item.hookType)}
+                        <span style="flex:1;"></span>
                         ${item.views?`<span class="source-views-badge">👁 ${item.views}</span>`:''}
                     </div>
-                    ${_mrHookBadge(item.hookType)}
-                    <div class="hook-text" style="margin-top:10px;">"${item.openingLine||'—'}"</div>
+                    <div class="hook-text">"${item.openingLine||'—'}"</div>
                 </div>
                 ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">

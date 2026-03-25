@@ -2463,14 +2463,14 @@
             _storeHookCard(cardId, name, {hookType:item.formula||'',openingLine:item.hook||'',stealThis:item.stealThis||'',views:item.views||'',url:item.url||'',handle:item.name||''}, item.transcript||'');
             return`<div class="hook-card" id="${cardId}">
                 <div class="hook-card-top">
-                    <div class="hook-card-reel">${item.name?`${item.name} · `:''}Reel #${item.reelNumber||'?'}</div>
+                    ${item.views?`<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;"><span style="flex:1;"></span><span class="source-views-badge">👁 ${item.views}</span></div>`:''}
                     <div class="hook-text">"${item.hook||'—'}"</div>
                     ${item.formula?`<div class="hook-formula-pill"><strong>Formula:</strong> ${item.formula}</div>`:''}
                 </div>
                 ${stealTemplate?`<div class="hook-steal-wrap"><span class="hook-steal-label">💡 Template →</span><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
                     <button class="hook-eye-btn" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
-                    <span style="flex:1;"></span>
+                    ${item.url?`<span style="flex:1;">${_mrLink(item.url,'View reel ↗')}</span>`:'<span style="flex:1;"></span>'}
                     ${item.stealThis?`<button class="hook-add-btn${_compHookSaved?' saved':''}" ${_compHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_compHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
                 </div>
             </div>`;

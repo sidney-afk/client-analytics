@@ -67,7 +67,7 @@
         .card-eye-btn:hover { color: var(--text-primary); }
         .selector-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center; }
         .search-bar-wrap { position: relative; }
-        .search-bar-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 14px 0 20px; gap: 10px; width: 340px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); transition: border-color 0.18s, box-shadow 0.18s; }
+        .search-bar-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 14px 0 20px; gap: 10px; width: 440px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); transition: border-color 0.18s, box-shadow 0.18s; }
         .search-bar-pill:focus-within { border-color: #aaa; box-shadow: 0 4px 18px rgba(0,0,0,0.11); }
         .search-bar-input { flex: 1; border: none; outline: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.85rem; font-weight: 500; color: var(--text-primary); padding: 11px 0; min-width: 0; }
         .search-bar-input::placeholder { color: var(--text-muted); font-weight: 400; }
@@ -1064,10 +1064,6 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Home
         </button>
-        <button class="header-nav-btn" id="navBrief" onclick="navTo('brief')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="6" y1="8" x2="10" y2="8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><line x1="6" y1="11" x2="9" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-            Brief
-        </button>
         <button class="header-nav-btn" id="navLinear" onclick="navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
@@ -1098,12 +1094,6 @@
                 <div class="search-dropdown" id="searchBox">
                     <div id="searchResults"></div>
                 </div>
-            </div>
-            <div class="custom-dropdown" id="clientDropWrap">
-                <button class="dropdown-trigger" id="clientDropTrigger" onclick="toggleClientDrop()">
-                    All Clients <span class="dd-arrow">▾</span>
-                </button>
-                <div class="dropdown-menu client-drop-menu" id="clientDropMenu"></div>
             </div>
         </div>
         <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"></div></div>
@@ -1161,12 +1151,12 @@
     let linearProjects = [];
     let sortCol = 'ig_followers', sortDir = 'desc';
     let activePeriods = {};
-    let clientViewTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_clientViewTab') || '{}'); } catch { return {}; } })();
-    let activeBriefTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeBriefTab') || '{}'); } catch { return {}; } })();
+    let clientViewTab = {};
+    let activeBriefTab = {};
     let activeBriefId = {};
     let briefPollingState = {};
-    let activeBriefSection = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeBriefSection') || '{}'); } catch { return {}; } })();
-    let activeMRBriefTab = (() => { try { return JSON.parse(localStorage.getItem('syncview_activeMRBriefTab') || '{}'); } catch { return {}; } })();
+    let activeBriefSection = {};
+    let activeMRBriefTab = {};
     let activeMRBriefId = {};
     let mrKeywordState = {};
     let compAccountState = {};
@@ -1813,13 +1803,11 @@
     function setActiveBriefSection(encodedName,section){
         const name=decodeURIComponent(encodedName);
         activeBriefSection[name]=section;
-        try{localStorage.setItem('syncview_activeBriefSection',JSON.stringify(activeBriefSection));}catch{}
         refreshBriefView(name);
     }
     function setActiveMRBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeMRBriefTab[name]=tab;
-        try{localStorage.setItem('syncview_activeMRBriefTab',JSON.stringify(activeMRBriefTab));}catch{}
         refreshBriefView(name);
     }
     function selectMRBriefById(encodedName,id){
@@ -2063,7 +2051,6 @@
     function setClientViewTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         clientViewTab[name]=tab;
-        try { localStorage.setItem('syncview_clientViewTab', JSON.stringify(clientViewTab)); } catch {}
         // Header nav active state is NOT changed here — it reflects where the user came from,
         // not which tab they're on within a client profile.
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
@@ -2076,7 +2063,6 @@
     function setActiveBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeBriefTab[name]=tab;
-        try{localStorage.setItem('syncview_activeBriefTab',JSON.stringify(activeBriefTab));}catch{}
         refreshBriefView(name);
     }
 
@@ -2656,28 +2642,6 @@
             </div>`).join('')}</div>`;
     }
 
-    function populateDropdown(){
-        const menu=document.getElementById('clientDropMenu');
-        const names=[...new Set(allData.map(r=>r.client_name))].sort();
-        menu.innerHTML=`<button class="dropdown-item active" onclick="pickClient('all')">All Clients</button>`+names.map(c=>`<button class="dropdown-item" onclick="pickClient('${c}')">${c}</button>`).join('');
-    }
-    function toggleClientDrop(){
-        const menu=document.getElementById('clientDropMenu'),trigger=document.getElementById('clientDropTrigger');
-        if(!menu)return;
-        menu.classList.toggle('open');trigger.classList.toggle('open');
-        if(menu.classList.contains('open')){const close=(e)=>{if(!menu.contains(e.target)&&!trigger.contains(e.target)){menu.classList.remove('open');trigger.classList.remove('open');document.removeEventListener('click',close);}};setTimeout(()=>document.addEventListener('click',close),0);}
-    }
-    function pickClient(val){
-        toggleClientDrop();
-        if(val==='all'){history.pushState({},'',location.pathname+location.search);updateClientTrigger('All Clients');render('all');}
-        else{selectClient(val);}
-    }
-    function updateClientTrigger(label){
-        const trigger=document.getElementById('clientDropTrigger');
-        if(trigger)trigger.innerHTML=`${label} <span class="dd-arrow">▾</span>`;
-        const menu=document.getElementById('clientDropMenu');
-        if(menu)menu.querySelectorAll('.dropdown-item').forEach(btn=>btn.classList.toggle('active',btn.textContent===label));
-    }
 
     function getTopVideos(clientName,platform,period){
         const plat=platform.toLowerCase(),per=period.toLowerCase();
@@ -2752,43 +2716,17 @@
         if(_m){_m.classList.remove('open');}if(_t){_t.classList.remove('open');}
         render('all');
     }
-    function toggleSortDir(){sortDir=sortDir==='desc'?'asc':'desc';render('all');}
+
     function setViewMode(mode){viewMode=mode;localStorage.setItem('syncview_viewMode',mode);render('all');}
     function setGainMode(mode){gainMode=mode;localStorage.setItem('syncview_gainMode',mode);render('all');}
-    function toggleDropdown(){
-        const menu=document.getElementById('sortDropMenu'),trigger=document.getElementById('sortDropTrigger');
-        if(!menu)return;
-        menu.classList.toggle('open');trigger.classList.toggle('open');
-        if(menu.classList.contains('open')){const close=(e)=>{if(!menu.contains(e.target)&&!trigger.contains(e.target)){menu.classList.remove('open');trigger.classList.remove('open');document.removeEventListener('click',close);}};setTimeout(()=>document.addEventListener('click',close),0);}
-    }
-
     function controlsHTML(){
-        const arrow=sortDir==='desc'?'↓':'↑';
-        // ── FIX: updated keys to match new SORT_COLS
-        const PILL_LABELS={
-            'client_name':'Name',
-            'ig_followers':'IG Followers',
-            '_ig_fol_delta':'IG +Followers',
-            'ig_views_this_month':'IG Views/30d',
-            '_ig_view_delta':'IG +Views',
-            'tiktok_followers':'TT Followers',
-            '_tt_fol_delta':'TT +Followers',
-            'tiktok_plays_this_month':'TT Views/30d',
-            '_tt_view_delta':'TT +Views',
-            'yt_subscribers':'YT Subs',
-            '_yt_sub_delta':'YT +Subs',
-            'yt_total_views':'YT Views',
-            '_yt_view_delta':'YT +Views'
-        };
-        const currentLabel=PILL_LABELS[sortCol]||'Sort';
-        const items=Object.entries(SORT_COLS).map(([col,cfg])=>`<button class="dropdown-item ${sortCol===col?'active':''}" onclick="setSort('${col}')">${cfg.label}</button>`).join('');
         const tableIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="6" x2="15" y2="6" stroke="currentColor" stroke-width="1.3"/><line x1="1" y1="10" x2="15" y2="10" stroke="currentColor" stroke-width="1.3"/><line x1="6" y1="2" x2="6" y2="14" stroke="currentColor" stroke-width="1.3"/></svg>`;
         const cardIcon=`<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>`;
         const periodToggle=`<div style="display:inline-flex;align-items:center;border-radius:20px;overflow:hidden;background:var(--white);box-shadow:0 1px 3px rgba(0,0,0,0.06);border:1px solid var(--border);">
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='day'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('day')">Day</button>
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='week'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('week')">Week</button>
         </div>`;
-        return `<div class="overview-controls"><div class="controls-left"><div class="custom-dropdown"><button class="dropdown-trigger" id="sortDropTrigger" onclick="toggleDropdown()">${currentLabel} <span class="dd-arrow">▾</span></button><div class="dropdown-menu" id="sortDropMenu">${items}</div></div><button class="sort-dir-btn" onclick="toggleSortDir()" title="${sortDir==='desc'?'Descending':'Ascending'}">${arrow}</button>${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
+        return `<div class="overview-controls"><div class="controls-left">${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
     }
 
     function renderCardView(rows,deltaMap){
@@ -3091,8 +3029,8 @@
 
         if(tab==='brief'&&!clientOnly){
             return`<div class="client-view">
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div></div></div>
                 ${toggleHtml}
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div></div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }
@@ -3233,8 +3171,8 @@
     }
 
     function selectClient(name){
-        updateClientTrigger(name);
-        const tab = clientViewTab[name] || 'analytics';
+        const tab = 'analytics';
+        clientViewTab[name] = tab;
         history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
         render(name,false);
         window.scrollTo({top:0,behavior:'instant'});
@@ -3247,11 +3185,9 @@
             currentNav=nav;
             localStorage.setItem(NAV_KEY,nav);
             document.getElementById('navHome').classList.toggle('active',nav==='home');
-            document.getElementById('navBrief').classList.toggle('active',nav==='brief');
             document.getElementById('navLinear').classList.remove('active');
             const tab=state.clientTab||'analytics';
             clientViewTab[state.client]=tab;
-            updateClientTrigger(state.client);
             document.getElementById('pageTop').style.display='';
             const hist=clientHistory(state.client);
             document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
@@ -3263,9 +3199,9 @@
             const hash=decodeURIComponent(location.hash.replace('#',''));
             const clientNames=[...new Set(allData.map(r=>r.client_name))];
             if(hash&&clientNames.includes(hash)){
-                updateClientTrigger(hash);render(hash,false);window.scrollTo({top:0,behavior:'instant'});
+                render(hash,false);window.scrollTo({top:0,behavior:'instant'});
             } else {
-                updateClientTrigger('All Clients');render('all');window.scrollTo({top:0,behavior:'instant'});
+                render('all');window.scrollTo({top:0,behavior:'instant'});
             }
         }
     });
@@ -3590,10 +3526,10 @@
     }
 
     function navTo(page, push = true) {
+        if (page === 'brief') page = 'home';
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
-        document.getElementById('navBrief').classList.toggle('active', page === 'brief');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
 
         const state = {nav: page, client: null};
@@ -3609,13 +3545,8 @@
             content.innerHTML = renderLinearView();
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
             window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (page === 'brief') {
-            pageTop.style.display = 'none';
-            content.innerHTML = renderBriefNav();
-            window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
-            updateClientTrigger('All Clients');
             render('all');
         }
     }
@@ -3873,79 +3804,6 @@
         navTo('linear');
     }
 
-    function renderBriefNav() {
-        const clientNames = [...new Set(allData.map(r => r.client_name))].sort();
-        const recent = getRecent().filter(n => clientNames.includes(n));
-        const pins = getPins().filter(n => clientNames.includes(n));
-
-        const pinPills = pins.map(name =>
-            `<div class="pin-pill" onclick="selectClientBrief('${name}')" style="cursor:pointer;">
-                <span>${name}</span>
-            </div>`
-        ).join('');
-
-        return `<div class="linear-view" style="max-width:700px;">
-            <div class="linear-form-title">Client Briefs</div>
-            <div class="linear-form-sub">Search or select a client to view their brief</div>
-            <div style="margin-bottom:24px;">
-                <div class="search-bar-pill" style="width:100%;max-width:100%;">
-                    <input class="search-bar-input" id="briefSearchInput" type="text"
-                        placeholder="Search clients…"
-                        oninput="onBriefSearchInput()" onkeydown="onBriefSearchKey(event)"
-                        autocomplete="off">
-                    <button class="search-bar-icon" onclick="onBriefSearchGo()" title="Search">
-                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                    </button>
-                </div>
-                <div id="briefSearchResults" style="margin-top:8px;"></div>
-            </div>
-            ${pins.length ? `<div style="margin-bottom:18px;"><div class="linear-label" style="margin-bottom:8px;">Pinned Clients</div><div class="pins-row" style="justify-content:flex-start;">${pinPills}</div></div>` : ''}
-            <div class="linear-label" style="margin-bottom:8px;">All Clients</div>
-            <div style="display:flex;flex-direction:column;gap:4px;">
-                ${clientNames.map(name => `<div style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.84rem;font-weight:500;color:var(--text-secondary);transition:background 0.1s;" onmouseover="this.style.background='var(--bg)';this.style.color='var(--text-primary)'" onmouseout="this.style.background='';this.style.color='var(--text-secondary)'" onclick="selectClientBrief('${name}')">${name}</div>`).join('')}
-            </div>
-        </div>`;
-    }
-
-    function selectClientBrief(name) {
-        localStorage.setItem(NAV_KEY, 'brief');
-        currentNav = 'brief';
-        document.getElementById('navHome').classList.remove('active');
-        document.getElementById('navBrief').classList.add('active');
-        document.getElementById('navLinear').classList.remove('active');
-        document.getElementById('pageTop').style.display = '';
-        clientViewTab[name] = 'brief';
-        selectClient(name);
-    }
-
-    function onBriefSearchInput() {
-        const q = document.getElementById('briefSearchInput')?.value?.trim().toLowerCase() || '';
-        const el = document.getElementById('briefSearchResults');
-        if (!el) return;
-        if (!q) { el.innerHTML = ''; return; }
-        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
-        const starts = allNames.filter(n => n.toLowerCase().startsWith(q));
-        const contains = allNames.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
-        const matches = [...starts, ...contains].slice(0, 6);
-        if (!matches.length) { el.innerHTML = '<div style="padding:8px 12px;color:var(--text-muted);font-size:0.8rem;font-style:italic;">No clients found</div>'; return; }
-        el.innerHTML = matches.map(name => `<div style="padding:8px 12px;border-radius:8px;cursor:pointer;font-size:0.84rem;font-weight:500;color:var(--text-secondary);transition:background 0.1s;" onmouseover="this.style.background='var(--bg)';this.style.color='var(--text-primary)'" onmouseout="this.style.background='';this.style.color='var(--text-secondary)'" onclick="selectClientBrief('${name}')">${name}</div>`).join('');
-    }
-
-    function onBriefSearchKey(e) {
-        if (e.key !== 'Enter') return;
-        onBriefSearchGo();
-    }
-
-    function onBriefSearchGo() {
-        const q = document.getElementById('briefSearchInput')?.value?.trim().toLowerCase() || '';
-        if (!q) return;
-        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
-        const starts = allNames.filter(n => n.toLowerCase().startsWith(q));
-        const contains = allNames.filter(n => !n.toLowerCase().startsWith(q) && n.toLowerCase().includes(q));
-        const first = [...starts, ...contains][0];
-        if (first) selectClientBrief(first);
-    }
-
         async function init(){
         try{
             await fetchAll();
@@ -3976,11 +3834,15 @@
             }
             const savedNav=localStorage.getItem(NAV_KEY);
             const hash=decodeURIComponent(location.hash.replace('#',''));
-            populateDropdown();
             renderPins();
-            if(savedNav==='brief'&&hash&&clientNames.includes(hash)){selectClientBrief(hash);return;}
-            if(savedNav==='linear'||savedNav==='brief'){navTo(savedNav,false);return;}
-            if(hash&&clientNames.includes(hash)){updateClientTrigger(hash);render(hash,false);}
+            // On page refresh, restore exact state from history.state
+            if(history.state&&history.state.client&&clientNames.includes(history.state.client)){
+                const tab=history.state.clientTab||'analytics';
+                clientViewTab[history.state.client]=tab;
+                render(history.state.client,false);return;
+            }
+            if(savedNav==='linear'){navTo(savedNav,false);return;}
+            if(hash&&clientNames.includes(hash)){render(hash,false);}
             else{navTo('home',false);}
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

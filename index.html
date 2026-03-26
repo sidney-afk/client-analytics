@@ -1135,12 +1135,11 @@
 
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
     const METRICS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Metrics`;
-    const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Handle`;
+    const CLIENTS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
     const TOPVIDS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=TopVideos`;
     const BRIEFS_URL  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Competitor%20Briefs`;
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const EDITORS_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Video%20Editors`;
-    const CLIENTS_INFO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
     const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
@@ -1470,7 +1469,7 @@
             methodology: { accounts: compData.methodology?.accounts || [] },
         } : null;
 
-        const payload = { clientName: name };
+        const payload = { clientName: name, contentDescription: clientMap[name]?.content_description||'' };
         if (trimmedMR) payload.mrData = trimmedMR;
         if (trimmedComp) payload.competitorsData = trimmedComp;
         console.log('[SyncView] General brief payload size:', JSON.stringify(payload).length, 'bytes');
@@ -1637,10 +1636,9 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br,mrb,er,ci,cs]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now()),fetch(CLIENTS_INFO_URL),fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null)]);
+        const [mr,cr,tr,br,mrb,er,cs]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now()),fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
-        parseCSV(await ci.text()).forEach(r=>{if(r.client_name&&clientMap[r.client_name])Object.assign(clientMap[r.client_name],r);});
         const rawVideos=parseCSV(await tr.text());
         if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
         topVideos=rawVideos.map(normalizeVideoRow);
@@ -1988,7 +1986,7 @@
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||''}),
+                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||'',contentDescription:clientMap[name]?.content_description||''}),
             });
         }catch(e){
             console.warn('[SyncView] Comp brief webhook error (may still have fired):',e);
@@ -2015,7 +2013,7 @@
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
                 headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||''})
+                body:JSON.stringify({clientName:name,competitors,keywords:clientMap[name]?.keywords||'',contentDescription:clientMap[name]?.content_description||''})
             });
         }catch(e){
             console.warn('[SyncView] Comp brief webhook error (may still have fired):',e);
@@ -2899,6 +2897,7 @@
         refreshContentSummary(clientName);
         const payload={
             clientName,
+            contentDescription:clientMap[clientName]?.content_description||'',
             videos:videos.map((v,i)=>({rank:i+1,platform:v.platform,url:v.video_url||'',caption:v.caption||'',views:n(v.views),likes:n(v.likes),comments:n(v.comments)}))
         };
         try{

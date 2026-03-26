@@ -561,8 +561,8 @@
             margin-bottom: 12px; gap: 12px;
         }
         .general-brief-title {
-            font-size: 0.88rem; font-weight: 700; color: var(--text-secondary);
-            letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px;
+            font-size: 1.05rem; font-weight: 800; color: var(--text-primary);
+            letter-spacing: -0.02em;
         }
         .general-brief-bullets {
             margin: 0; padding: 0 0 0 18px;
@@ -1345,6 +1345,15 @@
         return { type: 'bullets', bullets };
     }
 
+    function getBriefMetaLine(name){
+        const state=generalBriefState[name];
+        if(!state||!state.data)return'';
+        let parts=[];
+        if(state.mrBriefId)parts.push('Keywords ('+fmtIsoDate(state.mrBriefId)+')');
+        if(state.compBriefId)parts.push('Competitors ('+fmtIsoDate(state.compBriefId)+')');
+        return parts.length?'Based on '+parts.join(' · '):'';
+    }
+
     function renderGeneralBrief(name) {
         const enc = encodeURIComponent(name);
         const state = generalBriefState[name];
@@ -1385,12 +1394,6 @@
         const synthesis = parseSynthesis(d);
         console.log('[SyncView] Parsed synthesis:', synthesis);
 
-        // Build "based on" attribution
-        let basedOnParts = [];
-        if (state.mrBriefId) basedOnParts.push('Keywords (' + fmtIsoDate(state.mrBriefId) + ')');
-        if (state.compBriefId) basedOnParts.push('Competitors (' + fmtIsoDate(state.compBriefId) + ')');
-        const basedOn = basedOnParts.length ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;">Based on: ${basedOnParts.join(' · ')}</div>` : '';
-
         let contentHtml;
         if (synthesis.type === 'sections') {
             contentHtml = `<div class="general-brief-sections">
@@ -1414,12 +1417,10 @@
         return `<div class="general-brief-card">
             <div class="general-brief-header">
                 <div class="general-brief-title">
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6h5l-4 3 1.5 5L8 11l-4.5 3L5 9 1 6h5z" stroke="#7c3aed" stroke-width="1.3" stroke-linejoin="round"/></svg>
-                    Keywords + Competitors Brief
+                    Synthesis
                 </div>
             </div>
             ${contentHtml}
-            ${basedOn}
         </div>`;
     }
 
@@ -1800,14 +1801,22 @@
             return null;
         }
     }
+    function _updateBriefHistoryState(name){
+        const s=history.state;
+        if(s&&s.client===name){
+            history.replaceState(Object.assign({},s,{briefSection:activeBriefSection[name],briefTab:activeBriefTab[name],mrBriefTab:activeMRBriefTab[name]}),''  );
+        }
+    }
     function setActiveBriefSection(encodedName,section){
         const name=decodeURIComponent(encodedName);
         activeBriefSection[name]=section;
+        _updateBriefHistoryState(name);
         refreshBriefView(name);
     }
     function setActiveMRBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeMRBriefTab[name]=tab;
+        _updateBriefHistoryState(name);
         refreshBriefView(name);
     }
     function selectMRBriefById(encodedName,id){
@@ -2053,7 +2062,7 @@
         clientViewTab[name]=tab;
         // Header nav active state is NOT changed here — it reflects where the user came from,
         // not which tab they're on within a client profile.
-        history.pushState({nav:currentNav, client:name, clientTab:tab},'','#'+encodeURIComponent(name));
+        history.pushState({nav:currentNav, client:name, clientTab:tab, briefSection:activeBriefSection[name], briefTab:activeBriefTab[name], mrBriefTab:activeMRBriefTab[name]},'','#'+encodeURIComponent(name));
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,false);
         if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
@@ -2063,6 +2072,7 @@
     function setActiveBriefTab(encodedName,tab){
         const name=decodeURIComponent(encodedName);
         activeBriefTab[name]=tab;
+        _updateBriefHistoryState(name);
         refreshBriefView(name);
     }
 
@@ -2645,7 +2655,10 @@
 
     function getTopVideos(clientName,platform,period){
         const plat=platform.toLowerCase(),per=period.toLowerCase();
-        const filtered=topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per));
+        let filtered=topVideos.filter(v=>v.client_name===clientName&&(v.platform||'').toLowerCase()===plat&&(v.period||'').toLowerCase().includes(per));
+        // Only use videos from the latest scrape date for this client+platform+period
+        const latestDate=filtered.reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
+        if(latestDate)filtered=filtered.filter(v=>(v.scraped_date||'')===latestDate);
         // Deduplicate by video_url (same post can appear multiple times in sheet)
         const seen=new Map();
         for(const v of filtered){
@@ -3028,9 +3041,10 @@
         }
 
         if(tab==='brief'&&!clientOnly){
+            const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div></div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }
@@ -3188,6 +3202,9 @@
             document.getElementById('navLinear').classList.remove('active');
             const tab=state.clientTab||'analytics';
             clientViewTab[state.client]=tab;
+            if(state.briefSection)activeBriefSection[state.client]=state.briefSection;
+            if(state.briefTab)activeBriefTab[state.client]=state.briefTab;
+            if(state.mrBriefTab)activeMRBriefTab[state.client]=state.mrBriefTab;
             document.getElementById('pageTop').style.display='';
             const hist=clientHistory(state.client);
             document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
@@ -3837,9 +3854,13 @@
             renderPins();
             // On page refresh, restore exact state from history.state
             if(history.state&&history.state.client&&clientNames.includes(history.state.client)){
-                const tab=history.state.clientTab||'analytics';
-                clientViewTab[history.state.client]=tab;
-                render(history.state.client,false);return;
+                const s=history.state,c=s.client;
+                const tab=s.clientTab||'analytics';
+                clientViewTab[c]=tab;
+                if(s.briefSection)activeBriefSection[c]=s.briefSection;
+                if(s.briefTab)activeBriefTab[c]=s.briefTab;
+                if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
+                render(c,false);return;
             }
             if(savedNav==='linear'){navTo(savedNav,false);return;}
             if(hash&&clientNames.includes(hash)){render(hash,false);}

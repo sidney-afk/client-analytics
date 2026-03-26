@@ -1141,6 +1141,7 @@
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const EDITORS_URL   = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Video%20Editors`;
     const CLIENTS_INFO_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Clients%20Info`;
+    const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
@@ -1636,7 +1637,7 @@
     };
 
     async function fetchAll(){
-        const [mr,cr,tr,br,mrb,er,ci]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now()),fetch(CLIENTS_INFO_URL)]);
+        const [mr,cr,tr,br,mrb,er,ci,cs]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(EDITORS_URL+'&_t='+Date.now()),fetch(CLIENTS_INFO_URL),fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         parseCSV(await ci.text()).forEach(r=>{if(r.client_name&&clientMap[r.client_name])Object.assign(clientMap[r.client_name],r);});
@@ -1654,6 +1655,23 @@
         }
         videoEditors=parseCSV(await er.text()).filter(r=>r.video_editor);
         console.log('[SyncView] Loaded',videoEditors.length,'video editors');
+        // Load pre-generated content summaries from sheet (latest per client)
+        if(cs){
+            try{
+                const csRows=parseCSV(await cs.text());
+                const latest={};
+                for(const r of csRows){
+                    if(!r.client_name||!r.bullets)continue;
+                    if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
+                }
+                for(const[name,r]of Object.entries(latest)){
+                    if(!contentSummaryState[name]?.data){
+                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets},error:null};
+                    }
+                }
+                console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
+            }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
+        }
     }
 
     async function fetchBriefs(){

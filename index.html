@@ -2403,10 +2403,10 @@
         }
         const tabs=[
             {id:'exec',label:'Overview'},
-            {id:'resonating',label:'What\'s Resonating'},
-            {id:'comments',label:'Comment Intel'},
+            {id:'resonating',label:'What\'s Resonating for Competitors'},
+            {id:'comments',label:'Competitor Comment Intel'},
             {id:'gap',label:'The Gap'},
-            {id:'hooks',label:'Hook Analysis'},
+            {id:'hooks',label:'Competitor Hook Analysis'},
             {id:'sources',label:'Sources'},
         ];
         const tabBar=`<div class="brief-section-tabs">${tabs.map(t=>`<button class="brief-section-tab ${tab===t.id?'active':''}" onclick="setActiveBriefTab('${enc}','${t.id}')">${t.label}</button>`).join('')}</div>`;
@@ -2438,9 +2438,9 @@
         const s=data.executiveSummary||{};
         const priorities=Array.isArray(s.actionPriorities)?s.actionPriorities:[];
         return `${renderTabSummary(name,'comp','exec',buildTabData('comp','exec',data))}<div class="brief-exec-grid">
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating for Competitors</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Competitor Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">⚡</span> Action Priorities</div><div class="brief-action-list">${priorities.length?priorities.map((p,i)=>`<div class="brief-action-item"><span class="brief-action-num">${i+1}</span><span>${p}</span></div>`).join(''):'<span style="font-size:0.82rem;color:var(--text-muted)">No priorities listed</span>'}</div></div>
         </div>`;
     }

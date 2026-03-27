@@ -3342,9 +3342,11 @@
             linearProjects = [];
         }
         linearProjectsLoading = false;
-        // Re-render dropdown if open
+        // Re-render dropdowns if open
         const q = document.getElementById('linearClientSearch')?.value || '';
         renderLinearSearchResults(q);
+        const cq = document.getElementById('calClientSearch')?.value || '';
+        renderCalClientSearchResults(cq);
     }
 
     function onLinearSearchInput() {
@@ -4051,7 +4053,8 @@
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             container.innerHTML = linearProjects.slice(0, 8).map(name =>
-                `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">${name}</div>`
+                `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">`
+                + `<span>${name}</span></div>`
             ).join('');
             return;
         }
@@ -4060,7 +4063,8 @@
         const matches = [...starts, ...contains];
         if (!matches.length) { container.innerHTML = '<div class="linear-search-empty">No clients found</div>'; return; }
         container.innerHTML = matches.slice(0, 6).map(name =>
-            `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">${highlightMatch(name, q.trim())}</div>`
+            `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">`
+            + `<span>${highlightMatch(name, q.trim())}</span></div>`
         ).join('');
     }
 

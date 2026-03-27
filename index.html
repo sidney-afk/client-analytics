@@ -1013,6 +1013,24 @@
         .editor-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
         .editor-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
         .editor-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
+
+        /* Calendar tab */
+        .calendar-view { max-width: 620px; margin: 0 auto; animation: fadeIn 0.15s ease; }
+        .calendar-form-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; margin-bottom: 6px; }
+        .calendar-form-sub { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 28px; }
+        .calendar-form { display: flex; flex-direction: column; gap: 18px; }
+        .calendar-video-card { background: var(--white); border: 1.5px solid var(--border); border-radius: 12px; padding: 14px 16px; position: relative; padding-bottom: 30px; }
+        .calendar-video-card:hover .calendar-video-remove { opacity: 1; }
+        .calendar-video-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+        .calendar-video-num { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .calendar-video-remove { width: 22px; height: 22px; opacity: 0; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--text-muted); border-radius: 6px; transition: all 0.15s; }
+        .calendar-video-card:hover .calendar-video-remove { background: var(--dn-bg); color: var(--dn); }
+        .calendar-video-fields { display: flex; flex-direction: column; gap: 8px; }
+        .calendar-videos-section { display: flex; flex-direction: column; gap: 12px; }
+        .calendar-submit-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 28px; border-radius: 10px; border: none; background: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.88rem; font-weight: 700; color: var(--white); cursor: pointer; transition: all 0.15s; align-self: flex-start; margin-top: 4px; }
+        .calendar-submit-btn:hover { background: #333; }
+        .calendar-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .calendar-success-banner { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-radius: 10px; background: var(--up-bg); color: var(--up); font-size: 0.82rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
     </style>
 </head>
 <body>
@@ -1067,6 +1085,10 @@
         <button class="header-nav-btn" id="navLinear" onclick="navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
+        </button>
+        <button class="header-nav-btn" id="navCalendar" onclick="navTo('calendar')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            Calendar
         </button>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
@@ -3287,6 +3309,7 @@
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
+    const CALENDAR_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-form';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NAV_KEY = 'syncview_nav';
@@ -3295,6 +3318,12 @@
     let linearVideoCount = LINEAR_DEFAULT_VIDEO_COUNT;
     let linearJustCreated = false;
     let linearProjectsLoading = false;
+
+    const CALENDAR_FORM_KEY = 'syncview_calendar_form';
+    const CALENDAR_LAST_LINK_KEY = 'syncview_calendar_last_link';
+    const CALENDAR_DEFAULT_VIDEO_COUNT = 12;
+    let calendarVideoCount = CALENDAR_DEFAULT_VIDEO_COUNT;
+    let calendarJustCreated = false;
 
     function getLastLink() { return localStorage.getItem(LAST_LINK_KEY) || ''; }
     function saveLastLink(v) { if (v && v.trim()) localStorage.setItem(LAST_LINK_KEY, v.trim()); }
@@ -3565,6 +3594,7 @@
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+        document.getElementById('navCalendar').classList.toggle('active', page === 'calendar');
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '');
@@ -3577,6 +3607,11 @@
         if (page === 'linear') {
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
+            if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'calendar') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderCalendarView();
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
@@ -3838,6 +3873,318 @@
         navTo('linear');
     }
 
+    /* ── Calendar Tab ─────────────────────────────────────────── */
+
+    function getCalendarLastLink() { return localStorage.getItem(CALENDAR_LAST_LINK_KEY) || ''; }
+    function saveCalendarLastLink(v) { if (v && v.trim()) localStorage.setItem(CALENDAR_LAST_LINK_KEY, v.trim()); }
+
+    function saveCalendarForm() {
+        const cards = document.querySelectorAll('[id^="calVideoCard_"]');
+        const f = {
+            client: document.getElementById('calClientSearch')?.value || '',
+            date: document.getElementById('calDate')?.value || '',
+            videos: []
+        };
+        cards.forEach(card => {
+            const num = card.id.replace('calVideoCard_', '');
+            f.videos.push({
+                frame_link: document.getElementById('cal_frame_' + num)?.value || '',
+                thumbnail_link: document.getElementById('cal_thumb_' + num)?.value || ''
+            });
+        });
+        localStorage.setItem(CALENDAR_FORM_KEY, JSON.stringify(f));
+    }
+
+    function loadCalendarForm() {
+        try { return JSON.parse(localStorage.getItem(CALENDAR_FORM_KEY) || '{}'); } catch { return {}; }
+    }
+
+    function buildCalendarTitle() {
+        const client = document.getElementById('calClientSearch')?.value?.trim();
+        const date = document.getElementById('calDate')?.value;
+        if (!client) return '';
+        if (!date) return client;
+        const d = new Date(date + 'T12:00:00');
+        const formatted = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        return `${client} \u00b7 ${formatted}`;
+    }
+
+    function updateCalendarTitle() {
+        const el = document.getElementById('calTitleDisplay');
+        if (!el) return;
+        const t = buildCalendarTitle();
+        el.textContent = t || 'Select a client and date\u2026';
+        el.classList.toggle('empty', !t);
+        saveCalendarForm();
+    }
+
+    function renderCalendarVideoCard(num, data) {
+        data = data || {};
+        return `<div class="calendar-video-card" id="calVideoCard_${num}">
+            <div class="calendar-video-header">
+                <span class="calendar-video-num">Video ${num}</span>
+                <button class="calendar-video-remove" onclick="removeCalendarVideo(${num})" title="Remove">
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="calendar-video-fields">
+                <input class="linear-input" id="cal_frame_${num}" type="url" placeholder="Frame.io link" value="${(data.frame_link || '').replace(/"/g, '&quot;')}"
+                    oninput="onCalVideoLinkInput(this)" onblur="onCalVideoLinkBlur(this)" onkeydown="onCalVideoLinkKeydown(event,this)">
+                <input class="linear-input" id="cal_thumb_${num}" type="url" placeholder="Thumbnail link (Google Drive)" value="${(data.thumbnail_link || '').replace(/"/g, '&quot;')}"
+                    oninput="onCalVideoLinkInput(this)" onblur="onCalVideoLinkBlur(this)" onkeydown="onCalVideoLinkKeydown(event,this)">
+            </div>
+            <span class="video-link-hint">\u21e7 Shift \u2014 paste last link</span>
+        </div>`;
+    }
+
+    function removeCalendarVideo(num) {
+        const cards = document.querySelectorAll('[id^="calVideoCard_"]');
+        if (cards.length <= 1) return;
+        const card = document.getElementById('calVideoCard_' + num);
+        if (!card) return;
+        card.remove();
+        renumberCalendarVideoCards();
+        calendarVideoCount = document.querySelectorAll('[id^="calVideoCard_"]').length;
+        saveCalendarForm();
+    }
+
+    function renumberCalendarVideoCards() {
+        const cards = document.querySelectorAll('[id^="calVideoCard_"]');
+        cards.forEach((card, idx) => {
+            const newNum = idx + 1;
+            card.id = 'calVideoCard_' + newNum;
+            card.querySelector('.calendar-video-num').textContent = 'Video ' + newNum;
+            card.querySelector('.calendar-video-remove').setAttribute('onclick', 'removeCalendarVideo(' + newNum + ')');
+            const frame = card.querySelector('[id^="cal_frame_"]');
+            const thumb = card.querySelector('[id^="cal_thumb_"]');
+            if (frame) frame.id = 'cal_frame_' + newNum;
+            if (thumb) thumb.id = 'cal_thumb_' + newNum;
+        });
+    }
+
+    function addCalendarVideo() {
+        const container = document.getElementById('calendarVideos');
+        if (!container) return;
+        calendarVideoCount++;
+        container.insertAdjacentHTML('beforeend', renderCalendarVideoCard(calendarVideoCount, {}));
+        saveCalendarForm();
+    }
+
+    function onCalVideoLinkInput(el) {
+        if (el.value.trim()) saveCalendarLastLink(el.value.trim());
+        saveCalendarForm();
+    }
+
+    function onCalVideoLinkBlur(el) {
+        if (el.value.trim()) saveCalendarLastLink(el.value.trim());
+    }
+
+    function onCalVideoLinkKeydown(e, el) {
+        if (e.key === 'Shift') {
+            const last = getCalendarLastLink();
+            if (last) { e.preventDefault(); el.value = last; saveCalendarLastLink(last); saveCalendarForm(); }
+        }
+    }
+
+    // Calendar client search — reuses linearProjects list
+    function onCalClientSearchInput() {
+        const q = document.getElementById('calClientSearch')?.value || '';
+        updateCalClientSearchGhost(q);
+        renderCalClientSearchResults(q);
+        const dd = document.getElementById('calSearchDropdown');
+        if (dd) dd.classList.add('open');
+        updateCalendarTitle();
+    }
+
+    function onCalClientSearchFocus() {
+        const q = document.getElementById('calClientSearch')?.value || '';
+        renderCalClientSearchResults(q);
+        const dd = document.getElementById('calSearchDropdown');
+        if (dd) dd.classList.add('open');
+    }
+
+    function onCalClientSearchKey(e) {
+        if (e.key === 'Enter') {
+            const first = document.querySelector('#calSearchResults .linear-search-suggestion');
+            if (first) first.click();
+            e.preventDefault();
+        } else if (e.key === 'Escape') {
+            const dd = document.getElementById('calSearchDropdown');
+            if (dd) dd.classList.remove('open');
+        }
+    }
+
+    function updateCalClientSearchGhost(q) {
+        const ghost = document.getElementById('calSearchGhost');
+        if (!ghost) return;
+        if (!q) { ghost.innerHTML = ''; return; }
+        const match = linearProjects.find(p => p.toLowerCase().startsWith(q.toLowerCase()));
+        if (match) {
+            ghost.innerHTML = `<span style="visibility:hidden">${q}</span><span style="color:var(--text-muted)">${match.slice(q.length)}</span>`;
+        } else { ghost.innerHTML = ''; }
+    }
+
+    function renderCalClientSearchResults(q) {
+        const container = document.getElementById('calSearchResults');
+        if (!container) return;
+        if (linearProjectsLoading) { container.innerHTML = '<div class="linear-search-loading">Loading clients\u2026</div>'; return; }
+        let items = linearProjects;
+        if (q) {
+            const ql = q.toLowerCase();
+            items = items.filter(p => p.toLowerCase().includes(ql));
+            items.sort((a, b) => {
+                const aS = a.toLowerCase().startsWith(ql) ? 0 : 1;
+                const bS = b.toLowerCase().startsWith(ql) ? 0 : 1;
+                return aS - bS || a.localeCompare(b);
+            });
+            items = items.slice(0, 6);
+        } else { items = items.slice(0, 8); }
+        if (!items.length) { container.innerHTML = '<div class="linear-search-empty">No clients found</div>'; return; }
+        container.innerHTML = items.map(p => {
+            if (q) {
+                const idx = p.toLowerCase().indexOf(q.toLowerCase());
+                const before = p.slice(0, idx);
+                const match = p.slice(idx, idx + q.length);
+                const after = p.slice(idx + q.length);
+                return `<div class="linear-search-suggestion" onclick="selectCalClient('${p.replace(/'/g, "\\'")}')">${before}<span class="s-match">${match}</span>${after}</div>`;
+            }
+            return `<div class="linear-search-suggestion" onclick="selectCalClient('${p.replace(/'/g, "\\'")}')">${p}</div>`;
+        }).join('');
+    }
+
+    function selectCalClient(name) {
+        const input = document.getElementById('calClientSearch');
+        if (input) input.value = name;
+        const dd = document.getElementById('calSearchDropdown');
+        if (dd) dd.classList.remove('open');
+        const ghost = document.getElementById('calSearchGhost');
+        if (ghost) ghost.innerHTML = '';
+        updateCalendarTitle();
+    }
+
+    function renderCalendarView() {
+        const saved = loadCalendarForm();
+        const today = new Date().toISOString().split('T')[0];
+        const savedDate = saved.date || today;
+        const savedClient = saved.client || '';
+
+        const savedVideoCount = saved.videos?.length || CALENDAR_DEFAULT_VIDEO_COUNT;
+        calendarVideoCount = Math.max(savedVideoCount, 1);
+
+        let videoCards = '';
+        for (let i = 1; i <= calendarVideoCount; i++) {
+            const v = saved.videos?.[i - 1] || {};
+            videoCards += renderCalendarVideoCard(i, v);
+        }
+
+        let titleDisplay = 'Select a client and date\u2026';
+        if (savedClient) {
+            const d = new Date(savedDate + 'T12:00:00');
+            titleDisplay = `${savedClient} \u00b7 ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        }
+
+        const successBanner = calendarJustCreated ? `<div class="calendar-success-banner" id="calendarSuccessBanner">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L6 12L14 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Videos submitted to calendar!
+        </div>` : '';
+        calendarJustCreated = false;
+
+        return `<div class="calendar-view">
+            ${successBanner}
+            <div class="calendar-form-title">Calendar Automation</div>
+            <div class="calendar-form-sub">Submit videos to the content calendar</div>
+            <div class="calendar-form">
+                <div class="linear-field">
+                    <label class="linear-label">Client</label>
+                    <div class="linear-search-wrap" id="calSearchWrap">
+                        <div class="linear-search-pill">
+                            <input class="linear-search-input" id="calClientSearch" type="text"
+                                placeholder="Search clients\u2026"
+                                value="${savedClient.replace(/"/g, '&quot;')}"
+                                oninput="onCalClientSearchInput()" onkeydown="onCalClientSearchKey(event)"
+                                onfocus="onCalClientSearchFocus()" autocomplete="off">
+                            <div class="linear-search-ghost" id="calSearchGhost"></div>
+                        </div>
+                        <div class="linear-search-dropdown" id="calSearchDropdown">
+                            <div id="calSearchResults"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Date</label>
+                    <input class="linear-input" id="calDate" type="date" value="${savedDate}" onchange="updateCalendarTitle(); saveCalendarForm();">
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Title</label>
+                    <div class="linear-title-display ${savedClient ? '' : 'empty'}" id="calTitleDisplay">${titleDisplay}</div>
+                </div>
+                <div class="linear-field">
+                    <label class="linear-label">Videos</label>
+                    <div class="calendar-videos-section" id="calendarVideos">${videoCards}</div>
+                    <button class="linear-add-video-btn" onclick="addCalendarVideo()" type="button">
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><line x1="6" y1="1" x2="6" y2="11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="1" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Add Video
+                    </button>
+                </div>
+                <div style="margin-top:4px;">
+                    <button class="calendar-submit-btn" id="calSubmitBtn" onclick="submitCalendarForm()">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                        Submit to Calendar
+                    </button>
+                </div>
+                <div class="linear-status" id="calStatus"></div>
+            </div>
+        </div>`;
+    }
+
+    async function submitCalendarForm() {
+        const client = document.getElementById('calClientSearch')?.value?.trim();
+        const date = document.getElementById('calDate')?.value;
+
+        if (!client) { document.getElementById('calStatus').textContent = 'Please select a client.'; return; }
+        if (!date) { document.getElementById('calStatus').textContent = 'Please select a date.'; return; }
+
+        const cards = document.querySelectorAll('[id^="calVideoCard_"]');
+        const videos = [];
+        let num = 1;
+        cards.forEach(card => {
+            const id = card.id.replace('calVideoCard_', '');
+            const frame = document.getElementById('cal_frame_' + id)?.value?.trim() || '';
+            const thumb = document.getElementById('cal_thumb_' + id)?.value?.trim() || '';
+            if (frame || thumb) {
+                videos.push({ number: num++, frame_link: frame, thumbnail_link: thumb });
+            }
+        });
+
+        if (!videos.length) { document.getElementById('calStatus').textContent = 'Please add at least one video link.'; return; }
+
+        const btn = document.getElementById('calSubmitBtn');
+        const status = document.getElementById('calStatus');
+        if (btn) { btn.disabled = true; btn.textContent = 'Submitting\u2026'; }
+        status.textContent = '';
+
+        const payload = { clientName: client, date, videos };
+
+        const sendOptions = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        };
+        fetch(CALENDAR_FORM_WEBHOOK, sendOptions).catch(() => {});
+
+        localStorage.removeItem(CALENDAR_FORM_KEY);
+        localStorage.removeItem(CALENDAR_LAST_LINK_KEY);
+        calendarJustCreated = true;
+        navTo('calendar');
+    }
+
+    // Close calendar search dropdown on outside click
+    document.addEventListener('click', function(e) {
+        const calWrap = document.getElementById('calSearchWrap');
+        const calDD = document.getElementById('calSearchDropdown');
+        if (calDD && calWrap && !calWrap.contains(e.target)) calDD.classList.remove('open');
+    });
+
         async function init(){
         try{
             await fetchAll();
@@ -3879,7 +4226,7 @@
                 if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
                 render(c,false);return;
             }
-            if(savedNav==='linear'){navTo(savedNav,false);return;}
+            if(savedNav==='linear'||savedNav==='calendar'){navTo(savedNav,false);return;}
             if(hash&&clientNames.includes(hash)){render(hash,false);}
             else{navTo('home',false);}
         }catch(err){

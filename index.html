@@ -3016,7 +3016,7 @@
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:`<em>daily changes show after 2+ days</em>`;
-        const viewsLegends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:''].filter(Boolean).join('');
+        const viewsLegends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:'',hasYT?`<div class="leg-item"><div class="leg-dot" style="background:#FF4444"></div>YouTube</div>`:''].filter(Boolean).join('');
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
         if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
         const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
@@ -3187,6 +3187,7 @@
         const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(!data.some(v=>v))return;const yId='y'+yi;ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});sc[yId]=_mkYAxis(yi===0);yi++;};
         push('Instagram','ig_views_gained_today','#E1306C',225,48,108);
         push('TikTok','tiktok_plays_gained_today','#2EC4B6',46,196,182);
+        push('YouTube','yt_views_gained_today','#FF4444',255,68,68);
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
         viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
     }
@@ -3991,16 +3992,25 @@
         const q = document.getElementById('calClientSearch')?.value || '';
         updateCalClientSearchGhost(q);
         renderCalClientSearchResults(q);
-        const dd = document.getElementById('calSearchDropdown');
-        if (dd) dd.classList.add('open');
+        openCalSearchDropdown();
         updateCalendarTitle();
+    }
+
+    function openCalSearchDropdown() {
+        const box = document.getElementById('calSearchDropdown');
+        if (!box || box.classList.contains('open')) return;
+        box.classList.add('open');
+        const close = (e) => {
+            const wrap = document.getElementById('calSearchWrap');
+            if (wrap && !wrap.contains(e.target)) { box.classList.remove('open'); document.removeEventListener('click', close); }
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
     }
 
     function onCalClientSearchFocus() {
         const q = document.getElementById('calClientSearch')?.value || '';
         renderCalClientSearchResults(q);
-        const dd = document.getElementById('calSearchDropdown');
-        if (dd) dd.classList.add('open');
+        openCalSearchDropdown();
     }
 
     function onCalClientSearchKey(e) {
@@ -4017,39 +4027,41 @@
     function updateCalClientSearchGhost(q) {
         const ghost = document.getElementById('calSearchGhost');
         if (!ghost) return;
-        if (!q) { ghost.innerHTML = ''; return; }
-        const match = linearProjects.find(p => p.toLowerCase().startsWith(q.toLowerCase()));
-        if (match) {
-            ghost.innerHTML = `<span style="visibility:hidden">${q}</span><span style="color:var(--text-muted)">${match.slice(q.length)}</span>`;
-        } else { ghost.innerHTML = ''; }
+        const q2 = q.trim().toLowerCase();
+        if (!q2) { ghost.innerHTML = ''; return; }
+        const names = linearProjects;
+        const starts = names.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = names.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const first = [...starts, ...contains][0];
+        if (!first) { ghost.innerHTML = ''; return; }
+        if (first.toLowerCase().startsWith(q2)) {
+            const typed = first.slice(0, q.length);
+            const rest = first.slice(q.length);
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;
+        }
     }
 
     function renderCalClientSearchResults(q) {
         const container = document.getElementById('calSearchResults');
         if (!container) return;
         if (linearProjectsLoading) { container.innerHTML = '<div class="linear-search-loading">Loading clients\u2026</div>'; return; }
-        let items = linearProjects;
-        if (q) {
-            const ql = q.toLowerCase();
-            items = items.filter(p => p.toLowerCase().includes(ql));
-            items.sort((a, b) => {
-                const aS = a.toLowerCase().startsWith(ql) ? 0 : 1;
-                const bS = b.toLowerCase().startsWith(ql) ? 0 : 1;
-                return aS - bS || a.localeCompare(b);
-            });
-            items = items.slice(0, 6);
-        } else { items = items.slice(0, 8); }
-        if (!items.length) { container.innerHTML = '<div class="linear-search-empty">No clients found</div>'; return; }
-        container.innerHTML = items.map(p => {
-            if (q) {
-                const idx = p.toLowerCase().indexOf(q.toLowerCase());
-                const before = p.slice(0, idx);
-                const match = p.slice(idx, idx + q.length);
-                const after = p.slice(idx + q.length);
-                return `<div class="linear-search-suggestion" onclick="selectCalClient('${p.replace(/'/g, "\\'")}')">${before}<span class="s-match">${match}</span>${after}</div>`;
-            }
-            return `<div class="linear-search-suggestion" onclick="selectCalClient('${p.replace(/'/g, "\\'")}')">${p}</div>`;
-        }).join('');
+        if (!linearProjects.length) { container.innerHTML = '<div class="linear-search-empty">No clients loaded</div>'; return; }
+        const q2 = q.trim().toLowerCase();
+        if (!q2) {
+            container.innerHTML = linearProjects.slice(0, 8).map(name =>
+                `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">${name}</div>`
+            ).join('');
+            return;
+        }
+        const starts = linearProjects.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = linearProjects.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        const matches = [...starts, ...contains];
+        if (!matches.length) { container.innerHTML = '<div class="linear-search-empty">No clients found</div>'; return; }
+        container.innerHTML = matches.slice(0, 6).map(name =>
+            `<div class="linear-search-suggestion" onclick="selectCalClient('${name.replace(/'/g, "\\'")}')">${highlightMatch(name, q.trim())}</div>`
+        ).join('');
     }
 
     function selectCalClient(name) {

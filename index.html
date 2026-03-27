@@ -3889,8 +3889,7 @@
             const num = card.id.replace('calVideoCard_', '');
             f.videos.push({
                 frame_link: document.getElementById('cal_frame_' + num)?.value || '',
-                thumbnail_link: document.getElementById('cal_thumb_' + num)?.value || '',
-                video_file: document.getElementById('cal_video_' + num)?.value || ''
+                thumbnail_link: document.getElementById('cal_thumb_' + num)?.value || ''
             });
         });
         localStorage.setItem(CALENDAR_FORM_KEY, JSON.stringify(f));
@@ -3933,8 +3932,6 @@
                     oninput="onCalVideoLinkInput(this)" onblur="onCalVideoLinkBlur(this)" onkeydown="onCalVideoLinkKeydown(event,this)">
                 <input class="linear-input" id="cal_thumb_${num}" type="url" placeholder="Thumbnail link (Google Drive)" value="${(data.thumbnail_link || '').replace(/"/g, '&quot;')}"
                     oninput="onCalVideoLinkInput(this)" onblur="onCalVideoLinkBlur(this)" onkeydown="onCalVideoLinkKeydown(event,this)">
-                <input class="linear-input" id="cal_video_${num}" type="url" placeholder="Video file link (Google Drive)" value="${(data.video_file || '').replace(/"/g, '&quot;')}"
-                    oninput="onCalVideoLinkInput(this)" onblur="onCalVideoLinkBlur(this)" onkeydown="onCalVideoLinkKeydown(event,this)">
             </div>
             <span class="video-link-hint">\u21e7 Shift \u2014 paste last link</span>
         </div>`;
@@ -3960,10 +3957,8 @@
             card.querySelector('.calendar-video-remove').setAttribute('onclick', 'removeCalendarVideo(' + newNum + ')');
             const frame = card.querySelector('[id^="cal_frame_"]');
             const thumb = card.querySelector('[id^="cal_thumb_"]');
-            const video = card.querySelector('[id^="cal_video_"]');
             if (frame) frame.id = 'cal_frame_' + newNum;
             if (thumb) thumb.id = 'cal_thumb_' + newNum;
-            if (video) video.id = 'cal_video_' + newNum;
         });
     }
 
@@ -4156,9 +4151,8 @@
             const id = card.id.replace('calVideoCard_', '');
             const frame = document.getElementById('cal_frame_' + id)?.value?.trim() || '';
             const thumb = document.getElementById('cal_thumb_' + id)?.value?.trim() || '';
-            const videoFile = document.getElementById('cal_video_' + id)?.value?.trim() || '';
-            if (frame || thumb || videoFile) {
-                videos.push({ number: num++, frame_link: frame, thumbnail_link: thumb, video_file: videoFile });
+            if (frame || thumb) {
+                videos.push({ number: num++, frame_link: frame, thumbnail_link: thumb });
             }
         });
 

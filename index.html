@@ -1073,23 +1073,23 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;">
-    <div class="logo" onclick="goHome()" style="cursor:pointer;" title="Back to overview">
+    <a class="logo" href="#" onclick="event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
-    </div>
+    </a>
     <div class="header-nav" id="headerNav">
-        <button class="header-nav-btn active" id="navHome" onclick="navTo('home')">
+        <a class="header-nav-btn active" id="navHome" href="#" onclick="event.preventDefault();navTo('home')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Home
-        </button>
-        <button class="header-nav-btn" id="navLinear" onclick="navTo('linear')">
+        </a>
+        <a class="header-nav-btn" id="navLinear" href="#linear" onclick="event.preventDefault();navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
-        </button>
-        <button class="header-nav-btn" id="navCalendar" onclick="navTo('calendar')">
+        </a>
+        <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="event.preventDefault();navTo('calendar')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 1.5v3M10.5 1.5v3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
             Calendar
-        </button>
+        </a>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -3114,7 +3114,7 @@
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
-            const eyeIcon=`<button class="client-view-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>`;
+            const eyeIcon=`<a class="client-view-btn" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')" title="View ${r.client_name}" style="text-decoration:none;color:inherit;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></a>`;
             const isAgeRestricted=r.client_name.toLowerCase()==='john wineland';
             const igRestrictedCell=`<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
             const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> No ${label}</span></td>`;
@@ -3295,7 +3295,7 @@
         if(!row||!addRow)return;
         const pins=getPins();
         row.innerHTML='';
-        pins.forEach(name=>{const pill=document.createElement('div');pill.className='pin-pill';if(!pinsEditMode)pill.onclick=()=>selectClient(name);const nameSpan=document.createElement('span');nameSpan.textContent=name;pill.appendChild(nameSpan);if(pinsEditMode){const rm=document.createElement('span');rm.className='pin-remove';rm.title='Remove';rm.textContent='✕';rm.onclick=(e)=>{e.stopPropagation();removePin(name);};pill.appendChild(rm);}row.appendChild(pill);});
+        pins.forEach(name=>{const pill=document.createElement('a');pill.className='pin-pill';pill.href='#'+encodeURIComponent(name);pill.style.textDecoration='none';pill.style.color='inherit';if(!pinsEditMode)pill.onclick=(e)=>{e.preventDefault();selectClient(name);};else pill.onclick=(e)=>{e.preventDefault();};const nameSpan=document.createElement('span');nameSpan.textContent=name;pill.appendChild(nameSpan);if(pinsEditMode){const rm=document.createElement('span');rm.className='pin-remove';rm.title='Remove';rm.textContent='✕';rm.onclick=(e)=>{e.preventDefault();e.stopPropagation();removePin(name);};pill.appendChild(rm);}row.appendChild(pill);});
         if(pins.length>=1){const editBtn=document.createElement('button');editBtn.className='pin-edit-btn'+(pinsEditMode?' active':'');editBtn.title=pinsEditMode?'Done':'Edit pins';editBtn.innerHTML=pinsEditMode?'<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>':PEN_ICON_SVG;editBtn.onclick=togglePinsEdit;row.appendChild(editBtn);}
         addRow.innerHTML='';
         const showAddBtn=pins.length<MAX_PINS&&(pins.length===0||pinsEditMode||pinSelectorOpen);

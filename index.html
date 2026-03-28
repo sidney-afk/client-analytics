@@ -559,7 +559,7 @@
         .brief-wrap[data-show-info] .brief-info-panel { display: flex; }
         .brief-tab-summary {
             font-size: 0.82rem; color: #7c3aed; font-weight: 600; line-height: 1.6;
-            margin-bottom: 16px; max-width: 640px;
+            margin-bottom: 16px;
         }
         .brief-tab-summary.loading {
             color: var(--text-muted); font-style: italic;
@@ -1246,9 +1246,20 @@
         if (state.loading) return `<div class="brief-tab-summary loading">Generating summary…</div>`;
         if (state.error) return '';
         if (state.text) {
-            // Strip markdown formatting (# headers, **bold**, *italic*) that Claude sometimes returns
-            const clean = state.text.replace(/^#{1,6}\s+/gm, '').replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1');
-            return `<div class="brief-tab-summary">${clean}</div>`;
+            // Strip markdown formatting (# headers, **bold**, *italic*) and render bullet points
+            const clean = state.text.replace(/^#{1,6}\s+/gm, '');
+            const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+            const hasBullets = lines.some(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l));
+            if (hasBullets) {
+                const items = lines.filter(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l)).map(l => {
+                    const t = l.replace(/^[-•*]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+                    const html = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                    return `<li>${html}</li>`;
+                }).join('');
+                return `<div class="brief-tab-summary"><ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;">${items}</ul></div>`;
+            }
+            const plainClean = clean.replace(/\*{1,2}([^*]+)\*{1,2}/g, '$1');
+            return `<div class="brief-tab-summary">${plainClean}</div>`;
         }
         return '';
     }
@@ -1429,20 +1440,36 @@
         const synthesis = parseSynthesis(d);
         console.log('[SyncView] Parsed synthesis:', synthesis);
 
+        function synthesisToBullets(text) {
+            if (!text) return '';
+            // If already has bullet markers, parse them
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+            const hasBullets = lines.some(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l));
+            if (hasBullets) {
+                const items = lines.filter(l => /^[-•*]\s/.test(l) || /^\d+\.\s/.test(l)).map(l => {
+                    const t = l.replace(/^[-•*]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+                    return `<li>${t}</li>`;
+                }).join('');
+                return `<ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:0.82rem;line-height:1.55;">${items}</ul>`;
+            }
+            // No bullets — split by sentences and show as paragraph (fallback)
+            return `<div style="font-size:0.82rem;line-height:1.55;">${text}</div>`;
+        }
+
         let contentHtml;
         if (synthesis.type === 'sections') {
             contentHtml = `<div class="general-brief-sections">
                 ${synthesis.overviewSynthesis ? `<div class="general-brief-section">
                     <div class="general-brief-section-icon" style="background:#f0e6ff;color:#7c3aed;">✦</div>
-                    <div><div class="general-brief-section-label">Overview</div><div class="general-brief-section-body">${synthesis.overviewSynthesis}</div></div>
+                    <div><div class="general-brief-section-label">Overview</div><div class="general-brief-section-body">${synthesisToBullets(synthesis.overviewSynthesis)}</div></div>
                 </div>` : ''}
                 ${synthesis.hookSynthesis ? `<div class="general-brief-section">
                     <div class="general-brief-section-icon" style="background:#fef3c7;color:#d97706;">🪝</div>
-                    <div><div class="general-brief-section-label">Hooks</div><div class="general-brief-section-body">${synthesis.hookSynthesis}</div></div>
+                    <div><div class="general-brief-section-label">Hooks</div><div class="general-brief-section-body">${synthesisToBullets(synthesis.hookSynthesis)}</div></div>
                 </div>` : ''}
                 ${synthesis.landscapeSynthesis ? `<div class="general-brief-section">
                     <div class="general-brief-section-icon" style="background:#dbeafe;color:#2563eb;">📊</div>
-                    <div><div class="general-brief-section-label">Landscape</div><div class="general-brief-section-body">${synthesis.landscapeSynthesis}</div></div>
+                    <div><div class="general-brief-section-label">Landscape</div><div class="general-brief-section-body">${synthesisToBullets(synthesis.landscapeSynthesis)}</div></div>
                 </div>` : ''}
             </div>`;
         } else {

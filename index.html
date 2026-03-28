@@ -2674,6 +2674,7 @@
                         <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
                     </div>
                 </div>
+                ${item.relevance?`<div class="brief-card-sub" style="margin-top:4px;font-size:0.75rem;"><strong>Relevance:</strong> ${item.relevance}</div>`:''}
                 ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
                     ${item.stealThis?`<button class="hook-add-btn${_mrHookSaved?' saved':''}" ${_mrHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_mrHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
@@ -2684,14 +2685,15 @@
 
     function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
-        if(!items.length)return _mrEmpty('No filming angles data.');
+        if(!items.length)return _mrEmpty('No content angles data.');
         return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card" style="gap:12px;">
                 <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
                     <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
-                    ${_mrHookBadge(item.hookType)}
                 </div>
+                ${item.angle?`<div class="brief-card-label">${item.angle}</div>`:''}
                 <div class="mr-angle-hook">"${item.hook||'—'}"</div>
+                ${item.whyThisWorks?`<div class="brief-card-sub"><strong>Why this works:</strong> ${item.whyThisWorks}</div>`:''}
                 ${item.concept?`<div class="brief-card-body">${item.concept}</div>`:''}
                 ${item.whyNow?`<div class="mr-why-now"><strong>Why now:</strong> ${item.whyNow}</div>`:''}
             </div>`).join('')}</div>`;

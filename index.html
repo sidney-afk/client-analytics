@@ -1699,7 +1699,7 @@
                 }
                 for(const[name,r]of Object.entries(latest)){
                     if(!contentSummaryState[name]?.data){
-                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets},error:null};
+                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
                     }
                 }
                 console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
@@ -3017,7 +3017,9 @@
                     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:500;">$1</a>');
                 return`<li>${html}</li>`;
             }).join('');
+            const summaryDate=state.data.date?` · Updated ${fmtDate(state.data.date)}`:'';
             inner=`<ul class="cs-bullets">${items}</ul><button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`;
+            inner+=summaryDate?`<div style="font-size:0.65rem;color:var(--text-muted);margin-top:6px;opacity:0.7;">${summaryDate.trim()}</div>`:'';
         }
         return`<div class="content-summary-section" id="${id}"><div class="cs-header"><span class="cs-title">✦ What's Working This Month</span><span class="cs-subtitle">Based on top ${videos.length} video${videos.length!==1?'s':''} by views</span></div>${inner}</div>`;
     }

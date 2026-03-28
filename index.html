@@ -3017,9 +3017,18 @@
                     .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;font-weight:500;">$1</a>');
                 return`<li>${html}</li>`;
             }).join('');
-            const summaryDate=state.data.date?` · Updated ${fmtDate(state.data.date)}`:'';
-            inner=`<ul class="cs-bullets">${items}</ul><button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button>`;
-            inner+=summaryDate?`<div style="font-size:0.65rem;color:var(--text-muted);margin-top:6px;opacity:0.7;">${summaryDate.trim()}</div>`:'';
+            // Check if summary is up to date vs latest top videos scrape
+            const summaryDate=state.data.date||'';
+            const latestScrape=topVideos.filter(v=>v.client_name===clientName).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
+            let statusBadge='';
+            if(summaryDate&&latestScrape){
+                if(summaryDate>=latestScrape){
+                    statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:#10b981;opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#10b981" stroke-width="1.3"/><path d="M3.5 6l2 2 3-3.5" stroke="#10b981" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg> Up to date</span>`;
+                }else{
+                    statusBadge=`<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.65rem;font-weight:600;color:#f59e0b;opacity:0.85;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="#f59e0b" stroke-width="1.3"/><path d="M6 3.5v3M6 8.5v.01" stroke="#f59e0b" stroke-width="1.3" stroke-linecap="round"/></svg> New data available · <a href="#" onclick="event.preventDefault();generateContentSummary(decodeURIComponent('${enc}'))" style="color:#f59e0b;text-decoration:underline;font-weight:600;">Update</a></span>`;
+                }
+            }
+            inner=`<ul class="cs-bullets">${items}</ul><div style="display:flex;align-items:center;gap:10px;margin-top:6px;">${statusBadge}<button class="cs-regen-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">↻ Regenerate</button></div>`;
         }
         return`<div class="content-summary-section" id="${id}"><div class="cs-header"><span class="cs-title">✦ What's Working This Month</span><span class="cs-subtitle">Based on top ${videos.length} video${videos.length!==1?'s':''} by views</span></div>${inner}</div>`;
     }

@@ -4283,9 +4283,10 @@
                 render(c,false);return;
             }
             if(hash==='linear'||hash==='calendar'){navTo(hash,false);return;}
-            if(savedNav==='linear'||savedNav==='calendar'){navTo(savedNav,false);return;}
-            if(hash&&clientNames.includes(hash)){render(hash,false);}
-            else{navTo('home',false);}
+            if(hash&&clientNames.includes(hash)){render(hash,false);return;}
+            // Only restore savedNav on page refresh (history.state exists), not new tabs
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='calendar')){navTo(savedNav,false);return;}
+            navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
         }

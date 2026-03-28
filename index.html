@@ -1483,24 +1483,24 @@
         const mrExecSummary = typeof mrData?.executiveSummary === 'object' ? (mrData.executiveSummary.summary || '') : (mrData?.executiveSummary || '');
         const trimmedMR = mrData ? {
             executiveSummary: mrExecSummary.substring(0, 500),
-            landscapeAnalysis: (mrData.landscapeAnalysis || []).slice(0, 5).map(i => ({ label: i.label || '', what: i.what || '', whyItWorks: (i.whyItWorks || '').substring(0, 100) })),
-            topicClusters: (mrData.topicClusters || []).slice(0, 5).map(i => ({ name: i.name || '', whatWorks: (i.whatWorks || '').substring(0, 100) })),
-            hookAnalysis: (mrData.hookAnalysis || []).slice(0, 5).map(i => ({ openingLine: i.openingLine || '', hookType: i.hookType || '', views: i.views || '' })),
-            theGap: (mrData.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
-            filmingAngles: (mrData.filmingAngles || []).slice(0, 3).map(i => ({ hook: i.hook || '' })),
+            landscapeAnalysis: (mrData.landscapeAnalysis || []).slice(0, 8).map(i => ({ label: i.label || '', what: i.what || '', emotionalTrigger: (i.emotionalTrigger || '').substring(0, 150), sharingMechanism: (i.sharingMechanism || '').substring(0, 150), whyItWorks: (i.whyItWorks || '').substring(0, 150), forClient: (i.forClient || '').substring(0, 150) })),
+            topicClusters: (mrData.topicClusters || []).slice(0, 5).map(i => ({ name: i.name || '', whatWorks: (i.whatWorks || '').substring(0, 150), why: (i.why || '').substring(0, 150), forClient: (i.forClient || '').substring(0, 150) })),
+            hookAnalysis: (mrData.hookAnalysis || []).slice(0, 8).map(i => ({ openingLine: i.openingLine || '', hookType: i.hookType || '', views: i.views || '', relevance: (i.relevance || '').substring(0, 100) })),
+            theGap: (mrData.theGap || []).slice(0, 5).map(i => ({ label: i.label || '', gap: i.gap || '', opportunity: (i.opportunity || '').substring(0, 100) })),
+            filmingAngles: (mrData.filmingAngles || []).slice(0, 5).map(i => ({ angle: i.angle || '', hook: i.hook || '', whyThisWorks: (i.whyThisWorks || '').substring(0, 100) })),
             totalReels: mrData.totalReels || 0,
         } : null;
         const trimmedComp = compData ? {
             executiveSummary: {
-                whatIsResonating: (compData.executiveSummary?.whatIsResonating || '').substring(0, 300),
-                theGap: (compData.executiveSummary?.theGap || '').substring(0, 300),
-                hookPatterns: (compData.executiveSummary?.hookPatterns || '').substring(0, 300),
+                whatIsResonating: (compData.executiveSummary?.whatIsResonating || '').substring(0, 500),
+                theGap: (compData.executiveSummary?.theGap || '').substring(0, 500),
+                hookPatterns: (compData.executiveSummary?.hookPatterns || '').substring(0, 500),
                 actionPriorities: compData.executiveSummary?.actionPriorities || [],
             },
-            resonating: (compData.resonating || []).slice(0, 5).map(i => ({ label: i.label || '', whyItWorks: (i.whyItWorks || '').substring(0, 100) })),
-            hookAnalysis: (compData.hookAnalysis || []).slice(0, 5).map(i => ({ hook: i.hook || '', formula: (i.formula || '').substring(0, 100) })),
-            commentIntelligence: { patterns: (compData.commentIntelligence?.patterns || []).slice(0, 3).map(p => ({ label: p.label || '', pattern: (p.pattern || '').substring(0, 100) })) },
-            theGap: (compData.theGap || []).slice(0, 3).map(i => ({ label: i.label || '', gap: i.gap || '' })),
+            resonating: (compData.resonating || []).slice(0, 8).map(i => ({ label: i.label || '', whyItWorks: (i.whyItWorks || '').substring(0, 150), forClient: (i.forClient || '').substring(0, 150) })),
+            hookAnalysis: (compData.hookAnalysis || []).slice(0, 8).map(i => ({ hook: i.hook || '', formula: (i.formula || '').substring(0, 150) })),
+            commentIntelligence: { patterns: (compData.commentIntelligence?.patterns || []).slice(0, 5).map(p => ({ label: p.label || '', pattern: (p.pattern || '').substring(0, 150) })) },
+            theGap: (compData.theGap || []).slice(0, 5).map(i => ({ label: i.label || '', gap: i.gap || '', opportunity: (i.opportunity || '').substring(0, 100) })),
             methodology: { accounts: compData.methodology?.accounts || [] },
         } : null;
 

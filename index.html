@@ -370,6 +370,19 @@
             font-size: 0.58rem; font-weight: 800; text-transform: uppercase;
             letter-spacing: 0.1em; color: #6d28d9; display: block;
         }
+        .mr-info-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--border); background: var(--white); cursor: pointer; font-size: 0.65rem; font-weight: 800; color: var(--text-muted); transition: all 0.15s; flex-shrink: 0; font-family: 'Plus Jakarta Sans', serif; }
+        .mr-info-btn:hover { border-color: #7c3aed; color: #7c3aed; background: #faf5ff; }
+        .mr-info-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .mr-info-modal { background: var(--white); border-radius: 14px; max-width: 520px; width: 100%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .mr-info-modal-head { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; background: var(--white); border-radius: 14px 14px 0 0; z-index: 1; }
+        .mr-info-modal-title { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+        .mr-info-modal-close { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; display: inline-flex; transition: color 0.15s; }
+        .mr-info-modal-close:hover { color: var(--text-primary); }
+        .mr-info-modal-body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
+        .mr-info-reel { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: var(--bg); border-radius: 8px; border: 1px solid var(--border); font-size: 0.78rem; }
+        .mr-info-reel-handle { font-weight: 700; color: var(--text-primary); white-space: nowrap; }
+        .mr-info-reel-views { font-size: 0.72rem; color: var(--text-muted); white-space: nowrap; }
+        .mr-info-reel-link { margin-left: auto; flex-shrink: 0; }
         .mr-count-chip {
             font-size: 0.68rem; font-weight: 700; color: var(--text-muted);
             background: var(--bg); border-radius: 5px; padding: 2px 8px;
@@ -1073,7 +1086,7 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;">
-    <a class="logo" href="#" onclick="event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+    <a class="logo" href="./" onclick="event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
@@ -2554,6 +2567,25 @@
     const _mrHookBadge=(type)=>type?`<span class="mr-hook-type-badge">${type}</span>`:'';
     const _mrForClient=(text)=>text?`<div class="mr-for-client"><span class="mr-for-client-label">For this client</span>${text}</div>`:'';
 
+    let _mrInfoCounter=0;
+    const _mrInfoStore={};
+    function _mrInfoBtn(reels){
+        if(!reels||!reels.length)return'';
+        const id='mri_'+(++_mrInfoCounter);
+        _mrInfoStore[id]=reels;
+        return`<button class="mr-info-btn" title="View supporting reels" onclick="event.stopPropagation();showMRInfo('${id}')">i</button>`;
+    }
+    function showMRInfo(id){
+        const reels=_mrInfoStore[id];
+        if(!reels||!reels.length)return;
+        const reelCards=reels.map(r=>`<div class="mr-info-reel"><div><span class="mr-info-reel-handle">@${r.handle||'unknown'}</span></div><span class="mr-info-reel-views">${r.views||'—'} views</span>${r.url?`<a class="source-link mr-info-reel-link" href="${r.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${_mrExternalLink}View ↗</a>`:''}</div>`).join('');
+        const overlay=document.createElement('div');
+        overlay.className='mr-info-overlay';
+        overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
+        overlay.innerHTML=`<div class="mr-info-modal"><div class="mr-info-modal-head"><span class="mr-info-modal-title">Supporting Reels (${reels.length})</span><button class="mr-info-modal-close" onclick="this.closest('.mr-info-overlay').remove()"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="mr-info-modal-body">${reelCards}</div></div>`;
+        document.body.appendChild(overlay);
+    }
+
     function renderMRTab_overview(data,name){
         const raw=data.executiveSummary;
         // Support new structured format { summary, highlights } and old string format
@@ -2586,9 +2618,14 @@
         if(!items.length)return _mrEmpty();
         return`${renderTabSummary(name,'mr','landscape',buildTabData('mr','landscape',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
-                <span class="brief-card-badge">📊 Landscape</span>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <span class="brief-card-badge">📊 Landscape</span>
+                    ${_mrInfoBtn(item.supportingReels)}
+                </div>
                 <div class="brief-card-label">${item.label||'—'}</div>
                 ${item.what?`<div class="brief-card-body">${item.what}</div>`:''}
+                ${item.emotionalTrigger?`<div class="brief-card-sub"><strong>Emotional trigger:</strong> ${item.emotionalTrigger}</div>`:''}
+                ${item.sharingMechanism?`<div class="brief-card-sub"><strong>Sharing mechanism:</strong> ${item.sharingMechanism}</div>`:''}
                 ${item.whyItWorks?`<div class="brief-card-sub"><strong>Why it works:</strong> ${item.whyItWorks}</div>`:''}
                 ${_mrForClient(item.forClient)}
                 ${_mrLink(item.example,'Example reel ↗')}
@@ -2601,8 +2638,11 @@
         return`${renderTabSummary(name,'mr','topics',buildTabData('mr','topics',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
-                    <span class="brief-card-badge">🗂 Cluster</span>
-                    ${item.videoCount?`<span class="mr-count-chip">${item.videoCount} videos</span>`:''}
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="brief-card-badge">🗂 Cluster</span>
+                        ${item.videoCount?`<span class="mr-count-chip">${item.videoCount} videos</span>`:''}
+                    </div>
+                    ${_mrInfoBtn(item.supportingReels)}
                 </div>
                 <div class="brief-card-label">${item.name||'—'}</div>
                 ${item.whatWorks?`<div class="brief-card-body">${item.whatWorks}</div>`:''}
@@ -3600,7 +3640,7 @@
         document.getElementById('navCalendar').classList.toggle('active', page === 'calendar');
 
         const state = {nav: page, client: null};
-        const url = location.pathname + location.search.replace(/#.*$/, '');
+        const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
         if (push) history.pushState(state, '', url);
         else history.replaceState(state, '', url);
 
@@ -4242,6 +4282,7 @@
                 if(s.mrBriefTab)activeMRBriefTab[c]=s.mrBriefTab;
                 render(c,false);return;
             }
+            if(hash==='linear'||hash==='calendar'){navTo(hash,false);return;}
             if(savedNav==='linear'||savedNav==='calendar'){navTo(savedNav,false);return;}
             if(hash&&clientNames.includes(hash)){render(hash,false);}
             else{navTo('home',false);}

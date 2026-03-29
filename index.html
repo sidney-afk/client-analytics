@@ -1218,11 +1218,15 @@
         tabSummaryCache[key] = { loading: true, text: null, error: null };
         refreshBriefView(name);
         try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 180000);
             const resp = await fetch(TAB_SUMMARY_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientName: name, briefType, tabId, tabData })
+                body: JSON.stringify({ clientName: name, briefType, tabId, tabData }),
+                signal: controller.signal
             });
+            clearTimeout(timeout);
             const text = await resp.text();
             if (!text) { tabSummaryCache[key] = { loading: false, text: null, error: 'Empty response' }; refreshBriefView(name); return; }
             const result = JSON.parse(text);
@@ -1243,7 +1247,7 @@
             setTimeout(() => fetchTabSummary(name, briefType, tabId, tabData), 0);
             return `<div class="brief-tab-summary loading">Generating summary…</div>`;
         }
-        if (state.loading) return `<div class="brief-tab-summary loading">Generating summary…</div>`;
+        if (state.loading) return `<div class="brief-tab-summary loading">Generating summary… <span style="font-weight:400;opacity:0.7;">(~1-2 min)</span></div>`;
         if (state.error) return '';
         if (state.text) {
             // Strip markdown formatting (# headers, **bold**, *italic*) and render bullet points
@@ -1426,7 +1430,7 @@
                     <div class="brief-progress-dot"></div><div class="brief-progress-dot"></div><div class="brief-progress-dot"></div>
                 </div>
                 <div style="font-size:0.85rem;font-weight:600;color:var(--text-primary);margin-top:8px;">Synthesising briefs…</div>
-                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Analysing available briefs with Claude</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Analysing available briefs with Claude (~1-2 min)</div>
             </div>`;
         }
 
@@ -1537,11 +1541,15 @@
         console.log('[SyncView] General brief payload size:', JSON.stringify(payload).length, 'bytes');
 
         try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 180000);
             const resp = await fetch(GENERAL_BRIEF_WEBHOOK, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(payload),
+                signal: controller.signal
             });
+            clearTimeout(timeout);
             console.log('[SyncView] General brief response status:', resp.status, resp.statusText);
             const text = await resp.text();
             console.log('[SyncView] General brief raw response:', text.substring(0, 800));
@@ -2990,7 +2998,8 @@
             videos:videos.map((v,i)=>({rank:i+1,platform:v.platform,url:v.video_url||'',caption:v.caption||'',views:n(v.views),likes:n(v.likes),comments:n(v.comments)}))
         };
         try{
-            const resp=await fetch(CONTENT_SUMMARY_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+            const controller=new AbortController();const _csto=setTimeout(()=>controller.abort(),180000);
+            const resp=await fetch(CONTENT_SUMMARY_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});clearTimeout(_csto);
             const text=await resp.text();
             if(!text)throw new Error('Empty response from webhook');
             let result=JSON.parse(text);
@@ -3028,7 +3037,7 @@
         if(!state){
             inner=`<button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">✦ Generate This Month's Performance Summary</button>`;
         }else if(state.loading){
-            inner=`<div class="cs-loading"><span class="cs-spinner"></span>Downloading transcripts &amp; analysing what's working…</div>`;
+            inner=`<div class="cs-loading"><span class="cs-spinner"></span>Downloading transcripts &amp; analysing what's working… <span style="font-weight:400;opacity:0.7;">(~1-2 min)</span></div>`;
         }else if(state.error){
             inner=`<div class="cs-error">${state.error}</div><button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">Retry</button>`;
         }else if(state.data){

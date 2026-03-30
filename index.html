@@ -2040,6 +2040,14 @@
         state.submitting=true;
         state.error=null;
         refreshBriefView(name);
+        // Save pending state BEFORE the fetch so polling resumes even if page is closed during request
+        const triggerTime=new Date();
+        const key=name+'__mr';
+        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'mr'};
+        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+        refreshBriefView(name);
+        startBriefPolling(name,triggerTime,'mr');
         // Save the actual submitted keywords so we can display them accurately
         try{
             const savedKw=JSON.parse(localStorage.getItem('syncview_submittedMRKeywords_v1')||'{}');
@@ -2056,14 +2064,7 @@
             console.warn('[SyncView] MR brief webhook error (may still have fired):',e);
         }
         state.submitting=false;
-        state.submitted=true;
-        const triggerTime=new Date();
-        const key=name+'__mr';
-        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'mr'};
-        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
-        refreshBriefView(name);
-        startBriefPolling(name,triggerTime,'mr');
+        state.submitted=false;
     }
 
     function _initCompAccountState(name,forceRefresh){
@@ -2124,6 +2125,14 @@
         state.submitting=true;
         state.error=null;
         refreshBriefView(name);
+        // Save pending state BEFORE the fetch so polling resumes even if page is closed during request
+        const triggerTime=new Date();
+        const key=name+'__comp';
+        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'comp'};
+        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
+        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
+        refreshBriefView(name);
+        startBriefPolling(name,triggerTime,'comp');
         try{
             await fetch(BRIEF_WEBHOOK,{
                 method:'POST',
@@ -2134,14 +2143,7 @@
             console.warn('[SyncView] Comp brief webhook error (may still have fired):',e);
         }
         state.submitting=false;
-        state.submitted=true;
-        const triggerTime=new Date();
-        const key=name+'__comp';
-        pendingBriefs[key]={triggerISO:triggerTime.toISOString(),type:'comp'};
-        try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-        briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
-        refreshBriefView(name);
-        startBriefPolling(name,triggerTime,'comp');
+        state.submitted=false;
     }
 
     async function generateBrief(encodedName){
@@ -2304,7 +2306,7 @@
                     <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#7c3aed" stroke-width="2" stroke-dasharray="22 66" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.1s" repeatCount="indefinite"/></circle></svg>
                 </div>
                 <div class="brief-prompt-title" style="font-size:1rem;">Brief is being generated…</div>
-                <div class="brief-prompt-sub" style="max-width:340px;">This takes a few minutes. The brief will appear here automatically once it's ready — just reload the page.</div>
+                <div class="brief-prompt-sub" style="max-width:340px;">This takes a few minutes. The brief will appear here automatically once it's ready.</div>
             </div>`;
         }
 
@@ -2440,7 +2442,7 @@
                     <svg width="28" height="28" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="#7c3aed" stroke-width="2" stroke-dasharray="22 66" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="1.1s" repeatCount="indefinite"/></circle></svg>
                 </div>
                 <div class="brief-prompt-title" style="font-size:1rem;">Brief is being generated…</div>
-                <div class="brief-prompt-sub" style="max-width:340px;">This takes a few minutes. The brief will appear here automatically once it's ready — just reload the page.</div>
+                <div class="brief-prompt-sub" style="max-width:340px;">This takes a few minutes. The brief will appear here automatically once it's ready.</div>
             </div>`;
         }
         // Account panel

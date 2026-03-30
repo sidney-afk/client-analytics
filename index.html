@@ -184,20 +184,42 @@
             border: 1.5px solid var(--border); background: var(--white);
             font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.68rem;
             font-weight: 700; color: var(--text-muted); cursor: pointer;
-            transition: all 0.15s; position: relative; flex-shrink: 0;
+            transition: all 0.15s; flex-shrink: 0;
             margin-left: 8px; vertical-align: middle;
         }
         .detail-info-btn:hover { border-color: #aaa; color: var(--text-primary); }
-        .detail-info-tooltip {
-            display: none; position: absolute; top: calc(100% + 8px); left: 50%;
-            transform: translateX(-50%); background: var(--white); border: 1px solid var(--border);
-            border-radius: 12px; padding: 12px 16px; min-width: 260px; max-width: 360px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 80;
-            font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);
-            line-height: 1.55; white-space: normal; text-align: left;
+        .detail-info-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.25); z-index: 200;
+            align-items: center; justify-content: center;
         }
-        .detail-info-btn:hover .detail-info-tooltip,
-        .detail-info-btn:focus .detail-info-tooltip { display: block; }
+        .detail-info-overlay.open { display: flex; }
+        .detail-info-modal {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px 28px; width: 480px; max-width: 92vw;
+            max-height: 60vh; overflow-y: auto;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+            animation: fadeIn 0.15s ease;
+        }
+        .detail-info-modal-head {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .detail-info-modal-title {
+            font-size: 0.72rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-muted);
+        }
+        .detail-info-modal-close {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; border-radius: 50%; border: none;
+            background: var(--bg); color: var(--text-muted); cursor: pointer;
+            transition: all 0.13s;
+        }
+        .detail-info-modal-close:hover { background: var(--border); color: var(--text-primary); }
+        .detail-info-modal-body {
+            font-size: 0.85rem; font-weight: 400; color: var(--text-secondary);
+            line-height: 1.65;
+        }
         .share-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.81rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
@@ -755,32 +777,33 @@
 
         .source-card {
             background: var(--white); border: 1px solid var(--border);
-            border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px;
+            border-radius: 10px; padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;
         }
-        .source-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-        .source-card-left { display: flex; align-items: center; gap: 10px; }
+        .source-card-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .source-card-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
         .source-rank-badge {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 26px; height: 26px; border-radius: 7px;
-            background: var(--bg); font-size: 0.65rem; font-weight: 800;
+            width: 22px; height: 22px; border-radius: 6px;
+            background: var(--bg); font-size: 0.6rem; font-weight: 800;
             color: var(--text-muted); flex-shrink: 0;
         }
-        .source-handle { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); }
-        .source-name { font-size: 0.73rem; color: var(--text-muted); font-weight: 500; }
+        .source-handle { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
         .source-views-badge {
-            display: inline-flex; align-items: center; gap: 5px;
-            background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 20px;
-            padding: 3px 10px; font-size: 0.73rem; font-weight: 700; color: #15803d;
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 0.78rem; font-weight: 700; color: var(--text-primary);
             white-space: nowrap; flex-shrink: 0;
         }
-        .source-avg { font-size: 0.72rem; color: var(--text-muted); }
-        .source-outlier-badge {
-            display: inline-flex; align-items: center; gap: 4px;
-            font-size: 0.7rem; font-weight: 700; color: #b45309;
-            background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px;
-            padding: 3px 10px; margin: 6px 16px 0;
+        .source-views-badge svg { color: var(--text-muted); }
+        .source-meta-row {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
         }
-        .source-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
+        .source-outlier-pill {
+            display: inline-flex; align-items: center; gap: 3px;
+            font-size: 0.65rem; font-weight: 700; color: var(--text-muted);
+            background: var(--bg); border-radius: 4px; padding: 2px 7px;
+        }
+        .source-outlier-pill.strong { color: #7c3aed; background: #f3f0ff; }
+        .source-outlier-pill.mega { color: #dc2626; background: #fef2f2; }
         .source-link {
             display: inline-flex; align-items: center; gap: 5px;
             font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
@@ -1350,7 +1373,7 @@
             invalidateTabSummaries(name, briefType);
         }
         if (briefId) { tabSummaryBriefIds[trackKey] = briefId; try { localStorage.setItem('syncview_tabSummaryBriefIds_v1', JSON.stringify(tabSummaryBriefIds)); } catch {} }
-        const tabs = briefType === 'mr' ? ['overview','landscape','topics','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
+        const tabs = briefType === 'mr' ? ['overview','niche','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
         tabs.forEach(tabId => setTimeout(() => fetchTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)), 0));
     }
 
@@ -2639,7 +2662,18 @@
             html+=`<div class="brief-methodology-bar">${m.dateRange?`<div class="brief-method-chip"><span class="brief-method-chip-label">Date Range</span><span class="brief-method-chip-val">${m.dateRange}</span></div>`:''}${m.totalReels?`<div class="brief-method-chip"><span class="brief-method-chip-label">Reels Analysed</span><span class="brief-method-chip-val">${m.totalReels}</span></div>`:''}${m.accounts?.length?`<div class="brief-method-chip"><span class="brief-method-chip-label">Accounts</span><span class="brief-method-chip-val">${m.accounts.length}</span></div>`:''}</div>`;
         }
         if(accountStats.length){
-            html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>`<div class="brief-card" style="gap:6px;"><div class="brief-card-label">${a.handle||'—'}</div><div style="display:flex;gap:12px;flex-wrap:wrap;">${a.avgViews?`<div><div class="brief-card-section-label">Avg Views</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.avgViews}</div></div>`:''}${a.postCount?`<div><div class="brief-card-section-label">Posts</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.postCount}</div></div>`:''}</div>${a.bestReel?`<div class="brief-card-body" style="font-size:0.77rem;">${a.bestReel}</div>`:''}</div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>{
+                const bestReelViews=a.bestReel?parseViewCount(a.bestReel):0;
+                const bestReelFmt=bestReelViews?fmt(bestReelViews):'';
+                return`<div class="source-card" style="gap:8px;">
+                    <div class="source-handle" style="font-size:0.85rem;font-weight:700;color:var(--text-primary);">${a.handle||'—'}</div>
+                    <div style="display:flex;gap:16px;align-items:baseline;">
+                        ${a.avgViews?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Avg Views</div><div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">${a.avgViews}</div></div>`:''}
+                        ${a.postCount?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Posts</div><div style="font-size:0.95rem;font-weight:700;color:var(--text-primary);">${a.postCount}</div></div>`:''}
+                        ${bestReelFmt?`<div><div style="font-size:0.58rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);">Best Reel</div><div style="font-size:0.95rem;font-weight:700;color:#15803d;">${bestReelFmt}</div></div>`:''}
+                    </div>
+                </div>`;
+            }).join('')}</div>`;
         }
         if(sources.length){
             html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>{
@@ -2648,12 +2682,20 @@
                     const rv=parseViewCount(s.views),av=parseViewCount(s.accountAvg);
                     if(!av||!rv)return '';
                     const ratio=rv/av;
-                    const label=ratio>=5?'🔥 Mega outlier':ratio>=3?'⚡ Strong outlier':ratio>=1.5?'📈 Above avg':'';
-                    const mult=ratio>=1.5?`${ratio.toFixed(1)}x`:'';
-                    if(!label)return '';
-                    return `<span class="source-outlier-badge">${label}${mult?` · ${mult}`:''}</span>`;
+                    if(ratio<1.5)return '';
+                    const cls=ratio>=5?'mega':ratio>=3?'strong':'';
+                    return `<span class="source-outlier-pill ${cls}">${ratio.toFixed(1)}x avg</span>`;
                 })();
-                return `<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${s.views?`<span class="source-views-badge">👁 ${s.views} <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);">reel views</span></span>`:''}${s.accountAvg?`<span style="font-size:0.72rem;color:var(--text-muted);">avg: ${s.accountAvg}</span>`:''}</div></div>${outlierHtml}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`;
+                return `<div class="source-card">
+                    <div class="source-card-header">
+                        <div class="source-card-left">
+                            <span class="source-rank-badge">#${s.reelNumber||'?'}</span>
+                            <span class="source-handle">${s.handle||s.name||'—'}</span>
+                        </div>
+                        <span class="source-views-badge"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${s.views||'—'}</span>
+                    </div>
+                    ${outlierHtml||s.accountAvg?`<div class="source-meta-row">${s.accountAvg?`<span style="font-size:0.7rem;color:var(--text-muted);">avg ${s.accountAvg}</span>`:''}${outlierHtml}</div>`:''}
+                    ${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel</a>`:''}</div>`;
             }).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No source data.</div>`;
@@ -2675,6 +2717,18 @@
         _mrInfoStore[id]=reels;
         return`<button class="mr-info-btn" title="View supporting reels" onclick="event.stopPropagation();showMRInfo('${id}')">i</button>`;
     }
+    function showClientInfoModal(name){
+        const desc=clientMap[name]?.content_description||'No description available.';
+        const overlay=document.createElement('div');
+        overlay.className='detail-info-overlay open';
+        overlay.onclick=(e)=>{if(e.target===overlay){overlay.remove();document.body.style.overflow='';}};
+        overlay.innerHTML=`<div class="detail-info-modal"><div class="detail-info-modal-head"><span class="detail-info-modal-title">About ${name}</span><button class="detail-info-modal-close" onclick="this.closest('.detail-info-overlay').remove();document.body.style.overflow='';"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="detail-info-modal-body">${desc}</div></div>`;
+        document.body.appendChild(overlay);
+        document.body.style.overflow='hidden';
+        const esc=(e)=>{if(e.key==='Escape'){overlay.remove();document.body.style.overflow='';document.removeEventListener('keydown',esc);}};
+        document.addEventListener('keydown',esc);
+    }
+
     function showMRInfo(id){
         const reels=_mrInfoStore[id];
         if(!reels||!reels.length)return;
@@ -2859,12 +2913,20 @@
                 const rv=parseViewCount(s.views),av=parseViewCount(s.accountAvg);
                 if(!av||!rv)return '';
                 const ratio=rv/av;
-                const label=ratio>=5?'🔥 Mega outlier':ratio>=3?'⚡ Strong outlier':ratio>=1.5?'📈 Above avg':'';
-                const mult=ratio>=1.5?`${ratio.toFixed(1)}x`:'';
-                if(!label)return '';
-                return `<span class="source-outlier-badge">${label}${mult?` · ${mult}`:''}</span>`;
+                if(ratio<1.5)return '';
+                const cls=ratio>=5?'mega':ratio>=3?'strong':'';
+                return `<span class="source-outlier-pill ${cls}">${ratio.toFixed(1)}x avg</span>`;
             })();
-            return `<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.rank||s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||'—'}</div>${s.title?`<div class="source-name">${s.title}</div>`:''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${s.views?`<span class="source-views-badge">👁 ${s.views} <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);">reel views</span></span>`:''}${s.accountAvg?`<span style="font-size:0.72rem;color:var(--text-muted);">avg: ${s.accountAvg}</span>`:''}</div></div>${outlierHtml}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url?`<div>${_mrLink(s.url,'View reel ↗')}</div>`:''}</div>`;
+            return `<div class="source-card">
+                <div class="source-card-header">
+                    <div class="source-card-left">
+                        <span class="source-rank-badge">#${s.rank||s.reelNumber||'?'}</span>
+                        <span class="source-handle">${s.handle||'—'}</span>
+                    </div>
+                    <span class="source-views-badge"><svg width="13" height="13" viewBox="0 0 20 20" fill="none"><path d="M1 10s3.5-7 9-7 9 7 9 7-3.5 7-9 7-9-7-9-7z" stroke="currentColor" stroke-width="1.5"/><circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/></svg> ${s.views||'—'}</span>
+                </div>
+                ${outlierHtml||s.accountAvg?`<div class="source-meta-row">${s.accountAvg?`<span style="font-size:0.7rem;color:var(--text-muted);">avg ${s.accountAvg}</span>`:''}${outlierHtml}</div>`:''}
+                ${s.url?`${_mrLink(s.url,'View Reel')}`:''}</div>`;
         }).join('')}</div>`;
         return html;
     }
@@ -3223,7 +3285,7 @@
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
 
         const _clientDesc=clientMap[name]?.content_description||'';
-        const _infoIcon=_clientDesc?`<button class="detail-info-btn" tabindex="0" title="About this client">i<div class="detail-info-tooltip">${_clientDesc}</div></button>`:'';
+        const _infoIcon=_clientDesc?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal('${name.replace(/'/g,"\\'")}')">i</button>`:'';
         const analyticsContent=`
             <div class="detail-hero">
                 <div>
@@ -3276,7 +3338,7 @@
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" tabindex="0" title="About this client">i<div class="detail-info-tooltip">${_d}</div></button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal('${name.replace(/'/g,"\\'")}')">i</button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }

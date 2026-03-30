@@ -416,11 +416,29 @@
             color: #1d4ed8; width: fit-content;
         }
 
-        /* MR Brief: Filming Angles */
+        /* MR Brief: Filming Angles / Content Directions */
         .mr-angle-hook {
-            font-size: 1rem; font-weight: 700; color: var(--text-primary);
-            line-height: 1.4; letter-spacing: -0.01em; font-style: italic;
+            font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+            line-height: 1.5; font-style: italic; padding: 8px 12px;
+            background: var(--bg); border-radius: 8px; border-left: 2px solid #6c5ce7;
         }
+        .mr-angle-based {
+            font-size: 0.7rem; color: var(--text-muted); line-height: 1.5;
+            margin-top: 2px;
+        }
+        .mr-angle-card {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 16px;
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .mr-angle-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 22px; height: 22px; border-radius: 6px;
+            background: var(--text-primary); color: var(--white);
+            font-size: 0.62rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+        }
+        .mr-angle-content { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+        .mr-angle-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
         .mr-why-now {
             font-size: 0.77rem; color: var(--text-muted); line-height: 1.5;
             border-top: 1px solid var(--border-light); padding-top: 10px;
@@ -2346,7 +2364,7 @@
             {id:'overview',label:'Overview'},
             {id:'niche',label:'Niche Insights'},
             {id:'hooks',label:'Hook Analysis'},
-            {id:'angles',label:'Filming Angles'},
+            {id:'angles',label:'Content Directions'},
             {id:'gap',label:'The Gap'},
             {id:'sources',label:'Sources'},
         ];
@@ -2680,7 +2698,7 @@
             { key: 'landscape', label: 'Niche Insights', icon: '📊' },
             { key: 'topicClusters', label: 'Niche Insights', icon: '🗂' },
             { key: 'hooks', label: 'Hooks', icon: '🪝' },
-            { key: 'filmingAngles', label: 'Filming Angles', icon: '🎬' },
+            { key: 'filmingAngles', label: 'Content Directions', icon: '🎬' },
             { key: 'gap', label: 'The Gap', icon: '🎯' },
         ].filter(h => highlights[h.key]);
         // Deduplicate Niche Insights entries (landscape + topicClusters merged)
@@ -2800,18 +2818,19 @@
 
     function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
-        if(!items.length)return _mrEmpty('No content angles data.');
-        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="brief-cards-grid">${items.map(item=>`
-            <div class="brief-card" style="gap:12px;">
-                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
-                    <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
+        if(!items.length)return _mrEmpty('No content directions data.');
+        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div style="display:flex;flex-direction:column;gap:8px;">${items.map(item=>{
+            // Extract a short "based on" reference from whyThisWorks (first phrase before the dash or comma)
+            const basedOn=item.whyThisWorks?(item.whyThisWorks.match(/based on (?:the )?([^—–\-,\.]+)/i)||[])[1]||'':'';
+            return`<div class="mr-angle-card">
+                <span class="mr-angle-num">${item.number||'?'}</span>
+                <div class="mr-angle-content">
+                    ${item.angle?`<div class="mr-angle-title">${item.angle}</div>`:''}
+                    ${item.hook?`<div class="mr-angle-hook">"${item.hook}"</div>`:''}
+                    ${basedOn?`<div class="mr-angle-based">Based on: ${basedOn.trim()}</div>`:''}
                 </div>
-                ${item.angle?`<div class="brief-card-label">${item.angle}</div>`:''}
-                <div class="mr-angle-hook">"${item.hook||'—'}"</div>
-                ${item.whyThisWorks?`<div class="brief-card-sub"><strong>Why this works:</strong> ${item.whyThisWorks}</div>`:''}
-                ${item.concept?`<div class="brief-card-body">${item.concept}</div>`:''}
-                ${item.whyNow?`<div class="mr-why-now"><strong>Why now:</strong> ${item.whyNow}</div>`:''}
-            </div>`).join('')}</div>`;
+            </div>`;
+        }).join('')}</div>`;
     }
 
     function renderMRTab_gap(data,name){

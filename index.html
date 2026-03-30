@@ -2363,7 +2363,7 @@
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Generate Keywords Brief
             </button>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 5–15 minutes</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 30–45 minutes</div>
         </div>`;
     }
 
@@ -2495,7 +2495,7 @@
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Generate Competitors Brief
             </button>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 3–10 minutes · runs in the background</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes about 15 minutes · runs in the background</div>
         </div>`;
     }
 
@@ -2511,7 +2511,7 @@
                 <div class="brief-progress-dot"></div>
             </div>
             <div class="brief-loading-title">Generating ${label} brief…</div>
-            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 15–40 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.'}</div>
+            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 30–45 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes about 15 minutes.'}</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
             <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};if(mrKeywordState['${name}'])mrKeywordState['${name}'].submitted=false;if(compAccountState['${name}'])compAccountState['${name}'].submitted=false;refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
         </div>`;

@@ -397,6 +397,17 @@
         }
 
         /* MR Brief: Filming Angles */
+        .filming-angles-intro {
+            display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .filming-angles-count {
+            font-size: 0.7rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-primary);
+            background: var(--bg); border-radius: 6px; padding: 4px 10px;
+        }
+        .filming-angles-desc {
+            font-size: 0.75rem; color: var(--text-muted); font-weight: 500;
+        }
         .mr-angle-hook {
             font-size: 1rem; font-weight: 700; color: var(--text-primary);
             line-height: 1.4; letter-spacing: -0.01em; font-style: italic;
@@ -736,6 +747,28 @@
             white-space: nowrap; flex-shrink: 0;
         }
         .source-avg { font-size: 0.72rem; color: var(--text-muted); }
+        .source-stats-row {
+            display: flex; gap: 16px; flex-wrap: wrap;
+        }
+        .source-stat {
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .source-stat-label {
+            font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted);
+        }
+        .source-stat-val {
+            font-size: 0.85rem; font-weight: 700; color: var(--text-primary);
+        }
+        .source-outlier-badge {
+            display: inline-flex; align-items: center;
+            background: #fef3c7; border: 1px solid #fde68a; border-radius: 20px;
+            padding: 2px 8px; font-size: 0.65rem; font-weight: 800;
+            color: #92400e; white-space: nowrap; flex-shrink: 0;
+        }
+        .source-outlier-badge.mild {
+            background: #f0f9ff; border-color: #bae6fd; color: #0369a1;
+        }
         .source-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
         .source-link {
             display: inline-flex; align-items: center; gap: 5px;
@@ -744,6 +777,31 @@
             padding: 5px 10px; transition: all 0.15s; width: fit-content;
         }
         .source-link:hover { color: var(--text-primary); background: var(--border); }
+        .client-info-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; border-radius: 50%;
+            background: var(--bg); border: 1px solid var(--border);
+            font-size: 0.65rem; font-weight: 800; color: var(--text-muted);
+            cursor: pointer; flex-shrink: 0; position: relative;
+            font-style: italic; font-family: Georgia, serif;
+            transition: all 0.15s; margin-left: 8px;
+        }
+        .client-info-icon:hover { background: var(--white); border-color: #aaa; color: var(--text-secondary); }
+        .client-info-tooltip {
+            position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+            background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+            padding: 12px 16px; min-width: 260px; max-width: 360px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 80;
+            font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);
+            line-height: 1.55; font-style: normal; font-family: 'Plus Jakarta Sans', sans-serif;
+            white-space: normal; display: none;
+        }
+        .client-info-tooltip-label {
+            font-size: 0.6rem; font-weight: 800; text-transform: uppercase;
+            letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 4px;
+        }
+        .client-info-icon:hover .client-info-tooltip,
+        .client-info-icon:focus .client-info-tooltip { display: block; }
         .brief-methodology-bar {
             display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
         }
@@ -1288,7 +1346,7 @@
                 '. Action priorities: ' + (Array.isArray(s.actionPriorities) ? s.actionPriorities.join('; ') : '') };
         }
         const tabSections = {
-            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
+            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, niche: { landscape: data.landscapeAnalysis, topicClusters: data.topicClusters }, hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
             comp: { resonating: data.resonating, comments: data.commentIntelligence, gap: data.theGap, hooks: data.hookAnalysis }
         };
         const sectionData = (tabSections[briefType] || {})[tabId];
@@ -1306,7 +1364,7 @@
             invalidateTabSummaries(name, briefType);
         }
         if (briefId) { tabSummaryBriefIds[trackKey] = briefId; try { localStorage.setItem('syncview_tabSummaryBriefIds_v1', JSON.stringify(tabSummaryBriefIds)); } catch {} }
-        const tabs = briefType === 'mr' ? ['overview','landscape','topics','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
+        const tabs = briefType === 'mr' ? ['overview','niche','hooks','angles','gap'] : ['exec','resonating','comments','gap','hooks'];
         tabs.forEach(tabId => setTimeout(() => fetchTabSummary(name, briefType, tabId, buildTabData(briefType, tabId, data)), 0));
     }
 
@@ -1473,7 +1531,7 @@
                 </div>` : ''}
                 ${synthesis.landscapeSynthesis ? `<div class="general-brief-section">
                     <div class="general-brief-section-icon" style="background:#dbeafe;color:#2563eb;">📊</div>
-                    <div><div class="general-brief-section-label">Landscape</div><div class="general-brief-section-body">${synthesisToBullets(synthesis.landscapeSynthesis)}</div></div>
+                    <div><div class="general-brief-section-label">Niche Insights</div><div class="general-brief-section-body">${synthesisToBullets(synthesis.landscapeSynthesis)}</div></div>
                 </div>` : ''}
             </div>`;
         } else {
@@ -1538,6 +1596,11 @@
         const payload = { clientName: name, contentDescription: clientMap[name]?.content_description||'' };
         if (trimmedMR) payload.mrData = trimmedMR;
         if (trimmedComp) payload.competitorsData = trimmedComp;
+        // Include analytics summary ("What's Working This Month") in synthesis
+        const csState = contentSummaryState[name];
+        if (csState?.data?.bullets) {
+            payload.analyticsSummary = csState.data.bullets.substring(0, 1500);
+        }
         console.log('[SyncView] General brief payload size:', JSON.stringify(payload).length, 'bytes');
 
         try {
@@ -2096,13 +2159,17 @@
     function startBriefPolling(name,triggerTime,type){
         const key=name+'__'+type;
         stopBriefPolling(name,type);
+        const timeoutMs=type==='mr'?40*60*1000:15*60*1000;
+        const timeoutLabel=type==='mr'?'40 min':'15 min';
         async function poll(){
             const elapsed=new Date()-triggerTime;
-            if(elapsed>15*60*1000){
+            if(elapsed>timeoutMs){
                 stopBriefPolling(name,type);
                 delete pendingBriefs[key];
                 try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-                briefPollingState[key]={loading:false,error:'Brief generation timed out (15 min). The workflow may have failed — please try again.'};
+                briefPollingState[key]={loading:false,error:`Brief generation timed out (${timeoutLabel}). The workflow may have failed — please try again.`};
+                if(type==='mr'&&mrKeywordState[name]){mrKeywordState[name].submitted=false;mrKeywordState[name].showPanel=false;}
+                if(type==='comp'&&compAccountState[name]){compAccountState[name].submitted=false;compAccountState[name].showPanel=false;}
                 refreshBriefView(name);
                 return;
             }
@@ -2287,7 +2354,7 @@
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Generate Keywords Brief
             </button>
-            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 5–15 minutes</div>
+            <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Takes 15–40 minutes</div>
         </div>`;
     }
 
@@ -2309,8 +2376,7 @@
 
         const tabs=[
             {id:'overview',label:'Overview'},
-            {id:'landscape',label:'Landscape'},
-            {id:'topics',label:'Topic Clusters'},
+            {id:'niche',label:'Niche Insights'},
             {id:'hooks',label:'Hook Analysis'},
             {id:'angles',label:'Filming Angles'},
             {id:'gap',label:'The Gap'},
@@ -2320,8 +2386,9 @@
 
         let tabContent='';
         if(tab==='overview')tabContent=renderMRTab_overview(data,name);
-        else if(tab==='landscape')tabContent=renderMRTab_landscape(data,name);
-        else if(tab==='topics')tabContent=renderMRTab_topics(data,name);
+        else if(tab==='niche')tabContent=renderMRTab_nicheInsights(data,name);
+        else if(tab==='landscape')tabContent=renderMRTab_nicheInsights(data,name);
+        else if(tab==='topics')tabContent=renderMRTab_nicheInsights(data,name);
         else if(tab==='hooks')tabContent=renderMRTab_hooks(data,name);
         else if(tab==='angles')tabContent=renderMRTab_angles(data,name);
         else if(tab==='gap')tabContent=renderMRTab_gap(data,name);
@@ -2435,9 +2502,9 @@
                 <div class="brief-progress-dot"></div>
             </div>
             <div class="brief-loading-title">Generating ${label} brief…</div>
-            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 5–15 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.'}</div>
+            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 15–40 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–15 minutes.'}</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
-            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
+            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};if('${type}'==='mr'&&mrKeywordState['${name}']){mrKeywordState['${name}'].submitted=false;mrKeywordState['${name}'].showPanel=false;}if('${type}'==='comp'&&compAccountState['${name}']){compAccountState['${name}'].submitted=false;compAccountState['${name}'].showPanel=false;}refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
         </div>`;
     }
 
@@ -2589,7 +2656,14 @@
             html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>`<div class="brief-card" style="gap:6px;"><div class="brief-card-label">${a.handle||'—'}</div><div style="display:flex;gap:12px;flex-wrap:wrap;">${a.avgViews?`<div><div class="brief-card-section-label">Avg Views</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.avgViews}</div></div>`:''}${a.postCount?`<div><div class="brief-card-section-label">Posts</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.postCount}</div></div>`:''}</div>${a.bestReel?`<div class="brief-card-body" style="font-size:0.77rem;">${a.bestReel}</div>`:''}</div>`).join('')}</div>`;
         }
         if(sources.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>`<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div>${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}</div>${s.accountAvg?`<div class="source-avg">Account avg: ${s.accountAvg}</div>`:''}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>{
+                const reelViews=parseViewCount(s.views||'0');
+                const avgViews=parseViewCount(s.accountAvg||'0');
+                const outlierX=avgViews>0?Math.round((reelViews/avgViews)*10)/10:0;
+                const outlierBadge=outlierX>=2?`<span class="source-outlier-badge">${outlierX}x avg</span>`:outlierX>=1.5?`<span class="source-outlier-badge mild">${outlierX}x avg</span>`:'';
+                return`<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div><div style="display:flex;align-items:center;gap:8px;">${outlierBadge}${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}</div></div>${s.accountAvg||s.views?`<div class="source-stats-row">${s.views?`<div class="source-stat"><span class="source-stat-label">Reel Views</span><span class="source-stat-val">${s.views}</span></div>`:''}${s.accountAvg?`<div class="source-stat"><span class="source-stat-label">Account Avg</span><span class="source-stat-val">${s.accountAvg}</span></div>`:''}</div>`:''
+                }${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`;
+            }).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No source data.</div>`;
         return html;
@@ -2630,12 +2704,17 @@
         if(!summaryText && !Object.keys(highlights).length) return _mrEmpty('No executive summary available.');
 
         const highlightItems = [
-            { key: 'landscape', label: 'Landscape', icon: '📊' },
-            { key: 'topicClusters', label: 'Topic Clusters', icon: '🗂' },
+            { key: 'landscape', label: 'Niche Insights', icon: '📊' },
+            { key: 'topicClusters', label: 'Niche Insights', icon: '🗂' },
             { key: 'hooks', label: 'Hooks', icon: '🪝' },
             { key: 'filmingAngles', label: 'Filming Angles', icon: '🎬' },
             { key: 'gap', label: 'The Gap', icon: '🎯' },
         ].filter(h => highlights[h.key]);
+        // Deduplicate Niche Insights entries (landscape + topicClusters both map to it)
+        const seenLabels=new Set();
+        const deduped=[];
+        for(const h of highlightItems){if(!seenLabels.has(h.label)){seenLabels.add(h.label);deduped.push(h);}}
+        highlightItems.length=0;highlightItems.push(...deduped);
 
         const highlightsHtml = highlightItems.length ? `<div class="brief-exec-grid" style="margin-top:16px;">${highlightItems.map(h => `
             <div class="brief-exec-card" style="padding:14px 16px;">
@@ -2685,6 +2764,50 @@
             </div>`).join('')}</div>`;
     }
 
+    function renderMRTab_nicheInsights(data,name){
+        const landscape=Array.isArray(data.landscapeAnalysis)?data.landscapeAnalysis:[];
+        const topics=Array.isArray(data.topicClusters)?data.topicClusters:[];
+        if(!landscape.length&&!topics.length)return _mrEmpty('No niche insights data.');
+        // Merge landscape items and topic cluster items into one unified view
+        const items=[];
+        landscape.forEach(item=>{
+            const engTrigger=[item.emotionalTrigger,item.sharingMechanism].filter(Boolean).join(' · ');
+            items.push({
+                type:'landscape',
+                label:item.label||'—',
+                body:item.what||'',
+                engagementTrigger:engTrigger,
+                whyItWorks:item.whyItWorks||'',
+                supportingReels:item.supportingReels,
+            });
+        });
+        topics.forEach(item=>{
+            items.push({
+                type:'cluster',
+                label:item.name||'—',
+                body:item.whatWorks||'',
+                engagementTrigger:item.why||'',
+                whyItWorks:'',
+                videoCount:item.videoCount,
+                supportingReels:item.supportingReels,
+            });
+        });
+        return`${renderTabSummary(name,'mr','niche',buildTabData('mr','niche',data))}<div class="brief-cards-grid">${items.map(item=>`
+            <div class="brief-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="brief-card-badge">${item.type==='landscape'?'📊 Landscape':'🗂 Cluster'}</span>
+                        ${item.videoCount?`<span class="mr-count-chip">${item.videoCount} videos</span>`:''}
+                    </div>
+                    ${_mrInfoBtn(item.supportingReels)}
+                </div>
+                <div class="brief-card-label">${item.label}</div>
+                ${item.body?`<div class="brief-card-body">${item.body}</div>`:''}
+                ${item.engagementTrigger?`<div class="brief-card-sub"><strong>Engagement trigger:</strong> ${item.engagementTrigger}</div>`:''}
+                ${item.whyItWorks?`<div class="brief-card-sub"><strong>Why it works:</strong> ${item.whyItWorks}</div>`:''}
+            </div>`).join('')}</div>`;
+    }
+
     function renderMRTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)&&parseViewCount(item.views)>=100000).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
@@ -2709,7 +2832,7 @@
                         <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
                     </div>
                 </div>
-                ${item.relevance?`<div class="brief-card-sub" style="margin-top:4px;font-size:0.75rem;"><strong>Relevance:</strong> ${item.relevance}</div>`:''}
+                ${item.relevance?`<div class="brief-card-sub" style="margin:0 18px;padding-top:8px;font-size:0.75rem;"><strong>Relevance:</strong> ${item.relevance}</div>`:''}
                 ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
                     ${item.stealThis?`<button class="hook-add-btn${_mrHookSaved?' saved':''}" ${_mrHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_mrHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
@@ -2721,7 +2844,7 @@
     function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
         if(!items.length)return _mrEmpty('No content angles data.');
-        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="filming-angles-intro"><span class="filming-angles-count">${items.length} directions</span><span class="filming-angles-desc">Based on niche insights, hook patterns, and what works for this client</span></div><div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card" style="gap:12px;">
                 <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
                     <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
@@ -2749,8 +2872,12 @@
     function renderMRTab_sources(data){
         const sources=Array.isArray(data.sources)?data.sources:[];
         if(!sources.length)return _mrEmpty('No sources data.');
-        return`<div style="display:flex;flex-direction:column;gap:8px;">${sources.map(s=>`
-            <div class="source-card">
+        return`<div class="brief-cards-grid">${sources.map(s=>{
+            const reelViews=parseViewCount(s.views||'0');
+            const avgViews=parseViewCount(s.avgViews||s.accountAvg||'0');
+            const outlierX=avgViews>0?Math.round((reelViews/avgViews)*10)/10:0;
+            const outlierBadge=outlierX>=2?`<span class="source-outlier-badge">${outlierX}x avg</span>`:outlierX>=1.5?`<span class="source-outlier-badge mild">${outlierX}x avg</span>`:'';
+            return`<div class="source-card">
                 <div class="source-card-header">
                     <div class="source-card-left">
                         <span class="source-rank-badge">#${s.rank||'?'}</span>
@@ -2759,10 +2886,12 @@
                             ${s.title?`<div class="source-name">${s.title}</div>`:''}
                         </div>
                     </div>
-                    ${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}
+                    <div style="display:flex;align-items:center;gap:8px;">${outlierBadge}${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}</div>
                 </div>
+                ${(s.avgViews||s.accountAvg||s.views)?`<div class="source-stats-row">${s.views?`<div class="source-stat"><span class="source-stat-label">Reel Views</span><span class="source-stat-val">${s.views}</span></div>`:''}${(s.avgViews||s.accountAvg)?`<div class="source-stat"><span class="source-stat-label">Account Avg</span><span class="source-stat-val">${s.avgViews||s.accountAvg}</span></div>`:''}</div>`:''}
                 ${s.url?`<div>${_mrLink(s.url,'View reel ↗')}</div>`:''}
-            </div>`).join('')}</div>`;
+            </div>`;
+        }).join('')}</div>`;
     }
 
 
@@ -3118,10 +3247,12 @@
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockViews30d('Views Last 30d',today,monthRow,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
 
+        const _clientDesc=info.content_description||'';
+        const _clientInfoIcon=_clientDesc?`<span class="client-info-icon" tabindex="0">i<span class="client-info-tooltip"><div class="client-info-tooltip-label">About this client</div>${_clientDesc}</span></span>`:'';
         const analyticsContent=`
             <div class="detail-hero">
                 <div>
-                    <div class="detail-name">${name}</div>
+                    <div class="detail-name" style="display:flex;align-items:center;">${name}${_clientInfoIcon}</div>
                     <div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div>
                 </div>
                 ${shareBtnHtml}
@@ -3170,7 +3301,7 @@
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${_clientInfoIcon}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }

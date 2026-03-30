@@ -2582,12 +2582,14 @@
 
     function renderBriefTab_exec(data,name){
         const s=data.executiveSummary||{};
-        const priorities=Array.isArray(s.actionPriorities)?s.actionPriorities:[];
+        const ci=data.commentIntelligence||{};
+        const patterns=Array.isArray(ci.patterns)?ci.patterns:[];
+        const commentSummary=patterns.length?patterns.map(p=>`<div style="margin-bottom:6px;"><strong style="color:var(--text-primary);font-weight:700;font-size:0.78rem;">${p.label||''}</strong><span style="font-size:0.82rem;"> ${p.pattern||''}</span></div>`).join(''):'<span style="font-size:0.82rem;color:var(--text-muted)">No comment data</span>';
         return `${renderTabSummary(name,'comp','exec',buildTabData('comp','exec',data))}<div class="brief-exec-grid">
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">📈</span> What's Resonating</div><div class="brief-exec-card-body">${s.whatIsResonating||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🎯</span> The Gap</div><div class="brief-exec-card-body">${s.theGap||'No data'}</div></div>
             <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">🪝</span> Hook Patterns</div><div class="brief-exec-card-body">${s.hookPatterns||'No data'}</div></div>
-            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">⚡</span> Action Priorities</div><div class="brief-action-list">${priorities.length?priorities.map((p,i)=>`<div class="brief-action-item"><span class="brief-action-num">${i+1}</span><span>${p}</span></div>`).join(''):'<span style="font-size:0.82rem;color:var(--text-muted)">No priorities listed</span>'}</div></div>
+            <div class="brief-exec-card"><div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">💬</span> Comment Intel</div><div class="brief-exec-card-body">${commentSummary}</div></div>
         </div>`;
     }
 
@@ -2718,11 +2720,21 @@
         return`<button class="mr-info-btn" title="View supporting reels" onclick="event.stopPropagation();showMRInfo('${id}')">i</button>`;
     }
     function showClientInfoModal(name){
-        const desc=clientMap[name]?.content_description||'No description available.';
+        const raw=clientMap[name]?.content_description||'No description available.';
+        // Format raw text into rich HTML: detect headings (ALL CAPS lines or KEY: value patterns)
+        const formatted=raw.replace(/\n/g,' ').replace(/([A-Z][A-Z\s]{3,}:)/g,'\n$1').split('\n').filter(s=>s.trim()).map(block=>{
+            const headingMatch=block.match(/^([A-Z][A-Z\s&]+):\s*(.*)/);
+            if(headingMatch){
+                const heading=headingMatch[1].trim();
+                const body=headingMatch[2].trim();
+                return`<div style="margin-top:14px;"><div style="font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:4px;">${heading}</div><div style="font-size:0.84rem;color:var(--text-secondary);line-height:1.6;">${body}</div></div>`;
+            }
+            return`<div style="font-size:0.84rem;color:var(--text-secondary);line-height:1.6;margin-top:8px;">${block.trim()}</div>`;
+        }).join('');
         const overlay=document.createElement('div');
         overlay.className='detail-info-overlay open';
         overlay.onclick=(e)=>{if(e.target===overlay){overlay.remove();document.body.style.overflow='';}};
-        overlay.innerHTML=`<div class="detail-info-modal"><div class="detail-info-modal-head"><span class="detail-info-modal-title">About ${name}</span><button class="detail-info-modal-close" onclick="this.closest('.detail-info-overlay').remove();document.body.style.overflow='';"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="detail-info-modal-body">${desc}</div></div>`;
+        overlay.innerHTML=`<div class="detail-info-modal"><div class="detail-info-modal-head"><span class="detail-info-modal-title">About ${name}</span><button class="detail-info-modal-close" onclick="this.closest('.detail-info-overlay').remove();document.body.style.overflow='';"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div><div class="detail-info-modal-body">${formatted}</div></div>`;
         document.body.appendChild(overlay);
         document.body.style.overflow='hidden';
         const esc=(e)=>{if(e.key==='Escape'){overlay.remove();document.body.style.overflow='';document.removeEventListener('keydown',esc);}};
@@ -2732,7 +2744,7 @@
     function showMRInfo(id){
         const reels=_mrInfoStore[id];
         if(!reels||!reels.length)return;
-        const reelCards=reels.map(r=>`<div class="mr-info-reel"><div><span class="mr-info-reel-handle">@${r.handle||'unknown'}</span></div><span class="mr-info-reel-views">${r.views||'—'} views</span>${r.url?`<a class="source-link mr-info-reel-link" href="${r.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${_mrExternalLink}View ↗</a>`:''}</div>`).join('');
+        const reelCards=reels.map(r=>{const h=(r.handle||'unknown').replace(/^@/,'');return`<div class="mr-info-reel"><div><span class="mr-info-reel-handle">@${h}</span></div><span class="mr-info-reel-views">${r.views||'—'} views</span>${r.url?`<a class="source-link mr-info-reel-link" href="${r.url}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${_mrExternalLink}View ↗</a>`:''}</div>`;}).join('');
         const overlay=document.createElement('div');
         overlay.className='mr-info-overlay';
         overlay.onclick=(e)=>{if(e.target===overlay)overlay.remove();};
@@ -2874,8 +2886,8 @@
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
         if(!items.length)return _mrEmpty('No content directions data.');
         return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div style="display:flex;flex-direction:column;gap:8px;">${items.map(item=>{
-            // Extract a short "based on" reference from whyThisWorks (first phrase before the dash or comma)
-            const basedOn=item.whyThisWorks?(item.whyThisWorks.match(/based on (?:the )?([^—–\-,\.]+)/i)||[])[1]||'':'';
+            // Extract a short "based on" reference from whyThisWorks
+            const basedOn=item.whyThisWorks?(item.whyThisWorks.match(/based on (?:the )?([^—–\-\.]+?(?:\([^)]*\))?)\s*(?:[—–\-,\.]|$)/i)||[])[1]||'':'';
             return`<div class="mr-angle-card">
                 <span class="mr-angle-num">${item.number||'?'}</span>
                 <div class="mr-angle-content">

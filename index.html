@@ -178,6 +178,26 @@
         .detail-name { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .detail-meta { font-size: 0.76rem; color: var(--text-muted); margin-top: 5px; }
         .detail-meta em { font-style: italic; }
+        .detail-info-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px; border-radius: 50%;
+            border: 1.5px solid var(--border); background: var(--white);
+            font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.68rem;
+            font-weight: 700; color: var(--text-muted); cursor: pointer;
+            transition: all 0.15s; position: relative; flex-shrink: 0;
+            margin-left: 8px; vertical-align: middle;
+        }
+        .detail-info-btn:hover { border-color: #aaa; color: var(--text-primary); }
+        .detail-info-tooltip {
+            display: none; position: absolute; top: calc(100% + 8px); left: 50%;
+            transform: translateX(-50%); background: var(--white); border: 1px solid var(--border);
+            border-radius: 12px; padding: 12px 16px; min-width: 260px; max-width: 360px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 80;
+            font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);
+            line-height: 1.55; white-space: normal; text-align: left;
+        }
+        .detail-info-btn:hover .detail-info-tooltip,
+        .detail-info-btn:focus .detail-info-tooltip { display: block; }
         .share-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.81rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
@@ -396,11 +416,29 @@
             color: #1d4ed8; width: fit-content;
         }
 
-        /* MR Brief: Filming Angles */
+        /* MR Brief: Filming Angles / Content Directions */
         .mr-angle-hook {
-            font-size: 1rem; font-weight: 700; color: var(--text-primary);
-            line-height: 1.4; letter-spacing: -0.01em; font-style: italic;
+            font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);
+            line-height: 1.5; font-style: italic; padding: 8px 12px;
+            background: var(--bg); border-radius: 8px; border-left: 2px solid #6c5ce7;
         }
+        .mr-angle-based {
+            font-size: 0.7rem; color: var(--text-muted); line-height: 1.5;
+            margin-top: 2px;
+        }
+        .mr-angle-card {
+            background: var(--white); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 16px;
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .mr-angle-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 22px; height: 22px; border-radius: 6px;
+            background: var(--text-primary); color: var(--white);
+            font-size: 0.62rem; font-weight: 800; flex-shrink: 0; margin-top: 1px;
+        }
+        .mr-angle-content { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+        .mr-angle-title { font-size: 0.88rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
         .mr-why-now {
             font-size: 0.77rem; color: var(--text-muted); line-height: 1.5;
             border-top: 1px solid var(--border-light); padding-top: 10px;
@@ -736,6 +774,12 @@
             white-space: nowrap; flex-shrink: 0;
         }
         .source-avg { font-size: 0.72rem; color: var(--text-muted); }
+        .source-outlier-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            font-size: 0.7rem; font-weight: 700; color: #b45309;
+            background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px;
+            padding: 3px 10px; margin: 6px 16px 0;
+        }
         .source-desc { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.55; }
         .source-link {
             display: inline-flex; align-items: center; gap: 5px;
@@ -1288,7 +1332,7 @@
                 '. Action priorities: ' + (Array.isArray(s.actionPriorities) ? s.actionPriorities.join('; ') : '') };
         }
         const tabSections = {
-            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
+            mr: { landscape: data.landscapeAnalysis, topics: data.topicClusters, niche: [...(data.landscapeAnalysis||[]),...(data.topicClusters||[])], hooks: data.hookAnalysis, angles: data.filmingAngles, gap: data.theGap },
             comp: { resonating: data.resonating, comments: data.commentIntelligence, gap: data.theGap, hooks: data.hookAnalysis }
         };
         const sectionData = (tabSections[briefType] || {})[tabId];
@@ -1538,6 +1582,11 @@
         const payload = { clientName: name, contentDescription: clientMap[name]?.content_description||'' };
         if (trimmedMR) payload.mrData = trimmedMR;
         if (trimmedComp) payload.competitorsData = trimmedComp;
+        // Include analytics summary (what's working this month) if available
+        const csState = contentSummaryState[name];
+        if (csState?.data?.bullets) {
+            payload.analyticsSummary = csState.data.bullets.substring(0, 1500);
+        }
         console.log('[SyncView] General brief payload size:', JSON.stringify(payload).length, 'bytes');
 
         try {
@@ -2098,11 +2147,15 @@
         stopBriefPolling(name,type);
         async function poll(){
             const elapsed=new Date()-triggerTime;
-            if(elapsed>15*60*1000){
+            const timeoutMs=type==='mr'?40*60*1000:15*60*1000;
+            const timeoutLabel=type==='mr'?'40 min':'15 min';
+            if(elapsed>timeoutMs){
                 stopBriefPolling(name,type);
                 delete pendingBriefs[key];
                 try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
-                briefPollingState[key]={loading:false,error:'Brief generation timed out (15 min). The workflow may have failed — please try again.'};
+                briefPollingState[key]={loading:false,error:`Brief generation timed out (${timeoutLabel}). The workflow may have failed — please try again.`};
+                if(mrKeywordState[name])mrKeywordState[name].submitted=false;
+                if(compAccountState[name])compAccountState[name].submitted=false;
                 refreshBriefView(name);
                 return;
             }
@@ -2282,7 +2335,7 @@
         return`<div class="brief-generate-prompt">
             <div class="brief-prompt-icon">🌐</div>
             <div class="brief-prompt-title">No Keywords Brief yet</div>
-            <div class="brief-prompt-sub">Analyse the top 100 viral reels in your niche — what's working, content gaps, hook patterns, and 20 ready-to-film angles.</div>
+            <div class="brief-prompt-sub">Analyse the top 100 viral reels in your niche — what's working, content gaps, hook patterns, and 20 content directions.</div>
             <button class="brief-gen-btn-lg" onclick="openMRKeywordPanel('${enc}')">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1v14M1 8h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
                 Generate Keywords Brief
@@ -2309,10 +2362,9 @@
 
         const tabs=[
             {id:'overview',label:'Overview'},
-            {id:'landscape',label:'Landscape'},
-            {id:'topics',label:'Topic Clusters'},
+            {id:'niche',label:'Niche Insights'},
             {id:'hooks',label:'Hook Analysis'},
-            {id:'angles',label:'Filming Angles'},
+            {id:'angles',label:'Content Directions'},
             {id:'gap',label:'The Gap'},
             {id:'sources',label:'Sources'},
         ];
@@ -2320,8 +2372,9 @@
 
         let tabContent='';
         if(tab==='overview')tabContent=renderMRTab_overview(data,name);
-        else if(tab==='landscape')tabContent=renderMRTab_landscape(data,name);
-        else if(tab==='topics')tabContent=renderMRTab_topics(data,name);
+        else if(tab==='niche')tabContent=renderMRTab_niche(data,name);
+        else if(tab==='landscape')tabContent=renderMRTab_niche(data,name); // legacy redirect
+        else if(tab==='topics')tabContent=renderMRTab_niche(data,name); // legacy redirect
         else if(tab==='hooks')tabContent=renderMRTab_hooks(data,name);
         else if(tab==='angles')tabContent=renderMRTab_angles(data,name);
         else if(tab==='gap')tabContent=renderMRTab_gap(data,name);
@@ -2435,9 +2488,9 @@
                 <div class="brief-progress-dot"></div>
             </div>
             <div class="brief-loading-title">Generating ${label} brief…</div>
-            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 5–15 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.'}</div>
+            <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 15–40 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 3–10 minutes.'}</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
-            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
+            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};if(mrKeywordState['${name}'])mrKeywordState['${name}'].submitted=false;if(compAccountState['${name}'])compAccountState['${name}'].submitted=false;refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
         </div>`;
     }
 
@@ -2589,7 +2642,19 @@
             html+=`<div class="brief-section-header">Account Stats</div><div class="brief-cards-grid">${accountStats.map(a=>`<div class="brief-card" style="gap:6px;"><div class="brief-card-label">${a.handle||'—'}</div><div style="display:flex;gap:12px;flex-wrap:wrap;">${a.avgViews?`<div><div class="brief-card-section-label">Avg Views</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.avgViews}</div></div>`:''}${a.postCount?`<div><div class="brief-card-section-label">Posts</div><div style="font-size:0.88rem;font-weight:700;color:var(--text-primary);margin-top:2px;">${a.postCount}</div></div>`:''}</div>${a.bestReel?`<div class="brief-card-body" style="font-size:0.77rem;">${a.bestReel}</div>`:''}</div>`).join('')}</div>`;
         }
         if(sources.length){
-            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>`<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div>${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}</div>${s.accountAvg?`<div class="source-avg">Account avg: ${s.accountAvg}</div>`:''}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`).join('')}</div>`;
+            html+=`<div class="brief-section-header" style="margin-top:24px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>{
+                const outlierHtml=(()=>{
+                    if(!s.views||!s.accountAvg)return '';
+                    const rv=parseViewCount(s.views),av=parseViewCount(s.accountAvg);
+                    if(!av||!rv)return '';
+                    const ratio=rv/av;
+                    const label=ratio>=5?'🔥 Mega outlier':ratio>=3?'⚡ Strong outlier':ratio>=1.5?'📈 Above avg':'';
+                    const mult=ratio>=1.5?`${ratio.toFixed(1)}x`:'';
+                    if(!label)return '';
+                    return `<span class="source-outlier-badge">${label}${mult?` · ${mult}`:''}</span>`;
+                })();
+                return `<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||s.name||'—'}</div>${s.name&&s.name!==s.handle?`<div class="source-name">${s.name}</div>`:''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${s.views?`<span class="source-views-badge">👁 ${s.views} <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);">reel views</span></span>`:''}${s.accountAvg?`<span style="font-size:0.72rem;color:var(--text-muted);">avg: ${s.accountAvg}</span>`:''}</div></div>${outlierHtml}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url&&s.url!=='#'?`<a class="source-link" href="${s.url}" target="_blank" rel="noopener"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3M9 2h5m0 0v5m0-5L7 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>View Reel ↗</a>`:''}</div>`;
+            }).join('')}</div>`;
         }
         if(!html)return`<div style="color:var(--text-muted);font-size:0.84rem;font-style:italic;padding:20px 0;">No source data.</div>`;
         return html;
@@ -2630,14 +2695,17 @@
         if(!summaryText && !Object.keys(highlights).length) return _mrEmpty('No executive summary available.');
 
         const highlightItems = [
-            { key: 'landscape', label: 'Landscape', icon: '📊' },
-            { key: 'topicClusters', label: 'Topic Clusters', icon: '🗂' },
+            { key: 'landscape', label: 'Niche Insights', icon: '📊' },
+            { key: 'topicClusters', label: 'Niche Insights', icon: '🗂' },
             { key: 'hooks', label: 'Hooks', icon: '🪝' },
-            { key: 'filmingAngles', label: 'Filming Angles', icon: '🎬' },
+            { key: 'filmingAngles', label: 'Content Directions', icon: '🎬' },
             { key: 'gap', label: 'The Gap', icon: '🎯' },
         ].filter(h => highlights[h.key]);
+        // Deduplicate Niche Insights entries (landscape + topicClusters merged)
+        const seenLabels=new Set();
+        const dedupedHighlights=highlightItems.filter(h=>{if(seenLabels.has(h.label))return false;seenLabels.add(h.label);return true;});
 
-        const highlightsHtml = highlightItems.length ? `<div class="brief-exec-grid" style="margin-top:16px;">${highlightItems.map(h => `
+        const highlightsHtml = dedupedHighlights.length ? `<div class="brief-exec-grid" style="margin-top:16px;">${dedupedHighlights.map(h => `
             <div class="brief-exec-card" style="padding:14px 16px;">
                 <div class="brief-exec-card-eyebrow"><span class="brief-exec-card-icon">${h.icon}</span> ${h.label}</div>
                 <div class="brief-exec-card-body" style="font-size:0.82rem;">${highlights[h.key]}</div>
@@ -2685,6 +2753,36 @@
             </div>`).join('')}</div>`;
     }
 
+    function renderMRTab_niche(data,name){
+        const landscape=Array.isArray(data.landscapeAnalysis)?data.landscapeAnalysis:[];
+        const clusters=Array.isArray(data.topicClusters)?data.topicClusters:[];
+        if(!landscape.length&&!clusters.length)return _mrEmpty();
+        // Merge both into a unified list
+        const items=[];
+        landscape.forEach(item=>{
+            const engagementTrigger=[item.emotionalTrigger,item.sharingMechanism].filter(Boolean).join(' · ');
+            items.push({type:'landscape',label:item.label||'—',body:item.what||'',engagementTrigger,whyItWorks:item.whyItWorks||'',supportingReels:item.supportingReels,videoCount:null});
+        });
+        clusters.forEach(item=>{
+            items.push({type:'cluster',label:item.name||'—',body:item.whatWorks||'',engagementTrigger:item.why||'',whyItWorks:'',supportingReels:item.supportingReels,videoCount:item.videoCount});
+        });
+        const nicheData=[...landscape.map(i=>({label:i.label,what:i.what,emotionalTrigger:i.emotionalTrigger,sharingMechanism:i.sharingMechanism,whyItWorks:i.whyItWorks})),...clusters.map(i=>({name:i.name,whatWorks:i.whatWorks,why:i.why}))];
+        return`${renderTabSummary(name,'mr','niche',JSON.stringify(nicheData).substring(0,3000))}<div class="brief-cards-grid">${items.map(item=>`
+            <div class="brief-card">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span class="brief-card-badge">${item.type==='landscape'?'📊 Trend':'🗂 Cluster'}</span>
+                        ${item.videoCount?`<span class="mr-count-chip">${item.videoCount} videos</span>`:''}
+                    </div>
+                    ${_mrInfoBtn(item.supportingReels)}
+                </div>
+                <div class="brief-card-label">${item.label}</div>
+                ${item.body?`<div class="brief-card-body">${item.body}</div>`:''}
+                ${item.engagementTrigger?`<div class="brief-card-sub"><strong>Engagement trigger:</strong> ${item.engagementTrigger}</div>`:''}
+                ${item.whyItWorks?`<div class="brief-card-sub"><strong>Why it works:</strong> ${item.whyItWorks}</div>`:''}
+            </div>`).join('')}</div>`;
+    }
+
     function renderMRTab_hooks(data,name){
         const items=(Array.isArray(data.hookAnalysis)?data.hookAnalysis:[]).filter(item=>isPhrase(item.openingLine)&&parseViewCount(item.views)>=100000).sort((a,b)=>parseViewCount(b.views)-parseViewCount(a.views));
         if(!items.length)return _mrEmpty('No hook analysis data.');
@@ -2709,7 +2807,7 @@
                         <button class="hook-eye-btn-inline" title="View transcript" onclick="openTranscriptModal('${cardId}')">${eyeIcon}</button>
                     </div>
                 </div>
-                ${item.relevance?`<div class="brief-card-sub" style="margin-top:4px;font-size:0.75rem;"><strong>Relevance:</strong> ${item.relevance}</div>`:''}
+                ${item.relevance?`<div class="brief-card-sub" style="margin:4px 18px 0;font-size:0.75rem;padding-top:8px;"><strong>Relevance:</strong> ${item.relevance}</div>`:''}
                 ${stealTemplate?`<div class="hook-steal-wrap"><div class="hook-steal-label">Template</div><div class="hook-template-text">${stealTemplate}</div></div>`:''}
                 <div class="hook-card-actions">
                     ${item.stealThis?`<button class="hook-add-btn${_mrHookSaved?' saved':''}" ${_mrHookSaved?'disabled':''} onclick="addHookToLibrary('${cardId}',this)">${_mrHookSaved?`<svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M1.5 7.5l4 4 7-8" stroke="#10b981" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved!`:`${plusIcon} Add to library`}</button>`:''}
@@ -2720,18 +2818,19 @@
 
     function renderMRTab_angles(data,name){
         const items=Array.isArray(data.filmingAngles)?data.filmingAngles:[];
-        if(!items.length)return _mrEmpty('No content angles data.');
-        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div class="brief-cards-grid">${items.map(item=>`
-            <div class="brief-card" style="gap:12px;">
-                <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">
-                    <span class="brief-action-num" style="width:24px;height:24px;font-size:0.65rem;flex-shrink:0;">${item.number||'?'}</span>
+        if(!items.length)return _mrEmpty('No content directions data.');
+        return`${renderTabSummary(name,'mr','angles',buildTabData('mr','angles',data))}<div style="display:flex;flex-direction:column;gap:8px;">${items.map(item=>{
+            // Extract a short "based on" reference from whyThisWorks (first phrase before the dash or comma)
+            const basedOn=item.whyThisWorks?(item.whyThisWorks.match(/based on (?:the )?([^—–\-,\.]+)/i)||[])[1]||'':'';
+            return`<div class="mr-angle-card">
+                <span class="mr-angle-num">${item.number||'?'}</span>
+                <div class="mr-angle-content">
+                    ${item.angle?`<div class="mr-angle-title">${item.angle}</div>`:''}
+                    ${item.hook?`<div class="mr-angle-hook">"${item.hook}"</div>`:''}
+                    ${basedOn?`<div class="mr-angle-based">Based on: ${basedOn.trim()}</div>`:''}
                 </div>
-                ${item.angle?`<div class="brief-card-label">${item.angle}</div>`:''}
-                <div class="mr-angle-hook">"${item.hook||'—'}"</div>
-                ${item.whyThisWorks?`<div class="brief-card-sub"><strong>Why this works:</strong> ${item.whyThisWorks}</div>`:''}
-                ${item.concept?`<div class="brief-card-body">${item.concept}</div>`:''}
-                ${item.whyNow?`<div class="mr-why-now"><strong>Why now:</strong> ${item.whyNow}</div>`:''}
-            </div>`).join('')}</div>`;
+            </div>`;
+        }).join('')}</div>`;
     }
 
     function renderMRTab_gap(data,name){
@@ -2747,22 +2846,27 @@
     }
 
     function renderMRTab_sources(data){
+        const m=data.methodology||{};
         const sources=Array.isArray(data.sources)?data.sources:[];
         if(!sources.length)return _mrEmpty('No sources data.');
-        return`<div style="display:flex;flex-direction:column;gap:8px;">${sources.map(s=>`
-            <div class="source-card">
-                <div class="source-card-header">
-                    <div class="source-card-left">
-                        <span class="source-rank-badge">#${s.rank||'?'}</span>
-                        <div>
-                            <div class="source-handle">${s.handle||'—'}</div>
-                            ${s.title?`<div class="source-name">${s.title}</div>`:''}
-                        </div>
-                    </div>
-                    ${s.views?`<span class="source-views-badge">👁 ${s.views}</span>`:''}
-                </div>
-                ${s.url?`<div>${_mrLink(s.url,'View reel ↗')}</div>`:''}
-            </div>`).join('')}</div>`;
+        let html='';
+        if(m.totalReels||m.dateRange||m.keywords?.length){
+            html+=`<div class="brief-methodology-bar">${m.dateRange?`<div class="brief-method-chip"><span class="brief-method-chip-label">Date Range</span><span class="brief-method-chip-val">${m.dateRange}</span></div>`:''}${m.totalReels?`<div class="brief-method-chip"><span class="brief-method-chip-label">Reels Analysed</span><span class="brief-method-chip-val">${m.totalReels}</span></div>`:''}${m.keywords?.length?`<div class="brief-method-chip"><span class="brief-method-chip-label">Keywords</span><span class="brief-method-chip-val">${m.keywords.length}</span></div>`:''}</div>`;
+        }
+        html+=`<div class="brief-section-header" style="margin-top:16px;">Top Performing Reels</div><div class="brief-cards-grid">${sources.map(s=>{
+            const outlierHtml=(()=>{
+                if(!s.views||!s.accountAvg)return '';
+                const rv=parseViewCount(s.views),av=parseViewCount(s.accountAvg);
+                if(!av||!rv)return '';
+                const ratio=rv/av;
+                const label=ratio>=5?'🔥 Mega outlier':ratio>=3?'⚡ Strong outlier':ratio>=1.5?'📈 Above avg':'';
+                const mult=ratio>=1.5?`${ratio.toFixed(1)}x`:'';
+                if(!label)return '';
+                return `<span class="source-outlier-badge">${label}${mult?` · ${mult}`:''}</span>`;
+            })();
+            return `<div class="source-card"><div class="source-card-header"><div class="source-card-left"><span class="source-rank-badge">#${s.rank||s.reelNumber||'?'}</span><div><div class="source-handle">${s.handle||'—'}</div>${s.title?`<div class="source-name">${s.title}</div>`:''}</div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">${s.views?`<span class="source-views-badge">👁 ${s.views} <span style="font-size:0.65rem;font-weight:500;color:var(--text-muted);">reel views</span></span>`:''}${s.accountAvg?`<span style="font-size:0.72rem;color:var(--text-muted);">avg: ${s.accountAvg}</span>`:''}</div></div>${outlierHtml}${s.description?`<div class="source-desc">${s.description}</div>`:''}${s.url?`<div>${_mrLink(s.url,'View reel ↗')}</div>`:''}</div>`;
+        }).join('')}</div>`;
+        return html;
     }
 
 
@@ -3118,10 +3222,12 @@
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockViews30d('Views Last 30d',today,monthRow,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${mBlock('Total Views',today,prev,'yt_total_views')}</div>${ytTopVids}</div>`:'';
 
+        const _clientDesc=clientMap[name]?.content_description||'';
+        const _infoIcon=_clientDesc?`<button class="detail-info-btn" tabindex="0" title="About this client">i<div class="detail-info-tooltip">${_clientDesc}</div></button>`:'';
         const analyticsContent=`
             <div class="detail-hero">
                 <div>
-                    <div class="detail-name">${name}</div>
+                    <div class="detail-name" style="display:flex;align-items:center;">${name}${_infoIcon}</div>
                     <div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div>
                 </div>
                 ${shareBtnHtml}
@@ -3170,7 +3276,7 @@
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name">${name}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" tabindex="0" title="About this client">i<div class="detail-info-tooltip">${_d}</div></button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }

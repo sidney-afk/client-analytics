@@ -1816,8 +1816,12 @@
 
     async function fetchBriefs(){
         try{
-            const r=await fetch(BRIEFS_URL+'&_t='+Date.now());
+            const [r,mr]=await Promise.all([
+                fetch(BRIEFS_URL+'&_t='+Date.now()),
+                fetch(MR_BRIEFS_URL+'&_t='+Date.now())
+            ]);
             briefs=parseCSV(await r.text());
+            mrBriefs=parseCSV(await mr.text());
         }catch(e){console.error('[SyncView] fetchBriefs error',e);}
     }
 
@@ -2834,8 +2838,7 @@
         clusters.forEach(item=>{
             items.push({type:'cluster',label:item.name||'—',body:item.whatWorks||'',engagementTrigger:item.why||'',whyItWorks:'',supportingReels:item.supportingReels,videoCount:item.videoCount});
         });
-        const nicheData=[...landscape.map(i=>({label:i.label,what:i.what,emotionalTrigger:i.emotionalTrigger,sharingMechanism:i.sharingMechanism,whyItWorks:i.whyItWorks})),...clusters.map(i=>({name:i.name,whatWorks:i.whatWorks,why:i.why}))];
-        return`${renderTabSummary(name,'mr','niche',JSON.stringify(nicheData).substring(0,3000))}<div class="brief-cards-grid">${items.map(item=>`
+        return`${renderTabSummary(name,'mr','niche',buildTabData('mr','niche',data))}<div class="brief-cards-grid">${items.map(item=>`
             <div class="brief-card">
                 <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
                     <div style="display:flex;align-items:center;gap:8px;">

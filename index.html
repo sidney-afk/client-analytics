@@ -2177,6 +2177,8 @@
                 delete pendingBriefs[key];
                 try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{}
                 briefPollingState[key]={loading:false};
+                if(type==='mr'&&mrKeywordState[name]){mrKeywordState[name].submitted=false;mrKeywordState[name].showPanel=false;}
+                if(type==='comp'&&compAccountState[name]){compAccountState[name].submitted=false;compAccountState[name].showPanel=false;}
                 refreshBriefView(name);
                 return;
             }

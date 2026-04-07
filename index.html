@@ -3016,7 +3016,8 @@
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='day'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('day')">Day</button>
             <button style="padding:4px 12px;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.72rem;font-weight:600;cursor:pointer;transition:all 0.13s;${gainPeriod==='week'?'background:var(--text-primary);color:var(--white);':'background:transparent;color:var(--text-muted);'}" onclick="setGainPeriod('week')">Week</button>
         </div>`;
-        return `<div class="overview-controls"><div class="controls-left">${periodToggle}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
+        const genAllBtn=`<button class="cs-generate-btn" style="font-size:0.7rem;padding:5px 14px;margin-left:8px;" onclick="generateAllContentSummaries()" title="Generate content summaries for all clients">✦ Generate All Summaries</button><span id="generate-all-status" style="font-size:0.72rem;color:var(--text-muted);margin-left:8px;"></span>`;
+        return `<div class="overview-controls"><div class="controls-left">${periodToggle}${genAllBtn}</div><div class="view-toggle"><button class="view-toggle-btn ${viewMode==='table'?'active':''}" onclick="setViewMode('table')" title="Table">${tableIcon}</button><button class="view-toggle-btn ${viewMode==='cards'?'active':''}" onclick="setViewMode('cards')" title="Cards">${cardIcon}</button></div></div>`;
     }
 
     function renderCardView(rows,deltaMap){
@@ -3181,6 +3182,24 @@
         }
         try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
         refreshContentSummary(clientName);
+    }
+
+    async function generateAllContentSummaries(){
+        const allClientNames=Object.keys(clientMap);
+        if(!allClientNames.length){alert('No clients found.');return;}
+        const eligible=allClientNames.filter(name=>getTopMonthlyVideos(name,5).length>0);
+        if(!eligible.length){alert('No clients have top monthly videos.');return;}
+        const statusEl=document.getElementById('generate-all-status');
+        if(statusEl)statusEl.innerHTML=`<span class="cs-spinner" style="display:inline-block;margin-right:6px;"></span>Generating summaries for ${eligible.length} client${eligible.length!==1?'s':''}… <span id="generate-all-progress">0/${eligible.length}</span>`;
+        let completed=0;
+        for(const name of eligible){
+            try{await generateContentSummary(name);}catch(e){console.error('[SyncView] Failed to generate summary for',name,e);}
+            completed++;
+            const progEl=document.getElementById('generate-all-progress');
+            if(progEl)progEl.textContent=`${completed}/${eligible.length}`;
+        }
+        if(statusEl)statusEl.innerHTML=`<span style="color:#10b981;font-weight:600;">Done — generated summaries for ${completed} client${completed!==1?'s':''}.</span>`;
+        setTimeout(()=>{if(statusEl)statusEl.innerHTML='';},8000);
     }
 
     function refreshContentSummary(clientName){

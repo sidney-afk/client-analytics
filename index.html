@@ -1869,11 +1869,12 @@
             const target = new Date(latestDate);
             target.setDate(target.getDate() - daysAgo);
             let best = null;
-            for(let i = rows.length - 2; i >= 0; i--){
+            for(let i = 0; i < rows.length - 1; i++){
                 const d = new Date(rows[i].date);
-                if(d <= target){ best = rows[i]; break; }
-                if(!best || Math.abs(d - target) < Math.abs(new Date(best.date) - target)){
-                    best = rows[i];
+                if(d <= latestDate){
+                    if(!best || Math.abs(d - target) < Math.abs(new Date(best.date) - target)){
+                        best = rows[i];
+                    }
                 }
             }
             if(best) result[name] = best;
@@ -3345,7 +3346,7 @@
 
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();
-        const deltaMap=gainPeriod==='week'?(()=>{const m={};Object.keys(prevMap).forEach(name=>{const hist=clientHistory(name);m[name]=getWeekRow(hist);});return m;})():prevMap;
+        const deltaMap=gainPeriod==='week'?weekPrevPerClient():prevMap;
         const mPrevMap=monthPrevPerClient();
         const nc=(val,cls)=>{const f=fmt(val);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};
         const ncViewsDelta=(curVal,prevVal,cls)=>{if(!prevVal&&prevVal!==0){const f=fmt(curVal);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;}const d=n(curVal)-n(prevVal);const f=fmt(d);return`<td class="${cls} num ${f?'has':''}">${f||'<span class="g-none">—</span>'}</td>`;};

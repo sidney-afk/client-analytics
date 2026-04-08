@@ -1246,6 +1246,7 @@
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
     let pendingBriefs = (() => { try { return JSON.parse(localStorage.getItem('syncview_pendingBriefs_v1') || '{}'); } catch { return {}; } })();
     let contentSummaryState = (() => { try { return JSON.parse(localStorage.getItem('syncview_contentSummaryState_v1') || '{}'); } catch { return {}; } })();
+    let contentSummaryPolling = {};
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -3182,6 +3183,7 @@
             contentDescription:clientMap[clientName]?.content_description||'',
             videos:videos.map((v,i)=>({rank:i+1,platform:v.platform,url:v.video_url||'',caption:v.caption||'',views:n(v.views),likes:n(v.likes),comments:n(v.comments)}))
         };
+        // Try direct fetch first (works if N8N webhook has CORS configured)
         try{
             const controller=new AbortController();const _csto=setTimeout(()=>controller.abort(),180000);
             const resp=await fetch(CONTENT_SUMMARY_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:controller.signal});clearTimeout(_csto);
@@ -3191,18 +3193,58 @@
             if(Array.isArray(result)&&result[0])result=result[0];
             if(result.json)result=result.json;
             if(typeof result==='string'){try{result=JSON.parse(result);}catch{}}
-            // Handle raw Claude API response format: { content: [{type:"text", text:"..."}] }
             if(!result.bullets&&result.content&&Array.isArray(result.content)&&result.content[0]?.text){
                 result={bullets:result.content[0].text};
             }
             const bullets=result.bullets||result.summary||result;
             contentSummaryState[clientName]={loading:false,data:{bullets:typeof bullets==='string'?bullets:JSON.stringify(bullets),date:new Date().toISOString().split('T')[0]},error:null};
+            try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
+            refreshContentSummary(clientName);
+            return;
         }catch(e){
-            console.error('[SyncView] Content summary error for',clientName,':',e);
-            contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary: '+(e.name==='AbortError'?'Request timed out (3 min)':e.message||'Unknown error')};
+            console.warn('[SyncView] Direct fetch failed for',clientName,'(likely CORS) — falling back to fire-and-forget + polling:',e.message);
         }
-        try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
-        refreshContentSummary(clientName);
+        // Fallback: send with no-cors (text/plain avoids CORS preflight) so the POST actually reaches N8N
+        try{
+            await fetch(CONTENT_SUMMARY_WEBHOOK,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload),mode:'no-cors'});
+            console.log('[SyncView] Fire-and-forget POST sent for',clientName);
+        }catch(e){
+            console.warn('[SyncView] Fire-and-forget also failed:',e.message);
+        }
+        // Poll ContentSummaries sheet for the result
+        startContentSummaryPolling(clientName);
+    }
+
+    function startContentSummaryPolling(clientName){
+        const key='cs__'+clientName;
+        if(contentSummaryPolling[key])clearInterval(contentSummaryPolling[key]);
+        const triggerDate=new Date().toISOString().split('T')[0];
+        const startTime=Date.now();
+        const timeoutMs=5*60*1000;
+        async function poll(){
+            if(Date.now()-startTime>timeoutMs){
+                clearInterval(contentSummaryPolling[key]);
+                delete contentSummaryPolling[key];
+                contentSummaryState[clientName]={loading:false,data:null,error:'Summary generation timed out (5 min). Check that the N8N workflow is active and the "generate-content-summary" webhook exists.'};
+                try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
+                refreshContentSummary(clientName);
+                return;
+            }
+            try{
+                const resp=await fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now());
+                const rows=parseCSV(await resp.text());
+                const match=rows.filter(r=>r.client_name===clientName&&r.bullets).sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+                if(match&&(match.date||'')>=triggerDate){
+                    clearInterval(contentSummaryPolling[key]);
+                    delete contentSummaryPolling[key];
+                    contentSummaryState[clientName]={loading:false,data:{bullets:match.bullets,date:match.date||triggerDate},error:null};
+                    try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
+                    refreshContentSummary(clientName);
+                }
+            }catch(e){console.warn('[SyncView] Content summary poll error:',e);}
+        }
+        contentSummaryPolling[key]=setInterval(poll,30000);
+        setTimeout(poll,5000); // first check after 5s
     }
 
     // Auto-refresh content summaries that have new scrape data since the last summary

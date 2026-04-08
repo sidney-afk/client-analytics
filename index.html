@@ -1848,26 +1848,20 @@
     }
     function getWeekRow(history){ return _findRowDaysAgo(history, 7); }
     function getMonthRow(history){ return _findRowDaysAgo(history, 30); }
-    // Compute weekly view delta that correctly handles month-boundary resets.
-    // ig_views_this_month / tiktok_plays_this_month are cumulative counters that
-    // reset on the 1st, so a simple subtraction breaks when the reference row is
-    // in a different calendar month.  In that case we fall back to summing the
-    // daily gained_today values over the past 7 days.
-    function _safeWeekViewDelta(todayRow, refRow, clientName, monthlyKey, dailyKey){
-        if(!refRow) return null;
-        const td=new Date(todayRow.date), rd=new Date(refRow.date);
-        if(td.getFullYear()===rd.getFullYear()&&td.getMonth()===rd.getMonth()){
-            return n(todayRow[monthlyKey])-n(refRow[monthlyKey]);
-        }
+    // ig_views_this_month / tiktok_plays_this_month are rolling 30-day windows
+    // (NOT calendar-month counters), so a direct delta is always valid.
+    // When scraping days are missed, ig_views_gained_today on the catch-up day
+    // covers multiple days.  _normalisedDailyDelta divides by the gap to produce
+    // a true per-day average.
+    function _normalisedDailyDelta(clientName, dailyKey){
         const hist=clientHistory(clientName);
-        const cutoff=new Date(td); cutoff.setDate(cutoff.getDate()-7);
-        let sum=0,has=false;
-        for(let i=hist.length-1;i>=0;i--){
-            if(new Date(hist[i].date)<cutoff) break;
-            const v=n(hist[i][dailyKey]);
-            if(v){sum+=v;has=true;}
-        }
-        return has?sum:null;
+        if(hist.length<2) return null;
+        const today=hist[hist.length-1], prev=hist[hist.length-2];
+        const raw=n(today[dailyKey]);
+        if(!raw) return null;
+        const gapMs=new Date(today.date)-new Date(prev.date);
+        const gapDays=Math.max(1,Math.round(gapMs/(864e5)));
+        return gapDays<=1?raw:Math.round(raw/gapDays);
     }
     function clientHistory(name){
         const indexed=allData.map((r,i)=>({r,i})).filter(x=>x.r.client_name===name);
@@ -2992,10 +2986,10 @@
         function val(r,col){
             if(col==='_ig_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_followers)-n(p.ig_followers);}
             if(col==='_tt_fol_delta'){const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_followers)-n(p.tiktok_followers);}
-            // Day mode: use the direct gained_today field (accurate single-day value from sheet)
-            // Week mode: use _safeWeekViewDelta to handle month-boundary resets
-            if(col==='_ig_view_delta'){if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.ig_views_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return _safeWeekViewDelta(r,p,r.client_name,'ig_views_this_month','ig_views_gained_today')||0;}
-            if(col==='_tt_view_delta'){if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(gainPeriod==='day'){return n(r.tiktok_plays_gained_today)||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return _safeWeekViewDelta(r,p,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today')||0;}
+            // Day mode: normalised daily delta (divides by gap when scraping days missed)
+            // Week mode: direct delta of rolling 30-day totals
+            if(col==='_ig_view_delta'){if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(gainPeriod==='day'){return _normalisedDailyDelta(r.client_name,'ig_views_gained_today')||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.ig_views_this_month)-n(p.ig_views_this_month);}
+            if(col==='_tt_view_delta'){if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(gainPeriod==='day'){return _normalisedDailyDelta(r.client_name,'tiktok_plays_gained_today')||0;}const p=prevMap[r.client_name];if(!p)return -Infinity;return n(r.tiktok_plays_this_month)-n(p.tiktok_plays_this_month);}
             // Views/30d columns: sort by 30-day delta
             if(col==='ig_views_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.ig_followers)&&!n(r.ig_views_this_month))return -Infinity;if(!mp)return n(r.ig_views_this_month);return n(r.ig_views_this_month)-n(mp.ig_views_this_month);}
             if(col==='tiktok_plays_this_month'){const mp=mPrevMap[r.client_name];if(!n(r.tiktok_followers)&&!n(r.tiktok_plays_this_month))return -Infinity;if(!mp)return n(r.tiktok_plays_this_month);return n(r.tiktok_plays_this_month)-n(mp.tiktok_plays_this_month);}
@@ -3061,8 +3055,8 @@
             const cardInfo=clientMap[r.client_name]||{};
             const cardIgH=cardInfo.instagram_handle||'',cardTtH=cardInfo.tiktok_handle||'',cardYtId=cardInfo.youtube_channel_id||'';
             const platLink=(url,label)=>url?`<a href="${url}" target="_blank" rel="noopener" style="font-size:0.58rem;font-weight:600;color:rgba(255,255,255,0.55);text-decoration:none;letter-spacing:0.02em;white-space:nowrap;transition:color 0.15s;" onmouseover="this.style.color='rgba(255,255,255,0.9)'" onmouseout="this.style.color='rgba(255,255,255,0.55)'">${label}</a>`:'';
-            const igViewsDelta=gainPeriod==='day'?n(r.ig_views_gained_today):_safeWeekViewDelta(r,p,r.client_name,'ig_views_this_month','ig_views_gained_today');
-            const ttViewsDelta=gainPeriod==='day'?n(r.tiktok_plays_gained_today):_safeWeekViewDelta(r,p,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today');
+            const igViewsDelta=gainPeriod==='day'?(_normalisedDailyDelta(r.client_name,'ig_views_gained_today')):(p!=null?n(r.ig_views_this_month)-n(p.ig_views_this_month):null);
+            const ttViewsDelta=gainPeriod==='day'?(_normalisedDailyDelta(r.client_name,'tiktok_plays_gained_today')):(p!=null?n(r.tiktok_plays_this_month)-n(p.tiktok_plays_this_month):null);
             if(hasIG){pl+=`<div class="card-platform cp-ig"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">Instagram</span>${platLink(cardIgH?'https://instagram.com/'+cardIgH:null,'@'+cardIgH)}</div>${mh('Followers','ig_followers')}${mhViews30d('Views Last 30d','ig_views_this_month',mp,igViewsDelta)}</div>`;}
             else if(cardIsAgeRestricted){pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;}
             if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhViews30d('Views Last 30d','tiktok_plays_this_month',mp,ttViewsDelta)}</div>`;
@@ -3145,10 +3139,10 @@
         const ttFolDiff=dRow?n(today.tiktok_followers)-n(dRow.tiktok_followers):null;
         const ytSubDiff=dRow?n(today.yt_subscribers)-n(dRow.yt_subscribers):null;
         const ytViewDiff=dRow?n(today.yt_total_views)-n(dRow.yt_total_views):null;
-        // Day mode: use the direct gained_today field from the sheet
-        // Week mode: use _safeWeekViewDelta to handle month-boundary resets
-        const igViewsGain=activePeriod==='week'?_safeWeekViewDelta(today,dRow,clientName,'ig_views_this_month','ig_views_gained_today'):(n(today.ig_views_gained_today)||null);
-        const ttViewsGain=activePeriod==='week'?_safeWeekViewDelta(today,dRow,clientName,'tiktok_plays_this_month','tiktok_plays_gained_today'):(n(today.tiktok_plays_gained_today)||null);
+        // Day mode: normalised daily delta (accounts for missed scraping days)
+        // Week mode: direct delta of rolling 30-day totals
+        const igViewsGain=activePeriod==='week'?(dRow?(n(today.ig_views_this_month)-n(dRow.ig_views_this_month)):null):(_normalisedDailyDelta(clientName,'ig_views_gained_today')||null);
+        const ttViewsGain=activePeriod==='week'?(dRow?(n(today.tiktok_plays_this_month)-n(dRow.tiktok_plays_this_month)):null):(_normalisedDailyDelta(clientName,'tiktok_plays_gained_today')||null);
         const periodLabel=activePeriod==='week'?"This Week's":"Today's";
         let cards='';
         if(hasIG)cards+=`<div class="gains-platform-card gp-ig"><div class="gains-platform-header"><div class="gains-platform-dot"></div><span class="gains-platform-name">Instagram</span></div><div class="gains-metrics-row">${chipDeltaOnly('Followers',igFolDiff)}${chipDiff('Views',igViewsGain)}</div></div>`;
@@ -3405,9 +3399,9 @@
             const _ttSocI=hasTTrow?_mkSocI(_tth?`https://tiktok.com/@${_tth}`:null,_ttSvg,'TikTok'):'';
             const _ytSocI=hasYTrow?_mkSocI(_yti?`https://youtube.com/channel/${_yti}`:null,_ytSvg,'YouTube'):'';
             const _socIcons=_igSocI||_ttSocI||_ytSocI?`<span style="display:inline-flex;align-items:center;gap:4px;margin-left:8px;">${_igSocI}${_ttSocI}${_ytSocI}</span>`:'';
-            // Day mode: use gained_today directly; Week mode: use _safeWeekViewDelta (handles month-boundary resets)
-            const igViewDeltaCell=gainPeriod==='day'?ncDelta(r.ig_views_gained_today,'col-ig'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'ig_views_this_month','ig_views_gained_today'),'col-ig');
-            const ttViewDeltaCell=gainPeriod==='day'?ncDelta(r.tiktok_plays_gained_today,'col-tt'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today'),'col-tt');
+            // Day mode: normalised daily delta; Week mode: direct delta of rolling totals
+            const igViewDeltaCell=gainPeriod==='day'?ncDelta(_normalisedDailyDelta(r.client_name,'ig_views_gained_today'),'col-ig'):gainCell(r,dp,'ig_views_this_month','col-ig');
+            const ttViewDeltaCell=gainPeriod==='day'?ncDelta(_normalisedDailyDelta(r.client_name,'tiktok_plays_gained_today'),'col-tt'):gainCell(r,dp,'tiktok_plays_this_month','col-tt');
             const mp=mPrevMap[r.client_name];
             const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${ncViewsDelta(r.ig_views_this_month,mp?mp.ig_views_this_month:null,'col-ig')}${igViewDeltaCell}`;
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;

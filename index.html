@@ -3198,7 +3198,8 @@
             const bullets=result.bullets||result.summary||result;
             contentSummaryState[clientName]={loading:false,data:{bullets:typeof bullets==='string'?bullets:JSON.stringify(bullets),date:new Date().toISOString().split('T')[0]},error:null};
         }catch(e){
-            contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary. Make sure the N8N webhook is set up.'};
+            console.error('[SyncView] Content summary error for',clientName,':',e);
+            contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary: '+(e.name==='AbortError'?'Request timed out (3 min)':e.message||'Unknown error')};
         }
         try{localStorage.setItem('syncview_contentSummaryState_v1',JSON.stringify(contentSummaryState));}catch{}
         refreshContentSummary(clientName);

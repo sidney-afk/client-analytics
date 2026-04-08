@@ -3204,6 +3204,26 @@
         refreshContentSummary(clientName);
     }
 
+    // Auto-refresh content summaries that have new scrape data since the last summary
+    async function autoRefreshStaleSummaries(){
+        const clientNames=Object.keys(clientMap);
+        const staleClients=clientNames.filter(name=>{
+            const videos=getTopMonthlyVideos(name,5);
+            if(!videos.length)return false;
+            const state=contentSummaryState[name];
+            if(!state||!state.data)return false; // never generated — skip, user can click Generate
+            const summaryDate=state.data.date||'';
+            const latestScrape=topVideos.filter(v=>v.client_name===name).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
+            return latestScrape&&(!summaryDate||summaryDate<latestScrape);
+        });
+        if(!staleClients.length){console.log('[SyncView] All content summaries up to date.');return;}
+        console.log('[SyncView] Auto-refreshing stale content summaries for:',staleClients);
+        for(const name of staleClients){
+            try{await generateContentSummary(name);}catch(e){console.warn('[SyncView] Auto-refresh failed for',name,e);}
+        }
+        console.log('[SyncView] Auto-refresh complete.');
+    }
+
     function refreshContentSummary(clientName){
         const el=document.getElementById(`content-summary-${clientName.replace(/\s+/g,'_')}`);
         if(!el)return;
@@ -4156,6 +4176,8 @@
                 briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
                 startBriefPolling(clientName,triggerTime,briefType);
             });
+            // Auto-refresh any content summaries that have new scrape data (non-blocking)
+            autoRefreshStaleSummaries();
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
             if(dates[0])document.getElementById('lastUpdated').textContent=`Updated ${fmtDate(dates[0])}`;
             const clientNames=[...new Set(allData.map(r=>r.client_name))];

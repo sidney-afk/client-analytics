@@ -223,6 +223,8 @@
         .share-btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.81rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; white-space: nowrap; flex-shrink: 0; }
         .share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
+        .slack-update-btn { color: #611f69; border-color: #611f6933; }
+        .slack-update-btn:hover { color: #4a154b; border-color: #611f69; }
         .gains-bar { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 18px; margin-bottom: 12px; display: flex; align-items: stretch; gap: 10px; flex-wrap: wrap; }
         .gains-bar-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; display: flex; align-items: center; padding-right: 14px; border-right: 1px solid var(--border-light); margin-right: 4px; }
         .gains-platform-card { display: flex; flex-direction: column; gap: 7px; flex: 1; min-width: 150px; padding: 10px 14px; border-radius: 10px; }
@@ -1258,6 +1260,7 @@
     // Create a new N8N workflow with a Webhook trigger → Google Sheets "Append row" node.
     // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
     const HOOK_LIBRARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/add-hook-to-library';
+    const WEEKLY_SLACK_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/weekly-slack-top-reel';
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -3319,6 +3322,8 @@
         const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
         const platToggle=[hasIG?mkPlatBtn('ig','#E1306C','Instagram'):'',hasTT?mkPlatBtn('tt','#2EC4B6','TikTok'):'',hasYT?mkPlatBtn('yt','#FF4444','YouTube'):''].filter(Boolean).join('');
         const shareBtnHtml=!clientOnly?`<button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`:'';
+        const hasSlackChannel=!!(clientMap[name]?.slack_channel_id);
+        const slackBtnHtml=(!clientOnly&&hasSlackChannel)?`<button class="share-btn slack-update-btn" data-slack-btn="${name}" onclick="sendWeeklySlackUpdate('${name.replace(/'/g,"\\'")}')" title="Send this week's top reel to client's Slack channel" style="margin-left:6px;">${_slackBtnContent}</button>`:'';
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
@@ -3336,7 +3341,7 @@
                     <div class="detail-name" style="display:flex;align-items:center;">${name}${_infoIcon}</div>
                     <div class="detail-meta">Last scraped ${fmtDate(today.date)} · ${history.length} data point${history.length!==1?'s':''} · ${compareNote}</div>
                 </div>
-                ${shareBtnHtml}
+                <div style="display:flex;align-items:center;gap:6px;">${shareBtnHtml}${slackBtnHtml}</div>
             </div>
             ${gainsBar(today,prev,weekRow,null,null,'day',name)}
             ${weekRow?gainsBar(today,prev,weekRow,null,null,'week',name):''}
@@ -3389,6 +3394,27 @@
 
         return`<div class="client-view">${toggleHtml}${analyticsContent}</div>`;
     }
+
+    async function sendWeeklySlackUpdate(clientName){
+        const btn=document.querySelector(`[data-slack-btn="${clientName}"]`);
+        if(btn){btn.disabled=true;btn.textContent='Sending...';}
+        try{
+            const info=clientMap[clientName]||{};
+            const channelId=info.slack_channel_id||'';
+            if(!channelId){showNotify('No Slack channel','Add a slack_channel_id column to Clients Info for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
+            const clientVids=topVideos.filter(v=>v.client_name===clientName&&(v.period||'').toLowerCase().includes('week'));
+            const latestDate=clientVids.reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
+            const fresh=latestDate?clientVids.filter(v=>(v.scraped_date||'')===latestDate):clientVids;
+            fresh.sort((a,b)=>n(b.views)-n(a.views));
+            const top=fresh[0];
+            if(!top){showNotify('No videos','No weekly top videos found for '+clientName);if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}return;}
+            const resp=await fetch(WEEKLY_SLACK_WEBHOOK,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientName,slack_channel_id:channelId,content_description:info.content_description||'',platform:top.platform||'instagram',video_url:top.video_url||'',caption:(top.caption||'').substring(0,500),views:n(top.views),likes:n(top.likes),comments:n(top.comments),shares:n(top.shares),scraped_date:latestDate})});
+            if(resp.ok)showNotify('Sent!','Slack update sent for '+clientName);
+            else showNotify('Error','Slack webhook returned '+resp.status);
+        }catch(e){console.error('[SyncView] Slack send error:',e);showNotify('Error','Could not send Slack update. Check webhook.');}
+        if(btn){btn.disabled=false;btn.innerHTML=_slackBtnContent;}
+    }
+    const _slackBtnContent='<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z" fill="currentColor"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" fill="currentColor" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" fill="currentColor" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z" fill="currentColor"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z" fill="currentColor"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" fill="currentColor" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" fill="currentColor" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z" fill="currentColor"/></svg> Send Slack Update';
 
     function renderOverview(rawRows){
         const rows=sortedRows(rawRows),prevMap=prevPerClient();

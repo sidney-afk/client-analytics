@@ -2238,7 +2238,7 @@
         // not which tab they're on within a client profile.
         history.pushState({nav:currentNav, client:name, clientTab:tab, briefSection:activeBriefSection[name], briefTab:activeBriefTab[name], mrBriefTab:activeMRBriefTab[name]},'','#'+encodeURIComponent(name));
         const hist=clientHistory(name);
-        document.getElementById('content').innerHTML=renderClient(name,hist,false);
+        document.getElementById('content').innerHTML=renderClient(name,hist,_isClientLink);
         if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
         window.scrollTo({top:0,behavior:'instant'});
     }
@@ -2308,6 +2308,15 @@
     function renderMRBriefGeneratePrompt(name){
         const enc=encodeURIComponent(name);
         const state=mrKeywordState[name];
+
+        // ── Client view: no generation allowed ──────────────────────────────
+        if(_isClientLink){
+            return`<div class="brief-generate-prompt">
+                <div class="brief-prompt-icon">🌐</div>
+                <div class="brief-prompt-title">No Keywords Brief yet</div>
+                <div class="brief-prompt-sub">Your keywords brief hasn't been generated yet. Check back soon!</div>
+            </div>`;
+        }
 
         // ── Submitted / generating state ─────────────────────────────────────
         if(state?.submitted){
@@ -2432,9 +2441,9 @@
                 <div class="brief-tab-header-right">
                     ${dateSelector}
                     <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                    <button class="brief-regen-btn" onclick="showConfirm('Regenerate keywords brief?','This will replace the current content.',()=>openMRKeywordPanel('${enc}'))" title="Regenerate keywords brief">
+                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate keywords brief?','This will replace the current content.',()=>openMRKeywordPanel('${enc}'))" title="Regenerate keywords brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
+                    </button>`}
                 </div>
             </div>
             <div class="brief-info-panel">${infoChips}<span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span></div>
@@ -2445,6 +2454,14 @@
     function renderBriefGeneratePrompt(name){
         const enc=encodeURIComponent(name);
         const state=compAccountState[name];
+        // Client view: no generation allowed
+        if(_isClientLink){
+            return`<div class="brief-generate-prompt">
+                <div class="brief-prompt-icon">🔍</div>
+                <div class="brief-prompt-title">No competitors brief yet</div>
+                <div class="brief-prompt-sub">Your competitors brief hasn't been generated yet. Check back soon!</div>
+            </div>`;
+        }
         // Submitted / generating state
         if(state?.submitted){
             return`<div class="brief-generate-prompt">
@@ -2582,9 +2599,9 @@
                 <div class="brief-tab-header-right">
                     ${dateSelector}
                     <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                    <button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>openCompAccountPanel('${enc}'))" title="Regenerate brief">
+                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>openCompAccountPanel('${enc}'))" title="Regenerate brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    </button>
+                    </button>`}
                 </div>
             </div>
             <div class="brief-info-panel">${compInfoChips}<span class="brief-meta-subtle">${data.clientName||name} · ${briefDate}</span></div>
@@ -3369,7 +3386,8 @@
         const isPolling=briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
 
         let toggleHtml='';
-        if(!clientOnly){
+        const hasBriefData=getClientBriefs(name).length>0||getClientMRBriefs(name).length>0||briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
+        if(!clientOnly||(clientOnly&&hasBriefData)){
             toggleHtml=`<div class="view-tab-toggle">
                 <button class="view-tab-btn ${tab==='analytics'?'active':''}" onclick="setClientViewTab('${enc}','analytics')">Analytics</button>
                 <button class="view-tab-btn ${tab==='brief'?'active':''}" onclick="setClientViewTab('${enc}','brief')">
@@ -3378,7 +3396,7 @@
             </div>`;
         }
 
-        if(tab==='brief'&&!clientOnly){
+        if(tab==='brief'&&(!clientOnly||(clientOnly&&hasBriefData))){
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}

@@ -3627,6 +3627,7 @@
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
     const GRAPHIC_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/graphic-form';
     const LINEAR_PROJECTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-projects';
+    const LOG_SUBMISSION_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/log-linear-submission';
     const LAST_LINK_KEY = 'syncview_last_link';
     const LINEAR_FORM_KEY = 'syncview_linear_form';
     const NAV_KEY = 'syncview_nav';
@@ -4165,6 +4166,27 @@
 
         const payload = { clientName: client, title, notes: description, videos, filmingPlans };
         if (editor) payload.editor = editor;
+
+        // Log submission to fallback Google Sheet (fire-and-forget)
+        const targetWebhook = (mode === 'thumbnail') ? GRAPHIC_FORM_WEBHOOK : VIDEO_FORM_WEBHOOK;
+        const webhookJson = JSON.stringify([{
+            headers: { 'content-type': 'application/json' },
+            params: {},
+            query: {},
+            body: payload,
+            webhookUrl: targetWebhook,
+            executionMode: 'production'
+        }]);
+        fetch(LOG_SUBMISSION_WEBHOOK, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                timestamp: new Date().toISOString(),
+                clientName: client,
+                mode: mode,
+                webhookJson: webhookJson
+            })
+        }).catch(() => {});
 
         // Fire the relevant webhook(s) — fire-and-forget (CORS may block response reading)
         const sendOptions = {

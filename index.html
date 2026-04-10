@@ -1797,6 +1797,14 @@
                 console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
             }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
         }
+        // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
+        const metricsClients=new Set(allData.map(r=>r.client_name));
+        Object.keys(clientMap).forEach(name=>{
+            if(!metricsClients.has(name)){
+                allData.push({client_name:name,date:'',ig_followers:'',ig_views_this_month:'',ig_views_gained_today:'',tiktok_followers:'',tiktok_plays_this_month:'',tiktok_plays_gained_today:'',yt_subscribers:'',yt_total_views:'',yt_views_gained_today:''});
+                console.log('[SyncView] Added placeholder for new client:',name);
+            }
+        });
     }
 
     async function fetchBriefs(){
@@ -3091,6 +3099,7 @@
             else if(cardIsAgeRestricted){pl+=`<div class="card-platform cp-ig" style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;"><span class="card-platform-label" style="width:auto;margin:0;">Instagram</span><span style="font-size:0.6rem;font-weight:700;color:var(--ig-dark);background:var(--ig-mid);border-radius:4px;padding:2px 7px;white-space:nowrap;">🔞 Age-restricted</span></div>`;}
             if(hasTT)pl+=`<div class="card-platform cp-tt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">TikTok</span>${platLink(cardTtH?'https://tiktok.com/@'+cardTtH:null,'@'+cardTtH)}</div>${mh('Followers','tiktok_followers')}${mhViews30d('Views Last 30d','tiktok_plays_this_month',mp,ttViewsDelta)}</div>`;
             if(hasYT)pl+=`<div class="card-platform cp-yt"><div style="display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:2px;"><span class="card-platform-label" style="margin-bottom:0">YouTube</span>${platLink(cardYtId?'https://youtube.com/channel/'+cardYtId:null,'Channel ↗')}</div>${mh('Subs','yt_subscribers')}${mh('Views','yt_total_views')}</div>`;
+            if(!pl&&!r.date)pl=`<div style="padding:12px 0 4px;text-align:center;font-size:0.75rem;color:var(--text-muted);font-weight:500;">Metrics data pending</div>`;
             const _cmkSocI=(url,svg,ttl)=>url?`<a href="${url}" target="_blank" rel="noopener" title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;color:var(--text-muted);text-decoration:none;">${svg}</a>`:`<span title="${ttl}" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;color:var(--text-muted);">${svg}</span>`;
             const _cigSvg=`<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="3.5" width="17" height="17" rx="5" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><circle cx="17.5" cy="6.5" r="1.2" fill="currentColor"/></svg>`;
             const _cttSvg=`<svg width="13" height="13" viewBox="0 0 24 24"><path d="M19.6 6.7A4.8 4.8 0 0 1 15.8 2.5h-3.4v13.1a2.9 2.9 0 1 1-2.1-2.8V9.4A6.3 6.3 0 0 0 4 15.6a6.3 6.3 0 0 0 6.3 6.4 6.3 6.3 0 0 0 6.3-6.4V9.1a8.3 8.3 0 0 0 4.8 1.5V7.2a4.8 4.8 0 0 1-1.8-.5z" fill="currentColor"/></svg>`;
@@ -3479,9 +3488,11 @@
             const ttViewDeltaCell=gainPeriod==='day'?ncDelta(r.tiktok_plays_gained_today,'col-tt'):ncDelta(_safeWeekViewDelta(r,dp,r.client_name,'tiktok_plays_this_month','tiktok_plays_gained_today'),'col-tt');
             const mp=mPrevMap[r.client_name];
             const igCols=isAgeRestricted?igRestrictedCell+igRestrictedCell+igRestrictedCell+igRestrictedCell:`${nc(r.ig_followers,'col-ig main-metric')}${gainCell(r,dp,'ig_followers','col-ig')}${ncViewsDelta(r.ig_views_this_month,mp?mp.ig_views_this_month:null,'col-ig')}${igViewDeltaCell}`;
-            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
-            const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td><td style="font-size:0.76rem">${fmtDate(r.date)}</td>${igCols}${ttCols}${ytCols}</tr>`;
+            const _isPending=!r.date;
+            const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
+            const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:_isPending?`${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
+            const _dateCell=_isPending?`<td style="font-size:0.68rem"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;">Pending</span></td>`:`<td style="font-size:0.76rem">${fmtDate(r.date)}</td>`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 

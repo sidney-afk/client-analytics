@@ -1,0 +1,133 @@
+{
+  "name": "Notify Social Media Manager – Linear Issue Created",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"client_name\": \"Acme Co\",\n  \"linear_issue_url\": \"https://linear.app/acme/issue/ACM-123\",\n  \"linear_issue_title\": \"New market research request\",\n  \"linear_issue_identifier\": \"ACM-123\"\n}"
+      },
+      "id": "execute-workflow-trigger",
+      "name": "When Called From MARKET RESEARCH",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients Info",
+          "mode": "name"
+        }
+      },
+      "id": "read-clients",
+      "name": "Read Clients Info",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [250, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// ──────────────────────────────────────────────\n// Look up the social media manager for this client\n// and build a Slack DM payload.\n// ──────────────────────────────────────────────\n// Input (from Execute Workflow Trigger):\n//   client_name, linear_issue_url, linear_issue_title, linear_issue_identifier\n//\n// Expected column in \"Clients Info\":\n//   social_media_manager_slack_id   (Slack user ID, e.g. \"U0123ABCD\")\n//\n// Optional columns used if present:\n//   social_media_manager_name       (for nicer greeting)\n// ──────────────────────────────────────────────\n\nconst trigger = $('When Called From MARKET RESEARCH').first().json;\nconst clients = $('Read Clients Info').all().map(i => i.json);\n\nconst clientName = (trigger.client_name || '').trim();\nconst issueUrl = trigger.linear_issue_url || '';\nconst issueTitle = trigger.linear_issue_title || 'New Linear issue';\nconst issueId = trigger.linear_issue_identifier || '';\n\nif (!clientName || !issueUrl) {\n  return [{ json: { _skip: true, reason: 'Missing client_name or linear_issue_url' } }];\n}\n\n// Case-insensitive match on client_name\nconst client = clients.find(c =>\n  (c.client_name || '').trim().toLowerCase() === clientName.toLowerCase()\n);\n\nif (!client) {\n  return [{ json: { _skip: true, reason: `No client row found for \"${clientName}\"` } }];\n}\n\nconst managerSlackId = (client.social_media_manager_slack_id || '').trim();\nif (!managerSlackId) {\n  return [{ json: { _skip: true, reason: `No social_media_manager_slack_id set for \"${clientName}\"` } }];\n}\n\nconst managerName = (client.social_media_manager_name || '').trim();\nconst greeting = managerName ? `Hey ${managerName}!` : 'Hey!';\n\nconst headerText = issueId\n  ? `\\u{1F4CB} New Linear issue for ${clientName} (${issueId})`\n  : `\\u{1F4CB} New Linear issue for ${clientName}`;\n\nconst blocks = [\n  {\n    type: 'header',\n    text: { type: 'plain_text', text: headerText, emoji: true }\n  },\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `${greeting} A new Linear issue was just created for *${clientName}*.`\n    }\n  },\n  {\n    type: 'section',\n    text: {\n      type: 'mrkdwn',\n      text: `*Title:*\\n${issueTitle}`\n    }\n  },\n  {\n    type: 'actions',\n    elements: [\n      {\n        type: 'button',\n        text: { type: 'plain_text', text: 'Open in Linear', emoji: true },\n        url: issueUrl,\n        action_id: 'open_linear_issue',\n        style: 'primary'\n      }\n    ]\n  }\n];\n\nreturn [{\n  json: {\n    slack_user_id: managerSlackId,\n    client_name: clientName,\n    text: `New Linear issue for ${clientName}: ${issueTitle} — ${issueUrl}`,\n    blocks: JSON.stringify(blocks)\n  }\n}];\n"
+      },
+      "id": "build-slack-payload",
+      "name": "Build Slack Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "filter-skip",
+              "leftValue": "={{ $json._skip }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEqual" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-valid",
+      "name": "Filter – Has Manager",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [750, 0]
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "value": "={{ $json.slack_user_id }}",
+          "mode": "id"
+        },
+        "text": "={{ $json.text }}",
+        "blocksUi": "={{ $json.blocks }}",
+        "otherOptions": {
+          "unfurl_links": false,
+          "unfurl_media": false
+        }
+      },
+      "id": "slack-send-dm",
+      "name": "Send Slack DM",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1000, 0],
+      "credentials": {
+        "slackApi": {
+          "id": "SLACK_CREDENTIAL_ID",
+          "name": "Slack Bot"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Called From MARKET RESEARCH": {
+      "main": [[{ "node": "Read Clients Info", "type": "main", "index": 0 }]]
+    },
+    "Read Clients Info": {
+      "main": [[{ "node": "Build Slack Payload", "type": "main", "index": 0 }]]
+    },
+    "Build Slack Payload": {
+      "main": [[{ "node": "Filter – Has Manager", "type": "main", "index": 0 }]]
+    },
+    "Filter – Has Manager": {
+      "main": [[{ "node": "Send Slack DM", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "tags": [
+    { "name": "slack", "id": "slack-tag" },
+    { "name": "linear", "id": "linear-tag" }
+  ]
+}

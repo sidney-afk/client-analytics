@@ -1095,6 +1095,52 @@
         .editor-search-suggestion { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: background 0.1s; font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); }
         .editor-search-suggestion:hover { background: var(--bg); color: var(--text-primary); }
         .editor-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
+
+        /* Workload calendar */
+        .workload-view { max-width: 1320px; margin: 0 auto; animation: fadeIn 0.15s ease; }
+        .workload-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+        .workload-title-group { display: flex; align-items: baseline; gap: 12px; }
+        .workload-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+        .workload-freshness { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+        .workload-nav { display: inline-flex; align-items: center; gap: 6px; }
+        .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; }
+        .workload-nav button:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
+        .workload-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+        .workload-filters .linear-select { padding: 8px 32px 8px 12px; font-size: 0.78rem; min-width: 140px; }
+        .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
+        .workload-needs-assignment.empty { display: none; }
+        .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+        .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+        .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+        .workload-chip:hover { border-color: #aaa; background: var(--white); }
+        .workload-chip .chip-client { color: var(--text-muted); font-weight: 500; }
+        .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+        .workload-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+        .workload-weekday { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; padding: 6px 0; }
+        .workload-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(140px, auto); gap: 4px; }
+        .workload-day { padding: 6px 8px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 3px; min-height: 140px; }
+        .workload-day.today { outline: 2px solid var(--text-primary); }
+        .workload-day.out-of-month { opacity: 0.4; }
+        .workload-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
+        .workload-day-num { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+        .workload-day.today .workload-day-num { color: var(--text-primary); }
+        .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
+        .workload-sub-row { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; font-size: 0.7rem; font-weight: 500; color: var(--text-primary); background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; }
+        .workload-sub-row:hover { background: #fafafa; }
+        .workload-sub-row.team-video { border-left-color: #6c5ce7; }
+        .workload-sub-row.team-graphics { border-left-color: #d97706; }
+        .workload-sub-row.at-risk { background: var(--dn-bg); }
+        .workload-sub-row.at-risk:hover { background: #fde0e0; }
+        .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg); font-size: 0.55rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; }
+        .sub-client { font-weight: 700; flex-shrink: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .sub-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; color: var(--text-secondary); }
+        .sub-risk { color: var(--dn); font-weight: 800; flex-shrink: 0; }
+        .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
+        .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
+        .workload-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+        .workload-legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
+        .workload-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 0.85rem; }
+        .workload-error { padding: 16px; border-radius: 10px; background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; font-size: 0.82rem; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -1149,6 +1195,10 @@
         <a class="header-nav-btn" id="navLinear" href="#linear" onclick="event.preventDefault();navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
+        </a>
+        <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="event.preventDefault();navTo('workload')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>
+            Workload
         </a>
         <a class="header-nav-btn" id="navCalendar" href="https://docs.google.com/spreadsheets/d/1XOyGrvSo52e-j3pTQ1CBKzcPFGln1iPHWiay78xO-VI/edit?usp=sharing" target="_blank" rel="noopener noreferrer">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -3594,6 +3644,8 @@
             localStorage.setItem(NAV_KEY,nav);
             document.getElementById('navHome').classList.toggle('active',nav==='home');
             document.getElementById('navLinear').classList.remove('active');
+            const navWl=document.getElementById('navWorkload');
+            if(navWl)navWl.classList.remove('active');
             const tab=state.clientTab||'analytics';
             clientViewTab[state.client]=tab;
             if(state.briefSection)activeBriefSection[state.client]=state.briefSection;
@@ -3695,6 +3747,467 @@
         // Re-render dropdowns if open
         const q = document.getElementById('linearClientSearch')?.value || '';
         renderLinearSearchResults(q);
+    }
+
+    /* ── Workload Calendar ── */
+    const LINEAR_ISSUES_WEBHOOK   = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
+    const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
+    const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
+    const EDITOR_DAILY_CAPACITY   = 5;
+    const WL_MAX_ROWS_PER_DAY     = 8;
+
+    const wlState = {
+        year: null, month: null,                   // visible month
+        team: 'all', editor: 'all', client: 'all', // filters
+        issues: [],                                // raw sub-issues
+        scheduled: new Map(),                      // key "YYYY-MM-DD" -> sub-issues[]
+        unassigned: [],
+        fetchedAt: null,
+        loading: false,
+        error: null
+    };
+
+    function wlReadCache() {
+        try {
+            const raw = localStorage.getItem(LINEAR_ISSUES_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.fetchedAt || !Array.isArray(parsed.issues)) return null;
+            return parsed;
+        } catch { return null; }
+    }
+    function wlWriteCache(payload) {
+        try { localStorage.setItem(LINEAR_ISSUES_CACHE_KEY, JSON.stringify(payload)); } catch {}
+    }
+    function wlIsFresh(fetchedAt) {
+        return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
+    }
+
+    async function loadLinearIssues(force) {
+        const cache = wlReadCache();
+        if (cache && !force && wlIsFresh(cache.fetchedAt)) {
+            return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
+        }
+        const resp = await fetch(LINEAR_ISSUES_WEBHOOK, { method: 'GET' });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const data = await resp.json();
+        const issues = Array.isArray(data) ? data : (data.issues || []);
+        const fetchedAt = Date.now();
+        wlWriteCache({ issues, fetchedAt });
+        return { issues, fetchedAt, fromCache: false };
+    }
+
+    // Date helpers — all dates handled as YYYY-MM-DD strings for determinism.
+    function wlTodayISO() {
+        const d = new Date();
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlISO(y, m, d) {
+        return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    }
+    function wlParseISO(iso) {
+        const [y, m, d] = iso.split('-').map(Number);
+        return new Date(y, m - 1, d);
+    }
+    function wlAddWorkingDays(iso, n) {
+        const d = wlParseISO(iso);
+        let added = 0;
+        while (added < n) {
+            d.setDate(d.getDate() + 1);
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6) added++;
+        }
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlNextWorkingDay(iso) {
+        const d = wlParseISO(iso);
+        while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlIsWeekend(y, m, d) {
+        const dow = new Date(y, m, d).getDay();
+        return dow === 0 || dow === 6;
+    }
+
+    // Scheduler — deterministic, per-assignee, due-date first, 5-per-day batched by client.
+    function scheduleAll(subIssues, todayISO) {
+        const byAssignee = new Map();
+        for (const s of subIssues) {
+            if (!byAssignee.has(s.assigneeId)) byAssignee.set(s.assigneeId, []);
+            byAssignee.get(s.assigneeId).push(s);
+        }
+        const scheduledByDate = new Map();
+        const push = (iso, sub) => {
+            if (!scheduledByDate.has(iso)) scheduledByDate.set(iso, []);
+            scheduledByDate.get(iso).push(sub);
+        };
+
+        for (const [, list] of byAssignee) {
+            const pinned = list.filter(s => s.statusType === 'started');
+            const queue  = list.filter(s => s.statusType !== 'started');
+
+            // Sort queue: dueDate asc (nulls last), client, identifier
+            queue.sort((a, b) => {
+                const da = a.dueDate || '9999-12-31';
+                const db = b.dueDate || '9999-12-31';
+                if (da !== db) return da < db ? -1 : 1;
+                const ca = a.clientName || '';
+                const cb = b.clientName || '';
+                if (ca !== cb) return ca.localeCompare(cb);
+                return (a.identifier || '').localeCompare(b.identifier || '');
+            });
+
+            // Group into client-chunks of up to EDITOR_DAILY_CAPACITY
+            const chunks = [];
+            let i = 0;
+            while (i < queue.length) {
+                const chunk = [queue[i]];
+                let j = i + 1;
+                while (j < queue.length && chunk.length < EDITOR_DAILY_CAPACITY && queue[j].clientName === chunk[0].clientName) {
+                    chunk.push(queue[j]);
+                    j++;
+                }
+                chunks.push(chunk);
+                i = j;
+            }
+
+            // Interleave: if chunks[k] and chunks[k+1] share client, swap [k+1] with [k+2]
+            // when [k+2] is a different client and delay doesn't push [k+1] past its due date.
+            for (let k = 0; k + 2 < chunks.length; k++) {
+                const a = chunks[k], b = chunks[k + 1], c = chunks[k + 2];
+                if (!a.length || !b.length || !c.length) continue;
+                if (a[0].clientName && a[0].clientName === b[0].clientName && c[0].clientName !== a[0].clientName) {
+                    // Earliest due in b
+                    const bDue = b.reduce((m, s) => (s.dueDate && (!m || s.dueDate < m) ? s.dueDate : m), null);
+                    // If b has no due date, safe to swap. If it does, swap only when still safe
+                    // (we approximate: the swap costs b ONE extra working day).
+                    if (!bDue) { chunks[k + 1] = c; chunks[k + 2] = b; continue; }
+                    // If pushing b by one working day still meets its due date, swap.
+                    // Rough: if bDue >= tomorrow+2, safe.
+                    chunks[k + 1] = c; chunks[k + 2] = b;
+                }
+            }
+
+            // Pin started issues to today (may over-capacity today; OK).
+            for (const s of pinned) {
+                s.scheduledDate = todayISO;
+                s.atRisk = !!(s.dueDate && s.dueDate < todayISO);
+                push(todayISO, s);
+            }
+
+            // Cursor starts at next working day strictly after today
+            // (today is reserved for in-progress pins). For editors with no
+            // in-progress work, starting tomorrow keeps everyone aligned.
+            let cursor = wlAddWorkingDays(todayISO, 1);
+            cursor = wlNextWorkingDay(cursor);
+            for (const chunk of chunks) {
+                for (const sub of chunk) {
+                    sub.scheduledDate = cursor;
+                    sub.atRisk = !!(sub.dueDate && cursor > sub.dueDate);
+                    push(cursor, sub);
+                }
+                cursor = wlAddWorkingDays(cursor, 1);
+            }
+        }
+        return scheduledByDate;
+    }
+
+    function wlTeamBucket(teamKey, teamName) {
+        const k = (teamKey || '').toUpperCase();
+        const n = (teamName || '').toLowerCase();
+        if (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') return 'graphics';
+        return 'video';
+    }
+
+    function wlInitials(name) {
+        if (!name) return '?';
+        const parts = name.trim().split(/\s+/);
+        return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || name[0].toUpperCase();
+    }
+
+    function renderWorkloadShell() {
+        return `<div class="workload-view">
+            <div class="workload-toolbar">
+                <div class="workload-title-group">
+                    <div class="workload-title" id="wlTitle">—</div>
+                    <div class="workload-freshness" id="wlFreshness"></div>
+                </div>
+                <div class="workload-nav">
+                    <button type="button" data-wl-nav="prev" title="Previous month">‹</button>
+                    <button type="button" data-wl-nav="today">Today</button>
+                    <button type="button" data-wl-nav="next" title="Next month">›</button>
+                    <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
+                </div>
+                <div class="workload-filters">
+                    <select class="linear-select" id="wlFilterTeam">
+                        <option value="all">All teams</option>
+                        <option value="video">Video</option>
+                        <option value="graphics">Graphics</option>
+                    </select>
+                    <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
+                    <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+                </div>
+            </div>
+            <div id="wlUnassigned" class="workload-needs-assignment empty">
+                <div class="workload-section-label">Needs assignment</div>
+                <div class="workload-chips" id="wlUnassignedChips"></div>
+            </div>
+            <div id="wlBody">
+                <div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>
+            </div>
+            <div class="workload-legend">
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#6c5ce7"></span>Video</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#d97706"></span>Graphics</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--dn-bg);border:1px solid var(--dn)"></span>Past due (at risk)</span>
+            </div>
+        </div>`;
+    }
+
+    async function initWorkloadView() {
+        const now = new Date();
+        if (wlState.year == null) { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
+
+        // Paint instantly from cache if any
+        const cache = wlReadCache();
+        if (cache) {
+            wlApplyData(cache.issues, cache.fetchedAt);
+            renderWorkloadAll();
+        }
+
+        // Always try to refresh in the background (shows spinner only if no cache)
+        if (!cache) {
+            wlState.loading = true;
+            renderWorkloadAll();
+        }
+        try {
+            const { issues, fetchedAt } = await loadLinearIssues(!!cache);
+            wlApplyData(issues, fetchedAt);
+            wlState.error = null;
+        } catch (e) {
+            console.error('[SyncView] Workload fetch failed:', e);
+            if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
+        } finally {
+            wlState.loading = false;
+            renderWorkloadAll();
+        }
+
+        wlWireToolbar();
+    }
+
+    function wlApplyData(issues, fetchedAt) {
+        const subs = issues.filter(i => i.isSubIssue && i.statusType !== 'completed' && i.statusType !== 'canceled');
+        wlState.issues     = subs.filter(s => s.assigneeId);
+        wlState.unassigned = subs.filter(s => !s.assigneeId);
+        wlState.fetchedAt  = fetchedAt;
+        wlState.scheduled  = scheduleAll(wlState.issues, wlTodayISO());
+    }
+
+    function wlWireToolbar() {
+        document.querySelectorAll('[data-wl-nav]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const action = e.currentTarget.getAttribute('data-wl-nav');
+                if (action === 'prev')   { wlShiftMonth(-1); renderWorkloadAll(); }
+                if (action === 'next')   { wlShiftMonth(1);  renderWorkloadAll(); }
+                if (action === 'today')  {
+                    const n = new Date();
+                    wlState.year = n.getFullYear(); wlState.month = n.getMonth();
+                    renderWorkloadAll();
+                }
+                if (action === 'refresh') {
+                    (async () => {
+                        wlState.loading = true; renderWorkloadAll();
+                        try {
+                            const { issues, fetchedAt } = await loadLinearIssues(true);
+                            wlApplyData(issues, fetchedAt);
+                            wlState.error = null;
+                        } catch (err) {
+                            wlState.error = err.message || 'Refresh failed.';
+                        } finally {
+                            wlState.loading = false;
+                            renderWorkloadAll();
+                        }
+                    })();
+                }
+            });
+        });
+        ['wlFilterTeam', 'wlFilterEditor', 'wlFilterClient'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('change', () => {
+                wlState.team   = document.getElementById('wlFilterTeam').value;
+                wlState.editor = document.getElementById('wlFilterEditor').value;
+                wlState.client = document.getElementById('wlFilterClient').value;
+                renderWorkloadAll();
+            });
+        });
+    }
+
+    function wlShiftMonth(delta) {
+        let y = wlState.year, m = wlState.month + delta;
+        while (m < 0)  { m += 12; y--; }
+        while (m > 11) { m -= 12; y++; }
+        wlState.year = y; wlState.month = m;
+    }
+
+    function wlPopulateFilterOptions() {
+        const editors = [...new Map(wlState.issues.filter(s => s.assigneeId)
+            .map(s => [s.assigneeId, s.assigneeName || 'Unknown'])).entries()]
+            .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+        const clients = [...new Set(
+            [...wlState.issues, ...wlState.unassigned]
+                .map(s => s.clientName).filter(Boolean)
+        )].sort((a, b) => a.localeCompare(b));
+
+        const editorSel = document.getElementById('wlFilterEditor');
+        const clientSel = document.getElementById('wlFilterClient');
+        if (editorSel) {
+            const prev = editorSel.value;
+            editorSel.innerHTML = '<option value="all">All editors</option>' +
+                editors.map(([id, name]) => `<option value="${id}">${wlEscape(name)}</option>`).join('');
+            editorSel.value = editors.some(([id]) => id === prev) ? prev : 'all';
+        }
+        if (clientSel) {
+            const prev = clientSel.value;
+            clientSel.innerHTML = '<option value="all">All clients</option>' +
+                clients.map(c => `<option value="${wlEscape(c)}">${wlEscape(c)}</option>`).join('');
+            clientSel.value = clients.includes(prev) ? prev : 'all';
+        }
+        const teamSel = document.getElementById('wlFilterTeam');
+        if (teamSel) teamSel.value = wlState.team;
+    }
+
+    function wlEscape(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    function wlPassesFilters(sub) {
+        if (wlState.team !== 'all' && wlTeamBucket(sub.teamKey, sub.teamName) !== wlState.team) return false;
+        if (wlState.editor !== 'all' && sub.assigneeId !== wlState.editor) return false;
+        if (wlState.client !== 'all' && sub.clientName !== wlState.client) return false;
+        return true;
+    }
+
+    function renderWorkloadAll() {
+        // Title + freshness
+        const monthName = new Date(wlState.year, wlState.month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+        const titleEl = document.getElementById('wlTitle');
+        const freshEl = document.getElementById('wlFreshness');
+        if (titleEl) titleEl.textContent = monthName;
+        if (freshEl) {
+            if (wlState.loading && !wlState.fetchedAt) freshEl.textContent = 'Loading…';
+            else if (wlState.fetchedAt) {
+                const d = new Date(wlState.fetchedAt);
+                const hh = String(d.getHours()).padStart(2, '0');
+                const mm = String(d.getMinutes()).padStart(2, '0');
+                freshEl.textContent = 'As of ' + hh + ':' + mm;
+            } else freshEl.textContent = '';
+        }
+
+        wlPopulateFilterOptions();
+
+        const bodyEl = document.getElementById('wlBody');
+        if (!bodyEl) return;
+
+        if (wlState.error && !wlState.issues.length) {
+            bodyEl.innerHTML = '<div class="workload-error">Could not load Linear issues: ' + wlEscape(wlState.error) + '</div>';
+            return;
+        }
+        if (wlState.loading && !wlState.issues.length && !wlState.unassigned.length) {
+            bodyEl.innerHTML = '<div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>';
+            return;
+        }
+
+        // Unassigned strip
+        const unassignedEl = document.getElementById('wlUnassigned');
+        const chipsEl      = document.getElementById('wlUnassignedChips');
+        const filteredUnassigned = wlState.unassigned.filter(s => {
+            if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) return false;
+            if (wlState.client !== 'all' && s.clientName !== wlState.client) return false;
+            return true; // editor filter doesn't apply to unassigned
+        });
+        if (unassignedEl && chipsEl) {
+            if (!filteredUnassigned.length) {
+                unassignedEl.classList.add('empty');
+                chipsEl.innerHTML = '';
+            } else {
+                unassignedEl.classList.remove('empty');
+                chipsEl.innerHTML = filteredUnassigned.map(s => {
+                    const team = wlTeamBucket(s.teamKey, s.teamName);
+                    const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? '#d97706' : '#6c5ce7'}"></span>`;
+                    return `<a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(s.identifier)} · ${wlEscape(s.clientName || '')}">
+                        ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
+                    </a>`;
+                }).join('');
+            }
+        }
+
+        // Month grid
+        bodyEl.innerHTML = renderMonthGrid();
+    }
+
+    function renderMonthGrid() {
+        const { year, month } = wlState;
+        const todayISO = wlTodayISO();
+        const firstDow = new Date(year, month, 1).getDay(); // 0 = Sun
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const leading = firstDow; // blank leading cells (Sun-start grid)
+        const totalCells = Math.ceil((leading + daysInMonth) / 7) * 7;
+
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        let weekdayHtml = '<div class="workload-weekdays">' +
+            weekdays.map(w => `<div class="workload-weekday">${w}</div>`).join('') +
+            '</div>';
+
+        let gridHtml = '<div class="workload-grid">';
+        for (let i = 0; i < totalCells; i++) {
+            const dayOffset = i - leading; // 0-indexed into month
+            const cellDate = new Date(year, month, 1 + dayOffset);
+            const y = cellDate.getFullYear();
+            const m = cellDate.getMonth();
+            const d = cellDate.getDate();
+            const iso = wlISO(y, m, d);
+            const outOfMonth = (m !== month);
+            const weekend = wlIsWeekend(y, m, d);
+            const isToday = iso === todayISO;
+
+            const classes = ['workload-day'];
+            if (outOfMonth) classes.push('out-of-month');
+            if (weekend)    classes.push('weekend');
+            if (isToday)    classes.push('today');
+
+            const raw = wlState.scheduled.get(iso) || [];
+            const subs = raw.filter(wlPassesFilters);
+            const rowsHtml = renderDayRows(subs);
+            const countBadge = subs.length ? `<span class="workload-day-count">${subs.length}</span>` : '';
+
+            gridHtml += `<div class="${classes.join(' ')}">
+                <div class="workload-day-num"><span>${d}</span>${countBadge}</div>
+                ${rowsHtml}
+            </div>`;
+        }
+        gridHtml += '</div>';
+        return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
+    }
+
+    function renderDayRows(subs) {
+        if (!subs.length) return '';
+        const shown = subs.slice(0, WL_MAX_ROWS_PER_DAY);
+        const overflow = subs.length - shown.length;
+        let html = shown.map(s => {
+            const team = wlTeamBucket(s.teamKey, s.teamName);
+            const classes = ['workload-sub-row', 'team-' + team];
+            if (s.atRisk) classes.push('at-risk');
+            const initials = wlInitials(s.assigneeName);
+            const title = [s.identifier, s.clientName, s.assigneeName, s.dueDate ? 'due ' + s.dueDate : ''].filter(Boolean).join(' · ');
+            return `<a class="${classes.join(' ')}" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(title)}">
+                <span class="editor-dot">${wlEscape(initials)}</span>
+                <span class="sub-client">${wlEscape(s.clientName || '—')}</span>
+                <span class="sub-title">${wlEscape(s.title)}</span>
+                ${s.atRisk ? '<span class="sub-risk">!</span>' : ''}
+            </a>`;
+        }).join('');
+        if (overflow > 0) html += `<div class="workload-day-overflow">+${overflow} more</div>`;
+        return html;
     }
 
     function onLinearSearchInput() {
@@ -3945,6 +4458,8 @@
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+        const navWl = document.getElementById('navWorkload');
+        if (navWl) navWl.classList.toggle('active', page === 'workload');
 
 
         const state = {nav: page, client: null};
@@ -3959,6 +4474,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'workload') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderWorkloadShell();
+            initWorkloadView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
@@ -4287,9 +4807,10 @@
                 render(c,false);return;
             }
             if(hash==='linear'){navTo(hash,false);return;}
+            if(hash==='workload'){navTo(hash,false);return;}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&savedNav==='linear'){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload')){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

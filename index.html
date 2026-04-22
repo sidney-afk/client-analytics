@@ -1097,44 +1097,71 @@
         .editor-search-suggestion .s-match { color: var(--text-primary); font-weight: 700; }
 
         /* Workload calendar */
-        .workload-view { max-width: 1320px; margin: 0 auto; animation: fadeIn 0.15s ease; }
+        .workload-view { max-width: 1440px; margin: 0 auto; animation: fadeIn 0.15s ease; }
         .workload-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-        .workload-title-group { display: flex; align-items: baseline; gap: 12px; }
-        .workload-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
-        .workload-freshness { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+        .workload-toolbar-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .workload-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .workload-title-group { display: flex; flex-direction: column; gap: 2px; }
+        .workload-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+        .workload-freshness { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; }
         .workload-nav { display: inline-flex; align-items: center; gap: 6px; }
         .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; }
         .workload-nav button:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
-        .workload-filters { display: flex; gap: 8px; flex-wrap: wrap; }
+        .workload-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+        .workload-pills button { border: 0; background: transparent; border-radius: 8px; padding: 5px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.12s; letter-spacing: 0.01em; }
+        .workload-pills button:hover { color: var(--text-primary); }
+        .workload-pills button.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
+        .workload-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
         .workload-filters .linear-select { padding: 8px 32px 8px 12px; font-size: 0.78rem; min-width: 140px; }
+        .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+        .workload-now { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+        .workload-now.empty { display: none; }
+        .workload-now-label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .workload-now-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.18); }
+        .workload-now-editors { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+        .workload-now-editor { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); min-width: 0; }
+        .workload-now-editor .editor-dot { width: 24px; height: 24px; font-size: 0.62rem; }
+        .workload-now-name { font-weight: 700; font-size: 0.78rem; color: var(--text-primary); flex-shrink: 0; }
+        .workload-now-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+        .workload-now-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: var(--white); border: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; color: var(--text-primary); text-decoration: none; cursor: pointer; transition: all 0.12s; }
+        .workload-now-chip:hover { border-color: #888; background: var(--bg); }
+        .workload-now-chip .chip-count { background: var(--text-primary); color: var(--white); border-radius: 999px; padding: 1px 6px; font-size: 0.62rem; font-weight: 700; }
+        .workload-now-chip.team-video  { border-left: 3px solid #6c5ce7; border-left-width: 3px; padding-left: 6px; }
+        .workload-now-chip.team-graphics { border-left: 3px solid #d97706; border-left-width: 3px; padding-left: 6px; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
-        .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: #aaa; background: var(--white); }
         .workload-chip .chip-client { color: var(--text-muted); font-weight: 500; }
         .workload-grid-wrap { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
-        .workload-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+        .workload-weekdays { display: grid; gap: 4px; margin-bottom: 6px; }
+        .workload-weekdays.month { grid-template-columns: repeat(7, 1fr); }
+        .workload-weekdays.week { grid-template-columns: repeat(5, 1fr); }
         .workload-weekday { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); text-align: center; padding: 6px 0; }
-        .workload-grid { display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(140px, auto); gap: 4px; }
-        .workload-day { padding: 6px 8px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 3px; min-height: 140px; }
+        .workload-grid { display: grid; gap: 4px; }
+        .workload-grid.month { grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(140px, auto); }
+        .workload-grid.week  { grid-template-columns: repeat(5, 1fr); grid-auto-rows: minmax(420px, auto); }
+        .workload-day { padding: 8px 10px; border-radius: 8px; background: var(--bg); overflow: hidden; display: flex; flex-direction: column; gap: 5px; min-height: 140px; }
+        .workload-grid.week .workload-day { min-height: 420px; gap: 6px; padding: 10px 12px; }
         .workload-day.today { outline: 2px solid var(--text-primary); }
         .workload-day.out-of-month { opacity: 0.4; }
         .workload-day.weekend { background: transparent; border: 1px dashed var(--border-light); }
         .workload-day-num { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; display: flex; justify-content: space-between; align-items: center; }
+        .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
         .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
-        .workload-sub-row { display: flex; align-items: center; gap: 5px; padding: 3px 6px; border-radius: 5px; font-size: 0.7rem; font-weight: 500; color: var(--text-primary); background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; }
-        .workload-sub-row:hover { background: #fafafa; }
-        .workload-sub-row.team-video { border-left-color: #6c5ce7; }
-        .workload-sub-row.team-graphics { border-left-color: #d97706; }
-        .workload-sub-row.at-risk { background: var(--dn-bg); }
-        .workload-sub-row.at-risk:hover { background: #fde0e0; }
-        .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: var(--bg); font-size: 0.55rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; }
-        .sub-client { font-weight: 700; flex-shrink: 0; max-width: 50%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .sub-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; color: var(--text-secondary); }
-        .sub-risk { color: var(--dn); font-weight: 800; flex-shrink: 0; }
+        .workload-rollup { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: var(--text-primary); background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s, transform 0.1s; min-width: 0; text-decoration: none; }
+        .workload-grid.week .workload-rollup { padding: 7px 10px; font-size: 0.78rem; }
+        .workload-rollup:hover { background: #fafafa; }
+        .workload-rollup.team-video    { border-left-color: #6c5ce7; }
+        .workload-rollup.team-graphics { border-left-color: #d97706; }
+        .workload-rollup.at-risk       { background: var(--dn-bg); }
+        .workload-rollup.at-risk:hover { background: #fde0e0; }
+        .workload-rollup .rollup-client { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .workload-rollup .rollup-count  { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: 0.66rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
+        .workload-rollup .rollup-risk   { color: var(--dn); font-weight: 800; flex-shrink: 0; }
+        .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 0.58rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; border: 1px solid var(--border); }
         .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
         .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
         .workload-legend-item { display: inline-flex; align-items: center; gap: 6px; }
@@ -3754,14 +3781,19 @@
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const EDITOR_DAILY_CAPACITY   = 5;
-    const WL_MAX_ROWS_PER_DAY     = 8;
+    const WL_MAX_ROWS_PER_DAY     = 10;
+    const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
 
     const wlState = {
-        year: null, month: null,                   // visible month
+        viewMode: 'week',                          // 'week' | 'month'
+        year: null, month: null,                   // visible month (month view)
+        weekStart: null,                           // ISO Monday of visible week (week view)
         team: 'all', editor: 'all', client: 'all', // filters
-        issues: [],                                // raw sub-issues
-        scheduled: new Map(),                      // key "YYYY-MM-DD" -> sub-issues[]
-        unassigned: [],
+        planned: [],                               // assigned sub-issues with dueDate, not In Progress
+        nowWorking: [],                            // assigned sub-issues currently "In Progress"
+        unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
+        parentById: new Map(),                     // parent issue lookup for rollup link-outs
+        scheduled: new Map(),                      // key "YYYY-MM-DD" -> planned sub-issues[]
         fetchedAt: null,
         loading: false,
         error: null
@@ -3828,11 +3860,35 @@
         const dow = new Date(y, m, d).getDay();
         return dow === 0 || dow === 6;
     }
+    function wlWeekMondayISO(iso) {
+        const d = wlParseISO(iso);
+        const dow = d.getDay(); // 0=Sun..6=Sat
+        const diff = dow === 0 ? -6 : 1 - dow;
+        d.setDate(d.getDate() + diff);
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlAddDays(iso, n) {
+        const d = wlParseISO(iso);
+        d.setDate(d.getDate() + n);
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlFormatShort(iso) {
+        const d = wlParseISO(iso);
+        return d.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' });
+    }
+
+    // Status classification — user rule:
+    //   "Right now" = status name is literally "In Progress".
+    //   Everything else with statusType === 'started' (For SMM approval, Tweak Applied, …) is parked.
+    function wlIsInProgress(sub) {
+        return (sub.status || '').trim().toLowerCase() === 'in progress';
+    }
 
     // Scheduler — deterministic, per-assignee, due-date first, 5-per-day batched by client.
-    function scheduleAll(subIssues, todayISO) {
+    // Only items that have a dueDate and are NOT currently "In Progress" are scheduled.
+    function scheduleAll(plannedSubs, todayISO) {
         const byAssignee = new Map();
-        for (const s of subIssues) {
+        for (const s of plannedSubs) {
             if (!byAssignee.has(s.assigneeId)) byAssignee.set(s.assigneeId, []);
             byAssignee.get(s.assigneeId).push(s);
         }
@@ -3842,11 +3898,7 @@
             scheduledByDate.get(iso).push(sub);
         };
 
-        for (const [, list] of byAssignee) {
-            const pinned = list.filter(s => s.statusType === 'started');
-            const queue  = list.filter(s => s.statusType !== 'started');
-
-            // Sort queue: dueDate asc (nulls last), client, identifier
+        for (const [, queue] of byAssignee) {
             queue.sort((a, b) => {
                 const da = a.dueDate || '9999-12-31';
                 const db = b.dueDate || '9999-12-31';
@@ -3857,7 +3909,7 @@
                 return (a.identifier || '').localeCompare(b.identifier || '');
             });
 
-            // Group into client-chunks of up to EDITOR_DAILY_CAPACITY
+            // Group consecutive same-client items into chunks of up to EDITOR_DAILY_CAPACITY.
             const chunks = [];
             let i = 0;
             while (i < queue.length) {
@@ -3871,35 +3923,8 @@
                 i = j;
             }
 
-            // Interleave: if chunks[k] and chunks[k+1] share client, swap [k+1] with [k+2]
-            // when [k+2] is a different client and delay doesn't push [k+1] past its due date.
-            for (let k = 0; k + 2 < chunks.length; k++) {
-                const a = chunks[k], b = chunks[k + 1], c = chunks[k + 2];
-                if (!a.length || !b.length || !c.length) continue;
-                if (a[0].clientName && a[0].clientName === b[0].clientName && c[0].clientName !== a[0].clientName) {
-                    // Earliest due in b
-                    const bDue = b.reduce((m, s) => (s.dueDate && (!m || s.dueDate < m) ? s.dueDate : m), null);
-                    // If b has no due date, safe to swap. If it does, swap only when still safe
-                    // (we approximate: the swap costs b ONE extra working day).
-                    if (!bDue) { chunks[k + 1] = c; chunks[k + 2] = b; continue; }
-                    // If pushing b by one working day still meets its due date, swap.
-                    // Rough: if bDue >= tomorrow+2, safe.
-                    chunks[k + 1] = c; chunks[k + 2] = b;
-                }
-            }
-
-            // Pin started issues to today (may over-capacity today; OK).
-            for (const s of pinned) {
-                s.scheduledDate = todayISO;
-                s.atRisk = !!(s.dueDate && s.dueDate < todayISO);
-                push(todayISO, s);
-            }
-
-            // Cursor starts at next working day strictly after today
-            // (today is reserved for in-progress pins). For editors with no
-            // in-progress work, starting tomorrow keeps everyone aligned.
-            let cursor = wlAddWorkingDays(todayISO, 1);
-            cursor = wlNextWorkingDay(cursor);
+            // Cursor starts at the next working day today-or-later.
+            let cursor = wlNextWorkingDay(todayISO);
             for (const chunk of chunks) {
                 for (const sub of chunk) {
                     sub.scheduledDate = cursor;
@@ -3928,25 +3953,40 @@
     function renderWorkloadShell() {
         return `<div class="workload-view">
             <div class="workload-toolbar">
-                <div class="workload-title-group">
-                    <div class="workload-title" id="wlTitle">—</div>
-                    <div class="workload-freshness" id="wlFreshness"></div>
+                <div class="workload-toolbar-left">
+                    <div class="workload-title-group">
+                        <div class="workload-title" id="wlTitle">—</div>
+                        <div class="workload-freshness" id="wlFreshness"></div>
+                    </div>
+                    <div class="workload-nav">
+                        <button type="button" data-wl-nav="prev" title="Previous">‹</button>
+                        <button type="button" data-wl-nav="today">Today</button>
+                        <button type="button" data-wl-nav="next" title="Next">›</button>
+                        <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
+                    </div>
+                    <div class="workload-pills" id="wlViewPills" role="tablist" aria-label="View">
+                        <button type="button" data-wl-view="week">Week</button>
+                        <button type="button" data-wl-view="month">Month</button>
+                    </div>
                 </div>
-                <div class="workload-nav">
-                    <button type="button" data-wl-nav="prev" title="Previous month">‹</button>
-                    <button type="button" data-wl-nav="today">Today</button>
-                    <button type="button" data-wl-nav="next" title="Next month">›</button>
-                    <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
+                <div class="workload-toolbar-right">
+                    <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
+                        <button type="button" data-wl-team="all">All</button>
+                        <button type="button" data-wl-team="video">Video</button>
+                        <button type="button" data-wl-team="graphics">Graphics</button>
+                    </div>
+                    <div class="workload-filters">
+                        <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
+                        <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+                    </div>
                 </div>
-                <div class="workload-filters">
-                    <select class="linear-select" id="wlFilterTeam">
-                        <option value="all">All teams</option>
-                        <option value="video">Video</option>
-                        <option value="graphics">Graphics</option>
-                    </select>
-                    <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
-                    <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+            </div>
+            <div id="wlNow" class="workload-now empty">
+                <div class="workload-now-label">
+                    <span class="workload-now-dot"></span>
+                    <span class="workload-section-label" style="margin:0;">Working on now</span>
                 </div>
+                <div class="workload-now-editors" id="wlNowEditors"></div>
             </div>
             <div id="wlUnassigned" class="workload-needs-assignment empty">
                 <div class="workload-section-label">Needs assignment</div>
@@ -3959,26 +3999,30 @@
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#6c5ce7"></span>Video</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#d97706"></span>Graphics</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--dn-bg);border:1px solid var(--dn)"></span>Past due (at risk)</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#10b981"></span>In Progress (right now)</span>
             </div>
         </div>`;
     }
 
     async function initWorkloadView() {
         const now = new Date();
-        if (wlState.year == null) { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
+        const todayISO = wlTodayISO();
+        if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
+        if (wlState.weekStart == null) { wlState.weekStart = wlWeekMondayISO(todayISO); }
+        try {
+            const pref = localStorage.getItem(WL_VIEW_PREF_KEY);
+            if (pref === 'week' || pref === 'month') wlState.viewMode = pref;
+        } catch {}
 
-        // Paint instantly from cache if any
         const cache = wlReadCache();
         if (cache) {
             wlApplyData(cache.issues, cache.fetchedAt);
             renderWorkloadAll();
-        }
-
-        // Always try to refresh in the background (shows spinner only if no cache)
-        if (!cache) {
+        } else {
             wlState.loading = true;
             renderWorkloadAll();
         }
+
         try {
             const { issues, fetchedAt } = await loadLinearIssues(!!cache);
             wlApplyData(issues, fetchedAt);
@@ -3995,22 +4039,50 @@
     }
 
     function wlApplyData(issues, fetchedAt) {
+        const parentById = new Map();
+        for (const i of issues) {
+            if (!i.isSubIssue) parentById.set(i.id, i);
+        }
+        wlState.parentById = parentById;
+
         const subs = issues.filter(i => i.isSubIssue && i.statusType !== 'completed' && i.statusType !== 'canceled');
-        wlState.issues     = subs.filter(s => s.assigneeId);
-        wlState.unassigned = subs.filter(s => !s.assigneeId);
+
+        const nowWorking = [];
+        const planned    = [];
+        const unassigned = [];
+        for (const s of subs) {
+            const inProg = wlIsInProgress(s);
+            const hasDue = !!s.dueDate;
+            if (!s.assigneeId) {
+                if (inProg || hasDue) unassigned.push(s);
+                continue;
+            }
+            if (inProg) {
+                nowWorking.push(s);
+                continue;
+            }
+            if (hasDue) planned.push(s);
+            // else: assigned, no due date, not in progress -> dropped
+        }
+
+        wlState.nowWorking = nowWorking;
+        wlState.planned    = planned;
+        wlState.unassigned = unassigned;
         wlState.fetchedAt  = fetchedAt;
-        wlState.scheduled  = scheduleAll(wlState.issues, wlTodayISO());
+        wlState.scheduled  = scheduleAll(planned, wlTodayISO());
     }
 
     function wlWireToolbar() {
         document.querySelectorAll('[data-wl-nav]').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const action = e.currentTarget.getAttribute('data-wl-nav');
-                if (action === 'prev')   { wlShiftMonth(-1); renderWorkloadAll(); }
-                if (action === 'next')   { wlShiftMonth(1);  renderWorkloadAll(); }
-                if (action === 'today')  {
+                if (action === 'prev')    { wlShiftPeriod(-1); renderWorkloadAll(); }
+                if (action === 'next')    { wlShiftPeriod(1);  renderWorkloadAll(); }
+                if (action === 'today')   {
+                    const today = wlTodayISO();
                     const n = new Date();
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
+                    wlState.weekStart = wlWeekMondayISO(today);
                     renderWorkloadAll();
                 }
                 if (action === 'refresh') {
@@ -4030,11 +4102,25 @@
                 }
             });
         });
-        ['wlFilterTeam', 'wlFilterEditor', 'wlFilterClient'].forEach(id => {
+        document.querySelectorAll('[data-wl-view]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const mode = e.currentTarget.getAttribute('data-wl-view');
+                if (mode !== 'week' && mode !== 'month') return;
+                wlState.viewMode = mode;
+                try { localStorage.setItem(WL_VIEW_PREF_KEY, mode); } catch {}
+                renderWorkloadAll();
+            });
+        });
+        document.querySelectorAll('[data-wl-team]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                wlState.team = e.currentTarget.getAttribute('data-wl-team') || 'all';
+                renderWorkloadAll();
+            });
+        });
+        ['wlFilterEditor', 'wlFilterClient'].forEach(id => {
             const el = document.getElementById(id);
             if (!el) return;
             el.addEventListener('change', () => {
-                wlState.team   = document.getElementById('wlFilterTeam').value;
                 wlState.editor = document.getElementById('wlFilterEditor').value;
                 wlState.client = document.getElementById('wlFilterClient').value;
                 renderWorkloadAll();
@@ -4042,21 +4128,24 @@
         });
     }
 
-    function wlShiftMonth(delta) {
-        let y = wlState.year, m = wlState.month + delta;
-        while (m < 0)  { m += 12; y--; }
-        while (m > 11) { m -= 12; y++; }
-        wlState.year = y; wlState.month = m;
+    function wlShiftPeriod(delta) {
+        if (wlState.viewMode === 'week') {
+            wlState.weekStart = wlAddDays(wlState.weekStart, 7 * delta);
+        } else {
+            let y = wlState.year, m = wlState.month + delta;
+            while (m < 0)  { m += 12; y--; }
+            while (m > 11) { m -= 12; y++; }
+            wlState.year = y; wlState.month = m;
+        }
     }
 
     function wlPopulateFilterOptions() {
-        const editors = [...new Map(wlState.issues.filter(s => s.assigneeId)
+        const source = [...wlState.planned, ...wlState.nowWorking, ...wlState.unassigned];
+        const editors = [...new Map(source.filter(s => s.assigneeId)
             .map(s => [s.assigneeId, s.assigneeName || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
-        const clients = [...new Set(
-            [...wlState.issues, ...wlState.unassigned]
-                .map(s => s.clientName).filter(Boolean)
-        )].sort((a, b) => a.localeCompare(b));
+        const clients = [...new Set(source.map(s => s.clientName).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
 
         const editorSel = document.getElementById('wlFilterEditor');
         const clientSel = document.getElementById('wlFilterClient');
@@ -4072,8 +4161,12 @@
                 clients.map(c => `<option value="${wlEscape(c)}">${wlEscape(c)}</option>`).join('');
             clientSel.value = clients.includes(prev) ? prev : 'all';
         }
-        const teamSel = document.getElementById('wlFilterTeam');
-        if (teamSel) teamSel.value = wlState.team;
+        document.querySelectorAll('[data-wl-team]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-wl-team') === wlState.team);
+        });
+        document.querySelectorAll('[data-wl-view]').forEach(btn => {
+            btn.classList.toggle('active', btn.getAttribute('data-wl-view') === wlState.viewMode);
+        });
     }
 
     function wlEscape(s) {
@@ -4087,12 +4180,31 @@
         return true;
     }
 
+    // URL for the parent issue if we have it; else fall back to the sub-issue URL.
+    function wlParentUrl(sub) {
+        if (sub.parentId && wlState.parentById.has(sub.parentId)) {
+            return wlState.parentById.get(sub.parentId).url || sub.url;
+        }
+        return sub.url;
+    }
+
     function renderWorkloadAll() {
-        // Title + freshness
-        const monthName = new Date(wlState.year, wlState.month, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         const titleEl = document.getElementById('wlTitle');
         const freshEl = document.getElementById('wlFreshness');
-        if (titleEl) titleEl.textContent = monthName;
+        if (titleEl) {
+            if (wlState.viewMode === 'week') {
+                const ws = wlState.weekStart;
+                const we = wlAddDays(ws, 4); // Mon..Fri
+                const wsD = wlParseISO(ws), weD = wlParseISO(we);
+                const sameMonth = wsD.getMonth() === weD.getMonth() && wsD.getFullYear() === weD.getFullYear();
+                titleEl.textContent = sameMonth
+                    ? wlFormatShort(ws) + ' – ' + weD.getDate() + ', ' + weD.getFullYear()
+                    : wlFormatShort(ws) + ' – ' + wlFormatShort(we) + ', ' + weD.getFullYear();
+            } else {
+                titleEl.textContent = new Date(wlState.year, wlState.month, 1)
+                    .toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+            }
+        }
         if (freshEl) {
             if (wlState.loading && !wlState.fetchedAt) freshEl.textContent = 'Loading…';
             else if (wlState.fetchedAt) {
@@ -4104,63 +4216,171 @@
         }
 
         wlPopulateFilterOptions();
+        renderNowPanel();
+        renderUnassignedStrip();
 
         const bodyEl = document.getElementById('wlBody');
         if (!bodyEl) return;
 
-        if (wlState.error && !wlState.issues.length) {
+        const hasAnyData = wlState.planned.length || wlState.nowWorking.length || wlState.unassigned.length;
+        if (wlState.error && !hasAnyData) {
             bodyEl.innerHTML = '<div class="workload-error">Could not load Linear issues: ' + wlEscape(wlState.error) + '</div>';
             return;
         }
-        if (wlState.loading && !wlState.issues.length && !wlState.unassigned.length) {
+        if (wlState.loading && !hasAnyData) {
             bodyEl.innerHTML = '<div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>';
             return;
         }
 
-        // Unassigned strip
+        bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
+    }
+
+    // Group a list of sub-issues into (assigneeId × clientName) rollups.
+    function wlGroupRollups(subs) {
+        const map = new Map();
+        for (const s of subs) {
+            const key = (s.assigneeId || '?') + '|' + (s.clientName || '');
+            if (!map.has(key)) {
+                map.set(key, {
+                    assigneeId: s.assigneeId,
+                    assigneeName: s.assigneeName,
+                    clientName: s.clientName,
+                    teamKey: s.teamKey,
+                    teamName: s.teamName,
+                    parentId: s.parentId,
+                    anySub: s,
+                    count: 0,
+                    atRisk: false,
+                });
+            }
+            const g = map.get(key);
+            g.count++;
+            if (s.atRisk) g.atRisk = true;
+        }
+        return [...map.values()].sort((a, b) => {
+            const na = a.assigneeName || ''; const nb = b.assigneeName || '';
+            if (na !== nb) return na.localeCompare(nb);
+            return (a.clientName || '').localeCompare(b.clientName || '');
+        });
+    }
+
+    function renderNowPanel() {
+        const wrap = document.getElementById('wlNow');
+        const inner = document.getElementById('wlNowEditors');
+        if (!wrap || !inner) return;
+
+        const subs = wlState.nowWorking.filter(wlPassesFilters);
+        if (!subs.length) {
+            wrap.classList.add('empty');
+            inner.innerHTML = '';
+            return;
+        }
+        wrap.classList.remove('empty');
+
+        // Group: editor -> array of (client × count) chips
+        const byEditor = new Map();
+        for (const s of subs) {
+            const key = s.assigneeId || '?';
+            if (!byEditor.has(key)) byEditor.set(key, { name: s.assigneeName || 'Unknown', groups: new Map() });
+            const ed = byEditor.get(key);
+            const gkey = (s.clientName || '') + '|' + (s.parentId || '');
+            if (!ed.groups.has(gkey)) ed.groups.set(gkey, { clientName: s.clientName, teamKey: s.teamKey, teamName: s.teamName, parentId: s.parentId, anySub: s, count: 0 });
+            ed.groups.get(gkey).count++;
+        }
+        const editors = [...byEditor.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+        inner.innerHTML = editors.map(ed => {
+            const chips = [...ed.groups.values()]
+                .sort((a, b) => (a.clientName || '').localeCompare(b.clientName || ''))
+                .map(g => {
+                    const team = wlTeamBucket(g.teamKey, g.teamName);
+                    const href = wlParentUrl(g.anySub);
+                    return `<a class="workload-now-chip team-${team}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape((g.clientName || '—') + ' · ' + g.count + ' in progress')}">
+                        <span>${wlEscape(g.clientName || '—')}</span>
+                        <span class="chip-count">${g.count}</span>
+                    </a>`;
+                }).join('');
+            return `<div class="workload-now-editor">
+                <span class="editor-dot" title="${wlEscape(ed.name)}">${wlEscape(wlInitials(ed.name))}</span>
+                <span class="workload-now-name">${wlEscape(ed.name)}</span>
+                <span class="workload-now-chips">${chips}</span>
+            </div>`;
+        }).join('');
+    }
+
+    function renderUnassignedStrip() {
         const unassignedEl = document.getElementById('wlUnassigned');
         const chipsEl      = document.getElementById('wlUnassignedChips');
-        const filteredUnassigned = wlState.unassigned.filter(s => {
+        if (!unassignedEl || !chipsEl) return;
+        const filtered = wlState.unassigned.filter(s => {
             if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) return false;
             if (wlState.client !== 'all' && s.clientName !== wlState.client) return false;
             return true; // editor filter doesn't apply to unassigned
         });
-        if (unassignedEl && chipsEl) {
-            if (!filteredUnassigned.length) {
-                unassignedEl.classList.add('empty');
-                chipsEl.innerHTML = '';
-            } else {
-                unassignedEl.classList.remove('empty');
-                chipsEl.innerHTML = filteredUnassigned.map(s => {
-                    const team = wlTeamBucket(s.teamKey, s.teamName);
-                    const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? '#d97706' : '#6c5ce7'}"></span>`;
-                    return `<a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(s.identifier)} · ${wlEscape(s.clientName || '')}">
-                        ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
-                    </a>`;
-                }).join('');
-            }
+        if (!filtered.length) {
+            unassignedEl.classList.add('empty');
+            chipsEl.innerHTML = '';
+            return;
         }
+        unassignedEl.classList.remove('empty');
+        chipsEl.innerHTML = filtered.map(s => {
+            const team = wlTeamBucket(s.teamKey, s.teamName);
+            const dot = `<span class="workload-legend-swatch" style="background:${team === 'graphics' ? '#d97706' : '#6c5ce7'}"></span>`;
+            return `<a class="workload-chip" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(s.identifier)} · ${wlEscape(s.clientName || '')}">
+                ${dot}<span>${wlEscape(s.title)}</span><span class="chip-client">${wlEscape(s.clientName || '')}</span>
+            </a>`;
+        }).join('');
+    }
 
-        // Month grid
-        bodyEl.innerHTML = renderMonthGrid();
+    function renderWeekGrid() {
+        const todayISO = wlTodayISO();
+        const start = wlState.weekStart; // Monday
+        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        let weekdayHtml = '<div class="workload-weekdays week">';
+        for (let i = 0; i < 5; i++) {
+            const iso = wlAddDays(start, i);
+            const d = wlParseISO(iso);
+            weekdayHtml += `<div class="workload-weekday">${labels[i]} · ${d.getDate()}</div>`;
+        }
+        weekdayHtml += '</div>';
+
+        let gridHtml = '<div class="workload-grid week">';
+        for (let i = 0; i < 5; i++) {
+            const iso = wlAddDays(start, i);
+            const d = wlParseISO(iso);
+            const isToday = iso === todayISO;
+            const classes = ['workload-day'];
+            if (isToday) classes.push('today');
+            const raw = wlState.scheduled.get(iso) || [];
+            const subs = raw.filter(wlPassesFilters);
+            const groups = wlGroupRollups(subs);
+            const rowsHtml = renderDayRollups(groups, subs.length);
+            const countBadge = subs.length ? `<span class="workload-day-count">${subs.length}</span>` : '';
+            gridHtml += `<div class="${classes.join(' ')}">
+                <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
+                ${rowsHtml}
+            </div>`;
+        }
+        gridHtml += '</div>';
+        return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
     }
 
     function renderMonthGrid() {
         const { year, month } = wlState;
         const todayISO = wlTodayISO();
-        const firstDow = new Date(year, month, 1).getDay(); // 0 = Sun
+        const firstDow = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const leading = firstDow; // blank leading cells (Sun-start grid)
+        const leading = firstDow;
         const totalCells = Math.ceil((leading + daysInMonth) / 7) * 7;
 
         const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        let weekdayHtml = '<div class="workload-weekdays">' +
+        let weekdayHtml = '<div class="workload-weekdays month">' +
             weekdays.map(w => `<div class="workload-weekday">${w}</div>`).join('') +
             '</div>';
 
-        let gridHtml = '<div class="workload-grid">';
+        let gridHtml = '<div class="workload-grid month">';
         for (let i = 0; i < totalCells; i++) {
-            const dayOffset = i - leading; // 0-indexed into month
+            const dayOffset = i - leading;
             const cellDate = new Date(year, month, 1 + dayOffset);
             const y = cellDate.getFullYear();
             const m = cellDate.getMonth();
@@ -4177,7 +4397,8 @@
 
             const raw = wlState.scheduled.get(iso) || [];
             const subs = raw.filter(wlPassesFilters);
-            const rowsHtml = renderDayRows(subs);
+            const groups = wlGroupRollups(subs);
+            const rowsHtml = renderDayRollups(groups, subs.length);
             const countBadge = subs.length ? `<span class="workload-day-count">${subs.length}</span>` : '';
 
             gridHtml += `<div class="${classes.join(' ')}">
@@ -4189,24 +4410,28 @@
         return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
     }
 
-    function renderDayRows(subs) {
-        if (!subs.length) return '';
-        const shown = subs.slice(0, WL_MAX_ROWS_PER_DAY);
-        const overflow = subs.length - shown.length;
-        let html = shown.map(s => {
-            const team = wlTeamBucket(s.teamKey, s.teamName);
-            const classes = ['workload-sub-row', 'team-' + team];
-            if (s.atRisk) classes.push('at-risk');
-            const initials = wlInitials(s.assigneeName);
-            const title = [s.identifier, s.clientName, s.assigneeName, s.dueDate ? 'due ' + s.dueDate : ''].filter(Boolean).join(' · ');
-            return `<a class="${classes.join(' ')}" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(title)}">
+    function renderDayRollups(groups, totalSubs) {
+        if (!groups.length) return '';
+        const shown = groups.slice(0, WL_MAX_ROWS_PER_DAY);
+        const hiddenGroups = groups.length - shown.length;
+        let html = shown.map(g => {
+            const team = wlTeamBucket(g.teamKey, g.teamName);
+            const classes = ['workload-rollup', 'team-' + team];
+            if (g.atRisk) classes.push('at-risk');
+            const initials = wlInitials(g.assigneeName);
+            const href = wlParentUrl(g.anySub);
+            const titleAttr = [g.assigneeName, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.atRisk ? 'past due' : ''].filter(Boolean).join(' · ');
+            return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}">
                 <span class="editor-dot">${wlEscape(initials)}</span>
-                <span class="sub-client">${wlEscape(s.clientName || '—')}</span>
-                <span class="sub-title">${wlEscape(s.title)}</span>
-                ${s.atRisk ? '<span class="sub-risk">!</span>' : ''}
+                <span class="rollup-client">${wlEscape(g.clientName || '—')}</span>
+                <span class="rollup-count">${g.count}</span>
+                ${g.atRisk ? '<span class="rollup-risk">!</span>' : ''}
             </a>`;
         }).join('');
-        if (overflow > 0) html += `<div class="workload-day-overflow">+${overflow} more</div>`;
+        if (hiddenGroups > 0) {
+            const hiddenCount = groups.slice(shown.length).reduce((n, g) => n + g.count, 0);
+            html += `<div class="workload-day-overflow">+${hiddenGroups} more (${hiddenCount})</div>`;
+        }
         return html;
     }
 

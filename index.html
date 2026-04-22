@@ -1098,16 +1098,17 @@
 
         /* Workload calendar */
         .workload-view { max-width: 1440px; margin: 0 auto; animation: fadeIn 0.15s ease; }
-        .workload-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
-        .workload-toolbar-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+        .workload-toolbar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+        .workload-toolbar-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+        .workload-toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
         .workload-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .workload-title-group { display: flex; flex-direction: column; gap: 2px; }
+        .workload-title-group { display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
         .workload-title { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
         .workload-freshness { font-size: 0.68rem; color: var(--text-muted); font-weight: 500; }
-        .workload-nav { display: inline-flex; align-items: center; gap: 6px; }
-        .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; }
+        .workload-nav { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; min-width: 36px; }
         .workload-nav button:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
-        .workload-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; }
+        .workload-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; flex-shrink: 0; }
         .workload-pills button { border: 0; background: transparent; border-radius: 8px; padding: 5px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.12s; letter-spacing: 0.01em; }
         .workload-pills button:hover { color: var(--text-primary); }
         .workload-pills button.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
@@ -1118,16 +1119,18 @@
         .workload-now.empty { display: none; }
         .workload-now-label { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
         .workload-now-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,0.18); }
-        .workload-now-editors { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
-        .workload-now-editor { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); min-width: 0; }
-        .workload-now-editor .editor-dot { width: 24px; height: 24px; font-size: 0.62rem; }
-        .workload-now-name { font-weight: 700; font-size: 0.78rem; color: var(--text-primary); flex-shrink: 0; }
+        .workload-now-editors { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+        .workload-now-editor { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); min-width: 0; }
+        .workload-now-editor-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .workload-now-editor .editor-dot { width: 22px; height: 22px; font-size: 0.6rem; flex-shrink: 0; }
+        .workload-now-name { font-weight: 700; font-size: 0.78rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         .workload-now-chips { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
-        .workload-now-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; background: var(--white); border: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; color: var(--text-primary); text-decoration: none; cursor: pointer; transition: all 0.12s; }
+        .workload-now-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; background: var(--white); border: 1px solid var(--border); font-size: 0.7rem; font-weight: 600; color: var(--text-primary); text-decoration: none; cursor: pointer; transition: all 0.12s; max-width: 100%; min-width: 0; }
         .workload-now-chip:hover { border-color: #888; background: var(--bg); }
-        .workload-now-chip .chip-count { background: var(--text-primary); color: var(--white); border-radius: 999px; padding: 1px 6px; font-size: 0.62rem; font-weight: 700; }
-        .workload-now-chip.team-video  { border-left: 3px solid #6c5ce7; border-left-width: 3px; padding-left: 6px; }
-        .workload-now-chip.team-graphics { border-left: 3px solid #d97706; border-left-width: 3px; padding-left: 6px; }
+        .workload-now-chip > span:first-of-type { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .workload-now-chip .chip-count { background: var(--text-primary); color: var(--white); border-radius: 999px; padding: 1px 6px; font-size: 0.62rem; font-weight: 700; flex-shrink: 0; }
+        .workload-now-chip.team-video    { border-left: 3px solid #6c5ce7; padding-left: 6px; }
+        .workload-now-chip.team-graphics { border-left: 3px solid #d97706; padding-left: 6px; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1151,16 +1154,24 @@
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
         .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
-        .workload-rollup { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 6px; font-size: 0.74rem; font-weight: 600; color: var(--text-primary); background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s, transform 0.1s; min-width: 0; text-decoration: none; }
-        .workload-grid.week .workload-rollup { padding: 7px 10px; font-size: 0.78rem; }
+        .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
+        .workload-grid.week .workload-rollup { padding: 8px 10px; }
         .workload-rollup:hover { background: #fafafa; }
         .workload-rollup.team-video    { border-left-color: #6c5ce7; }
         .workload-rollup.team-graphics { border-left-color: #d97706; }
         .workload-rollup.at-risk       { background: var(--dn-bg); }
         .workload-rollup.at-risk:hover { background: #fde0e0; }
-        .workload-rollup .rollup-client { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .workload-rollup .rollup-count  { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: 0.66rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
-        .workload-rollup .rollup-risk   { color: var(--dn); font-weight: 800; flex-shrink: 0; }
+        .workload-rollup.in-progress   { background: #ecfdf5; border-left-color: #10b981 !important; }
+        .workload-rollup.in-progress:hover { background: #d1fae5; }
+        .workload-rollup-row           { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .workload-rollup-editor        { font-size: 0.68rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+        .workload-rollup-now-tag       { font-size: 0.56rem; font-weight: 800; color: #10b981; letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0; }
+        .workload-rollup-client        { font-size: 0.72rem; font-weight: 500; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+        .workload-grid.week .workload-rollup-editor { font-size: 0.72rem; }
+        .workload-grid.week .workload-rollup-client { font-size: 0.76rem; }
+        .workload-rollup .rollup-count  { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: 0.62rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
+        .workload-rollup.in-progress .rollup-count { background: #10b981; color: var(--white); }
+        .workload-rollup .rollup-risk   { color: var(--dn); font-weight: 800; flex-shrink: 0; font-size: 0.78rem; line-height: 1; }
         .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 0.58rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; border: 1px solid var(--border); }
         .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
         .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
@@ -3945,39 +3956,56 @@
     }
 
     function wlInitials(name) {
-        if (!name) return '?';
-        const parts = name.trim().split(/\s+/);
-        return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || name[0].toUpperCase();
+        const n = wlDisplayName(name);
+        if (!n) return '?';
+        const parts = n.trim().split(/\s+/);
+        return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || n[0].toUpperCase();
+    }
+
+    // Some Linear users have no full name set — assigneeName is then the email.
+    // Convert "martin.synchro@gmail.com" -> "Martin Synchro"; otherwise use the name as-is.
+    function wlDisplayName(name) {
+        if (!name) return '';
+        const s = String(name).trim();
+        if (!/@/.test(s)) return s;
+        const local = s.split('@')[0];
+        return local.split(/[._-]+/).filter(Boolean)
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+            .join(' ') || s;
     }
 
     function renderWorkloadShell() {
         return `<div class="workload-view">
             <div class="workload-toolbar">
-                <div class="workload-toolbar-left">
+                <div class="workload-toolbar-row">
                     <div class="workload-title-group">
                         <div class="workload-title" id="wlTitle">—</div>
                         <div class="workload-freshness" id="wlFreshness"></div>
                     </div>
-                    <div class="workload-nav">
-                        <button type="button" data-wl-nav="prev" title="Previous">‹</button>
-                        <button type="button" data-wl-nav="today">Today</button>
-                        <button type="button" data-wl-nav="next" title="Next">›</button>
-                        <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
-                    </div>
-                    <div class="workload-pills" id="wlViewPills" role="tablist" aria-label="View">
-                        <button type="button" data-wl-view="week">Week</button>
-                        <button type="button" data-wl-view="month">Month</button>
+                    <div class="workload-toolbar-right">
+                        <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
+                            <button type="button" data-wl-team="all">All</button>
+                            <button type="button" data-wl-team="video">Video</button>
+                            <button type="button" data-wl-team="graphics">Graphics</button>
+                        </div>
+                        <div class="workload-filters">
+                            <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
+                            <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+                        </div>
                     </div>
                 </div>
-                <div class="workload-toolbar-right">
-                    <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
-                        <button type="button" data-wl-team="all">All</button>
-                        <button type="button" data-wl-team="video">Video</button>
-                        <button type="button" data-wl-team="graphics">Graphics</button>
-                    </div>
-                    <div class="workload-filters">
-                        <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
-                        <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+                <div class="workload-toolbar-row">
+                    <div class="workload-toolbar-left">
+                        <div class="workload-nav">
+                            <button type="button" data-wl-nav="prev" title="Previous">‹</button>
+                            <button type="button" data-wl-nav="today">Today</button>
+                            <button type="button" data-wl-nav="next" title="Next">›</button>
+                            <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
+                        </div>
+                        <div class="workload-pills" id="wlViewPills" role="tablist" aria-label="View">
+                            <button type="button" data-wl-view="week">Week</button>
+                            <button type="button" data-wl-view="month">Month</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4072,18 +4100,30 @@
         wlState.scheduled  = scheduleAll(planned, wlTodayISO());
     }
 
+    // Single delegated handler on the shell root. Attached once per shell
+    // via a sentinel attribute so repeat calls to initWorkloadView (e.g. when
+    // the user re-navigates to Workload while a fetch is in flight) never
+    // stack handlers on the same DOM nodes.
     function wlWireToolbar() {
-        document.querySelectorAll('[data-wl-nav]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const action = e.currentTarget.getAttribute('data-wl-nav');
-                if (action === 'prev')    { wlShiftPeriod(-1); renderWorkloadAll(); }
-                if (action === 'next')    { wlShiftPeriod(1);  renderWorkloadAll(); }
-                if (action === 'today')   {
+        const root = document.querySelector('.workload-view');
+        if (!root || root.dataset.wlWired === '1') return;
+        root.dataset.wlWired = '1';
+
+        root.addEventListener('click', (e) => {
+            const navBtn    = e.target.closest('[data-wl-nav]');
+            const viewBtn   = e.target.closest('[data-wl-view]');
+            const teamBtn   = e.target.closest('[data-wl-team]');
+            if (navBtn && root.contains(navBtn)) {
+                const action = navBtn.getAttribute('data-wl-nav');
+                if (action === 'prev') { wlShiftPeriod(-1); renderWorkloadAll(); return; }
+                if (action === 'next') { wlShiftPeriod(1);  renderWorkloadAll(); return; }
+                if (action === 'today') {
                     const today = wlTodayISO();
                     const n = new Date();
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
                     wlState.weekStart = wlWeekMondayISO(today);
                     renderWorkloadAll();
+                    return;
                 }
                 if (action === 'refresh') {
                     (async () => {
@@ -4099,32 +4139,30 @@
                             renderWorkloadAll();
                         }
                     })();
+                    return;
                 }
-            });
-        });
-        document.querySelectorAll('[data-wl-view]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const mode = e.currentTarget.getAttribute('data-wl-view');
+            }
+            if (viewBtn && root.contains(viewBtn)) {
+                const mode = viewBtn.getAttribute('data-wl-view');
                 if (mode !== 'week' && mode !== 'month') return;
                 wlState.viewMode = mode;
                 try { localStorage.setItem(WL_VIEW_PREF_KEY, mode); } catch {}
                 renderWorkloadAll();
-            });
-        });
-        document.querySelectorAll('[data-wl-team]').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                wlState.team = e.currentTarget.getAttribute('data-wl-team') || 'all';
+                return;
+            }
+            if (teamBtn && root.contains(teamBtn)) {
+                wlState.team = teamBtn.getAttribute('data-wl-team') || 'all';
                 renderWorkloadAll();
-            });
+                return;
+            }
         });
-        ['wlFilterEditor', 'wlFilterClient'].forEach(id => {
-            const el = document.getElementById(id);
-            if (!el) return;
-            el.addEventListener('change', () => {
+
+        root.addEventListener('change', (e) => {
+            if (e.target && (e.target.id === 'wlFilterEditor' || e.target.id === 'wlFilterClient')) {
                 wlState.editor = document.getElementById('wlFilterEditor').value;
                 wlState.client = document.getElementById('wlFilterClient').value;
                 renderWorkloadAll();
-            });
+            }
         });
     }
 
@@ -4236,7 +4274,9 @@
     }
 
     // Group a list of sub-issues into (assigneeId × clientName) rollups.
-    function wlGroupRollups(subs) {
+    // `inProgress` flag marks rollups that represent "currently in progress" work
+    // (shown on today's cell with a green treatment and "NOW" tag).
+    function wlGroupRollups(subs, inProgress) {
         const map = new Map();
         for (const s of subs) {
             const key = (s.assigneeId || '?') + '|' + (s.clientName || '');
@@ -4251,6 +4291,7 @@
                     anySub: s,
                     count: 0,
                     atRisk: false,
+                    inProgress: !!inProgress,
                 });
             }
             const g = map.get(key);
@@ -4258,10 +4299,20 @@
             if (s.atRisk) g.atRisk = true;
         }
         return [...map.values()].sort((a, b) => {
-            const na = a.assigneeName || ''; const nb = b.assigneeName || '';
+            const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
             if (na !== nb) return na.localeCompare(nb);
             return (a.clientName || '').localeCompare(b.clientName || '');
         });
+    }
+
+    // Build today's rollups: In-Progress items first, then scheduled/planned items.
+    function wlTodayRollups(todayISO) {
+        const nowSubs = wlState.nowWorking.filter(wlPassesFilters);
+        const plannedSubs = (wlState.scheduled.get(todayISO) || []).filter(wlPassesFilters);
+        const nowGroups     = wlGroupRollups(nowSubs, true);
+        const plannedGroups = wlGroupRollups(plannedSubs, false);
+        const count = nowSubs.length + plannedSubs.length;
+        return { groups: [...nowGroups, ...plannedGroups], count };
     }
 
     function renderNowPanel() {
@@ -4281,7 +4332,7 @@
         const byEditor = new Map();
         for (const s of subs) {
             const key = s.assigneeId || '?';
-            if (!byEditor.has(key)) byEditor.set(key, { name: s.assigneeName || 'Unknown', groups: new Map() });
+            if (!byEditor.has(key)) byEditor.set(key, { name: wlDisplayName(s.assigneeName), groups: new Map() });
             const ed = byEditor.get(key);
             const gkey = (s.clientName || '') + '|' + (s.parentId || '');
             if (!ed.groups.has(gkey)) ed.groups.set(gkey, { clientName: s.clientName, teamKey: s.teamKey, teamName: s.teamName, parentId: s.parentId, anySub: s, count: 0 });
@@ -4301,9 +4352,11 @@
                     </a>`;
                 }).join('');
             return `<div class="workload-now-editor">
-                <span class="editor-dot" title="${wlEscape(ed.name)}">${wlEscape(wlInitials(ed.name))}</span>
-                <span class="workload-now-name">${wlEscape(ed.name)}</span>
-                <span class="workload-now-chips">${chips}</span>
+                <div class="workload-now-editor-head">
+                    <span class="editor-dot" title="${wlEscape(ed.name)}">${wlEscape(wlInitials(ed.name))}</span>
+                    <span class="workload-now-name">${wlEscape(ed.name)}</span>
+                </div>
+                <div class="workload-now-chips">${chips}</div>
             </div>`;
         }).join('');
     }
@@ -4351,11 +4404,16 @@
             const isToday = iso === todayISO;
             const classes = ['workload-day'];
             if (isToday) classes.push('today');
-            const raw = wlState.scheduled.get(iso) || [];
-            const subs = raw.filter(wlPassesFilters);
-            const groups = wlGroupRollups(subs);
-            const rowsHtml = renderDayRollups(groups, subs.length);
-            const countBadge = subs.length ? `<span class="workload-day-count">${subs.length}</span>` : '';
+            let groups, count;
+            if (isToday) {
+                ({ groups, count } = wlTodayRollups(todayISO));
+            } else {
+                const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
+                groups = wlGroupRollups(subs, false);
+                count = subs.length;
+            }
+            const rowsHtml = renderDayRollups(groups);
+            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
             gridHtml += `<div class="${classes.join(' ')}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
                 ${rowsHtml}
@@ -4395,11 +4453,16 @@
             if (weekend)    classes.push('weekend');
             if (isToday)    classes.push('today');
 
-            const raw = wlState.scheduled.get(iso) || [];
-            const subs = raw.filter(wlPassesFilters);
-            const groups = wlGroupRollups(subs);
-            const rowsHtml = renderDayRollups(groups, subs.length);
-            const countBadge = subs.length ? `<span class="workload-day-count">${subs.length}</span>` : '';
+            let groups, count;
+            if (isToday) {
+                ({ groups, count } = wlTodayRollups(todayISO));
+            } else {
+                const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
+                groups = wlGroupRollups(subs, false);
+                count = subs.length;
+            }
+            const rowsHtml = renderDayRollups(groups);
+            const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
 
             gridHtml += `<div class="${classes.join(' ')}">
                 <div class="workload-day-num"><span>${d}</span>${countBadge}</div>
@@ -4410,22 +4473,28 @@
         return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
     }
 
-    function renderDayRollups(groups, totalSubs) {
+    function renderDayRollups(groups) {
         if (!groups.length) return '';
         const shown = groups.slice(0, WL_MAX_ROWS_PER_DAY);
         const hiddenGroups = groups.length - shown.length;
         let html = shown.map(g => {
             const team = wlTeamBucket(g.teamKey, g.teamName);
             const classes = ['workload-rollup', 'team-' + team];
-            if (g.atRisk) classes.push('at-risk');
-            const initials = wlInitials(g.assigneeName);
+            if (g.atRisk)     classes.push('at-risk');
+            if (g.inProgress) classes.push('in-progress');
             const href = wlParentUrl(g.anySub);
-            const titleAttr = [g.assigneeName, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.atRisk ? 'past due' : ''].filter(Boolean).join(' · ');
+            const name = wlDisplayName(g.assigneeName) || 'Unknown';
+            const titleAttr = [name, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.inProgress ? 'in progress' : '', g.atRisk ? 'past due' : ''].filter(Boolean).join(' · ');
             return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}">
-                <span class="editor-dot">${wlEscape(initials)}</span>
-                <span class="rollup-client">${wlEscape(g.clientName || '—')}</span>
-                <span class="rollup-count">${g.count}</span>
-                ${g.atRisk ? '<span class="rollup-risk">!</span>' : ''}
+                <div class="workload-rollup-row">
+                    <span class="workload-rollup-editor">${wlEscape(name)}</span>
+                    ${g.inProgress ? '<span class="workload-rollup-now-tag">Now</span>' : ''}
+                </div>
+                <div class="workload-rollup-row">
+                    <span class="workload-rollup-client">${wlEscape(g.clientName || '—')}</span>
+                    <span class="rollup-count">${g.count}</span>
+                    ${g.atRisk ? '<span class="rollup-risk">!</span>' : ''}
+                </div>
             </a>`;
         }).join('');
         if (hiddenGroups > 0) {

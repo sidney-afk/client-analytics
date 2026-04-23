@@ -5110,13 +5110,21 @@
         const cards = document.querySelectorAll('[id^="videoCard_"]');
         const videos = [];
         let num = 1;
+        // Auto-assign due dates in batches of 5: videos 1–5 due in 5 working
+        // days, 6–10 in 10 working days, 11–15 in 15 working days, etc. Uses
+        // working days (Mon–Fri) so the dates align with the Workload
+        // scheduler's calendar.
+        const todayISO = wlTodayISO();
         cards.forEach(card => {
             const id = card.id.replace('videoCard_', '');
+            const batchIndex = Math.floor((num - 1) / 5); // 0 for #1-5, 1 for #6-10, …
+            const dueDate = wlAddWorkingDays(todayISO, (batchIndex + 1) * 5);
             videos.push({
                 number: num++,
                 main_cam: document.getElementById('vid_main_' + id)?.value?.trim() || '',
                 side_cam: document.getElementById('vid_side_' + id)?.value?.trim() || '',
-                audio: document.getElementById('vid_audio_' + id)?.value?.trim() || ''
+                audio: document.getElementById('vid_audio_' + id)?.value?.trim() || '',
+                dueDate
             });
         });
 

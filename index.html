@@ -1159,8 +1159,6 @@
         .workload-rollup:hover { background: #fafafa; }
         .workload-rollup.team-video    { border-left-color: #6c5ce7; }
         .workload-rollup.team-graphics { border-left-color: #d97706; }
-        .workload-rollup.at-risk       { background: var(--dn-bg); }
-        .workload-rollup.at-risk:hover { background: #fde0e0; }
         .workload-rollup.in-progress   { background: #ecfdf5; border-left-color: #10b981 !important; }
         .workload-rollup.in-progress:hover { background: #d1fae5; }
         .workload-rollup-row           { display: flex; align-items: center; gap: 6px; min-width: 0; }
@@ -1173,7 +1171,6 @@
         .workload-rollup .rollup-count:hover { background: var(--white); border-color: var(--border); color: var(--text-primary); }
         .workload-rollup.in-progress .rollup-count { background: #10b981; color: var(--white); }
         .workload-rollup.in-progress .rollup-count:hover { background: #0ea271; border-color: #10b981; color: var(--white); }
-        .workload-rollup .rollup-risk   { color: var(--dn); font-weight: 800; flex-shrink: 0; font-size: 0.78rem; line-height: 1; }
         .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 0.58rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; border: 1px solid var(--border); }
         .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
         .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
@@ -3944,13 +3941,6 @@
             for (const chunk of chunks) {
                 for (const sub of chunk) {
                     sub.scheduledDate = cursor;
-                    // Past-due is a real-world fact (due date already passed),
-                    // not a scheduler artifact. Items that the scheduler had to
-                    // push past their due date because the editor is overloaded
-                    // get flagged separately via `lateVsPlan`.
-                    sub.isPastDue   = !!(sub.dueDate && sub.dueDate < todayISO);
-                    sub.lateVsPlan  = !!(sub.dueDate && !sub.isPastDue && cursor > sub.dueDate);
-                    sub.atRisk      = sub.isPastDue; // kept for CSS compatibility
                     push(cursor, sub);
                 }
                 cursor = wlAddWorkingDays(cursor, 1);
@@ -4047,7 +4037,6 @@
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#6c5ce7"></span>Video</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#d97706"></span>Graphics</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#10b981"></span>In Progress (today)</span>
-                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:var(--dn-bg);border:1px solid var(--dn)"></span>Past due</span>
             </div>
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>`;
@@ -4253,8 +4242,9 @@
 
     function wlPopulateFilterOptions() {
         const all = wlState.allActiveSubs || [];
-        // Editors: anyone assigned to any active sub-issue.
-        const editors = [...new Map(all.filter(s => s.assigneeId)
+        // Editors: scoped to active team filter so Video pill hides graphics-only assignees.
+        const editors = [...new Map(all.filter(s => s.assigneeId &&
+                (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
         // Clients: every client with at least one active sub-issue (not just
@@ -4392,13 +4382,11 @@
                     parentId: s.parentId,
                     anySub: s,
                     count: 0,
-                    atRisk: false,
                     inProgress: !!inProgress,
                 });
             }
             const g = map.get(key);
             g.count++;
-            if (s.atRisk) g.atRisk = true;
         }
         return [...map.values()].sort((a, b) => {
             const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
@@ -4540,11 +4528,10 @@
         let html = shown.map(g => {
             const team = wlTeamBucket(g.teamKey, g.teamName);
             const classes = ['workload-rollup', 'team-' + team];
-            if (g.atRisk)     classes.push('at-risk');
             if (g.inProgress) classes.push('in-progress');
             const href = wlParentUrl(g.anySub);
             const name = wlDisplayName(g.assigneeName) || 'Unknown';
-            const titleAttr = [name, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.inProgress ? 'in progress' : '', g.atRisk ? 'past due' : ''].filter(Boolean).join(' · ');
+            const titleAttr = [name, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.inProgress ? 'in progress' : ''].filter(Boolean).join(' · ');
             return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="${g.inProgress ? '1' : '0'}">
                 <div class="workload-rollup-row">
                     <span class="workload-rollup-editor">${wlEscape(name)}</span>
@@ -4553,7 +4540,6 @@
                 <div class="workload-rollup-row">
                     <span class="workload-rollup-client">${wlEscape(g.clientName || '—')}</span>
                     <span class="rollup-count" data-wl-count-badge="1" title="See the ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">${g.count}</span>
-                    ${g.atRisk ? '<span class="rollup-risk">!</span>' : ''}
                 </div>
             </a>`;
         }).join('');

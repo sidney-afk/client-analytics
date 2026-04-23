@@ -1113,7 +1113,11 @@
         .workload-pills button:hover { color: var(--text-primary); }
         .workload-pills button.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.06); }
         .workload-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-        .workload-filters .linear-select { padding: 9px 34px 9px 14px; font-size: 0.78rem; min-width: 170px; font-weight: 600; border-radius: 10px; }
+        .wl-dropdown { position: relative; }
+        .wl-dropdown .dropdown-trigger { padding: 8px 14px; border-radius: 20px; min-width: 180px; justify-content: space-between; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .wl-dropdown .dropdown-trigger .dd-arrow { font-size: 0.65rem; margin-left: 8px; color: var(--text-muted); }
+        .wl-dropdown .dropdown-menu { min-width: 220px; max-height: 320px; overflow-y: auto; right: auto; left: 0; }
+        .wl-dropdown .dropdown-item { font-size: 0.78rem; font-weight: 600; padding: 8px 14px; }
         .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
         .workload-popover.open { display: block; }
@@ -3803,6 +3807,9 @@
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
         scheduled: new Map(),                      // key "YYYY-MM-DD" -> planned sub-issues[]
+        allActiveSubs: [],                         // all non-completed sub-issues for filter options
+        subsByParentId: new Map(),
+        popoverAnchor: null,                       // currently-open popover's anchor rollup element
         fetchedAt: null,
         loading: false,
         error: null
@@ -4010,11 +4017,21 @@
                             <button type="button" data-wl-team="video">Video</button>
                             <button type="button" data-wl-team="graphics">Graphics</button>
                         </div>
-                    </div>
-                    <div class="workload-toolbar-right">
                         <div class="workload-filters">
-                            <select class="linear-select" id="wlFilterEditor"><option value="all">All editors</option></select>
-                            <select class="linear-select" id="wlFilterClient"><option value="all">All clients</option></select>
+                            <div class="wl-dropdown" data-wl-filter="editor">
+                                <button type="button" class="dropdown-trigger" data-wl-dropdown-trigger="editor" aria-haspopup="listbox" aria-expanded="false">
+                                    <span data-wl-dropdown-label>All editors</span>
+                                    <span class="dd-arrow">▾</span>
+                                </button>
+                                <div class="dropdown-menu" data-wl-dropdown-menu="editor" role="listbox"></div>
+                            </div>
+                            <div class="wl-dropdown" data-wl-filter="client">
+                                <button type="button" class="dropdown-trigger" data-wl-dropdown-trigger="client" aria-haspopup="listbox" aria-expanded="false">
+                                    <span data-wl-dropdown-label>All clients</span>
+                                    <span class="dd-arrow">▾</span>
+                                </button>
+                                <div class="dropdown-menu" data-wl-dropdown-menu="client" role="listbox"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4124,11 +4141,40 @@
             const countBadge = e.target.closest('[data-wl-count-badge]');
             const rollup     = e.target.closest('[data-wl-rollup]');
             const popClose   = e.target.closest('[data-wl-popover-close]');
+            const ddTrigger  = e.target.closest('[data-wl-dropdown-trigger]');
+            const ddItem     = e.target.closest('[data-wl-dropdown-item]');
             if (popClose) { e.preventDefault(); wlClosePopover(); return; }
+            if (ddTrigger) {
+                e.preventDefault();
+                const wrap = ddTrigger.closest('.wl-dropdown');
+                const menu = wrap?.querySelector('.dropdown-menu');
+                const willOpen = !ddTrigger.classList.contains('open');
+                wlCloseDropdowns(willOpen ? wrap : null);
+                ddTrigger.classList.toggle('open', willOpen);
+                ddTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+                menu?.classList.toggle('open', willOpen);
+                return;
+            }
+            if (ddItem) {
+                e.preventDefault();
+                const kind  = ddItem.getAttribute('data-wl-dropdown-item');
+                const value = ddItem.getAttribute('data-wl-value');
+                if (kind === 'editor') wlState.editor = value;
+                if (kind === 'client') wlState.client = value;
+                wlCloseDropdowns(null);
+                renderWorkloadAll();
+                return;
+            }
             if (countBadge && rollup) {
                 // Intercept the click on the count badge so it opens the
                 // popover instead of following the rollup <a> to Linear.
                 e.preventDefault();
+                // Toggle: clicking the same rollup's badge again closes it.
+                const pop = document.getElementById('wlPopover');
+                if (pop && pop.classList.contains('open') && wlState.popoverAnchor === rollup) {
+                    wlClosePopover();
+                    return;
+                }
                 wlOpenRollupPopover(rollup);
                 return;
             }
@@ -4179,24 +4225,18 @@
             }
         });
 
-        root.addEventListener('change', (e) => {
-            if (e.target && (e.target.id === 'wlFilterEditor' || e.target.id === 'wlFilterClient')) {
-                wlState.editor = document.getElementById('wlFilterEditor').value;
-                wlState.client = document.getElementById('wlFilterClient').value;
-                renderWorkloadAll();
-            }
-        });
-
-        // Dismiss the popover on outside click or Escape.
+        // Dismiss the popover / dropdowns on outside click or Escape.
         document.addEventListener('click', (e) => {
             const pop = document.getElementById('wlPopover');
-            if (!pop || !pop.classList.contains('open')) return;
-            if (pop.contains(e.target)) return;
-            if (e.target.closest('[data-wl-count-badge]')) return;
-            wlClosePopover();
+            if (pop && pop.classList.contains('open')
+                && !pop.contains(e.target)
+                && !e.target.closest('[data-wl-count-badge]')) {
+                wlClosePopover();
+            }
+            if (!e.target.closest('.wl-dropdown')) wlCloseDropdowns(null);
         });
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') wlClosePopover();
+            if (e.key === 'Escape') { wlClosePopover(); wlCloseDropdowns(null); }
         });
     }
 
@@ -4222,25 +4262,51 @@
         const clients = [...new Set(all.map(s => s.clientName).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
 
-        const editorSel = document.getElementById('wlFilterEditor');
-        const clientSel = document.getElementById('wlFilterClient');
-        if (editorSel) {
-            const prev = editorSel.value;
-            editorSel.innerHTML = '<option value="all">All editors</option>' +
-                editors.map(([id, name]) => `<option value="${id}">${wlEscape(name)}</option>`).join('');
-            editorSel.value = editors.some(([id]) => id === prev) ? prev : 'all';
+        // Reset selected value if it's no longer valid for the current data.
+        if (wlState.editor !== 'all' && !editors.some(([id]) => id === wlState.editor)) wlState.editor = 'all';
+        if (wlState.client !== 'all' && !clients.includes(wlState.client))              wlState.client = 'all';
+
+        const editorItems = [['all', 'All editors'], ...editors];
+        const clientItems = [['all', 'All clients'], ...clients.map(c => [c, c])];
+
+        const editorMenu = document.querySelector('[data-wl-dropdown-menu="editor"]');
+        const clientMenu = document.querySelector('[data-wl-dropdown-menu="client"]');
+        if (editorMenu) {
+            editorMenu.innerHTML = editorItems.map(([id, name]) =>
+                `<button type="button" class="dropdown-item${id === wlState.editor ? ' active' : ''}" data-wl-dropdown-item="editor" data-wl-value="${wlEscape(id)}" data-wl-label="${wlEscape(name)}">${wlEscape(name)}</button>`
+            ).join('');
         }
-        if (clientSel) {
-            const prev = clientSel.value;
-            clientSel.innerHTML = '<option value="all">All clients</option>' +
-                clients.map(c => `<option value="${wlEscape(c)}">${wlEscape(c)}</option>`).join('');
-            clientSel.value = clients.includes(prev) ? prev : 'all';
+        if (clientMenu) {
+            clientMenu.innerHTML = clientItems.map(([id, name]) =>
+                `<button type="button" class="dropdown-item${id === wlState.client ? ' active' : ''}" data-wl-dropdown-item="client" data-wl-value="${wlEscape(id)}" data-wl-label="${wlEscape(name)}">${wlEscape(name)}</button>`
+            ).join('');
         }
+
+        const editorLabel = document.querySelector('[data-wl-dropdown-trigger="editor"] [data-wl-dropdown-label]');
+        const clientLabel = document.querySelector('[data-wl-dropdown-trigger="client"] [data-wl-dropdown-label]');
+        if (editorLabel) {
+            const match = editorItems.find(([id]) => id === wlState.editor);
+            editorLabel.textContent = match ? match[1] : 'All editors';
+        }
+        if (clientLabel) {
+            const match = clientItems.find(([id]) => id === wlState.client);
+            clientLabel.textContent = match ? match[1] : 'All clients';
+        }
+
         document.querySelectorAll('[data-wl-team]').forEach(btn => {
             btn.classList.toggle('active', btn.getAttribute('data-wl-team') === wlState.team);
         });
         document.querySelectorAll('[data-wl-view]').forEach(btn => {
             btn.classList.toggle('active', btn.getAttribute('data-wl-view') === wlState.viewMode);
+        });
+    }
+
+    function wlCloseDropdowns(except) {
+        document.querySelectorAll('.wl-dropdown').forEach(d => {
+            if (d === except) return;
+            d.querySelector('.dropdown-trigger')?.classList.remove('open');
+            d.querySelector('.dropdown-trigger')?.setAttribute('aria-expanded', 'false');
+            d.querySelector('.dropdown-menu')?.classList.remove('open');
         });
     }
 
@@ -4510,27 +4576,15 @@
         const clientName = rollupEl.getAttribute('data-wl-client') || '';
         const inProgress = rollupEl.getAttribute('data-wl-in-progress') === '1';
 
-        // Source: for in-progress rollups we use nowWorking; for planned rollups
-        // we look up the scheduled day the row is on.
-        let source;
-        if (inProgress) {
-            source = wlState.nowWorking;
-        } else {
-            // Find the day that contains this rollup by walking up to .workload-day
-            // and reading its label. Simpler: just filter the whole `planned` bucket.
-            source = wlState.planned;
-        }
+        const source = inProgress ? wlState.nowWorking : wlState.planned;
         const todayISO = wlTodayISO();
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
-            (s.clientName || '') === clientName
+            (s.clientName || '') === clientName &&
+            // Hide sub-issues whose due date is already in the past — the user
+            // only wants to see current + future work in this popover.
+            !(s.dueDate && s.dueDate < todayISO)
         );
-        // For planned rollups, further narrow to subs whose scheduledDate matches
-        // the clicked cell's date. We infer the cell date from the row's containing
-        // .workload-day by reading its position in the grid — but easier: we use
-        // the assignee+client tuple which is already unique within a day because
-        // the scheduler batches by client (at most one rollup per assignee+client+day).
-        // So the filter above is sufficient for the common case.
 
         subs.sort((a, b) => {
             const da = a.dueDate || '9999-12-31';
@@ -4538,6 +4592,8 @@
             if (da !== db) return da < db ? -1 : 1;
             return (a.identifier || '').localeCompare(b.identifier || '');
         });
+
+        wlState.popoverAnchor = rollupEl;
 
         const parentUrl   = (parentId && wlState.parentById.get(parentId)?.url) || subs[0]?.url || '';
         const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || '';
@@ -4548,13 +4604,12 @@
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">×</button>
         </div>`;
         const items = subs.map(s => {
-            const dueClass = s.isPastDue ? 'past' : '';
             const dueLabel = s.dueDate ? 'Due ' + wlFormatShort(s.dueDate) : 'No due date';
             return `<a class="workload-popover-item" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
                 <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
-                <span class="workload-popover-item-due ${dueClass}">${wlEscape(dueLabel)}</span>
+                <span class="workload-popover-item-due">${wlEscape(dueLabel)}</span>
             </a>`;
-        }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No sub-issues to show.</div>';
+        }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No upcoming sub-issues.</div>';
 
         pop.innerHTML = header + items;
 
@@ -4577,6 +4632,7 @@
         if (!pop) return;
         pop.classList.remove('open');
         pop.setAttribute('aria-hidden', 'true');
+        wlState.popoverAnchor = null;
     }
 
     function onLinearSearchInput() {

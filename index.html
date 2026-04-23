@@ -91,8 +91,8 @@
         .dropdown-trigger:hover { color: var(--text-primary); box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
         .dropdown-trigger .dd-arrow { font-size: 0.6rem; opacity: 0.5; transition: transform 0.2s; }
         .dropdown-trigger.open .dd-arrow { transform: rotate(180deg); }
-        .dropdown-menu { position: absolute; top: calc(100% + 6px); left: 0; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 6px; min-width: 160px; z-index: 50; opacity: 0; transform: translateY(-4px); pointer-events: none; transition: all 0.15s ease; }
-        .dropdown-menu.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .dropdown-menu { position: absolute; top: calc(100% + 6px); left: 0; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 6px; min-width: 160px; z-index: 50; opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.1s ease, visibility 0s linear 0.1s; will-change: opacity; }
+        .dropdown-menu.open { opacity: 1; pointer-events: auto; visibility: visible; transition: opacity 0.1s ease, visibility 0s linear 0s; }
         .dropdown-item { display: block; width: 100%; padding: 7px 12px; border: none; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.74rem; font-weight: 500; color: var(--text-secondary); text-align: left; cursor: pointer; border-radius: 8px; transition: all 0.1s; }
         .dropdown-item:hover { background: var(--bg); color: var(--text-primary); }
         .dropdown-item.active { background: var(--bg); color: var(--text-primary); font-weight: 700; }
@@ -4456,7 +4456,7 @@
                 groups = wlGroupRollups(subs, false);
                 count = subs.length;
             }
-            const rowsHtml = renderDayRollups(groups);
+            const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
             gridHtml += `<div class="${classes.join(' ')}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
@@ -4505,7 +4505,7 @@
                 groups = wlGroupRollups(subs, false);
                 count = subs.length;
             }
-            const rowsHtml = renderDayRollups(groups);
+            const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
 
             gridHtml += `<div class="${classes.join(' ')}">
@@ -4521,7 +4521,7 @@
     // (right-click / ctrl-click / middle-click behaves like a normal link).
     // Clicking the count badge instead opens a popover listing the individual
     // sub-issues, each linking to Linear.
-    function renderDayRollups(groups) {
+    function renderDayRollups(groups, dayISO) {
         if (!groups.length) return '';
         const shown = groups.slice(0, WL_MAX_ROWS_PER_DAY);
         const hiddenGroups = groups.length - shown.length;
@@ -4532,7 +4532,7 @@
             const href = wlParentUrl(g.anySub);
             const name = wlDisplayName(g.assigneeName) || 'Unknown';
             const titleAttr = [name, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.inProgress ? 'in progress' : ''].filter(Boolean).join(' · ');
-            return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="${g.inProgress ? '1' : '0'}">
+            return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="${g.inProgress ? '1' : '0'}" data-wl-date="${wlEscape(dayISO || '')}">
                 <div class="workload-rollup-row">
                     <span class="workload-rollup-editor">${wlEscape(name)}</span>
                     ${g.inProgress ? '<span class="workload-rollup-now-tag">Now</span>' : ''}
@@ -4561,15 +4561,18 @@
         const assigneeId = rollupEl.getAttribute('data-wl-assignee-id') || '';
         const clientName = rollupEl.getAttribute('data-wl-client') || '';
         const inProgress = rollupEl.getAttribute('data-wl-in-progress') === '1';
+        const dayISO     = rollupEl.getAttribute('data-wl-date') || '';
 
-        const source = inProgress ? wlState.nowWorking : wlState.planned;
-        const todayISO = wlTodayISO();
+        // In-progress rollups pull from nowWorking (no date filter). Planned
+        // rollups pull only the sub-issues scheduled for that specific day so
+        // a 5-count badge shows exactly those 5 items — not the editor's
+        // entire backlog for that client.
+        const source = inProgress
+            ? wlState.nowWorking
+            : (dayISO ? (wlState.scheduled.get(dayISO) || []) : wlState.planned);
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
-            (s.clientName || '') === clientName &&
-            // Hide sub-issues whose due date is already in the past — the user
-            // only wants to see current + future work in this popover.
-            !(s.dueDate && s.dueDate < todayISO)
+            (s.clientName || '') === clientName
         );
 
         subs.sort((a, b) => {

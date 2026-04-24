@@ -3827,7 +3827,7 @@
     const wlState = {
         viewMode: 'week',                          // 'week' | 'month'
         year: null, month: null,                   // visible month (month view)
-        weekStart: null,                           // ISO Monday of visible week (week view)
+        weekStart: null,                           // leftmost day of the rolling 5-workday window
         team: 'all', editor: 'all', client: 'all', // filters
         planned: [],                               // assigned sub-issues with dueDate, not In Progress
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
@@ -3892,6 +3892,16 @@
             d.setDate(d.getDate() + 1);
             const dow = d.getDay();
             if (dow !== 0 && dow !== 6) added++;
+        }
+        return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function wlSubWorkingDays(iso, n) {
+        const d = wlParseISO(iso);
+        let removed = 0;
+        while (removed < n) {
+            d.setDate(d.getDate() - 1);
+            const dow = d.getDay();
+            if (dow !== 0 && dow !== 6) removed++;
         }
         return wlISO(d.getFullYear(), d.getMonth(), d.getDate());
     }
@@ -4126,7 +4136,7 @@
         const now = new Date();
         const todayISO = wlTodayISO();
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
-        if (wlState.weekStart == null) { wlState.weekStart = wlWeekMondayISO(todayISO); }
+        if (wlState.weekStart == null) { wlState.weekStart = wlNextWorkingDay(todayISO); }
         try {
             const pref = localStorage.getItem(WL_VIEW_PREF_KEY);
             if (pref === 'week' || pref === 'month') wlState.viewMode = pref;
@@ -4316,7 +4326,7 @@
                     const today = wlTodayISO();
                     const n = new Date();
                     wlState.year = n.getFullYear(); wlState.month = n.getMonth();
-                    wlState.weekStart = wlWeekMondayISO(today);
+                    wlState.weekStart = wlNextWorkingDay(today);
                     renderWorkloadAll();
                     return;
                 }
@@ -4354,7 +4364,12 @@
 
     function wlShiftPeriod(delta) {
         if (wlState.viewMode === 'week') {
-            wlState.weekStart = wlAddDays(wlState.weekStart, 7 * delta);
+            // Rolling 5-workday window: shift by 5 working days per click.
+            if (delta > 0) {
+                for (let k = 0; k < delta; k++) wlState.weekStart = wlAddWorkingDays(wlState.weekStart, 5);
+            } else if (delta < 0) {
+                for (let k = 0; k < -delta; k++) wlState.weekStart = wlSubWorkingDays(wlState.weekStart, 5);
+            }
         } else {
             let y = wlState.year, m = wlState.month + delta;
             while (m < 0)  { m += 12; y--; }
@@ -4448,7 +4463,7 @@
         if (titleEl) {
             if (wlState.viewMode === 'week') {
                 const ws = wlState.weekStart;
-                const we = wlAddDays(ws, 4); // Mon..Fri
+                const we = wlAddWorkingDays(ws, 4); // today + next 4 workdays
                 const wsD = wlParseISO(ws), weD = wlParseISO(we);
                 const sameMonth = wsD.getMonth() === weD.getMonth() && wsD.getFullYear() === weD.getFullYear();
                 titleEl.textContent = sameMonth
@@ -4554,19 +4569,19 @@
 
     function renderWeekGrid() {
         const todayISO = wlTodayISO();
-        const start = wlState.weekStart; // Monday
-        const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+        const start = wlState.weekStart; // leftmost working day (today by default)
+        const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         let weekdayHtml = '<div class="workload-weekdays week">';
         for (let i = 0; i < 5; i++) {
-            const iso = wlAddDays(start, i);
+            const iso = wlAddWorkingDays(start, i);
             const d = wlParseISO(iso);
-            weekdayHtml += `<div class="workload-weekday">${labels[i]} · ${d.getDate()}</div>`;
+            weekdayHtml += `<div class="workload-weekday">${dayLabels[d.getDay()]} · ${d.getDate()}</div>`;
         }
         weekdayHtml += '</div>';
 
         let gridHtml = '<div class="workload-grid week">';
         for (let i = 0; i < 5; i++) {
-            const iso = wlAddDays(start, i);
+            const iso = wlAddWorkingDays(start, i);
             const d = wlParseISO(iso);
             const isToday = iso === todayISO;
             const classes = ['workload-day'];

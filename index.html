@@ -4223,7 +4223,7 @@
     }
 
     // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
-    window.wlDebug = function() {
+    window.wlDebug = function(needle) {
         const cache = wlReadCache();
         const issues = cache ? cache.issues : [];
         const subs = issues.filter(i => i.isSubIssue);
@@ -4234,6 +4234,16 @@
         console.log('nowWorking (In Progress):', wlState.nowWorking.length);
         console.log('unassigned:', wlState.unassigned.length);
         console.log('scheduled dates:', [...wlState.scheduled.keys()].sort());
+
+        // Breakdown by statusType — are items being dropped for being "completed"?
+        const byStatus = {};
+        for (const s of subs) {
+            const key = (s.statusType || 'null') + ' / ' + (s.status || 'null');
+            byStatus[key] = (byStatus[key] || 0) + 1;
+        }
+        console.log('\n--- Sub-issues by statusType / status ---');
+        Object.entries(byStatus).sort((a, b) => b[1] - a[1]).forEach(([k, n]) => console.log(n, k));
+
         console.log('\n--- Sub-issues with dueDate in the next 14 days ---');
         const today = wlTodayISO();
         const cutoff = wlAddWorkingDays(today, 14);
@@ -4243,10 +4253,27 @@
                 s.identifier, '|', s.dueDate, '|', s.status, '|',
                 s.assigneeName || 'UNASSIGNED', '|', s.clientName, '|', s.teamKey
             ));
+
         console.log('\n--- Unassigned sub-issues ---');
         wlState.unassigned.forEach(s => console.log(
             s.identifier, '|', s.dueDate, '|', s.status, '|', s.clientName, '|', s.teamKey
         ));
+
+        // Optional search — wlDebug("chelsey") or wlDebug("GRA-5707")
+        if (needle) {
+            const q = String(needle).toLowerCase();
+            console.log('\n--- Issues matching "' + needle + '" (ALL issues, not just sub-issues) ---');
+            issues.filter(i =>
+                (i.identifier || '').toLowerCase().includes(q) ||
+                (i.title || '').toLowerCase().includes(q) ||
+                (i.clientName || '').toLowerCase().includes(q) ||
+                (i.parentIdentifier || '').toLowerCase().includes(q)
+            ).forEach(i => console.log(
+                i.identifier, '|', 'sub:', !!i.isSubIssue, '|', 'parent:', i.parentIdentifier || '-',
+                '|', i.dueDate || 'no-date', '|', i.statusType + '/' + i.status, '|',
+                i.assigneeName || 'UNASSIGNED', '|', i.clientName, '|', i.teamKey
+            ));
+        }
         console.groupEnd();
     };
 

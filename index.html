@@ -1108,7 +1108,8 @@
         .workload-nav { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; min-width: 36px; }
         .workload-nav button:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
-        .workload-nav button.wl-refreshing { color: var(--text-primary); border-color: var(--text-primary); cursor: wait; display: inline-block; animation: wl-spin 0.8s linear infinite; }
+        .workload-nav button.wl-refreshing { cursor: wait; }
+        .workload-nav button.wl-refreshing .wl-refresh-icon { display: inline-block; animation: wl-spin 0.7s linear infinite; }
         @keyframes wl-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .workload-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; flex-shrink: 0; }
         .workload-pills button { border: 0; background: transparent; border-radius: 8px; padding: 5px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.12s; letter-spacing: 0.01em; }
@@ -3981,7 +3982,9 @@
 
             // Assign dates. If cursor overtakes a chunk's due date, overflow to the due date
             // (don't push work past its deadline — overfill that day instead).
-            let cursor = wlNextWorkingDay(todayISO);
+            // Cursor starts at the next working day AFTER today (not today, which is reserved
+            // for dueToday pins and In-Progress items).
+            let cursor = wlAddWorkingDays(todayISO, 1);
             for (const chunk of chunks) {
                 const chunkDue = chunk[0].dueDate;
                 const assignedDate = (chunkDue && chunkDue < cursor) ? chunkDue : cursor;
@@ -4049,7 +4052,7 @@
                             <button type="button" data-wl-view="month">Month</button>
                         </div>
                         <div class="workload-nav">
-                            <button type="button" data-wl-nav="refresh" title="Refresh from Linear">↻</button>
+                            <button type="button" data-wl-nav="refresh" title="Refresh from Linear"><span class="wl-refresh-icon">↻</span></button>
                         </div>
                     </div>
                 </div>
@@ -4153,31 +4156,40 @@
         wlWireToolbar();
     }
 
-    // Silent background refetch — used when the browser tab becomes visible again.
-    // Replaces data and repaints only if the Workload shell is still in the DOM.
+    function wlSpinnerOn() {
+        const btn = document.querySelector('[data-wl-nav="refresh"]');
+        const freshEl = document.getElementById('wlFreshness');
+        if (btn) btn.classList.add('wl-refreshing');
+        if (freshEl) freshEl.textContent = 'Refreshing…';
+    }
+    function wlSpinnerOff() {
+        const btn = document.querySelector('[data-wl-nav="refresh"]');
+        if (btn) btn.classList.remove('wl-refreshing');
+    }
+
+    // Silent background refetch — fires when the browser tab becomes visible again.
     async function wlRefetchSilent() {
         if (!document.querySelector('.workload-view')) return;
+        wlSpinnerOn();
         try {
             const { issues, fetchedAt } = await loadLinearIssues(true);
             if (!document.querySelector('.workload-view')) return;
             wlApplyData(issues, fetchedAt);
             wlState.error = null;
-            renderWorkloadAll();
         } catch (e) {
             console.error('[SyncView] Workload silent refresh failed:', e);
+        } finally {
+            wlSpinnerOff();
+            if (document.querySelector('.workload-view')) renderWorkloadAll();
         }
     }
 
-    // Manual refresh (toolbar ↻ button). Shows a visible "Refreshing…" label
-    // and spins the button without blanking the calendar.
+    // Manual refresh — toolbar ↻ button. Spins the icon and shows "Refreshing…"
+    // without blanking the calendar.
     async function wlManualRefresh() {
-        const root = document.querySelector('.workload-view');
-        if (!root || wlState.refreshing) return;
+        if (!document.querySelector('.workload-view') || wlState.refreshing) return;
         wlState.refreshing = true;
-        const btn = root.querySelector('[data-wl-nav="refresh"]');
-        const freshEl = document.getElementById('wlFreshness');
-        if (btn) btn.classList.add('wl-refreshing');
-        if (freshEl) freshEl.textContent = 'Refreshing…';
+        wlSpinnerOn();
         try {
             const { issues, fetchedAt } = await loadLinearIssues(true);
             if (!document.querySelector('.workload-view')) return;
@@ -4187,6 +4199,7 @@
             wlState.error = err.message || 'Refresh failed.';
         } finally {
             wlState.refreshing = false;
+            wlSpinnerOff();
             renderWorkloadAll();
         }
     }

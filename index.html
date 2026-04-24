@@ -3790,6 +3790,7 @@
     const LINEAR_ISSUES_WEBHOOK   = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
+    const WL_POLL_INTERVAL_MS     = 2 * 60 * 1000;  // auto-refresh cadence while Workload is open
     const EDITOR_DAILY_CAPACITY   = 5;
     const WL_MAX_ROWS_PER_DAY     = 10;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
@@ -3809,7 +3810,8 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         fetchedAt: null,
         loading: false,
-        error: null
+        error: null,
+        pollTimer: null                            // setInterval handle for auto-refresh
     };
 
     function wlReadCache() {
@@ -4074,6 +4076,41 @@
         }
 
         wlWireToolbar();
+        wlStartPolling();
+    }
+
+    // Silent background refetch. Replaces the data and repaints only if the
+    // Workload shell is still in the DOM. No loading spinner — the user gets
+    // a seamless update without any UI flash.
+    async function wlRefetchSilent() {
+        if (!document.querySelector('.workload-view')) { wlStopPolling(); return; }
+        try {
+            const { issues, fetchedAt } = await loadLinearIssues(true);
+            if (!document.querySelector('.workload-view')) return;
+            wlApplyData(issues, fetchedAt);
+            wlState.error = null;
+            renderWorkloadAll();
+        } catch (e) {
+            console.error('[SyncView] Workload poll failed:', e);
+        }
+    }
+
+    function wlStartPolling() {
+        wlStopPolling();
+        wlState.pollTimer = setInterval(wlRefetchSilent, WL_POLL_INTERVAL_MS);
+    }
+
+    function wlStopPolling() {
+        if (wlState.pollTimer) { clearInterval(wlState.pollTimer); wlState.pollTimer = null; }
+    }
+
+    // Pull fresh data the moment the user tabs back to the browser so they
+    // don't stare at minutes-old numbers. Registered once at module scope.
+    if (typeof document !== 'undefined' && !window.__wlVisibilityWired) {
+        window.__wlVisibilityWired = true;
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden && document.querySelector('.workload-view')) wlRefetchSilent();
+        });
     }
 
     function wlApplyData(issues, fetchedAt) {
@@ -4896,6 +4933,7 @@
             pageTop.style.display = '';
             render('all');
         }
+        if (page !== 'workload') wlStopPolling();
     }
 
     function renderLinearView() {

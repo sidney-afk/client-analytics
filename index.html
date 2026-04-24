@@ -4765,7 +4765,7 @@
         if (!el) return;
         if (!matches.length) { crHideResults(); return; }
         el.innerHTML = matches.map(name =>
-            `<button type="button" class="cr-result-item" onclick="crSelectClient(${JSON.stringify(name)})">${wlEscape(name)}</button>`
+            `<button type="button" class="cr-result-item" data-client="${wlEscape(name)}" onclick="crSelectClient(this.dataset.client)">${wlEscape(name)}</button>`
         ).join('');
         el.style.display = 'block';
     }

@@ -1266,7 +1266,7 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>
             Workload
         </a>
-        <a class="header-nav-btn" id="navCalendar" href="https://docs.google.com/spreadsheets/d/1XOyGrvSo52e-j3pTQ1CBKzcPFGln1iPHWiay78xO-VI/edit?usp=sharing" target="_blank" rel="noopener noreferrer">
+        <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="event.preventDefault();navTo('calendar')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Internal Calendar
         </a>
@@ -3816,8 +3816,9 @@
     }
 
     /* ── Workload Calendar ── */
-    const LINEAR_ISSUES_WEBHOOK      = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
-    const CONTENT_REVISION_WEBHOOK   = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
+    const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
+    const CONTENT_REVISION_WEBHOOK     = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
+    const CALENDAR_AUTOMATION_WEBHOOK  = 'https://synchrosocial.app.n8n.cloud/webhook/add-to-calendar';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
     const EDITOR_DAILY_CAPACITY   = 5;
@@ -5173,6 +5174,8 @@
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
         const navWl = document.getElementById('navWorkload');
         if (navWl) navWl.classList.toggle('active', page === 'workload');
+        const navCal = document.getElementById('navCalendar');
+        if (navCal) navCal.classList.toggle('active', page === 'calendar');
 
 
         const state = {nav: page, client: null};
@@ -5193,10 +5196,84 @@
             content.innerHTML = renderWorkloadShell();
             initWorkloadView();
             window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'calendar') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderCalendarView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
             render('all');
         }
+    }
+
+    function renderCalendarView() {
+        return `<div class="linear-view">
+            <div class="linear-form-title">Content Calendar</div>
+            <div class="linear-form-sub">Paste a Linear issue link to add all its sub-issues to the content calendar.</div>
+            <div class="linear-form">
+                <div class="linear-field">
+                    <label class="linear-label">Linear Issue URL</label>
+                    <input class="linear-input" id="calendarUrlInput" type="url"
+                        placeholder="https://linear.app/synchro-social/issue/VID-…"
+                        oninput="calendarClearStatus()" />
+                </div>
+                <div id="calendarStatus" style="display:none;padding:10px 14px;border-radius:10px;font-size:0.83rem;font-weight:600;"></div>
+                <div class="linear-submit-btns">
+                    <button class="linear-submit-btn" id="calendarSubmitBtn" type="button" onclick="addToCalendar()">
+                        Add to Content Calendar
+                    </button>
+                    <a class="linear-submit-btn secondary"
+                        href="https://docs.google.com/spreadsheets/d/1XOyGrvSo52e-j3pTQ1CBKzcPFGln1iPHWiay78xO-VI/edit?usp=sharing"
+                        target="_blank" rel="noopener noreferrer"
+                        style="text-decoration:none;">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        Open Calendar
+                    </a>
+                </div>
+            </div>
+        </div>`;
+    }
+
+    async function addToCalendar() {
+        const input = document.getElementById('calendarUrlInput');
+        const btn = document.getElementById('calendarSubmitBtn');
+        const url = (input?.value || '').trim();
+        if (!url || !url.includes('linear.app')) {
+            calendarShowStatus('error', 'Please paste a valid Linear issue URL.');
+            return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Adding…';
+        calendarClearStatus();
+        try {
+            const resp = await fetch(CALENDAR_AUTOMATION_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url })
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            calendarShowStatus('success', 'Added to the content calendar successfully.');
+            input.value = '';
+        } catch {
+            calendarShowStatus('error', 'Something went wrong — please try again.');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Add to Content Calendar';
+        }
+    }
+
+    function calendarShowStatus(type, msg) {
+        const el = document.getElementById('calendarStatus');
+        if (!el) return;
+        el.style.display = 'block';
+        el.style.background = type === 'success' ? 'var(--up-bg)' : 'var(--dn-bg)';
+        el.style.color = type === 'success' ? 'var(--up)' : 'var(--dn)';
+        el.textContent = msg;
+    }
+
+    function calendarClearStatus() {
+        const el = document.getElementById('calendarStatus');
+        if (el) el.style.display = 'none';
     }
 
     function renderLinearView() {

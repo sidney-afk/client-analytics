@@ -3990,11 +3990,10 @@
                 i = j;
             }
 
-            // Assign dates. If cursor overtakes a chunk's due date, overflow to the due date
-            // (don't push work past its deadline — overfill that day instead).
-            // Cursor starts at the next working day AFTER today (not today, which is reserved
-            // for dueToday pins and In-Progress items).
-            let cursor = wlAddWorkingDays(todayISO, 1);
+            // Assign dates: ASAP scheduling — cursor starts on today so work fills the
+            // earliest available slot. If cursor overtakes a chunk's due date, overflow
+            // to the due date rather than pushing the work further out.
+            let cursor = wlNextWorkingDay(todayISO);
             for (const chunk of chunks) {
                 const chunkDue = chunk[0].dueDate;
                 const assignedDate = (chunkDue && chunkDue < cursor) ? chunkDue : cursor;
@@ -4223,11 +4222,41 @@
         });
     }
 
+    // Debug helper — run  wlDebug()  in the browser console while on the Workload tab.
+    window.wlDebug = function() {
+        const cache = wlReadCache();
+        const issues = cache ? cache.issues : [];
+        const subs = issues.filter(i => i.isSubIssue);
+        console.group('=== wlDebug ===');
+        console.log('Total issues from API:', issues.length);
+        console.log('Sub-issues total:', subs.length);
+        console.log('planned (scheduled):', wlState.planned.length);
+        console.log('nowWorking (In Progress):', wlState.nowWorking.length);
+        console.log('unassigned:', wlState.unassigned.length);
+        console.log('scheduled dates:', [...wlState.scheduled.keys()].sort());
+        console.log('\n--- Sub-issues with dueDate in the next 14 days ---');
+        const today = wlTodayISO();
+        const cutoff = wlAddWorkingDays(today, 14);
+        subs.filter(s => s.dueDate && s.dueDate >= today && s.dueDate <= cutoff)
+            .sort((a, b) => (a.dueDate > b.dueDate ? 1 : -1))
+            .forEach(s => console.log(
+                s.identifier, '|', s.dueDate, '|', s.status, '|',
+                s.assigneeName || 'UNASSIGNED', '|', s.clientName, '|', s.teamKey
+            ));
+        console.log('\n--- Unassigned sub-issues ---');
+        wlState.unassigned.forEach(s => console.log(
+            s.identifier, '|', s.dueDate, '|', s.status, '|', s.clientName, '|', s.teamKey
+        ));
+        console.groupEnd();
+    };
+
     function wlApplyData(issues, fetchedAt) {
         const parentById = new Map();
         const subsByParentId = new Map();
         for (const i of issues) {
             if (!i.isSubIssue) parentById.set(i.id, i);
+            // Normalise dueDate — Linear can return "YYYY-MM-DDTHH:mm:ssZ"; slice to 10.
+            if (i.dueDate) i.dueDate = String(i.dueDate).slice(0, 10);
         }
         const subs = issues.filter(i => i.isSubIssue && i.statusType !== 'completed' && i.statusType !== 'canceled');
         for (const s of subs) {

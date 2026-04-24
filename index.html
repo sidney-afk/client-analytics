@@ -1108,6 +1108,8 @@
         .workload-nav { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .workload-nav button { border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; background: var(--white); cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); transition: all 0.13s; min-width: 36px; }
         .workload-nav button:hover { border-color: #aaa; color: var(--text-primary); background: var(--bg); }
+        .workload-nav button.wl-refreshing { color: var(--text-primary); border-color: var(--text-primary); cursor: wait; display: inline-block; animation: wl-spin 0.8s linear infinite; }
+        @keyframes wl-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .workload-pills { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 2px; gap: 2px; flex-shrink: 0; }
         .workload-pills button { border: 0; background: transparent; border-radius: 8px; padding: 5px 12px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--text-muted); cursor: pointer; transition: all 0.12s; letter-spacing: 0.01em; }
         .workload-pills button:hover { color: var(--text-primary); }
@@ -3817,7 +3819,6 @@
     const CONTENT_REVISION_WEBHOOK   = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
-    const WL_POLL_INTERVAL_MS     = 2 * 60 * 1000;  // auto-refresh cadence while Workload is open
     const EDITOR_DAILY_CAPACITY   = 5;
     const WL_MAX_ROWS_PER_DAY     = 10;
     const WL_VIEW_PREF_KEY        = 'syncview_workloadView_v1';
@@ -3837,8 +3838,8 @@
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
         fetchedAt: null,
         loading: false,
-        error: null,
-        pollTimer: null                            // setInterval handle for auto-refresh
+        refreshing: false,
+        error: null
     };
 
     function wlReadCache() {
@@ -4150,14 +4151,12 @@
         }
 
         wlWireToolbar();
-        wlStartPolling();
     }
 
-    // Silent background refetch. Replaces the data and repaints only if the
-    // Workload shell is still in the DOM. No loading spinner — the user gets
-    // a seamless update without any UI flash.
+    // Silent background refetch — used when the browser tab becomes visible again.
+    // Replaces data and repaints only if the Workload shell is still in the DOM.
     async function wlRefetchSilent() {
-        if (!document.querySelector('.workload-view')) { wlStopPolling(); return; }
+        if (!document.querySelector('.workload-view')) return;
         try {
             const { issues, fetchedAt } = await loadLinearIssues(true);
             if (!document.querySelector('.workload-view')) return;
@@ -4165,17 +4164,31 @@
             wlState.error = null;
             renderWorkloadAll();
         } catch (e) {
-            console.error('[SyncView] Workload poll failed:', e);
+            console.error('[SyncView] Workload silent refresh failed:', e);
         }
     }
 
-    function wlStartPolling() {
-        wlStopPolling();
-        wlState.pollTimer = setInterval(wlRefetchSilent, WL_POLL_INTERVAL_MS);
-    }
-
-    function wlStopPolling() {
-        if (wlState.pollTimer) { clearInterval(wlState.pollTimer); wlState.pollTimer = null; }
+    // Manual refresh (toolbar ↻ button). Shows a visible "Refreshing…" label
+    // and spins the button without blanking the calendar.
+    async function wlManualRefresh() {
+        const root = document.querySelector('.workload-view');
+        if (!root || wlState.refreshing) return;
+        wlState.refreshing = true;
+        const btn = root.querySelector('[data-wl-nav="refresh"]');
+        const freshEl = document.getElementById('wlFreshness');
+        if (btn) btn.classList.add('wl-refreshing');
+        if (freshEl) freshEl.textContent = 'Refreshing…';
+        try {
+            const { issues, fetchedAt } = await loadLinearIssues(true);
+            if (!document.querySelector('.workload-view')) return;
+            wlApplyData(issues, fetchedAt);
+            wlState.error = null;
+        } catch (err) {
+            wlState.error = err.message || 'Refresh failed.';
+        } finally {
+            wlState.refreshing = false;
+            renderWorkloadAll();
+        }
     }
 
     // Pull fresh data the moment the user tabs back to the browser so they
@@ -4294,22 +4307,7 @@
                     renderWorkloadAll();
                     return;
                 }
-                if (action === 'refresh') {
-                    (async () => {
-                        wlState.loading = true; renderWorkloadAll();
-                        try {
-                            const { issues, fetchedAt } = await loadLinearIssues(true);
-                            wlApplyData(issues, fetchedAt);
-                            wlState.error = null;
-                        } catch (err) {
-                            wlState.error = err.message || 'Refresh failed.';
-                        } finally {
-                            wlState.loading = false;
-                            renderWorkloadAll();
-                        }
-                    })();
-                    return;
-                }
+                if (action === 'refresh') { wlManualRefresh(); return; }
             }
             if (viewBtn && root.contains(viewBtn)) {
                 const mode = viewBtn.getAttribute('data-wl-view');
@@ -5115,7 +5113,6 @@
             pageTop.style.display = '';
             render('all');
         }
-        if (page !== 'workload') wlStopPolling();
     }
 
     function renderLinearView() {

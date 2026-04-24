@@ -5252,7 +5252,7 @@
                 body: JSON.stringify({ url })
             });
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            calendarShowStatus('success', 'Added to the content calendar successfully.');
+            calendarShowStatus('success', 'Added! Videos will appear in the calendar one by one — this can take a few minutes.');
             input.value = '';
         } catch {
             calendarShowStatus('error', 'Something went wrong — please try again.');

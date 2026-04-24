@@ -3926,8 +3926,11 @@
         return (sub.status || '').trim().toLowerCase() === 'in progress';
     }
 
-    // Scheduler — deterministic, per-assignee, due-date first, 5-per-day batched by client.
-    // Only items that have a dueDate and are NOT currently "In Progress" are scheduled.
+    // Scheduler — deterministic, per-assignee, due-date first, capacity-per-day batched by client.
+    // Rules:
+    //   - Items due today are always pinned to today (capacity overflow allowed).
+    //   - Items whose due date falls before the cursor get overflow-scheduled on their due date.
+    //   - Video editors: 5/day capacity. Graphic designers: 15/day capacity.
     function scheduleAll(plannedSubs, todayISO) {
         const byAssignee = new Map();
         for (const s of plannedSubs) {
@@ -3940,7 +3943,17 @@
             scheduledByDate.get(iso).push(sub);
         };
 
-        for (const [, queue] of byAssignee) {
+        for (const [, subs] of byAssignee) {
+            const capacity = wlEditorCapacity(subs[0].teamKey, subs[0].teamName);
+
+            // Pin items due today to today regardless of capacity.
+            const dueToday = subs.filter(s => s.dueDate === todayISO);
+            const queue    = subs.filter(s => s.dueDate !== todayISO);
+            for (const s of dueToday) {
+                s.scheduledDate = todayISO;
+                push(todayISO, s);
+            }
+
             queue.sort((a, b) => {
                 const da = a.dueDate || '9999-12-31';
                 const db = b.dueDate || '9999-12-31';
@@ -3951,13 +3964,13 @@
                 return (a.identifier || '').localeCompare(b.identifier || '');
             });
 
-            // Group consecutive same-client items into chunks of up to EDITOR_DAILY_CAPACITY.
+            // Group consecutive same-client items into chunks of up to `capacity`.
             const chunks = [];
             let i = 0;
             while (i < queue.length) {
                 const chunk = [queue[i]];
                 let j = i + 1;
-                while (j < queue.length && chunk.length < EDITOR_DAILY_CAPACITY && queue[j].clientName === chunk[0].clientName) {
+                while (j < queue.length && chunk.length < capacity && queue[j].clientName === chunk[0].clientName) {
                     chunk.push(queue[j]);
                     j++;
                 }
@@ -3965,14 +3978,17 @@
                 i = j;
             }
 
-            // Cursor starts at the next working day today-or-later.
+            // Assign dates. If cursor overtakes a chunk's due date, overflow to the due date
+            // (don't push work past its deadline — overfill that day instead).
             let cursor = wlNextWorkingDay(todayISO);
             for (const chunk of chunks) {
+                const chunkDue = chunk[0].dueDate;
+                const assignedDate = (chunkDue && chunkDue < cursor) ? chunkDue : cursor;
                 for (const sub of chunk) {
-                    sub.scheduledDate = cursor;
-                    push(cursor, sub);
+                    sub.scheduledDate = assignedDate;
+                    push(assignedDate, sub);
                 }
-                cursor = wlAddWorkingDays(cursor, 1);
+                if (assignedDate === cursor) cursor = wlAddWorkingDays(cursor, 1);
             }
         }
         return scheduledByDate;
@@ -3983,6 +3999,9 @@
         const n = (teamName || '').toLowerCase();
         if (n.includes('graphic') || k === 'DES' || k === 'GFX' || k === 'GRA') return 'graphics';
         return 'video';
+    }
+    function wlEditorCapacity(teamKey, teamName) {
+        return wlTeamBucket(teamKey, teamName) === 'graphics' ? 15 : 5;
     }
 
     function wlInitials(name) {
@@ -4184,6 +4203,7 @@
         wlState.subsByParentId = subsByParentId;
         wlState.allActiveSubs  = subs; // used to populate the client dropdown
 
+        const todayISO   = wlTodayISO();
         const nowWorking = [];
         const planned    = [];
         const unassigned = [];
@@ -4198,8 +4218,8 @@
                 nowWorking.push(s);
                 continue;
             }
-            if (hasDue) planned.push(s);
-            // else: assigned, no due date, not in progress -> dropped
+            // Only schedule items whose due date is today or in the future.
+            if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
         wlState.nowWorking = nowWorking;
@@ -4765,7 +4785,7 @@
         if (!el) return;
         if (!matches.length) { crHideResults(); return; }
         el.innerHTML = matches.map(name =>
-            `<button type="button" class="cr-result-item" onclick="crSelectClient(${JSON.stringify(name)})">${wlEscape(name)}</button>`
+            `<button type="button" class="cr-result-item" data-client="${wlEscape(name)}" onclick="crSelectClient(this.dataset.client)">${wlEscape(name)}</button>`
         ).join('');
         el.style.display = 'block';
     }

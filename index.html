@@ -4310,9 +4310,8 @@
                 nowWorking.push(s);
                 continue;
             }
-            // Include if: due today/future, OR no due date at all (schedule ASAP, sort last).
-            // Silently drop only items with a known past due date.
-            if (!hasDue || s.dueDate >= todayISO) planned.push(s);
+            // Only schedule items whose due date is today or in the future.
+            if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
         wlState.nowWorking = nowWorking;

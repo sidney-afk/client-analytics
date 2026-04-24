@@ -1,0 +1,142 @@
+{
+  "name": "AI Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "months",
+              "triggerAtDayOfMonth": 1,
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Monthly Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients Info",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "read-clients-info",
+      "name": "Read Clients Info",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [250, 0],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "GOOGLE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-email",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-has-email",
+      "name": "Filter – Has Email",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [500, 0]
+    },
+    {
+      "parameters": {
+        "fromEmail": "your-sender@yourdomain.com",
+        "toEmail": "={{ $json.email }}",
+        "subject": "Monthly Update – {{ $json.client_name }}",
+        "emailType": "html",
+        "message": "<p>Hi {{ $json.client_name }},</p>\n\n<p>Here is your monthly update...</p>\n\n<p>Best,<br>Your Team</p>",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Monthly Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [750, 0],
+      "credentials": {
+        "smtp": {
+          "id": "SMTP_CREDENTIAL_ID",
+          "name": "SMTP"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Monthly Schedule": {
+      "main": [
+        [
+          { "node": "Read Clients Info", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Read Clients Info": {
+      "main": [
+        [
+          { "node": "Filter – Has Email", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Filter – Has Email": {
+      "main": [
+        [
+          { "node": "Send Monthly Email", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "pinData": {},
+  "tags": [
+    {
+      "name": "monthly",
+      "id": "monthly-tag"
+    },
+    {
+      "name": "email",
+      "id": "email-tag"
+    }
+  ]
+}

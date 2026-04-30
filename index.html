@@ -3933,10 +3933,21 @@
     }
 
     // Status classification — user rule:
+    //   Workload only shows work the editor still needs to act on:
+    //   "To Do", "In Progress", and "Tweets Needed". Statuses like
+    //   "Tweaks Applied", "For SMM approval", "For Casper approval",
+    //   "For Client approval", "Approved", "Posted", "Cancelled", "Triage"
+    //   are parked off-calendar because the editor isn't the bottleneck.
     //   "Right now" = status name is literally "In Progress".
-    //   Everything else with statusType === 'started' (For SMM approval, Tweak Applied, …) is parked.
+    const WL_ACTIVE_STATUSES = new Set(['to do', 'in progress', 'tweets needed']);
+    function wlNormStatus(sub) {
+        return (sub.status || '').trim().toLowerCase();
+    }
+    function wlIsActiveStatus(sub) {
+        return WL_ACTIVE_STATUSES.has(wlNormStatus(sub));
+    }
     function wlIsInProgress(sub) {
-        return (sub.status || '').trim().toLowerCase() === 'in progress';
+        return wlNormStatus(sub) === 'in progress';
     }
 
     // Scheduler — deterministic, per-assignee, due-date first, capacity-per-day batched by client.
@@ -4286,7 +4297,7 @@
             // Normalise dueDate — Linear can return "YYYY-MM-DDTHH:mm:ssZ"; slice to 10.
             if (i.dueDate) i.dueDate = String(i.dueDate).slice(0, 10);
         }
-        const subs = issues.filter(i => i.isSubIssue && i.statusType !== 'completed' && i.statusType !== 'canceled');
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i));
         for (const s of subs) {
             if (!s.parentId) continue;
             if (!subsByParentId.has(s.parentId)) subsByParentId.set(s.parentId, []);

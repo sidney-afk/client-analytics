@@ -3933,18 +3933,27 @@
     }
 
     // Status classification — user rule:
-    //   Workload only shows work the editor still needs to act on:
-    //   "To Do", "In Progress", and "Tweets Needed". Statuses like
-    //   "Tweaks Applied", "For SMM approval", "For Casper approval",
-    //   "For Client approval", "Approved", "Posted", "Cancelled", "Triage"
-    //   are parked off-calendar because the editor isn't the bottleneck.
+    //   Workload only shows work the editor still owns. Anything parked on
+    //   someone else (Tweaks Applied, awaiting SMM/Casper/Client approval,
+    //   Approved, Posted) is hidden, along with completed/canceled/triage
+    //   workflow types. Everything else (To Do, In Progress, Tweaks Needed,
+    //   plus any active status not explicitly parked) is shown.
     //   "Right now" = status name is literally "In Progress".
-    const WL_ACTIVE_STATUSES = new Set(['to do', 'in progress', 'tweets needed']);
+    const WL_PARKED_STATUSES = new Set([
+        'tweak applied', 'tweaks applied',
+        'for smm approval', 'waiting for smm approval', 'smm approval',
+        'for casper approval', 'waiting for casper approval', 'casper approval',
+        'for client approval', 'waiting for client approval', 'client approval',
+        'approved',
+        'posted'
+    ]);
     function wlNormStatus(sub) {
         return (sub.status || '').trim().toLowerCase();
     }
     function wlIsActiveStatus(sub) {
-        return WL_ACTIVE_STATUSES.has(wlNormStatus(sub));
+        const t = (sub.statusType || '').toLowerCase();
+        if (t === 'completed' || t === 'canceled' || t === 'triage') return false;
+        return !WL_PARKED_STATUSES.has(wlNormStatus(sub));
     }
     function wlIsInProgress(sub) {
         return wlNormStatus(sub) === 'in progress';

@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Samples — SynchroSocial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --white:#ffffff; --bg:#f4f4f2; --surface:#ffffff; --surface2:#ededea;
+  --border:#e4e4e0; --border-light:#ededea;
+  --text-primary:#111110; --text-secondary:#6b6b67; --text-muted:#b4b4ae;
+  --accent:#6c5ce7; --accent-soft:#efedfd;
+  --danger:#c0392b;
+  --radius:12px; --radius-sm:8px;
+  --font:'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+html,body{font-family:var(--font); background:var(--bg); color:var(--text-primary); -webkit-font-smoothing:antialiased; min-height:100vh;}
+
+/* HEADER */
+.header{background:var(--white); border-bottom:1px solid var(--border); padding:0 28px; height:60px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100;}
+.brand{display:flex; align-items:center; gap:14px;}
+.brand-name{font-size:1rem; font-weight:700; color:var(--text-primary); letter-spacing:-0.01em;}
+.brand-meta{font-size:0.75rem; color:var(--text-muted); border-left:1px solid var(--border); padding-left:14px;}
+.tab-bar{display:flex; gap:4px; background:var(--bg); padding:4px; border-radius:10px; border:1px solid var(--border-light);}
+.tab{padding:6px 16px; border-radius:7px; border:none; background:transparent; font-family:var(--font); font-size:0.78rem; font-weight:600; color:var(--text-secondary); cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:6px;}
+.tab .badge{font-size:0.6rem; font-weight:700; background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:99px; letter-spacing:0.02em;}
+.tab.active{background:var(--white); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+.tab.active .badge{background:var(--accent); color:#fff;}
+
+/* MODE BAR */
+.mode-bar{display:flex; align-items:center; justify-content:space-between; padding:12px 28px; background:var(--white); border-bottom:1px solid var(--border-light);}
+.mode-label{font-size:0.72rem; color:var(--text-muted); font-weight:500;}
+.mode-toggle{display:flex; gap:4px;}
+.mode-btn{padding:6px 14px; border-radius:7px; border:1px solid var(--border); background:var(--white); font-family:var(--font); font-size:0.74rem; font-weight:600; cursor:pointer; color:var(--text-secondary); transition:all 0.15s;}
+.mode-btn.active{background:var(--text-primary); color:#fff; border-color:var(--text-primary);}
+
+/* TOOLBAR */
+.editor-toolbar{padding:12px 28px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--border-light); background:var(--white);}
+.toolbar-left{font-size:0.75rem; color:var(--text-secondary);}
+.share-btn{padding:7px 14px; border-radius:8px; border:none; background:var(--text-primary); color:#fff; font-family:var(--font); font-size:0.78rem; font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:opacity 0.15s;}
+.share-btn:hover{opacity:0.9;}
+.link-out{font-size:0.7rem; color:var(--accent); background:var(--accent-soft); padding:4px 10px; border-radius:6px; margin-top:5px; display:none; font-weight:600;}
+
+/* MAIN */
+main{padding:24px 28px 48px; max-width:1400px; margin:0 auto;}
+.page{display:none;}
+.page.visible{display:block;}
+.page-header{display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; padding-bottom:14px; border-bottom:1px solid var(--border);}
+.page-title{font-size:1.4rem; font-weight:700; letter-spacing:-0.02em; color:var(--text-primary);}
+.page-sub{font-size:0.78rem; color:var(--text-secondary); margin-top:4px;}
+.pill{font-size:0.65rem; font-weight:700; background:var(--accent-soft); color:var(--accent); padding:4px 10px; border-radius:99px; letter-spacing:0.02em;}
+.viewer-badge{font-size:0.65rem; background:var(--bg); color:var(--text-muted); padding:4px 9px; border-radius:6px; border:1px solid var(--border); font-weight:600;}
+.empty-state{padding:60px 24px; text-align:center; color:var(--text-muted); font-size:0.85rem; background:var(--white); border:1px dashed var(--border); border-radius:var(--radius);}
+
+/* GRID + CARD */
+.grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px;}
+@media (max-width: 980px){ .grid{grid-template-columns:repeat(2, minmax(0,1fr));} }
+@media (max-width: 640px){ .grid{grid-template-columns:1fr;} }
+
+.card{background:var(--white); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.04);}
+.card-top{display:flex; align-items:center; justify-content:space-between; padding:10px 14px 6px;}
+.card-label{font-size:0.65rem; font-weight:700; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase;}
+.card-dot{width:6px; height:6px; border-radius:50%; background:var(--border);}
+.card-dot.has{background:#22c55e;}
+
+/* 9:16 frame */
+.frame{width:100%; aspect-ratio:9/16; background:#0e0d0c; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;}
+.frame iframe, .frame img{width:100%; height:100%; object-fit:cover; border:none; display:block;}
+.frame .empty{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:rgba(255,255,255,0.45); font-size:0.75rem; padding:14px; text-align:center;}
+.frame .empty .ratio-hint{font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(255,255,255,0.25);}
+
+/* CARD BODY */
+.card-body{padding:12px 14px 14px; display:flex; flex-direction:column; gap:12px;}
+.field{display:flex; flex-direction:column; gap:5px;}
+.field-label{font-size:0.62rem; font-weight:700; color:var(--text-muted); letter-spacing:0.08em; text-transform:uppercase;}
+.field-input, textarea, input[type=text]{width:100%; font-family:var(--font); font-size:0.8rem; line-height:1.5; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; resize:none; transition:border-color 0.12s, background 0.12s;}
+textarea:focus, input[type=text]:focus{outline:none; border-color:var(--accent); background:var(--white);}
+textarea::placeholder, input::placeholder{color:var(--text-muted);}
+textarea[readonly], input[readonly]{cursor:default; background:var(--bg) !important; border-color:var(--border) !important;}
+
+.media-row{display:flex; gap:6px;}
+.media-row input{flex:1;}
+.icon-btn{padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:var(--font); font-size:0.72rem; font-weight:600;}
+.icon-btn:hover{background:var(--bg); color:var(--text-primary);}
+
+.comment-wrap{border-left:2px solid var(--accent-soft); padding-left:10px; padding-top:2px;}
+.comments-list{display:flex; flex-direction:column; gap:6px; margin-top:4px;}
+.comment-item{background:var(--bg); border:1px solid var(--border-light); border-radius:8px; padding:8px 10px; font-size:0.78rem; line-height:1.5; color:var(--text-primary);}
+.comment-item .c-meta{font-size:0.65rem; color:var(--text-muted); margin-bottom:3px; font-weight:600;}
+.comment-item .c-text{margin-bottom:5px; white-space:pre-wrap; word-break:break-word;}
+.comment-actions{display:flex; gap:5px;}
+.c-btn{font-size:0.65rem; padding:3px 8px; border-radius:5px; border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:var(--font); font-weight:600;}
+.c-btn.del{color:var(--danger); border-color:rgba(192,57,43,0.25);}
+.c-btn:hover{background:var(--bg); color:var(--text-primary);}
+.c-btn.del:hover{background:rgba(192,57,43,0.06); color:var(--danger);}
+
+.comment-input-row{display:flex; gap:6px; align-items:flex-end; margin-top:6px;}
+.comment-input-row textarea{flex:1; min-height:0;}
+.save-btn{padding:8px 12px; border-radius:7px; border:none; background:var(--accent); color:#fff; font-family:var(--font); font-size:0.72rem; font-weight:700; cursor:pointer; white-space:nowrap; align-self:stretch;}
+.save-btn:hover{opacity:0.9;}
+.save-btn:disabled{opacity:0.5; cursor:default;}
+
+/* status flash */
+.flash{position:fixed; bottom:24px; right:24px; background:var(--text-primary); color:#fff; padding:10px 16px; border-radius:8px; font-size:0.78rem; font-weight:600; box-shadow:0 6px 24px rgba(0,0,0,0.18); opacity:0; pointer-events:none; transform:translateY(8px); transition:opacity 0.18s, transform 0.18s; z-index:200;}
+.flash.show{opacity:1; transform:translateY(0);}
+.flash.error{background:var(--danger);}
+
+.dirty-dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent); margin-left:6px; vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="brand">
+    <div class="brand-name">SynchroSocial <span style="color:var(--accent)">·</span> Samples</div>
+    <div class="brand-meta">Content sample presentation</div>
+  </div>
+  <div class="tab-bar" role="tablist">
+    <button class="tab active" data-tab="reels" type="button">Reels <span class="badge">9:16</span></button>
+    <button class="tab" data-tab="thumbs" type="button">Thumbnails <span class="badge">9:16</span></button>
+  </div>
+</div>
+
+<div class="mode-bar" id="mode-bar">
+  <span class="mode-label">View mode (toggle to preview the client experience)</span>
+  <div class="mode-toggle">
+    <button class="mode-btn active" data-mode="editor" type="button">Editor</button>
+    <button class="mode-btn" data-mode="viewer" type="button">Client view</button>
+  </div>
+</div>
+
+<div class="editor-toolbar" id="editor-toolbar">
+  <span class="toolbar-left">Paste media URLs, fill the rationale, and your client will see the result.</span>
+  <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+    <button class="share-btn" id="share-btn" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      Copy client link
+    </button>
+    <div class="link-out" id="link-out">Link copied to clipboard</div>
+  </div>
+</div>
+
+<main>
+  <section class="page visible" id="page-reels">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Instagram Reels</div>
+        <div class="page-sub">Video samples — 9:16 vertical · hosted on Frame.io</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="viewer-badge" data-viewer-badge style="display:none;">View only</span>
+        <span class="pill">9 : 16 · Vertical</span>
+      </div>
+    </div>
+    <div class="grid" id="reels-grid"></div>
+  </section>
+
+  <section class="page" id="page-thumbs">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Instagram Thumbnails</div>
+        <div class="page-sub">Cover image samples — 9:16 vertical · hosted on Google Drive</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="viewer-badge" data-viewer-badge style="display:none;">View only</span>
+        <span class="pill">9 : 16 · Vertical</span>
+      </div>
+    </div>
+    <div class="grid" id="thumbs-grid"></div>
+  </section>
+</main>
+
+<div class="flash" id="flash"></div>
+
+<script>
+/* =========================================================================
+ *  CONFIG  —  fill these in once your Google Sheet + n8n webhooks exist.
+ *  Leave any value blank to run in local-only mode (changes don't persist).
+ * ========================================================================= */
+var CONFIG = {
+  // Google Sheet that backs this page. The sheet must be shared "Anyone with link can view".
+  SHEET_ID: '',                          // e.g. '1AbC...xyz'
+  SAMPLES_SHEET:  'Samples',             // tab/sheet name for the sample slots
+  COMMENTS_SHEET: 'SampleComments',      // tab/sheet name for comments
+
+  // n8n webhook URLs (POST). See README at the bottom of this file.
+  UPDATE_SAMPLE_WEBHOOK:  '',            // e.g. 'https://...n8n.cloud/webhook/update-sample'
+  ADD_COMMENT_WEBHOOK:    '',            // 'https://...n8n.cloud/webhook/add-sample-comment'
+  EDIT_COMMENT_WEBHOOK:   '',            // 'https://...n8n.cloud/webhook/edit-sample-comment'
+  DELETE_COMMENT_WEBHOOK: '',            // 'https://...n8n.cloud/webhook/delete-sample-comment'
+
+  // How many slots to show on each tab. Each slot = one card on the page.
+  REEL_SLOTS:  3,
+  THUMB_SLOTS: 3,
+
+  // Public link that clients open in read-only mode.
+  // The page detects ?view=client in the URL and locks editing.
+  CLIENT_VIEW_PARAM: 'view',
+  CLIENT_VIEW_VALUE: 'client'
+};
+
+/* ========================================================================= */
+
+var state = {
+  mode: 'editor',                         // 'editor' | 'viewer'
+  reels: [],                              // [{slot_id, label, media_url, rationale}]
+  thumbs: [],
+  comments: {}                            // { slot_id: [{comment_id, text, author, created_at}] }
+};
+
+/* ----------- helpers ----------- */
+function $(sel, root){ return (root||document).querySelector(sel); }
+function $$(sel, root){ return Array.from((root||document).querySelectorAll(sel)); }
+function isClientUrl(){
+  var p = new URLSearchParams(location.search);
+  return p.get(CONFIG.CLIENT_VIEW_PARAM) === CONFIG.CLIENT_VIEW_VALUE;
+}
+function flash(msg, isErr){
+  var f = $('#flash');
+  f.textContent = msg;
+  f.classList.toggle('error', !!isErr);
+  f.classList.add('show');
+  clearTimeout(flash._t);
+  flash._t = setTimeout(function(){ f.classList.remove('show'); }, 2200);
+}
+function uid(){ return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
+function nowIso(){ return new Date().toISOString(); }
+function escAttr(s){ return String(s||'').replace(/"/g,'&quot;'); }
+
+/* ----------- media URL helpers ----------- */
+// Frame.io: accept a full share/embed URL. We pass it through.
+// If the worker pastes app.frame.io/reviews/... or f.io/... it should embed.
+function frameioEmbedSrc(url){
+  if(!url) return '';
+  url = url.trim();
+  // Already an embed URL — pass through.
+  return url;
+}
+// Google Drive: accept a file ID or a full Drive URL — extract the ID.
+function driveImageSrc(input){
+  if(!input) return '';
+  input = input.trim();
+  var m = input.match(/[-\w]{25,}/);
+  var id = m ? m[0] : input;
+  return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w800';
+}
+
+/* ----------- default slot scaffolding ----------- */
+function defaultSlots(type, n){
+  var out = [];
+  for(var i=1; i<=n; i++){
+    out.push({
+      slot_id: type + '-' + i,
+      type: type,
+      label: (type==='reel' ? 'Reel ' : 'Thumbnail ') + i,
+      media_url: '',
+      rationale: ''
+    });
+  }
+  return out;
+}
+
+/* ----------- Google Sheets read (gviz/tq, same pattern as the main site) ----------- */
+function sheetCsvUrl(sheetName){
+  if(!CONFIG.SHEET_ID || !sheetName) return '';
+  return 'https://docs.google.com/spreadsheets/d/' + CONFIG.SHEET_ID +
+         '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(sheetName) +
+         '&_t=' + Date.now();
+}
+function parseCsv(text){
+  // Minimal CSV parser handling quoted fields + escaped quotes.
+  var rows = [], row = [], cur = '', inQ = false;
+  for(var i=0; i<text.length; i++){
+    var ch = text[i];
+    if(inQ){
+      if(ch === '"' && text[i+1] === '"'){ cur += '"'; i++; }
+      else if(ch === '"'){ inQ = false; }
+      else { cur += ch; }
+    } else {
+      if(ch === '"'){ inQ = true; }
+      else if(ch === ','){ row.push(cur); cur=''; }
+      else if(ch === '\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(ch === '\r'){ /* ignore */ }
+      else { cur += ch; }
+    }
+  }
+  if(cur.length || row.length){ row.push(cur); rows.push(row); }
+  if(!rows.length) return [];
+  var headers = rows[0].map(function(h){ return h.trim(); });
+  return rows.slice(1).filter(function(r){ return r.some(function(c){return c && c.length;}); }).map(function(r){
+    var obj = {};
+    headers.forEach(function(h, idx){ obj[h] = (r[idx]||'').trim(); });
+    return obj;
+  });
+}
+async function fetchSheet(sheetName){
+  var url = sheetCsvUrl(sheetName);
+  if(!url) return [];
+  var r = await fetch(url);
+  if(!r.ok) throw new Error('Sheet fetch failed: ' + r.status);
+  return parseCsv(await r.text());
+}
+
+/* ----------- webhook write ----------- */
+async function postWebhook(url, payload){
+  if(!url) return { ok:false, local:true };
+  try{
+    var r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return { ok: r.ok, status: r.status };
+  } catch(e){
+    console.error('[Samples] webhook error', e);
+    return { ok:false, error: e };
+  }
+}
+
+/* ----------- load data ----------- */
+async function loadAll(){
+  // Default scaffolding first so the page always renders.
+  state.reels  = defaultSlots('reel',  CONFIG.REEL_SLOTS);
+  state.thumbs = defaultSlots('thumb', CONFIG.THUMB_SLOTS);
+  state.comments = {};
+
+  if(!CONFIG.SHEET_ID){ return; }
+
+  try{
+    var [samples, comments] = await Promise.all([
+      fetchSheet(CONFIG.SAMPLES_SHEET),
+      fetchSheet(CONFIG.COMMENTS_SHEET)
+    ]);
+
+    // Merge samples by slot_id.
+    var bySlot = {};
+    samples.forEach(function(row){
+      if(!row.slot_id) return;
+      bySlot[row.slot_id] = row;
+    });
+    function applyRow(slot){
+      var r = bySlot[slot.slot_id];
+      if(!r) return slot;
+      if(r.label)      slot.label = r.label;
+      if(r.media_url)  slot.media_url = r.media_url;
+      if(r.rationale)  slot.rationale = r.rationale;
+      return slot;
+    }
+    state.reels  = state.reels.map(applyRow);
+    state.thumbs = state.thumbs.map(applyRow);
+
+    // Comments grouped by slot_id, sorted by created_at asc.
+    comments.forEach(function(c){
+      if(!c.slot_id || !c.comment_id) return;
+      (state.comments[c.slot_id] = state.comments[c.slot_id] || []).push(c);
+    });
+    Object.keys(state.comments).forEach(function(k){
+      state.comments[k].sort(function(a,b){ return (a.created_at||'').localeCompare(b.created_at||''); });
+    });
+  } catch(e){
+    console.error('[Samples] load error', e);
+    flash('Could not load from sheet — running locally', true);
+  }
+}
+
+/* ----------- render ----------- */
+function renderTab(type){
+  var grid = $(type === 'reel' ? '#reels-grid' : '#thumbs-grid');
+  var items = type === 'reel' ? state.reels : state.thumbs;
+  grid.innerHTML = '';
+  items.forEach(function(item){ grid.appendChild(buildCard(item, type)); });
+}
+
+function buildCard(item, type){
+  var isReel = type === 'reel';
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.slot = item.slot_id;
+
+  // Top
+  var top = document.createElement('div');
+  top.className = 'card-top';
+  top.innerHTML =
+    '<div class="card-label">' + escAttr(item.label) + '</div>' +
+    '<div class="card-dot ' + (item.media_url ? 'has' : '') + '"></div>';
+  card.appendChild(top);
+
+  // Frame
+  var frame = document.createElement('div');
+  frame.className = 'frame';
+  frame.appendChild(buildMedia(item, isReel));
+  card.appendChild(frame);
+
+  // Body
+  var body = document.createElement('div');
+  body.className = 'card-body';
+
+  // Media URL field (editor only)
+  var mediaField = document.createElement('div');
+  mediaField.className = 'field';
+  mediaField.dataset.editorOnly = '1';
+  mediaField.innerHTML =
+    '<div class="field-label">' + (isReel ? 'Frame.io URL' : 'Google Drive ID or URL') + '</div>' +
+    '<div class="media-row">' +
+      '<input type="text" data-media value="' + escAttr(item.media_url) + '" placeholder="' +
+        (isReel ? 'https://f.io/... or https://app.frame.io/reviews/...' : 'Drive file ID or full URL') +
+      '">' +
+      '<button class="icon-btn" data-media-save type="button">Save</button>' +
+    '</div>';
+  body.appendChild(mediaField);
+
+  // Rationale
+  var rationaleField = document.createElement('div');
+  rationaleField.className = 'field';
+  rationaleField.innerHTML =
+    '<div class="field-label">Style &amp; rationale</div>' +
+    '<textarea data-rationale rows="3" placeholder="Describe the style, tone, and strategy...">' +
+      escAttr(item.rationale) +
+    '</textarea>';
+  body.appendChild(rationaleField);
+
+  // Comments
+  var commentField = document.createElement('div');
+  commentField.className = 'field comment-wrap';
+  commentField.innerHTML =
+    '<div class="field-label">Comments</div>' +
+    '<div class="comments-list" data-comments></div>' +
+    '<div class="comment-input-row" data-input-row>' +
+      '<textarea data-new-comment rows="2" placeholder="Write a comment..."></textarea>' +
+      '<button class="save-btn" data-add-comment type="button">Send</button>' +
+    '</div>';
+  body.appendChild(commentField);
+
+  card.appendChild(body);
+
+  // Wire events
+  wireCard(card, item, type);
+  renderComments(card, item.slot_id);
+  return card;
+}
+
+function buildMedia(item, isReel){
+  if(!item.media_url){
+    var empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.innerHTML =
+      '<div>' + (isReel ? 'No video yet' : 'No thumbnail yet') + '</div>' +
+      '<div class="ratio-hint">9 : 16</div>';
+    return empty;
+  }
+  if(isReel){
+    var iframe = document.createElement('iframe');
+    iframe.src = frameioEmbedSrc(item.media_url);
+    iframe.allow = 'autoplay; fullscreen; picture-in-picture; clipboard-write';
+    iframe.referrerPolicy = 'no-referrer-when-downgrade';
+    iframe.title = item.label;
+    return iframe;
+  } else {
+    var img = document.createElement('img');
+    img.src = driveImageSrc(item.media_url);
+    img.alt = item.label;
+    img.loading = 'lazy';
+    img.onerror = function(){
+      img.style.display='none';
+      var empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.innerHTML = '<div>Image not accessible</div><div class="ratio-hint">Check Drive sharing</div>';
+      img.parentNode.appendChild(empty);
+    };
+    return img;
+  }
+}
+
+function wireCard(card, item, type){
+  var isReel = type === 'reel';
+  var mediaInput = $('[data-media]', card);
+  var mediaSave  = $('[data-media-save]', card);
+  var rationale  = $('[data-rationale]', card);
+  var newComment = $('[data-new-comment]', card);
+  var addBtn     = $('[data-add-comment]', card);
+
+  // Save media URL
+  mediaSave.addEventListener('click', async function(){
+    var v = mediaInput.value.trim();
+    item.media_url = v;
+    // re-render frame
+    var frame = $('.frame', card);
+    frame.innerHTML = '';
+    frame.appendChild(buildMedia(item, isReel));
+    $('.card-dot', card).classList.toggle('has', !!v);
+    await persistSample(item);
+  });
+
+  // Save rationale on blur (auto-save)
+  var lastRationale = item.rationale || '';
+  rationale.addEventListener('blur', async function(){
+    var v = rationale.value;
+    if(v === lastRationale) return;
+    item.rationale = v;
+    lastRationale = v;
+    await persistSample(item);
+  });
+
+  // Add comment
+  addBtn.addEventListener('click', async function(){
+    var text = newComment.value.trim();
+    if(!text) return;
+    addBtn.disabled = true;
+    var c = {
+      comment_id: uid(),
+      slot_id: item.slot_id,
+      text: text,
+      author: '',
+      created_at: nowIso()
+    };
+    (state.comments[item.slot_id] = state.comments[item.slot_id] || []).push(c);
+    newComment.value = '';
+    renderComments(card, item.slot_id);
+    var res = await postWebhook(CONFIG.ADD_COMMENT_WEBHOOK, c);
+    addBtn.disabled = false;
+    if(!res.ok && !res.local){ flash('Comment saved locally only', true); }
+  });
+}
+
+function renderComments(card, slot_id){
+  var list = $('[data-comments]', card);
+  var items = state.comments[slot_id] || [];
+  list.innerHTML = '';
+  items.forEach(function(c){
+    var div = document.createElement('div');
+    div.className = 'comment-item';
+    var safeText = String(c.text||'').replace(/[&<>]/g, function(ch){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[ch];
+    });
+    div.innerHTML =
+      (c.created_at ? '<div class="c-meta">' + new Date(c.created_at).toLocaleString() + '</div>' : '') +
+      '<div class="c-text">' + safeText + '</div>' +
+      '<div class="comment-actions" data-actions>' +
+        '<button class="c-btn" data-edit type="button">Edit</button>' +
+        '<button class="c-btn del" data-del type="button">Delete</button>' +
+      '</div>';
+    list.appendChild(div);
+
+    $('[data-edit]', div).addEventListener('click', async function(){
+      var nx = prompt('Edit comment:', c.text);
+      if(nx === null) return;
+      nx = nx.trim();
+      if(!nx) return;
+      c.text = nx;
+      renderComments(card, slot_id);
+      var res = await postWebhook(CONFIG.EDIT_COMMENT_WEBHOOK, c);
+      if(!res.ok && !res.local){ flash('Edit saved locally only', true); }
+    });
+
+    $('[data-del]', div).addEventListener('click', async function(){
+      if(!confirm('Delete this comment?')) return;
+      state.comments[slot_id] = (state.comments[slot_id]||[]).filter(function(x){ return x.comment_id !== c.comment_id; });
+      renderComments(card, slot_id);
+      var res = await postWebhook(CONFIG.DELETE_COMMENT_WEBHOOK, { comment_id: c.comment_id, slot_id: slot_id });
+      if(!res.ok && !res.local){ flash('Delete saved locally only', true); }
+    });
+  });
+  applyModeToCard(card);
+}
+
+async function persistSample(item){
+  var res = await postWebhook(CONFIG.UPDATE_SAMPLE_WEBHOOK, {
+    slot_id: item.slot_id,
+    type: item.type,
+    label: item.label,
+    media_url: item.media_url,
+    rationale: item.rationale,
+    updated_at: nowIso()
+  });
+  if(res.local){ flash('Saved locally (no webhook configured)'); }
+  else if(!res.ok){ flash('Save failed', true); }
+  else { flash('Saved'); }
+}
+
+/* ----------- mode + tabs ----------- */
+function setMode(mode){
+  state.mode = mode;
+  document.body.dataset.mode = mode;
+  $$('.mode-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.mode === mode); });
+  $('#editor-toolbar').style.display = mode === 'editor' ? 'flex' : 'none';
+  $$('[data-viewer-badge]').forEach(function(b){ b.style.display = mode === 'viewer' ? 'inline-block' : 'none'; });
+  $$('.card').forEach(applyModeToCard);
+}
+function applyModeToCard(card){
+  var viewer = state.mode === 'viewer';
+  // Editor-only sections
+  $$('[data-editor-only]', card).forEach(function(el){ el.style.display = viewer ? 'none' : ''; });
+  // Rationale read-only in viewer mode
+  var rt = $('[data-rationale]', card);
+  if(rt) rt.readOnly = viewer;
+  // Edit/delete on comments hidden in viewer mode
+  $$('[data-actions]', card).forEach(function(actions){
+    actions.style.display = viewer ? 'none' : 'flex';
+  });
+}
+
+function setTab(name){
+  $$('.tab').forEach(function(t){ t.classList.toggle('active', t.dataset.tab === name); });
+  $$('.page').forEach(function(p){ p.classList.remove('visible'); });
+  $('#page-' + name).classList.add('visible');
+}
+
+/* ----------- share / copy link ----------- */
+function copyClientLink(){
+  var url = new URL(location.href);
+  url.searchParams.set(CONFIG.CLIENT_VIEW_PARAM, CONFIG.CLIENT_VIEW_VALUE);
+  var s = url.toString();
+  var done = function(){
+    var out = $('#link-out');
+    out.textContent = 'Link copied — ' + s;
+    out.style.display = 'block';
+    setTimeout(function(){ out.style.display = 'none'; }, 3500);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(s).then(done, function(){
+      window.prompt('Copy this link:', s);
+    });
+  } else {
+    window.prompt('Copy this link:', s);
+  }
+}
+
+/* ----------- init ----------- */
+async function init(){
+  // Tabs
+  $$('.tab').forEach(function(t){
+    t.addEventListener('click', function(){ setTab(t.dataset.tab); });
+  });
+  // Mode
+  $$('.mode-btn').forEach(function(b){
+    b.addEventListener('click', function(){ setMode(b.dataset.mode); });
+  });
+  $('#share-btn').addEventListener('click', copyClientLink);
+
+  await loadAll();
+  renderTab('reel');
+  renderTab('thumb');
+
+  // If URL says client view, lock into viewer mode and hide the mode toggle.
+  if(isClientUrl()){
+    setMode('viewer');
+    $('#mode-bar').style.display = 'none';
+  } else {
+    setMode('editor');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

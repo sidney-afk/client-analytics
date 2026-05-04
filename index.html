@@ -1184,6 +1184,21 @@
         .workload-grid.week .workload-day-num { font-size: 0.85rem; margin-bottom: 4px; }
         .workload-day.today .workload-day-num { color: var(--text-primary); }
         .workload-day-count { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); background: var(--white); border-radius: 999px; padding: 1px 6px; }
+        .workload-day-card { background: var(--white); border-left: 3px solid #6c5ce7; border-radius: 6px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+        .workload-day-card.team-video    { border-left-color: #6c5ce7; }
+        .workload-day-card.team-graphics { border-left-color: #d97706; }
+        .workload-grid.week .workload-day-card { padding: 8px 10px; gap: 6px; }
+        .workload-day-card-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+        .workload-day-card-name { flex: 1; font-size: 0.7rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .workload-grid.week .workload-day-card-name { font-size: 0.78rem; }
+        .workload-day-card-total { background: var(--bg); border-radius: 999px; padding: 1px 7px; font-size: 0.6rem; font-weight: 800; color: var(--text-secondary); flex-shrink: 0; }
+        .workload-day-card-clients { display: flex; flex-wrap: wrap; gap: 3px; }
+        .workload-day-card-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: var(--bg); color: var(--text-primary); font-size: 0.62rem; font-weight: 600; text-decoration: none; max-width: 100%; transition: background 0.1s; }
+        .workload-grid.week .workload-day-card-chip { font-size: 0.7rem; padding: 3px 9px; }
+        .workload-day-card-chip:hover { background: #fff; box-shadow: 0 0 0 1px var(--border) inset; }
+        .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
+        .workload-day-card-chip-count:hover { opacity: 1; }
         .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
         .workload-grid.week .workload-rollup { padding: 8px 10px; }
         .workload-rollup:hover { background: #fafafa; }
@@ -3990,6 +4005,31 @@
         return wlNormStatus(sub) === 'in progress';
     }
 
+    // Active video editors as listed in the SYNCVIEW Google Sheet's
+    // "Video Editors" tab. Anyone else (former editors, accidental assignees,
+    // SMMs etc.) is filtered out of every workload view so the panels only
+    // surface people who are actually responsible for editing right now.
+    // Each entry is a normalised name token; wlNormalizeEditor() collapses
+    // emails, full names and "First Last"/"Last First" into the same key.
+    const WL_ALLOWED_EDITORS = new Set([
+        'iaramiraille',
+        'martinsynchro',
+        'espindolanahuel',
+        'nahuelespindola',
+        'santigimelli',
+        'gimellisanti',
+    ]);
+    function wlNormalizeEditor(s) {
+        if (!s) return '';
+        const lower = String(s).trim().toLowerCase();
+        const local = lower.includes('@') ? lower.split('@')[0] : lower;
+        return local.replace(/[\s._\-]+/g, '');
+    }
+    function wlIsAllowedEditor(name) {
+        if (!name) return false;
+        return WL_ALLOWED_EDITORS.has(wlNormalizeEditor(name));
+    }
+
     // Effective work date = the working day BEFORE the due date, never earlier
     // than today. The team's rule is that a video due tomorrow has to be edited
     // today, so the scheduler always targets dueDate-1, not the due date itself.
@@ -4379,12 +4419,17 @@
                 if (inProg || hasDue) unassigned.push(s);
                 continue;
             }
-            if (inProg) nowWorking.push(s);
-            // Schedule on the calendar whenever there's a due date — including
-            // In Progress and overdue items. Overdue items get pinned to today
-            // by the scheduler (see wlEffectiveWorkDate), and In Progress items
-            // keep their slot so they don't vanish from the calendar entirely.
-            if (hasDue) planned.push(s);
+            // Only surface work owned by current video editors (see
+            // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
+            // silently dropped so they don't pollute the panels.
+            if (!wlIsAllowedEditor(s.assigneeName)) continue;
+            if (inProg) {
+                nowWorking.push(s);
+                continue; // In Progress items live in the strip only.
+            }
+            // Calendar workload is forward-looking: skip overdue items so
+            // today/tomorrow never show stale work that should have shipped.
+            if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
         wlState.nowWorking = nowWorking;
@@ -4511,6 +4556,7 @@
         const all = wlState.allActiveSubs || [];
         // Editors: scoped to active team filter so Video pill hides graphics-only assignees.
         const editors = [...new Map(all.filter(s => s.assigneeId &&
+                wlIsAllowedEditor(s.assigneeName) &&
                 (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
@@ -4690,6 +4736,7 @@
         const byEditor = new Map();
         for (const s of (wlState.allActiveSubs || [])) {
             if (!s.assigneeId) continue;
+            if (!wlIsAllowedEditor(s.assigneeName)) continue;
             if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) continue;
             if (wlState.client !== 'all' && s.clientName !== wlState.client) continue;
             if (!byEditor.has(s.assigneeId)) {
@@ -4928,36 +4975,69 @@
         return '<div class="workload-grid-wrap">' + weekdayHtml + gridHtml + '</div>';
     }
 
-    // One rollup per row. The row itself links to the parent Linear issue
-    // (right-click / ctrl-click / middle-click behaves like a normal link).
-    // Clicking the count badge instead opens a popover listing the individual
-    // sub-issues, each linking to Linear.
+    // Render a day's worth of work as one card per editor, with a chip per
+    // client they're assigned to that day. This mirrors the "In progress now"
+    // strip so the calendar reads the same way: editor first, then the list
+    // of clients they're working on. Each chip's text links to the parent
+    // Linear issue; clicking the count badge opens a popover with the
+    // individual sub-issues.
     function renderDayRollups(groups, dayISO, opts) {
         if (!groups.length) return '';
         const unlimited = !!(opts && opts.unlimited);
-        const shown = unlimited ? groups : groups.slice(0, WL_MAX_ROWS_PER_DAY);
-        const hiddenGroups = groups.length - shown.length;
-        let html = shown.map(g => {
-            const team = wlTeamBucket(g.teamKey, g.teamName);
-            const classes = ['workload-rollup', 'team-' + team];
-            if (g.inProgress) classes.push('in-progress');
-            const href = wlParentUrl(g.anySub);
-            const name = wlDisplayName(g.assigneeName) || 'Unknown';
-            const titleAttr = [name, g.clientName, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), g.inProgress ? 'in progress' : ''].filter(Boolean).join(' · ');
-            return `<a class="${classes.join(' ')}" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="${g.inProgress ? '1' : '0'}" data-wl-date="${wlEscape(dayISO || '')}">
-                <div class="workload-rollup-row">
-                    <span class="workload-rollup-editor">${wlEscape(name)}</span>
-                    ${g.inProgress ? '<span class="workload-rollup-now-tag">Now</span>' : ''}
+
+        // Collapse the (editor × client) groups into one entry per editor.
+        const byEditor = new Map();
+        for (const g of groups) {
+            const key = g.assigneeId || '?';
+            if (!byEditor.has(key)) {
+                byEditor.set(key, {
+                    assigneeId: g.assigneeId,
+                    assigneeName: g.assigneeName,
+                    teamKey: g.teamKey,
+                    teamName: g.teamName,
+                    total: 0,
+                    clients: [],
+                });
+            }
+            const ed = byEditor.get(key);
+            ed.total += g.count;
+            ed.clients.push(g);
+        }
+        const editors = [...byEditor.values()].sort((a, b) =>
+            wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName))
+        );
+
+        const shown = unlimited ? editors : editors.slice(0, WL_MAX_ROWS_PER_DAY);
+        const hiddenEditors = editors.length - shown.length;
+
+        let html = shown.map(ed => {
+            const team = wlTeamBucket(ed.teamKey, ed.teamName);
+            const name = wlDisplayName(ed.assigneeName) || 'Unknown';
+            const clients = ed.clients.slice().sort((a, b) => {
+                if (a.count !== b.count) return b.count - a.count;
+                return (a.clientName || '').localeCompare(b.clientName || '');
+            });
+            const chips = clients.map(g => {
+                const href = wlParentUrl(g.anySub);
+                const label = g.clientName || '—';
+                const titleAttr = [label, g.count + ' sub-issue' + (g.count !== 1 ? 's' : '')].join(' · ');
+                return `<a class="workload-day-card-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}">
+                    <span class="workload-day-card-chip-name">${wlEscape(label)}</span>
+                    <span class="workload-day-card-chip-count" data-wl-count-badge="1" title="See the ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">${g.count}</span>
+                </a>`;
+            }).join('');
+            return `<div class="workload-day-card team-${team}">
+                <div class="workload-day-card-head">
+                    <span class="workload-day-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
+                    <span class="workload-day-card-total" title="${ed.total} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</span>
                 </div>
-                <div class="workload-rollup-row">
-                    <span class="workload-rollup-client">${wlEscape(g.clientName || '—')}</span>
-                    <span class="rollup-count" data-wl-count-badge="1" title="See the ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">${g.count}</span>
-                </div>
-            </a>`;
+                <div class="workload-day-card-clients">${chips}</div>
+            </div>`;
         }).join('');
-        if (hiddenGroups > 0) {
-            const hiddenCount = groups.slice(shown.length).reduce((n, g) => n + g.count, 0);
-            html += `<div class="workload-day-overflow">+${hiddenGroups} more (${hiddenCount})</div>`;
+
+        if (hiddenEditors > 0) {
+            const hiddenCount = editors.slice(shown.length).reduce((n, ed) => n + ed.total, 0);
+            html += `<div class="workload-day-overflow">+${hiddenEditors} more (${hiddenCount})</div>`;
         }
         return html;
     }

@@ -4020,14 +4020,11 @@
         return wlNormStatus(sub) === 'in progress';
     }
 
-    // Active video editors as listed in the SYNCVIEW Google Sheet's
-    // "Video Editors" tab. The sheet only covers video editors, so we only
-    // gate that team — graphic designers are allowed through unchanged so
-    // their workload still shows. Anyone else on the video team (former
-    // editors, accidental assignees, SMMs etc.) is filtered out so the
-    // panels only surface people who are actually editing right now.
-    // Each entry is a normalised name token; wlNormalizeEditor() collapses
-    // emails, full names and "First Last"/"Last First" into the same key.
+    // Active editors. Video editors come from SYNCVIEW's "Video Editors" tab;
+    // the only graphic designer right now is Rocío Perez. Anyone else gets
+    // filtered out so the panels only surface people actively editing.
+    // Each entry is a normalised name token — wlNormalizeEditor() collapses
+    // emails, accented names and "First Last"/"Last First" into the same key.
     const WL_ALLOWED_EDITORS = new Set([
         'iaramiraille',
         'martinsynchro',
@@ -4036,16 +4033,24 @@
         'santigimelli',
         'gimellisanti',
     ]);
+    const WL_ALLOWED_GRAPHICS = new Set([
+        'rocioperez',
+        'perezrocio',
+    ]);
     function wlNormalizeEditor(s) {
         if (!s) return '';
-        const lower = String(s).trim().toLowerCase();
+        const lower = String(s).trim().toLowerCase()
+            .normalize('NFD').replace(/[̀-ͯ]/g, ''); // strip accents
         const local = lower.includes('@') ? lower.split('@')[0] : lower;
         return local.replace(/[\s._\-]+/g, '');
     }
     function wlIsAllowedEditor(name, teamKey, teamName) {
         if (!name) return false;
-        if (wlTeamBucket(teamKey, teamName) === 'graphics') return true;
-        return WL_ALLOWED_EDITORS.has(wlNormalizeEditor(name));
+        const norm = wlNormalizeEditor(name);
+        if (wlTeamBucket(teamKey, teamName) === 'graphics') {
+            return WL_ALLOWED_GRAPHICS.has(norm);
+        }
+        return WL_ALLOWED_EDITORS.has(norm);
     }
 
     // Active clients as listed in SYNCVIEW's "Clients Info" sheet. Anything
@@ -4056,7 +4061,8 @@
     // "Eben and Annie" collapse to one too.
     function wlNormalizeClient(s) {
         if (!s) return '';
-        let t = String(s).toLowerCase().trim();
+        let t = String(s).toLowerCase().trim()
+            .normalize('NFD').replace(/[̀-ͯ]/g, '');
         t = t.replace(/^dr\.?\s+/, '');
         t = t.replace(/\s+(?:and|&)\s+/g, '&');
         t = t.replace(/[^a-z0-9&]+/g, '');
@@ -4102,8 +4108,10 @@
     // Effective work date = the working day BEFORE the due date, never earlier
     // than today. The team's rule is that a video due tomorrow has to be edited
     // today, so the scheduler always targets dueDate-1, not the due date itself.
+    // Items without a due date (e.g. In Progress with no date set) get pinned
+    // to today so the editor sees them on the calendar instead of nowhere.
     function wlEffectiveWorkDate(dueDate, todayISO) {
-        if (!dueDate) return null;
+        if (!dueDate) return todayISO;
         const before = wlSubWorkingDays(dueDate, 1);
         return before < todayISO ? todayISO : before;
     }
@@ -4537,13 +4545,18 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            if (inProg) nowWorking.push(s);
-            // Calendar workload is forward-looking: skip overdue items so
-            // today/tomorrow never show stale work that should have shipped.
-            // In Progress items WITH a future due date are also placed on the
-            // calendar (in addition to the strip) at their effective work
-            // date, so an editor who's already started a video still sees
-            // it in the day it was scheduled for.
+            if (inProg) {
+                // In Progress sub-issues live in the strip AND on the calendar.
+                // Even if the due date is missing or in the past we still
+                // place them on the calendar (pinned to today) so the strip
+                // never holds work that's invisible from the day view.
+                nowWorking.push(s);
+                planned.push(s);
+                continue;
+            }
+            // Calendar workload is forward-looking for non-in-progress work:
+            // skip overdue and undated items so today/tomorrow never show
+            // stale stuff that should already have shipped.
             if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 

@@ -1221,6 +1221,24 @@
         .workload-day-card-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         .workload-day-card-chip-count { font-weight: 800; opacity: 0.55; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .workload-day-card-chip-count:hover { opacity: 1; }
+        /* Spotlight: while a popover is open, dim everything that isn't part
+           of the clicked rollup, and surface "due here" ghost markers on the
+           due-date columns. The CSS does the dimming via a single attribute
+           on the grid wrapper; a per-element data-wl-match opts back in. */
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card,
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip,
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total { transition: opacity 0.15s ease; opacity: 0.22; }
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] { opacity: 1; }
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-chip,
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card[data-wl-match="1"] .workload-day-card-total { opacity: 0.4; }
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card-chip[data-wl-match="1"],
+        .workload-grid-wrap[data-wl-spotlight] .workload-day-card-total[data-wl-match="1"] { opacity: 1; }
+        .wl-due-ghosts { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed rgba(220, 38, 38, 0.35); }
+        .wl-due-ghosts-label { font-size: 0.58rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: #b91c1c; margin-right: 2px; }
+        .wl-due-ghost { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; background: rgba(220, 38, 38, 0.06); border: 1.5px dashed #dc2626; color: #b91c1c; font-size: 0.62rem; font-weight: 700; max-width: 100%; }
+        .workload-grid.week .wl-due-ghost { font-size: 0.7rem; padding: 3px 9px; }
+        .wl-due-ghost-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .wl-due-ghost-count { font-weight: 800; opacity: 0.7; }
         .workload-rollup { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 6px; background: var(--white); cursor: pointer; border-left: 3px solid transparent; transition: background 0.1s; min-width: 0; text-decoration: none; color: var(--text-primary); }
         .workload-grid.week .workload-rollup { padding: 8px 10px; }
         .workload-rollup:hover { background: #fafafa; }
@@ -4864,6 +4882,9 @@
     }
 
     function renderWorkloadAll() {
+        // Re-rendering the calendar wipes out the spotlight markers and the
+        // popover's anchor element, so close it before painting the new DOM.
+        if (wlState.popoverAnchor) wlClosePopover();
         const titleEl = document.getElementById('wlTitle');
         const freshEl = document.getElementById('wlFreshness');
         if (titleEl) {
@@ -5163,7 +5184,7 @@
             }
             const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
-            gridHtml += `<div class="${classes.join(' ')}">
+            gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d.getDate()}</span>${countBadge}</div>
                 ${rowsHtml}
             </div>`;
@@ -5213,7 +5234,7 @@
             const rowsHtml = renderDayRollups(groups, iso);
             const countBadge = count ? `<span class="workload-day-count">${count}</span>` : '';
 
-            gridHtml += `<div class="${classes.join(' ')}">
+            gridHtml += `<div class="${classes.join(' ')}" data-wl-day="${wlEscape(iso)}">
                 <div class="workload-day-num"><span>${d}</span>${countBadge}</div>
                 ${rowsHtml}
             </div>`;
@@ -5402,6 +5423,103 @@
         const top = window.scrollY + rect.bottom + 6;
         pop.style.left = left + 'px';
         pop.style.top  = top + 'px';
+
+        // Spotlight: dim everything on the calendar that isn't part of this
+        // rollup, then drop "due here" ghost markers on each due-date column
+        // so the plan-day vs due-date relationship is visible at a glance.
+        wlApplySpotlight(subs);
+    }
+
+    function wlApplySpotlight(subs) {
+        wlClearSpotlight();
+        if (!subs || !subs.length) return;
+        const wrap = document.querySelector('#wlBody .workload-grid-wrap');
+        const grid = wrap ? wrap.querySelector('.workload-grid') : null;
+        if (!wrap || !grid) return;
+
+        // Only sub-issues with a plan day participate in the spotlight —
+        // in-progress strip sub-issues (no effectiveWorkDate) have nothing to
+        // light up on the calendar, so we skip the whole effect.
+        const subsWithPlan = subs.filter(s => s.effectiveWorkDate);
+        if (!subsWithPlan.length) return;
+
+        // Match keys: per-client chips use assignee|client|date; editor-total
+        // badges aggregate across clients so they use assignee|*|date.
+        const chipKeys = new Set();
+        const totalKeys = new Set();
+        for (const s of subsWithPlan) {
+            chipKeys.add(`${s.assigneeId || ''}|${s.clientName || ''}|${s.effectiveWorkDate}`);
+            totalKeys.add(`${s.assigneeId || ''}|${s.effectiveWorkDate}`);
+        }
+
+        wrap.setAttribute('data-wl-spotlight', '1');
+
+        grid.querySelectorAll('.workload-day-card-chip').forEach(chip => {
+            const aid = chip.getAttribute('data-wl-assignee-id') || '';
+            const cn  = chip.getAttribute('data-wl-client') || '';
+            const dt  = chip.getAttribute('data-wl-date') || '';
+            if (chipKeys.has(`${aid}|${cn}|${dt}`)) chip.setAttribute('data-wl-match', '1');
+        });
+        grid.querySelectorAll('.workload-day-card-total').forEach(tot => {
+            const aid = tot.getAttribute('data-wl-assignee-id') || '';
+            const dt  = tot.getAttribute('data-wl-date') || '';
+            if (totalKeys.has(`${aid}|${dt}`)) tot.setAttribute('data-wl-match', '1');
+        });
+        // An editor card "matches" if any of its chips/totals matched, so the
+        // dimming reads as a card-level effect, not a chip-level one.
+        grid.querySelectorAll('.workload-day-card').forEach(card => {
+            if (card.querySelector('[data-wl-match="1"]')) card.setAttribute('data-wl-match', '1');
+        });
+
+        // Ghost markers: one chip per (client, dueDate) tuple, dropped into
+        // the due-date column. Skip cases where plan-day === due-day (already
+        // visible as a real chip in that column) and any due dates outside
+        // the current week/month view (no column to land on).
+        const ghostsByDay = new Map();
+        for (const s of subsWithPlan) {
+            if (!s.dueDate) continue;
+            if (s.dueDate === s.effectiveWorkDate) continue;
+            if (!ghostsByDay.has(s.dueDate)) ghostsByDay.set(s.dueDate, new Map());
+            const byClient = ghostsByDay.get(s.dueDate);
+            const k = s.clientName || '—';
+            byClient.set(k, (byClient.get(k) || 0) + 1);
+        }
+        for (const [dueISO, byClient] of ghostsByDay) {
+            const cell = grid.querySelector(`.workload-day[data-wl-day="${CSS.escape(dueISO)}"]`);
+            if (!cell) continue;
+            const ghostBox = document.createElement('div');
+            ghostBox.className = 'wl-due-ghosts';
+            ghostBox.setAttribute('data-wl-ghosts', '1');
+            const label = document.createElement('span');
+            label.className = 'wl-due-ghosts-label';
+            label.textContent = 'Due here';
+            ghostBox.appendChild(label);
+            for (const [client, count] of byClient) {
+                const ghost = document.createElement('span');
+                ghost.className = 'wl-due-ghost';
+                ghost.title = `${client} · ${count} sub-issue${count !== 1 ? 's' : ''} due ${wlFormatShort(dueISO)}`;
+                const nameEl = document.createElement('span');
+                nameEl.className = 'wl-due-ghost-name';
+                nameEl.textContent = client;
+                ghost.appendChild(nameEl);
+                if (count > 1) {
+                    const countEl = document.createElement('span');
+                    countEl.className = 'wl-due-ghost-count';
+                    countEl.textContent = String(count);
+                    ghost.appendChild(countEl);
+                }
+                ghostBox.appendChild(ghost);
+            }
+            cell.appendChild(ghostBox);
+        }
+    }
+
+    function wlClearSpotlight() {
+        document.querySelectorAll('.workload-grid-wrap[data-wl-spotlight]').forEach(w => {
+            w.removeAttribute('data-wl-spotlight');
+        });
+        document.querySelectorAll('[data-wl-match]').forEach(el => el.removeAttribute('data-wl-match'));
+        document.querySelectorAll('[data-wl-ghosts]').forEach(el => el.remove());
     }
 
     function wlClosePopover() {
@@ -5410,6 +5528,7 @@
         pop.classList.remove('open');
         pop.setAttribute('aria-hidden', 'true');
         wlState.popoverAnchor = null;
+        wlClearSpotlight();
     }
 
     // ── Content Revision Email modal ─────────────────────────────────────

@@ -4307,7 +4307,7 @@
             <div class="workload-section-label workload-calendar-label">
                 <span>Planning calendar</span>
                 <span class="workload-section-hint">
-                    Sub-issues land on the working day <strong>before</strong> their due date — that's when work needs to start, not the deadline.
+                    Each sub-issue is auto-scheduled by the system based on the editor's daily capacity — what you see here is the <strong>planned work day</strong>, not the due date. Click any chip to see how the plan and the deadline line up.
                 </span>
             </div>
             <div id="wlBody">
@@ -4376,6 +4376,14 @@
             renderWorkloadAll();
         }
 
+        // Wire the toolbar and client search BEFORE the fetch so the search
+        // input has its listeners attached the moment the user starts
+        // typing — even if they type during the network round-trip. The
+        // dropdown is already seeded with WL_CLIENT_NAMES above, so
+        // suggestions appear instantly.
+        wlWireToolbar();
+        wlWireClientSearch();
+
         try {
             const { issues, fetchedAt } = await loadLinearIssues(!!cache);
             wlApplyData(issues, fetchedAt);
@@ -4396,9 +4404,6 @@
                 searchInput.dispatchEvent(new Event('input'));
             }
         }
-
-        wlWireToolbar();
-        wlWireClientSearch();
     }
 
     function wlSpinnerOn() {
@@ -5387,15 +5392,19 @@
         // each row with the client too so it's obvious whose work it is.
         const showClient = !clientName;
         const items = subs.map(s => {
-            // Show the plan/due relationship when they differ. Plan is the
-            // working day before the due date — that's what the calendar
-            // pins the sub-issue to. Spelling both out makes the rule
-            // discoverable at the row level.
+            // "Plan" is the day the scheduler actually placed this sub-issue
+            // on the calendar — i.e. its scheduledDate. That's where the
+            // chip lives, and what the user is reading off the column header
+            // when they click. The ideal target (dueDate − 1 working day) is
+            // only a hint to the scheduler; capacity can pull items forward.
+            // We fall back to effectiveWorkDate for sub-issues that didn't
+            // pass through scheduleAll (none in practice, but defensive).
+            const planISO = s.scheduledDate || s.effectiveWorkDate;
             let dueLabel;
             if (!s.dueDate) {
                 dueLabel = 'No due date';
-            } else if (s.effectiveWorkDate && s.effectiveWorkDate !== s.dueDate) {
-                dueLabel = 'Plan ' + wlFormatShort(s.effectiveWorkDate) + ' → Due ' + wlFormatShort(s.dueDate);
+            } else if (planISO && planISO !== s.dueDate) {
+                dueLabel = 'Plan ' + wlFormatShort(planISO) + ' → Due ' + wlFormatShort(s.dueDate);
             } else {
                 dueLabel = 'Due ' + wlFormatShort(s.dueDate);
             }
@@ -5437,10 +5446,14 @@
         const grid = wrap ? wrap.querySelector('.workload-grid') : null;
         if (!wrap || !grid) return;
 
-        // Only sub-issues with a plan day participate in the spotlight —
-        // in-progress strip sub-issues (no effectiveWorkDate) have nothing to
-        // light up on the calendar, so we skip the whole effect.
-        const subsWithPlan = subs.filter(s => s.effectiveWorkDate);
+        // Only sub-issues that the scheduler placed on the calendar can
+        // participate in the spotlight. In-progress strip sub-issues (no
+        // scheduledDate) have nothing to light up, so skip the effect.
+        // We use scheduledDate (where the chip actually lives) — NOT
+        // effectiveWorkDate (the ideal dueDate-1) — so chip matching lines
+        // up with the columns the user is looking at.
+        const planOf = s => s.scheduledDate || s.effectiveWorkDate;
+        const subsWithPlan = subs.filter(s => planOf(s));
         if (!subsWithPlan.length) return;
 
         // Match keys: per-client chips use assignee|client|date; editor-total
@@ -5448,8 +5461,9 @@
         const chipKeys = new Set();
         const totalKeys = new Set();
         for (const s of subsWithPlan) {
-            chipKeys.add(`${s.assigneeId || ''}|${s.clientName || ''}|${s.effectiveWorkDate}`);
-            totalKeys.add(`${s.assigneeId || ''}|${s.effectiveWorkDate}`);
+            const p = planOf(s);
+            chipKeys.add(`${s.assigneeId || ''}|${s.clientName || ''}|${p}`);
+            totalKeys.add(`${s.assigneeId || ''}|${p}`);
         }
 
         wrap.setAttribute('data-wl-spotlight', '1');
@@ -5478,7 +5492,7 @@
         const ghostsByDay = new Map();
         for (const s of subsWithPlan) {
             if (!s.dueDate) continue;
-            if (s.dueDate === s.effectiveWorkDate) continue;
+            if (s.dueDate === planOf(s)) continue;
             if (!ghostsByDay.has(s.dueDate)) ghostsByDay.set(s.dueDate, new Map());
             const byClient = ghostsByDay.get(s.dueDate);
             const k = s.clientName || '—';

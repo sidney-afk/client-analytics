@@ -1132,7 +1132,12 @@
         .wl-client-search-result { display: block; width: 100%; padding: 8px 12px; border: 0; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-align: left; cursor: pointer; border-radius: 8px; }
         .wl-client-search-result:hover, .wl-client-search-result.active { background: var(--bg); color: var(--text-primary); }
         .wl-client-search-result.empty { color: var(--text-muted); cursor: default; font-style: italic; font-weight: 500; }
+        .wl-client-search-result.loading { display: flex; align-items: center; gap: 8px; color: var(--text-muted); cursor: default; font-weight: 500; border-bottom: 1px solid var(--border); margin-bottom: 4px; padding-bottom: 8px; }
+        .wl-client-search-result.loading .spinner { width: 12px; height: 12px; border-width: 2px; }
         .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+        .workload-calendar-label { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+        .workload-section-hint { font-size: 0.7rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+        .workload-section-hint strong { color: var(--text-secondary); font-weight: 700; }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
         .workload-popover.open { display: block; }
         .workload-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
@@ -1153,7 +1158,9 @@
         .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; }
         .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-capacity-row { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-capacity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: default; }
+        .workload-capacity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); font-family: inherit; cursor: pointer; transition: transform 0.08s ease, box-shadow 0.08s ease; }
+        .workload-capacity-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .workload-capacity-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
         .workload-capacity-chip-count { font-weight: 800; }
         .workload-capacity-chip-days { font-size: 0.62rem; font-weight: 600; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
         .workload-capacity-chip.free  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
@@ -4279,6 +4286,12 @@
                 <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
                 <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
             </div>
+            <div class="workload-section-label workload-calendar-label">
+                <span>Planning calendar</span>
+                <span class="workload-section-hint">
+                    Sub-issues land on the working day <strong>before</strong> their due date — that's when work needs to start, not the deadline.
+                </span>
+            </div>
             <div id="wlBody">
                 <div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>
             </div>
@@ -4324,6 +4337,13 @@
         const todayISO = wlTodayISO();
         if (wlState.year == null)      { wlState.year = now.getFullYear(); wlState.month = now.getMonth(); }
         if (wlState.weekStart == null) { wlState.weekStart = wlNextWorkingDay(todayISO); }
+        // Seed the client search dropdown with the canonical client list as
+        // soon as the view mounts. Otherwise the dropdown is empty until the
+        // background fetch returns, which feels broken if you start typing
+        // immediately after page load.
+        if (!wlState.clientOptions || !wlState.clientOptions.length) {
+            wlState.clientOptions = WL_CLIENT_NAMES.slice().sort((a, b) => a.localeCompare(b));
+        }
         try {
             const pref = localStorage.getItem(WL_VIEW_PREF_KEY);
             if (pref === 'week' || pref === 'month') wlState.viewMode = pref;
@@ -4348,6 +4368,15 @@
         } finally {
             wlState.loading = false;
             renderWorkloadAll();
+            // If the user already opened the client-search dropdown while we
+            // were fetching, drop the "Loading workload…" row now that data
+            // is in. We trigger an `input` event so the existing render
+            // pipeline re-runs with the same query.
+            const searchInput = document.getElementById('wlClientSearchInput');
+            const searchResults = document.getElementById('wlClientSearchResults');
+            if (searchInput && searchResults && !searchResults.hidden) {
+                searchInput.dispatchEvent(new Event('input'));
+            }
         }
 
         wlWireToolbar();
@@ -4749,13 +4778,20 @@
         };
         const render = (q) => {
             const list = matches(q);
+            // Tiny "fetching workload data…" row at the top while the
+            // background fetch is in flight on first load. The dropdown is
+            // still usable — picking a client is harmless before data
+            // arrives — but the spinner makes the wait visible.
+            const loadingRow = (wlState.loading && !wlState.fetchedAt)
+                ? '<div class="wl-client-search-result loading"><span class="spinner"></span> Loading workload…</div>'
+                : '';
             if (!list.length) {
-                results.innerHTML = '<div class="wl-client-search-result empty">No clients match</div>';
+                results.innerHTML = loadingRow + '<div class="wl-client-search-result empty">No clients match</div>';
             } else {
                 const showAll = (!q || 'all clients'.startsWith(q.toLowerCase()))
                     ? '<button type="button" class="wl-client-search-result" data-wl-client-pick="all">All clients</button>'
                     : '';
-                results.innerHTML = showAll + list.map(c =>
+                results.innerHTML = loadingRow + showAll + list.map(c =>
                     `<button type="button" class="wl-client-search-result" data-wl-client-pick="${wlEscape(c)}">${wlEscape(c)}</button>`
                 ).join('');
             }
@@ -4932,6 +4968,12 @@
             if (seen.has(s.id)) return;
             seen.add(s.id);
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) return;
+            // The "Editor workload / freest first" panel is for video editors
+            // only. Graphics designers have a different per-day capacity and
+            // a different definition of "free", so mixing them in skews the
+            // ranking. They still show up in the calendar / strip / unassigned
+            // panels — just not on this comparison row.
+            if (wlTeamBucket(s.teamKey, s.teamName) !== 'video') return;
             if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) return;
             if (wlState.client !== 'all' && s.clientName !== wlState.client) return;
             if (!byEditor.has(s.assigneeId)) {
@@ -4970,11 +5012,15 @@
             else                cls = 'full';
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
             const dayLabel = days + 'd';
-            return `<span class="workload-capacity-chip ${cls}" title="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ~${days} day${days !== 1 ? 's' : ''} of work at ${cap}/day">
+            // Chip is a button so the editor's name opens a popover of all
+            // their active sub-issues (planned + in-progress, deduped).
+            // data-wl-source="active" tells wlOpenRollupPopover to use that
+            // combined source instead of the day-bound or in-progress lists.
+            return `<button type="button" class="workload-capacity-chip ${cls}" title="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ~${days} day${days !== 1 ? 's' : ''} of work at ${cap}/day · click to see them" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}">
                 <span>${wlEscape(name)}</span>
                 <span class="workload-capacity-chip-count">${ed.count}</span>
                 <span class="workload-capacity-chip-days">${wlEscape(dayLabel)}</span>
-            </span>`;
+            </button>`;
         }).join('');
     }
 
@@ -5262,13 +5308,26 @@
         const dayISO     = rollupEl.getAttribute('data-wl-date') || '';
 
         // Pick the source list based on which rollup was clicked:
+        //   - data-wl-source="active": planned + in-progress, deduped. Used
+        //     by the "Editor workload (freest first)" chips, which want a
+        //     view of every active sub-issue for that editor, regardless of
+        //     status or day.
         //   - in-progress (strip): nowWorking covers every active "now" item
         //   - calendar planned cell: that day's scheduled bucket
         //   - editor card total badge with no clientName: same source, but
         //     skip the client filter so the popover lists every sub-issue
         //     that editor owns for the day across all clients.
+        const sourceMode = rollupEl.getAttribute('data-wl-source') || '';
         let source;
-        if (inProgress) {
+        if (sourceMode === 'active') {
+            const seenIds = new Set();
+            source = [];
+            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || [])]) {
+                if (seenIds.has(s.id)) continue;
+                seenIds.add(s.id);
+                source.push(s);
+            }
+        } else if (inProgress) {
             source = wlState.nowWorking;
         } else if (dayISO) {
             source = wlState.scheduled.get(dayISO) || [];
@@ -5307,7 +5366,18 @@
         // each row with the client too so it's obvious whose work it is.
         const showClient = !clientName;
         const items = subs.map(s => {
-            const dueLabel = s.dueDate ? 'Due ' + wlFormatShort(s.dueDate) : 'No due date';
+            // Show the plan/due relationship when they differ. Plan is the
+            // working day before the due date — that's what the calendar
+            // pins the sub-issue to. Spelling both out makes the rule
+            // discoverable at the row level.
+            let dueLabel;
+            if (!s.dueDate) {
+                dueLabel = 'No due date';
+            } else if (s.effectiveWorkDate && s.effectiveWorkDate !== s.dueDate) {
+                dueLabel = 'Plan ' + wlFormatShort(s.effectiveWorkDate) + ' → Due ' + wlFormatShort(s.dueDate);
+            } else {
+                dueLabel = 'Due ' + wlFormatShort(s.dueDate);
+            }
             const clientTag = showClient && s.clientName
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';

@@ -1184,6 +1184,19 @@
         .wl-now-client-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: #ecfdf5; color: #065f46; font-size: 0.7rem; font-weight: 600; text-decoration: none; transition: background 0.1s; max-width: 100%; }
         .wl-now-client-chip:hover { background: #d1fae5; }
         .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        /* Tweaks needed strip — same shape as In progress now, but yellow.
+           A tweak is work bounced back to the editor for revision: still
+           "owed" but distinct from work they're actively cutting. */
+        .workload-tweaks { border: 1.5px solid #fde68a; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #fffbeb; }
+        .workload-tweaks.empty { display: none; }
+        .workload-tweaks .workload-section-label { color: #92400e; display: flex; align-items: center; gap: 8px; }
+        .workload-tweaks .workload-section-label .wl-now-total { background: #f59e0b; color: #fff; }
+        .workload-tweaks .wl-now-card { border: 1px solid #fde68a; border-left: 3px solid #f59e0b; }
+        .workload-tweaks .wl-now-avatar { background: #f59e0b; }
+        .workload-tweaks .wl-now-card-total { background: #f59e0b; }
+        .workload-tweaks .wl-now-card-total:hover { background: #d97706; }
+        .workload-tweaks .wl-now-client-chip { background: #fef3c7; color: #92400e; }
+        .workload-tweaks .wl-now-client-chip:hover { background: #fde68a; }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: #aaa; background: var(--white); }
@@ -3918,6 +3931,7 @@
         team: 'all', editor: 'all', client: 'all', // filters
         planned: [],                               // assigned sub-issues with dueDate, not In Progress
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
+        tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
         scheduled: new Map(),                      // key "YYYY-MM-DD" -> planned sub-issues[]
@@ -4043,6 +4057,9 @@
     }
     function wlIsInProgress(sub) {
         return wlNormStatus(sub) === 'in progress';
+    }
+    function wlIsTweaksNeeded(sub) {
+        return wlNormStatus(sub) === 'tweaks needed';
     }
 
     // Active editors. Video editors come from SYNCVIEW's "Video Editors" tab;
@@ -4304,6 +4321,10 @@
                 <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
                 <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
             </div>
+            <div id="wlTweaks" class="workload-tweaks empty">
+                <div class="workload-section-label"><span>Tweaks needed</span><span class="wl-now-total" id="wlTweaksTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlTweaksRollups"></div>
+            </div>
             <div class="workload-section-label workload-calendar-label">
                 <span>Planning calendar</span>
                 <span class="workload-section-hint">
@@ -4321,6 +4342,7 @@
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#6c5ce7"></span>Video</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#d97706"></span>Graphics</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#10b981"></span>In Progress</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#f59e0b"></span>Tweaks Needed</span>
             </div>
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>
@@ -4582,13 +4604,15 @@
         wlState.subsByParentId = subsByParentId;
         wlState.allActiveSubs  = subs; // used to populate the client dropdown
 
-        const todayISO   = wlTodayISO();
-        const nowWorking = [];
-        const planned    = [];
-        const unassigned = [];
+        const todayISO     = wlTodayISO();
+        const nowWorking   = [];
+        const tweaksNeeded = [];
+        const planned      = [];
+        const unassigned   = [];
         for (const s of subs) {
-            const inProg = wlIsInProgress(s);
-            const hasDue = !!s.dueDate;
+            const inProg     = wlIsInProgress(s);
+            const needsTweak = wlIsTweaksNeeded(s);
+            const hasDue     = !!s.dueDate;
             if (!s.assigneeId) {
                 if (inProg || hasDue) unassigned.push(s);
                 continue;
@@ -4597,7 +4621,8 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            if (inProg) nowWorking.push(s);
+            if (inProg)     nowWorking.push(s);
+            if (needsTweak) tweaksNeeded.push(s);
             // Calendar workload tracks work with a real due date. In-progress
             // items keep their slot only if they have a future-or-today due
             // date — they were already on the calendar before status moved
@@ -4608,9 +4633,10 @@
             if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
-        wlState.nowWorking = nowWorking;
-        wlState.planned    = planned;
-        wlState.unassigned = unassigned;
+        wlState.nowWorking   = nowWorking;
+        wlState.tweaksNeeded = tweaksNeeded;
+        wlState.planned      = planned;
+        wlState.unassigned   = unassigned;
         wlState.fetchedAt  = fetchedAt;
         wlState.scheduled  = scheduleAll(planned, wlTodayISO());
     }
@@ -4919,6 +4945,7 @@
         wlPopulateFilterOptions();
         renderEditorWorkload();
         renderInProgressStrip();
+        renderTweaksNeededStrip();
         renderUnassignedStrip();
 
         const bodyEl = document.getElementById('wlBody');
@@ -5013,8 +5040,9 @@
             }
             byEditor.get(s.assigneeId).count++;
         };
-        for (const s of (wlState.planned    || [])) consider(s);
-        for (const s of (wlState.nowWorking || [])) consider(s);
+        for (const s of (wlState.planned      || [])) consider(s);
+        for (const s of (wlState.nowWorking   || [])) consider(s);
+        for (const s of (wlState.tweaksNeeded || [])) consider(s);
 
         if (byEditor.size === 0) {
             wrap.classList.add('empty');
@@ -5050,16 +5078,32 @@
         }).join('');
     }
 
-    // Group in-progress sub-issues by editor (one card per editor) and show a
-    // chip per client they're currently working on. This makes "who is working
-    // on what" scannable at a glance instead of one identical-looking row per
-    // editor+client pair.
+    // Group sub-issues for one editor-rollup strip ("In progress now" or
+    // "Tweaks needed") by editor — one card per editor, a chip per client
+    // they're currently on the hook for. Both strips share the same shape
+    // so the helper is parameterized by DOM ids and which wlState.* list
+    // to read; the caller picks the source mode that the popover uses to
+    // re-find the sub-issues when a chip is clicked.
     function renderInProgressStrip() {
-        const stripEl  = document.getElementById('wlInProgress');
-        const rowEl    = document.getElementById('wlInProgressRollups');
-        const totalEl  = document.getElementById('wlInProgressTotal');
+        renderEditorRollupStrip({
+            stripId: 'wlInProgress', rowId: 'wlInProgressRollups', totalId: 'wlInProgressTotal',
+            subs: wlState.nowWorking, sourceMode: 'inprogress',
+            totalSuffix: 'ACTIVE', chipTitleSuffix: 'in progress',
+        });
+    }
+    function renderTweaksNeededStrip() {
+        renderEditorRollupStrip({
+            stripId: 'wlTweaks', rowId: 'wlTweaksRollups', totalId: 'wlTweaksTotal',
+            subs: wlState.tweaksNeeded, sourceMode: 'tweaks',
+            totalSuffix: 'NEEDED', chipTitleSuffix: 'awaiting tweaks',
+        });
+    }
+    function renderEditorRollupStrip(opts) {
+        const stripEl = document.getElementById(opts.stripId);
+        const rowEl   = document.getElementById(opts.rowId);
+        const totalEl = document.getElementById(opts.totalId);
         if (!stripEl || !rowEl) return;
-        const subs = wlState.nowWorking.filter(wlPassesFilters);
+        const subs = (opts.subs || []).filter(wlPassesFilters);
         if (!subs.length) {
             stripEl.classList.add('empty');
             rowEl.innerHTML = '';
@@ -5097,7 +5141,6 @@
         }
 
         const editors = [...byEditor.values()].sort((a, b) => {
-            // Graphics goes to the bottom; video editors first.
             const ta = wlTeamBucket(a.teamKey, a.teamName);
             const tb = wlTeamBucket(b.teamKey, b.teamName);
             if (ta !== tb) return ta === 'graphics' ? 1 : -1;
@@ -5107,9 +5150,13 @@
 
         if (totalEl) {
             totalEl.hidden = false;
-            totalEl.textContent = subs.length + ' ACTIVE';
+            totalEl.textContent = subs.length + ' ' + opts.totalSuffix;
         }
 
+        // data-wl-in-progress on the rollup is preserved purely as a metadata
+        // signal for the existing popover branch; new strips use
+        // data-wl-source so the popover picks the right wlState.* list.
+        const inProgFlag = opts.sourceMode === 'inprogress' ? '1' : '0';
         rowEl.innerHTML = editors.map(ed => {
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
             const initials = wlInitials(ed.assigneeName);
@@ -5120,7 +5167,7 @@
             const chips = clients.map(c => {
                 const href = wlParentUrl(c.anySub);
                 const label = c.clientName || '—';
-                return `<a class="wl-now-client-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(label)} · ${c.count} in progress · click to see sub-issues" data-wl-rollup="1" data-wl-count-badge="1" data-wl-parent-id="${wlEscape(c.parentId || '')}" data-wl-assignee-id="${wlEscape(c.assigneeId || '')}" data-wl-client="${wlEscape(c.clientName || '')}" data-wl-in-progress="1" data-wl-editor-name="${wlEscape(name)}">
+                return `<a class="wl-now-client-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(label)} · ${c.count} ${opts.chipTitleSuffix} · click to see sub-issues" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${wlEscape(opts.sourceMode)}" data-wl-parent-id="${wlEscape(c.parentId || '')}" data-wl-assignee-id="${wlEscape(c.assigneeId || '')}" data-wl-client="${wlEscape(c.clientName || '')}" data-wl-in-progress="${inProgFlag}" data-wl-editor-name="${wlEscape(name)}">
                     <span class="wl-now-client-chip-name">${wlEscape(label)}</span>
                     <span class="wl-now-client-chip-count">${c.count}</span>
                 </a>`;
@@ -5129,7 +5176,7 @@
                 <div class="wl-now-card-head">
                     <span class="wl-now-avatar">${wlEscape(initials)}</span>
                     <span class="wl-now-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
-                    <span class="wl-now-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="1" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} in-progress sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</span>
+                    <span class="wl-now-card-total" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="${wlEscape(opts.sourceMode)}" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-in-progress="${inProgFlag}" data-wl-editor-name="${wlEscape(name)}" title="See the ${ed.total} ${opts.chipTitleSuffix} sub-issue${ed.total !== 1 ? 's' : ''}">${ed.total}</span>
                 </div>
                 <div class="wl-now-card-clients">${chips}</div>
             </div>`;
@@ -5348,12 +5395,14 @@
         if (sourceMode === 'active') {
             const seenIds = new Set();
             source = [];
-            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || [])]) {
+            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || [])]) {
                 if (seenIds.has(s.id)) continue;
                 seenIds.add(s.id);
                 source.push(s);
             }
-        } else if (inProgress) {
+        } else if (sourceMode === 'tweaks') {
+            source = wlState.tweaksNeeded;
+        } else if (sourceMode === 'inprogress' || inProgress) {
             source = wlState.nowWorking;
         } else if (dayISO) {
             source = wlState.scheduled.get(dayISO) || [];

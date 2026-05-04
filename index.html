@@ -4059,7 +4059,12 @@
         return wlNormStatus(sub) === 'in progress';
     }
     function wlIsTweaksNeeded(sub) {
-        return wlNormStatus(sub) === 'tweaks needed';
+        // Linear's actual status is "Tweak Needed" (singular). We match the
+        // plural form too in case the status name gets renamed later — same
+        // defensive pattern as the "tweak applied" / "tweaks applied" entry
+        // in WL_PARKED_STATUSES.
+        const s = wlNormStatus(sub);
+        return s === 'tweak needed' || s === 'tweaks needed';
     }
 
     // Active editors. Video editors come from SYNCVIEW's "Video Editors" tab;

@@ -1121,6 +1121,17 @@
         .wl-dropdown .dropdown-trigger .dd-arrow { font-size: 0.65rem; margin-left: 8px; color: var(--text-muted); }
         .wl-dropdown .dropdown-menu { min-width: 220px; max-height: 320px; overflow-y: auto; right: auto; left: 0; }
         .wl-dropdown .dropdown-item { font-size: 0.78rem; font-weight: 600; padding: 8px 14px; }
+        .wl-client-search { position: relative; min-width: 180px; }
+        .wl-client-search-input { width: 100%; padding: 8px 28px 8px 14px; border-radius: 20px; border: none; background: var(--white); box-shadow: 0 1px 3px rgba(0,0,0,0.06); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); outline: none; box-sizing: border-box; transition: box-shadow 0.15s; }
+        .wl-client-search-input::placeholder { color: var(--text-muted); font-weight: 600; }
+        .wl-client-search-input:hover  { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+        .wl-client-search-input:focus  { box-shadow: 0 0 0 2px #6c5ce7; }
+        .wl-client-search-clear { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); background: transparent; border: 0; padding: 2px 6px; font-size: 1rem; line-height: 1; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+        .wl-client-search-clear:hover { background: var(--bg); color: var(--text-primary); }
+        .wl-client-search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 6px; z-index: 1000; max-height: 260px; overflow-y: auto; }
+        .wl-client-search-result { display: block; width: 100%; padding: 8px 12px; border: 0; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-align: left; cursor: pointer; border-radius: 8px; }
+        .wl-client-search-result:hover, .wl-client-search-result.active { background: var(--bg); color: var(--text-primary); }
+        .wl-client-search-result.empty { color: var(--text-muted); cursor: default; font-style: italic; font-weight: 500; }
         .workload-section-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
         .workload-popover.open { display: block; }
@@ -4243,12 +4254,10 @@
                                 </button>
                                 <div class="dropdown-menu" data-wl-dropdown-menu="editor" role="listbox"></div>
                             </div>
-                            <div class="wl-dropdown" data-wl-filter="client">
-                                <button type="button" class="dropdown-trigger" data-wl-dropdown-trigger="client" aria-haspopup="listbox" aria-expanded="false">
-                                    <span data-wl-dropdown-label>All clients</span>
-                                    <span class="dd-arrow">▾</span>
-                                </button>
-                                <div class="dropdown-menu" data-wl-dropdown-menu="client" role="listbox"></div>
+                            <div class="wl-client-search" data-wl-filter="client">
+                                <input type="text" class="wl-client-search-input" id="wlClientSearchInput" placeholder="All clients" autocomplete="off">
+                                <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear">×</button>
+                                <div class="wl-client-search-results" id="wlClientSearchResults" hidden role="listbox"></div>
                             </div>
                         </div>
                     </div>
@@ -4334,6 +4343,7 @@
         }
 
         wlWireToolbar();
+        wlWireClientSearch();
     }
 
     function wlSpinnerOn() {
@@ -4478,6 +4488,31 @@
         // dropdowns, group keys and rollup labels collapse "Miki-agrawal" and
         // "Miki Agrawal" into a single "Miki Agrawal" entry.
         for (const s of subs) s.clientName = wlCanonicalClient(s.clientName);
+
+        // Log who's passing the editor filter so the user can spot people
+        // who shouldn't be there — graphic designers currently pass through
+        // unchecked because we don't have a graphics-team allowlist yet,
+        // and any non-allowlisted video editor is dropped here too.
+        const graphicsPass = new Set();
+        const videoDropped = new Map();
+        for (const s of subs) {
+            if (!s.assigneeId) continue;
+            const team = wlTeamBucket(s.teamKey, s.teamName);
+            const display = wlDisplayName(s.assigneeName) || s.assigneeName || 'Unknown';
+            if (team === 'graphics') {
+                graphicsPass.add(display);
+            } else if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) {
+                videoDropped.set(display, (videoDropped.get(display) || 0) + 1);
+            }
+        }
+        if (graphicsPass.size) {
+            console.info('[workload] graphic designers passing through (no graphics allowlist yet):',
+                [...graphicsPass].sort().join(', '));
+        }
+        if (videoDropped.size) {
+            console.warn('[workload] dropped sub-issues from non-allowlisted video editors:',
+                [...videoDropped.entries()].map(([n, c]) => `${n} (${c})`).join(', '));
+        }
         for (const s of subs) {
             if (!s.parentId) continue;
             if (!subsByParentId.has(s.parentId)) subsByParentId.set(s.parentId, []);
@@ -4502,12 +4537,13 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            if (inProg) {
-                nowWorking.push(s);
-                continue; // In Progress items live in the strip only.
-            }
+            if (inProg) nowWorking.push(s);
             // Calendar workload is forward-looking: skip overdue items so
             // today/tomorrow never show stale work that should have shipped.
+            // In Progress items WITH a future due date are also placed on the
+            // calendar (in addition to the strip) at their effective work
+            // date, so an editor who's already started a video still sees
+            // it in the day it was scheduled for.
             if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
@@ -4550,7 +4586,6 @@
                 const kind  = ddItem.getAttribute('data-wl-dropdown-item');
                 const value = ddItem.getAttribute('data-wl-value');
                 if (kind === 'editor') wlState.editor = value;
-                if (kind === 'client') wlState.client = value;
                 wlCloseDropdowns(null);
                 renderWorkloadAll();
                 return;
@@ -4639,47 +4674,115 @@
                 (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
-        // Clients: every client with at least one active sub-issue (not just
-        // scheduled ones) so the list stays stable as filters change.
+        // Clients: every client with at least one active sub-issue. Used to
+        // back the search bar's autocomplete results.
         const clients = [...new Set(all.map(s => s.clientName).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
+        wlState.clientOptions = clients;
 
         // Reset selected value if it's no longer valid for the current data.
         if (wlState.editor !== 'all' && !editors.some(([id]) => id === wlState.editor)) wlState.editor = 'all';
         if (wlState.client !== 'all' && !clients.includes(wlState.client))              wlState.client = 'all';
 
         const editorItems = [['all', 'All editors'], ...editors];
-        const clientItems = [['all', 'All clients'], ...clients.map(c => [c, c])];
 
         const editorMenu = document.querySelector('[data-wl-dropdown-menu="editor"]');
-        const clientMenu = document.querySelector('[data-wl-dropdown-menu="client"]');
         if (editorMenu) {
             editorMenu.innerHTML = editorItems.map(([id, name]) =>
                 `<button type="button" class="dropdown-item${id === wlState.editor ? ' active' : ''}" data-wl-dropdown-item="editor" data-wl-value="${wlEscape(id)}" data-wl-label="${wlEscape(name)}">${wlEscape(name)}</button>`
             ).join('');
         }
-        if (clientMenu) {
-            clientMenu.innerHTML = clientItems.map(([id, name]) =>
-                `<button type="button" class="dropdown-item${id === wlState.client ? ' active' : ''}" data-wl-dropdown-item="client" data-wl-value="${wlEscape(id)}" data-wl-label="${wlEscape(name)}">${wlEscape(name)}</button>`
-            ).join('');
-        }
 
         const editorLabel = document.querySelector('[data-wl-dropdown-trigger="editor"] [data-wl-dropdown-label]');
-        const clientLabel = document.querySelector('[data-wl-dropdown-trigger="client"] [data-wl-dropdown-label]');
         if (editorLabel) {
             const match = editorItems.find(([id]) => id === wlState.editor);
             editorLabel.textContent = match ? match[1] : 'All editors';
         }
-        if (clientLabel) {
-            const match = clientItems.find(([id]) => id === wlState.client);
-            clientLabel.textContent = match ? match[1] : 'All clients';
+
+        // Sync the client search bar to the current filter state without
+        // stomping on the user's in-progress typing.
+        const searchInput = document.getElementById('wlClientSearchInput');
+        const searchClear = document.getElementById('wlClientSearchClear');
+        if (searchInput && document.activeElement !== searchInput) {
+            searchInput.value = wlState.client === 'all' ? '' : wlState.client;
         }
+        if (searchClear) searchClear.hidden = wlState.client === 'all';
 
         document.querySelectorAll('[data-wl-team]').forEach(btn => {
             btn.classList.toggle('active', btn.getAttribute('data-wl-team') === wlState.team);
         });
         document.querySelectorAll('[data-wl-view]').forEach(btn => {
             btn.classList.toggle('active', btn.getAttribute('data-wl-view') === wlState.viewMode);
+        });
+    }
+
+    // Wire the client search bar: typing filters the suggestions list,
+    // clicking a suggestion (or pressing Enter when it's the only match)
+    // sets the workload's client filter, and the × button or Escape clears
+    // it back to "all clients".
+    function wlWireClientSearch() {
+        const input    = document.getElementById('wlClientSearchInput');
+        const results  = document.getElementById('wlClientSearchResults');
+        const clearBtn = document.getElementById('wlClientSearchClear');
+        if (!input || !results || input.dataset.wired === '1') return;
+        input.dataset.wired = '1';
+
+        const close = () => { results.hidden = true; results.innerHTML = ''; };
+        const matches = (q) => {
+            const opts = wlState.clientOptions || [];
+            if (!q) return opts;
+            const needle = q.toLowerCase();
+            return opts.filter(c => c.toLowerCase().includes(needle));
+        };
+        const render = (q) => {
+            const list = matches(q);
+            if (!list.length) {
+                results.innerHTML = '<div class="wl-client-search-result empty">No clients match</div>';
+            } else {
+                const showAll = (!q || 'all clients'.startsWith(q.toLowerCase()))
+                    ? '<button type="button" class="wl-client-search-result" data-wl-client-pick="all">All clients</button>'
+                    : '';
+                results.innerHTML = showAll + list.map(c =>
+                    `<button type="button" class="wl-client-search-result" data-wl-client-pick="${wlEscape(c)}">${wlEscape(c)}</button>`
+                ).join('');
+            }
+            results.hidden = false;
+        };
+        const pick = (value) => {
+            wlState.client = value;
+            input.value = value === 'all' ? '' : value;
+            if (clearBtn) clearBtn.hidden = value === 'all';
+            close();
+            renderWorkloadAll();
+        };
+
+        input.addEventListener('focus', () => render(input.value.trim()));
+        input.addEventListener('input', () => {
+            const q = input.value.trim();
+            if (clearBtn) clearBtn.hidden = !q;
+            render(q);
+        });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape')      { e.preventDefault(); pick('all'); input.blur(); }
+            else if (e.key === 'Enter')  {
+                e.preventDefault();
+                const q = input.value.trim();
+                if (!q) return pick('all');
+                const list = matches(q);
+                const exact = list.find(c => c.toLowerCase() === q.toLowerCase());
+                if (exact) pick(exact);
+                else if (list.length === 1) pick(list[0]);
+            }
+        });
+        results.addEventListener('mousedown', (e) => {
+            const btn = e.target.closest('[data-wl-client-pick]');
+            if (!btn) return;
+            e.preventDefault();
+            pick(btn.getAttribute('data-wl-client-pick'));
+        });
+        clearBtn?.addEventListener('click', () => { pick('all'); input.focus(); });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.wl-client-search')) close();
         });
     }
 
@@ -4759,16 +4862,14 @@
         bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
     }
 
-    // Group a list of sub-issues into (assigneeId × clientName × inProgress)
-    // rollups. The in-progress flag is derived per sub-issue, so a calendar
-    // day that mixes planned and in-progress items for the same editor+client
-    // splits into two rollups (the in-progress one gets the green treatment
-    // and a "NOW" tag).
+    // Group a list of sub-issues into (assigneeId × clientName) rollups.
+    // In-progress and planned items for the same editor+client on the same
+    // day collapse into one chip — the popover still shows them all with
+    // their individual due dates, so the breakdown is one click away.
     function wlGroupRollups(subs) {
         const map = new Map();
         for (const s of subs) {
-            const inProg = wlIsInProgress(s);
-            const key = (s.assigneeId || '?') + '|' + (s.clientName || '') + '|' + (inProg ? '1' : '0');
+            const key = (s.assigneeId || '?') + '|' + (s.clientName || '');
             if (!map.has(key)) {
                 map.set(key, {
                     assigneeId: s.assigneeId,
@@ -4779,16 +4880,13 @@
                     parentId: s.parentId,
                     anySub: s,
                     count: 0,
-                    inProgress: inProg,
                 });
             }
-            const g = map.get(key);
-            g.count++;
+            map.get(key).count++;
         }
         return [...map.values()].sort((a, b) => {
             const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
             if (na !== nb) return na.localeCompare(nb);
-            if (a.inProgress !== b.inProgress) return a.inProgress ? -1 : 1;
             return (a.clientName || '').localeCompare(b.clientName || '');
         });
     }
@@ -4801,23 +4899,28 @@
         return { groups, count: plannedSubs.length };
     }
 
-    // Editor workload — sorts every editor with active work by how busy they
-    // are so a SMM can see at a glance who has the most free time before
-    // assigning a new sub-issue. "Days of work" = total active sub-issues
-    // divided by the editor's per-day capacity (5 for video, 15 for graphics).
-    // Honours the team and client filters but ignores the editor filter so
-    // the panel always lets you compare across editors.
+    // Editor workload — sorts every editor with active scheduled work by how
+    // busy they are so a SMM can see at a glance who has the most free time
+    // before assigning a new sub-issue. The count matches what's actually
+    // visible on the calendar + strip (planned + in-progress, deduped on id);
+    // sub-issues without a due date aren't counted because they aren't
+    // scheduled anywhere visible. "Days of work" = count / per-day capacity
+    // (5 for video, 15 for graphics). Honours team and client filters but
+    // ignores the editor filter so the panel always compares across editors.
     function renderEditorWorkload() {
         const wrap = document.getElementById('wlCapacity');
         const row  = document.getElementById('wlCapacityRow');
         if (!wrap || !row) return;
 
+        const seen = new Set();
         const byEditor = new Map();
-        for (const s of (wlState.allActiveSubs || [])) {
-            if (!s.assigneeId) continue;
-            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) continue;
-            if (wlState.client !== 'all' && s.clientName !== wlState.client) continue;
+        const consider = (s) => {
+            if (!s.assigneeId) return;
+            if (seen.has(s.id)) return;
+            seen.add(s.id);
+            if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) return;
+            if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) return;
+            if (wlState.client !== 'all' && s.clientName !== wlState.client) return;
             if (!byEditor.has(s.assigneeId)) {
                 byEditor.set(s.assigneeId, {
                     assigneeId: s.assigneeId,
@@ -4828,7 +4931,9 @@
                 });
             }
             byEditor.get(s.assigneeId).count++;
-        }
+        };
+        for (const s of (wlState.planned    || [])) consider(s);
+        for (const s of (wlState.nowWorking || [])) consider(s);
 
         if (byEditor.size === 0) {
             wrap.classList.add('empty');

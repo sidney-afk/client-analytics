@@ -1136,11 +1136,33 @@
         .workload-popover-item-due.past { color: #dc2626; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
+        .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
+        .workload-capacity.empty { display: none; }
+        .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; }
+        .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+        .workload-capacity-row { display: flex; flex-wrap: wrap; gap: 6px; }
+        .workload-capacity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: default; }
+        .workload-capacity-chip-count { font-weight: 800; }
+        .workload-capacity-chip-days { font-size: 0.62rem; font-weight: 600; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
+        .workload-capacity-chip.free  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+        .workload-capacity-chip.light { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
+        .workload-capacity-chip.busy  { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
+        .workload-capacity-chip.full  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
         .workload-in-progress { border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #f0fdf4; }
         .workload-in-progress.empty { display: none; }
-        .workload-in-progress .workload-section-label { color: #047857; }
-        .workload-in-progress-rollups { display: flex; flex-wrap: wrap; gap: 8px; }
-        .workload-in-progress-rollups .workload-rollup { flex: 1 1 220px; min-width: 220px; max-width: 320px; }
+        .workload-in-progress .workload-section-label { color: #047857; display: flex; align-items: center; gap: 8px; }
+        .workload-in-progress .workload-section-label .wl-now-total { background: #10b981; color: #fff; border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; }
+        .workload-in-progress-rollups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+        .wl-now-card { background: var(--white); border: 1px solid #a7f3d0; border-left: 3px solid #10b981; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .wl-now-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .wl-now-avatar { width: 28px; height: 28px; border-radius: 50%; background: #10b981; color: #fff; font-size: 0.7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.02em; }
+        .wl-now-card-name { flex: 1; min-width: 0; font-size: 0.82rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wl-now-card-total { background: #10b981; color: #fff; border-radius: 999px; padding: 2px 9px; font-size: 0.7rem; font-weight: 800; flex-shrink: 0; }
+        .wl-now-card-clients { display: flex; flex-wrap: wrap; gap: 4px; }
+        .wl-now-client-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: #ecfdf5; color: #065f46; font-size: 0.7rem; font-weight: 600; text-decoration: none; transition: background 0.1s; max-width: 100%; }
+        .wl-now-client-chip:hover { background: #d1fae5; }
+        .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .wl-now-client-chip-count { font-weight: 800; opacity: 0.65; flex-shrink: 0; }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: #aaa; background: var(--white); }
@@ -3968,14 +3990,25 @@
         return wlNormStatus(sub) === 'in progress';
     }
 
-    // Scheduler — deterministic, per-assignee, due-date first, capacity-per-day batched by client.
+    // Effective work date = the working day BEFORE the due date, never earlier
+    // than today. The team's rule is that a video due tomorrow has to be edited
+    // today, so the scheduler always targets dueDate-1, not the due date itself.
+    function wlEffectiveWorkDate(dueDate, todayISO) {
+        if (!dueDate) return null;
+        const before = wlSubWorkingDays(dueDate, 1);
+        return before < todayISO ? todayISO : before;
+    }
+
+    // Scheduler — deterministic, per-assignee, work-date first, capacity-per-day batched by client.
     // Rules:
-    //   - Items due today are always pinned to today (capacity overflow allowed).
-    //   - Items whose due date falls before the cursor get overflow-scheduled on their due date.
+    //   - Work date for any sub-issue is dueDate-1 working day, floored to today.
+    //   - Items whose work date is today are pinned to today (capacity overflow allowed).
+    //   - Items whose work date falls before the cursor overflow back to that work date.
     //   - Video editors: 5/day capacity. Graphic designers: 15/day capacity.
     function scheduleAll(plannedSubs, todayISO) {
         const byAssignee = new Map();
         for (const s of plannedSubs) {
+            s.effectiveWorkDate = wlEffectiveWorkDate(s.dueDate, todayISO);
             if (!byAssignee.has(s.assigneeId)) byAssignee.set(s.assigneeId, []);
             byAssignee.get(s.assigneeId).push(s);
         }
@@ -3988,17 +4021,18 @@
         for (const [, subs] of byAssignee) {
             const capacity = wlEditorCapacity(subs[0].teamKey, subs[0].teamName);
 
-            // Pin items due today to today regardless of capacity.
-            const dueToday = subs.filter(s => s.dueDate === todayISO);
-            const queue    = subs.filter(s => s.dueDate !== todayISO);
+            // Pin items whose work date is today (i.e. due today, due tomorrow,
+            // or already overdue) to today regardless of capacity.
+            const dueToday = subs.filter(s => s.effectiveWorkDate === todayISO);
+            const queue    = subs.filter(s => s.effectiveWorkDate !== todayISO);
             for (const s of dueToday) {
                 s.scheduledDate = todayISO;
                 push(todayISO, s);
             }
 
             queue.sort((a, b) => {
-                const da = a.dueDate || '9999-12-31';
-                const db = b.dueDate || '9999-12-31';
+                const da = a.effectiveWorkDate || '9999-12-31';
+                const db = b.effectiveWorkDate || '9999-12-31';
                 if (da !== db) return da < db ? -1 : 1;
                 const ca = a.clientName || '';
                 const cb = b.clientName || '';
@@ -4020,13 +4054,14 @@
                 i = j;
             }
 
-            // Assign dates: ASAP scheduling — cursor starts on today so work fills the
-            // earliest available slot. If cursor overtakes a chunk's due date, overflow
-            // to the due date rather than pushing the work further out.
+            // Assign dates: ASAP scheduling — cursor starts on the next working
+            // day so work fills the earliest available slot. If cursor overtakes
+            // a chunk's work date, overflow back to that work date rather than
+            // pushing the work past it.
             let cursor = wlNextWorkingDay(todayISO);
             for (const chunk of chunks) {
-                const chunkDue = chunk[0].dueDate;
-                const assignedDate = (chunkDue && chunkDue < cursor) ? chunkDue : cursor;
+                const chunkTarget = chunk[0].effectiveWorkDate;
+                const assignedDate = (chunkTarget && chunkTarget < cursor) ? chunkTarget : cursor;
                 for (const sub of chunk) {
                     sub.scheduledDate = assignedDate;
                     push(assignedDate, sub);
@@ -4121,8 +4156,12 @@
                     </div>
                 </div>
             </div>
+            <div id="wlCapacity" class="workload-capacity empty">
+                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">freest first</span></div>
+                <div class="workload-capacity-row" id="wlCapacityRow"></div>
+            </div>
             <div id="wlInProgress" class="workload-in-progress empty">
-                <div class="workload-section-label">In progress now</div>
+                <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
                 <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
             </div>
             <div id="wlBody">
@@ -4341,11 +4380,11 @@
                 continue;
             }
             if (inProg) nowWorking.push(s);
-            // Schedule on the calendar whenever there's a future due date —
-            // including In Progress items, so they remain visible on the day
-            // they were originally planned for (with the green "in progress"
-            // treatment) instead of disappearing into the strip alone.
-            if (hasDue && s.dueDate >= todayISO) planned.push(s);
+            // Schedule on the calendar whenever there's a due date — including
+            // In Progress and overdue items. Overdue items get pinned to today
+            // by the scheduler (see wlEffectiveWorkDate), and In Progress items
+            // keep their slot so they don't vanish from the calendar entirely.
+            if (hasDue) planned.push(s);
         }
 
         wlState.nowWorking = nowWorking;
@@ -4575,6 +4614,7 @@
         }
 
         wlPopulateFilterOptions();
+        renderEditorWorkload();
         renderInProgressStrip();
         renderUnassignedStrip();
 
@@ -4636,19 +4676,144 @@
         return { groups, count: plannedSubs.length };
     }
 
+    // Editor workload — sorts every editor with active work by how busy they
+    // are so a SMM can see at a glance who has the most free time before
+    // assigning a new sub-issue. "Days of work" = total active sub-issues
+    // divided by the editor's per-day capacity (5 for video, 15 for graphics).
+    // Honours the team and client filters but ignores the editor filter so
+    // the panel always lets you compare across editors.
+    function renderEditorWorkload() {
+        const wrap = document.getElementById('wlCapacity');
+        const row  = document.getElementById('wlCapacityRow');
+        if (!wrap || !row) return;
+
+        const byEditor = new Map();
+        for (const s of (wlState.allActiveSubs || [])) {
+            if (!s.assigneeId) continue;
+            if (wlState.team !== 'all' && wlTeamBucket(s.teamKey, s.teamName) !== wlState.team) continue;
+            if (wlState.client !== 'all' && s.clientName !== wlState.client) continue;
+            if (!byEditor.has(s.assigneeId)) {
+                byEditor.set(s.assigneeId, {
+                    assigneeId: s.assigneeId,
+                    assigneeName: s.assigneeName,
+                    teamKey: s.teamKey,
+                    teamName: s.teamName,
+                    count: 0,
+                });
+            }
+            byEditor.get(s.assigneeId).count++;
+        }
+
+        if (byEditor.size === 0) {
+            wrap.classList.add('empty');
+            row.innerHTML = '';
+            return;
+        }
+        wrap.classList.remove('empty');
+
+        const editors = [...byEditor.values()].sort((a, b) => {
+            if (a.count !== b.count) return a.count - b.count;
+            return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
+        });
+
+        row.innerHTML = editors.map(ed => {
+            const cap = wlEditorCapacity(ed.teamKey, ed.teamName);
+            const days = Math.max(1, Math.ceil(ed.count / cap));
+            let cls;
+            if (days <= 1)      cls = 'free';
+            else if (days <= 2) cls = 'light';
+            else if (days <= 4) cls = 'busy';
+            else                cls = 'full';
+            const name = wlDisplayName(ed.assigneeName) || 'Unknown';
+            const dayLabel = days + 'd';
+            return `<span class="workload-capacity-chip ${cls}" title="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ~${days} day${days !== 1 ? 's' : ''} of work at ${cap}/day">
+                <span>${wlEscape(name)}</span>
+                <span class="workload-capacity-chip-count">${ed.count}</span>
+                <span class="workload-capacity-chip-days">${wlEscape(dayLabel)}</span>
+            </span>`;
+        }).join('');
+    }
+
+    // Group in-progress sub-issues by editor (one card per editor) and show a
+    // chip per client they're currently working on. This makes "who is working
+    // on what" scannable at a glance instead of one identical-looking row per
+    // editor+client pair.
     function renderInProgressStrip() {
-        const stripEl = document.getElementById('wlInProgress');
-        const rowEl   = document.getElementById('wlInProgressRollups');
+        const stripEl  = document.getElementById('wlInProgress');
+        const rowEl    = document.getElementById('wlInProgressRollups');
+        const totalEl  = document.getElementById('wlInProgressTotal');
         if (!stripEl || !rowEl) return;
         const subs = wlState.nowWorking.filter(wlPassesFilters);
         if (!subs.length) {
             stripEl.classList.add('empty');
             rowEl.innerHTML = '';
+            if (totalEl) { totalEl.hidden = true; totalEl.textContent = ''; }
             return;
         }
         stripEl.classList.remove('empty');
-        const groups = wlGroupRollups(subs);
-        rowEl.innerHTML = renderDayRollups(groups, wlTodayISO(), { unlimited: true });
+
+        const byEditor = new Map();
+        for (const s of subs) {
+            const key = s.assigneeId || '?';
+            if (!byEditor.has(key)) {
+                byEditor.set(key, {
+                    assigneeId: s.assigneeId,
+                    assigneeName: s.assigneeName,
+                    teamKey: s.teamKey,
+                    teamName: s.teamName,
+                    total: 0,
+                    clients: new Map(),
+                });
+            }
+            const ed = byEditor.get(key);
+            ed.total++;
+            const cKey = (s.parentId || '') + '|' + (s.clientName || '');
+            if (!ed.clients.has(cKey)) {
+                ed.clients.set(cKey, {
+                    clientName: s.clientName,
+                    parentId: s.parentId,
+                    assigneeId: s.assigneeId,
+                    anySub: s,
+                    count: 0,
+                });
+            }
+            ed.clients.get(cKey).count++;
+        }
+
+        const editors = [...byEditor.values()].sort((a, b) => {
+            if (a.total !== b.total) return b.total - a.total;
+            return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
+        });
+
+        if (totalEl) {
+            totalEl.hidden = false;
+            totalEl.textContent = subs.length + ' ACTIVE';
+        }
+
+        rowEl.innerHTML = editors.map(ed => {
+            const name = wlDisplayName(ed.assigneeName) || 'Unknown';
+            const initials = wlInitials(ed.assigneeName);
+            const clients = [...ed.clients.values()].sort((a, b) => {
+                if (a.count !== b.count) return b.count - a.count;
+                return (a.clientName || '').localeCompare(b.clientName || '');
+            });
+            const chips = clients.map(c => {
+                const href = wlParentUrl(c.anySub);
+                const label = c.clientName || '—';
+                return `<a class="wl-now-client-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(label)} · ${c.count} in progress">
+                    <span class="wl-now-client-chip-name">${wlEscape(label)}</span>
+                    <span class="wl-now-client-chip-count">${c.count}</span>
+                </a>`;
+            }).join('');
+            return `<div class="wl-now-card">
+                <div class="wl-now-card-head">
+                    <span class="wl-now-avatar">${wlEscape(initials)}</span>
+                    <span class="wl-now-card-name" title="${wlEscape(name)}">${wlEscape(name)}</span>
+                    <span class="wl-now-card-total" title="${ed.total} in progress">${ed.total}</span>
+                </div>
+                <div class="wl-now-card-clients">${chips}</div>
+            </div>`;
+        }).join('');
     }
 
     function renderUnassignedStrip() {
@@ -4810,16 +4975,19 @@
         const inProgress = rollupEl.getAttribute('data-wl-in-progress') === '1';
         const dayISO     = rollupEl.getAttribute('data-wl-date') || '';
 
-        // In-progress rollups pull from nowWorking (no date filter). Planned
-        // rollups pull only the sub-issues scheduled for that specific day so
-        // a 5-count badge shows exactly those 5 items — not the editor's
-        // entire backlog for that client.
-        const source = inProgress
-            ? wlState.nowWorking
-            : (dayISO ? (wlState.scheduled.get(dayISO) || []) : wlState.planned);
+        // Calendar rollups pull from the day's scheduled bucket and split by
+        // in-progress so the popover shows exactly the items represented by
+        // the rollup (the in-progress list and the planned list can both have
+        // entries on the same day for the same editor+client). Rollups without
+        // a date (e.g. the in-progress strip's chips) fall back to the global
+        // in-progress list.
+        const source = dayISO
+            ? (wlState.scheduled.get(dayISO) || [])
+            : (inProgress ? wlState.nowWorking : wlState.planned);
         const subs = source.filter(s =>
             (s.assigneeId || '') === assigneeId &&
-            (s.clientName || '') === clientName
+            (s.clientName || '') === clientName &&
+            (dayISO ? wlIsInProgress(s) === inProgress : true)
         );
 
         subs.sort((a, b) => {

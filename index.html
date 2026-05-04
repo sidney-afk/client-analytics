@@ -1136,6 +1136,11 @@
         .workload-popover-item-due.past { color: #dc2626; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
+        .workload-in-progress { border: 1.5px solid #a7f3d0; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #f0fdf4; }
+        .workload-in-progress.empty { display: none; }
+        .workload-in-progress .workload-section-label { color: #047857; }
+        .workload-in-progress-rollups { display: flex; flex-wrap: wrap; gap: 8px; }
+        .workload-in-progress-rollups .workload-rollup { flex: 1 1 220px; min-width: 220px; max-width: 320px; }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: #aaa; background: var(--white); }
@@ -4116,6 +4121,10 @@
                     </div>
                 </div>
             </div>
+            <div id="wlInProgress" class="workload-in-progress empty">
+                <div class="workload-section-label">In progress now</div>
+                <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
+            </div>
             <div id="wlBody">
                 <div class="workload-empty"><span class="spinner" style="display:inline-block;vertical-align:middle;"></span> Loading workload…</div>
             </div>
@@ -4126,7 +4135,7 @@
             <div class="workload-legend">
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#6c5ce7"></span>Video</span>
                 <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#d97706"></span>Graphics</span>
-                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#10b981"></span>In Progress (today)</span>
+                <span class="workload-legend-item"><span class="workload-legend-swatch" style="background:#10b981"></span>In Progress</span>
             </div>
             <div id="wlPopover" class="workload-popover" role="dialog" aria-hidden="true"></div>
         </div>
@@ -4566,6 +4575,7 @@
         }
 
         wlPopulateFilterOptions();
+        renderInProgressStrip();
         renderUnassignedStrip();
 
         const bodyEl = document.getElementById('wlBody');
@@ -4614,14 +4624,27 @@
         });
     }
 
-    // Build today's rollups: In-Progress items first, then scheduled/planned items.
+    // Build today's rollups: scheduled/planned items only. In-progress items
+    // are rendered separately in the strip above the calendar.
     function wlTodayRollups(todayISO) {
-        const nowSubs = wlState.nowWorking.filter(wlPassesFilters);
         const plannedSubs = (wlState.scheduled.get(todayISO) || []).filter(wlPassesFilters);
-        const nowGroups     = wlGroupRollups(nowSubs, true);
-        const plannedGroups = wlGroupRollups(plannedSubs, false);
-        const count = nowSubs.length + plannedSubs.length;
-        return { groups: [...nowGroups, ...plannedGroups], count };
+        const groups = wlGroupRollups(plannedSubs, false);
+        return { groups, count: plannedSubs.length };
+    }
+
+    function renderInProgressStrip() {
+        const stripEl = document.getElementById('wlInProgress');
+        const rowEl   = document.getElementById('wlInProgressRollups');
+        if (!stripEl || !rowEl) return;
+        const subs = wlState.nowWorking.filter(wlPassesFilters);
+        if (!subs.length) {
+            stripEl.classList.add('empty');
+            rowEl.innerHTML = '';
+            return;
+        }
+        stripEl.classList.remove('empty');
+        const groups = wlGroupRollups(subs, true);
+        rowEl.innerHTML = renderDayRollups(groups, wlTodayISO(), { unlimited: true });
     }
 
     function renderUnassignedStrip() {
@@ -4740,9 +4763,10 @@
     // (right-click / ctrl-click / middle-click behaves like a normal link).
     // Clicking the count badge instead opens a popover listing the individual
     // sub-issues, each linking to Linear.
-    function renderDayRollups(groups, dayISO) {
+    function renderDayRollups(groups, dayISO, opts) {
         if (!groups.length) return '';
-        const shown = groups.slice(0, WL_MAX_ROWS_PER_DAY);
+        const unlimited = !!(opts && opts.unlimited);
+        const shown = unlimited ? groups : groups.slice(0, WL_MAX_ROWS_PER_DAY);
         const hiddenGroups = groups.length - shown.length;
         let html = shown.map(g => {
             const team = wlTeamBucket(g.teamKey, g.teamName);

@@ -4545,18 +4545,14 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            if (inProg) {
-                // In Progress sub-issues live in the strip AND on the calendar.
-                // Even if the due date is missing or in the past we still
-                // place them on the calendar (pinned to today) so the strip
-                // never holds work that's invisible from the day view.
-                nowWorking.push(s);
-                planned.push(s);
-                continue;
-            }
-            // Calendar workload is forward-looking for non-in-progress work:
-            // skip overdue and undated items so today/tomorrow never show
-            // stale stuff that should already have shipped.
+            if (inProg) nowWorking.push(s);
+            // Calendar workload tracks work with a real due date. In-progress
+            // items keep their slot only if they have a future-or-today due
+            // date — they were already on the calendar before status moved
+            // to In Progress, so they should stay visible on the day they
+            // were planned for. Items with no due date or an overdue date
+            // live exclusively in the strip; the calendar never invents a
+            // slot for work that hasn't been planned.
             if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
@@ -4604,10 +4600,13 @@
                 return;
             }
             if (countBadge && rollup) {
-                // Intercept the click on the count badge so it opens the
-                // popover instead of following the rollup <a> to Linear.
+                // Honour cmd/ctrl/shift-click so power users can still open
+                // the parent Linear issue in a new tab from a chip.
+                if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                // Intercept the click on the chip / count badge so it opens
+                // the popover instead of following the rollup <a> to Linear.
                 e.preventDefault();
-                // Toggle: clicking the same rollup's badge again closes it.
+                // Toggle: clicking the same rollup again closes it.
                 const pop = document.getElementById('wlPopover');
                 if (pop && pop.classList.contains('open') && wlState.popoverAnchor === rollup) {
                     wlClosePopover();
@@ -4687,10 +4686,11 @@
                 (wlState.team === 'all' || wlTeamBucket(s.teamKey, s.teamName) === wlState.team))
             .map(s => [s.assigneeId, wlDisplayName(s.assigneeName) || 'Unknown'])).entries()]
             .sort((a, b) => String(a[1]).localeCompare(String(b[1])));
-        // Clients: every client with at least one active sub-issue. Used to
-        // back the search bar's autocomplete results.
-        const clients = [...new Set(all.map(s => s.clientName).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b));
+        // Clients: every name from the canonical Clients Info sheet, sorted
+        // alphabetically. Using the sheet (not just clients with active
+        // sub-issues) keeps every approved client searchable even when their
+        // workload is currently empty.
+        const clients = WL_CLIENT_NAMES.slice().sort((a, b) => a.localeCompare(b));
         wlState.clientOptions = clients;
 
         // Reset selected value if it's no longer valid for the current data.
@@ -5025,6 +5025,10 @@
         }
 
         const editors = [...byEditor.values()].sort((a, b) => {
+            // Graphics goes to the bottom; video editors first.
+            const ta = wlTeamBucket(a.teamKey, a.teamName);
+            const tb = wlTeamBucket(b.teamKey, b.teamName);
+            if (ta !== tb) return ta === 'graphics' ? 1 : -1;
             if (a.total !== b.total) return b.total - a.total;
             return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
         });
@@ -5044,9 +5048,9 @@
             const chips = clients.map(c => {
                 const href = wlParentUrl(c.anySub);
                 const label = c.clientName || '—';
-                return `<a class="wl-now-client-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(label)} · ${c.count} in progress" data-wl-rollup="1" data-wl-parent-id="${wlEscape(c.parentId || '')}" data-wl-assignee-id="${wlEscape(c.assigneeId || '')}" data-wl-client="${wlEscape(c.clientName || '')}" data-wl-in-progress="1" data-wl-editor-name="${wlEscape(name)}">
+                return `<a class="wl-now-client-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(label)} · ${c.count} in progress · click to see sub-issues" data-wl-rollup="1" data-wl-count-badge="1" data-wl-parent-id="${wlEscape(c.parentId || '')}" data-wl-assignee-id="${wlEscape(c.assigneeId || '')}" data-wl-client="${wlEscape(c.clientName || '')}" data-wl-in-progress="1" data-wl-editor-name="${wlEscape(name)}">
                     <span class="wl-now-client-chip-name">${wlEscape(label)}</span>
-                    <span class="wl-now-client-chip-count" data-wl-count-badge="1" title="See the ${c.count} sub-issue${c.count !== 1 ? 's' : ''}">${c.count}</span>
+                    <span class="wl-now-client-chip-count">${c.count}</span>
                 </a>`;
             }).join('');
             return `<div class="wl-now-card">
@@ -5200,9 +5204,13 @@
             ed.total += g.count;
             ed.clients.push(g);
         }
-        const editors = [...byEditor.values()].sort((a, b) =>
-            wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName))
-        );
+        const editors = [...byEditor.values()].sort((a, b) => {
+            // Graphics goes to the bottom; video editors first.
+            const ta = wlTeamBucket(a.teamKey, a.teamName);
+            const tb = wlTeamBucket(b.teamKey, b.teamName);
+            if (ta !== tb) return ta === 'graphics' ? 1 : -1;
+            return wlDisplayName(a.assigneeName).localeCompare(wlDisplayName(b.assigneeName));
+        });
 
         const shown = unlimited ? editors : editors.slice(0, WL_MAX_ROWS_PER_DAY);
         const hiddenEditors = editors.length - shown.length;
@@ -5217,10 +5225,10 @@
             const chips = clients.map(g => {
                 const href = wlParentUrl(g.anySub);
                 const label = g.clientName || '—';
-                const titleAttr = [label, g.count + ' sub-issue' + (g.count !== 1 ? 's' : '')].join(' · ');
-                return `<a class="workload-day-card-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}">
+                const titleAttr = [label, g.count + ' sub-issue' + (g.count !== 1 ? 's' : ''), 'click to see sub-issues'].join(' · ');
+                return `<a class="workload-day-card-chip" href="${wlEscape(href)}" target="_blank" rel="noopener noreferrer" title="${wlEscape(titleAttr)}" data-wl-rollup="1" data-wl-count-badge="1" data-wl-parent-id="${wlEscape(g.parentId || '')}" data-wl-assignee-id="${wlEscape(g.assigneeId || '')}" data-wl-client="${wlEscape(g.clientName || '')}" data-wl-in-progress="0" data-wl-date="${wlEscape(dayISO || '')}">
                     <span class="workload-day-card-chip-name">${wlEscape(label)}</span>
-                    <span class="workload-day-card-chip-count" data-wl-count-badge="1" title="See the ${g.count} sub-issue${g.count !== 1 ? 's' : ''}">${g.count}</span>
+                    <span class="workload-day-card-chip-count">${g.count}</span>
                 </a>`;
             }).join('');
             return `<div class="workload-day-card team-${team}">

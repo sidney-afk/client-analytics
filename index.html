@@ -4030,6 +4030,50 @@
         return WL_ALLOWED_EDITORS.has(wlNormalizeEditor(name));
     }
 
+    // Active clients as listed in SYNCVIEW's "Clients Info" sheet. Anything
+    // else (former clients, mismatched Linear project names, internal/test
+    // projects) is filtered out everywhere clients are read. Names are
+    // normalised so "Dr. Erica Matluck" / "Dr Erica Matluck" / "Erica
+    // Matluck" all match the same canonical entry, and "Eben & Annie" /
+    // "Eben and Annie" collapse to one too.
+    function wlNormalizeClient(s) {
+        if (!s) return '';
+        let t = String(s).toLowerCase().trim();
+        t = t.replace(/^dr\.?\s+/, '');
+        t = t.replace(/\s+(?:and|&)\s+/g, '&');
+        t = t.replace(/[^a-z0-9&]+/g, '');
+        return t;
+    }
+    const WL_ALLOWED_CLIENTS = new Set([
+        'Baya Voce',
+        'Jessica Winterstern',
+        'Morgan Burton',
+        'Dr. Sonia Chopra',
+        'Alyssa Nobriga',
+        'Doug Cartwright',
+        'Dr. Rocco Piazza',
+        'Edward Mannix',
+        'Alli Schaper',
+        'Eben & Annie',
+        'Jordan Marks',
+        'Miki Agrawal',
+        'Erica Matluck',
+        'Natalie MacNeil',
+        'John Wineland',
+        'David Kessler',
+        'Chelsey Scaffidi',
+        'Danielle Robin',
+        'Morgan Burch',
+        'Jesse Israel',
+        'Mastin Kipp',
+        'Melissa Pruett',
+        'Adriana Rizzolo',
+        'Sidney Laruel',
+    ].map(wlNormalizeClient));
+    function wlIsAllowedClient(name) {
+        return WL_ALLOWED_CLIENTS.has(wlNormalizeClient(name));
+    }
+
     // Effective work date = the working day BEFORE the due date, never earlier
     // than today. The team's rule is that a video due tomorrow has to be edited
     // today, so the scheduler always targets dueDate-1, not the due date itself.
@@ -4398,7 +4442,10 @@
             // Normalise dueDate — Linear can return "YYYY-MM-DDTHH:mm:ssZ"; slice to 10.
             if (i.dueDate) i.dueDate = String(i.dueDate).slice(0, 10);
         }
-        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i));
+        // Only surface sub-issues whose client appears in the canonical
+        // Clients Info sheet — keeps stray Linear projects and former clients
+        // out of every panel without further per-call filtering downstream.
+        const subs = issues.filter(i => i.isSubIssue && wlIsActiveStatus(i) && wlIsAllowedClient(i.clientName));
         for (const s of subs) {
             if (!s.parentId) continue;
             if (!subsByParentId.has(s.parentId)) subsByParentId.set(s.parentId, []);

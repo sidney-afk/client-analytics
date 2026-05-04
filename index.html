@@ -4340,11 +4340,11 @@
                 if (inProg || hasDue) unassigned.push(s);
                 continue;
             }
-            if (inProg) {
-                nowWorking.push(s);
-                continue;
-            }
-            // Only schedule items whose due date is today or in the future.
+            if (inProg) nowWorking.push(s);
+            // Schedule on the calendar whenever there's a future due date —
+            // including In Progress items, so they remain visible on the day
+            // they were originally planned for (with the green "in progress"
+            // treatment) instead of disappearing into the strip alone.
             if (hasDue && s.dueDate >= todayISO) planned.push(s);
         }
 
@@ -4594,13 +4594,16 @@
         bodyEl.innerHTML = wlState.viewMode === 'week' ? renderWeekGrid() : renderMonthGrid();
     }
 
-    // Group a list of sub-issues into (assigneeId × clientName) rollups.
-    // `inProgress` flag marks rollups that represent "currently in progress" work
-    // (shown on today's cell with a green treatment and "NOW" tag).
-    function wlGroupRollups(subs, inProgress) {
+    // Group a list of sub-issues into (assigneeId × clientName × inProgress)
+    // rollups. The in-progress flag is derived per sub-issue, so a calendar
+    // day that mixes planned and in-progress items for the same editor+client
+    // splits into two rollups (the in-progress one gets the green treatment
+    // and a "NOW" tag).
+    function wlGroupRollups(subs) {
         const map = new Map();
         for (const s of subs) {
-            const key = (s.assigneeId || '?') + '|' + (s.clientName || '');
+            const inProg = wlIsInProgress(s);
+            const key = (s.assigneeId || '?') + '|' + (s.clientName || '') + '|' + (inProg ? '1' : '0');
             if (!map.has(key)) {
                 map.set(key, {
                     assigneeId: s.assigneeId,
@@ -4611,7 +4614,7 @@
                     parentId: s.parentId,
                     anySub: s,
                     count: 0,
-                    inProgress: !!inProgress,
+                    inProgress: inProg,
                 });
             }
             const g = map.get(key);
@@ -4620,6 +4623,7 @@
         return [...map.values()].sort((a, b) => {
             const na = wlDisplayName(a.assigneeName); const nb = wlDisplayName(b.assigneeName);
             if (na !== nb) return na.localeCompare(nb);
+            if (a.inProgress !== b.inProgress) return a.inProgress ? -1 : 1;
             return (a.clientName || '').localeCompare(b.clientName || '');
         });
     }
@@ -4628,7 +4632,7 @@
     // are rendered separately in the strip above the calendar.
     function wlTodayRollups(todayISO) {
         const plannedSubs = (wlState.scheduled.get(todayISO) || []).filter(wlPassesFilters);
-        const groups = wlGroupRollups(plannedSubs, false);
+        const groups = wlGroupRollups(plannedSubs);
         return { groups, count: plannedSubs.length };
     }
 
@@ -4643,7 +4647,7 @@
             return;
         }
         stripEl.classList.remove('empty');
-        const groups = wlGroupRollups(subs, true);
+        const groups = wlGroupRollups(subs);
         rowEl.innerHTML = renderDayRollups(groups, wlTodayISO(), { unlimited: true });
     }
 
@@ -4695,7 +4699,7 @@
                 ({ groups, count } = wlTodayRollups(todayISO));
             } else {
                 const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
-                groups = wlGroupRollups(subs, false);
+                groups = wlGroupRollups(subs);
                 count = subs.length;
             }
             const rowsHtml = renderDayRollups(groups, iso);
@@ -4744,7 +4748,7 @@
                 ({ groups, count } = wlTodayRollups(todayISO));
             } else {
                 const subs = (wlState.scheduled.get(iso) || []).filter(wlPassesFilters);
-                groups = wlGroupRollups(subs, false);
+                groups = wlGroupRollups(subs);
                 count = subs.length;
             }
             const rowsHtml = renderDayRollups(groups, iso);

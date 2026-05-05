@@ -1314,6 +1314,8 @@
         .tpl-index-centered .tpl-index-sub { font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 22px; max-width: 460px; text-align: center; line-height: 1.5; }
         .tpl-index-centered .search-bar-wrap { width: min(440px, 100%); }
         .tpl-index-centered .search-bar-pill { width: 100%; }
+        .tpl-pins-area { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 30px; max-width: 640px; width: 100%; }
+        .tpl-pins-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); }
 
         /* Per-client */
         .tpl-client-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 22px; }
@@ -4046,6 +4048,10 @@
     const _tplSaveAbort  = {};              // abort controllers by client
     const _tplDirty      = {};              // pending patches by client {field: value}
     const TPL_RECENT_KEY = 'syncview_tpl_recent_searches';
+    const TPL_PINS_KEY   = 'syncview_tpl_pinned_clients';
+    const TPL_MAX_PINS   = 5;
+    let _tplPinsEditMode = false;
+    let _tplPinSelectorOpen = false;
 
     async function loadTemplates() {
         if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
@@ -4266,7 +4272,136 @@
                     <div id="tplSearchResults"></div>
                 </div>
             </div>
+            <div class="tpl-pins-area" id="tplPinsArea">
+                <div class="tpl-pins-label" id="tplPinsLabel">My Clients</div>
+                <div class="pins-row" id="tplPinsRow"></div>
+                <div class="pins-add-row" id="tplPinsAddRow"></div>
+            </div>
         </div>`;
+    }
+
+    /* ── Templates pinned clients (per-user, localStorage) ──────────────── */
+    function _tplGetPins() { try { return JSON.parse(localStorage.getItem(TPL_PINS_KEY) || '[]'); } catch { return []; } }
+    function _tplSavePins(p) { localStorage.setItem(TPL_PINS_KEY, JSON.stringify(p)); }
+    function _tplTogglePin(name) {
+        let pins = _tplGetPins();
+        if (pins.includes(name)) pins = pins.filter(p => p !== name);
+        else { if (pins.length >= TPL_MAX_PINS) return; pins.push(name); }
+        _tplSavePins(pins);
+        _tplRenderPins();
+    }
+    function _tplRemovePin(name) {
+        const pins = _tplGetPins().filter(p => p !== name);
+        _tplSavePins(pins);
+        if (pins.length === 0) _tplPinsEditMode = false;
+        _tplPinSelectorOpen = false;
+        _tplRenderPins();
+    }
+    function _tplTogglePinsEdit() { _tplPinsEditMode = !_tplPinsEditMode; _tplPinSelectorOpen = false; _tplRenderPins(); }
+    function _tplClosePinSelector() { _tplPinSelectorOpen = false; const dd = document.getElementById('tplPinSelectorDropdown'); if (dd) dd.classList.remove('open'); }
+    function _tplTogglePinSelector() {
+        if (_tplPinSelectorOpen) { _tplClosePinSelector(); return; }
+        _tplPinSelectorOpen = true;
+        const dd = document.getElementById('tplPinSelectorDropdown');
+        if (dd) { dd.classList.add('open'); _tplRenderPinSelectorList(); }
+        const close = (e) => {
+            const addRow = document.getElementById('tplPinsAddRow');
+            if (addRow && !addRow.contains(e.target)) {
+                _tplClosePinSelector();
+                document.removeEventListener('click', close);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+    function _tplRenderPins() {
+        const row = document.getElementById('tplPinsRow');
+        const addRow = document.getElementById('tplPinsAddRow');
+        const area = document.getElementById('tplPinsArea');
+        if (!row || !addRow) return;
+        const pins = _tplGetPins();
+        row.innerHTML = '';
+        pins.forEach(name => {
+            const pill = document.createElement('a');
+            pill.className = 'pin-pill';
+            pill.href = '#templates/' + encodeURIComponent(name);
+            pill.style.textDecoration = 'none';
+            pill.style.color = 'inherit';
+            if (!_tplPinsEditMode) pill.onclick = (e) => { e.preventDefault(); openClientTemplate(name); };
+            else pill.onclick = (e) => { e.preventDefault(); };
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            pill.appendChild(nameSpan);
+            if (_tplPinsEditMode) {
+                const rm = document.createElement('span');
+                rm.className = 'pin-remove';
+                rm.title = 'Remove';
+                rm.textContent = '✕';
+                rm.onclick = (e) => { e.preventDefault(); e.stopPropagation(); _tplRemovePin(name); };
+                pill.appendChild(rm);
+            }
+            row.appendChild(pill);
+        });
+        if (pins.length >= 1) {
+            const editBtn = document.createElement('button');
+            editBtn.className = 'pin-edit-btn' + (_tplPinsEditMode ? ' active' : '');
+            editBtn.title = _tplPinsEditMode ? 'Done' : 'Edit pins';
+            editBtn.innerHTML = _tplPinsEditMode
+                ? '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2 6l3 3 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+                : PEN_ICON_SVG;
+            editBtn.onclick = _tplTogglePinsEdit;
+            row.appendChild(editBtn);
+        }
+        addRow.innerHTML = '';
+        const showAddBtn = pins.length < TPL_MAX_PINS && (pins.length === 0 || _tplPinsEditMode || _tplPinSelectorOpen);
+        if (showAddBtn) {
+            const addBtn = document.createElement('button');
+            addBtn.className = 'pin-add-btn';
+            addBtn.title = 'Pin a client';
+            addBtn.innerHTML = PIN_ICON_SVG + ' Pin client <span style="opacity:0.6;font-size:0.68rem;">' + pins.length + '/' + TPL_MAX_PINS + '</span>';
+            addBtn.onclick = _tplTogglePinSelector;
+            addRow.appendChild(addBtn);
+            const dd = document.createElement('div');
+            dd.className = 'pin-selector-dropdown' + (_tplPinSelectorOpen ? ' open' : '');
+            dd.id = 'tplPinSelectorDropdown';
+            const hdr = document.createElement('div');
+            hdr.className = 'pin-selector-header';
+            hdr.innerHTML = '<span class="pin-selector-title">Pin a client</span><div style="display:flex;align-items:center;gap:8px;"><span class="pin-selector-count">' + pins.length + ' / ' + TPL_MAX_PINS + '</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" id="tplPinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>';
+            dd.appendChild(hdr);
+            const list = document.createElement('div');
+            list.className = 'pin-selector-list';
+            list.id = 'tplPinSelectorList';
+            dd.appendChild(list);
+            addRow.appendChild(dd);
+            const closeBtn = dd.querySelector('#tplPinDropCloseBtn');
+            if (closeBtn) closeBtn.onclick = (e) => { e.stopPropagation(); _tplClosePinSelector(); };
+            if (_tplPinSelectorOpen) _tplRenderPinSelectorList();
+        } else if (!showAddBtn && _tplPinSelectorOpen) {
+            _tplPinSelectorOpen = false;
+        }
+        if (area) area.style.display = '';
+    }
+    function _tplRenderPinSelectorList() {
+        const list = document.getElementById('tplPinSelectorList');
+        if (!list) return;
+        const pins = _tplGetPins();
+        const allNames = _tplAllNames();
+        list.innerHTML = '';
+        allNames.forEach(name => {
+            const isPinned = pins.includes(name);
+            const disabled = !isPinned && pins.length >= TPL_MAX_PINS;
+            const item = document.createElement('div');
+            item.className = 'pin-selector-item' + (isPinned ? ' pinned' : '');
+            if (disabled) item.style.cssText = 'opacity:0.35;cursor:default;';
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = name;
+            const check = document.createElement('span');
+            check.className = 'pin-check';
+            if (isPinned) check.innerHTML = CHECK_SVG;
+            item.appendChild(nameSpan);
+            item.appendChild(check);
+            if (!disabled) item.onclick = (e) => { e.stopPropagation(); _tplTogglePin(name); };
+            list.appendChild(item);
+        });
     }
 
     /* ── Templates search bar (mirrors the analytics search bar) ────────── */
@@ -4563,6 +4698,8 @@
     function mountTemplatesView() {
         const root = document.getElementById('content');
         if (!root) return;
+        // Render the "My Clients" pinned section if the index page is showing.
+        if (!_templatesSelected && document.getElementById('tplPinsArea')) _tplRenderPins();
         const fields = root.querySelectorAll('[data-tpl-field]');
         fields.forEach(el => {
             const name  = el.getAttribute('data-tpl-client');

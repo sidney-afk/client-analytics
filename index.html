@@ -4273,9 +4273,8 @@
         return [{ title: '', highlight: '' }];
     }
     function _tplSaveColorSets(name, sets) {
-        let cleaned = (sets && sets.length ? sets : [{ title: '', highlight: '' }])
+        const cleaned = (sets && sets.length ? sets : [{ title: '', highlight: '' }])
             .map(s => ({ title: (s && s.title) || '', highlight: (s && s.highlight) || '' }));
-        while (cleaned.length > 1 && !cleaned[cleaned.length - 1].title && !cleaned[cleaned.length - 1].highlight) cleaned.pop();
         _tplQueueSave(name, 'thumbnails_color_sets', JSON.stringify(cleaned), false);
         // Mirror the first set into the legacy single-pair columns so anything still reading those stays in sync.
         _tplQueueSave(name, 'thumbnails_title_color', cleaned[0].title, false);

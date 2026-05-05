@@ -4222,12 +4222,17 @@
                 i = j;
             }
 
-            // Assign dates: ASAP scheduling — cursor starts on the working day
-            // AFTER today so queued work fills tomorrow's slot first (today is
-            // already saturated by the dueToday pin). If cursor overtakes a
-            // chunk's work date, overflow back to that work date rather than
-            // pushing the work past it.
-            let cursor = wlAddWorkingDays(todayISO, 1);
+            // Assign dates: ASAP scheduling — cursor starts on today when the
+            // dueToday pin hasn't already saturated the editor's daily
+            // capacity, so an editor with nothing pinned today still gets
+            // their first chunk scheduled today. Once today is at/over
+            // capacity, start tomorrow instead so queued chunks don't pile
+            // onto an already-overflowing day. If cursor overtakes a chunk's
+            // work date, overflow back to that work date rather than pushing
+            // the work past it.
+            let cursor = dueToday.length >= capacity
+                ? wlAddWorkingDays(todayISO, 1)
+                : todayISO;
             for (const chunk of chunks) {
                 const chunkTarget = chunk[0].effectiveWorkDate;
                 const assignedDate = (chunkTarget && chunkTarget < cursor) ? chunkTarget : cursor;

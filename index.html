@@ -1294,31 +1294,20 @@
 
         /* ── Templates view ── */
         .tpl-view { max-width: 980px; margin: 24px auto 80px; padding: 0 28px; font-family: 'Plus Jakarta Sans', sans-serif; }
-        .tpl-index-head { display: flex; flex-direction: column; align-items: center; gap: 14px; margin: 32px 0 28px; text-align: center; }
-        .tpl-index-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
-        .tpl-index-sub { font-size: 0.86rem; color: var(--text-secondary); max-width: 520px; }
-        .tpl-search-wrap { position: relative; width: min(560px, 100%); }
-        .tpl-search-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 18px 0 22px; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); transition: border-color 0.18s, box-shadow 0.18s; }
-        .tpl-search-pill:focus-within { border-color: #111110; box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
-        .tpl-search-input { flex: 1; border: none; outline: none; background: transparent; padding: 14px 0; font-family: inherit; font-size: 0.92rem; color: var(--text-primary); }
-        .tpl-search-icon { color: var(--text-muted); display: inline-flex; align-items: center; }
-        .tpl-search-results { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.10); max-height: 320px; overflow-y: auto; z-index: 50; padding: 6px; display: none; }
-        .tpl-search-results.open { display: block; }
-        .tpl-search-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-primary); }
-        .tpl-search-item:hover, .tpl-search-item.active { background: var(--bg); }
-        .tpl-search-item .s-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--bg); display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
-        .tpl-search-empty { padding: 14px 12px; font-size: 0.82rem; color: var(--text-muted); text-align: center; }
-        .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 28px; }
-        .tpl-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: space-between; }
-        .tpl-card:hover { border-color: #111110; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
-        .tpl-card-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
-        .tpl-card-status { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 99px; flex-shrink: 0; }
-        .tpl-card-status.filled { background: #ecfdf5; color: #047857; }
-        .tpl-card-status.empty  { background: var(--bg); color: var(--text-muted); }
+        .tpl-index-centered { min-height: calc(100vh - 200px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; gap: 16px; }
+        .tpl-index-centered .search-bar-wrap { width: min(440px, 100%); }
+        .tpl-index-centered .search-bar-pill { width: 100%; }
 
         /* Per-client */
         .tpl-client-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 22px; }
-        .tpl-client-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+        .tpl-client-name { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.015em; }
+        .tpl-head-actions { display: flex; align-items: center; gap: 12px; }
+
+        .tpl-edit-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px; background: var(--white); border: 1.5px solid var(--border); font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); cursor: pointer; transition: all 0.15s; }
+        .tpl-edit-btn:hover { border-color: #111110; transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.06); }
+        .tpl-edit-btn.done { background: #111110; color: #fff; border-color: #111110; }
+        .tpl-edit-btn.done:hover { background: #2a2a28; }
+
         .tpl-status-badge { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; min-height: 18px; }
         .tpl-status-badge.saving { color: #6b6b67; }
         .tpl-status-badge.saved  { color: #10b981; }
@@ -1333,9 +1322,41 @@
 
         .tpl-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
         .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
-        .tpl-section-callout { background: linear-gradient(135deg, #fef9c3 0%, #fef3c7 100%); border-color: #fde68a; }
-        .tpl-section-callout .tpl-section-title { color: #92400e; }
 
+        /* Filming-plans card (view mode top callout, but not yellow) */
+        .tpl-filming-card { display: flex; align-items: center; gap: 14px; padding: 16px 20px; border-radius: 14px; background: var(--white); border: 1px solid var(--border); text-decoration: none; color: var(--text-primary); margin-bottom: 18px; transition: all 0.15s; }
+        .tpl-filming-card:hover { border-color: #111110; transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+        .tpl-filming-card.empty { color: var(--text-muted); cursor: default; }
+        .tpl-filming-card.empty:hover { border-color: var(--border); transform: none; box-shadow: none; }
+        .tpl-filming-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--bg); display: inline-flex; align-items: center; justify-content: center; color: var(--text-secondary); flex-shrink: 0; }
+        .tpl-filming-card:hover .tpl-filming-icon { background: #111110; color: #fff; }
+        .tpl-filming-card.empty:hover .tpl-filming-icon { background: var(--bg); color: var(--text-secondary); }
+        .tpl-filming-text { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+        .tpl-filming-title { font-size: 0.92rem; font-weight: 700; letter-spacing: -0.005em; color: var(--text-primary); }
+        .tpl-filming-card.empty .tpl-filming-title { color: var(--text-secondary); }
+        .tpl-filming-host { font-size: 0.74rem; color: var(--text-muted); }
+        .tpl-filming-arrow { color: var(--text-muted); flex-shrink: 0; transition: transform 0.15s; }
+        .tpl-filming-card:hover .tpl-filming-arrow { transform: translate(2px, -2px); color: #111110; }
+
+        /* View-mode value display */
+        .tpl-view-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 32px; }
+        @media (max-width: 640px) { .tpl-view-grid { grid-template-columns: 1fr; gap: 18px; } }
+        .tpl-view-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .tpl-view-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .tpl-view-value { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); letter-spacing: -0.005em; word-break: break-word; }
+        .tpl-not-set { color: var(--text-muted); font-weight: 500; font-style: italic; }
+        .tpl-view-color-row { display: inline-flex; align-items: center; gap: 10px; }
+        .tpl-view-swatch { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.10), 0 1px 2px rgba(0,0,0,0.08); flex-shrink: 0; }
+        .tpl-view-swatch-empty { background: repeating-linear-gradient(45deg, var(--bg) 0 4px, var(--border-light) 4px 8px); }
+        .tpl-view-color-hex { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.86rem; font-weight: 600; letter-spacing: 0.02em; }
+        .tpl-view-link { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 99px; background: var(--bg); color: var(--text-primary); text-decoration: none; font-size: 0.82rem; font-weight: 600; transition: all 0.13s; }
+        .tpl-view-link:hover { background: #111110; color: #fff; }
+        .tpl-view-link-host { color: var(--text-muted); font-weight: 500; font-size: 0.74rem; }
+        .tpl-view-link:hover .tpl-view-link-host { color: rgba(255,255,255,0.7); }
+        .tpl-view-prose { font-size: 0.92rem; line-height: 1.6; color: var(--text-primary); white-space: pre-wrap; word-wrap: break-word; }
+        .tpl-view-prose-empty { color: var(--text-muted); font-style: italic; font-size: 0.88rem; }
+
+        /* Edit-mode inputs */
         .tpl-fields { display: grid; gap: 14px; }
         .tpl-fields.two { grid-template-columns: 1fr 1fr; }
         @media (max-width: 640px) { .tpl-fields.two { grid-template-columns: 1fr; } }
@@ -1360,7 +1381,13 @@
         .tpl-link-open:hover { background: #111110; color: #fff; }
         .tpl-link-open.disabled { opacity: 0.35; pointer-events: none; }
 
-        .tpl-empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 0.88rem; }
+        /* Skeleton (loading) */
+        .tpl-skeleton { background: linear-gradient(90deg, var(--bg) 0%, #ededea 50%, var(--bg) 100%); background-size: 200% 100%; border-radius: 8px; animation: tpl-shimmer 1.4s ease-in-out infinite; }
+        .tpl-skeleton-pill { border-radius: 99px; }
+        .tpl-skeleton-line { height: 14px; border-radius: 6px; }
+        .tpl-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 14px; }
+        @keyframes tpl-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
         .tpl-config-banner { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 14px 18px; font-size: 0.84rem; line-height: 1.55; margin-bottom: 16px; }
         .tpl-config-banner code { background: rgba(0,0,0,0.07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
     </style>
@@ -3987,9 +4014,11 @@
     let templatesLoadError = null;
     let _templatesSelected = null;          // currently open client (or null = index)
     let _templatesActiveTab = 'reels';      // 'reels' | 'thumbnails'
+    let _templatesEditMode = false;         // false = view mode, true = edit mode
     const _tplSaveTimers = {};              // debounce timers by `${client}::${field}`
     const _tplSaveAbort  = {};              // abort controllers by client
     const _tplDirty      = {};              // pending patches by client {field: value}
+    const TPL_RECENT_KEY = 'syncview_tpl_recent_searches';
 
     async function loadTemplates() {
         if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
@@ -4007,11 +4036,9 @@
         _maybeRerenderTemplates();
     }
     function _maybeRerenderTemplates() {
-        // If the user is currently looking at the Templates tab, refresh it so newly-loaded values show up.
         if (currentNav !== 'templates') return;
         const content = document.getElementById('content');
         if (!content) return;
-        // Don't clobber any in-progress edit by re-rendering on top of focused inputs.
         const ae = document.activeElement;
         if (ae && ae.hasAttribute && ae.hasAttribute('data-tpl-field')) return;
         content.innerHTML = renderTemplatesView();
@@ -4023,7 +4050,6 @@
     }
 
     function _setTplStatus(state, message) {
-        // state: 'idle' | 'saving' | 'saved' | 'error'
         const el = document.getElementById('tplStatusBadge');
         if (!el) return;
         el.classList.remove('saving','saved','error');
@@ -4045,7 +4071,6 @@
         const patch = _tplDirty[name];
         if (!patch || !Object.keys(patch).length) return;
         if (!TEMPLATES_SAVE_URL) { _setTplStatus('error','Endpoint not configured'); return; }
-        // Optimistic state already applied by caller. Send only the dirty fields.
         delete _tplDirty[name];
         if (_tplSaveAbort[name]) { try { _tplSaveAbort[name].abort(); } catch {} }
         const ctrl = new AbortController();
@@ -4062,22 +4087,19 @@
             if (!json.ok) throw new Error(json.error || 'Save failed');
             templatesData[name] = json.template || templatesData[name];
             _setTplStatus('saved');
-            // Auto-fade after 2s if no further activity.
             setTimeout(() => {
                 const badge = document.getElementById('tplStatusBadge');
                 if (badge && badge.classList.contains('saved')) _setTplStatus('idle');
             }, 2000);
         } catch (e) {
-            if (e.name === 'AbortError') return; // superseded by another save
+            if (e.name === 'AbortError') return;
             console.warn('[SyncView] template save failed:', e);
-            // Re-merge unsaved patch so we'll retry next change.
             _tplDirty[name] = Object.assign(patch, _tplDirty[name] || {});
             _setTplStatus('error', e.message || 'Save failed — try again');
         }
     }
 
     function _tplQueueSave(name, field, value, immediate) {
-        // Optimistic update so the UI never lags behind typing.
         if (!templatesData[name]) templatesData[name] = { client_name: name };
         templatesData[name][field] = value;
         if (!_tplDirty[name]) _tplDirty[name] = {};
@@ -4091,7 +4113,9 @@
     }
 
     function _tplEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function _tplEscAttr(s) { return _tplEsc(s).replace(/'/g,"&#39;"); }
 
+    /* ── Edit-mode field renderers ──────────────────────────────────────── */
     function _tplFieldText(name, field, label, placeholder) {
         const v = _tplGet(name, field);
         return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
@@ -4127,83 +4151,184 @@
             </div></div>`;
     }
 
+    /* ── View-mode field renderers ──────────────────────────────────────── */
+    const _NOT_SET = '<span class="tpl-not-set">Not set</span>';
+    function _tplViewText(name, field, label) {
+        const v = _tplGet(name, field);
+        return `<div class="tpl-view-field">
+            <div class="tpl-view-label">${label}</div>
+            <div class="tpl-view-value">${v ? _tplEsc(v) : _NOT_SET}</div>
+        </div>`;
+    }
+    function _tplViewColor(name, field, label) {
+        const v = _tplGet(name, field) || '';
+        const isHex = /^#[0-9a-fA-F]{6}$/.test(v);
+        const swatch = isHex
+            ? `<span class="tpl-view-swatch" style="background:${_tplEsc(v)}"></span>`
+            : `<span class="tpl-view-swatch tpl-view-swatch-empty" aria-hidden="true"></span>`;
+        return `<div class="tpl-view-field">
+            <div class="tpl-view-label">${label}</div>
+            <div class="tpl-view-value tpl-view-color-row">${swatch}<span class="tpl-view-color-hex">${v ? _tplEsc(v.toUpperCase()) : _NOT_SET}</span></div>
+        </div>`;
+    }
+    function _tplViewLink(name, field, label, openLabel) {
+        const v = _tplGet(name, field);
+        const isUrl = /^https?:\/\//i.test(v);
+        let host = '';
+        if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
+        const value = isUrl
+            ? `<a class="tpl-view-link" href="${_tplEsc(v)}" target="_blank" rel="noopener">
+                ${openLabel || 'Open'}
+                ${host ? `<span class="tpl-view-link-host">${_tplEsc(host)}</span>` : ''}
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </a>`
+            : _NOT_SET;
+        return `<div class="tpl-view-field">
+            <div class="tpl-view-label">${label}</div>
+            <div class="tpl-view-value">${value}</div>
+        </div>`;
+    }
+    function _tplViewProse(name, field) {
+        const v = _tplGet(name, field);
+        if (!v) return `<div class="tpl-view-prose tpl-view-prose-empty">No preferences noted yet.</div>`;
+        return `<div class="tpl-view-prose">${_tplEsc(v)}</div>`;
+    }
+
+    /* ── View renderers ─────────────────────────────────────────────────── */
     function renderTemplatesView() {
         if (_templatesSelected) return renderClientTemplate(_templatesSelected);
         return renderTemplatesIndex();
     }
 
     function renderTemplatesIndex() {
-        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
-        const cards = allNames.map(name => {
-            const filled = TEMPLATE_FIELDS.some(f => _tplGet(name, f));
-            return `<div class="tpl-card" onclick="openClientTemplate('${_tplEsc(name).replace(/'/g,"\\'")}')">
-                <span class="tpl-card-name">${_tplEsc(name)}</span>
-                <span class="tpl-card-status ${filled?'filled':'empty'}">${filled?'Set':'Empty'}</span>
-            </div>`;
-        }).join('');
         const banner = (TEMPLATES_GET_URL && TEMPLATES_SAVE_URL) ? '' : `
             <div class="tpl-config-banner">
                 Templates backend isn't configured yet — set <code>TEMPLATES_GET_URL</code> and <code>TEMPLATES_SAVE_URL</code> in <code>index.html</code>. Until then, edits won't be saved.
             </div>`;
         const errBanner = (templatesLoadError && templatesLoadError !== 'not-configured') ? `
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
-        return `<div class="tpl-view">
+        return `<div class="tpl-index-centered">
             ${banner}${errBanner}
-            <div class="tpl-index-head">
-                <div class="tpl-index-title">Client Templates</div>
-                <div class="tpl-index-sub">A single source of truth for fonts, colors, references, and preferences. Pick a client to view or edit their templates.</div>
-                <div class="tpl-search-wrap">
-                    <div class="tpl-search-pill">
-                        <span class="tpl-search-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
-                        <input class="tpl-search-input" id="tplSearchInput" type="text" placeholder="Search clients…"
-                               oninput="_tplOnSearch()" onfocus="_tplOnSearch()" onkeydown="_tplOnSearchKey(event)" autocomplete="off" />
-                    </div>
-                    <div class="tpl-search-results" id="tplSearchResults"></div>
+            <div class="search-bar-wrap" id="tplSearchWrap">
+                <div class="search-bar-pill">
+                    <input class="search-bar-input" id="tplSearchInput" type="text"
+                        placeholder="Search clients…"
+                        oninput="_tplOnSearchInput()" onkeydown="_tplOnSearchKey(event)"
+                        onfocus="_tplOnSearchFocus()" autocomplete="off">
+                    <div class="search-ghost-overlay" id="tplSearchGhost"></div>
+                    <button class="search-bar-icon" onclick="_tplOnSearchIconClick()" title="Search">
+                        <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                    </button>
+                </div>
+                <div class="search-dropdown" id="tplSearchBox">
+                    <div id="tplSearchResults"></div>
                 </div>
             </div>
-            <div class="tpl-grid">${cards||'<div class="tpl-empty-state">No clients found.</div>'}</div>
         </div>`;
     }
 
-    function _tplSearchMatches(q) {
-        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
-        const q2 = (q||'').trim().toLowerCase();
-        if (!q2) return allNames.slice(0, 8);
+    /* ── Templates search bar (mirrors the analytics search bar) ────────── */
+    function _tplGetRecent() { try { return JSON.parse(localStorage.getItem(TPL_RECENT_KEY) || '[]'); } catch { return []; } }
+    function _tplAddRecent(name) { let r = _tplGetRecent().filter(n => n !== name); r.unshift(name); r = r.slice(0,3); localStorage.setItem(TPL_RECENT_KEY, JSON.stringify(r)); }
+    function _tplAllNames() { return [...new Set(allData.map(r => r.client_name))].sort(); }
+    function _tplMatches(q) {
+        const allNames = _tplAllNames();
+        const q2 = (q || '').trim().toLowerCase();
+        if (!q2) return [];
         const starts = allNames.filter(n => n.toLowerCase().startsWith(q2));
         const contains = allNames.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
-        return [...starts, ...contains].slice(0, 8);
+        return [...starts, ...contains];
     }
-    function _tplOnSearch() {
+    function _tplHighlight(name, q) { if (!q) return _tplEsc(name); const idx = name.toLowerCase().indexOf(q.toLowerCase()); if (idx < 0) return _tplEsc(name); return _tplEsc(name.slice(0,idx)) + '<span class="s-match">' + _tplEsc(name.slice(idx, idx + q.length)) + '</span>' + _tplEsc(name.slice(idx + q.length)); }
+    function _tplOpenSearchDropdown() {
+        const box = document.getElementById('tplSearchBox');
+        if (!box || box.classList.contains('open')) return;
+        box.classList.add('open');
+        const close = (e) => {
+            const wrap = document.getElementById('tplSearchWrap');
+            if (wrap && !wrap.contains(e.target)) {
+                box.classList.remove('open');
+                document.removeEventListener('click', close);
+            }
+        };
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+    function _tplOnSearchFocus() { _tplRenderSearchResults(document.getElementById('tplSearchInput')?.value || ''); _tplOpenSearchDropdown(); }
+    function _tplOnSearchInput() {
+        const q = document.getElementById('tplSearchInput')?.value || '';
+        _tplRenderSearchResults(q);
+        _tplUpdateSearchGhost(q);
+        _tplOpenSearchDropdown();
+    }
+    function _tplOnSearchIconClick() {
         const inp = document.getElementById('tplSearchInput');
-        const list = document.getElementById('tplSearchResults');
-        if (!inp || !list) return;
-        const q = inp.value;
-        const matches = _tplSearchMatches(q);
-        if (!matches.length) { list.innerHTML = '<div class="tpl-search-empty">No clients found</div>'; }
-        else { list.innerHTML = matches.map(n => `<div class="tpl-search-item" onclick="openClientTemplate('${_tplEsc(n).replace(/'/g,"\\'")}')"><span class="s-icon">👤</span><span>${_tplEsc(n)}</span></div>`).join(''); }
-        const wasOpen = list.classList.contains('open');
-        list.classList.add('open');
-        if (!wasOpen) {
-            const close = (e) => {
-                if (!list.contains(e.target) && e.target !== inp) {
-                    list.classList.remove('open');
-                    document.removeEventListener('click', close);
-                }
-            };
-            setTimeout(() => document.addEventListener('click', close), 0);
+        const q = (inp?.value || '').trim();
+        if (q) {
+            const first = _tplMatches(q)[0];
+            if (first) { _tplGoTo(first); return; }
         }
+        inp?.focus();
+        _tplOpenSearchDropdown();
     }
     function _tplOnSearchKey(e) {
-        if (e.key === 'Escape') { document.getElementById('tplSearchResults')?.classList.remove('open'); e.target.blur(); return; }
+        if (e.key === 'Escape') {
+            document.getElementById('tplSearchBox')?.classList.remove('open');
+            const ghost = document.getElementById('tplSearchGhost'); if (ghost) ghost.innerHTML = '';
+            document.getElementById('tplSearchInput')?.blur();
+            return;
+        }
         if (e.key !== 'Enter') return;
+        const q = (document.getElementById('tplSearchInput')?.value || '').trim();
+        if (!q) return;
+        const first = _tplMatches(q)[0];
+        if (first) _tplGoTo(first);
+    }
+    function _tplUpdateSearchGhost(q) {
+        const ghost = document.getElementById('tplSearchGhost');
         const inp = document.getElementById('tplSearchInput');
-        const matches = _tplSearchMatches(inp?.value || '');
-        if (matches[0]) openClientTemplate(matches[0]);
+        if (!ghost || !inp) return;
+        const q2 = q.trim().toLowerCase();
+        if (!q2) { ghost.innerHTML = ''; return; }
+        const first = _tplMatches(q2)[0];
+        if (!first) { ghost.innerHTML = ''; return; }
+        if (first.toLowerCase().startsWith(q2)) {
+            const typed = first.slice(0, q.length);
+            const rest = first.slice(q.length);
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${_tplEsc(typed)}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${_tplEsc(rest)}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;
+        } else {
+            ghost.innerHTML = `<span style="color:transparent;white-space:pre">${_tplEsc(q)}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${_tplEsc(first)}</span>`;
+        }
+    }
+    function _tplRenderSearchResults(q) {
+        const el = document.getElementById('tplSearchResults');
+        if (!el) return;
+        const allNames = _tplAllNames();
+        const recent = _tplGetRecent().filter(n => allNames.includes(n));
+        const q2 = q.trim().toLowerCase();
+        if (!q2) {
+            if (!recent.length) { el.innerHTML = ''; return; }
+            el.innerHTML = `<div class="search-section-label">Recent</div>` + recent.map(name => `<div class="search-suggestion" onclick="_tplGoTo('${_tplEscAttr(name)}')"><span class="s-icon">↩</span><span>${_tplEsc(name)}</span></div>`).join('');
+        } else {
+            const matches = _tplMatches(q2);
+            if (!matches.length) { el.innerHTML = `<div class="search-empty">No clients found</div>`; }
+            else { el.innerHTML = matches.slice(0, 6).map(name => `<div class="search-suggestion" onclick="_tplGoTo('${_tplEscAttr(name)}')"><span class="s-icon">👤</span><span>${_tplHighlight(name, q.trim())}</span></div>`).join(''); }
+        }
+    }
+    function _tplGoTo(name) {
+        _tplAddRecent(name);
+        const box = document.getElementById('tplSearchBox');
+        const inp = document.getElementById('tplSearchInput');
+        const ghost = document.getElementById('tplSearchGhost');
+        if (box) box.classList.remove('open');
+        if (inp) { inp.value = ''; inp.blur(); }
+        if (ghost) ghost.innerHTML = '';
+        openClientTemplate(name);
     }
 
     function openClientTemplate(name) {
         _templatesSelected = name;
         _templatesActiveTab = 'reels';
+        _templatesEditMode = false;
         history.pushState({ nav: 'templates', templatesClient: name }, '', '#templates/' + encodeURIComponent(name));
         const content = document.getElementById('content');
         if (content) {
@@ -4214,6 +4339,7 @@
     }
     function backToTemplatesIndex() {
         _templatesSelected = null;
+        _templatesEditMode = false;
         history.pushState({ nav: 'templates' }, '', '#templates');
         const content = document.getElementById('content');
         if (content) {
@@ -4224,47 +4350,138 @@
     }
 
     function renderClientTemplate(name) {
+        // Loading state — first paint while the GET is in flight.
+        if (!templatesLoaded && !templatesLoadError) {
+            return `<div class="tpl-view">
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
+                <div class="tpl-skeleton tpl-skeleton-pill" style="width:160px;height:24px;margin-bottom:18px;"></div>
+                <div class="tpl-skeleton-card">
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:35%;"></div>
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:80%;margin-top:14px;"></div>
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:60%;margin-top:10px;"></div>
+                </div>
+                <div class="tpl-skeleton-card">
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:30%;"></div>
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:90%;margin-top:14px;"></div>
+                    <div class="tpl-skeleton tpl-skeleton-line" style="width:75%;margin-top:10px;"></div>
+                </div>
+            </div>`;
+        }
+        if (templatesLoadError && !templatesLoaded) {
+            return `<div class="tpl-view">
+                <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+                <div class="tpl-client-head"><div class="tpl-client-name">${_tplEsc(name)}</div></div>
+                <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>
+            </div>`;
+        }
+
+        const isEdit = _templatesEditMode;
         const reelsActive = _templatesActiveTab === 'reels' ? 'active' : '';
         const thumbActive = _templatesActiveTab === 'thumbnails' ? 'active' : '';
-        const filmingPlans = `<div class="tpl-section tpl-section-callout">
-            <div class="tpl-section-title">📋 Filming plans</div>
-            ${_tplFieldLink(name, 'filming_plans_link', 'Link to filming plans document', 'https://docs.google.com/…')}
-        </div>`;
-        const reels = _templatesActiveTab === 'reels' ? `
-            <div class="tpl-section">
-                <div class="tpl-section-title">Subtitles</div>
-                <div class="tpl-fields two">
-                    ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
-                    ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+
+        // Filming plans block (no yellow callout).
+        const filmingPlans = isEdit
+            ? `<div class="tpl-section">
+                <div class="tpl-section-title">Filming plans</div>
+                ${_tplFieldLink(name, 'filming_plans_link', 'Link to filming plans document', 'https://docs.google.com/…')}
+              </div>`
+            : (() => {
+                const v = _tplGet(name, 'filming_plans_link');
+                const isUrl = /^https?:\/\//i.test(v);
+                let host = ''; if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
+                if (isUrl) {
+                    return `<a class="tpl-filming-card" href="${_tplEsc(v)}" target="_blank" rel="noopener">
+                        <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 0 0 1 1h4M5 21V3a1 1 0 0 1 1-1h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                        <span class="tpl-filming-text"><span class="tpl-filming-title">Filming plans</span><span class="tpl-filming-host">${_tplEsc(host || 'Open document')}</span></span>
+                        <svg class="tpl-filming-arrow" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>`;
+                }
+                return `<div class="tpl-filming-card empty">
+                    <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M14 3v4a1 1 0 0 0 1 1h4M5 21V3a1 1 0 0 1 1-1h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                    <span class="tpl-filming-text"><span class="tpl-filming-title">Filming plans</span><span class="tpl-filming-host">Not set</span></span>
+                </div>`;
+            })();
+
+        // Reels block.
+        let reels = '';
+        if (_templatesActiveTab === 'reels') {
+            if (isEdit) {
+                reels = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Subtitles</div>
+                    <div class="tpl-fields two">
+                        ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
+                        ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+                    </div>
+                    <div class="tpl-fields two" style="margin-top:14px;">
+                        ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
+                        ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
+                    </div>
                 </div>
-                <div class="tpl-fields two" style="margin-top:14px;">
-                    ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
-                    ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    <div class="tpl-fields">
+                        ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
+                    </div>
+                </div>`;
+            } else {
+                reels = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Subtitles</div>
+                    <div class="tpl-view-grid">
+                        ${_tplViewText(name, 'reels_subtitle_font', 'Font')}
+                        ${_tplViewLink(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
+                        ${_tplViewColor(name, 'reels_subtitle_main_color', 'Main color')}
+                        ${_tplViewColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
+                    </div>
                 </div>
-            </div>
-            <div class="tpl-section">
-                <div class="tpl-section-title">Client preferences</div>
-                <div class="tpl-fields">
-                    ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
-                </div>
-            </div>` : '';
-        const thumbs = _templatesActiveTab === 'thumbnails' ? `
-            <div class="tpl-section">
-                <div class="tpl-section-title">Title</div>
-                <div class="tpl-fields two">
-                    ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
-                    ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
-                </div>
-                <div class="tpl-fields two" style="margin-top:14px;">
-                    ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color')}
-                    ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
-                </div>
-            </div>` : '';
-        return `<div class="tpl-view">
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    ${_tplViewProse(name, 'reels_preferences')}
+                </div>`;
+            }
+        }
+
+        // Thumbnails block.
+        let thumbs = '';
+        if (_templatesActiveTab === 'thumbnails') {
+            if (isEdit) {
+                thumbs = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Title</div>
+                    <div class="tpl-fields two">
+                        ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
+                        ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
+                    </div>
+                    <div class="tpl-fields two" style="margin-top:14px;">
+                        ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color')}
+                        ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
+                    </div>
+                </div>`;
+            } else {
+                thumbs = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Thumbnails</div>
+                    <div class="tpl-view-grid">
+                        ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
+                        ${_tplViewColor(name, 'thumbnails_title_color', 'Title color')}
+                        ${_tplViewColor(name, 'thumbnails_highlight_color', 'Highlight color')}
+                        ${_tplViewLink(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
+                    </div>
+                </div>`;
+            }
+        }
+
+        const editToggle = isEdit
+            ? `<div class="tpl-head-actions"><div class="tpl-status-badge" id="tplStatusBadge"></div><button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button></div>`
+            : `<div class="tpl-head-actions"><button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button></div>`;
+
+        return `<div class="tpl-view${isEdit?' editing':''}">
             <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name">${_tplEsc(name)}</div>
-                <div class="tpl-status-badge" id="tplStatusBadge"></div>
+                ${editToggle}
             </div>
             ${filmingPlans}
             <div class="tpl-toggle-row" role="tablist">
@@ -4282,7 +4499,17 @@
         if (content) { content.innerHTML = renderClientTemplate(_templatesSelected); mountTemplatesView(); }
     }
 
-    // Wire up live editing: every input/textarea with data-tpl-field gets debounced autosave.
+    function setTemplatesEditMode(on) {
+        const name = _templatesSelected;
+        // Flush any pending autosaves before leaving edit mode so view mode reflects the latest.
+        if (!on && name && _tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
+        _templatesEditMode = !!on;
+        const content = document.getElementById('content');
+        if (!content || !name) return;
+        content.innerHTML = renderClientTemplate(name);
+        mountTemplatesView();
+    }
+
     function mountTemplatesView() {
         const root = document.getElementById('content');
         if (!root) return;
@@ -4294,13 +4521,11 @@
             el.addEventListener('input', () => {
                 let v = el.value;
                 if (isColorPair) {
-                    // Sync the pair (swatch ↔ hex input) and normalise the hex.
                     const pair = el.getAttribute('data-tpl-color-pair');
                     const peers = root.querySelectorAll(`[data-tpl-color-pair="${pair}"][data-tpl-client="${CSS.escape(name)}"]`);
                     if (el.type === 'color') {
                         peers.forEach(p => { if (p !== el && p.type !== 'color') p.value = v; });
                     } else {
-                        // hex input — only push to swatch when valid #RRGGBB
                         if (/^#[0-9a-fA-F]{6}$/.test(v)) peers.forEach(p => { if (p !== el && p.type === 'color') p.value = v; });
                     }
                 }
@@ -4314,7 +4539,6 @@
                     }
                 }
             });
-            // Flush immediately on blur so the user sees "Saved" before they wander off.
             el.addEventListener('blur', () => {
                 if (_tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
             });

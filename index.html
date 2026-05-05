@@ -1291,6 +1291,78 @@
         .cr-status { font-size: 0.78rem; font-weight: 600; text-align: center; min-height: 18px; }
         .cr-status.success { color: #10b981; }
         .cr-status.error   { color: #dc2626; }
+
+        /* ── Templates view ── */
+        .tpl-view { max-width: 980px; margin: 24px auto 80px; padding: 0 28px; font-family: 'Plus Jakarta Sans', sans-serif; }
+        .tpl-index-head { display: flex; flex-direction: column; align-items: center; gap: 14px; margin: 32px 0 28px; text-align: center; }
+        .tpl-index-title { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+        .tpl-index-sub { font-size: 0.86rem; color: var(--text-secondary); max-width: 520px; }
+        .tpl-search-wrap { position: relative; width: min(560px, 100%); }
+        .tpl-search-pill { display: flex; align-items: center; background: var(--white); border: 1.5px solid var(--border); border-radius: 99px; padding: 0 18px 0 22px; gap: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); transition: border-color 0.18s, box-shadow 0.18s; }
+        .tpl-search-pill:focus-within { border-color: #111110; box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
+        .tpl-search-input { flex: 1; border: none; outline: none; background: transparent; padding: 14px 0; font-family: inherit; font-size: 0.92rem; color: var(--text-primary); }
+        .tpl-search-icon { color: var(--text-muted); display: inline-flex; align-items: center; }
+        .tpl-search-results { position: absolute; top: calc(100% + 8px); left: 0; right: 0; background: var(--white); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.10); max-height: 320px; overflow-y: auto; z-index: 50; padding: 6px; display: none; }
+        .tpl-search-results.open { display: block; }
+        .tpl-search-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 0.88rem; color: var(--text-primary); }
+        .tpl-search-item:hover, .tpl-search-item.active { background: var(--bg); }
+        .tpl-search-item .s-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--bg); display: inline-flex; align-items: center; justify-content: center; font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; }
+        .tpl-search-empty { padding: 14px 12px; font-size: 0.82rem; color: var(--text-muted); text-align: center; }
+        .tpl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; margin-top: 28px; }
+        .tpl-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: space-between; }
+        .tpl-card:hover { border-color: #111110; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.06); }
+        .tpl-card-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+        .tpl-card-status { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 3px 8px; border-radius: 99px; flex-shrink: 0; }
+        .tpl-card-status.filled { background: #ecfdf5; color: #047857; }
+        .tpl-card-status.empty  { background: var(--bg); color: var(--text-muted); }
+
+        /* Per-client */
+        .tpl-client-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 22px; }
+        .tpl-client-name { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.01em; }
+        .tpl-status-badge { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; min-height: 18px; }
+        .tpl-status-badge.saving { color: #6b6b67; }
+        .tpl-status-badge.saved  { color: #10b981; }
+        .tpl-status-badge.error  { color: #dc2626; }
+        .tpl-status-badge .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+        .tpl-status-badge.saving .dot { animation: tpl-pulse 1s ease-in-out infinite; }
+        @keyframes tpl-pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+        .tpl-toggle-row { display: inline-flex; background: var(--white); border: 1px solid var(--border); border-radius: 99px; padding: 4px; gap: 2px; margin: 4px 0 18px; }
+        .tpl-toggle-btn { border: none; background: transparent; padding: 8px 18px; border-radius: 99px; font-family: inherit; font-size: 0.84rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .tpl-toggle-btn.active { background: #111110; color: #fff; }
+
+        .tpl-section { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; margin-bottom: 14px; }
+        .tpl-section-title { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 14px; }
+        .tpl-section-callout { background: linear-gradient(135deg, #fef9c3 0%, #fef3c7 100%); border-color: #fde68a; }
+        .tpl-section-callout .tpl-section-title { color: #92400e; }
+
+        .tpl-fields { display: grid; gap: 14px; }
+        .tpl-fields.two { grid-template-columns: 1fr 1fr; }
+        @media (max-width: 640px) { .tpl-fields.two { grid-template-columns: 1fr; } }
+
+        .tpl-field { display: flex; flex-direction: column; gap: 6px; }
+        .tpl-field-label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .tpl-input, .tpl-textarea { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); transition: border-color 0.13s, background 0.13s; outline: none; resize: none; }
+        .tpl-input:hover, .tpl-textarea:hover { background: #ededea; }
+        .tpl-input:focus, .tpl-textarea:focus { border-color: #111110; background: var(--white); }
+        .tpl-input::placeholder, .tpl-textarea::placeholder { color: var(--text-muted); font-weight: 500; }
+        .tpl-textarea { min-height: 90px; line-height: 1.5; }
+
+        .tpl-color-row { display: flex; align-items: center; gap: 10px; }
+        .tpl-color-swatch { width: 38px; height: 38px; border-radius: 8px; border: 1.5px solid var(--border); padding: 0; cursor: pointer; background: var(--white); flex-shrink: 0; overflow: hidden; }
+        .tpl-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+        .tpl-color-swatch::-webkit-color-swatch { border: none; border-radius: 6px; }
+        .tpl-color-hex { flex: 1; }
+
+        .tpl-link-row { display: flex; align-items: stretch; gap: 6px; }
+        .tpl-link-row .tpl-input { flex: 1; }
+        .tpl-link-open { display: inline-flex; align-items: center; justify-content: center; padding: 0 12px; border-radius: 8px; background: var(--bg); border: 1.5px solid transparent; color: var(--text-secondary); text-decoration: none; transition: all 0.13s; }
+        .tpl-link-open:hover { background: #111110; color: #fff; }
+        .tpl-link-open.disabled { opacity: 0.35; pointer-events: none; }
+
+        .tpl-empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 0.88rem; }
+        .tpl-config-banner { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 14px 18px; font-size: 0.84rem; line-height: 1.55; margin-bottom: 16px; }
+        .tpl-config-banner code { background: rgba(0,0,0,0.07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
     </style>
 </head>
 <body>
@@ -1345,6 +1417,10 @@
         <a class="header-nav-btn" id="navLinear" href="#linear" onclick="event.preventDefault();navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
+        </a>
+        <a class="header-nav-btn" id="navTemplates" href="#templates" onclick="event.preventDefault();navTo('templates')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2.25" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
+            Templates
         </a>
         <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="event.preventDefault();navTo('workload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>
@@ -3813,6 +3889,8 @@
             localStorage.setItem(NAV_KEY,nav);
             document.getElementById('navHome').classList.toggle('active',nav==='home');
             document.getElementById('navLinear').classList.remove('active');
+            const navTpl=document.getElementById('navTemplates');
+            if(navTpl)navTpl.classList.remove('active');
             const navWl=document.getElementById('navWorkload');
             if(navWl)navWl.classList.remove('active');
             const tab=state.clientTab||'analytics';
@@ -3825,11 +3903,16 @@
             document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
             if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
             window.scrollTo({top:0,behavior:'instant'});
+        } else if(state&&state.nav==='templates'){
+            _templatesSelected = state.templatesClient || null;
+            navTo('templates', false);
         } else if(state&&state.nav){
             navTo(state.nav,false);
         } else {
             const hash=decodeURIComponent(location.hash.replace('#',''));
             const clientNames=[...new Set(allData.map(r=>r.client_name))];
+            if(hash==='templates'){_templatesSelected=null;navTo('templates',false);return;}
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){
                 render(hash,false);window.scrollTo({top:0,behavior:'instant'});
             } else {
@@ -3880,6 +3963,360 @@
     function renderPinSelectorList(){const list=document.getElementById('pinSelectorList');if(!list)return;const pins=getPins();const allNames=[...new Set(allData.map(r=>r.client_name))].sort();list.innerHTML='';allNames.forEach(name=>{const isPinned=pins.includes(name);const disabled=!isPinned&&pins.length>=MAX_PINS;const item=document.createElement('div');item.className='pin-selector-item'+(isPinned?' pinned':'');if(disabled)item.style.cssText='opacity:0.35;cursor:default;';const nameSpan=document.createElement('span');nameSpan.textContent=name;const check=document.createElement('span');check.className='pin-check';if(isPinned)check.innerHTML=CHECK_SVG;item.appendChild(nameSpan);item.appendChild(check);if(!disabled)item.onclick=(e)=>{e.stopPropagation();togglePin(name);};list.appendChild(item);});}
 
     function goHome(){navTo('home');}
+
+    /* ── Templates View ──────────────────────────────────────────────────
+       Shared client-template store backed by a Google Apps Script Web App.
+       See apps-script.gs at the repo root for the backend + setup steps.
+       Paste the deployed Web App URL into TEMPLATES_ENDPOINT below.
+    */
+    const TEMPLATES_ENDPOINT = ''; // ← paste Apps Script /exec URL here
+
+    const TEMPLATE_FIELDS = [
+        'filming_plans_link',
+        'reels_subtitle_font','reels_subtitle_main_color','reels_subtitle_highlight_color',
+        'reels_reference_link','reels_preferences',
+        'thumbnails_title_font','thumbnails_title_color','thumbnails_highlight_color',
+        'thumbnails_photos_link',
+    ];
+    let templatesData = {};       // { clientName: { ...fields, updated_at } }
+    let templatesLoaded = false;
+    let templatesLoadError = null;
+    let _templatesSelected = null;          // currently open client (or null = index)
+    let _templatesActiveTab = 'reels';      // 'reels' | 'thumbnails'
+    const _tplSaveTimers = {};              // debounce timers by `${client}::${field}`
+    const _tplSaveAbort  = {};              // abort controllers by client
+    const _tplDirty      = {};              // pending patches by client {field: value}
+
+    async function loadTemplates() {
+        if (!TEMPLATES_ENDPOINT) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
+        try {
+            const resp = await fetch(TEMPLATES_ENDPOINT + '?_t=' + Date.now(), { method: 'GET' });
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Unknown error');
+            templatesData = json.templates || {};
+            templatesLoaded = true;
+            templatesLoadError = null;
+        } catch (e) {
+            console.warn('[SyncView] loadTemplates failed:', e);
+            templatesLoadError = e.message || String(e);
+        }
+        _maybeRerenderTemplates();
+    }
+    function _maybeRerenderTemplates() {
+        // If the user is currently looking at the Templates tab, refresh it so newly-loaded values show up.
+        if (currentNav !== 'templates') return;
+        const content = document.getElementById('content');
+        if (!content) return;
+        // Don't clobber any in-progress edit by re-rendering on top of focused inputs.
+        const ae = document.activeElement;
+        if (ae && ae.hasAttribute && ae.hasAttribute('data-tpl-field')) return;
+        content.innerHTML = renderTemplatesView();
+        mountTemplatesView();
+    }
+
+    function _tplGet(name, field) {
+        return (templatesData[name] && templatesData[name][field]) || '';
+    }
+
+    function _setTplStatus(state, message) {
+        // state: 'idle' | 'saving' | 'saved' | 'error'
+        const el = document.getElementById('tplStatusBadge');
+        if (!el) return;
+        el.classList.remove('saving','saved','error');
+        if (state === 'saving') {
+            el.classList.add('saving');
+            el.innerHTML = '<span class="dot"></span> Saving…';
+        } else if (state === 'saved') {
+            el.classList.add('saved');
+            el.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5L9.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved';
+        } else if (state === 'error') {
+            el.classList.add('error');
+            el.innerHTML = '<span class="dot"></span> ' + (message || 'Save failed — will retry');
+        } else {
+            el.innerHTML = '';
+        }
+    }
+
+    async function _tplFlush(name) {
+        const patch = _tplDirty[name];
+        if (!patch || !Object.keys(patch).length) return;
+        if (!TEMPLATES_ENDPOINT) { _setTplStatus('error','Endpoint not configured'); return; }
+        // Optimistic state already applied by caller. Send only the dirty fields.
+        delete _tplDirty[name];
+        if (_tplSaveAbort[name]) { try { _tplSaveAbort[name].abort(); } catch {} }
+        const ctrl = new AbortController();
+        _tplSaveAbort[name] = ctrl;
+        _setTplStatus('saving');
+        try {
+            // text/plain to avoid CORS preflight (Apps Script doesn't handle OPTIONS).
+            const resp = await fetch(TEMPLATES_ENDPOINT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ clientName: name, patch }),
+                signal: ctrl.signal,
+            });
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Save failed');
+            templatesData[name] = json.template || templatesData[name];
+            _setTplStatus('saved');
+            // Auto-fade after 2s if no further activity.
+            setTimeout(() => {
+                const badge = document.getElementById('tplStatusBadge');
+                if (badge && badge.classList.contains('saved')) _setTplStatus('idle');
+            }, 2000);
+        } catch (e) {
+            if (e.name === 'AbortError') return; // superseded by another save
+            console.warn('[SyncView] template save failed:', e);
+            // Re-merge unsaved patch so we'll retry next change.
+            _tplDirty[name] = Object.assign(patch, _tplDirty[name] || {});
+            _setTplStatus('error', e.message || 'Save failed — try again');
+        }
+    }
+
+    function _tplQueueSave(name, field, value, immediate) {
+        // Optimistic update so the UI never lags behind typing.
+        if (!templatesData[name]) templatesData[name] = { client_name: name };
+        templatesData[name][field] = value;
+        if (!_tplDirty[name]) _tplDirty[name] = {};
+        _tplDirty[name][field] = value;
+
+        const key = name + '::' + field;
+        if (_tplSaveTimers[key]) clearTimeout(_tplSaveTimers[key]);
+        const delay = immediate ? 0 : 600;
+        _tplSaveTimers[key] = setTimeout(() => { delete _tplSaveTimers[key]; _tplFlush(name); }, delay);
+        _setTplStatus('saving');
+    }
+
+    function _tplEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    function _tplFieldText(name, field, label, placeholder) {
+        const v = _tplGet(name, field);
+        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
+            <input class="tpl-input" type="text" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}"
+                   value="${_tplEsc(v)}" placeholder="${_tplEsc(placeholder||'')}" /></div>`;
+    }
+    function _tplFieldTextarea(name, field, label, placeholder) {
+        const v = _tplGet(name, field);
+        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
+            <textarea class="tpl-textarea" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}"
+                      placeholder="${_tplEsc(placeholder||'')}" rows="4">${_tplEsc(v)}</textarea></div>`;
+    }
+    function _tplFieldColor(name, field, label) {
+        const v = _tplGet(name, field) || '';
+        const safe = /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#000000';
+        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
+            <div class="tpl-color-row">
+                <input class="tpl-color-swatch" type="color" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}" data-tpl-color-pair="${field}" value="${safe}" />
+                <input class="tpl-input tpl-color-hex" type="text" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}" data-tpl-color-pair="${field}" value="${_tplEsc(v)}" placeholder="#RRGGBB" maxlength="7" />
+            </div></div>`;
+    }
+    function _tplFieldLink(name, field, label, placeholder) {
+        const v = _tplGet(name, field);
+        const isUrl = /^https?:\/\//i.test(v);
+        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
+            <div class="tpl-link-row">
+                <input class="tpl-input" type="url" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}"
+                       value="${_tplEsc(v)}" placeholder="${_tplEsc(placeholder||'https://…')}" />
+                <a class="tpl-link-open${isUrl?'':' disabled'}" href="${isUrl?_tplEsc(v):'#'}" target="_blank" rel="noopener" title="Open link"
+                   data-tpl-link-for="${field}">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </a>
+            </div></div>`;
+    }
+
+    function renderTemplatesView() {
+        if (_templatesSelected) return renderClientTemplate(_templatesSelected);
+        return renderTemplatesIndex();
+    }
+
+    function renderTemplatesIndex() {
+        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const cards = allNames.map(name => {
+            const filled = TEMPLATE_FIELDS.some(f => _tplGet(name, f));
+            return `<div class="tpl-card" onclick="openClientTemplate('${_tplEsc(name).replace(/'/g,"\\'")}')">
+                <span class="tpl-card-name">${_tplEsc(name)}</span>
+                <span class="tpl-card-status ${filled?'filled':'empty'}">${filled?'Set':'Empty'}</span>
+            </div>`;
+        }).join('');
+        const banner = TEMPLATES_ENDPOINT ? '' : `
+            <div class="tpl-config-banner">
+                Templates backend isn't configured yet. Open <code>apps-script.gs</code> in this repo, follow the setup steps, then paste the deployed Web App URL into <code>TEMPLATES_ENDPOINT</code> in <code>index.html</code>. Until then, edits won't be saved.
+            </div>`;
+        const errBanner = (templatesLoadError && templatesLoadError !== 'not-configured') ? `
+            <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
+        return `<div class="tpl-view">
+            ${banner}${errBanner}
+            <div class="tpl-index-head">
+                <div class="tpl-index-title">Client Templates</div>
+                <div class="tpl-index-sub">A single source of truth for fonts, colors, references, and preferences. Pick a client to view or edit their templates.</div>
+                <div class="tpl-search-wrap">
+                    <div class="tpl-search-pill">
+                        <span class="tpl-search-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>
+                        <input class="tpl-search-input" id="tplSearchInput" type="text" placeholder="Search clients…"
+                               oninput="_tplOnSearch()" onfocus="_tplOnSearch()" onkeydown="_tplOnSearchKey(event)" autocomplete="off" />
+                    </div>
+                    <div class="tpl-search-results" id="tplSearchResults"></div>
+                </div>
+            </div>
+            <div class="tpl-grid">${cards||'<div class="tpl-empty-state">No clients found.</div>'}</div>
+        </div>`;
+    }
+
+    function _tplSearchMatches(q) {
+        const allNames = [...new Set(allData.map(r => r.client_name))].sort();
+        const q2 = (q||'').trim().toLowerCase();
+        if (!q2) return allNames.slice(0, 8);
+        const starts = allNames.filter(n => n.toLowerCase().startsWith(q2));
+        const contains = allNames.filter(n => !n.toLowerCase().startsWith(q2) && n.toLowerCase().includes(q2));
+        return [...starts, ...contains].slice(0, 8);
+    }
+    function _tplOnSearch() {
+        const inp = document.getElementById('tplSearchInput');
+        const list = document.getElementById('tplSearchResults');
+        if (!inp || !list) return;
+        const q = inp.value;
+        const matches = _tplSearchMatches(q);
+        if (!matches.length) { list.innerHTML = '<div class="tpl-search-empty">No clients found</div>'; }
+        else { list.innerHTML = matches.map(n => `<div class="tpl-search-item" onclick="openClientTemplate('${_tplEsc(n).replace(/'/g,"\\'")}')"><span class="s-icon">👤</span><span>${_tplEsc(n)}</span></div>`).join(''); }
+        const wasOpen = list.classList.contains('open');
+        list.classList.add('open');
+        if (!wasOpen) {
+            const close = (e) => {
+                if (!list.contains(e.target) && e.target !== inp) {
+                    list.classList.remove('open');
+                    document.removeEventListener('click', close);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
+    }
+    function _tplOnSearchKey(e) {
+        if (e.key === 'Escape') { document.getElementById('tplSearchResults')?.classList.remove('open'); e.target.blur(); return; }
+        if (e.key !== 'Enter') return;
+        const inp = document.getElementById('tplSearchInput');
+        const matches = _tplSearchMatches(inp?.value || '');
+        if (matches[0]) openClientTemplate(matches[0]);
+    }
+
+    function openClientTemplate(name) {
+        _templatesSelected = name;
+        _templatesActiveTab = 'reels';
+        history.pushState({ nav: 'templates', templatesClient: name }, '', '#templates/' + encodeURIComponent(name));
+        const content = document.getElementById('content');
+        if (content) {
+            content.innerHTML = renderClientTemplate(name);
+            mountTemplatesView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+    }
+    function backToTemplatesIndex() {
+        _templatesSelected = null;
+        history.pushState({ nav: 'templates' }, '', '#templates');
+        const content = document.getElementById('content');
+        if (content) {
+            content.innerHTML = renderTemplatesIndex();
+            mountTemplatesView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+    }
+
+    function renderClientTemplate(name) {
+        const reelsActive = _templatesActiveTab === 'reels' ? 'active' : '';
+        const thumbActive = _templatesActiveTab === 'thumbnails' ? 'active' : '';
+        const filmingPlans = `<div class="tpl-section tpl-section-callout">
+            <div class="tpl-section-title">📋 Filming plans</div>
+            ${_tplFieldLink(name, 'filming_plans_link', 'Link to filming plans document', 'https://docs.google.com/…')}
+        </div>`;
+        const reels = _templatesActiveTab === 'reels' ? `
+            <div class="tpl-section">
+                <div class="tpl-section-title">Subtitles</div>
+                <div class="tpl-fields two">
+                    ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
+                    ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+                </div>
+                <div class="tpl-fields two" style="margin-top:14px;">
+                    ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
+                    ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
+                </div>
+            </div>
+            <div class="tpl-section">
+                <div class="tpl-section-title">Client preferences</div>
+                <div class="tpl-fields">
+                    ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
+                </div>
+            </div>` : '';
+        const thumbs = _templatesActiveTab === 'thumbnails' ? `
+            <div class="tpl-section">
+                <div class="tpl-section-title">Title</div>
+                <div class="tpl-fields two">
+                    ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
+                    ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
+                </div>
+                <div class="tpl-fields two" style="margin-top:14px;">
+                    ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color')}
+                    ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
+                </div>
+            </div>` : '';
+        return `<div class="tpl-view">
+            <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
+            <div class="tpl-client-head">
+                <div class="tpl-client-name">${_tplEsc(name)}</div>
+                <div class="tpl-status-badge" id="tplStatusBadge"></div>
+            </div>
+            ${filmingPlans}
+            <div class="tpl-toggle-row" role="tablist">
+                <button class="tpl-toggle-btn ${reelsActive}" onclick="switchTemplatesTab('reels')">Reels</button>
+                <button class="tpl-toggle-btn ${thumbActive}" onclick="switchTemplatesTab('thumbnails')">Thumbnails</button>
+            </div>
+            ${reels}${thumbs}
+        </div>`;
+    }
+
+    function switchTemplatesTab(tab) {
+        _templatesActiveTab = tab;
+        if (!_templatesSelected) return;
+        const content = document.getElementById('content');
+        if (content) { content.innerHTML = renderClientTemplate(_templatesSelected); mountTemplatesView(); }
+    }
+
+    // Wire up live editing: every input/textarea with data-tpl-field gets debounced autosave.
+    function mountTemplatesView() {
+        const root = document.getElementById('content');
+        if (!root) return;
+        const fields = root.querySelectorAll('[data-tpl-field]');
+        fields.forEach(el => {
+            const name  = el.getAttribute('data-tpl-client');
+            const field = el.getAttribute('data-tpl-field');
+            const isColorPair = el.hasAttribute('data-tpl-color-pair');
+            el.addEventListener('input', () => {
+                let v = el.value;
+                if (isColorPair) {
+                    // Sync the pair (swatch ↔ hex input) and normalise the hex.
+                    const pair = el.getAttribute('data-tpl-color-pair');
+                    const peers = root.querySelectorAll(`[data-tpl-color-pair="${pair}"][data-tpl-client="${CSS.escape(name)}"]`);
+                    if (el.type === 'color') {
+                        peers.forEach(p => { if (p !== el && p.type !== 'color') p.value = v; });
+                    } else {
+                        // hex input — only push to swatch when valid #RRGGBB
+                        if (/^#[0-9a-fA-F]{6}$/.test(v)) peers.forEach(p => { if (p !== el && p.type === 'color') p.value = v; });
+                    }
+                }
+                _tplQueueSave(name, field, v, false);
+                if (field.endsWith('_link') || field === 'filming_plans_link') {
+                    const opener = root.querySelector(`[data-tpl-link-for="${field}"]`);
+                    if (opener) {
+                        const ok = /^https?:\/\//i.test(v);
+                        opener.classList.toggle('disabled', !ok);
+                        opener.setAttribute('href', ok ? v : '#');
+                    }
+                }
+            });
+            // Flush immediately on blur so the user sees "Saved" before they wander off.
+            el.addEventListener('blur', () => {
+                if (_tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
+            });
+        });
+    }
 
     /* ── Linear View ── */
     const VIDEO_FORM_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/video-form';
@@ -5859,6 +6296,8 @@
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
+        const navTpl = document.getElementById('navTemplates');
+        if (navTpl) navTpl.classList.toggle('active', page === 'templates');
         const navWl = document.getElementById('navWorkload');
         if (navWl) navWl.classList.toggle('active', page === 'workload');
         const navCal = document.getElementById('navCalendar');
@@ -5879,6 +6318,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'templates') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTemplatesView();
+            mountTemplatesView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'workload') {
             pageTop.style.display = 'none';
@@ -6241,6 +6685,8 @@
             });
             // Auto-refresh any content summaries that have new scrape data (non-blocking)
             autoRefreshStaleSummaries();
+            // Load shared client templates from the Apps Script backend (non-blocking).
+            loadTemplates();
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
             if(dates[0])document.getElementById('lastUpdated').textContent=`Updated ${fmtDate(dates[0])}`;
             const clientNames=[...new Set(allData.map(r=>r.client_name))];
@@ -6270,9 +6716,11 @@
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
             if(hash==='samples'){navTo(hash,false);return;}
+            if(hash==='templates'){navTo(hash,false);return;}
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples')){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates')){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

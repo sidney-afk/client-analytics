@@ -3965,11 +3965,15 @@
     function goHome(){navTo('home');}
 
     /* ── Templates View ──────────────────────────────────────────────────
-       Shared client-template store backed by a Google Apps Script Web App.
-       See apps-script.gs at the repo root for the backend + setup steps.
-       Paste the deployed Web App URL into TEMPLATES_ENDPOINT below.
+       Shared client-template store backed by two n8n webhooks:
+         GET  templates-get   → returns { ok: true, templates: { [clientName]: { ...fields } } }
+         POST templates-save  → body { clientName, patch }, upserts row in the
+                                Templates sheet, returns { ok: true, template: {...} }
+       The n8n workflows live in the Synchro Social n8n instance and read/write
+       a "Templates" tab in the existing SyncView Google Sheet.
     */
-    const TEMPLATES_ENDPOINT = 'https://script.google.com/macros/s/AKfycbxsGdJylNFI2Du7jvEc946qqGD8aEk31QQ5bZQWA2bKNgF4XXLkN60Y2Smxrcvx9NKyGQ/exec';
+    const TEMPLATES_GET_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/templates-get';
+    const TEMPLATES_SAVE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/templates-save';
 
     const TEMPLATE_FIELDS = [
         'filming_plans_link',
@@ -3988,9 +3992,9 @@
     const _tplDirty      = {};              // pending patches by client {field: value}
 
     async function loadTemplates() {
-        if (!TEMPLATES_ENDPOINT) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
+        if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
         try {
-            const resp = await fetch(TEMPLATES_ENDPOINT + '?_t=' + Date.now(), { method: 'GET' });
+            const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Unknown error');
             templatesData = json.templates || {};
@@ -4040,7 +4044,7 @@
     async function _tplFlush(name) {
         const patch = _tplDirty[name];
         if (!patch || !Object.keys(patch).length) return;
-        if (!TEMPLATES_ENDPOINT) { _setTplStatus('error','Endpoint not configured'); return; }
+        if (!TEMPLATES_SAVE_URL) { _setTplStatus('error','Endpoint not configured'); return; }
         // Optimistic state already applied by caller. Send only the dirty fields.
         delete _tplDirty[name];
         if (_tplSaveAbort[name]) { try { _tplSaveAbort[name].abort(); } catch {} }
@@ -4048,10 +4052,9 @@
         _tplSaveAbort[name] = ctrl;
         _setTplStatus('saving');
         try {
-            // text/plain to avoid CORS preflight (Apps Script doesn't handle OPTIONS).
-            const resp = await fetch(TEMPLATES_ENDPOINT, {
+            const resp = await fetch(TEMPLATES_SAVE_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: name, patch }),
                 signal: ctrl.signal,
             });
@@ -4138,9 +4141,9 @@
                 <span class="tpl-card-status ${filled?'filled':'empty'}">${filled?'Set':'Empty'}</span>
             </div>`;
         }).join('');
-        const banner = TEMPLATES_ENDPOINT ? '' : `
+        const banner = (TEMPLATES_GET_URL && TEMPLATES_SAVE_URL) ? '' : `
             <div class="tpl-config-banner">
-                Templates backend isn't configured yet. Open <code>apps-script.gs</code> in this repo, follow the setup steps, then paste the deployed Web App URL into <code>TEMPLATES_ENDPOINT</code> in <code>index.html</code>. Until then, edits won't be saved.
+                Templates backend isn't configured yet — set <code>TEMPLATES_GET_URL</code> and <code>TEMPLATES_SAVE_URL</code> in <code>index.html</code>. Until then, edits won't be saved.
             </div>`;
         const errBanner = (templatesLoadError && templatesLoadError !== 'not-configured') ? `
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';

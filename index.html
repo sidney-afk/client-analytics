@@ -4727,6 +4727,7 @@
         'tweak applied', 'tweaks applied',
         'for smm approval', 'waiting for smm approval', 'smm approval',
         'for casper approval', 'waiting for casper approval', 'casper approval',
+        'for kasper approval', 'waiting for kasper approval', 'kasper approval',
         'for client approval', 'waiting for client approval', 'client approval',
         'approved',
         'posted'
@@ -4749,6 +4750,10 @@
         // in WL_PARKED_STATUSES.
         const s = wlNormStatus(sub);
         return s === 'tweak needed' || s === 'tweaks needed';
+    }
+    function wlIsToDo(sub) {
+        const s = wlNormStatus(sub);
+        return s === 'to do' || s === 'todo';
     }
 
     // Active editors. Video editors come from SYNCVIEW's "Video Editors" tab;
@@ -5336,12 +5341,15 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
-            // Overdue takes priority over in-progress / tweaks-needed: an
-            // editor missing a deadline is the most urgent signal, so the
-            // item appears in the Overdue strip only and not the others.
-            // Items with no due date can't be overdue — they fall through
-            // to the in-progress / tweaks strips as before.
-            const isOverdue = hasDue && s.dueDate < todayISO;
+            // Overdue catches sub-issues whose due date has passed and that
+            // are still firmly on the editor's plate — i.e. status "To Do"
+            // or "Tweak Needed". An overdue tweak takes priority over the
+            // Tweaks Needed strip so the item only ever appears once. An
+            // overdue "In Progress" item stays in In Progress (the editor
+            // is actively cutting it; the deadline slip is implied by the
+            // due date), and parked statuses (Kasper / SMM / Client
+            // approval, etc.) are filtered upstream by wlIsActiveStatus.
+            const isOverdue = hasDue && s.dueDate < todayISO && (wlIsToDo(s) || needsTweak);
             if (isOverdue) {
                 overdue.push(s);
                 continue;

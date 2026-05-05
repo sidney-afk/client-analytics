@@ -1340,7 +1340,7 @@
     <div class="header-nav" id="headerNav">
         <a class="header-nav-btn active" id="navHome" href="#" onclick="event.preventDefault();navTo('home')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Home
+            Analytics
         </a>
         <a class="header-nav-btn" id="navLinear" href="#linear" onclick="event.preventDefault();navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -3438,21 +3438,40 @@
         refreshContentSummary(clientName);
     }
 
-    // Auto-refresh content summaries that have new scrape data since the last summary
+    // Per-session guard: clients we've already auto-attempted this page load.
+    // Prevents tight loops if the webhook is consistently failing.
+    const _autoSummaryAttempted=new Set();
+
+    // Auto-refresh content summaries that are stale, missing, or in an error state.
+    // Stale  → previous summary exists but a newer scrape has landed
+    // Missing → never generated and there's a previous error from a past session, OR no state at all
+    // Error  → last attempt failed (e.g. "Failed to fetch") — retry once per session
     async function autoRefreshStaleSummaries(){
         const clientNames=Object.keys(clientMap);
-        const staleClients=clientNames.filter(name=>{
+        const targets=clientNames.filter(name=>{
             const videos=getTopMonthlyVideos(name,5);
             if(!videos.length)return false;
+            if(_autoSummaryAttempted.has(name))return false;
             const state=contentSummaryState[name];
-            if(!state||!state.data)return false; // never generated — skip, user can click Generate
+            // No state, or previous error → auto-generate so the user sees a loading spinner instead of a Generate/Retry button.
+            if(!state||state.error||!state.data)return true;
+            // Stale data → re-generate against the newer scrape.
             const summaryDate=state.data.date||'';
             const latestScrape=topVideos.filter(v=>v.client_name===name).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
             return latestScrape&&(!summaryDate||summaryDate<latestScrape);
         });
-        if(!staleClients.length){console.log('[SyncView] All content summaries up to date.');return;}
-        console.log('[SyncView] Auto-refreshing stale content summaries for:',staleClients);
-        for(const name of staleClients){
+        if(!targets.length){console.log('[SyncView] All content summaries up to date.');return;}
+        console.log('[SyncView] Auto-refreshing content summaries for:',targets);
+        // Flip any error/missing states to loading immediately so the user sees the spinner while we work through the queue.
+        for(const name of targets){
+            _autoSummaryAttempted.add(name);
+            const s=contentSummaryState[name];
+            if(!s||s.error||!s.data){
+                contentSummaryState[name]={loading:true,data:null,error:null};
+                refreshContentSummary(name);
+            }
+        }
+        for(const name of targets){
             try{await generateContentSummary(name);}catch(e){console.warn('[SyncView] Auto-refresh failed for',name,e);}
         }
         console.log('[SyncView] Auto-refresh complete.');

@@ -4887,25 +4887,38 @@
                 i = j;
             }
 
-            // Assign dates: ASAP scheduling — cursor starts on today when the
-            // dueToday pin hasn't already saturated the editor's daily
-            // capacity, so an editor with nothing pinned today still gets
-            // their first chunk scheduled today. Once today is at/over
-            // capacity, start tomorrow instead so queued chunks don't pile
-            // onto an already-overflowing day. If cursor overtakes a chunk's
-            // work date, overflow back to that work date rather than pushing
-            // the work past it.
-            let cursor = dueToday.length >= capacity
-                ? wlAddWorkingDays(todayISO, 1)
-                : todayISO;
+            // Assign dates: ASAP scheduling, packed into the cursor day's
+            // remaining capacity. Today starts with however many slots the
+            // dueToday pin hasn't already eaten; subsequent days start full.
+            // A chunk that doesn't fit in the remaining slots gets bumped to
+            // the next working day rather than overflowing the current one,
+            // so an editor with 4 pinned never gets a 5-item chunk piled
+            // on top to make 9. If the cursor overtakes a chunk's work date,
+            // overflow back to that work date rather than pushing past it.
+            let cursor = todayISO;
+            let cursorRemaining = Math.max(0, capacity - dueToday.length);
+            if (cursorRemaining === 0) {
+                cursor = wlAddWorkingDays(todayISO, 1);
+                cursorRemaining = capacity;
+            }
             for (const chunk of chunks) {
+                if (chunk.length > cursorRemaining) {
+                    cursor = wlAddWorkingDays(cursor, 1);
+                    cursorRemaining = capacity;
+                }
                 const chunkTarget = chunk[0].effectiveWorkDate;
                 const assignedDate = (chunkTarget && chunkTarget < cursor) ? chunkTarget : cursor;
                 for (const sub of chunk) {
                     sub.scheduledDate = assignedDate;
                     push(assignedDate, sub);
                 }
-                if (assignedDate === cursor) cursor = wlAddWorkingDays(cursor, 1);
+                if (assignedDate === cursor) {
+                    cursorRemaining -= chunk.length;
+                    if (cursorRemaining <= 0) {
+                        cursor = wlAddWorkingDays(cursor, 1);
+                        cursorRemaining = capacity;
+                    }
+                }
             }
         }
         return scheduledByDate;

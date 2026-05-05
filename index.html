@@ -1402,6 +1402,35 @@
         .tpl-skeleton-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 22px; margin-bottom: 14px; }
         @keyframes tpl-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+        /* Color sets — edit mode */
+        .tpl-subsection { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-light); }
+        .tpl-subsection-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .tpl-subsection-label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .tpl-color-sets-edit { display: flex; flex-direction: column; gap: 10px; }
+        .tpl-color-set-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--bg); border-radius: 10px; }
+        .tpl-color-set-row .tpl-set-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--white); color: var(--text-muted); font-size: 0.72rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; margin-top: 8px; }
+        .tpl-set-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-width: 0; }
+        @media (max-width: 640px) { .tpl-set-pair { grid-template-columns: 1fr; } }
+        .tpl-set-cell { display: flex; flex-direction: column; gap: 4px; }
+        .tpl-set-cell-label { font-size: 0.66rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+        .tpl-set-cell .tpl-color-row { gap: 8px; }
+        .tpl-set-cell .tpl-color-swatch { width: 32px; height: 32px; }
+        .tpl-set-remove { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; border: none; background: transparent; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-top: 8px; transition: all 0.13s; }
+        .tpl-set-remove:hover { background: var(--dn-bg); color: var(--dn); }
+        .tpl-set-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 99px; background: transparent; border: 1.5px dashed var(--border); font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; margin-top: 4px; }
+        .tpl-set-add:hover { border-color: #111110; color: var(--text-primary); background: var(--white); }
+        .tpl-set-add-max { font-size: 0.74rem; color: var(--text-muted); font-style: italic; padding: 6px 4px; }
+
+        /* Color sets — view mode */
+        .tpl-view-color-sets-wrap { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border-light); }
+        .tpl-view-color-sets-field { display: flex; flex-direction: column; gap: 10px; }
+        .tpl-color-sets-view { display: flex; flex-wrap: wrap; gap: 10px; }
+        .tpl-color-set-card { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px 7px 8px; border-radius: 99px; background: var(--bg); }
+        .tpl-color-set-card .tpl-set-num { width: 18px; height: 18px; border-radius: 50%; background: var(--white); color: var(--text-muted); font-size: 0.66rem; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+        .tpl-set-swatches { display: inline-flex; align-items: center; gap: 4px; }
+        .tpl-view-swatch-sm { width: 16px; height: 16px; }
+        .tpl-set-hex { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.02em; color: var(--text-primary); }
+
         .tpl-config-banner { background: #fef3c7; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 14px 18px; font-size: 0.84rem; line-height: 1.55; margin-bottom: 16px; }
         .tpl-config-banner code { background: rgba(0,0,0,0.07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
     </style>
@@ -4225,6 +4254,126 @@
         return `<div class="tpl-view-prose">${_tplEsc(v)}</div>`;
     }
 
+    /* ── Thumbnails color sets (multiple title+highlight pairs) ─────────── */
+    const TPL_MAX_COLOR_SETS = 5;
+    function _tplGetColorSets(name) {
+        const raw = _tplGet(name, 'thumbnails_color_sets');
+        if (raw && typeof raw === 'string') {
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr) && arr.length) {
+                    return arr.map(s => ({ title: (s && s.title) || '', highlight: (s && s.highlight) || '' }));
+                }
+            } catch {}
+        }
+        // Migration: fall back to the single-pair legacy columns when no JSON yet.
+        const t = _tplGet(name, 'thumbnails_title_color');
+        const h = _tplGet(name, 'thumbnails_highlight_color');
+        if (t || h) return [{ title: t || '', highlight: h || '' }];
+        return [{ title: '', highlight: '' }];
+    }
+    function _tplSaveColorSets(name, sets) {
+        let cleaned = (sets && sets.length ? sets : [{ title: '', highlight: '' }])
+            .map(s => ({ title: (s && s.title) || '', highlight: (s && s.highlight) || '' }));
+        while (cleaned.length > 1 && !cleaned[cleaned.length - 1].title && !cleaned[cleaned.length - 1].highlight) cleaned.pop();
+        _tplQueueSave(name, 'thumbnails_color_sets', JSON.stringify(cleaned), false);
+        // Mirror the first set into the legacy single-pair columns so anything still reading those stays in sync.
+        _tplQueueSave(name, 'thumbnails_title_color', cleaned[0].title, false);
+        _tplQueueSave(name, 'thumbnails_highlight_color', cleaned[0].highlight, false);
+    }
+    function _tplAddColorSet(name) {
+        const sets = _tplGetColorSets(name);
+        if (sets.length >= TPL_MAX_COLOR_SETS) return;
+        sets.push({ title: '', highlight: '' });
+        _tplSaveColorSets(name, sets);
+        if (_templatesSelected === name) {
+            const content = document.getElementById('content');
+            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+        }
+    }
+    function _tplRemoveColorSet(name, index) {
+        const sets = _tplGetColorSets(name);
+        if (index < 0 || index >= sets.length) return;
+        sets.splice(index, 1);
+        if (sets.length === 0) sets.push({ title: '', highlight: '' });
+        _tplSaveColorSets(name, sets);
+        if (_templatesSelected === name) {
+            const content = document.getElementById('content');
+            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+        }
+    }
+
+    function _tplRenderColorSetsEdit(name, sets, hlOff) {
+        const items = sets.map((s, i) => {
+            const titleSafe = /^#[0-9a-fA-F]{6}$/.test(s.title) ? s.title : '#000000';
+            const hlSafe = /^#[0-9a-fA-F]{6}$/.test(s.highlight) ? s.highlight : '#000000';
+            const removeBtn = sets.length > 1
+                ? `<button class="tpl-set-remove" onclick="_tplRemoveColorSet('${_tplEscAttr(name)}', ${i})" title="Remove this set"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>`
+                : '';
+            return `<div class="tpl-color-set-row" data-tpl-set-index="${i}">
+                <div class="tpl-set-num">${i + 1}</div>
+                <div class="tpl-set-pair">
+                    <div class="tpl-set-cell">
+                        <span class="tpl-set-cell-label">Title</span>
+                        <div class="tpl-color-row">
+                            <input class="tpl-color-swatch" type="color" data-tpl-set="${i}" data-tpl-set-key="title" data-tpl-set-pair-color value="${titleSafe}" />
+                            <input class="tpl-input tpl-color-hex" type="text" data-tpl-set="${i}" data-tpl-set-key="title" data-tpl-set-pair-color value="${_tplEsc(s.title)}" placeholder="#title" maxlength="7" />
+                        </div>
+                    </div>
+                    <div class="tpl-set-cell${hlOff?' tpl-color-off':''}">
+                        <span class="tpl-set-cell-label">Highlight</span>
+                        <div class="tpl-color-row">
+                            <input class="tpl-color-swatch" type="color" data-tpl-set="${i}" data-tpl-set-key="highlight" data-tpl-set-pair-color value="${hlSafe}" />
+                            <input class="tpl-input tpl-color-hex" type="text" data-tpl-set="${i}" data-tpl-set-key="highlight" data-tpl-set-pair-color value="${_tplEsc(s.highlight)}" placeholder="#highlight" maxlength="7" />
+                        </div>
+                    </div>
+                </div>
+                ${removeBtn}
+            </div>`;
+        }).join('');
+        const canAddMore = sets.length < TPL_MAX_COLOR_SETS;
+        const addBtn = canAddMore
+            ? `<button class="tpl-set-add" onclick="_tplAddColorSet('${_tplEscAttr(name)}')"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="6" y1="2.5" x2="6" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Add color set</button>`
+            : `<div class="tpl-set-add-max">Max ${TPL_MAX_COLOR_SETS} sets</div>`;
+        return `<div class="tpl-color-sets-edit" data-tpl-color-sets data-tpl-client="${_tplEsc(name)}">
+            ${items}
+            ${addBtn}
+        </div>`;
+    }
+
+    function _tplRenderColorSetsView(name, hlOff) {
+        const sets = _tplGetColorSets(name).filter(s => s.title || s.highlight);
+        if (!sets.length) {
+            return `<div class="tpl-view-field">
+                <div class="tpl-view-label">Color sets</div>
+                <div class="tpl-view-value">${_NOT_SET}</div>
+            </div>`;
+        }
+        const cards = sets.map((s, i) => {
+            const titleHex = /^#[0-9a-fA-F]{6}$/.test(s.title);
+            const hlHex = /^#[0-9a-fA-F]{6}$/.test(s.highlight);
+            const titleSwatch = titleHex
+                ? `<span class="tpl-view-swatch tpl-view-swatch-sm" style="background:${_tplEsc(s.title)}"></span>`
+                : `<span class="tpl-view-swatch tpl-view-swatch-sm tpl-view-swatch-empty"></span>`;
+            const hlSwatch = (!hlOff && s.highlight)
+                ? (hlHex
+                    ? `<span class="tpl-view-swatch tpl-view-swatch-sm" style="background:${_tplEsc(s.highlight)}"></span>`
+                    : `<span class="tpl-view-swatch tpl-view-swatch-sm tpl-view-swatch-empty"></span>`)
+                : '';
+            const titleHexLabel = s.title ? _tplEsc(s.title.toUpperCase()) : '—';
+            const hlHexLabel = (!hlOff && s.highlight) ? ` · ${_tplEsc(s.highlight.toUpperCase())}` : '';
+            return `<div class="tpl-color-set-card">
+                <span class="tpl-set-num">${i + 1}</span>
+                <span class="tpl-set-swatches">${titleSwatch}${hlSwatch}</span>
+                <span class="tpl-set-hex">${titleHexLabel}${hlHexLabel}</span>
+            </div>`;
+        }).join('');
+        return `<div class="tpl-view-field tpl-view-color-sets-field">
+            <div class="tpl-view-label">Color sets</div>
+            <div class="tpl-color-sets-view">${cards}</div>
+        </div>`;
+    }
+
     /* ── View renderers ─────────────────────────────────────────────────── */
     function renderTemplatesView() {
         if (_templatesSelected) return renderClientTemplate(_templatesSelected);
@@ -4588,33 +4737,41 @@
         // Thumbnails block.
         let thumbs = '';
         if (_templatesActiveTab === 'thumbnails') {
+            const colorSets = _tplGetColorSets(name);
             if (isEdit) {
                 thumbs = `
                 <div class="tpl-section">
-                    <div class="tpl-section-title">Title</div>
-                    <div class="tpl-fields two">
+                    <div class="tpl-section-title">Thumbnails</div>
+                    <div class="tpl-fields">
                         ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
-                        ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
+                    </div>
+                    <div class="tpl-subsection">
+                        <div class="tpl-subsection-head">
+                            <span class="tpl-subsection-label">Color sets</span>
+                            <label class="tpl-toggle-mini">
+                                <input type="checkbox" data-tpl-client="${_tplEsc(name)}" data-tpl-field="thumbnails_highlight_off" data-tpl-bool data-tpl-disables-color-sets${thumbsHlOff?' checked':''} />
+                                <span class="tpl-toggle-mini-track"><span class="tpl-toggle-mini-thumb"></span></span>
+                                <span>No highlight</span>
+                            </label>
+                        </div>
+                        ${_tplRenderColorSetsEdit(name, colorSets, thumbsHlOff)}
                     </div>
                     <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color', 'thumbnails_highlight_off')}
                         ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
-                    </div>
-                    <div class="tpl-fields" style="margin-top:14px;">
                         ${_tplFieldLink(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
                     </div>
                 </div>`;
             } else {
-                const hl = thumbsHlOff ? '' : _tplViewColor(name, 'thumbnails_highlight_color', 'Highlight color');
                 thumbs = `
                 <div class="tpl-section">
                     <div class="tpl-section-title">Thumbnails</div>
                     <div class="tpl-view-grid">
                         ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
-                        ${_tplViewColor(name, 'thumbnails_title_color', 'Title color')}
-                        ${hl}
                         ${_tplViewLink(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
                         ${_tplViewLink(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
+                    </div>
+                    <div class="tpl-view-color-sets-wrap">
+                        ${_tplRenderColorSetsView(name, thumbsHlOff)}
                     </div>
                 </div>`;
             }
@@ -4703,6 +4860,13 @@
                         const row = root.querySelector(`[data-tpl-color-row="${pair}"]`);
                         if (row) row.classList.toggle('tpl-color-off', el.checked);
                     }
+                    // The thumbnails toggle dims every highlight cell across all color sets.
+                    if (el.hasAttribute('data-tpl-disables-color-sets')) {
+                        root.querySelectorAll('.tpl-color-sets-edit .tpl-set-cell').forEach(cell => {
+                            const isHl = cell.querySelector('[data-tpl-set-key="highlight"]');
+                            if (isHl) cell.classList.toggle('tpl-color-off', el.checked);
+                        });
+                    }
                 });
                 return;
             }
@@ -4730,6 +4894,32 @@
             });
             el.addEventListener('blur', () => {
                 if (_tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
+            });
+        });
+
+        // Per-set color inputs (thumbnails color sets). Each has data-tpl-set + data-tpl-set-key.
+        root.querySelectorAll('[data-tpl-color-sets]').forEach(container => {
+            const cName = container.getAttribute('data-tpl-client');
+            container.querySelectorAll('[data-tpl-set-pair-color]').forEach(el => {
+                const idx = parseInt(el.getAttribute('data-tpl-set'), 10);
+                const key = el.getAttribute('data-tpl-set-key');
+                el.addEventListener('input', () => {
+                    const v = el.value;
+                    // Sync swatch ↔ hex within the same set+key.
+                    const peers = container.querySelectorAll(`[data-tpl-set="${idx}"][data-tpl-set-key="${key}"]`);
+                    if (el.type === 'color') {
+                        peers.forEach(p => { if (p !== el && p.type !== 'color') p.value = v; });
+                    } else if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+                        peers.forEach(p => { if (p !== el && p.type === 'color') p.value = v; });
+                    }
+                    const sets = _tplGetColorSets(cName);
+                    while (sets.length <= idx) sets.push({ title: '', highlight: '' });
+                    sets[idx][key] = v;
+                    _tplSaveColorSets(cName, sets);
+                });
+                el.addEventListener('blur', () => {
+                    if (_tplDirty[cName] && Object.keys(_tplDirty[cName]).length) _tplFlush(cName);
+                });
             });
         });
     }

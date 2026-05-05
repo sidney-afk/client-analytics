@@ -1309,7 +1309,9 @@
 
         /* ── Templates view ── */
         .tpl-view { max-width: 980px; margin: 24px auto 80px; padding: 0 28px; font-family: 'Plus Jakarta Sans', sans-serif; }
-        .tpl-index-centered { min-height: calc(100vh - 200px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; gap: 16px; }
+        .tpl-index-centered { min-height: calc(100vh - 200px); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 24px; gap: 0; }
+        .tpl-index-centered .tpl-index-title { font-size: 1.85rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); margin-bottom: 6px; text-align: center; }
+        .tpl-index-centered .tpl-index-sub { font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 22px; max-width: 460px; text-align: center; line-height: 1.5; }
         .tpl-index-centered .search-bar-wrap { width: min(440px, 100%); }
         .tpl-index-centered .search-bar-pill { width: 100%; }
 
@@ -1383,6 +1385,16 @@
         .tpl-input:focus, .tpl-textarea:focus { border-color: #111110; background: var(--white); }
         .tpl-input::placeholder, .tpl-textarea::placeholder { color: var(--text-muted); font-weight: 500; }
         .tpl-textarea { min-height: 90px; line-height: 1.5; }
+
+        /* Inline label + toggle row (for "No highlight" switch) */
+        .tpl-field-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .tpl-toggle-mini { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; font-size: 0.7rem; color: var(--text-muted); font-weight: 600; }
+        .tpl-toggle-mini input { position: absolute; opacity: 0; pointer-events: none; }
+        .tpl-toggle-mini-track { position: relative; width: 26px; height: 14px; border-radius: 7px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
+        .tpl-toggle-mini-thumb { position: absolute; top: 1px; left: 1px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: left 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.18); }
+        .tpl-toggle-mini input:checked ~ .tpl-toggle-mini-track { background: #111110; }
+        .tpl-toggle-mini input:checked ~ .tpl-toggle-mini-track .tpl-toggle-mini-thumb { left: 13px; }
+        .tpl-color-off { opacity: 0.32; pointer-events: none; }
 
         .tpl-color-row { display: flex; align-items: center; gap: 10px; }
         .tpl-color-swatch { width: 38px; height: 38px; border-radius: 8px; border: 1.5px solid var(--border); padding: 0; cursor: pointer; background: var(--white); flex-shrink: 0; overflow: hidden; }
@@ -4146,11 +4158,21 @@
             <textarea class="tpl-textarea" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}"
                       placeholder="${_tplEsc(placeholder||'')}" rows="4">${_tplEsc(v)}</textarea></div>`;
     }
-    function _tplFieldColor(name, field, label) {
+    function _tplFieldColor(name, field, label, offField) {
         const v = _tplGet(name, field) || '';
         const safe = /^#[0-9a-fA-F]{6}$/.test(v) ? v : '#000000';
-        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
-            <div class="tpl-color-row">
+        const isOff = offField ? !!_tplGet(name, offField) : false;
+        const head = offField
+            ? `<div class="tpl-field-head"><label class="tpl-field-label">${label}</label>
+                 <label class="tpl-toggle-mini">
+                   <input type="checkbox" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${offField}" data-tpl-bool data-tpl-disables-pair="${field}"${isOff?' checked':''} />
+                   <span class="tpl-toggle-mini-track"><span class="tpl-toggle-mini-thumb"></span></span>
+                   <span>No highlight</span>
+                 </label>
+               </div>`
+            : `<label class="tpl-field-label">${label}</label>`;
+        return `<div class="tpl-field">${head}
+            <div class="tpl-color-row${isOff?' tpl-color-off':''}" data-tpl-color-row="${field}">
                 <input class="tpl-color-swatch" type="color" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}" data-tpl-color-pair="${field}" value="${safe}" />
                 <input class="tpl-input tpl-color-hex" type="text" data-tpl-client="${_tplEsc(name)}" data-tpl-field="${field}" data-tpl-color-pair="${field}" value="${_tplEsc(v)}" placeholder="#RRGGBB" maxlength="7" />
             </div></div>`;
@@ -4227,6 +4249,8 @@
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
         return `<div class="tpl-index-centered">
             ${banner}${errBanner}
+            <div class="tpl-index-title">Client Templates</div>
+            <div class="tpl-index-sub">Fonts, colors, references, and preferences — one place for all of them.</div>
             <div class="search-bar-wrap" id="tplSearchWrap">
                 <div class="search-bar-pill">
                     <input class="search-bar-input" id="tplSearchInput" type="text"
@@ -4397,8 +4421,86 @@
         const isEdit = _templatesEditMode;
         const reelsActive = _templatesActiveTab === 'reels' ? 'active' : '';
         const thumbActive = _templatesActiveTab === 'thumbnails' ? 'active' : '';
+        const reelsHlOff = !!_tplGet(name, 'reels_subtitle_highlight_off');
+        const thumbsHlOff = !!_tplGet(name, 'thumbnails_highlight_off');
 
-        // Filming plans block (no yellow callout).
+        // Reels block.
+        let reels = '';
+        if (_templatesActiveTab === 'reels') {
+            if (isEdit) {
+                reels = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Subtitles</div>
+                    <div class="tpl-fields two">
+                        ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
+                        ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+                    </div>
+                    <div class="tpl-fields two" style="margin-top:14px;">
+                        ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
+                        ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color', 'reels_subtitle_highlight_off')}
+                    </div>
+                </div>
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    <div class="tpl-fields">
+                        ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
+                    </div>
+                </div>`;
+            } else {
+                const hl = reelsHlOff ? '' : _tplViewColor(name, 'reels_subtitle_highlight_color', 'Highlight color');
+                reels = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Subtitles</div>
+                    <div class="tpl-view-grid">
+                        ${_tplViewText(name, 'reels_subtitle_font', 'Font')}
+                        ${_tplViewLink(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
+                        ${_tplViewColor(name, 'reels_subtitle_main_color', 'Main color')}
+                        ${hl}
+                    </div>
+                </div>
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    ${_tplViewProse(name, 'reels_preferences')}
+                </div>`;
+            }
+        }
+
+        // Thumbnails block.
+        let thumbs = '';
+        if (_templatesActiveTab === 'thumbnails') {
+            if (isEdit) {
+                thumbs = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Title</div>
+                    <div class="tpl-fields two">
+                        ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
+                        ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
+                    </div>
+                    <div class="tpl-fields two" style="margin-top:14px;">
+                        ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color', 'thumbnails_highlight_off')}
+                        ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
+                    </div>
+                    <div class="tpl-fields" style="margin-top:14px;">
+                        ${_tplFieldLink(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
+                    </div>
+                </div>`;
+            } else {
+                const hl = thumbsHlOff ? '' : _tplViewColor(name, 'thumbnails_highlight_color', 'Highlight color');
+                thumbs = `
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Thumbnails</div>
+                    <div class="tpl-view-grid">
+                        ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
+                        ${_tplViewColor(name, 'thumbnails_title_color', 'Title color')}
+                        ${hl}
+                        ${_tplViewLink(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
+                        ${_tplViewLink(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
+                    </div>
+                </div>`;
+            }
+        }
+
+        // Filming plans block (rendered at the BOTTOM, after the active tab's sections).
         const filmingPlans = isEdit
             ? `<div class="tpl-section">
                 <div class="tpl-section-title">Filming plans</div>
@@ -4421,79 +4523,9 @@
                 </div>`;
             })();
 
-        // Reels block.
-        let reels = '';
-        if (_templatesActiveTab === 'reels') {
-            if (isEdit) {
-                reels = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Subtitles</div>
-                    <div class="tpl-fields two">
-                        ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
-                        ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
-                    </div>
-                    <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
-                        ${_tplFieldColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
-                    </div>
-                </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    <div class="tpl-fields">
-                        ${_tplFieldTextarea(name, 'reels_preferences', 'Notes', 'Music preferences, b-roll preferences, hooks they like, things to avoid…')}
-                    </div>
-                </div>`;
-            } else {
-                reels = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Subtitles</div>
-                    <div class="tpl-view-grid">
-                        ${_tplViewText(name, 'reels_subtitle_font', 'Font')}
-                        ${_tplViewLink(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
-                        ${_tplViewColor(name, 'reels_subtitle_main_color', 'Main color')}
-                        ${_tplViewColor(name, 'reels_subtitle_highlight_color', 'Highlight color')}
-                    </div>
-                </div>
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Client preferences</div>
-                    ${_tplViewProse(name, 'reels_preferences')}
-                </div>`;
-            }
-        }
-
-        // Thumbnails block.
-        let thumbs = '';
-        if (_templatesActiveTab === 'thumbnails') {
-            if (isEdit) {
-                thumbs = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Title</div>
-                    <div class="tpl-fields two">
-                        ${_tplFieldText(name, 'thumbnails_title_font', 'Title font', 'e.g. Anton, Bebas Neue')}
-                        ${_tplFieldColor(name, 'thumbnails_title_color', 'Title color')}
-                    </div>
-                    <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplFieldColor(name, 'thumbnails_highlight_color', 'Highlight color')}
-                        ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
-                    </div>
-                </div>`;
-            } else {
-                thumbs = `
-                <div class="tpl-section">
-                    <div class="tpl-section-title">Thumbnails</div>
-                    <div class="tpl-view-grid">
-                        ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
-                        ${_tplViewColor(name, 'thumbnails_title_color', 'Title color')}
-                        ${_tplViewColor(name, 'thumbnails_highlight_color', 'Highlight color')}
-                        ${_tplViewLink(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
-                    </div>
-                </div>`;
-            }
-        }
-
         const editToggle = isEdit
-            ? `<div class="tpl-head-actions"><div class="tpl-status-badge" id="tplStatusBadge"></div><button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button></div>`
-            : `<div class="tpl-head-actions"><button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button></div>`;
+            ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
+            : `<button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button>`;
 
         return `<div class="tpl-view${isEdit?' editing':''}">
             <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
@@ -4501,12 +4533,12 @@
                 <div class="tpl-client-name">${_tplEsc(name)}</div>
                 ${editToggle}
             </div>
-            ${filmingPlans}
             <div class="tpl-toggle-row" role="tablist">
                 <button class="tpl-toggle-btn ${reelsActive}" onclick="switchTemplatesTab('reels')">Reels</button>
                 <button class="tpl-toggle-btn ${thumbActive}" onclick="switchTemplatesTab('thumbnails')">Thumbnails</button>
             </div>
             ${reels}${thumbs}
+            <div class="tpl-filming-wrap">${filmingPlans}</div>
         </div>`;
     }
 
@@ -4536,6 +4568,23 @@
             const name  = el.getAttribute('data-tpl-client');
             const field = el.getAttribute('data-tpl-field');
             const isColorPair = el.hasAttribute('data-tpl-color-pair');
+            const isBool = el.hasAttribute('data-tpl-bool');
+
+            if (isBool) {
+                // Booleans (e.g. "no highlight" toggle): persist as 'true' or '' so the
+                // string round-trip stays unambiguous, and dim the paired color row.
+                el.addEventListener('change', () => {
+                    const v = el.checked ? 'true' : '';
+                    _tplQueueSave(name, field, v, true);
+                    const pair = el.getAttribute('data-tpl-disables-pair');
+                    if (pair) {
+                        const row = root.querySelector(`[data-tpl-color-row="${pair}"]`);
+                        if (row) row.classList.toggle('tpl-color-off', el.checked);
+                    }
+                });
+                return;
+            }
+
             el.addEventListener('input', () => {
                 let v = el.value;
                 if (isColorPair) {

@@ -1174,6 +1174,20 @@
         .wl-now-client-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: #ecfdf5; color: #065f46; font-size: 0.7rem; font-weight: 600; text-decoration: none; transition: background 0.1s; max-width: 100%; }
         .wl-now-client-chip:hover { background: #d1fae5; }
         .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        /* Overdue strip — same shape as In progress now / Tweaks needed,
+           but red. An overdue sub-issue is the most urgent signal on the
+           page (the editor has missed the deadline and the item still sits
+           with them), so the strip lives above In progress now. */
+        .workload-overdue { border: 1.5px solid #fca5a5; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #fef2f2; }
+        .workload-overdue.empty { display: none; }
+        .workload-overdue .workload-section-label { color: #991b1b; display: flex; align-items: center; gap: 8px; }
+        .workload-overdue .workload-section-label .wl-now-total { background: #dc2626; }
+        .workload-overdue .wl-now-card { border: 1px solid #fca5a5; border-left: 3px solid #dc2626; }
+        .workload-overdue .wl-now-avatar { background: #dc2626; }
+        .workload-overdue .wl-now-card-total { background: #dc2626; }
+        .workload-overdue .wl-now-card-total:hover { background: #b91c1c; }
+        .workload-overdue .wl-now-client-chip { background: #fee2e2; color: #991b1b; }
+        .workload-overdue .wl-now-client-chip:hover { background: #fecaca; }
         /* Tweaks needed strip — same shape as In progress now, but yellow.
            A tweak is work bounced back to the editor for revision: still
            "owed" but distinct from work they're actively cutting. */
@@ -3918,6 +3932,7 @@
         planned: [],                               // assigned sub-issues with dueDate, not In Progress
         nowWorking: [],                            // assigned sub-issues currently "In Progress"
         tweaksNeeded: [],                          // assigned sub-issues currently "Tweaks Needed"
+        overdue: [],                               // assigned sub-issues whose dueDate is before today (active status, any non-parked status)
         unassigned: [],                            // sub-issues with no assignee (and In Progress OR has dueDate)
         parentById: new Map(),                     // parent issue lookup for rollup link-outs
         scheduled: new Map(),                      // key "YYYY-MM-DD" -> planned sub-issues[]
@@ -4327,6 +4342,10 @@
                 <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">freest first</span></div>
                 <div class="workload-capacity-row" id="wlCapacityRow"></div>
             </div>
+            <div id="wlOverdue" class="workload-overdue empty">
+                <div class="workload-section-label"><span>Overdue</span><span class="wl-now-total" id="wlOverdueTotal" hidden></span></div>
+                <div class="workload-in-progress-rollups" id="wlOverdueRollups"></div>
+            </div>
             <div id="wlInProgress" class="workload-in-progress empty">
                 <div class="workload-section-label"><span>In progress now</span><span class="wl-now-total" id="wlInProgressTotal" hidden></span></div>
                 <div class="workload-in-progress-rollups" id="wlInProgressRollups"></div>
@@ -4505,6 +4524,8 @@
         console.log('Sub-issues total:', subs.length);
         console.log('planned (scheduled):', wlState.planned.length);
         console.log('nowWorking (In Progress):', wlState.nowWorking.length);
+        console.log('tweaksNeeded:', wlState.tweaksNeeded.length);
+        console.log('overdue:', wlState.overdue.length);
         console.log('unassigned:', wlState.unassigned.length);
         console.log('scheduled dates:', [...wlState.scheduled.keys()].sort());
 
@@ -4618,6 +4639,7 @@
         const nowWorking   = [];
         const tweaksNeeded = [];
         const planned      = [];
+        const overdue      = [];
         const unassigned   = [];
         for (const s of subs) {
             const inProg     = wlIsInProgress(s);
@@ -4631,6 +4653,16 @@
             // WL_ALLOWED_EDITORS). Sub-issues stuck on former editors are
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
+            // Overdue takes priority over in-progress / tweaks-needed: an
+            // editor missing a deadline is the most urgent signal, so the
+            // item appears in the Overdue strip only and not the others.
+            // Items with no due date can't be overdue — they fall through
+            // to the in-progress / tweaks strips as before.
+            const isOverdue = hasDue && s.dueDate < todayISO;
+            if (isOverdue) {
+                overdue.push(s);
+                continue;
+            }
             if (inProg)     nowWorking.push(s);
             if (needsTweak) tweaksNeeded.push(s);
             // Calendar workload tracks work with a real due date. In-progress
@@ -4646,6 +4678,7 @@
         wlState.nowWorking   = nowWorking;
         wlState.tweaksNeeded = tweaksNeeded;
         wlState.planned      = planned;
+        wlState.overdue      = overdue;
         wlState.unassigned   = unassigned;
         wlState.fetchedAt  = fetchedAt;
         wlState.scheduled  = scheduleAll(planned, wlTodayISO());
@@ -4954,6 +4987,7 @@
 
         wlPopulateFilterOptions();
         renderEditorWorkload();
+        renderOverdueStrip();
         renderInProgressStrip();
         renderTweaksNeededStrip();
         renderUnassignedStrip();
@@ -5053,6 +5087,7 @@
         for (const s of (wlState.planned      || [])) consider(s);
         for (const s of (wlState.nowWorking   || [])) consider(s);
         for (const s of (wlState.tweaksNeeded || [])) consider(s);
+        for (const s of (wlState.overdue      || [])) consider(s);
 
         if (byEditor.size === 0) {
             wrap.classList.add('empty');
@@ -5094,6 +5129,13 @@
     // so the helper is parameterized by DOM ids and which wlState.* list
     // to read; the caller picks the source mode that the popover uses to
     // re-find the sub-issues when a chip is clicked.
+    function renderOverdueStrip() {
+        renderEditorRollupStrip({
+            stripId: 'wlOverdue', rowId: 'wlOverdueRollups', totalId: 'wlOverdueTotal',
+            subs: wlState.overdue, sourceMode: 'overdue',
+            totalSuffix: 'OVERDUE', chipTitleSuffix: 'overdue',
+        });
+    }
     function renderInProgressStrip() {
         renderEditorRollupStrip({
             stripId: 'wlInProgress', rowId: 'wlInProgressRollups', totalId: 'wlInProgressTotal',
@@ -5405,11 +5447,13 @@
         if (sourceMode === 'active') {
             const seenIds = new Set();
             source = [];
-            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || [])]) {
+            for (const s of [...(wlState.planned || []), ...(wlState.nowWorking || []), ...(wlState.tweaksNeeded || []), ...(wlState.overdue || [])]) {
                 if (seenIds.has(s.id)) continue;
                 seenIds.add(s.id);
                 source.push(s);
             }
+        } else if (sourceMode === 'overdue') {
+            source = wlState.overdue;
         } else if (sourceMode === 'tweaks') {
             source = wlState.tweaksNeeded;
         } else if (sourceMode === 'inprogress' || inProgress) {

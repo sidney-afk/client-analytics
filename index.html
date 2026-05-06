@@ -3650,11 +3650,16 @@
         const state=contentSummaryState[clientName];
         const videos=getTopMonthlyVideos(clientName,5);
         if(!videos.length)return'';
+        // Staleness check: summary date older than the latest scrape → cached data is no longer accurate.
+        const summaryDate=state?.data?.date||'';
+        const latestScrape=topVideos.filter(v=>v.client_name===clientName).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
+        const isStale=!!(latestScrape&&summaryDate&&summaryDate<latestScrape);
         // Auto-trigger generation the first time this client's profile is rendered in this session.
-        // No prior data and no prior error → kick off a fresh fetch.
+        // Triggers when: no prior data, OR cached data is stale vs. the latest scrape.
         const hasData=!!state?.data;
         const hasError=!!state?.error;
-        if(!hasData&&!hasError&&!_autoSummaryAttempted.has(clientName)){
+        const needsGen=(!hasData&&!hasError)||(hasData&&isStale);
+        if(needsGen&&!_autoSummaryAttempted.has(clientName)){
             _autoSummaryAttempted.add(clientName);
             setTimeout(()=>generateContentSummary(clientName),0);
         }

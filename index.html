@@ -1615,6 +1615,23 @@
     let tabSummaryBriefIds = (() => { try { return JSON.parse(localStorage.getItem('syncview_tabSummaryBriefIds_v1') || '{}'); } catch { return {}; } })(); // tracks which brief ID was used per "clientName__briefType"
     let pendingBriefs = (() => { try { return JSON.parse(localStorage.getItem('syncview_pendingBriefs_v1') || '{}'); } catch { return {}; } })();
     let contentSummaryState = (() => { try { return JSON.parse(localStorage.getItem('syncview_contentSummaryState_v1') || '{}'); } catch { return {}; } })();
+    // Scrub entries that should not survive a page reload:
+    //   - loading:true with no in-flight request (left behind if the previous tab closed mid-generation)
+    //   - data shaped like a Claude refusal ("I'm unable to…", "fabricate", "no transcripts") rather than a real summary
+    // Removing these makes the next profile-open auto-trigger a fresh attempt instead of rendering broken text.
+    (() => {
+        const looksLikeRefusal = (s) => {
+            if (typeof s !== 'string' || !s) return false;
+            const t = s.toLowerCase();
+            return /^i'?m unable to\b/.test(t.trimStart()) || /^i can'?t\b/.test(t.trimStart()) || /^i cannot\b/.test(t.trimStart()) || t.includes('fabricate') || t.includes('no transcripts');
+        };
+        let dirty = false;
+        for (const [name, st] of Object.entries(contentSummaryState)) {
+            if (st?.loading) { delete contentSummaryState[name]; dirty = true; continue; }
+            if (st?.data?.bullets && looksLikeRefusal(st.data.bullets)) { delete contentSummaryState[name]; dirty = true; }
+        }
+        if (dirty) { try { localStorage.setItem('syncview_contentSummaryState_v1', JSON.stringify(contentSummaryState)); } catch {} }
+    })();
 
     const TAB_SUMMARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-tab-summary';
     const GENERAL_BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-general-brief';
@@ -3590,7 +3607,16 @@
                 result={bullets:result.content[0].text};
             }
             const bullets=result.bullets||result.summary||result;
-            contentSummaryState[clientName]={loading:false,data:{bullets:typeof bullets==='string'?bullets:JSON.stringify(bullets),date:new Date().toISOString().split('T')[0]},error:null};
+            const bulletsStr=typeof bullets==='string'?bullets:JSON.stringify(bullets);
+            // Detect Claude refusals (e.g. when the workflow fails to download transcripts).
+            // Treat them as an error so we don't cache the refusal text as if it were a real summary.
+            const lower=(bulletsStr||'').toLowerCase().trimStart();
+            const isRefusal=/^i'?m unable to\b/.test(lower)||/^i can'?t\b/.test(lower)||/^i cannot\b/.test(lower)||lower.includes('fabricate')||lower.includes('no transcripts');
+            if(isRefusal){
+                contentSummaryState[clientName]={loading:false,data:null,error:'Summary unavailable — transcripts could not be processed.'};
+            }else{
+                contentSummaryState[clientName]={loading:false,data:{bullets:bulletsStr,date:new Date().toISOString().split('T')[0]},error:null};
+            }
         }catch(e){
             console.error('[SyncView] Content summary error for',clientName,':',e);
             contentSummaryState[clientName]={loading:false,data:null,error:'Failed to generate summary: '+(e.name==='AbortError'?'Request timed out (3 min)':e.message||'Unknown error')};
@@ -3600,43 +3626,13 @@
     }
 
     // Per-session guard: clients we've already auto-attempted this page load.
-    // Prevents tight loops if the webhook is consistently failing.
+    // The first time a client's profile is rendered we kick off generateContentSummary;
+    // the guard prevents the same render path from re-triggering after the response sets state.error.
+    // Cleared on page refresh, or when the user manually clicks Regenerate (which calls generateContentSummary directly).
     const _autoSummaryAttempted=new Set();
 
-    // Auto-refresh content summaries that are stale, missing, or in an error state.
-    // Stale  → previous summary exists but a newer scrape has landed
-    // Missing → never generated and there's a previous error from a past session, OR no state at all
-    // Error  → last attempt failed (e.g. "Failed to fetch") — retry once per session
-    async function autoRefreshStaleSummaries(){
-        const clientNames=Object.keys(clientMap);
-        const targets=clientNames.filter(name=>{
-            const videos=getTopMonthlyVideos(name,5);
-            if(!videos.length)return false;
-            if(_autoSummaryAttempted.has(name))return false;
-            const state=contentSummaryState[name];
-            // No state, or previous error → auto-generate so the user sees a loading spinner instead of a Generate/Retry button.
-            if(!state||state.error||!state.data)return true;
-            // Stale data → re-generate against the newer scrape.
-            const summaryDate=state.data.date||'';
-            const latestScrape=topVideos.filter(v=>v.client_name===name).reduce((max,v)=>{const d=v.scraped_date||'';return d>max?d:max;},'');
-            return latestScrape&&(!summaryDate||summaryDate<latestScrape);
-        });
-        if(!targets.length){console.log('[SyncView] All content summaries up to date.');return;}
-        console.log('[SyncView] Auto-refreshing content summaries for:',targets);
-        // Flip any error/missing states to loading immediately so the user sees the spinner while we work through the queue.
-        for(const name of targets){
-            _autoSummaryAttempted.add(name);
-            const s=contentSummaryState[name];
-            if(!s||s.error||!s.data){
-                contentSummaryState[name]={loading:true,data:null,error:null};
-                refreshContentSummary(name);
-            }
-        }
-        for(const name of targets){
-            try{await generateContentSummary(name);}catch(e){console.warn('[SyncView] Auto-refresh failed for',name,e);}
-        }
-        console.log('[SyncView] Auto-refresh complete.');
-    }
+    // (Removed: autoRefreshStaleSummaries. Page-load batch generation was hammering the webhook
+    // and caching Claude refusals as bullets. Generation is now lazy — see buildContentSummarySection.)
 
     function refreshContentSummary(clientName){
         const el=document.getElementById(`content-summary-${clientName.replace(/\s+/g,'_')}`);
@@ -3652,14 +3648,23 @@
         const state=contentSummaryState[clientName];
         const videos=getTopMonthlyVideos(clientName,5);
         if(!videos.length)return'';
+        // Auto-trigger generation the first time this client's profile is rendered in this session.
+        // No prior data and no prior error → kick off a fresh fetch.
+        const hasData=!!state?.data;
+        const hasError=!!state?.error;
+        if(!hasData&&!hasError&&!_autoSummaryAttempted.has(clientName)){
+            _autoSummaryAttempted.add(clientName);
+            setTimeout(()=>generateContentSummary(clientName),0);
+        }
         let inner='';
-        if(!state){
-            inner=`<button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">✦ Generate This Month's Performance Summary</button>`;
-        }else if(state.loading){
+        if(hasError){
+            // Attempt already ran and failed (e.g. transcripts unavailable). Stay subtle — no Retry button.
+            // User can refresh the page to re-attempt.
+            inner=`<div class="cs-error" style="opacity:0.7;font-size:0.78rem;">${state.error}</div>`;
+        }else if(!hasData){
+            // Either generation is in flight or about to be (auto-trigger above) — show the spinner.
             inner=`<div class="cs-loading"><span class="cs-spinner"></span>Downloading transcripts &amp; analysing what's working… <span style="font-weight:400;opacity:0.7;">(~1-2 min)</span></div>`;
-        }else if(state.error){
-            inner=`<div class="cs-error">${state.error}</div><button class="cs-generate-btn" onclick="generateContentSummary(decodeURIComponent('${enc}'))">Retry</button>`;
-        }else if(state.data){
+        }else{
             const raw=state.data.bullets||'';
             // Render markdown-style bullet points
             const lines=raw.split('\n').filter(l=>l.trim());
@@ -7354,8 +7359,8 @@
                 briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
                 startBriefPolling(clientName,triggerTime,briefType);
             });
-            // Auto-refresh any content summaries that have new scrape data (non-blocking)
-            autoRefreshStaleSummaries();
+            // Content summaries now generate lazily — only when the user opens a specific client's profile.
+            // See buildContentSummarySection for the per-profile auto-trigger.
             // Load shared client templates from the Apps Script backend (non-blocking).
             loadTemplates();
             const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();

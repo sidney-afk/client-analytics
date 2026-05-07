@@ -4788,6 +4788,12 @@
                         ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
                         ${_tplFieldLink(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
                     </div>
+                </div>
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    <div class="tpl-fields">
+                        ${_tplFieldTextarea(name, 'thumbnails_preferences', 'Notes', 'Style preferences, things to avoid, what kinds of thumbnails resonate with their audience…')}
+                    </div>
                 </div>`;
             } else {
                 thumbs = `
@@ -4801,6 +4807,10 @@
                     <div class="tpl-view-color-sets-wrap">
                         ${_tplRenderColorSetsView(name, thumbsHlOff)}
                     </div>
+                </div>
+                <div class="tpl-section">
+                    <div class="tpl-section-title">Client preferences</div>
+                    ${_tplViewProse(name, 'thumbnails_preferences')}
                 </div>`;
             }
         }

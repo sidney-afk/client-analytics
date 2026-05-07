@@ -1617,6 +1617,7 @@
     let contentSummaryState = (() => { try { return JSON.parse(localStorage.getItem('syncview_contentSummaryState_v1') || '{}'); } catch { return {}; } })();
     // Scrub entries that should not survive a page reload:
     //   - loading:true with no in-flight request (left behind if the previous tab closed mid-generation)
+    //   - error states (e.g. transient Whisper 429s) — page reload should always re-attempt
     //   - data shaped like a Claude refusal ("I'm unable to…", "fabricate", "no transcripts") rather than a real summary
     // Removing these makes the next profile-open auto-trigger a fresh attempt instead of rendering broken text.
     (() => {
@@ -1628,6 +1629,7 @@
         let dirty = false;
         for (const [name, st] of Object.entries(contentSummaryState)) {
             if (st?.loading) { delete contentSummaryState[name]; dirty = true; continue; }
+            if (st?.error) { delete contentSummaryState[name]; dirty = true; continue; }
             if (st?.data?.bullets && looksLikeRefusal(st.data.bullets)) { delete contentSummaryState[name]; dirty = true; }
         }
         if (dirty) { try { localStorage.setItem('syncview_contentSummaryState_v1', JSON.stringify(contentSummaryState)); } catch {} }

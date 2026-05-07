@@ -3741,7 +3741,8 @@
         const ttSection=hasTT?`<div class="platform-section tt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>TikTok</span>${handleLink(ttUrl(ttHandle),ttHandle?`@${ttHandle}`:'')}</div><div class="metrics-row">${mBlock('Total Followers',today,prev,'tiktok_followers')}${mBlockNoD('Avg Views',today,'tiktok_avg_plays')}${mBlockViews30d('Views Last 30d',today,monthRow,'tiktok_plays_this_month','tiktok_plays_gained_today')}</div>${ttTopVids}</div>`:'';
         const ytSplitViews=name==='Dr. Sonia Chopra';
         const ytViewBlocks=ytSplitViews?`${mBlock('Shorts Views',today,prev,'yt_shorts_views')}${mBlock('Podcast Views',today,prev,'yt_longs_views')}`:mBlock('Total Views',today,prev,'yt_total_views');
-        const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row">${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${ytViewBlocks}</div>${ytTopVids}</div>`:'';
+        const ytRowStyle=ytSplitViews?' style="grid-template-columns: repeat(3, 1fr);"':'';
+        const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row"${ytRowStyle}>${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${ytViewBlocks}</div>${ytTopVids}</div>`:'';
 
         const _clientDesc=clientMap[name]?.content_description||'';
         const _infoIcon=_clientDesc?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal('${name.replace(/'/g,"\\'")}')">i</button>`:'';

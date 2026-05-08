@@ -1130,7 +1130,11 @@
         .workload-popover { position: absolute; z-index: 1000; background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,0.18); padding: 10px; min-width: 280px; max-width: 380px; max-height: 60vh; overflow-y: auto; display: none; }
         .workload-popover.open { display: block; }
         .workload-popover-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 4px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+        .workload-popover-head-title-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; overflow: hidden; }
         .workload-popover-head-title { font-size: 0.74rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .workload-popover-templates { display: inline-flex; align-items: center; gap: 4px; font-size: 0.62rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; align-self: flex-start; max-width: 100%; transition: color 0.13s; }
+        .workload-popover-templates:hover { color: var(--text-primary); text-decoration: underline; }
+        .workload-popover-templates svg { flex-shrink: 0; opacity: 0.85; }
         .workload-popover-parent { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
         .workload-popover-parent:hover { color: var(--text-primary); text-decoration: underline; }
         .workload-popover-close { background: transparent; border: 0; padding: 2px 6px; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; }
@@ -6582,8 +6586,25 @@
         const parentTitle = (parentId && wlState.parentById.get(parentId)?.title) || clientName || editorName || '';
         const headerTitle = clientName || editorName || parentTitle;
 
+        const templatesUrl = clientName
+            ? (location.pathname + location.search + '#templates/' + encodeURIComponent(clientName))
+            : '';
+        const templatesLink = templatesUrl
+            ? `<a class="workload-popover-templates" href="${wlEscape(templatesUrl)}" target="_blank" rel="noopener noreferrer" title="Open ${wlEscape(clientName)} templates in a new tab">
+                <span>Templates</span>
+                <svg width="10" height="10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M6.5 2.5h3v3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M9.5 2.5L5 7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    <path d="M9.5 6.5v3h-7v-7h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </a>`
+            : '';
+
         const header = `<div class="workload-popover-head">
-            <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
+            <div class="workload-popover-head-title-group">
+                <span class="workload-popover-head-title">${wlEscape(headerTitle)}</span>
+                ${templatesLink}
+            </div>
             ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open parent →</a>` : ''}
             <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">×</button>
         </div>`;

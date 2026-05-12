@@ -1523,6 +1523,10 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
             Samples
         </a>
+        <a class="header-nav-btn" id="navThumbnails" href="#thumbnails" onclick="event.preventDefault();navTo('thumbnails')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><circle cx="6" cy="7" r="1.25" fill="currentColor"/><path d="M3 12L6.5 9L9 11L12 7.5L13 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Thumbnails
+        </a>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -7025,6 +7029,8 @@
         if (navCal) navCal.classList.toggle('active', page === 'calendar');
         const navSamp = document.getElementById('navSamples');
         if (navSamp) navSamp.classList.toggle('active', page === 'samples');
+        const navThumb = document.getElementById('navThumbnails');
+        if (navThumb) navThumb.classList.toggle('active', page === 'thumbnails');
 
 
         const state = {nav: page, client: null};
@@ -7057,6 +7063,12 @@
         } else if (page === 'samples') {
             pageTop.style.display = 'none';
             content.innerHTML = `<iframe src="samples.html" title="Content Samples"
+                style="display:block;width:100%;height:calc(100vh - 60px);margin:-32px -32px -80px;border:none;background:var(--bg);"
+                allow="autoplay; fullscreen; clipboard-write"></iframe>`;
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'thumbnails') {
+            pageTop.style.display = 'none';
+            content.innerHTML = `<iframe src="SyncThumbnails/SyncThumbnails.html" title="SyncThumbnails"
                 style="display:block;width:100%;height:calc(100vh - 60px);margin:-32px -32px -80px;border:none;background:var(--bg);"
                 allow="autoplay; fullscreen; clipboard-write"></iframe>`;
             window.scrollTo({ top: 0, behavior: 'instant' });
@@ -7437,11 +7449,12 @@
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
             if(hash==='samples'){navTo(hash,false);return;}
+            if(hash==='thumbnails'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates')){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='thumbnails'||savedNav==='templates')){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

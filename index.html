@@ -1068,6 +1068,18 @@
         .linear-submit-btn.secondary:hover { background: var(--text-primary); color: var(--white); }
         .linear-submit-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
         .linear-submit-btn.success { background: var(--up); }
+        .linear-submit-primary { padding: 14px 28px; flex-direction: row; gap: 12px; }
+        .linear-submit-primary-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.15; }
+        .linear-submit-primary-label { font-size: 0.92rem; font-weight: 700; }
+        .linear-submit-primary-sub { font-size: 0.66rem; font-weight: 500; opacity: 0.65; letter-spacing: 0.02em; margin-top: 2px; }
+        .linear-advanced { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; align-self: flex-start; }
+        .linear-advanced-toggle { display: inline-flex; align-items: center; gap: 6px; padding: 4px 2px; border: none; background: transparent; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.7rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; transition: color 0.15s; align-self: flex-start; }
+        .linear-advanced-toggle:hover { color: var(--text-secondary); }
+        .linear-advanced-toggle .chevron { transition: transform 0.18s ease; }
+        .linear-advanced-toggle.open .chevron { transform: rotate(90deg); }
+        .linear-advanced-panel { display: none; flex-wrap: wrap; gap: 8px; }
+        .linear-advanced-panel.open { display: flex; animation: fadeIn 0.15s ease; }
+        .linear-advanced-panel .linear-submit-btn { padding: 9px 18px; font-size: 0.78rem; font-weight: 600; margin-top: 0; }
         .linear-status { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
         .linear-success-banner { display: flex; align-items: center; gap: 8px; background: #1a3a2a; border: 1px solid #2d6a45; color: #4ade80; border-radius: 10px; padding: 12px 16px; font-size: 0.88rem; font-weight: 600; margin-bottom: 20px; animation: fadeIn 0.2s ease; }
         /* Linear search bar */
@@ -7210,12 +7222,23 @@
                     </button>
                 </div>
                 <div class="linear-submit-btns">
-                    <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Create Video Issue</button>
-                    <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Create Thumbnail Issue</button>
-                    <button class="linear-submit-btn" id="linearSubmitBtnBoth" onclick="submitLinearForm('both')">
+                    <button class="linear-submit-btn linear-submit-primary" id="linearSubmitBtnBoth" onclick="submitLinearForm('both')">
                         <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-                        Create Both
+                        <span class="linear-submit-primary-text">
+                            <span class="linear-submit-primary-label">Create Linears</span>
+                            <span class="linear-submit-primary-sub">Video + graphic issue</span>
+                        </span>
                     </button>
+                </div>
+                <div class="linear-advanced">
+                    <button type="button" class="linear-advanced-toggle" id="linearAdvancedToggle" onclick="toggleLinearAdvanced()">
+                        <svg class="chevron" width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M2 1L6 4L2 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <span>Advanced</span>
+                    </button>
+                    <div class="linear-advanced-panel" id="linearAdvancedPanel">
+                        <button class="linear-submit-btn secondary" id="linearSubmitBtnVideo" onclick="submitLinearForm('video')">Video issue only</button>
+                        <button class="linear-submit-btn secondary" id="linearSubmitBtnThumbnail" onclick="submitLinearForm('thumbnail')">Thumbnail issue only</button>
+                    </div>
                 </div>
                 <div class="linear-status" id="linearStatus"></div>
             </div>
@@ -7302,6 +7325,14 @@
         }
     }
 
+    function toggleLinearAdvanced() {
+        const toggle = document.getElementById('linearAdvancedToggle');
+        const panel = document.getElementById('linearAdvancedPanel');
+        if (!toggle || !panel) return;
+        const open = panel.classList.toggle('open');
+        toggle.classList.toggle('open', open);
+    }
+
     async function submitLinearForm(mode) {
         const client = document.getElementById('linearClientSearch')?.value?.trim();
         const title = buildLinearTitle();
@@ -7336,7 +7367,11 @@
         const status = document.getElementById('linearStatus');
         allBtns.forEach(b => { if (b) b.disabled = true; });
         const activeBtn = document.getElementById(mode === 'video' ? 'linearSubmitBtnVideo' : mode === 'thumbnail' ? 'linearSubmitBtnThumbnail' : 'linearSubmitBtnBoth');
-        if (activeBtn) activeBtn.textContent = 'Submitting…';
+        if (activeBtn) {
+            const label = activeBtn.querySelector('.linear-submit-primary-label');
+            if (label) label.textContent = 'Submitting…';
+            else activeBtn.textContent = 'Submitting…';
+        }
         status.textContent = '';
 
         // Build description: prepend links before notes

@@ -1489,12 +1489,13 @@
         .cal-tab-x:hover { background: rgba(0,0,0,0.15); }
         .cal-tab.active .cal-tab-x:hover { background: rgba(255,255,255,0.25); }
         .cal-tab-add-wrap { position: relative; display: inline-flex; }
-        .cal-tab-add { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 99px;
+        .cal-tab-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 99px;
             border: 1.5px dashed #c7c7c4; background: var(--white); color: var(--text-muted);
-            font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+            font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1;
             transition: color 0.12s, border-color 0.12s, background 0.12s; }
+        .cal-tab-add.no-label { padding: 8px; width: 32px; height: 32px; min-width: 32px; }
         .cal-tab-add:hover { color: var(--text-primary); border-color: var(--text-primary); border-style: solid; }
-        .cal-tab-add svg { display: inline-block; }
+        .cal-tab-add svg { display: block; }
         .cal-tab-search { position: absolute; top: calc(100% + 6px); left: 0; min-width: 260px; z-index: 80;
             background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 8px; }
         .cal-tab-search .wl-client-search { min-width: 0; width: 100%; }
@@ -1534,8 +1535,8 @@
         .cal-card.dragging { opacity: 0.45; }
         .cal-card[draggable="true"] .cal-card-thumb { cursor: grab; }
         .cal-card[draggable="true"]:active .cal-card-thumb { cursor: grabbing; }
-        .cal-card-thumb { width: 100%; height: 140px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; }
-        .cal-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .cal-card-thumb { width: 100%; min-height: 140px; max-height: 440px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; }
+        .cal-card-thumb img { display: block; width: 100%; height: auto; max-height: 440px; object-fit: contain; }
         .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; display: inline-flex; align-items: center; justify-content: center; }
         .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
         .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
@@ -1548,14 +1549,23 @@
         .cal-card-body input:focus, .cal-card-body textarea:focus, .cal-card-body select:focus { border-color: var(--text-primary); background: var(--white); }
         .cal-card-body textarea { resize: vertical; line-height: 1.4; }
         .cal-fld-name { font-size: 0.92rem; font-weight: 700; }
-        .cal-fld-row2 { display: flex; gap: 6px; }
-        .cal-fld-row2 .cal-fld-date-wrap { flex: 1.2; }
-        .cal-fld-row2 .cal-fld-status { flex: 1; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
+        .cal-fld-date-wrap { width: 100%; }
+        .cal-fld-status-row { display: flex; }
+        .cal-fld-status-row .cal-fld-status { width: 100%; }
+        /* URL field with open-in-new-tab affordance */
+        .cal-fld-url-wrap { display: flex; align-items: stretch; gap: 0; position: relative; }
+        .cal-fld-url-wrap input { flex: 1; padding-right: 28px; }
+        .cal-fld-url-open { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px;
+            display: inline-flex; align-items: center; justify-content: center; border-radius: 5px;
+            background: transparent; border: 0; color: var(--text-muted); cursor: pointer; padding: 0;
+            opacity: 0; transition: opacity 0.12s, background 0.12s, color 0.12s; pointer-events: none; }
+        .cal-fld-url-wrap.has-value .cal-fld-url-open { opacity: 1; pointer-events: auto; }
+        .cal-fld-url-open:hover { background: var(--bg); color: var(--text-primary); }
         .cal-fld-url { font-size: 0.72rem; color: var(--text-secondary); }
         .cal-fld-thumb { font-size: 0.72rem; color: var(--text-secondary); }
-        .cal-fld-cap { font-size: 0.74rem; min-height: 56px; }
+        .cal-fld-cap { font-size: 0.74rem; min-height: 56px; resize: none; overflow: hidden; }
         .cal-fld-cta { font-size: 0.72rem; font-style: italic; color: var(--text-muted); }
-        .cal-fld-tweaks { font-size: 0.72rem; min-height: 38px; color: var(--dn); }
+        .cal-fld-tweaks { font-size: 0.72rem; min-height: 38px; color: var(--dn); resize: none; overflow: hidden; }
         .cal-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; min-height: 18px; margin-top: auto; }
         .cal-card-saving { font-size: 0.66rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-card-saving.is-saved { color: #166534; }
@@ -1588,14 +1598,25 @@
 
         .cal-chip { display: inline-flex; align-items: center; padding: 2px 7px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; border: 1px solid currentColor; border-radius: 99px; }
         .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; }
-        .cal-status-draft { background: #f3f3f1; color: #777; }
-        .cal-status-in-progress { background: #fef9c3; color: #854d0e; }
-        .cal-status-kasper-approval { background: #dbeafe; color: #1e3a8a; }
+        .cal-status-draft { background: #f3f3f1; color: #6b7280; }
+        .cal-status-in-progress { background: #ffedd5; color: #9a3412; }
+        .cal-status-kasper-approval { background: #dbeafe; color: #1e40af; }
         .cal-status-approved { background: #dcfce7; color: #166534; }
         .cal-status-tweaks-needed { background: #fee2e2; color: #991b1b; }
         .cal-status-scheduled { background: #ede9fe; color: #5b21b6; }
-        .cal-status-posted { background: #ecfeff; color: #0e7490; }
+        .cal-status-posted { background: #064e3b; color: #ecfdf5; }
         .cal-status-archived { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
+        /* Status select inside the card mirrors the chip palette */
+        .cal-fld-status { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.66rem; padding: 7px 10px; border-radius: 99px; border-color: transparent !important; background: var(--bg); color: var(--text-secondary); cursor: pointer; }
+        .cal-fld-status:focus { outline: 2px solid rgba(0,0,0,0.12); outline-offset: 1px; }
+        .cal-fld-status[data-val="Draft"] { background: #f3f3f1; color: #6b7280; }
+        .cal-fld-status[data-val="In Progress"] { background: #ffedd5; color: #9a3412; }
+        .cal-fld-status[data-val="Kasper Approval"] { background: #dbeafe; color: #1e40af; }
+        .cal-fld-status[data-val="Approved"] { background: #dcfce7; color: #166534; }
+        .cal-fld-status[data-val="Tweaks Needed"] { background: #fee2e2; color: #991b1b; }
+        .cal-fld-status[data-val="Scheduled"] { background: #ede9fe; color: #5b21b6; }
+        .cal-fld-status[data-val="Posted"] { background: #064e3b; color: #ecfdf5; }
+        .cal-fld-status option { background: var(--white); color: var(--text-primary); font-weight: 600; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -1609,15 +1630,18 @@
         .cal-month-wrap { padding: 4px 0; }
         .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .cal-month-head { background: var(--bg); padding: 8px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-align: center; letter-spacing: 0.05em; text-transform: uppercase; }
-        .cal-month-cell { background: var(--white); min-height: 110px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 0.12s; }
+        .cal-month-cell { background: var(--white); min-height: 150px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 0.12s; }
         .cal-month-cell:hover { background: #fafaf9; }
         .cal-month-cell.out { background: #fafafa; }
         .cal-month-cell.out .cal-month-num { color: #c5c5c2; }
         .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
         .cal-month-num { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-month-pill { display: flex; align-items: center; gap: 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; font-family: inherit; font-size: 0.7rem; font-weight: 600; color: var(--text-primary); cursor: pointer; text-align: left; max-width: 100%; }
+        .cal-month-pill { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px 3px 3px; font-family: inherit; font-size: 0.7rem; font-weight: 600; color: var(--text-primary); cursor: pointer; text-align: left; max-width: 100%; overflow: hidden; }
         .cal-month-pill:hover { background: var(--white); border-color: #aaa; }
-        .cal-month-pill span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cal-month-pill > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+        .cal-month-pill-thumb { width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+        .cal-month-pill-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .cal-month-pill-thumb svg { width: 16px; height: 16px; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -7317,11 +7341,13 @@
     function calClientSlug(name) { return wlNormalizeClient(name); }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     function _calEscAttr(s) { return _calEsc(s).replace(/'/g,'&#39;'); }
-    function _calIsoOf(d) { const x = new Date(d); return new Date(x.getTime() - x.getTimezoneOffset()*60000).toISOString().slice(0,10); }
-    function _calIsoFirstOfMonth(d) { const x = new Date(d); x.setDate(1); return _calIsoOf(x); }
-    function _calIsoMondayOf(d) { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return _calIsoOf(x); }
-    function _calAddDaysISO(iso, n) { const d = new Date(iso); d.setDate(d.getDate() + n); return _calIsoOf(d); }
-    function _calAddMonthsISO(iso, n) { const d = new Date(iso); d.setMonth(d.getMonth() + n); d.setDate(1); return _calIsoOf(d); }
+    function _calIsoFmt(y, m, d) { return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
+    function _calIsoOf(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, x.getDate()); }
+    function _calIsoFirstOfMonth(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, 1); }
+    function _calParseIso(iso) { const [Y,M,D] = String(iso).split('-').map(Number); return new Date(Y, (M||1) - 1, D || 1); }
+    function _calIsoMondayOf(d) { const x = (d instanceof Date) ? new Date(d.getFullYear(), d.getMonth(), d.getDate()) : _calParseIso(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return _calIsoOf(x); }
+    function _calAddDaysISO(iso, n) { const x = _calParseIso(iso); x.setDate(x.getDate() + n); return _calIsoOf(x); }
+    function _calAddMonthsISO(iso, n) { const x = _calParseIso(iso); const d = new Date(x.getFullYear(), x.getMonth() + n, 1); return _calIsoOf(d); }
 
     function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
 
@@ -7426,10 +7452,12 @@
                 <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove('${_calEscAttr(name)}')" title="Remove tab">×</span>
             </button>`;
         }).join('');
-        const addBtnLabel = pins.length ? '+' : `<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> <span>Add client</span>`;
+        const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+        const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
+        const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
         tabs.innerHTML = `${tabHtml}
             <div class="cal-tab-add-wrap" id="calTabAddWrap">
-                <button type="button" class="cal-tab-add" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
+                <button type="button" class="${addBtnCls}" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
                 <div class="cal-tab-search" id="calTabSearchPanel" hidden>
                     <div class="wl-client-search">
                         <input type="text" class="wl-client-search-input" id="calClientSearchInput" placeholder="Search clients…" autocomplete="off">
@@ -7670,30 +7698,68 @@
         const draggable = isBlank ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
+        const currentStatus = p.status || 'Draft';
+        const urlField = (cls, fld, val, placeholder) => {
+            const hasVal = !!String(val || '').trim();
+            return `<div class="cal-fld-url-wrap${hasVal ? ' has-value' : ''}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
+                <input class="${cls}" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(val)}" placeholder="${placeholder}" oninput="_calOnUrlInput(this)" onblur="_calOnFieldBlur(this)">
+                <button type="button" class="cal-fld-url-open" tabindex="-1" onclick="_calOpenUrlField(this)" title="Open in new tab"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3v10h10V10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 3h4v4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 3L7.5 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            </div>`;
+        };
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}" data-pid="${pid}" draggable="${draggable}">
             <div class="cal-card-thumb">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Post name" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
-                <div class="cal-fld-row2">
-                    <div class="cal-fld-date-wrap">
-                        <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
-                        <div class="cal-fld-date-display${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">${dateFmt ? _calEsc(dateFmt) : 'Pick a date'}</div>
-                    </div>
-                    <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnFieldBlur(this)">
-                        ${CAL_STATUSES.map(s => `<option value="${s}"${s === (p.status || 'Draft') ? ' selected' : ''}>${s}</option>`).join('')}
+                <div class="cal-fld-date-wrap">
+                    <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
+                    <div class="cal-fld-date-display${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">${dateFmt ? _calEsc(dateFmt) : 'Pick a date'}</div>
+                </div>
+                ${urlField('cal-fld-thumb', 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
+                ${urlField('cal-fld-url', 'asset_url', p.asset_url, 'Post URL (Frame.io / Drive / video)')}
+                <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.caption)}</textarea>
+                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="CTA" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
+                <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="Client tweaks" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
+                <div class="cal-fld-status-row">
+                    <select class="cal-fld-status" data-pid="${pid}" data-fld="status" data-val="${_calEscAttr(currentStatus)}" onchange="_calOnStatusChange(this)">
+                        ${CAL_STATUSES.map(s => `<option value="${s}"${s === currentStatus ? ' selected' : ''}>${s}</option>`).join('')}
                     </select>
                 </div>
-                <input class="cal-fld-thumb" type="url" data-pid="${pid}" data-fld="thumbnail_url" value="${_calEsc(p.thumbnail_url)}" placeholder="Thumbnail URL (Google Drive image)" oninput="_calOnUrlInput(this)" onblur="_calOnFieldBlur(this)">
-                <input class="cal-fld-url" type="url" data-pid="${pid}" data-fld="asset_url" value="${_calEsc(p.asset_url)}" placeholder="Post URL (Frame.io / Drive / video)" oninput="_calOnUrlInput(this)" onblur="_calOnFieldBlur(this)">
-                <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.caption)}</textarea>
-                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="CTA" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
-                <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="Client tweaks" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
                 <div class="cal-card-foot">
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
                     ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
                 </div>
             </div>
         </div>`;
+    }
+
+    function _calOnStatusChange(el) {
+        el.setAttribute('data-val', el.value);
+        _calOnFieldBlur(el);
+    }
+    function _calOnTextareaInput(el) {
+        el.style.height = 'auto';
+        el.style.height = Math.max(el.scrollHeight, parseInt(getComputedStyle(el).minHeight) || 0) + 2 + 'px';
+        _calOnFieldInput(el);
+    }
+    function _calAutosizeTextareas(container) {
+        (container || document).querySelectorAll('.cal-fld-cap, .cal-fld-tweaks').forEach(t => {
+            t.style.height = 'auto';
+            t.style.height = Math.max(t.scrollHeight, parseInt(getComputedStyle(t).minHeight) || 0) + 2 + 'px';
+        });
+    }
+    function _calOpenUrlField(btn) {
+        const wrap = btn.closest('.cal-fld-url-wrap');
+        const input = wrap ? wrap.querySelector('input') : null;
+        const val = input ? input.value.trim() : '';
+        if (!val) return;
+        let url = val;
+        if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+    function _calRefreshUrlWrapState(input) {
+        const wrap = input.closest('.cal-fld-url-wrap');
+        if (!wrap) return;
+        wrap.classList.toggle('has-value', !!input.value.trim());
     }
 
     function _calOnDateChange(el) {
@@ -7709,6 +7775,7 @@
     }
     function _calOnUrlInput(el) {
         _calOnFieldInput(el);
+        _calRefreshUrlWrapState(el);
         _calLivePreviewThumb(el.dataset.pid);
     }
     function _calLivePreviewThumb(pid) {
@@ -7891,6 +7958,8 @@
         const strip = document.getElementById('calStrip');
         if (!strip) return;
         strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_calWireDragOnCard);
+        _calAutosizeTextareas(strip);
+        _calWireShiftScroll(strip);
         if (strip.dataset.dropWired === '1') return;
         strip.dataset.dropWired = '1';
         strip.addEventListener('drop', () => {
@@ -7900,6 +7969,16 @@
             items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
             persistCalReorder(items);
         });
+    }
+    function _calWireShiftScroll(el) {
+        if (!el || el.dataset.shiftScrollWired === '1') return;
+        el.dataset.shiftScrollWired = '1';
+        el.addEventListener('wheel', (e) => {
+            if (e.shiftKey && e.deltaY !== 0) {
+                e.preventDefault();
+                el.scrollLeft += e.deltaY;
+            }
+        }, { passive: false });
     }
     function _calWireDragOnCard(card) {
         if (!card || card.dataset.dragWired === '1') return;
@@ -7937,11 +8016,19 @@
     }
 
     /* ── Month view (read-only) ─────────────────────────────────────── */
+    function _calMonthPillHtml(p) {
+        const url = _calDeriveThumb(p);
+        const thumb = url
+            ? `<span class="cal-month-pill-thumb"><img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'5\\' width=\\'18\\' height=\\'14\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'10\\' r=\\'1.3\\'/><path d=\\'M3 17l5-4 4 3 4-5 5 6\\'/></svg>'"></span>`
+            : `<span class="cal-month-pill-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></span>`;
+        return `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')">${thumb}<span>${_calEsc((p.name || 'Untitled').slice(0,22))}</span></button>`;
+    }
+
     function renderCalMonth() {
-        const cursor = new Date(calState.monthCursor);
+        const cursor = _calParseIso(calState.monthCursor);
         const monthLabel = cursor.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         const firstISO = _calIsoFirstOfMonth(cursor);
-        const startMonday = _calIsoMondayOf(new Date(firstISO));
+        const startMonday = _calIsoMondayOf(_calParseIso(firstISO));
         const cells = Array.from({ length: 42 }, (_, i) => _calAddDaysISO(startMonday, i));
         const byDate = new Map();
         for (const p of calState.posts) {
@@ -7968,14 +8055,14 @@
                     const today = iso === todayISO;
                     return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}">
                         <div class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</div>
-                        ${list.map(p => `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')"><span>${_calEsc((p.name || 'Untitled').slice(0,22))}</span></button>`).join('')}
+                        ${list.map(p => _calMonthPillHtml(p)).join('')}
                     </div>`;
                 }).join('')}
             </div>
             ${unsched.length ? `<div class="cal-unscheduled">
                 <div class="cal-unscheduled-h">Unscheduled (${unsched.length})</div>
                 <div class="cal-unscheduled-list">
-                    ${unsched.map(p => `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')"><span>${_calEsc((p.name || 'Untitled').slice(0,22))}</span></button>`).join('')}
+                    ${unsched.map(p => _calMonthPillHtml(p)).join('')}
                 </div>
             </div>` : ''}
         </div>`;
@@ -7995,8 +8082,8 @@
             byDate.get(d).push(p);
         }
         const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-        const startDate = new Date(start);
-        const endDate = new Date(_calAddDaysISO(start, 6));
+        const startDate = _calParseIso(start);
+        const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
         return `<div class="cal-week-wrap">

@@ -1467,12 +1467,41 @@
 
         /* ── Content Calendar module ──────────────────────────────────────── */
         .cal-view { padding: 8px 16px 32px; }
-        .cal-toolbar { display: flex; align-items: center; gap: 16px; padding: 14px 16px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin: 8px 0 16px; }
+        .cal-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin: 8px 0 16px; flex-wrap: wrap; }
         .cal-toolbar-left, .cal-toolbar-mid, .cal-toolbar-right { display: flex; align-items: center; gap: 10px; }
-        .cal-toolbar-mid { flex: 1; justify-content: center; }
-        .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .cal-toolbar .wl-client-search { min-width: 240px; }
-        .cal-toolbar .wl-client-search-input { font-size: 0.82rem; font-weight: 700; padding: 9px 30px 9px 16px; border-radius: 99px; }
+        .cal-toolbar-left  { flex: 1 1 380px; min-width: 0; }
+        .cal-toolbar-mid   { flex: 0 0 auto; }
+        .cal-toolbar-right { flex: 0 0 auto; }
+        .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
+
+        /* Tabs (one per pinned client) */
+        .cal-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+        .cal-tab { position: relative; display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 14px; border-radius: 99px; border: 1px solid var(--border); background: var(--bg);
+            font-family: inherit; font-size: 0.8rem; font-weight: 700; color: var(--text-secondary); cursor: pointer;
+            white-space: nowrap; transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s; }
+        .cal-tab:hover { background: var(--white); color: var(--text-primary); border-color: #aaa; }
+        .cal-tab.active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); box-shadow: 0 2px 8px rgba(0,0,0,0.14); }
+        .cal-tab.active:hover { background: var(--text-primary); color: var(--white); }
+        .cal-tab-x { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
+            background: transparent; color: inherit; font-size: 0.85rem; line-height: 1; opacity: 0.45; transition: opacity 0.12s, background 0.12s; }
+        .cal-tab:hover .cal-tab-x { opacity: 1; }
+        .cal-tab-x:hover { background: rgba(0,0,0,0.15); }
+        .cal-tab.active .cal-tab-x:hover { background: rgba(255,255,255,0.25); }
+        .cal-tab-add-wrap { position: relative; display: inline-flex; }
+        .cal-tab-add { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 99px;
+            border: 1.5px dashed #c7c7c4; background: var(--white); color: var(--text-muted);
+            font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer;
+            transition: color 0.12s, border-color 0.12s, background 0.12s; }
+        .cal-tab-add:hover { color: var(--text-primary); border-color: var(--text-primary); border-style: solid; }
+        .cal-tab-add svg { display: inline-block; }
+        .cal-tab-search { position: absolute; top: calc(100% + 6px); left: 0; min-width: 260px; z-index: 80;
+            background: var(--white); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 8px; }
+        .cal-tab-search .wl-client-search { min-width: 0; width: 100%; }
+        .cal-tab-search .wl-client-search-input { width: 100%; font-size: 0.82rem; padding: 9px 14px; border-radius: 99px; }
+        .cal-tab-search .wl-client-search-results { position: static; box-shadow: none; padding: 4px 0 0; max-height: 320px; }
+
+        /* Pin row inside the search dropdown */
         .wl-client-search-result.is-pin-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding-right: 6px; }
         .wl-client-search-result.is-pin-row > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .wl-client-search-pin { background: transparent; border: 0; padding: 4px 6px; font-size: 0.9rem; line-height: 1; cursor: pointer; color: var(--text-muted); border-radius: 4px; }
@@ -1494,7 +1523,7 @@
 
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
-        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: flex-start; }
+        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: stretch; min-height: 460px; }
         .cal-card { flex: 0 0 260px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
@@ -1505,11 +1534,12 @@
         .cal-card.dragging { opacity: 0.45; }
         .cal-card[draggable="true"] .cal-card-thumb { cursor: grab; }
         .cal-card[draggable="true"]:active .cal-card-thumb { cursor: grabbing; }
-        .cal-card-thumb { width: 100%; height: 140px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+        .cal-card-thumb { width: 100%; height: 140px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; }
         .cal-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
-        .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; }
-        .cal-card.is-blank .cal-card-thumb-fallback { font-size: 2.4rem; font-weight: 200; color: #c7c7c4; }
-        .cal-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+        .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; display: inline-flex; align-items: center; justify-content: center; }
+        .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
+        .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
+        .cal-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
         .cal-card-body input, .cal-card-body textarea, .cal-card-body select {
             font-family: inherit; color: var(--text-primary); background: transparent; border: 1px solid transparent; border-radius: 6px;
             padding: 5px 7px; outline: none; transition: border-color 0.12s, background 0.12s; width: 100%; box-sizing: border-box;
@@ -1519,13 +1549,14 @@
         .cal-card-body textarea { resize: vertical; line-height: 1.4; }
         .cal-fld-name { font-size: 0.92rem; font-weight: 700; }
         .cal-fld-row2 { display: flex; gap: 6px; }
-        .cal-fld-row2 .cal-fld-date { flex: 1.1; font-size: 0.72rem; }
+        .cal-fld-row2 .cal-fld-date-wrap { flex: 1.2; }
         .cal-fld-row2 .cal-fld-status { flex: 1; font-size: 0.7rem; font-weight: 700; cursor: pointer; }
         .cal-fld-url { font-size: 0.72rem; color: var(--text-secondary); }
+        .cal-fld-thumb { font-size: 0.72rem; color: var(--text-secondary); }
         .cal-fld-cap { font-size: 0.74rem; min-height: 56px; }
         .cal-fld-cta { font-size: 0.72rem; font-style: italic; color: var(--text-muted); }
         .cal-fld-tweaks { font-size: 0.72rem; min-height: 38px; color: var(--dn); }
-        .cal-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; min-height: 18px; }
+        .cal-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; min-height: 18px; margin-top: auto; }
         .cal-card-saving { font-size: 0.66rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-card-saving.is-saved { color: #166534; }
         .cal-card-saving.is-error { color: var(--dn); }
@@ -1533,11 +1564,25 @@
         .cal-card:hover .cal-card-del { opacity: 1; }
         .cal-card-del:hover { background: var(--dn-bg); color: var(--dn); }
 
-        /* Plus tile to add a blank */
-        .cal-card-add { flex: 0 0 56px; align-self: stretch; min-height: 320px; display: flex; align-items: center; justify-content: center;
-            background: rgba(255,255,255,0.4); border: 1.5px dashed #d4d4d2; border-radius: 14px;
-            font-size: 1.8rem; font-weight: 200; color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; }
-        .cal-card-add:hover { background: var(--white); color: var(--text-primary); border-color: #888; }
+        /* Date field — native input under a custom label overlay */
+        .cal-fld-date-wrap { position: relative; display: flex; align-items: stretch; }
+        .cal-fld-date-input { font-size: 0.72rem; cursor: pointer; color: transparent !important; }
+        .cal-fld-date-input::-webkit-datetime-edit { color: transparent; }
+        .cal-fld-date-input::-webkit-datetime-edit-fields-wrapper { color: transparent; }
+        .cal-fld-date-input::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+        .cal-fld-date-display { position: absolute; top: 0; left: 0; right: 22px; bottom: 0;
+            display: flex; align-items: center; padding: 0 8px; font-size: 0.74rem; font-weight: 600;
+            color: var(--text-primary); pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cal-fld-date-display.is-empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
+
+        /* Plus tile to add a blank — same size as a card */
+        .cal-card-add { flex: 0 0 260px; align-self: stretch; min-height: 460px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            background: rgba(255,255,255,0.45); border: 1.5px dashed #c7c7c4; border-radius: 14px;
+            color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; padding: 0; }
+        .cal-card-add:hover { background: var(--white); color: var(--text-primary); border-color: var(--text-primary); border-style: solid; }
+        .cal-card-add-plus { font-size: 3rem; font-weight: 200; line-height: 1; }
+        .cal-card-add-label { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.04em; }
 
         .cal-org-empty { padding: 40px 16px; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
 
@@ -1726,12 +1771,16 @@
 <script>
     // ── Confirmation modal ───────────────────────────────────────────────
     let _confirmCb = null;
-    function showConfirm(title, msg, onYes) {
+    function showConfirm(title, msg, onYes, yesLabel) {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMsg').textContent = msg;
         document.getElementById('confirmOverlay').classList.add('active');
+        const yesBtn = document.getElementById('confirmYes');
+        yesBtn.textContent = yesLabel || 'Confirm';
+        const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
+        if (cancelBtn) cancelBtn.style.display = '';
         _confirmCb = onYes;
-        document.getElementById('confirmYes').onclick = () => { const cb = _confirmCb; dismissConfirm(); if (cb) cb(); };
+        yesBtn.onclick = () => { const cb = _confirmCb; dismissConfirm(); if (cb) cb(); };
     }
     function dismissConfirm() {
         document.getElementById('confirmOverlay').classList.remove('active');
@@ -2999,7 +3048,7 @@
                 <div class="brief-tab-header-right">
                     ${dateSelector}
                     <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate keywords brief?','This will replace the current content.',()=>openMRKeywordPanel('${enc}'))" title="Regenerate keywords brief">
+                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate keywords brief?','This will replace the current content.',()=>openMRKeywordPanel('${enc}'),'Regenerate')" title="Regenerate keywords brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>`}
                 </div>
@@ -3157,7 +3206,7 @@
                 <div class="brief-tab-header-right">
                     ${dateSelector}
                     <button class="brief-info-btn" onclick="this.closest('.brief-wrap').toggleAttribute('data-show-info')" title="Brief info"><span>i</span></button>
-                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>openCompAccountPanel('${enc}'))" title="Regenerate brief">
+                    ${_isClientLink?'':`<button class="brief-regen-btn" onclick="showConfirm('Regenerate competitor brief?','This will replace the current content.',()=>openCompAccountPanel('${enc}'),'Regenerate')" title="Regenerate brief">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M13.5 8A5.5 5.5 0 1 1 8 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10 1l3 2.5L10 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>`}
                 </div>
@@ -7285,8 +7334,11 @@
         const i = pins.indexOf(name);
         if (i >= 0) pins.splice(i, 1); else pins.unshift(name);
         _calSavePins(pins);
+        _calRenderTabs();
         const input = document.getElementById('calClientSearchInput');
-        _calRenderClientSearchResults(input ? input.value.trim() : '');
+        if (input && document.getElementById('calTabSearchPanel') && !document.getElementById('calTabSearchPanel').hidden) {
+            _calRenderClientSearchResults(input.value.trim());
+        }
     }
 
     function renderCalendarView() {
@@ -7336,19 +7388,10 @@
     function _calRenderShell() {
         const view = document.getElementById('calView');
         if (!view) return;
-        const currentVal = calState.client || '';
         view.innerHTML = `
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">
-                    <span class="cal-tool-label">Client</span>
-                    <div class="wl-client-search" id="calClientSearchWrap">
-                        <input type="text" class="wl-client-search-input" id="calClientSearchInput"
-                            placeholder="Pick a client…"
-                            value="${_calEscAttr(currentVal)}"
-                            autocomplete="off">
-                        <button type="button" class="wl-client-search-clear" id="calClientSearchClear" ${currentVal ? '' : 'hidden'} aria-label="Clear">×</button>
-                        <div class="wl-client-search-results" id="calClientSearchResults" hidden role="listbox"></div>
-                    </div>
+                    <div class="cal-tabs" id="calTabs"></div>
                 </div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">
@@ -7367,53 +7410,113 @@
                 <div class="cal-preview" id="calPreview"></div>
             </div>
         `;
-        wireCalClientSearch();
+        _calRenderTabs();
+        _calWireOutsideTabSearchClose();
     }
 
-    function wireCalClientSearch() {
+    function _calRenderTabs() {
+        const tabs = document.getElementById('calTabs');
+        if (!tabs) return;
+        const pins = _calGetPins();
+        const active = calState.client;
+        const tabHtml = pins.map(name => {
+            const isActive = name === active;
+            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick('${_calEscAttr(name)}')">
+                <span class="cal-tab-name">${_calEsc(name)}</span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove('${_calEscAttr(name)}')" title="Remove tab">×</span>
+            </button>`;
+        }).join('');
+        const addBtnLabel = pins.length ? '+' : `<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><line x1="8" y1="2" x2="8" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> <span>Add client</span>`;
+        tabs.innerHTML = `${tabHtml}
+            <div class="cal-tab-add-wrap" id="calTabAddWrap">
+                <button type="button" class="cal-tab-add" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
+                <div class="cal-tab-search" id="calTabSearchPanel" hidden>
+                    <div class="wl-client-search">
+                        <input type="text" class="wl-client-search-input" id="calClientSearchInput" placeholder="Search clients…" autocomplete="off">
+                        <div class="wl-client-search-results" id="calClientSearchResults" hidden role="listbox"></div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    function onCalTabClick(name) {
+        if (!name || name === calState.client) return;
+        onCalClientChange(name);
+        _calRenderTabs();
+    }
+    function onCalTabRemove(name) {
+        const pins = _calGetPins().filter(n => n !== name);
+        _calSavePins(pins);
+        if (calState.client === name) {
+            const next = pins[0] || null;
+            calState.client = next;
+            calState.posts = [];
+            _calSavePrefs();
+            _calRenderTabs();
+            if (next) loadCalendarPosts();
+            else _calRenderBody();
+        } else {
+            _calRenderTabs();
+        }
+    }
+    function onCalTabAddClick(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('calTabSearchPanel');
+        if (!panel) return;
+        const opening = panel.hidden;
+        panel.hidden = !opening;
+        if (opening) {
+            _calRenderClientSearchResults('');
+            const input = document.getElementById('calClientSearchInput');
+            if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
+            _calWireSearchInput();
+        }
+    }
+    function _calCloseTabSearch() {
+        const panel = document.getElementById('calTabSearchPanel');
+        if (panel) panel.hidden = true;
+    }
+    function _calWireOutsideTabSearchClose() {
+        if (document._calOutsideWired) return;
+        document._calOutsideWired = true;
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#calTabAddWrap')) _calCloseTabSearch();
+        });
+    }
+    function _calWireSearchInput() {
         const input    = document.getElementById('calClientSearchInput');
         const results  = document.getElementById('calClientSearchResults');
-        const clearBtn = document.getElementById('calClientSearchClear');
-        if (!input || !results) return;
-        const close = () => { results.hidden = true; };
-        const pick = (name) => {
-            input.value = name;
-            if (clearBtn) clearBtn.hidden = !name;
-            close();
-            onCalClientChange(name);
+        if (!input || !results || input.dataset.wired === '1') return;
+        input.dataset.wired = '1';
+        const pickAndPin = (name) => {
+            const pins = _calGetPins();
+            if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
+            _calCloseTabSearch();
+            calState.client = name;
+            calState.posts = [];
+            _calSavePrefs();
+            _calRenderTabs();
+            loadCalendarPosts();
         };
-        input.addEventListener('focus', () => _calRenderClientSearchResults(input.value.trim()));
-        input.addEventListener('input', () => {
-            const q = input.value.trim();
-            if (clearBtn) clearBtn.hidden = !q;
-            _calRenderClientSearchResults(q);
-        });
+        input.addEventListener('input', () => _calRenderClientSearchResults(input.value.trim()));
         input.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') { e.preventDefault(); input.value = calState.client || ''; close(); input.blur(); }
+            if (e.key === 'Escape') { e.preventDefault(); _calCloseTabSearch(); }
             else if (e.key === 'Enter') {
                 e.preventDefault();
                 const q = input.value.trim();
                 const list = _calMatchClients(q);
                 const exact = list.find(c => c.toLowerCase() === q.toLowerCase());
-                if (exact) pick(exact);
-                else if (list.length === 1) pick(list[0]);
+                if (exact) pickAndPin(exact);
+                else if (list.length === 1) pickAndPin(list[0]);
             }
         });
         results.addEventListener('mousedown', (e) => {
             const pinBtn = e.target.closest('[data-cal-pin]');
-            if (pinBtn) {
-                e.preventDefault();
-                calToggleClientPin(pinBtn.getAttribute('data-cal-pin'));
-                return;
-            }
+            if (pinBtn) { e.preventDefault(); calToggleClientPin(pinBtn.getAttribute('data-cal-pin')); return; }
             const btn = e.target.closest('[data-cal-pick]');
             if (!btn) return;
             e.preventDefault();
-            pick(btn.getAttribute('data-cal-pick'));
-        });
-        clearBtn?.addEventListener('click', () => { input.value = ''; clearBtn.hidden = true; input.focus(); _calRenderClientSearchResults(''); });
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#calClientSearchWrap')) close();
+            pickAndPin(btn.getAttribute('data-cal-pick'));
         });
     }
 
@@ -7443,12 +7546,12 @@
             html = '<div class="wl-client-search-result is-empty-prompt">No clients match</div>';
         } else {
             if (pinned.length) {
-                html += '<div class="wl-client-search-section">Pinned</div>';
+                html += '<div class="wl-client-search-section">Already added</div>';
                 html += pinned.map(row).join('');
                 if (others.length) html += '<div class="wl-client-search-divider"></div>';
             }
             if (others.length) {
-                if (pinned.length) html += '<div class="wl-client-search-section">All clients</div>';
+                if (pinned.length) html += '<div class="wl-client-search-section">Add a client</div>';
                 html += others.map(row).join('');
             }
         }
@@ -7460,7 +7563,7 @@
         const body = document.getElementById('calBody');
         if (!body) return;
         if (!calState.client) {
-            body.innerHTML = `<div class="cal-empty">Pick a client above to start. Tip: click ☆ on any client in the dropdown to pin it — pinned clients open by default.</div>`;
+            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
         if (calState.loading) { body.innerHTML = `<div class="cal-empty">Loading…</div>`; return; }
@@ -7516,38 +7619,72 @@
     }
 
     /* ── Organizer view (inline-editable, Sheets-like) ──────────────── */
+    let _calBlankSeq = 0;
+    function _calNextBlankId() { _calBlankSeq++; return '__blank__' + _calBlankSeq; }
+    function _calIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__blank__'); }
+
+    function _calThumbIconHtml() {
+        return `<div class="cal-card-thumb-fallback"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></div>`;
+    }
+    function _calOnThumbImgError(img) {
+        const parent = img.parentElement;
+        if (parent) parent.innerHTML = _calThumbIconHtml();
+    }
+    function _calThumbContent(p) {
+        const url = _calDeriveThumb(p);
+        if (url) return `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+        return _calThumbIconHtml();
+    }
+    function _calFmtDateShort(iso) {
+        if (!iso) return '';
+        const s = String(iso).slice(0,10);
+        const d = new Date(s + 'T00:00:00');
+        if (isNaN(d)) return s;
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'long' });
+        const day = String(d.getDate()).padStart(2, '0');
+        const mon = String(d.getMonth() + 1).padStart(2, '0');
+        return `${dayName} ${day}/${mon}`;
+    }
+
     function renderCalOrganizer() {
         const posts = calState.posts.slice().sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         return `<div class="cal-organizer-wrap">
             <div class="cal-organizer-strip" id="calStrip">
-                ${_calRenderInlineCard(_calBlankPost(), true)}
                 ${posts.map(p => _calRenderInlineCard(p, false)).join('')}
-                <button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a blank card">+</button>
+                ${_calRenderInlineCard(_calBlankPost(), true)}
+                <button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a blank card">
+                    <span class="cal-card-add-plus">+</span>
+                    <span class="cal-card-add-label">Add card</span>
+                </button>
             </div>
         </div>`;
     }
 
     function _calBlankPost() {
         const maxOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        return { id: '__blank__', order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
     }
 
     function _calRenderInlineCard(p, isBlank) {
-        const thumb = _calDeriveThumb(p);
         const pid = _calEscAttr(p.id);
         const draggable = isBlank ? 'false' : 'true';
-        const initials = isBlank ? '+' : _calEsc((p.name || '?').slice(0,2).toUpperCase());
+        const dateIso = String(p.scheduled_date || '').slice(0,10);
+        const dateFmt = _calFmtDateShort(dateIso);
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}" data-pid="${pid}" draggable="${draggable}">
-            <div class="cal-card-thumb">${thumb ? `<img loading="lazy" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : `<div class="cal-card-thumb-fallback">${initials}</div>`}</div>
+            <div class="cal-card-thumb">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Post name" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
                 <div class="cal-fld-row2">
-                    <input class="cal-fld-date" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEsc(String(p.scheduled_date || '').slice(0,10))}" onchange="_calOnFieldBlur(this)" onblur="_calOnFieldBlur(this)">
+                    <div class="cal-fld-date-wrap">
+                        <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
+                        <div class="cal-fld-date-display${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">${dateFmt ? _calEsc(dateFmt) : 'Pick a date'}</div>
+                    </div>
                     <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnFieldBlur(this)">
                         ${CAL_STATUSES.map(s => `<option value="${s}"${s === (p.status || 'Draft') ? ' selected' : ''}>${s}</option>`).join('')}
                     </select>
                 </div>
-                <input class="cal-fld-url" type="url" data-pid="${pid}" data-fld="asset_url" value="${_calEsc(p.asset_url)}" placeholder="Asset URL (Frame.io / Drive / direct)" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
+                <input class="cal-fld-thumb" type="url" data-pid="${pid}" data-fld="thumbnail_url" value="${_calEsc(p.thumbnail_url)}" placeholder="Thumbnail URL (Google Drive image)" oninput="_calOnUrlInput(this)" onblur="_calOnFieldBlur(this)">
+                <input class="cal-fld-url" type="url" data-pid="${pid}" data-fld="asset_url" value="${_calEsc(p.asset_url)}" placeholder="Post URL (Frame.io / Drive / video)" oninput="_calOnUrlInput(this)" onblur="_calOnFieldBlur(this)">
                 <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.caption)}</textarea>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="CTA" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
                 <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="Client tweaks" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
@@ -7557,6 +7694,40 @@
                 </div>
             </div>
         </div>`;
+    }
+
+    function _calOnDateChange(el) {
+        const pid = el.dataset.pid;
+        const card = el.closest('.cal-card');
+        const display = card ? card.querySelector(`[data-date-display="${pid}"]`) : null;
+        const fmt = _calFmtDateShort(el.value);
+        if (display) {
+            display.textContent = fmt || 'Pick a date';
+            display.classList.toggle('is-empty', !fmt);
+        }
+        _calOnFieldBlur(el);
+    }
+    function _calOnUrlInput(el) {
+        _calOnFieldInput(el);
+        _calLivePreviewThumb(el.dataset.pid);
+    }
+    function _calLivePreviewThumb(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        const preview = { thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '' };
+        const url = _calDeriveThumb(preview);
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        if (url) {
+            const existing = thumbDiv.querySelector('img');
+            if (existing) { if (existing.src !== url) existing.src = url; }
+            else thumbDiv.innerHTML = `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+        } else {
+            const existing = thumbDiv.querySelector('img');
+            if (existing) thumbDiv.innerHTML = _calThumbIconHtml();
+        }
     }
 
     function _calOnFieldInput(el) {
@@ -7578,19 +7749,20 @@
         const edits = _calPendingEdits[pid];
         if (!edits) return;
         delete _calPendingEdits[pid];
-        const isBlank = pid === '__blank__';
+        const isBlank = _calIsBlankId(pid);
         const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
         if (isBlank && !hasContent) return;
 
         let realId = pid;
         if (isBlank) {
             realId = _calMintId();
-            _calPromoteBlankCard(realId);
+            _calPromoteBlankCard(pid, realId);
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
         if (idx < 0) {
-            post = Object.assign({}, _calBlankPost(), edits, { id: realId });
+            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+            post = Object.assign({}, blank, edits);
             calState.posts.push(post);
         } else {
             post = Object.assign({}, calState.posts[idx], edits);
@@ -7634,17 +7806,19 @@
         if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
     }
 
-    function _calPromoteBlankCard(newId) {
+    function _calPromoteBlankCard(oldPid, newId) {
         const strip = document.getElementById('calStrip');
         if (!strip) return;
-        const blank = strip.querySelector('.cal-card[data-pid="__blank__"]');
+        const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
         if (!blank) return;
         blank.classList.remove('is-blank');
         blank.setAttribute('data-pid', newId);
         blank.setAttribute('draggable', 'true');
-        blank.querySelectorAll('[data-pid="__blank__"]').forEach(el => el.setAttribute('data-pid', newId));
+        blank.querySelectorAll(`[data-pid="${oldPid}"]`).forEach(el => el.setAttribute('data-pid', newId));
         const saveTag = blank.querySelector('.cal-card-saving');
         if (saveTag) saveTag.setAttribute('data-saving', newId);
+        const dateDisplay = blank.querySelector(`[data-date-display="${oldPid}"]`);
+        if (dateDisplay) dateDisplay.setAttribute('data-date-display', newId);
         const foot = blank.querySelector('.cal-card-foot');
         if (foot && !foot.querySelector('.cal-card-del')) {
             const del = document.createElement('button');
@@ -7653,14 +7827,11 @@
             del.textContent = '×';
             foot.appendChild(del);
         }
-        if (_calPendingEdits['__blank__']) {
-            _calPendingEdits[newId] = Object.assign(_calPendingEdits[newId] || {}, _calPendingEdits['__blank__']);
-            delete _calPendingEdits['__blank__'];
+        if (_calPendingEdits[oldPid]) {
+            _calPendingEdits[newId] = Object.assign(_calPendingEdits[newId] || {}, _calPendingEdits[oldPid]);
+            delete _calPendingEdits[oldPid];
         }
-        const fresh = document.createElement('div');
-        fresh.innerHTML = _calRenderInlineCard(_calBlankPost(), true).trim();
-        strip.insertBefore(fresh.firstChild, strip.firstChild);
-        _calWireDragOnCard(strip.querySelector(`.cal-card[data-pid="${newId}"]`));
+        _calWireDragOnCard(blank);
     }
 
     function _calRefreshCardThumb(pid) {
@@ -7674,51 +7845,46 @@
         const existing = thumbDiv.querySelector('img');
         if (url) {
             if (existing) { if (existing.src !== url) existing.src = url; }
-            else thumbDiv.innerHTML = `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="this.style.display='none'">`;
-        } else {
-            const initials = (post.name || '?').slice(0,2).toUpperCase();
-            if (existing) thumbDiv.innerHTML = `<div class="cal-card-thumb-fallback">${_calEsc(initials)}</div>`;
-            else {
-                const fb = thumbDiv.querySelector('.cal-card-thumb-fallback');
-                if (fb) fb.textContent = initials;
-            }
+            else thumbDiv.innerHTML = `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+        } else if (existing) {
+            thumbDiv.innerHTML = _calThumbIconHtml();
         }
     }
 
     function addCalBlankCard() {
         const strip = document.getElementById('calStrip');
         if (!strip) return;
-        const existing = strip.querySelector('.cal-card[data-pid="__blank__"]');
-        if (existing) {
-            const first = existing.querySelector('.cal-fld-name');
-            if (first) first.focus();
-            return;
-        }
         const wrap = document.createElement('div');
         wrap.innerHTML = _calRenderInlineCard(_calBlankPost(), true).trim();
-        strip.insertBefore(wrap.firstChild, strip.firstChild);
-        const first = strip.firstChild.querySelector('.cal-fld-name');
-        if (first) first.focus();
+        const newCard = wrap.firstChild;
+        const addBtn = strip.querySelector('.cal-card-add');
+        strip.insertBefore(newCard, addBtn);
+        const nameInput = newCard.querySelector('.cal-fld-name');
+        if (nameInput) {
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+            setTimeout(() => nameInput.focus(), 80);
+        }
     }
 
-    async function archiveCalPost(id) {
-        if (!id || id === '__blank__') return;
-        if (!confirm('Archive this post? It stays in the sheet but is hidden from the calendar.')) return;
-        _calSetCardStatus(id, 'saving');
-        try {
-            const resp = await fetch(CALENDAR_DELETE_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), id })
-            });
-            const json = await resp.json();
-            if (!json.ok) throw new Error(json.error || 'archive failed');
-            calState.posts = calState.posts.filter(p => p.id !== id);
-            const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
-            if (card) card.remove();
-        } catch (e) {
-            console.warn('[Calendar] archive failed', e);
-            _calSetCardStatus(id, 'error', e.message || 'archive failed');
-        }
+    function archiveCalPost(id) {
+        if (!id || _calIsBlankId(id)) return;
+        showConfirm('Archive this post?', 'It stays in the sheet but is hidden from the calendar. You can recover it by editing the row directly.', async () => {
+            _calSetCardStatus(id, 'saving');
+            try {
+                const resp = await fetch(CALENDAR_DELETE_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: calClientSlug(calState.client), id })
+                });
+                const json = await resp.json();
+                if (!json.ok) throw new Error(json.error || 'archive failed');
+                calState.posts = calState.posts.filter(p => p.id !== id);
+                const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
+                if (card) card.remove();
+            } catch (e) {
+                console.warn('[Calendar] archive failed', e);
+                _calSetCardStatus(id, 'error', e.message || 'archive failed');
+            }
+        }, 'Archive');
     }
 
     function wireCalOrganizerDrag() {

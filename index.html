@@ -7910,9 +7910,28 @@
             wireCalOrganizerDrag();
         } else if (calState.view === 'month') {
             body.innerHTML = renderCalMonth();
+            _calWireWheelNav(body.querySelector('.cal-month-wrap'), calMonthShift);
         } else if (calState.view === 'week') {
             body.innerHTML = renderCalWeek();
+            _calWireWheelNav(body.querySelector('.cal-week-wrap'), calWeekShift);
         }
+    }
+
+    // Shift-scroll over the Month/Week grid steps the period one at a time,
+    // so there's no need to reach for the next/prev arrows.
+    let _calWheelNavLast = 0;
+    function _calWireWheelNav(el, shiftFn) {
+        if (!el) return;
+        el.addEventListener('wheel', (e) => {
+            if (!e.shiftKey) return;
+            const raw = e.deltaY || e.deltaX;
+            if (!raw) return;
+            e.preventDefault();
+            const now = Date.now();
+            if (now - _calWheelNavLast < 350) return;
+            _calWheelNavLast = now;
+            shiftFn(raw > 0 ? 1 : -1);
+        }, { passive: false });
     }
 
     function onCalClientChange(name) {

@@ -1516,6 +1516,12 @@
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
         .cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
         .cal-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
+        .cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
+        .cal-embed-title strong { font-size: 0.98rem; font-weight: 800; color: var(--text-primary); }
+        .cal-embed-title span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .cal-share-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+        .cal-share-btn:hover { border-color: #aaa; color: var(--text-primary); }
+        .cal-share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
 
         .cal-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.92rem; line-height: 1.65; }
         .cal-empty.cal-error { color: var(--dn); background: var(--dn-bg); border-radius: 12px; }
@@ -1525,7 +1531,7 @@
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
         .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: stretch; min-height: 460px; }
-        .cal-card { flex: 0 0 260px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
+        .cal-card { position: relative; flex: 0 0 260px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
         .cal-card.is-blank .cal-card-thumb { background: #f4f4f2; }
@@ -1566,13 +1572,16 @@
         .cal-fld-cap { font-size: 0.74rem; min-height: 56px; resize: none; overflow: hidden; }
         .cal-fld-cta { font-size: 0.72rem; font-style: italic; color: var(--text-muted); }
         .cal-fld-tweaks { font-size: 0.72rem; min-height: 38px; color: var(--dn); resize: none; overflow: hidden; }
-        .cal-card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; min-height: 18px; margin-top: auto; }
+        .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; padding-top: 4px; min-height: 18px; margin-top: auto; }
         .cal-card-saving { font-size: 0.66rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-card-saving.is-saved { color: #166534; }
         .cal-card-saving.is-error { color: var(--dn); }
-        .cal-card-del { width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 1rem; line-height: 1; opacity: 0; transition: opacity 0.15s; margin-left: auto; }
+        .cal-card-del { position: absolute; top: 7px; right: 7px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; border: 0;
+            background: rgba(255,255,255,0.92); box-shadow: 0 1px 5px rgba(0,0,0,0.22); color: var(--text-secondary); cursor: pointer;
+            font-size: 1.1rem; line-height: 1; opacity: 0; transition: opacity 0.15s, background 0.12s, color 0.12s;
+            display: inline-flex; align-items: center; justify-content: center; }
         .cal-card:hover .cal-card-del { opacity: 1; }
-        .cal-card-del:hover { background: var(--dn-bg); color: var(--dn); }
+        .cal-card-del:hover { background: var(--dn); color: #fff; }
 
         /* Date field — native input under a custom label overlay */
         .cal-fld-date-wrap { position: relative; display: flex; align-items: stretch; }
@@ -1636,12 +1645,12 @@
         .cal-month-cell.out .cal-month-num { color: #c5c5c2; }
         .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
         .cal-month-num { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-month-pill { display: flex; align-items: center; gap: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px 3px 3px; font-family: inherit; font-size: 0.7rem; font-weight: 600; color: var(--text-primary); cursor: pointer; text-align: left; max-width: 100%; overflow: hidden; }
-        .cal-month-pill:hover { background: var(--white); border-color: #aaa; }
-        .cal-month-pill > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
-        .cal-month-pill-thumb { width: 28px; height: 28px; flex-shrink: 0; border-radius: 4px; overflow: hidden; background: var(--white); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
-        .cal-month-pill-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-        .cal-month-pill-thumb svg { width: 16px; height: 16px; }
+        .cal-month-pill { display: flex; flex-direction: column; align-items: stretch; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 0; font-family: inherit; cursor: pointer; text-align: left; width: 100%; overflow: hidden; }
+        .cal-month-pill:hover { border-color: #888; }
+        .cal-month-pill-thumb { width: 100%; height: 78px; flex-shrink: 0; background: var(--white); display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
+        .cal-month-pill-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .cal-month-pill-thumb svg { width: 24px; height: 24px; }
+        .cal-month-pill-name { padding: 4px 7px 5px; font-size: 0.68rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1654,9 +1663,13 @@
         .cal-week-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
         .cal-week-day { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
         .cal-week-num { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
-        .cal-week-stack { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
-        .cal-week-card { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; text-align: left; font-family: inherit; }
-        .cal-week-card:hover { background: var(--white); border-color: #aaa; }
+        .cal-week-stack { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+        .cal-week-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; }
+        .cal-week-card:hover { border-color: #888; }
+        .cal-week-card-thumb { width: 100%; height: 116px; flex-shrink: 0; background: var(--white); display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
+        .cal-week-card-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .cal-week-card-thumb svg { width: 30px; height: 30px; }
+        .cal-week-card-body { padding: 7px 9px 9px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
         .cal-week-card-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 
         /* Preview popover (Month/Week → read-only post details) */
@@ -2871,6 +2884,7 @@
         const hist=clientHistory(name);
         document.getElementById('content').innerHTML=renderClient(name,hist,_isClientLink);
         if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
+        else if(tab==='calendar')setTimeout(()=>mountCalendarEmbedded(name),0);
         window.scrollTo({top:0,behavior:'instant'});
     }
 
@@ -4036,18 +4050,22 @@
         const hasBrief=getClientBriefs(name).length>0||getClientMRBriefs(name).length>0;
         const isPolling=briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
 
-        let toggleHtml='';
         const hasBriefData=getClientBriefs(name).length>0||getClientMRBriefs(name).length>0||briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
-        if(!clientOnly||(clientOnly&&hasBriefData)){
-            toggleHtml=`<div class="view-tab-toggle">
+        const showBriefTab=!clientOnly||hasBriefData;
+        const toggleHtml=`<div class="view-tab-toggle">
                 <button class="view-tab-btn ${tab==='analytics'?'active':''}" onclick="setClientViewTab('${enc}','analytics')">Analytics</button>
-                <button class="view-tab-btn ${tab==='brief'?'active':''}" onclick="setClientViewTab('${enc}','brief')">
-                    Brief
-                </button>
+                <button class="view-tab-btn ${tab==='calendar'?'active':''}" onclick="setClientViewTab('${enc}','calendar')">Content Calendar</button>
+                ${showBriefTab?`<button class="view-tab-btn ${tab==='brief'?'active':''}" onclick="setClientViewTab('${enc}','brief')">Brief</button>`:''}
+            </div>`;
+
+        if(tab==='calendar'){
+            return`<div class="client-view">
+                ${toggleHtml}
+                <div class="cal-view cal-embedded" id="calView"><div class="cal-empty">Loading…</div></div>
             </div>`;
         }
 
-        if(tab==='brief'&&(!clientOnly||(clientOnly&&hasBriefData))){
+        if(tab==='brief'&&showBriefTab){
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
@@ -4213,6 +4231,7 @@
         content.innerHTML=renderClient(sel,hist,clientOnly);
         const tab=clientViewTab[sel]||'analytics';
         if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
+        else if(tab==='calendar')setTimeout(()=>mountCalendarEmbedded(sel),0);
     }
 
     function selectClient(name){
@@ -4242,8 +4261,9 @@
             if(state.mrBriefTab)activeMRBriefTab[state.client]=state.mrBriefTab;
             document.getElementById('pageTop').style.display='';
             const hist=clientHistory(state.client);
-            document.getElementById('content').innerHTML=renderClient(state.client,hist,false);
+            document.getElementById('content').innerHTML=renderClient(state.client,hist,_isClientLink);
             if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
+            else if(tab==='calendar')setTimeout(()=>mountCalendarEmbedded(state.client),0);
             window.scrollTo({top:0,behavior:'instant'});
         } else if(state&&state.nav==='templates'){
             _templatesSelected = state.templatesClient || null;
@@ -7334,6 +7354,7 @@
         monthCursor: null,
         weekCursor: null,
         previewId: null,
+        embedded: false,
     };
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
@@ -7352,7 +7373,13 @@
     function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
 
     function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
-    function _calSavePrefs() { try { localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client: calState.client })); } catch {} }
+    function _calSavePrefs() {
+        try {
+            const prev = _calLoadPrefs();
+            const client = calState.embedded ? prev.client : calState.client;
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client }));
+        } catch {}
+    }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
     function calToggleClientPin(name) {
@@ -7378,6 +7405,7 @@
         if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         calState.client = initial;
+        calState.embedded = false;
         calState.view = (['organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer';
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
@@ -7388,6 +7416,37 @@
         _calRenderShell();
         if (calState.client) loadCalendarPosts();
         else _calRenderBody();
+    }
+
+    /* Embedded calendar — rendered inside a client profile's "Content Calendar"
+       tab. Locked to one client (no client-tab picker). */
+    function mountCalendarEmbedded(name) {
+        const prefs = _calLoadPrefs();
+        calState.client = name;
+        calState.embedded = true;
+        calState.view = (['organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer';
+        const today = new Date();
+        calState.monthCursor = _calIsoFirstOfMonth(today);
+        calState.weekCursor  = _calIsoMondayOf(today);
+        calState.posts = [];
+        calState.error = null;
+        calState.previewId = null;
+        _calRenderShell();
+        loadCalendarPosts();
+    }
+
+    function calCopyShareLink() {
+        if (!calState.client) return;
+        const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(calState.client)}&v=calendar`;
+        navigator.clipboard.writeText(url).then(() => {
+            const btn = document.getElementById('calShareBtn');
+            if (!btn) return;
+            const orig = btn.dataset.orig || btn.innerHTML;
+            btn.dataset.orig = orig;
+            btn.classList.add('copied');
+            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied`;
+            setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 2200);
+        });
     }
 
     async function loadCalendarPosts() {
@@ -7414,17 +7473,23 @@
     function _calRenderShell() {
         const view = document.getElementById('calView');
         if (!view) return;
+        const embedded = !!calState.embedded;
+        const leftHtml = embedded
+            ? `<div class="cal-embed-title"><strong>${_calEsc(calState.client || '')}</strong><span>Content calendar</span></div>`
+            : `<div class="cal-tabs" id="calTabs"></div>`;
+        const shareBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-share-btn" id="calShareBtn" type="button" onclick="calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`
+            : '';
         view.innerHTML = `
             <div class="cal-toolbar">
-                <div class="cal-toolbar-left">
-                    <div class="cal-tabs" id="calTabs"></div>
-                </div>
+                <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">
                         ${['organizer','month','week'].map(v => `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${v.charAt(0).toUpperCase() + v.slice(1)}</button>`).join('')}
                     </div>
                 </div>
                 <div class="cal-toolbar-right">
+                    ${shareBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
                     <button class="cal-refresh-btn" type="button" onclick="loadCalendarPosts()" title="Reload">
                         <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M14 8a6 6 0 1 1-1.76-4.24" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 2v4h-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -7436,8 +7501,10 @@
                 <div class="cal-preview" id="calPreview"></div>
             </div>
         `;
-        _calRenderTabs();
-        _calWireOutsideTabSearchClose();
+        if (!embedded) {
+            _calRenderTabs();
+            _calWireOutsideTabSearchClose();
+        }
     }
 
     function _calRenderTabs() {
@@ -7654,6 +7721,13 @@
     function _calThumbIconHtml() {
         return `<div class="cal-card-thumb-fallback"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></div>`;
     }
+    function _calThumbIconSvg() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
+    }
+    function _calOnMiniThumbError(img) {
+        const parent = img.parentElement;
+        if (parent) parent.innerHTML = _calThumbIconSvg();
+    }
     function _calOnThumbImgError(img) {
         const parent = img.parentElement;
         if (parent) parent.innerHTML = _calThumbIconHtml();
@@ -7707,6 +7781,7 @@
             </div>`;
         };
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}" data-pid="${pid}" draggable="${draggable}">
+            ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Post name" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
@@ -7726,7 +7801,6 @@
                 </div>
                 <div class="cal-card-foot">
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
-                    ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
                 </div>
             </div>
         </div>`;
@@ -7886,13 +7960,12 @@
         if (saveTag) saveTag.setAttribute('data-saving', newId);
         const dateDisplay = blank.querySelector(`[data-date-display="${oldPid}"]`);
         if (dateDisplay) dateDisplay.setAttribute('data-date-display', newId);
-        const foot = blank.querySelector('.cal-card-foot');
-        if (foot && !foot.querySelector('.cal-card-del')) {
+        if (!blank.querySelector('.cal-card-del')) {
             const del = document.createElement('button');
             del.className = 'cal-card-del'; del.type = 'button'; del.title = 'Archive';
             del.addEventListener('click', () => archiveCalPost(newId));
             del.textContent = '×';
-            foot.appendChild(del);
+            blank.insertBefore(del, blank.firstChild);
         }
         if (_calPendingEdits[oldPid]) {
             _calPendingEdits[newId] = Object.assign(_calPendingEdits[newId] || {}, _calPendingEdits[oldPid]);
@@ -7974,10 +8047,17 @@
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
         el.addEventListener('wheel', (e) => {
-            if (e.shiftKey && e.deltaY !== 0) {
-                e.preventDefault();
-                el.scrollLeft += e.deltaY;
-            }
+            if (!e.shiftKey) return;
+            // When Shift is held some browsers already report the scroll on
+            // deltaX; others leave it on deltaY. Take whichever is non-zero.
+            let delta = e.deltaY || e.deltaX;
+            if (!delta) return;
+            if (e.deltaMode === 1) delta *= 16;          // lines → px
+            else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
+            const max = el.scrollWidth - el.clientWidth;
+            if (max <= 1) return;
+            e.preventDefault();
+            el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + delta));
         }, { passive: false });
     }
     function _calWireDragOnCard(card) {
@@ -8019,9 +8099,9 @@
     function _calMonthPillHtml(p) {
         const url = _calDeriveThumb(p);
         const thumb = url
-            ? `<span class="cal-month-pill-thumb"><img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="this.parentElement.innerHTML='<svg viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'currentColor\\' stroke-width=\\'1.5\\'><rect x=\\'3\\' y=\\'5\\' width=\\'18\\' height=\\'14\\' rx=\\'2\\'/><circle cx=\\'8.5\\' cy=\\'10\\' r=\\'1.3\\'/><path d=\\'M3 17l5-4 4 3 4-5 5 6\\'/></svg>'"></span>`
-            : `<span class="cal-month-pill-thumb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></span>`;
-        return `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')">${thumb}<span>${_calEsc((p.name || 'Untitled').slice(0,22))}</span></button>`;
+            ? `<span class="cal-month-pill-thumb"><img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnMiniThumbError(this)"></span>`
+            : `<span class="cal-month-pill-thumb">${_calThumbIconSvg()}</span>`;
+        return `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')">${thumb}<span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></button>`;
     }
 
     function renderCalMonth() {
@@ -8103,7 +8183,13 @@
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
                         </div>
                         <div class="cal-week-stack">
-                            ${list.map(p => `<button class="cal-week-card" onclick="openCalPreview('${_calEscAttr(p.id)}')"><div class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</div>${_calStatusChip(p)}</button>`).join('')}
+                            ${list.map(p => {
+                                const u = _calDeriveThumb(p);
+                                const th = u
+                                    ? `<span class="cal-week-card-thumb"><img loading="lazy" src="${_calEscAttr(u)}" alt="" onerror="_calOnMiniThumbError(this)"></span>`
+                                    : `<span class="cal-week-card-thumb">${_calThumbIconSvg()}</span>`;
+                                return `<button class="cal-week-card" onclick="openCalPreview('${_calEscAttr(p.id)}')">${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
+                            }).join('')}
                         </div>
                     </div>`;
                 }).join('')}
@@ -8502,6 +8588,8 @@
                 document.getElementById('pageSub').style.display='none';
                 document.getElementById('pageTitle').textContent='Your Analytics';
                 document.querySelector('header.header').style.display='none';
+                const vParam=new URLSearchParams(location.search).get('v');
+                if(vParam==='calendar')clientViewTab[clientFromQuery]='calendar';
                 render(clientFromQuery,true);return;
             }
             const savedNav=localStorage.getItem(NAV_KEY);

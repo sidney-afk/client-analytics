@@ -1522,6 +1522,34 @@
         .cal-share-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
         .cal-share-btn:hover { border-color: #aaa; color: var(--text-primary); }
         .cal-share-btn.copied { background: var(--up-bg); border-color: #86efac; color: var(--up); }
+        .cal-import-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+        .cal-import-btn:hover { border-color: #aaa; color: var(--text-primary); }
+        /* Excel import modal */
+        .cal-import-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 260; align-items: center; justify-content: center; }
+        .cal-import-overlay.open { display: flex; }
+        .cal-import-modal { background: var(--white); border-radius: 16px; width: 560px; max-width: 94vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 70px rgba(0,0,0,0.3); overflow: hidden; }
+        .cal-import-head { padding: 20px 24px 14px; border-bottom: 1px solid var(--border); }
+        .cal-import-head h3 { margin: 0; font-size: 1.02rem; font-weight: 800; color: var(--text-primary); }
+        .cal-import-head p { margin: 5px 0 0; font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; }
+        .cal-import-body { padding: 18px 24px; overflow-y: auto; }
+        .cal-import-foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; }
+        .cal-import-drop { border: 1.5px dashed #c7c7c4; border-radius: 12px; padding: 30px 20px; text-align: center; cursor: pointer; transition: border-color 0.12s, background 0.12s; }
+        .cal-import-drop:hover { border-color: var(--text-primary); background: #fafaf9; }
+        .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
+        .cal-import-drop-title { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); margin-top: 10px; }
+        .cal-import-drop-sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
+        .cal-import-map-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; align-items: center; padding: 7px 0; }
+        .cal-import-map-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
+        .cal-import-map-row label .req { color: var(--dn); }
+        .cal-import-map-row select { font-family: inherit; font-size: 0.78rem; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--white); color: var(--text-primary); width: 100%; box-sizing: border-box; }
+        .cal-import-info { font-size: 0.76rem; color: var(--text-secondary); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.5; }
+        .cal-import-err { font-size: 0.78rem; color: var(--dn); background: var(--dn-bg); border-radius: 8px; padding: 9px 12px; margin-top: 12px; }
+        .cal-import-progress { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 20px; }
+        .cal-import-btn-primary { padding: 9px 18px; border-radius: 8px; border: 0; background: var(--text-primary); color: var(--white); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        .cal-import-btn-primary:disabled { opacity: 0.45; cursor: default; }
+        .cal-import-btn-ghost { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+        /* Calendar embedded in a client profile — break out to full width */
+        .client-view.cal-tab-view { max-width: none; }
 
         .cal-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.92rem; line-height: 1.65; }
         .cal-empty.cal-error { color: var(--dn); background: var(--dn-bg); border-radius: 12px; }
@@ -1530,8 +1558,9 @@
 
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
-        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: stretch; min-height: 460px; }
-        .cal-card { position: relative; flex: 0 0 260px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
+        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: stretch; min-height: 460px; scroll-snap-type: x proximity; }
+        .cal-organizer-strip > .cal-card, .cal-organizer-strip > .cal-card-add { scroll-snap-align: start; }
+        .cal-card { position: relative; flex: 0 0 360px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
         .cal-card.is-blank .cal-card-thumb { background: #f4f4f2; }
@@ -1541,9 +1570,17 @@
         .cal-card.dragging { opacity: 0.45; }
         .cal-card[draggable="true"] .cal-card-thumb { cursor: grab; }
         .cal-card[draggable="true"]:active .cal-card-thumb { cursor: grabbing; }
-        .cal-card-thumb { width: 100%; min-height: 140px; max-height: 440px; background: var(--bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; }
-        .cal-card-thumb img { display: block; width: 100%; height: auto; max-height: 440px; object-fit: contain; }
+        /* Asset stage — image floats centred on a soft gradient with room to breathe */
+        .cal-card-thumb { width: 100%; min-height: 220px; background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 24px; box-sizing: border-box; }
+        .cal-card-thumb img { display: block; max-width: 100%; max-height: 300px; width: auto; height: auto; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,0.20); }
         .cal-card-thumb-fallback { font-size: 1.4rem; font-weight: 800; color: var(--text-muted); letter-spacing: 0.06em; display: inline-flex; align-items: center; justify-content: center; }
+        /* Google Drive permission warning shown when a thumbnail won't load */
+        .cal-thumb-drive-warn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 16px; color: #92400e; }
+        .cal-thumb-drive-warn svg { width: 30px; height: 30px; flex-shrink: 0; }
+        .cal-thumb-drive-warn strong { font-size: 0.78rem; font-weight: 800; }
+        .cal-thumb-drive-warn span { font-size: 0.7rem; line-height: 1.45; font-weight: 600; color: #b45309; max-width: 240px; }
+        .cal-mini-drive-warn { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #fffbeb; color: #b45309; padding: 6px; }
+        .cal-mini-drive-warn svg { width: 22px; height: 22px; }
         .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
         .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
         .cal-card-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -1595,7 +1632,7 @@
         .cal-fld-date-display.is-empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
 
         /* Plus tile to add a blank — same size as a card */
-        .cal-card-add { flex: 0 0 260px; align-self: stretch; min-height: 460px;
+        .cal-card-add { flex: 0 0 360px; align-self: stretch; min-height: 460px;
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
             background: rgba(255,255,255,0.45); border: 1.5px dashed #c7c7c4; border-radius: 14px;
             color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; padding: 0; }
@@ -1645,12 +1682,14 @@
         .cal-month-cell.out .cal-month-num { color: #c5c5c2; }
         .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
         .cal-month-num { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
-        .cal-month-pill { display: flex; flex-direction: column; align-items: stretch; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 0; font-family: inherit; cursor: pointer; text-align: left; width: 100%; overflow: hidden; }
-        .cal-month-pill:hover { border-color: #888; }
-        .cal-month-pill-thumb { width: 100%; height: 78px; flex-shrink: 0; background: var(--white); display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
-        .cal-month-pill-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .cal-month-pill { display: flex; flex-direction: column; align-items: stretch; background: var(--white); border: 1px solid var(--border); border-radius: 9px; padding: 0; font-family: inherit; cursor: pointer; text-align: left; width: 100%; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
+        .cal-month-pill:hover { border-color: #888; box-shadow: 0 3px 10px rgba(0,0,0,0.09); }
+        .cal-month-pill-thumb { width: 100%; background: #f4f4f2; display: block; overflow: hidden; }
+        .cal-month-pill-thumb img { width: 100%; height: auto; display: block; }
+        .cal-month-pill-thumb.is-fallback { height: 84px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
         .cal-month-pill-thumb svg { width: 24px; height: 24px; }
-        .cal-month-pill-name { padding: 4px 7px 5px; font-size: 0.68rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cal-month-pill-meta { padding: 6px 7px 7px; display: flex; flex-direction: column; gap: 5px; }
+        .cal-month-pill-name { font-size: 0.69rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1664,12 +1703,13 @@
         .cal-week-day { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
         .cal-week-num { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
         .cal-week-stack { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
-        .cal-week-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; }
-        .cal-week-card:hover { border-color: #888; }
-        .cal-week-card-thumb { width: 100%; height: 116px; flex-shrink: 0; background: var(--white); display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
-        .cal-week-card-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+        .cal-week-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; background: var(--white); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
+        .cal-week-card:hover { border-color: #888; box-shadow: 0 3px 12px rgba(0,0,0,0.10); }
+        .cal-week-card-thumb { width: 100%; background: #f4f4f2; display: block; overflow: hidden; }
+        .cal-week-card-thumb img { width: 100%; height: auto; display: block; }
+        .cal-week-card-thumb.is-fallback { height: 120px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
         .cal-week-card-thumb svg { width: 30px; height: 30px; }
-        .cal-week-card-body { padding: 7px 9px 9px; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
+        .cal-week-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
         .cal-week-card-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 
         /* Preview popover (Month/Week → read-only post details) */
@@ -4059,7 +4099,7 @@
             </div>`;
 
         if(tab==='calendar'){
-            return`<div class="client-view">
+            return`<div class="client-view cal-tab-view">
                 ${toggleHtml}
                 <div class="cal-view cal-embedded" id="calView"><div class="cal-empty">Loading…</div></div>
             </div>`;
@@ -7449,6 +7489,193 @@
         });
     }
 
+    /* ── Excel (.xlsx) import ──────────────────────────────────────────
+       Pulls posts out of a Google Sheet that was exported as Microsoft
+       Excel. The user maps the spreadsheet columns onto the calendar
+       schema, then each row is upserted into the active client's tab. */
+    const CAL_IMPORT_FIELDS = [
+        { key: 'name',           label: 'Post name',         req: true,  aliases: ['name','post name','post','title','content','video','video name','post title','reel'] },
+        { key: 'scheduled_date', label: 'Date',              req: false, aliases: ['date','scheduled date','post date','publish date','due date','day','scheduled','go live'] },
+        { key: 'status',         label: 'Status',            req: false, aliases: ['status','stage','state','progress'] },
+        { key: 'thumbnail_url',  label: 'Thumbnail URL',     req: false, aliases: ['thumbnail','thumbnail url','thumb','thumbnail link','cover','cover image','image'] },
+        { key: 'asset_url',      label: 'Post / asset URL',  req: false, aliases: ['url','post url','link','asset url','asset','video url','video link','frameio','frame io','drive link','file'] },
+        { key: 'caption',        label: 'Caption',           req: false, aliases: ['caption','description','copy','post caption','text','script','hook'] },
+        { key: 'cta',            label: 'CTA',               req: false, aliases: ['cta','call to action'] },
+        { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
+    ];
+    let _calImportRows = null, _calImportHeaders = null, _calXlsxPromise = null;
+
+    function _calLoadXLSX() {
+        if (window.XLSX) return Promise.resolve(window.XLSX);
+        if (_calXlsxPromise) return _calXlsxPromise;
+        _calXlsxPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            s.onload = () => window.XLSX ? resolve(window.XLSX) : reject(new Error('Spreadsheet reader failed to load'));
+            s.onerror = () => reject(new Error('Could not load the spreadsheet reader — check your connection'));
+            document.head.appendChild(s);
+        });
+        return _calXlsxPromise;
+    }
+
+    function _calCoerceDate(v) {
+        if (v == null || v === '') return '';
+        if (v instanceof Date && !isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+        const s = String(v).trim();
+        let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (m) return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+        m = s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+        if (m) {
+            let day = +m[1], mon = +m[2], y = m[3];
+            if (y.length === 2) y = '20' + y;
+            if (mon > 12 && day <= 12) { const t = day; day = mon; mon = t; } // day-first by default
+            if (mon > 12 || mon < 1 || day < 1 || day > 31) return '';
+            return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        }
+        const d = new Date(s);
+        if (!isNaN(d)) return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        return '';
+    }
+
+    function openCalImport() {
+        if (!calState.client) return;
+        _calImportRows = null; _calImportHeaders = null;
+        const ovl = document.getElementById('calImportOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        _calRenderImportPick();
+    }
+    function closeCalImport() {
+        const ovl = document.getElementById('calImportOverlay');
+        if (ovl) ovl.classList.remove('open');
+    }
+
+    function _calRenderImportPick() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal) return;
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <h3>Import posts from Excel</h3>
+                <p>In your Google Sheet choose <strong>File ▸ Download ▸ Microsoft Excel (.xlsx)</strong>, then drop that file here. You'll match the columns on the next step.</p>
+            </div>
+            <div class="cal-import-body">
+                <label class="cal-import-drop" id="calImportDrop">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                    <div class="cal-import-drop-title">Choose an .xlsx file</div>
+                    <div class="cal-import-drop-sub">or drag it onto this box</div>
+                    <input type="file" accept=".xlsx,.xls" id="calImportFile" hidden>
+                </label>
+                <div id="calImportErr"></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="closeCalImport()">Cancel</button>
+            </div>`;
+        const input = document.getElementById('calImportFile');
+        input.addEventListener('change', () => { if (input.files[0]) _calHandleImportFile(input.files[0]); });
+        const drop = document.getElementById('calImportDrop');
+        ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = '#111'; }));
+        ['dragleave'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = ''; }));
+        drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = ''; const f = e.dataTransfer.files[0]; if (f) _calHandleImportFile(f); });
+    }
+
+    async function _calHandleImportFile(file) {
+        const errBox = document.getElementById('calImportErr');
+        if (errBox) errBox.innerHTML = `<div class="cal-import-info">Reading ${_calEsc(file.name)}…</div>`;
+        try {
+            const XLSX = await _calLoadXLSX();
+            const buf = await file.arrayBuffer();
+            const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            if (!ws) throw new Error('That workbook has no sheets.');
+            const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false });
+            if (!rows.length) throw new Error('That sheet has a header row but no data rows.');
+            _calImportRows = rows;
+            _calImportHeaders = Object.keys(rows[0]).filter(h => String(h).trim() !== '');
+            _calRenderImportMap();
+        } catch (e) {
+            if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that file')}</div>`;
+        }
+    }
+
+    function _calRenderImportMap() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal) return;
+        const headers = _calImportHeaders;
+        const norm = s => String(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const guess = (field) => {
+            for (const h of headers) { if (field.aliases.some(a => norm(a) === norm(h))) return h; }
+            for (const h of headers) { const nh = norm(h); if (nh && field.aliases.some(a => nh.includes(norm(a)) || norm(a).includes(nh))) return h; }
+            return '';
+        };
+        const rowsHtml = CAL_IMPORT_FIELDS.map(f => {
+            const sel = guess(f);
+            const opts = ['<option value="">— none —</option>']
+                .concat(headers.map(h => `<option value="${_calEscAttr(h)}"${h===sel?' selected':''}>${_calEsc(h)}</option>`)).join('');
+            return `<div class="cal-import-map-row">
+                <label>${_calEsc(f.label)}${f.req?' <span class="req">*</span>':''}</label>
+                <select data-import-field="${f.key}">${opts}</select>
+            </div>`;
+        }).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <h3>Match the columns</h3>
+                <p>Matches were guessed from your column names — adjust anything that's off. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-import-info">${_calImportRows.length} row${_calImportRows.length!==1?'s':''} found. Rows with an empty post name are skipped.</div>
+                ${rowsHtml}
+                <div id="calImportErr"></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="_calRenderImportPick()">Back</button>
+                <button class="cal-import-btn-primary" id="calImportGo" onclick="_calRunImport()">Import posts</button>
+            </div>`;
+    }
+
+    async function _calRunImport() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal || !_calImportRows) return;
+        const map = {};
+        modal.querySelectorAll('select[data-import-field]').forEach(s => { if (s.value) map[s.dataset.importField] = s.value; });
+        const errBox = document.getElementById('calImportErr');
+        if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
+        const statusByLower = new Map(CAL_STATUSES.map(s => [s.toLowerCase(), s]));
+        let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
+        const posts = [];
+        for (const row of _calImportRows) {
+            const name = String(row[map.name] ?? '').trim();
+            if (!name) continue;
+            baseOrder++;
+            const post = { id: _calMintId(), order_index: baseOrder, name, scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+            if (map.scheduled_date) post.scheduled_date = _calCoerceDate(row[map.scheduled_date]);
+            if (map.status) { const st = String(row[map.status] ?? '').trim().toLowerCase(); if (statusByLower.has(st)) post.status = statusByLower.get(st); }
+            ['thumbnail_url','asset_url','caption','cta','tweaks'].forEach(k => { if (map[k]) post[k] = String(row[map[k]] ?? '').trim(); });
+            posts.push(post);
+        }
+        if (!posts.length) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">No rows had a post name — nothing to import.</div>`; return; }
+        modal.innerHTML = `
+            <div class="cal-import-head"><h3>Importing…</h3></div>
+            <div class="cal-import-body"><div class="cal-import-progress" id="calImportProg">Importing 0 / ${posts.length}…</div></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-primary" id="calImportDone" disabled onclick="closeCalImport();loadCalendarPosts();">Done</button></div>`;
+        let done = 0, failed = 0;
+        for (const post of posts) {
+            try {
+                const resp = await fetch(CALENDAR_UPSERT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ client: calClientSlug(calState.client), post }) });
+                const json = await resp.json();
+                if (!json.ok) throw new Error('save failed');
+            } catch (e) { failed++; }
+            done++;
+            const prog = document.getElementById('calImportProg');
+            if (prog) prog.textContent = `Importing ${done} / ${posts.length}…`;
+        }
+        const prog = document.getElementById('calImportProg');
+        if (prog) prog.textContent = failed
+            ? `Imported ${done-failed} of ${posts.length}. ${failed} row${failed!==1?'s':''} couldn't be saved — try those again.`
+            : `Imported ${done} post${done!==1?'s':''}.`;
+        const doneBtn = document.getElementById('calImportDone');
+        if (doneBtn) doneBtn.disabled = false;
+    }
+
     async function loadCalendarPosts() {
         if (!calState.client) { _calRenderBody(); return; }
         calState.loading = true;
@@ -7480,6 +7707,9 @@
         const shareBtnHtml = (calState.client && !_isClientLink)
             ? `<button class="cal-share-btn" id="calShareBtn" type="button" onclick="calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`
             : '';
+        const importBtnHtml = (calState.client && !_isClientLink)
+            ? `<button class="cal-import-btn" type="button" onclick="openCalImport()" title="Import posts from a Microsoft Excel (.xlsx) export of a Google Sheet"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M4.5 6L8 9.5 11.5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg> Import</button>`
+            : '';
         view.innerHTML = `
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">${leftHtml}</div>
@@ -7489,6 +7719,7 @@
                     </div>
                 </div>
                 <div class="cal-toolbar-right">
+                    ${importBtnHtml}
                     ${shareBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
                     <button class="cal-refresh-btn" type="button" onclick="loadCalendarPosts()" title="Reload">
@@ -7499,6 +7730,9 @@
             <div class="cal-body" id="calBody"><div class="cal-empty">Loading…</div></div>
             <div class="cal-preview-overlay" id="calPreviewOverlay" onclick="if(event.target===this)closeCalPreview()">
                 <div class="cal-preview" id="calPreview"></div>
+            </div>
+            <div class="cal-import-overlay" id="calImportOverlay" onclick="if(event.target===this)closeCalImport()">
+                <div class="cal-import-modal" id="calImportModal"></div>
             </div>
         `;
         if (!embedded) {
@@ -7724,17 +7958,37 @@
     function _calThumbIconSvg() {
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
     }
+    function _calDriveWarnHtml() {
+        return `<div class="cal-thumb-drive-warn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <strong>Thumbnail can't load</strong>
+            <span>This looks like a Google Drive link with no public access. In Drive, open the thumbnails folder, click Share, and set it to <strong>"Anyone with the link"</strong>.</span>
+        </div>`;
+    }
+    function _calMiniDriveWarnHtml() {
+        return `<div class="cal-mini-drive-warn" title="Thumbnail can't load — the Google Drive thumbnails folder needs to be shared with &quot;Anyone with the link&quot;."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>`;
+    }
+    function _calDeriveThumbInfo(p) {
+        const raw = String((p && (p.thumbnail_url || p.asset_url)) || '').trim();
+        return { url: _calDeriveThumb(p), isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw) };
+    }
+    function _calThumbImgTag(info, onerror) {
+        return `<img loading="lazy" src="${_calEscAttr(info.url)}" alt=""${info.isDrive ? ' data-drive="1"' : ''} onerror="${onerror}(this)">`;
+    }
     function _calOnMiniThumbError(img) {
         const parent = img.parentElement;
-        if (parent) parent.innerHTML = _calThumbIconSvg();
+        if (!parent) return;
+        if (img.dataset.drive === '1') { parent.classList.remove('is-fallback'); parent.innerHTML = _calMiniDriveWarnHtml(); }
+        else { parent.classList.add('is-fallback'); parent.innerHTML = _calThumbIconSvg(); }
     }
     function _calOnThumbImgError(img) {
         const parent = img.parentElement;
-        if (parent) parent.innerHTML = _calThumbIconHtml();
+        if (!parent) return;
+        parent.innerHTML = img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml();
     }
     function _calThumbContent(p) {
-        const url = _calDeriveThumb(p);
-        if (url) return `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+        const info = _calDeriveThumbInfo(p);
+        if (info.url) return _calThumbImgTag(info, '_calOnThumbImgError');
         return _calThumbIconHtml();
     }
     function _calFmtDateShort(iso) {
@@ -7746,6 +8000,13 @@
         const day = String(d.getDate()).padStart(2, '0');
         const mon = String(d.getMonth() + 1).padStart(2, '0');
         return `${dayName} ${day}/${mon}`;
+    }
+
+    function _calClientPossessive() {
+        const full = String(calState.client || '').trim();
+        if (!full) return 'Client';
+        const first = full.split(/\s+/)[0];
+        return first + (/s$/i.test(first) ? "'" : "'s");
     }
 
     function renderCalOrganizer() {
@@ -7793,7 +8054,7 @@
                 ${urlField('cal-fld-url', 'asset_url', p.asset_url, 'Post URL (Frame.io / Drive / video)')}
                 <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.caption)}</textarea>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="CTA" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
-                <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="Client tweaks" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
+                <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="${_calEscAttr(_calClientPossessive() + ' tweaks')}" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
                 <div class="cal-fld-status-row">
                     <select class="cal-fld-status" data-pid="${pid}" data-fld="status" data-val="${_calEscAttr(currentStatus)}" onchange="_calOnStatusChange(this)">
                         ${CAL_STATUSES.map(s => `<option value="${s}"${s === currentStatus ? ' selected' : ''}>${s}</option>`).join('')}
@@ -7858,16 +8119,15 @@
         const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
         const assetInput = card.querySelector('[data-fld="asset_url"]');
         const preview = { thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '' };
-        const url = _calDeriveThumb(preview);
+        const info = _calDeriveThumbInfo(preview);
         const thumbDiv = card.querySelector('.cal-card-thumb');
         if (!thumbDiv) return;
-        if (url) {
+        if (info.url) {
             const existing = thumbDiv.querySelector('img');
-            if (existing) { if (existing.src !== url) existing.src = url; }
-            else thumbDiv.innerHTML = `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+            if (existing && existing.getAttribute('src') === info.url) return;
+            thumbDiv.innerHTML = _calThumbImgTag(info, '_calOnThumbImgError');
         } else {
-            const existing = thumbDiv.querySelector('img');
-            if (existing) thumbDiv.innerHTML = _calThumbIconHtml();
+            if (thumbDiv.querySelector('img')) thumbDiv.innerHTML = _calThumbIconHtml();
         }
     }
 
@@ -7979,13 +8239,13 @@
         if (!card) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const url = _calDeriveThumb(post);
+        const info = _calDeriveThumbInfo(post);
         const thumbDiv = card.querySelector('.cal-card-thumb');
         if (!thumbDiv) return;
         const existing = thumbDiv.querySelector('img');
-        if (url) {
-            if (existing) { if (existing.src !== url) existing.src = url; }
-            else thumbDiv.innerHTML = `<img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnThumbImgError(this)">`;
+        if (info.url) {
+            if (existing && existing.getAttribute('src') === info.url) return;
+            thumbDiv.innerHTML = _calThumbImgTag(info, '_calOnThumbImgError');
         } else if (existing) {
             thumbDiv.innerHTML = _calThumbIconHtml();
         }
@@ -8046,18 +8306,27 @@
     function _calWireShiftScroll(el) {
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
+        let snapping = false;
         el.addEventListener('wheel', (e) => {
             if (!e.shiftKey) return;
-            // When Shift is held some browsers already report the scroll on
-            // deltaX; others leave it on deltaY. Take whichever is non-zero.
-            let delta = e.deltaY || e.deltaX;
-            if (!delta) return;
-            if (e.deltaMode === 1) delta *= 16;          // lines → px
-            else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
+            // When Shift is held some browsers report the scroll on deltaX,
+            // others leave it on deltaY. Take whichever is non-zero.
+            const raw = e.deltaY || e.deltaX;
+            if (!raw) return;
             const max = el.scrollWidth - el.clientWidth;
             if (max <= 1) return;
             e.preventDefault();
-            el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + delta));
+            if (snapping) return;            // one card per gesture, not a free glide
+            const cards = el.querySelectorAll(':scope > .cal-card, :scope > .cal-card-add');
+            if (!cards.length) return;
+            const gap = parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap) || 14;
+            const step = cards[0].offsetWidth + gap;
+            const dir = raw > 0 ? 1 : -1;
+            let target = (Math.round(el.scrollLeft / step) + dir) * step;
+            target = Math.max(0, Math.min(max, target));
+            snapping = true;
+            el.scrollTo({ left: target, behavior: 'smooth' });
+            setTimeout(() => { snapping = false; }, 260);
         }, { passive: false });
     }
     function _calWireDragOnCard(card) {
@@ -8097,11 +8366,11 @@
 
     /* ── Month view (read-only) ─────────────────────────────────────── */
     function _calMonthPillHtml(p) {
-        const url = _calDeriveThumb(p);
-        const thumb = url
-            ? `<span class="cal-month-pill-thumb"><img loading="lazy" src="${_calEscAttr(url)}" alt="" onerror="_calOnMiniThumbError(this)"></span>`
-            : `<span class="cal-month-pill-thumb">${_calThumbIconSvg()}</span>`;
-        return `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')">${thumb}<span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></button>`;
+        const info = _calDeriveThumbInfo(p);
+        const thumb = info.url
+            ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+            : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
+        return `<button class="cal-month-pill" onclick="openCalPreview('${_calEscAttr(p.id)}')">${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
     }
 
     function renderCalMonth() {
@@ -8184,10 +8453,10 @@
                         </div>
                         <div class="cal-week-stack">
                             ${list.map(p => {
-                                const u = _calDeriveThumb(p);
-                                const th = u
-                                    ? `<span class="cal-week-card-thumb"><img loading="lazy" src="${_calEscAttr(u)}" alt="" onerror="_calOnMiniThumbError(this)"></span>`
-                                    : `<span class="cal-week-card-thumb">${_calThumbIconSvg()}</span>`;
+                                const info = _calDeriveThumbInfo(p);
+                                const th = info.url
+                                    ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
+                                    : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 return `<button class="cal-week-card" onclick="openCalPreview('${_calEscAttr(p.id)}')">${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
                             }).join('')}
                         </div>

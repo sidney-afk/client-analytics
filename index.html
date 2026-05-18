@@ -1542,6 +1542,7 @@
         /* Overflow (kebab) menu */
         .cal-kebab-wrap { position: relative; display: inline-flex; }
         .cal-kebab { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); cursor: pointer; }
+        .cal-kebab svg { width: 15px; height: 15px; display: block; }
         .cal-kebab:hover { color: var(--text-primary); border-color: #aaa; }
         .cal-kebab-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 90; min-width: 188px;
             background: var(--white); border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 10px 34px rgba(0,0,0,0.14); padding: 5px; }
@@ -1589,7 +1590,7 @@
 
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
-        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 4px 18px; align-items: stretch; min-height: 460px; scroll-snap-type: x proximity; }
+        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 18px; align-items: flex-start; min-height: 320px; scroll-snap-type: x proximity; }
         .cal-organizer-strip > .cal-card, .cal-organizer-strip > .cal-card-add { scroll-snap-align: start; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
@@ -1599,12 +1600,17 @@
         .cal-card.is-saving { box-shadow: 0 0 0 1px var(--text-primary) inset; }
         .cal-card.is-error { box-shadow: 0 0 0 1px var(--dn) inset; border-color: var(--dn); }
         .cal-card.dragging { opacity: 0.45; }
-        .cal-card-thumb { cursor: zoom-in; }
-        .cal-card.is-blank .cal-card-thumb { cursor: default; }
+        .cal-card.cal-card-current { box-shadow: 0 0 0 2px #4f46e5, 0 6px 18px rgba(79,70,229,0.16); }
+        .cal-card-nextup { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5;
+            background: #4f46e5; color: #fff; font-size: 0.58rem; font-weight: 800; letter-spacing: 0.07em;
+            text-transform: uppercase; padding: 4px 11px; border-radius: 99px; box-shadow: 0 2px 8px rgba(79,70,229,0.45); white-space: nowrap; }
+        .cal-card-thumb { cursor: default; }
+        .cal-card-thumb img { cursor: zoom-in; }
         /* Asset stage — image floats centred on a soft gradient with room to breathe */
         .cal-card-thumb { width: 100%; min-height: 150px; background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 18px; box-sizing: border-box; }
         .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; border-radius: 10px; box-shadow: 0 10px 26px rgba(0,0,0,0.20); }
-        .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; pointer-events: none; }
+        .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.12s; cursor: pointer; }
+        .cal-thumb-zoom:hover { background: rgba(0,0,0,0.78); }
         .cal-card:hover .cal-thumb-zoom { opacity: 1; }
         .cal-thumb-zoom svg { width: 14px; height: 14px; }
         /* Drag handle, top-left */
@@ -1630,7 +1636,7 @@
         .cal-mini-drive-warn svg { width: 22px; height: 22px; }
         .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
         .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
-        .cal-card-body { padding: 13px 14px 14px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+        .cal-card-body { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
 
         /* Title — reads as a heading, not a form field */
         .cal-fld-name { width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent;
@@ -1682,11 +1688,11 @@
         .cal-link-thumb.has-link .cal-link-ico { color: #4f46e5; }
         .cal-link-thumb.has-link .cal-link-edit { background: #eef0fe; color: #7c79d8; border-left-color: #dcdcfa; }
         .cal-link-thumb.has-link .cal-link-edit:hover { background: #e4e6fc; color: #4f46e5; }
-        .cal-link-post.has-link .cal-link-pill-open { background: #e6f8f1; color: #0f9d6e; }
-        .cal-link-post.has-link .cal-link-pill-open:hover { background: #d9f3e8; }
-        .cal-link-post.has-link .cal-link-ico { color: #0f9d6e; }
-        .cal-link-post.has-link .cal-link-edit { background: #e6f8f1; color: #5cb89a; border-left-color: #cdeede; }
-        .cal-link-post.has-link .cal-link-edit:hover { background: #d9f3e8; color: #0f9d6e; }
+        .cal-link-post.has-link .cal-link-pill-open { background: #fde8f3; color: #be2d72; }
+        .cal-link-post.has-link .cal-link-pill-open:hover { background: #fbdcec; }
+        .cal-link-post.has-link .cal-link-ico { color: #be2d72; }
+        .cal-link-post.has-link .cal-link-edit { background: #fde8f3; color: #cf6f9e; border-left-color: #f6d3e4; }
+        .cal-link-post.has-link .cal-link-edit:hover { background: #fbdcec; color: #be2d72; }
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
@@ -1715,7 +1721,7 @@
         .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: #fff; border-color: var(--text-primary); }
         .cal-fld-tweaks { line-height: 1.5; resize: none; scrollbar-width: thin; }
 
-        .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; min-height: 14px; margin-top: auto; padding-top: 2px; }
+        .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; min-height: 0; }
         .cal-card-saving { font-size: 0.64rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-card-saving.is-saved { color: #166534; }
         .cal-card-saving.is-error { color: var(--dn); }
@@ -7891,7 +7897,9 @@
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'load failed');
-            calState.posts = (json.posts || []).filter(p => (p.status || '').toLowerCase() !== 'archived');
+            calState.posts = (json.posts || [])
+                .filter(p => (p.status || '').toLowerCase() !== 'archived')
+                .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); return p; });
         } catch (e) {
             console.warn('[Calendar] load failed', e);
             calState.error = e.message || String(e);
@@ -8356,13 +8364,18 @@
     function renderCalOrganizer() {
         const posts = calState.posts.slice().sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
+        // The "current" card is the first one after the last posted one — the
+        // next post still to be worked on.
+        let lastPostedIdx = -1;
+        posts.forEach((p,i) => { if (String(p.status || '').toLowerCase() === 'posted') lastPostedIdx = i; });
+        const currentIdx = lastPostedIdx + 1;
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
         const addBtn = empty
             ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
             : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`;
         return `<div class="cal-organizer-wrap">
             <div class="cal-organizer-strip${empty ? ' is-empty' : ''}" id="calStrip">
-                ${posts.map(p => _calRenderInlineCard(p, false)).join('')}
+                ${posts.map((p,i) => _calRenderInlineCard(p, false, i === currentIdx)).join('')}
                 ${addBtn}
             </div>
         </div>`;
@@ -8427,16 +8440,17 @@
         if (input) { input.focus(); input.select(); }
     }
 
-    function _calRenderInlineCard(p, isBlank) {
+    function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
         const draggable = isBlank ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
         const currentStatus = p.status || 'Draft';
-        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}" data-pid="${pid}" draggable="${draggable}">
+        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}" data-pid="${pid}" draggable="${draggable}">
+            ${isCurrent ? '<div class="cal-card-nextup">Up next</div>' : ''}
             ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
-            <div class="cal-card-thumb" onclick="_calOpenThumbLightbox('${pid}')">${_calThumbContent(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
                 <div class="cal-meta-row">
@@ -8532,6 +8546,11 @@
             t.style.height = 'auto';
             t.style.height = Math.max(t.scrollHeight, parseInt(getComputedStyle(t).minHeight) || 0) + 2 + 'px';
         });
+    }
+    function _calThumbClick(e, pid) {
+        // Only the image itself or the zoom button open the lightbox —
+        // clicking the padded stage around it does nothing.
+        if (e.target.tagName === 'IMG' || e.target.closest('.cal-thumb-zoom')) _calOpenThumbLightbox(pid);
     }
     function _calOpenThumbLightbox(pid) {
         let info = null;
@@ -8699,7 +8718,7 @@
         const dateDisplay = blank.querySelector(`[data-date-display="${oldPid}"]`);
         if (dateDisplay) dateDisplay.setAttribute('data-date-display', newId);
         const thumbDiv = blank.querySelector('.cal-card-thumb');
-        if (thumbDiv) thumbDiv.setAttribute('onclick', `_calOpenThumbLightbox('${newId}')`);
+        if (thumbDiv) thumbDiv.setAttribute('onclick', `_calThumbClick(event,'${newId}')`);
         blank.querySelectorAll(`[data-pid-wrap="${oldPid}"]`).forEach(el => el.setAttribute('data-pid-wrap', newId));
         blank.querySelectorAll('.cal-link-pill-open, .cal-link-edit').forEach(b => {
             const oc = b.getAttribute('onclick');
@@ -8789,8 +8808,16 @@
         strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_calWireDragOnCard);
         _calAutosizeTextareas(strip);
         _calWireShiftScroll(strip);
-        // Land on the most recent cards rather than the start of the strip.
-        requestAnimationFrame(() => { strip.scrollLeft = strip.scrollWidth; });
+        // Centre the "up next" card on load (fall back to the end of the strip).
+        requestAnimationFrame(() => {
+            const current = strip.querySelector('.cal-card-current');
+            if (current) {
+                const cRect = current.getBoundingClientRect(), sRect = strip.getBoundingClientRect();
+                strip.scrollLeft += (cRect.left - sRect.left) - (strip.clientWidth - cRect.width) / 2;
+            } else {
+                strip.scrollLeft = strip.scrollWidth;
+            }
+        });
         if (strip.dataset.dropWired === '1') return;
         strip.dataset.dropWired = '1';
         strip.addEventListener('drop', () => {

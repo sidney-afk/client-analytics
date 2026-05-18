@@ -1467,9 +1467,9 @@
 
         /* ── Content Calendar module ──────────────────────────────────────── */
         .cal-view { padding: 8px 16px 32px;
-            --cal-card-w: 320px; --cal-thumb-h: 130px; --cal-month-w: 146px; --cal-week-h: 224px; --cal-week-col: 348px; }
-        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 100px; --cal-month-w: 116px;  --cal-week-h: 172px; --cal-week-col: 282px; }
-        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 188px; --cal-month-w: 184px; --cal-week-h: 320px; --cal-week-col: 470px; }
+            --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; --cal-week-col: 348px; }
+        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; --cal-week-col: 282px; }
+        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; --cal-week-col: 470px; }
         .cal-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 99px; padding: 3px 6px; }
         .cal-zoom .cal-zoom-ico { width: 14px; height: 14px; color: var(--text-muted); margin: 0 3px; }
         .cal-zoom button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
@@ -1590,8 +1590,7 @@
 
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
-        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px; scroll-snap-type: x proximity; }
-        .cal-organizer-strip > .cal-card, .cal-organizer-strip > .cal-card-add { scroll-snap-align: start; }
+        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
@@ -1600,11 +1599,12 @@
         .cal-card.is-saving { box-shadow: 0 0 0 1px var(--text-primary) inset; }
         .cal-card.is-error { box-shadow: 0 0 0 1px var(--dn) inset; border-color: var(--dn); }
         .cal-card.dragging { opacity: 0.45; }
-        .cal-card.cal-card-current { box-shadow: 0 0 0 2px #4f46e5, 0 6px 18px rgba(79,70,229,0.16); }
+        .cal-card.cal-card-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
+        .cal-card.cal-card-posted:hover { box-shadow: 0 0 0 1px #15803d, 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card-thumb { cursor: default; }
         .cal-card-thumb img { cursor: zoom-in; }
         /* Asset stage — image floats centred on a soft gradient with room to breathe */
-        .cal-card-thumb { width: 100%; min-height: 150px; background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 18px; box-sizing: border-box; }
+        .cal-card-thumb { width: 100%; min-height: 110px; background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
         .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; border-radius: 10px; box-shadow: 0 10px 26px rgba(0,0,0,0.20); }
         .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.12s; cursor: pointer; }
         .cal-thumb-zoom:hover { background: rgba(0,0,0,0.78); }
@@ -1814,6 +1814,7 @@
         .cal-month-pill-meta { padding: 4px 6px 5px; display: flex; flex-direction: column; gap: 3px; }
         .cal-month-pill-name { font-size: 0.63rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
         .cal-month-pill-meta .cal-status { font-size: 0.54rem; padding: 2px 7px; white-space: nowrap; }
+        .cal-month-pill.is-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -1830,6 +1831,7 @@
         .cal-week-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; background: var(--white); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
         .cal-week-card:hover { border-color: #888; box-shadow: 0 3px 12px rgba(0,0,0,0.10); }
         .cal-week-card { position: relative; }
+        .cal-week-card.is-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-week-card[draggable="true"] { cursor: grab; }
         .cal-week-card-thumb { width: 100%; height: var(--cal-week-h, 320px); flex-shrink: 0; background: #f4f4f2; display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
         .cal-week-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -7627,7 +7629,7 @@
         { key: 'scheduled_date', label: 'Date',              req: false, aliases: ['date','scheduled date','post date','publish date','due date','day','scheduled','go live'] },
         { key: 'status',         label: 'Status',            req: false, aliases: ['status','stage','state','progress'] },
         { key: 'thumbnail_url',  label: 'Thumbnail URL',     req: false, aliases: ['thumbnail','thumbnail url','thumb','thumbnail link','cover','cover image','image'] },
-        { key: 'asset_url',      label: 'Post / asset URL',  req: false, aliases: ['url','post url','link','asset url','asset','video url','video link','frameio','frame io','drive link','file'] },
+        { key: 'asset_url',      label: 'Video URL',         req: false, aliases: ['url','post url','link','asset url','asset','video url','video link','frameio','frame io','drive link','file'] },
         { key: 'caption',        label: 'Caption',           req: false, aliases: ['caption','description','copy','post caption','text','script','hook'] },
         { key: 'cta',            label: 'CTA',               req: false, aliases: ['cta','call to action'] },
         { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
@@ -8424,7 +8426,7 @@
         const v = String(val || '').trim();
         const isThumb = fld === 'thumbnail_url';
         const kind = isThumb ? 'thumb' : 'post';
-        const label = isThumb ? 'Thumbnail' : 'Post';
+        const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
@@ -8467,7 +8469,8 @@
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
         const currentStatus = p.status || 'Draft';
-        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}" data-pid="${pid}" draggable="${draggable}">
+        const isPosted = String(p.status || '').toLowerCase() === 'posted';
+        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
@@ -8490,7 +8493,7 @@
                     </label>
                 </div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
-                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Post URL (Frame.io / Drive / video)')}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)')}
                 <div class="cal-cap-wrap">
                     <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
@@ -8851,28 +8854,20 @@
     function _calWireShiftScroll(el) {
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
-        let lastStep = 0;
         el.addEventListener('wheel', (e) => {
             if (!e.shiftKey) return;
             // When Shift is held some browsers report the scroll on deltaX,
             // others leave it on deltaY. Take whichever is non-zero.
-            const raw = e.deltaY || e.deltaX;
-            if (!raw) return;
+            let delta = e.deltaY || e.deltaX;
+            if (!delta) return;
+            if (e.deltaMode === 1) delta *= 16;                  // lines → px
+            else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
             const max = el.scrollWidth - el.clientWidth;
             if (max <= 1) return;
             e.preventDefault();
-            // One physical wheel notch fires a burst of events within a few
-            // ms — collapse that burst, but let distinct notches all through.
-            const now = e.timeStamp || performance.now();
-            if (now - lastStep < 45) return;
-            lastStep = now;
-            const cards = el.querySelectorAll(':scope > .cal-card, :scope > .cal-card-add');
-            if (!cards.length) return;
-            const gap = parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap) || 14;
-            const step = cards[0].offsetWidth + gap;
-            const dir = raw > 0 ? 1 : -1;
-            let target = (Math.round(el.scrollLeft / step) + dir) * step;
-            el.scrollLeft = Math.max(0, Math.min(max, target));   // instant, no animation
+            // Move the strip directly with the wheel — flowy and immediate,
+            // no card snapping, no animation.
+            el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + delta));
         }, { passive: false });
     }
     function _calWireDragOnCard(card) {
@@ -8920,7 +8915,8 @@
             ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
             : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
         const id = _calEscAttr(p.id);
-        return `<button class="cal-month-pill" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
+        const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
+        return `<button class="cal-month-pill${posted}" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
     }
 
     function renderCalMonth() {
@@ -9012,7 +9008,8 @@
                                     ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
                                     : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 const id = _calEscAttr(p.id);
-                                return `<button class="cal-week-card" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
+                                const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
+                                return `<button class="cal-week-card${posted}" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
                             }).join('')}
                         </div>
                     </div>`;

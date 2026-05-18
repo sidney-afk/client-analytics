@@ -1699,10 +1699,10 @@
             scrollbar-width: thin; scrollbar-color: #c8c8c3 transparent; }
         .cal-fld-cap::placeholder { color: #b6b6b1; }
         .cal-fld-cap:focus { background: #fff; border-color: var(--text-primary); }
-        .cal-fld-cap::-webkit-scrollbar { width: 9px; }
-        .cal-fld-cap::-webkit-scrollbar-thumb { background: #cdcdc8; border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-thumb:hover { background: #b1b1aa; background-clip: padding-box; }
-        .cal-fld-cap::-webkit-scrollbar-track { background: transparent; }
+        .cal-fld-cap::-webkit-scrollbar, .cal-fld-tweaks::-webkit-scrollbar { width: 9px; }
+        .cal-fld-cap::-webkit-scrollbar-thumb, .cal-fld-tweaks::-webkit-scrollbar-thumb { background: #cdcdc8; border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
+        .cal-fld-cap::-webkit-scrollbar-thumb:hover, .cal-fld-tweaks::-webkit-scrollbar-thumb:hover { background: #b1b1aa; background-clip: padding-box; }
+        .cal-fld-cap::-webkit-scrollbar-track, .cal-fld-tweaks::-webkit-scrollbar-track { background: transparent; }
         .cal-cap-toggle { position: absolute; right: 7px; bottom: 7px; width: 22px; height: 22px; border-radius: 6px;
             display: inline-flex; align-items: center; justify-content: center; padding: 0;
             background: rgba(255,255,255,0.94); border: 1px solid var(--border); box-shadow: 0 1px 4px rgba(0,0,0,0.10);
@@ -1787,7 +1787,7 @@
         .cal-month-wrap { padding: 4px 0; }
         .cal-month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .cal-month-head { background: var(--bg); padding: 8px; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-align: center; letter-spacing: 0.05em; text-transform: uppercase; }
-        .cal-month-cell { background: var(--white); min-height: 196px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; transition: background 0.12s; }
+        .cal-month-cell { background: var(--white); min-height: 196px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; transition: background 0.12s; }
         .cal-month-cell:hover { background: #fafaf9; }
         .cal-month-cell.out { background: #fafafa; }
         .cal-month-cell.out .cal-month-num { color: #c5c5c2; }
@@ -1823,11 +1823,13 @@
         .cal-week-wrap { padding: 4px 0; }
         .cal-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
         .cal-week-col { background: var(--white); border: 1px solid var(--border); border-radius: 10px; min-height: var(--cal-week-col, 470px); display: flex; flex-direction: column; overflow: hidden; }
-        .cal-week-col.today { border-color: var(--text-primary); box-shadow: 0 0 0 1px var(--text-primary) inset; }
+        .cal-week-col.today { border-color: #4f46e5; }
         .cal-week-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
+        .cal-week-col.today .cal-week-head { background: #eef0fe; border-bottom-color: #d9daf8; }
         .cal-week-day { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.05em; text-transform: uppercase; }
         .cal-week-num { font-size: 1.1rem; font-weight: 800; color: var(--text-primary); margin-top: 2px; }
-        .cal-week-stack { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+        .cal-week-col.today .cal-week-day, .cal-week-col.today .cal-week-num { color: #4f46e5; }
+        .cal-week-stack { flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
         .cal-week-card { display: flex; flex-direction: column; align-items: stretch; padding: 0; background: var(--white); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; text-align: left; font-family: inherit; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
         .cal-week-card:hover { border-color: #888; box-shadow: 0 3px 12px rgba(0,0,0,0.10); }
         .cal-week-card { position: relative; }
@@ -8498,7 +8500,10 @@
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
                 </div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
-                <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="${_calEscAttr(_calClientPossessive() + ' tweaks')}" oninput="_calOnTextareaInput(this)" onblur="_calOnFieldBlur(this)">${_calEsc(p.tweaks)}</textarea>
+                <div class="cal-cap-wrap">
+                    <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="${_calEscAttr(_calClientPossessive() + ' tweaks')}" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.tweaks)}</textarea>
+                    <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
+                </div>
                 <div class="cal-card-foot">
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
                 </div>
@@ -8563,11 +8568,7 @@
     }
     function _calAutosizeTextareas(container) {
         const root = container || document;
-        root.querySelectorAll('.cal-fld-cap').forEach(t => _calRefreshCaption(t, false));
-        root.querySelectorAll('.cal-fld-tweaks').forEach(t => {
-            t.style.height = 'auto';
-            t.style.height = Math.max(t.scrollHeight, parseInt(getComputedStyle(t).minHeight) || 0) + 2 + 'px';
-        });
+        root.querySelectorAll('.cal-fld-cap, .cal-fld-tweaks').forEach(t => _calRefreshCaption(t, false));
     }
     function _calThumbClick(e, pid) {
         // Only the image itself or the zoom button open the lightbox —

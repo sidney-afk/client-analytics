@@ -6163,14 +6163,15 @@
             // silently dropped so they don't pollute the panels.
             if (!wlIsAllowedEditor(s.assigneeName, s.teamKey, s.teamName)) continue;
             // Overdue catches sub-issues whose due date has passed and that
-            // are still firmly on the editor's plate — i.e. status "To Do"
-            // or "Tweak Needed". An overdue tweak takes priority over the
-            // Tweaks Needed strip so the item only ever appears once. An
+            // are still firmly on the editor's plate as fresh work — i.e.
+            // status "To Do". A past-due "Tweak Needed" item is kept in the
+            // Tweaks Needed strip instead (see below) so revision work stays
+            // grouped by its real status regardless of the slipped date. An
             // overdue "In Progress" item stays in In Progress (the editor
             // is actively cutting it; the deadline slip is implied by the
             // due date), and parked statuses (Kasper / SMM / Client
             // approval, etc.) are filtered upstream by wlIsActiveStatus.
-            const isOverdue = hasDue && s.dueDate < todayISO && (wlIsToDo(s) || needsTweak);
+            const isOverdue = hasDue && s.dueDate < todayISO && wlIsToDo(s);
             if (isOverdue) {
                 overdue.push(s);
                 continue;

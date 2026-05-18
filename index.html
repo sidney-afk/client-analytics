@@ -8496,7 +8496,7 @@
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)')}
                 <div class="cal-cap-wrap">
-                    <textarea class="cal-fld-cap" rows="3" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.caption)}</textarea>
+                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
                 </div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
@@ -8523,13 +8523,12 @@
     }
     /* Caption field — collapsed (≈5 lines) by default, expands on focus or
        via the toggle, collapses again on blur unless the user pinned it. */
-    const CAL_CAP_LINES = 5;
     function _calCapCollapsedH(ta) {
         const cs = getComputedStyle(ta);
-        const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.4);
+        const lh = parseFloat(cs.lineHeight) || (parseFloat(cs.fontSize) * 1.5);
         const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
                   + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
-        return Math.round(lh * CAL_CAP_LINES + pad);
+        return Math.round(lh * (ta.rows || 3) + pad);
     }
     function _calRefreshCaption(ta, focused) {
         if (!ta) return;
@@ -8539,20 +8538,16 @@
         const full = ta.scrollHeight + 2;
         const collapsedH = _calCapCollapsedH(ta);
         const overflowing = full > collapsedH + 1;
-        if (focused || expanded || !overflowing) {
-            ta.style.height = full + 'px';
-            ta.style.overflowY = 'hidden';
-        } else {
-            ta.style.height = collapsedH + 'px';
-            ta.style.overflowY = 'auto';
-        }
+        // Collapsed always sits at exactly the default (rows) height, so an
+        // empty field and a collapsed-with-content field look identical.
+        const target = (focused || expanded) ? Math.max(full, collapsedH) : collapsedH;
+        ta.style.height = target + 'px';
+        ta.style.overflowY = (full > target + 1) ? 'auto' : 'hidden';
         if (wrap) {
             const btn = wrap.querySelector('.cal-cap-toggle');
             if (btn) {
                 btn.hidden = !overflowing;
                 btn.classList.toggle('is-expanded', expanded);
-                const span = btn.querySelector('span');
-                if (span) span.textContent = expanded ? 'Collapse' : 'Expand';
             }
         }
     }
@@ -8563,7 +8558,7 @@
         const wrap = btn.closest('.cal-cap-wrap');
         if (!wrap) return;
         wrap.classList.toggle('expanded');
-        const ta = wrap.querySelector('.cal-fld-cap');
+        const ta = wrap.querySelector('textarea');
         _calRefreshCaption(ta, document.activeElement === ta);
     }
     function _calAutosizeTextareas(container) {

@@ -8542,7 +8542,7 @@
         // empty field and a collapsed-with-content field look identical.
         const target = (focused || expanded) ? Math.max(full, collapsedH) : collapsedH;
         ta.style.height = target + 'px';
-        ta.style.overflowY = (full > target + 1) ? 'auto' : 'hidden';
+        ta.style.overflowY = 'hidden';   // collapsed clips; expanded grows to fit — never a scrollbar
         if (wrap) {
             const btn = wrap.querySelector('.cal-cap-toggle');
             if (btn) {

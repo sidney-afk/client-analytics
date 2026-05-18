@@ -1467,9 +1467,9 @@
 
         /* ── Content Calendar module ──────────────────────────────────────── */
         .cal-view { padding: 8px 16px 32px;
-            --cal-card-w: 320px; --cal-thumb-h: 130px; --cal-month-w: 82px; --cal-week-h: 224px; --cal-week-col: 348px; }
-        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 100px; --cal-month-w: 62px;  --cal-week-h: 172px; --cal-week-col: 282px; }
-        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 188px; --cal-month-w: 112px; --cal-week-h: 320px; --cal-week-col: 470px; }
+            --cal-card-w: 320px; --cal-thumb-h: 130px; --cal-month-w: 146px; --cal-week-h: 224px; --cal-week-col: 348px; }
+        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 100px; --cal-month-w: 116px;  --cal-week-h: 172px; --cal-week-col: 282px; }
+        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 188px; --cal-month-w: 184px; --cal-week-h: 320px; --cal-week-col: 470px; }
         .cal-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 99px; padding: 3px 6px; }
         .cal-zoom .cal-zoom-ico { width: 14px; height: 14px; color: var(--text-muted); margin: 0 3px; }
         .cal-zoom button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
@@ -1791,7 +1791,12 @@
         .cal-month-cell:hover { background: #fafaf9; }
         .cal-month-cell.out { background: #fafafa; }
         .cal-month-cell.out .cal-month-num { color: #c5c5c2; }
-        .cal-month-cell.today .cal-month-num { background: var(--text-primary); color: var(--white); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
+        .cal-month-cell.out .cal-month-dow { color: #d6d6d3; }
+        .cal-month-cell.today { background: #eff3ff; }
+        .cal-month-cell.today:hover { background: #e7edff; }
+        .cal-month-cell.today .cal-month-num { background: #4f46e5; color: var(--white); border-radius: 50%; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
+        .cal-month-cellhead { display: flex; align-items: center; gap: 5px; }
+        .cal-month-dow { font-size: 0.6rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
         .cal-month-num { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-month-pill { position: relative; display: flex; flex-direction: column; align-items: stretch; background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 0; font-family: inherit; cursor: pointer; text-align: left; width: var(--cal-month-w, 112px); max-width: 100%; overflow: hidden; transition: border-color 0.12s, box-shadow 0.12s; }
         .cal-month-pill[draggable="true"] { cursor: grab; }
@@ -1808,7 +1813,7 @@
         .cal-month-pill-thumb svg { width: 20px; height: 20px; }
         .cal-month-pill-meta { padding: 4px 6px 5px; display: flex; flex-direction: column; gap: 3px; }
         .cal-month-pill-name { font-size: 0.63rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
-        .cal-month-pill-meta .cal-status { font-size: 0.52rem; padding: 2px 6px; }
+        .cal-month-pill-meta .cal-status { font-size: 0.54rem; padding: 2px 7px; white-space: nowrap; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -8946,8 +8951,12 @@
                     const inMonth = iso.slice(0,7) === firstISO.slice(0,7);
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
+                    const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
                     return `<div class="cal-month-cell${inMonth ? '' : ' out'}${today ? ' today' : ''}" data-iso="${iso}">
-                        <div class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</div>
+                        <div class="cal-month-cellhead">
+                            <span class="cal-month-dow">${dow}</span>
+                            <span class="cal-month-num">${parseInt(iso.slice(8,10), 10)}</span>
+                        </div>
                         ${list.map(p => _calMonthPillHtml(p)).join('')}
                     </div>`;
                 }).join('')}

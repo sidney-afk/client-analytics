@@ -8851,7 +8851,7 @@
     function _calWireShiftScroll(el) {
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
-        let snapping = false;
+        let lastStep = 0;
         el.addEventListener('wheel', (e) => {
             if (!e.shiftKey) return;
             // When Shift is held some browsers report the scroll on deltaX,
@@ -8861,17 +8861,18 @@
             const max = el.scrollWidth - el.clientWidth;
             if (max <= 1) return;
             e.preventDefault();
-            if (snapping) return;            // one card per gesture, not a free glide
+            // One physical wheel notch fires a burst of events within a few
+            // ms — collapse that burst, but let distinct notches all through.
+            const now = e.timeStamp || performance.now();
+            if (now - lastStep < 45) return;
+            lastStep = now;
             const cards = el.querySelectorAll(':scope > .cal-card, :scope > .cal-card-add');
             if (!cards.length) return;
             const gap = parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap) || 14;
             const step = cards[0].offsetWidth + gap;
             const dir = raw > 0 ? 1 : -1;
             let target = (Math.round(el.scrollLeft / step) + dir) * step;
-            target = Math.max(0, Math.min(max, target));
-            snapping = true;
-            el.scrollTo({ left: target, behavior: 'smooth' });
-            setTimeout(() => { snapping = false; }, 90);
+            el.scrollLeft = Math.max(0, Math.min(max, target));   // instant, no animation
         }, { passive: false });
     }
     function _calWireDragOnCard(card) {

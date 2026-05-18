@@ -8801,12 +8801,14 @@
 
     function archiveCalPost(id) {
         if (!id || _calIsBlankId(id)) return;
-        showConfirm('Archive this post?', 'It stays in the sheet but is hidden from the calendar. You can recover it by editing the row directly.', async () => {
+        showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
             _calSetCardStatus(id, 'saving');
             try {
-                const resp = await fetch(CALENDAR_DELETE_URL, {
+                // Archive via the upsert webhook — it reliably updates the row
+                // by id, flipping status to Archived so it drops off the load.
+                const resp = await fetch(CALENDAR_UPSERT_URL, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client: calClientSlug(calState.client), id })
+                    body: JSON.stringify({ client: calClientSlug(calState.client), post: { id, status: 'Archived' } })
                 });
                 const json = await resp.json();
                 if (!json.ok) throw new Error(json.error || 'archive failed');

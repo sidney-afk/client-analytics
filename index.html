@@ -1749,7 +1749,7 @@
         .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; }
         .cal-status-in-progress { background: #ffedd5; color: #9a3412; }
         .cal-status-for-smm-approval { background: #fef9c3; color: #854d0e; }
-        .cal-status-for-kasper-approval { background: #dbeafe; color: #1e40af; }
+        .cal-status-kasper-approval { background: #dbeafe; color: #1e40af; }
         .cal-status-client-approval { background: #ccfbf1; color: #0f766e; }
         .cal-status-approved { background: #dcfce7; color: #166534; }
         .cal-status-tweaks-needed { background: #fee2e2; color: #991b1b; }
@@ -1768,7 +1768,7 @@
         .cal-fld-status option { background: #fff; color: var(--text-primary); font-weight: 600; }
         .cal-fld-status-wrap[data-val="In Progress"] { background: #ffedd5; color: #9a3412; }
         .cal-fld-status-wrap[data-val="For SMM Approval"] { background: #fef9c3; color: #854d0e; }
-        .cal-fld-status-wrap[data-val="For Kasper Approval"] { background: #dbeafe; color: #1e40af; }
+        .cal-fld-status-wrap[data-val="Kasper Approval"] { background: #dbeafe; color: #1e40af; }
         .cal-fld-status-wrap[data-val="Client Approval"] { background: #ccfbf1; color: #0f766e; }
         .cal-fld-status-wrap[data-val="Approved"] { background: #dcfce7; color: #166534; }
         .cal-fld-status-wrap[data-val="Tweaks Needed"] { background: #fee2e2; color: #991b1b; }
@@ -7522,13 +7522,13 @@
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
 
-    const CAL_STATUSES  = ['In Progress','For SMM Approval','For Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
+    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
     /* Map any legacy / external status string onto the current set.
        "Draft" was retired — those posts become "In Progress". */
     function _calNormStatus(s) {
         const v = String(s || '').trim();
         if (!v || /^draft$/i.test(v)) return 'In Progress';
-        if (/^kasper approval$/i.test(v)) return 'For Kasper Approval';
+        if (/^(for )?kasper approval$/i.test(v)) return 'Kasper Approval';
         if (/^smm approval$/i.test(v)) return 'For SMM Approval';
         const m = CAL_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
         return m || v;
@@ -7890,7 +7890,7 @@
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
         const statusByLower = new Map(CAL_STATUSES.map(s => [s.toLowerCase(), s]));
         statusByLower.set('draft', 'In Progress');
-        statusByLower.set('kasper approval', 'For Kasper Approval');
+        statusByLower.set('for kasper approval', 'Kasper Approval');
         statusByLower.set('smm approval', 'For SMM Approval');
         let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
         const posts = [];

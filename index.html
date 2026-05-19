@@ -7733,6 +7733,20 @@
             localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom }));
         } catch {}
     }
+    /* Per-client strip scroll, persisted across browser refreshes. */
+    function _calSaveScroll(slug, x) {
+        if (!slug) return;
+        try { localStorage.setItem('syncview_cal_scroll_' + slug, String(x)); } catch {}
+    }
+    function _calGetSavedScroll(slug) {
+        if (!slug) return null;
+        try {
+            const v = localStorage.getItem('syncview_cal_scroll_' + slug);
+            if (v == null) return null;
+            const n = Number(v);
+            return isFinite(n) ? n : null;
+        } catch { return null; }
+    }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
     function calToggleClientPin(name) {
@@ -7756,6 +7770,7 @@
         const pins  = _calGetPins();
         let initial = null;
         if (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) initial = _calFocusRequest.client;
+        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client) && (pins.length === 0 || pins.includes(prefs.client))) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         calState.client = initial;
@@ -7784,16 +7799,27 @@
         if (!calState.client) return;
         const calBody = document.getElementById('calBody');
         if (!calBody) return;
-        // Don't refresh mid-interaction — re-rendering would close menus,
-        // drop unsaved characters, or reset the scroll position. We'll catch
-        // the next focus/visibility event when the user is done.
-        if (calBody.contains(document.activeElement)) return;
-        if (Object.keys(_calPendingEdits).length > 0) return;
+        // We still trigger the refresh while interacting — the re-render is
+        // deferred until the user blurs out (see _calMaybeRunPendingRender).
         const now = Date.now();
         if (now - _calLastReturnLoad < 1500) return;
         _calLastReturnLoad = now;
         loadCalendarPosts({ background: true });
     }
+    /* When a background refresh resolves while the user is mid-edit, the
+       render is deferred onto this flag and applied once nothing in the
+       calendar is focused and there are no unsaved field edits. */
+    let _calPendingBackgroundRender = false;
+    function _calMaybeRunPendingRender() {
+        if (!_calPendingBackgroundRender) return;
+        const calBody = document.getElementById('calBody');
+        if (!calBody) { _calPendingBackgroundRender = false; return; }
+        if (calBody.contains(document.activeElement)) return;
+        if (Object.keys(_calPendingEdits).length > 0) return;
+        _calPendingBackgroundRender = false;
+        _calRenderBody({ preserveScroll: true });
+    }
+    document.addEventListener('focusout', () => { setTimeout(_calMaybeRunPendingRender, 60); });
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
 
@@ -8430,7 +8456,14 @@
             if (seq === _calLoadSeq) {
                 calState.loading = false;
                 _calSetRefreshing(false);
-                _calRenderBody(background ? { preserveScroll: true } : null);
+                if (background) {
+                    const calBody = document.getElementById('calBody');
+                    const busy = (calBody && calBody.contains(document.activeElement)) || Object.keys(_calPendingEdits).length > 0;
+                    if (busy) _calPendingBackgroundRender = true;
+                    else _calRenderBody({ preserveScroll: true });
+                } else {
+                    _calRenderBody();
+                }
             }
         }
         if (seq === _calLoadSeq && ok) { _calReconcileLinearStatuses(); _calApplyFocusRequest(); }
@@ -9580,10 +9613,17 @@
         strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_calWireDragOnCard);
         _calAutosizeTextareas(strip);
         _calWireShiftScroll(strip);
-        // Centre the "up next" card on load (fall back to the end of the strip).
-        // Skipped on a background refresh so the user's scroll position holds.
+        // Restore the previously-scrolled position (persisted across browser
+        // refreshes); fall back to centring the "up next" card. Skipped on a
+        // background refresh so the in-memory scroll position holds.
         if (!skipAutoCenter) {
+            const slug = calClientSlug(calState.client);
+            const saved = _calGetSavedScroll(slug);
             requestAnimationFrame(() => {
+                if (saved != null) {
+                    strip.scrollLeft = saved;
+                    return;
+                }
                 const current = strip.querySelector('.cal-card-current');
                 if (current) {
                     const cRect = current.getBoundingClientRect(), sRect = strip.getBoundingClientRect();
@@ -9591,6 +9631,14 @@
                 } else {
                     strip.scrollLeft = strip.scrollWidth;
                 }
+            });
+        }
+        if (strip.dataset.scrollWired !== '1') {
+            strip.dataset.scrollWired = '1';
+            let saveTimer = null;
+            strip.addEventListener('scroll', () => {
+                if (saveTimer) clearTimeout(saveTimer);
+                saveTimer = setTimeout(() => { _calSaveScroll(calClientSlug(calState.client), strip.scrollLeft); }, 200);
             });
         }
         if (strip.dataset.dropWired === '1') return;

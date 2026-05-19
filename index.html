@@ -7999,7 +7999,7 @@
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid].status = mapped;
         _calFlushCardSave(pid);
-        _calRenderBody();
+        _calRenderBody({ preserveScroll: true });
     }
     /* On load, reconcile every already-linked card against Linear in one
        batched call. Linear is the source of truth, so any card whose status
@@ -8036,7 +8036,7 @@
             _calFlushCardSave(post.id);
             changed++;
         }
-        if (changed) _calRenderBody();
+        if (changed) _calRenderBody({ preserveScroll: true });
     }
 
     function openCalLinearImport() {
@@ -8779,6 +8779,13 @@
         }
         if (calState.view === 'organizer') {
             body.innerHTML = renderCalOrganizer();
+            // Restore the captured scroll synchronously, before the browser
+            // paints the new strip — eliminates the brief jump to zero that
+            // would otherwise be visible on every re-render.
+            if (preserveScroll && scrollLeft0 != null) {
+                const stripNow = document.getElementById('calStrip');
+                if (stripNow) stripNow.scrollLeft = scrollLeft0;
+            }
             wireCalOrganizerDrag(preserveScroll);
         } else if (calState.view === 'month') {
             body.innerHTML = renderCalMonth();
@@ -8789,13 +8796,7 @@
             _calWireWheelNav(body.querySelector('.cal-week-wrap'), calWeekShiftDays);
             _calWireDayDrag(body);
         }
-        if (preserveScroll) {
-            requestAnimationFrame(() => {
-                const strip = document.getElementById('calStrip');
-                if (strip && scrollLeft0 != null) strip.scrollLeft = scrollLeft0;
-                if (scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
-            });
-        }
+        if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
     }
 
     /* Drag a post pill from one day cell to another to reschedule it. */
@@ -9130,7 +9131,7 @@
         // real id, and linking/unlinking flips the status lock and the
         // unlinked-warning banner, which live outside the title row.
         if (changed) {
-            _calRenderBody();
+            _calRenderBody({ preserveScroll: true });
             if (val && post) _calSyncStatusFromLinear(pid, val);
             return;
         }
@@ -9218,7 +9219,7 @@
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             _calPendingEdits[pid].status = 'Approved';
             _calFlushCardSave(pid);
-            _calRenderBody();
+            _calRenderBody({ preserveScroll: true });
         };
         let skip = false;
         try { skip = localStorage.getItem('cal-skip-approve-confirm') === '1'; } catch (e) {}
@@ -9537,7 +9538,7 @@
         calState.lastSel = null;
         const btn = document.querySelector('.cal-select-btn');
         if (btn) btn.classList.toggle('active', calState.selectMode);
-        _calRenderBody();
+        _calRenderBody({ preserveScroll: true });
     }
     function _calCardSelectClick(e, pid) {
         e.preventDefault();
@@ -9583,7 +9584,7 @@
                 calState.lastSel = null;
                 const btn = document.querySelector('.cal-select-btn');
                 if (btn) btn.classList.remove('active');
-                _calRenderBody();
+                _calRenderBody({ preserveScroll: true });
                 const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id)));
                 const failed = results.filter(r => r.status === 'rejected').length;
                 if (failed) {

@@ -1783,7 +1783,7 @@
         .cal-org-empty { padding: 40px 16px; text-align: center; color: var(--text-muted); font-size: 0.9rem; }
 
         .cal-chip { display: inline-flex; align-items: center; padding: 2px 7px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; border: 1px solid currentColor; border-radius: 99px; }
-        .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; }
+        .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; white-space: nowrap; }
         .cal-status-in-progress { background: #ffedd5; color: #9a3412; }
         .cal-status-for-smm-approval { background: #fef9c3; color: #854d0e; }
         .cal-status-kasper-approval { background: #dbeafe; color: #1e40af; }
@@ -1815,7 +1815,10 @@
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
         .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--bg); }
-        .cal-client-status { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .cal-client-status { display: flex; align-items: center; gap: 7px; }
+        /* Client view — let the status pill size to its label so it never
+           wraps; the date pill takes the remaining width and truncates. */
+        .cal-card-ro .cal-meta-row > .cal-client-status { flex: 0 0 auto; }
         .cal-approve-bar { display: flex; align-items: center; justify-content: center; gap: 7px;
             width: 100%; box-sizing: border-box; margin-top: 10px; padding: 11px 14px;
             border: none; border-radius: 10px; cursor: pointer;
@@ -7672,6 +7675,13 @@
         else _calRenderBody();
     }
 
+    /* Re-fetch the calendar whenever the browser tab regains focus, so a
+       calendar left open in the background picks up the latest Linear sync. */
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        if (calState.client && document.getElementById('calBody')) loadCalendarPosts();
+    });
+
     /* Embedded calendar — rendered inside a client profile's "Content Calendar"
        tab. Locked to one client (no client-tab picker). */
     function mountCalendarEmbedded(name) {
@@ -8852,7 +8862,7 @@
                         </div>
                         <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
                     </div>`;
-        const canApprove = ro && currentStatus !== 'Approved' && currentStatus !== 'Posted';
+        const canApprove = ro && currentStatus === 'Client Approval';
         const statusHtml = ro
             ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
             : `<label class="cal-fld-status-wrap" data-val="${_calEscAttr(currentStatus)}">

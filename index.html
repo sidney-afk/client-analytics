@@ -1719,6 +1719,12 @@
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: rgba(255,255,255,0.16); color: #fff; }
         .cal-select-cancel:hover { background: rgba(255,255,255,0.26); }
+        .cal-refreshing { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
+            font-weight: 600; color: var(--text-muted); }
+        .cal-refreshing[hidden] { display: none; }
+        .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
+        @keyframes cal-spin { to { transform: rotate(360deg); } }
         .cal-linear-edit { display: none; align-items: center; justify-content: center;
             width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
             cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
@@ -7743,7 +7749,7 @@
         const now = Date.now();
         if (now - _calLastReturnLoad < 1500) return;
         _calLastReturnLoad = now;
-        loadCalendarPosts();
+        loadCalendarPosts({ background: true });
     }
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
@@ -8336,30 +8342,51 @@
         if (doneBtn) doneBtn.disabled = false;
     }
 
-    async function loadCalendarPosts() {
+    let _calLoadSeq = 0;
+    function _calSetRefreshing(on) {
+        const el = document.getElementById('calRefreshing');
+        if (el) el.hidden = !on;
+    }
+    async function loadCalendarPosts(opts) {
+        opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
-        calState.loading = true;
-        calState.error = null;
-        _calRenderBody();
+        const seq = ++_calLoadSeq;
+        // Background refresh (tab regained focus): keep the current calendar
+        // on screen and show a small spinner instead of blanking to "Loading".
+        const background = !!opts.background && calState.posts.length > 0;
+        if (background) {
+            _calSetRefreshing(true);
+        } else {
+            calState.loading = true;
+            calState.error = null;
+            _calRenderBody();
+        }
+        let ok = false;
         try {
             const slug = calClientSlug(calState.client);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             const json = await resp.json();
+            if (seq !== _calLoadSeq) return;   // a newer load (fast tab switch) superseded this one
             if (!json.ok) throw new Error(json.error || 'load failed');
             calState.posts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
                 .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); return p; });
+            calState.error = null;
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
+            ok = true;
         } catch (e) {
+            if (seq !== _calLoadSeq) return;
             console.warn('[Calendar] load failed', e);
-            calState.error = e.message || String(e);
-            calState.posts = [];
+            if (!background) { calState.error = e.message || String(e); calState.posts = []; }
         } finally {
-            calState.loading = false;
-            _calRenderBody();
+            if (seq === _calLoadSeq) {
+                calState.loading = false;
+                _calSetRefreshing(false);
+                _calRenderBody();
+            }
         }
-        _calReconcileLinearStatuses();
+        if (seq === _calLoadSeq && ok) _calReconcileLinearStatuses();
     }
 
     function _calRenderShell() {
@@ -8399,6 +8426,7 @@
                     </div>
                 </div>
                 <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="calRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
                     ${shareBtnHtml}
                     ${selectBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
@@ -9431,18 +9459,22 @@
         showConfirm('Archive ' + ids.length + ' post' + (ids.length === 1 ? '' : 's') + '?',
             "They're removed from the calendar but kept (archived) in the Google Sheet on our server, so they can always be recovered.",
             async () => {
-                let failed = 0;
-                for (const id of ids) {
-                    try { await _calArchiveOne(id); }
-                    catch (e) { failed++; console.warn('[Calendar] archive failed', e); }
-                }
+                // Drop the cards from the UI immediately, then fire the archive
+                // requests in parallel in the background — no waiting, no reload.
+                const idSet = new Set(ids);
+                calState.posts = calState.posts.filter(p => !idSet.has(p.id));
                 calState.selectMode = false;
                 calState.selected = new Set();
                 calState.lastSel = null;
                 const btn = document.querySelector('.cal-select-btn');
                 if (btn) btn.classList.remove('active');
                 _calRenderBody();
-                if (failed) showNotify('Some posts were not archived', failed + ' of ' + ids.length + ' could not be archived. Please try again.');
+                const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id)));
+                const failed = results.filter(r => r.status === 'rejected').length;
+                if (failed) {
+                    showNotify('Some posts were not archived', failed + ' of ' + ids.length + ' could not be archived — reloading the calendar.');
+                    loadCalendarPosts();
+                }
             }, 'Archive');
     }
     function archiveCalPost(id) {

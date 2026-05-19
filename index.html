@@ -1747,9 +1747,9 @@
 
         .cal-chip { display: inline-flex; align-items: center; padding: 2px 7px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; border: 1px solid currentColor; border-radius: 99px; }
         .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; }
-        .cal-status-draft { background: #f3f3f1; color: #6b7280; }
         .cal-status-in-progress { background: #ffedd5; color: #9a3412; }
-        .cal-status-kasper-approval { background: #dbeafe; color: #1e40af; }
+        .cal-status-for-smm-approval { background: #fef9c3; color: #854d0e; }
+        .cal-status-for-kasper-approval { background: #dbeafe; color: #1e40af; }
         .cal-status-client-approval { background: #ccfbf1; color: #0f766e; }
         .cal-status-approved { background: #dcfce7; color: #166534; }
         .cal-status-tweaks-needed { background: #fee2e2; color: #991b1b; }
@@ -1766,14 +1766,26 @@
             pointer-events: none; color: inherit; opacity: 0.7; }
         .cal-fld-status-wrap:focus-within { box-shadow: 0 0 0 2px rgba(0,0,0,0.14); }
         .cal-fld-status option { background: #fff; color: var(--text-primary); font-weight: 600; }
-        .cal-fld-status-wrap[data-val="Draft"] { background: #f3f3f1; color: #6b7280; }
         .cal-fld-status-wrap[data-val="In Progress"] { background: #ffedd5; color: #9a3412; }
-        .cal-fld-status-wrap[data-val="Kasper Approval"] { background: #dbeafe; color: #1e40af; }
+        .cal-fld-status-wrap[data-val="For SMM Approval"] { background: #fef9c3; color: #854d0e; }
+        .cal-fld-status-wrap[data-val="For Kasper Approval"] { background: #dbeafe; color: #1e40af; }
         .cal-fld-status-wrap[data-val="Client Approval"] { background: #ccfbf1; color: #0f766e; }
         .cal-fld-status-wrap[data-val="Approved"] { background: #dcfce7; color: #166534; }
         .cal-fld-status-wrap[data-val="Tweaks Needed"] { background: #fee2e2; color: #991b1b; }
         .cal-fld-status-wrap[data-val="Scheduled"] { background: #ede9fe; color: #5b21b6; }
         .cal-fld-status-wrap[data-val="Posted"] { background: #064e3b; color: #ecfdf5; }
+
+        /* Client-link view — read-only adjustments */
+        .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
+        .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--bg); }
+        .cal-client-status { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+        .cal-client-approve { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 12px; border: none; border-radius: 8px; cursor: pointer;
+            background: #166534; color: #fff; font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 0.02em; transition: background 0.13s; }
+        .cal-client-approve:hover { background: #14532d; }
+        .cal-client-approve svg { width: 12px; height: 12px; }
+        .cal-link-field.cal-link-ro a.cal-link-pill-open { text-decoration: none; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -7510,7 +7522,17 @@
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
 
-    const CAL_STATUSES  = ['Draft','In Progress','Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
+    const CAL_STATUSES  = ['In Progress','For SMM Approval','For Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
+    /* Map any legacy / external status string onto the current set.
+       "Draft" was retired — those posts become "In Progress". */
+    function _calNormStatus(s) {
+        const v = String(s || '').trim();
+        if (!v || /^draft$/i.test(v)) return 'In Progress';
+        if (/^kasper approval$/i.test(v)) return 'For Kasper Approval';
+        if (/^smm approval$/i.test(v)) return 'For SMM Approval';
+        const m = CAL_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
+        return m || v;
+    }
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
     const CAL_PINS_KEY  = 'syncview_calendar_pins';
     const CAL_SAVE_DEBOUNCE_MS = 650;
@@ -7867,13 +7889,16 @@
         const errBox = document.getElementById('calImportErr');
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
         const statusByLower = new Map(CAL_STATUSES.map(s => [s.toLowerCase(), s]));
+        statusByLower.set('draft', 'In Progress');
+        statusByLower.set('kasper approval', 'For Kasper Approval');
+        statusByLower.set('smm approval', 'For SMM Approval');
         let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
         const posts = [];
         for (const row of _calImportRows) {
             const name = String(row[map.name] ?? '').trim();
             if (!name) continue;
             baseOrder++;
-            const post = { id: _calMintId(), order_index: baseOrder, name, scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+            const post = { id: _calMintId(), order_index: baseOrder, name, scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
             if (map.scheduled_date) post.scheduled_date = _calCoerceDate(row[map.scheduled_date]);
             if (map.status) { const st = String(row[map.status] ?? '').trim().toLowerCase(); if (statusByLower.has(st)) post.status = statusByLower.get(st); }
             ['thumbnail_url','asset_url','caption','cta','tweaks'].forEach(k => { if (map[k]) post[k] = String(row[map[k]] ?? '').trim(); });
@@ -7915,7 +7940,7 @@
             if (!json.ok) throw new Error(json.error || 'load failed');
             calState.posts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
-                .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); return p; });
+                .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); return p; });
         } catch (e) {
             console.warn('[Calendar] load failed', e);
             calState.error = e.message || String(e);
@@ -8214,6 +8239,7 @@
     /* Drag a post pill from one day cell to another to reschedule it. */
     let _calDayDragId = null;
     function _calWireDayDrag(root) {
+        if (_isClientLink) return;   // client-link view — no rescheduling
         root.querySelectorAll('[data-cal-move]').forEach(el => {
             el.addEventListener('dragstart', (e) => {
                 _calDayDragId = el.getAttribute('data-cal-move');
@@ -8312,10 +8338,10 @@
     }
     // "Client Approval" is stored verbatim but shown with the client's name.
     function _calStatusLabel(s) {
-        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : (s || 'Draft');
+        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : (s || 'In Progress');
     }
     function _calStatusChip(p) {
-        const s = p.status || 'Draft';
+        const s = p.status || 'In Progress';
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g,'-');
         return `<span class="cal-status ${cls}">${_calEsc(_calStatusLabel(s))}</span>`;
     }
@@ -8395,9 +8421,11 @@
         posts.forEach((p,i) => { if (String(p.status || '').toLowerCase() === 'posted') lastPostedIdx = i; });
         const currentIdx = lastPostedIdx + 1;
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        const addBtn = empty
-            ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
-            : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`;
+        const addBtn = _isClientLink
+            ? (empty ? `<div class="cal-empty">No posts scheduled yet — check back soon.</div>` : '')
+            : (empty
+                ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
+                : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`);
         return `<div class="cal-organizer-wrap">
             <div class="cal-organizer-strip${empty ? ' is-empty' : ''}" id="calStrip">
                 ${posts.map((p,i) => _calRenderInlineCard(p, false, i === currentIdx)).join('')}
@@ -8408,7 +8436,7 @@
 
     function _calBlankPost() {
         const maxOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
     }
 
     function _calLinkLabel(url) {
@@ -8424,13 +8452,22 @@
         try { return new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); }
         catch { return u.length > 26 ? u.slice(0,26) + '…' : u; }
     }
-    function _calLinkFieldHtml(pid, fld, val, placeholder) {
+    function _calLinkFieldHtml(pid, fld, val, placeholder, ro) {
         const v = String(val || '').trim();
         const isThumb = fld === 'thumbnail_url';
         const kind = isThumb ? 'thumb' : 'post';
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+        if (ro) {
+            // Client-link view — links can be opened but never edited.
+            // The raw thumbnail link is hidden (the thumbnail image is shown).
+            if (!v || isThumb) return '';
+            const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
+            return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
+                <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
+            </div>`;
+        }
         const input = `<input class="cal-link-input" type="url" data-pid="${pid}" data-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnLinkInput(this)" onblur="_calOnLinkBlur(this)">`;
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
@@ -8467,40 +8504,57 @@
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
-        const draggable = isBlank ? 'false' : 'true';
+        const ro = _isClientLink;   // client-link view — most fields locked
+        const draggable = (isBlank || ro) ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
-        const currentStatus = p.status || 'Draft';
+        const currentStatus = p.status || 'In Progress';
         const isPosted = String(p.status || '').toLowerCase() === 'posted';
-        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}" data-pid="${pid}" draggable="${draggable}">
-            ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
-            ${isBlank ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
-            <div class="cal-card-body">
-                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
-                <div class="cal-meta-row">
-                    <div class="cal-fld-date-wrap">
+        const dateHtml = ro
+            ? `<div class="cal-fld-date-wrap is-readonly">
+                        <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}">
+                            <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
+                            <span class="cal-date-txt">${dateFmt ? _calEsc(dateFmt) : 'No date set'}</span>
+                        </div>
+                    </div>`
+            : `<div class="cal-fld-date-wrap">
                         <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}" data-date-display="${pid}">
                             <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
                             <span class="cal-date-txt">${dateFmt ? _calEsc(dateFmt) : 'Add date'}</span>
                             <svg class="cal-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
                         </div>
                         <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
-                    </div>
-                    <label class="cal-fld-status-wrap" data-val="${_calEscAttr(currentStatus)}">
+                    </div>`;
+        const statusHtml = ro
+            ? `<div class="cal-client-status">
+                        ${_calStatusChip(p)}
+                        ${(currentStatus !== 'Approved' && currentStatus !== 'Posted')
+                            ? `<button class="cal-client-approve" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve</button>`
+                            : ''}
+                    </div>`
+            : `<label class="cal-fld-status-wrap" data-val="${_calEscAttr(currentStatus)}">
                         <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnStatusChange(this)">
                             ${CAL_STATUSES.map(s => `<option value="${s}"${s === currentStatus ? ' selected' : ''}>${_calEsc(_calStatusLabel(s))}</option>`).join('')}
                         </select>
                         <svg class="cal-status-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
-                    </label>
+                    </label>`;
+        return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}" data-pid="${pid}" draggable="${draggable}">
+            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
+            <div class="cal-card-body">
+                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
+                <div class="cal-meta-row">
+                    ${dateHtml}
+                    ${statusHtml}
                 </div>
-                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
-                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)')}
+                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', ro)}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', ro)}
                 <div class="cal-cap-wrap">
-                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.caption)}</textarea>
+                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${ro ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
                 </div>
-                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)">
+                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
                 <div class="cal-cap-wrap">
                     <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="${_calEscAttr(_calClientPossessive() + ' tweaks')}" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.tweaks)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
@@ -8516,6 +8570,19 @@
         const wrap = el.closest('.cal-fld-status-wrap');
         if (wrap) wrap.setAttribute('data-val', el.value);
         _calOnFieldBlur(el);
+    }
+    /* Client-link view — the only status action a client can take is to
+       approve a post. Flips the status to "Approved" and saves it. */
+    function _calClientApprove(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        showConfirm('Approve this post?', 'This marks the video as approved. If you need changes instead, leave a comment in the tweaks field.', () => {
+            post.status = 'Approved';
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].status = 'Approved';
+            _calFlushCardSave(pid);
+            _calRenderBody();
+        }, 'Approve');
     }
     function _calOnTextareaInput(el) {
         el.style.height = 'auto';
@@ -8678,7 +8745,7 @@
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
         if (idx < 0) {
-            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'Draft', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
             post = Object.assign({}, blank, edits);
             calState.posts.push(post);
         } else {
@@ -8914,7 +8981,11 @@
             : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
         const id = _calEscAttr(p.id);
         const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
-        return `<button class="cal-month-pill${posted}" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
+        const drag = _isClientLink
+            ? ''
+            : ` draggable="true" data-cal-move="${id}"`;
+        const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
+        return `<button class="cal-month-pill${posted}"${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
     }
 
     function renderCalMonth() {
@@ -9007,7 +9078,9 @@
                                     : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 const id = _calEscAttr(p.id);
                                 const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
-                                return `<button class="cal-week-card${posted}" draggable="true" data-cal-move="${id}" onclick="openCalPreview('${id}')"><span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
+                                const drag = _isClientLink ? '' : ` draggable="true" data-cal-move="${id}"`;
+                                const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
+                                return `<button class="cal-week-card${posted}"${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
                             }).join('')}
                         </div>
                     </div>`;

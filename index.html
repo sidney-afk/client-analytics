@@ -7690,12 +7690,22 @@
         else _calRenderBody();
     }
 
-    /* Re-fetch the calendar whenever the browser tab regains focus, so a
-       calendar left open in the background picks up the latest Linear sync. */
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
-        if (calState.client && document.getElementById('calBody')) loadCalendarPosts();
-    });
+    /* Re-fetch the calendar whenever the browser tab/window regains focus, so
+       a calendar left open in the background picks up the latest Linear sync.
+       Listens to both visibilitychange and window focus because neither alone
+       fires reliably across every tab/window switch; the timestamp de-dupes
+       the case where both fire for the same switch. */
+    let _calLastReturnLoad = 0;
+    function _calRefreshOnReturn() {
+        if (document.visibilityState === 'hidden') return;
+        if (!calState.client || !document.getElementById('calBody')) return;
+        const now = Date.now();
+        if (now - _calLastReturnLoad < 1500) return;
+        _calLastReturnLoad = now;
+        loadCalendarPosts();
+    }
+    document.addEventListener('visibilitychange', _calRefreshOnReturn);
+    window.addEventListener('focus', _calRefreshOnReturn);
 
     /* Embedded calendar — rendered inside a client profile's "Content Calendar"
        tab. Locked to one client (no client-tab picker). */

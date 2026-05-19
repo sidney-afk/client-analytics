@@ -1577,6 +1577,18 @@
         .cal-import-info { font-size: 0.76rem; color: var(--text-secondary); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.5; }
         .cal-import-err { font-size: 0.78rem; color: var(--dn); background: var(--dn-bg); border-radius: 8px; padding: 9px 12px; margin-top: 12px; }
         .cal-import-progress { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 20px; }
+        .cal-linear-import-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #c7c7c4;
+            border-radius: 9px; font-family: inherit; font-size: 0.84rem; color: var(--text-primary); outline: 0; }
+        .cal-linear-import-input:focus { border-color: var(--text-primary); }
+        .cal-linear-sub-list { display: flex; flex-direction: column; gap: 6px; }
+        .cal-linear-sub { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 9px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+        .cal-linear-sub:hover { background: var(--bg); }
+        .cal-linear-sub.is-disabled { opacity: 0.5; cursor: default; }
+        .cal-linear-sub input { margin-top: 2px; flex-shrink: 0; }
+        .cal-linear-sub-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .cal-linear-sub-title { font-size: 0.84rem; font-weight: 600; color: var(--text-primary); }
+        .cal-linear-sub-meta { font-size: 0.72rem; color: var(--text-muted); }
         .cal-import-btn-primary { padding: 9px 18px; border-radius: 8px; border: 0; background: var(--text-primary); color: var(--white); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
         .cal-import-btn-primary:disabled { opacity: 0.45; cursor: default; }
         .cal-import-btn-ghost { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
@@ -1640,6 +1652,28 @@
             padding: 3px 4px; font-family: inherit; font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
         .cal-fld-name::placeholder { color: #c2c2bd; }
         .cal-fld-name:focus { background: #f3f3f1; border-radius: 7px; }
+
+        /* Linear sub-issue link — icon at the start of the title row */
+        .cal-title-row { display: flex; align-items: center; gap: 4px; }
+        .cal-title-row .cal-fld-name { flex: 1 1 0; min-width: 0; }
+        .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; }
+        .cal-linear-slot:empty { display: none; }
+        .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; cursor: pointer;
+            background: #f3f3f1; color: #bdbdb8; transition: background 0.13s, color 0.13s; text-decoration: none; }
+        .cal-linear-btn:hover { background: #ebebe8; color: #6b6b66; }
+        .cal-linear-btn svg { width: 14px; height: 14px; }
+        .cal-linear-btn.is-linked { background: #ecedfb; color: #5e6ad2; }
+        .cal-linear-btn.is-linked:hover { background: #e0e2f8; }
+        .cal-linear-edit { display: none; align-items: center; justify-content: center;
+            width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
+            cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
+        .cal-linear-slot:hover .cal-linear-edit { display: inline-flex; }
+        .cal-linear-edit:hover { background: #ebebe8; color: #6b6b66; }
+        .cal-linear-edit svg { width: 11px; height: 11px; }
+        .cal-linear-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 5px 9px;
+            border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
+            font-size: 0.78rem; color: var(--text-primary); outline: 0; }
 
         /* Meta row — date + status as two equal chips */
         .cal-meta-row { display: flex; gap: 7px; }
@@ -1749,7 +1783,7 @@
         .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; }
         .cal-status-in-progress { background: #ffedd5; color: #9a3412; }
         .cal-status-for-smm-approval { background: #fef9c3; color: #854d0e; }
-        .cal-status-for-kasper-approval { background: #dbeafe; color: #1e40af; }
+        .cal-status-kasper-approval { background: #dbeafe; color: #1e40af; }
         .cal-status-client-approval { background: #ccfbf1; color: #0f766e; }
         .cal-status-approved { background: #dcfce7; color: #166534; }
         .cal-status-tweaks-needed { background: #fee2e2; color: #991b1b; }
@@ -1768,7 +1802,7 @@
         .cal-fld-status option { background: #fff; color: var(--text-primary); font-weight: 600; }
         .cal-fld-status-wrap[data-val="In Progress"] { background: #ffedd5; color: #9a3412; }
         .cal-fld-status-wrap[data-val="For SMM Approval"] { background: #fef9c3; color: #854d0e; }
-        .cal-fld-status-wrap[data-val="For Kasper Approval"] { background: #dbeafe; color: #1e40af; }
+        .cal-fld-status-wrap[data-val="Kasper Approval"] { background: #dbeafe; color: #1e40af; }
         .cal-fld-status-wrap[data-val="Client Approval"] { background: #ccfbf1; color: #0f766e; }
         .cal-fld-status-wrap[data-val="Approved"] { background: #dcfce7; color: #166534; }
         .cal-fld-status-wrap[data-val="Tweaks Needed"] { background: #fee2e2; color: #991b1b; }
@@ -7521,14 +7555,15 @@
     const CALENDAR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
 
-    const CAL_STATUSES  = ['In Progress','For SMM Approval','For Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
+    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
     /* Map any legacy / external status string onto the current set.
        "Draft" was retired — those posts become "In Progress". */
     function _calNormStatus(s) {
         const v = String(s || '').trim();
         if (!v || /^draft$/i.test(v)) return 'In Progress';
-        if (/^kasper approval$/i.test(v)) return 'For Kasper Approval';
+        if (/^(for )?kasper approval$/i.test(v)) return 'Kasper Approval';
         if (/^smm approval$/i.test(v)) return 'For SMM Approval';
         const m = CAL_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
         return m || v;
@@ -7715,6 +7750,131 @@
         document.body.classList.remove('cal-modal-open');
     }
 
+    /* ── Import posts from a Linear parent issue ──────────────────────
+       Paste a parent-issue link; the linear-subissues webhook returns its
+       sub-issues; the user picks which become calendar posts. */
+    let _calLinearSubs = null;
+
+    function _calMapLinearStatus(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        return 'In Progress';   // Backlog / Todo / In Progress / anything else
+    }
+
+    function openCalLinearImport() {
+        if (!calState.client) return;
+        _calLinearSubs = null;
+        const ovl = document.getElementById('calLinearImportOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderLinearImportStart();
+    }
+    function closeCalLinearImport() {
+        const ovl = document.getElementById('calLinearImportOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+    }
+    function _calRenderLinearImportStart(prefillUrl, errMsg) {
+        const modal = document.getElementById('calLinearImportModal');
+        if (!modal) return;
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button>
+                <h3>Import posts from Linear</h3>
+                <p>Paste the link to a Linear <strong>parent issue</strong>. Its sub-issues are listed so you can pick which ones become posts on this calendar.</p>
+            </div>
+            <div class="cal-import-body">
+                <input class="cal-linear-import-input" id="calLinearImportUrl" type="url" placeholder="https://linear.app/team/issue/VID-123/…" value="${_calEscAttr(prefillUrl || '')}">
+                ${errMsg ? `<div class="cal-import-err">${_calEsc(errMsg)}</div>` : ''}
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="closeCalLinearImport()">Cancel</button>
+                <button class="cal-import-btn-primary" onclick="_calLinearImportFetch()">Fetch sub-issues</button>
+            </div>`;
+        const inp = document.getElementById('calLinearImportUrl');
+        if (inp) { inp.focus(); inp.addEventListener('keydown', e => { if (e.key === 'Enter') _calLinearImportFetch(); }); }
+    }
+    async function _calLinearImportFetch() {
+        const inp = document.getElementById('calLinearImportUrl');
+        const url = inp ? inp.value.trim() : '';
+        if (!url) { _calRenderLinearImportStart('', 'Paste a Linear parent-issue link first.'); return; }
+        const modal = document.getElementById('calLinearImportModal');
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Linear lookup failed');
+            const subs = json.subIssues || [];
+            if (!subs.length) { _calRenderLinearImportStart(url, 'That issue has no sub-issues to import.'); return; }
+            _calLinearSubs = subs;
+            _calRenderLinearSubPick(json.parent || null, subs);
+        } catch (e) {
+            _calRenderLinearImportStart(url, e.message || 'Could not reach Linear.');
+        }
+    }
+    function _calRenderLinearSubPick(parent, subs) {
+        const modal = document.getElementById('calLinearImportModal');
+        if (!modal) return;
+        const linkedUrls = new Set(calState.posts.map(p => String(p.linear_issue_id || '').trim()).filter(Boolean));
+        const rows = subs.map((s, i) => {
+            const already = s.url && linkedUrls.has(String(s.url).trim());
+            const cs = _calMapLinearStatus(s.status);
+            return `<label class="cal-linear-sub${already ? ' is-disabled' : ''}">
+                <input type="checkbox" data-sub-idx="${i}" ${already ? 'disabled' : 'checked'}>
+                <span class="cal-linear-sub-main">
+                    <span class="cal-linear-sub-title">${_calEsc(s.title || 'Untitled')}</span>
+                    <span class="cal-linear-sub-meta">${_calEsc(s.identifier || '')} · maps to <strong>${_calEsc(cs)}</strong>${already ? ' · already on calendar' : ''}</span>
+                </span>
+            </label>`;
+        }).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button>
+                <h3>Pick sub-issues to import</h3>
+                <p>${parent && parent.title ? `From <strong>${_calEsc(parent.title)}</strong>. ` : ''}Each selected sub-issue becomes a post — title and status carry over, and the post stays linked to the sub-issue.</p>
+            </div>
+            <div class="cal-import-body"><div class="cal-linear-sub-list">${rows}</div><div id="calLinearImportErr"></div></div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="_calRenderLinearImportStart()">Back</button>
+                <button class="cal-import-btn-primary" id="calLinearImportRun" onclick="_calRunLinearImport()">Import selected</button>
+            </div>`;
+    }
+    async function _calRunLinearImport() {
+        const modal = document.getElementById('calLinearImportModal');
+        if (!modal || !_calLinearSubs) return;
+        const picks = Array.from(modal.querySelectorAll('input[data-sub-idx]:checked'))
+            .map(c => _calLinearSubs[+c.dataset.subIdx]).filter(Boolean);
+        if (!picks.length) {
+            const err = document.getElementById('calLinearImportErr');
+            if (err) err.innerHTML = `<div class="cal-import-err">Select at least one sub-issue.</div>`;
+            return;
+        }
+        let baseOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Importing…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calLinearImportProg">Importing 0 / ${picks.length}…</div></div>`;
+        let done = 0, failed = 0;
+        for (const s of picks) {
+            baseOrder++;
+            const post = { id: _calMintId(), order_index: baseOrder, name: s.title || 'Untitled', scheduled_date: '', status: _calMapLinearStatus(s.status), asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', linear_issue_id: s.url || '' };
+            try {
+                const resp = await fetch(CALENDAR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: calClientSlug(calState.client), post }) });
+                const json = await resp.json();
+                if (!json.ok) throw new Error('save failed');
+            } catch (e) { failed++; }
+            done++;
+            const prog = document.getElementById('calLinearImportProg');
+            if (prog) prog.textContent = `Importing ${done} / ${picks.length}…`;
+        }
+        modal.innerHTML = `
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Import complete</h3>
+                <p>${done - failed} post${done - failed === 1 ? '' : 's'} imported${failed ? `, ${failed} failed` : ''}.</p></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport();loadCalendarPosts();">Done</button></div>`;
+    }
+
     function _calRenderImportPick() {
         const modal = document.getElementById('calImportModal');
         if (!modal) return;
@@ -7890,7 +8050,7 @@
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
         const statusByLower = new Map(CAL_STATUSES.map(s => [s.toLowerCase(), s]));
         statusByLower.set('draft', 'In Progress');
-        statusByLower.set('kasper approval', 'For Kasper Approval');
+        statusByLower.set('for kasper approval', 'Kasper Approval');
         statusByLower.set('smm approval', 'For SMM Approval');
         let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
         const posts = [];
@@ -7966,6 +8126,7 @@
                     <button class="cal-kebab" type="button" onclick="_calToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="calKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
                     </div>
                 </div>`
             : '';
@@ -7995,6 +8156,9 @@
             </div>
             <div class="cal-import-overlay" id="calImportOverlay" onclick="if(event.target===this)closeCalImport()">
                 <div class="cal-import-modal" id="calImportModal"></div>
+            </div>
+            <div class="cal-import-overlay" id="calLinearImportOverlay" onclick="if(event.target===this)closeCalLinearImport()">
+                <div class="cal-import-modal" id="calLinearImportModal"></div>
             </div>
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
@@ -8502,6 +8666,57 @@
         if (input) { input.focus(); input.select(); }
     }
 
+    /* ── Linear sub-issue link (title-row icon) ─────────────────────── */
+    function _calLinearSvg() {
+        return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
+    }
+    function _calLinearSlotHtml(pid, url, ro) {
+        const u = String(url || '').trim();
+        if (u) {
+            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const open = `<a class="cal-linear-btn is-linked" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear sub-issue">${_calLinearSvg()}</a>`;
+            if (ro) return open;
+            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            return open + `<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}')" title="Change the linked sub-issue">${pencil}</button>`;
+        }
+        if (ro) return '';   // client-link view — clients can't link issues
+        return `<button class="cal-linear-btn" type="button" onclick="_calLinearEdit('${pid}')" title="Link a Linear sub-issue">${_calLinearSvg()}</button>`;
+    }
+    function _calTitleRowHtml(pid, p, ro) {
+        return `<div class="cal-linear-slot" data-linear-slot="${pid}">${_calLinearSlotHtml(pid, p.linear_issue_id, ro)}</div>
+                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>`;
+    }
+    function _calLinearEdit(pid) {
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const post = calState.posts.find(p => p.id === pid);
+        const cur = post ? String(post.linear_issue_id || '') : '';
+        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="Paste the Linear sub-issue link…" onkeydown="_calLinearKey(event,'${pid}')" onblur="_calLinearCommit(this,'${pid}')">`;
+        const inp = row.querySelector('input');
+        if (inp) { inp.focus(); inp.select(); }
+    }
+    function _calLinearKey(e, pid) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
+    }
+    function _calLinearCommit(input, pid) {
+        const cancelled = input.dataset.cancel === '1';
+        const val = input.value.trim();
+        const post = calState.posts.find(p => p.id === pid);
+        const changed = !cancelled && val !== (post ? String(post.linear_issue_id || '') : '');
+        if (changed) {
+            if (post) post.linear_issue_id = val;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].linear_issue_id = val;
+            _calFlushCardSave(pid);
+        }
+        // A blank card promotes to a real id on save — re-render the whole
+        // body so the new id is wired up everywhere.
+        if (changed && _calIsBlankId(pid)) { _calRenderBody(); return; }
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
         const ro = _isClientLink;   // client-link view — most fields locked
@@ -8543,7 +8758,7 @@
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
-                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
+                <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
                 <div class="cal-meta-row">
                     ${dateHtml}
                     ${statusHtml}

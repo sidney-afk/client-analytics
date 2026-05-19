@@ -7576,6 +7576,7 @@
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
+    const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
 
     const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
     /* Map any legacy / external status string onto the current set.
@@ -7606,6 +7607,9 @@
     };
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
+    /* Card ids whose next save must NOT push back to Linear — used when a
+       status was just pulled FROM Linear, so we don't bounce it back. */
+    const _calNoLinearPush = new Set();
 
     function calClientSlug(name) { return wlNormalizeClient(name); }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -7783,6 +7787,57 @@
         if (s.includes('kasper')) return 'Kasper Approval';
         if (s.includes('client')) return 'Client Approval';
         return 'In Progress';   // Backlog / Todo / In Progress / anything else
+    }
+    /* Strict variant — returns null for Linear states that have no calendar
+       equivalent (Posted, Canceled, Done…) so a freshly linked card is left
+       untouched instead of being forced to "In Progress". Mirrors the
+       Linear→Calendar mapping in the n8n status-sync workflow. */
+    function _calMapLinearStatusStrict(name) {
+        const s = String(name || '').trim().toLowerCase();
+        if (!s) return null;
+        if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s === 'approved') return 'Approved';
+        if (s.includes('smm')) return 'For SMM Approval';
+        if (s.includes('kasper')) return 'Kasper Approval';
+        if (s.includes('client')) return 'Client Approval';
+        if (s === 'backlog' || s === 'todo' || s === 'to do'
+            || s.includes('in progress') || s.includes('in process')) return 'In Progress';
+        return null;
+    }
+    /* Calendar→Linear: push a card's status onto its linked Linear sub-issue.
+       Fire-and-forget — the n8n workflow maps the status and skips no-ops.
+       "Posted" has no Linear equivalent, so it is never pushed. */
+    function _calPushStatusToLinear(issueUrl, status) {
+        const url = String(issueUrl || '').trim();
+        const st  = String(status || '').trim();
+        if (!url || !st || st.toLowerCase() === 'posted') return;
+        fetch(LINEAR_SET_STATUS_URL, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ issue: url, status: st })
+        }).catch(e => console.warn('[Calendar] Linear status push failed', e));
+    }
+    /* Linear is the source of truth: when a sub-issue is freshly linked to a
+       card, pull its current Linear status onto the card. Suppresses the
+       calendar→Linear writeback so the issue is not bounced to another state. */
+    async function _calSyncStatusFromLinear(pid, issueUrl) {
+        let mapped;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: issueUrl })
+            });
+            const json = await resp.json();
+            if (!json.ok || !json.parent) return;
+            mapped = _calMapLinearStatusStrict(json.parent.status);
+        } catch (e) { return; }
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !mapped || String(post.status || '') === mapped) return;
+        post.status = mapped;
+        _calNoLinearPush.add(pid);
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].status = mapped;
+        _calFlushCardSave(pid);
+        _calRenderBody();
     }
 
     function openCalLinearImport() {
@@ -8734,6 +8789,7 @@
         if (changed && _calIsBlankId(pid)) { _calRenderBody(); return; }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+        if (changed && val && post) _calSyncStatusFromLinear(pid, val);
     }
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
@@ -8991,6 +9047,9 @@
             calState.posts[idx] = post;
         }
         _calSetCardStatus(realId, 'saving');
+        const suppressLinearPush = _calNoLinearPush.has(realId) || _calNoLinearPush.has(pid);
+        _calNoLinearPush.delete(realId);
+        _calNoLinearPush.delete(pid);
 
         try {
             const resp = await fetch(CALENDAR_UPSERT_URL, {
@@ -9004,6 +9063,12 @@
             if (i2 >= 0) calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
             _calSetCardStatus(realId, 'saved');
             _calRefreshCardThumb(realId);
+            if ('status' in edits && !suppressLinearPush) {
+                const savedPost = calState.posts.find(p => p.id === realId);
+                if (savedPost && String(savedPost.linear_issue_id || '').trim()) {
+                    _calPushStatusToLinear(savedPost.linear_issue_id, savedPost.status);
+                }
+            }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
             _calSetCardStatus(realId, 'error', e.message || 'save failed');

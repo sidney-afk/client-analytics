@@ -1154,8 +1154,14 @@
         .workload-popover-parent { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
         .workload-popover-parent:hover { color: var(--text-primary); text-decoration: underline; }
         .workload-popover-close { background: transparent; border: 0; padding: 2px 6px; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; }
-        .workload-popover-item { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 6px; text-decoration: none; color: var(--text-primary); font-size: 0.76rem; }
+        .workload-popover-item { display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 8px; border-radius: 6px; color: var(--text-primary); font-size: 0.76rem; }
         .workload-popover-item:hover { background: var(--bg); }
+        .workload-popover-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 4px 0; text-decoration: none; color: inherit; }
+        .workload-popover-item-cal { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted);
+            cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .workload-popover-item-cal:hover { background: #ecedfb; color: #5e6ad2; }
+        .workload-popover-item-cal svg { width: 14px; height: 14px; }
         .workload-popover-item-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
         .workload-popover-item-client{ font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; padding: 1px 6px; background: var(--bg); border-radius: 999px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
@@ -1725,6 +1731,13 @@
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
             border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
+        .cal-card-flash { animation: cal-flash 2.2s ease; }
+        @keyframes cal-flash {
+            0% { box-shadow: 0 0 0 0 rgba(94,106,210,0); }
+            14% { box-shadow: 0 0 0 4px rgba(94,106,210,0.55); }
+            70% { box-shadow: 0 0 0 4px rgba(94,106,210,0.45); }
+            100% { box-shadow: 0 0 0 0 rgba(94,106,210,0); }
+        }
         .cal-linear-edit { display: none; align-items: center; justify-content: center;
             width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
             cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
@@ -6595,6 +6608,19 @@
         return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     }
 
+    /* Workload → content calendar deep link. Opens the calendar page on the
+       given client and scrolls to the card linked to that Linear sub-issue. */
+    function wlOpenInContentCalendar(clientName, identifier) {
+        const canon = wlCanonicalClient(clientName);
+        if (!canon) return;
+        _calFocusRequest = { client: canon, identifier: String(identifier || '').toUpperCase() };
+        try {
+            const pins = _calGetPins();
+            if (!pins.includes(canon)) { pins.push(canon); _calSavePins(pins); }
+        } catch (e) {}
+        navTo('calendar');
+    }
+
     function wlPassesFilters(sub) {
         if (wlState.team !== 'all' && wlTeamBucket(sub.teamKey, sub.teamName) !== wlState.team) return false;
         if (wlState.editor !== 'all' && sub.assigneeId !== wlState.editor) return false;
@@ -7186,11 +7212,17 @@
             const clientTag = showClient && s.clientName
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';
-            return `<a class="workload-popover-item" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
-                <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
-                ${clientTag}
-                <span class="workload-popover-item-due">${wlEscape(dueLabel)}</span>
-            </a>`;
+            const calBtn = s.clientName
+                ? `<button type="button" class="workload-popover-item-cal" title="Open in the content calendar" onclick="wlOpenInContentCalendar('${wlEscape(s.clientName)}','${wlEscape(s.identifier || '')}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
+                : '';
+            return `<div class="workload-popover-item">
+                <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
+                    <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
+                    ${clientTag}
+                    <span class="workload-popover-item-due">${wlEscape(dueLabel)}</span>
+                </a>
+                ${calBtn}
+            </div>`;
         }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No upcoming sub-issues.</div>';
 
         pop.innerHTML = header + items;
@@ -7673,6 +7705,9 @@
     };
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
+    /* Set by "Open in content calendar" from the workload view — tells the
+       calendar which client to open and which linked post to scroll to. */
+    let _calFocusRequest = null;
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */
     const _calNoLinearPush = new Set();
@@ -7720,11 +7755,12 @@
         const prefs = _calLoadPrefs();
         const pins  = _calGetPins();
         let initial = null;
-        if (pins.length > 0) initial = pins[0];
+        if (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) initial = _calFocusRequest.client;
+        else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         calState.client = initial;
         calState.embedded = false;
-        calState.view = (['organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer';
+        calState.view = _calFocusRequest ? 'organizer' : ((['organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer');
         calState.zoom = _calNormZoom(prefs.zoom);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
@@ -8386,7 +8422,31 @@
                 _calRenderBody();
             }
         }
-        if (seq === _calLoadSeq && ok) _calReconcileLinearStatuses();
+        if (seq === _calLoadSeq && ok) { _calReconcileLinearStatuses(); _calApplyFocusRequest(); }
+    }
+    /* After a load, if the workload view asked to open a specific sub-issue,
+       scroll its card into view and flash it. */
+    function _calApplyFocusRequest() {
+        const req = _calFocusRequest;
+        if (!req) return;
+        if (wlNormalizeClient(calState.client) !== wlNormalizeClient(req.client)) return;
+        _calFocusRequest = null;
+        const ident = String(req.identifier || '').replace(/[^A-Z0-9-]/g, '');
+        if (!ident) return;
+        const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
+        const post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
+        if (!post) {
+            showNotify('Not on this calendar yet', ident + ' is not linked to a card on ' + calState.client + "'s content calendar.");
+            return;
+        }
+        requestAnimationFrame(() => {
+            const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
+            const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
+            if (!card) return;
+            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+            card.classList.add('cal-card-flash');
+            setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
+        });
     }
 
     function _calRenderShell() {

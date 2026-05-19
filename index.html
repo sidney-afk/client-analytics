@@ -708,6 +708,7 @@
         .confirm-box-actions { display: flex; gap: 10px; justify-content: center; }
         .confirm-box-check { display: flex; align-items: center; justify-content: center; gap: 7px; margin: -8px 0 18px;
             font-size: 0.76rem; color: var(--text-muted); cursor: pointer; }
+        .confirm-box-check[hidden] { display: none; }
         .confirm-box-check input { cursor: pointer; }
 
         .brief-section-tabs {
@@ -1683,6 +1684,15 @@
         .cal-linear-btn svg { width: 14px; height: 14px; }
         .cal-linear-btn.is-linked { background: #ecedfb; color: #5e6ad2; }
         .cal-linear-btn.is-linked:hover { background: #e0e2f8; }
+        /* Unlinked card — the Linear button warns it must be connected. */
+        .cal-linear-btn.cal-linear-btn-warn { background: #ffedd5; color: #ea580c; }
+        .cal-linear-btn.cal-linear-btn-warn:hover { background: #fed7aa; color: #c2410c; }
+        .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+            display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
+            border: 0; cursor: pointer; background: #ea580c; color: #fff; font-family: inherit;
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
+        .cal-thumb-linear-warn:hover { background: #c2410c; }
+        .cal-thumb-linear-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
         .cal-linear-edit { display: none; align-items: center; justify-content: center;
             width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
             cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
@@ -1817,6 +1827,8 @@
         .cal-status-chev { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); width: 9px; height: 9px;
             pointer-events: none; color: inherit; opacity: 0.7; }
         .cal-fld-status-wrap:focus-within { box-shadow: 0 0 0 2px rgba(0,0,0,0.14); }
+        .cal-fld-status-wrap.is-locked { opacity: 0.55; }
+        .cal-fld-status-wrap.is-locked .cal-fld-status { cursor: not-allowed; }
         .cal-fld-status option { background: #fff; color: var(--text-primary); font-weight: 600; }
         .cal-fld-status-wrap[data-val="In Progress"] { background: #ffedd5; color: #9a3412; }
         .cal-fld-status-wrap[data-val="For SMM Approval"] { background: #fef9c3; color: #854d0e; }
@@ -8887,7 +8899,8 @@
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return open + `<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}')" title="Change the linked sub-issue">${pencil}</button>`;
         }
-        return `<button class="cal-linear-btn" type="button" onclick="_calLinearEdit('${pid}')" title="Link a Linear sub-issue">${_calLinearSvg()}</button>`;
+        const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
+        return `<button class="cal-linear-btn${warn}" type="button" onclick="_calLinearEdit('${pid}')" title="Link a Linear sub-issue">${_calLinearSvg()}</button>`;
     }
     function _calTitleRowHtml(pid, p, ro) {
         return `<div class="cal-linear-slot" data-linear-slot="${pid}">${_calLinearSlotHtml(pid, p.linear_issue_id, ro)}</div>
@@ -8917,12 +8930,16 @@
             _calPendingEdits[pid].linear_issue_id = val;
             _calFlushCardSave(pid);
         }
-        // A blank card promotes to a real id on save — re-render the whole
-        // body so the new id is wired up everywhere.
-        if (changed && _calIsBlankId(pid)) { _calRenderBody(); return; }
+        // On a change, re-render the whole body: a blank card promotes to a
+        // real id, and linking/unlinking flips the status lock and the
+        // unlinked-warning banner, which live outside the title row.
+        if (changed) {
+            _calRenderBody();
+            if (val && post) _calSyncStatusFromLinear(pid, val);
+            return;
+        }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
-        if (changed && val && post) _calSyncStatusFromLinear(pid, val);
     }
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
@@ -8949,10 +8966,11 @@
                         <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
                     </div>`;
         const canApprove = ro && currentStatus === 'Client Approval';
+        const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
         const statusHtml = ro
             ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
-            : `<label class="cal-fld-status-wrap" data-val="${_calEscAttr(currentStatus)}">
-                        <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnStatusChange(this)">
+            : `<label class="cal-fld-status-wrap${needsLinear ? ' is-locked' : ''}" data-val="${_calEscAttr(currentStatus)}">
+                        <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnStatusChange(this)"${needsLinear ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                             ${CAL_STATUSES.map(s => `<option value="${s}"${s === currentStatus ? ' selected' : ''}>${_calEsc(_calStatusLabel(s))}</option>`).join('')}
                         </select>
                         <svg class="cal-status-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
@@ -8960,7 +8978,7 @@
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
                 <div class="cal-meta-row">

@@ -706,6 +706,9 @@
         .confirm-box-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
         .confirm-box-msg { font-size: 0.8rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px; }
         .confirm-box-actions { display: flex; gap: 10px; justify-content: center; }
+        .confirm-box-check { display: flex; align-items: center; justify-content: center; gap: 7px; margin: -8px 0 18px;
+            font-size: 0.76rem; color: var(--text-muted); cursor: pointer; }
+        .confirm-box-check input { cursor: pointer; }
 
         .brief-section-tabs {
             display: flex; gap: 0; overflow-x: auto; flex-wrap: nowrap;
@@ -1813,12 +1816,15 @@
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
         .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--bg); }
         .cal-client-status { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-        .cal-client-approve { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px;
-            padding: 6px 12px; border: none; border-radius: 8px; cursor: pointer;
-            background: #166534; color: #fff; font-size: 0.72rem; font-weight: 700;
-            letter-spacing: 0.02em; transition: background 0.13s; }
-        .cal-client-approve:hover { background: #14532d; }
-        .cal-client-approve svg { width: 12px; height: 12px; }
+        .cal-approve-bar { display: flex; align-items: center; justify-content: center; gap: 7px;
+            width: 100%; box-sizing: border-box; margin-top: 10px; padding: 11px 14px;
+            border: none; border-radius: 10px; cursor: pointer;
+            background: #166534; color: #fff; font-family: inherit; font-size: 0.84rem; font-weight: 700;
+            letter-spacing: 0.01em; box-shadow: 0 2px 8px rgba(22,101,52,0.28);
+            transition: background 0.13s, transform 0.08s, box-shadow 0.13s; }
+        .cal-approve-bar:hover { background: #15803d; box-shadow: 0 4px 14px rgba(22,101,52,0.36); }
+        .cal-approve-bar:active { transform: translateY(1px); box-shadow: 0 1px 5px rgba(22,101,52,0.3); }
+        .cal-approve-bar svg { width: 14px; height: 14px; }
         .cal-link-field.cal-link-ro a.cal-link-pill-open { text-decoration: none; }
 
         /* Month + Week shared header */
@@ -1920,6 +1926,9 @@
     <div class="confirm-box">
         <div class="confirm-box-title" id="confirmTitle">Are you sure?</div>
         <div class="confirm-box-msg" id="confirmMsg">This will replace the current content.</div>
+        <label class="confirm-box-check" id="confirmCheckWrap" hidden>
+            <input type="checkbox" id="confirmCheck"><span id="confirmCheckLabel"></span>
+        </label>
         <div class="confirm-box-actions">
             <button class="brief-action-btn" onclick="dismissConfirm()">Cancel</button>
             <button class="brief-action-btn primary" id="confirmYes">Regenerate</button>
@@ -2023,7 +2032,7 @@
 <script>
     // ── Confirmation modal ───────────────────────────────────────────────
     let _confirmCb = null;
-    function showConfirm(title, msg, onYes, yesLabel) {
+    function showConfirm(title, msg, onYes, yesLabel, checkboxLabel) {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMsg').textContent = msg;
         document.getElementById('confirmOverlay').classList.add('active');
@@ -2031,8 +2040,17 @@
         yesBtn.textContent = yesLabel || 'Confirm';
         const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
         if (cancelBtn) cancelBtn.style.display = '';
+        const checkWrap = document.getElementById('confirmCheckWrap');
+        const check = document.getElementById('confirmCheck');
+        if (checkboxLabel) {
+            document.getElementById('confirmCheckLabel').textContent = checkboxLabel;
+            check.checked = false;
+            checkWrap.hidden = false;
+        } else {
+            checkWrap.hidden = true;
+        }
         _confirmCb = onYes;
-        yesBtn.onclick = () => { const cb = _confirmCb; dismissConfirm(); if (cb) cb(); };
+        yesBtn.onclick = () => { const cb = _confirmCb; const checked = check.checked; dismissConfirm(); if (cb) cb(checked); };
     }
     function dismissConfirm() {
         document.getElementById('confirmOverlay').classList.remove('active');
@@ -2040,10 +2058,12 @@
         // restore cancel button if it was hidden for notify mode
         const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
         if (cancelBtn) cancelBtn.style.display = '';
+        document.getElementById('confirmCheckWrap').hidden = true;
     }
     function showNotify(title, msg) {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMsg').textContent = msg;
+        document.getElementById('confirmCheckWrap').hidden = true;
         const cancelBtn = document.querySelector('#confirmOverlay .brief-action-btn:not(.primary)');
         if (cancelBtn) cancelBtn.style.display = 'none';
         const yesBtn = document.getElementById('confirmYes');
@@ -8671,15 +8691,14 @@
         return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
     }
     function _calLinearSlotHtml(pid, url, ro) {
+        if (ro) return '';   // Linear linking is internal — never shown in the client view
         const u = String(url || '').trim();
         if (u) {
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear sub-issue">${_calLinearSvg()}</a>`;
-            if (ro) return open;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return open + `<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}')" title="Change the linked sub-issue">${pencil}</button>`;
         }
-        if (ro) return '';   // client-link view — clients can't link issues
         return `<button class="cal-linear-btn" type="button" onclick="_calLinearEdit('${pid}')" title="Link a Linear sub-issue">${_calLinearSvg()}</button>`;
     }
     function _calTitleRowHtml(pid, p, ro) {
@@ -8740,13 +8759,9 @@
                         </div>
                         <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
                     </div>`;
+        const canApprove = ro && currentStatus !== 'Approved' && currentStatus !== 'Posted';
         const statusHtml = ro
-            ? `<div class="cal-client-status">
-                        ${_calStatusChip(p)}
-                        ${(currentStatus !== 'Approved' && currentStatus !== 'Posted')
-                            ? `<button class="cal-client-approve" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve</button>`
-                            : ''}
-                    </div>`
+            ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
             : `<label class="cal-fld-status-wrap" data-val="${_calEscAttr(currentStatus)}">
                         <select class="cal-fld-status" data-pid="${pid}" data-fld="status" onchange="_calOnStatusChange(this)">
                             ${CAL_STATUSES.map(s => `<option value="${s}"${s === currentStatus ? ' selected' : ''}>${_calEsc(_calStatusLabel(s))}</option>`).join('')}
@@ -8774,6 +8789,7 @@
                     <textarea class="cal-fld-tweaks" rows="2" data-pid="${pid}" data-fld="tweaks" placeholder="${_calEscAttr(_calClientPossessive() + ' tweaks')}" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)">${_calEsc(p.tweaks)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
                 </div>
+                ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
                 </div>
@@ -8791,13 +8807,20 @@
     function _calClientApprove(pid) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        showConfirm('Approve this post?', 'This marks the video as approved. If you need changes instead, leave a comment in the tweaks field.', () => {
+        const doApprove = () => {
             post.status = 'Approved';
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             _calPendingEdits[pid].status = 'Approved';
             _calFlushCardSave(pid);
             _calRenderBody();
-        }, 'Approve');
+        };
+        let skip = false;
+        try { skip = localStorage.getItem('cal-skip-approve-confirm') === '1'; } catch (e) {}
+        if (skip) { doApprove(); return; }
+        showConfirm('Approve this post?', 'This marks the video as approved. If you need changes instead, leave a comment in the tweaks field.', (dontAskAgain) => {
+            if (dontAskAgain) { try { localStorage.setItem('cal-skip-approve-confirm', '1'); } catch (e) {} }
+            doApprove();
+        }, 'Approve', "Don't ask me again");
     }
     function _calOnTextareaInput(el) {
         el.style.height = 'auto';
@@ -8830,7 +8853,7 @@
             const btn = wrap.querySelector('.cal-cap-toggle');
             if (btn) {
                 btn.hidden = !overflowing;
-                btn.classList.toggle('is-expanded', expanded);
+                btn.classList.toggle('is-expanded', expanded || focused);
             }
         }
     }

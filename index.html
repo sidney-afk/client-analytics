@@ -1641,6 +1641,28 @@
         .cal-fld-name::placeholder { color: #c2c2bd; }
         .cal-fld-name:focus { background: #f3f3f1; border-radius: 7px; }
 
+        /* Linear sub-issue link — icon at the start of the title row */
+        .cal-title-row { display: flex; align-items: center; gap: 4px; }
+        .cal-title-row .cal-fld-name { flex: 1 1 0; min-width: 0; }
+        .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; }
+        .cal-linear-slot:empty { display: none; }
+        .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;
+            width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; cursor: pointer;
+            background: #f3f3f1; color: #bdbdb8; transition: background 0.13s, color 0.13s; text-decoration: none; }
+        .cal-linear-btn:hover { background: #ebebe8; color: #6b6b66; }
+        .cal-linear-btn svg { width: 14px; height: 14px; }
+        .cal-linear-btn.is-linked { background: #ecedfb; color: #5e6ad2; }
+        .cal-linear-btn.is-linked:hover { background: #e0e2f8; }
+        .cal-linear-edit { display: none; align-items: center; justify-content: center;
+            width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
+            cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
+        .cal-linear-slot:hover .cal-linear-edit { display: inline-flex; }
+        .cal-linear-edit:hover { background: #ebebe8; color: #6b6b66; }
+        .cal-linear-edit svg { width: 11px; height: 11px; }
+        .cal-linear-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 5px 9px;
+            border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
+            font-size: 0.78rem; color: var(--text-primary); outline: 0; }
+
         /* Meta row — date + status as two equal chips */
         .cal-meta-row { display: flex; gap: 7px; }
         .cal-meta-row > * { flex: 1 1 0; min-width: 0; }
@@ -8502,6 +8524,57 @@
         if (input) { input.focus(); input.select(); }
     }
 
+    /* ── Linear sub-issue link (title-row icon) ─────────────────────── */
+    function _calLinearSvg() {
+        return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
+    }
+    function _calLinearSlotHtml(pid, url, ro) {
+        const u = String(url || '').trim();
+        if (u) {
+            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const open = `<a class="cal-linear-btn is-linked" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear sub-issue">${_calLinearSvg()}</a>`;
+            if (ro) return open;
+            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            return open + `<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}')" title="Change the linked sub-issue">${pencil}</button>`;
+        }
+        if (ro) return '';   // client-link view — clients can't link issues
+        return `<button class="cal-linear-btn" type="button" onclick="_calLinearEdit('${pid}')" title="Link a Linear sub-issue">${_calLinearSvg()}</button>`;
+    }
+    function _calTitleRowHtml(pid, p, ro) {
+        return `<div class="cal-linear-slot" data-linear-slot="${pid}">${_calLinearSlotHtml(pid, p.linear_issue_id, ro)}</div>
+                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>`;
+    }
+    function _calLinearEdit(pid) {
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const post = calState.posts.find(p => p.id === pid);
+        const cur = post ? String(post.linear_issue_id || '') : '';
+        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="Paste the Linear sub-issue link…" onkeydown="_calLinearKey(event,'${pid}')" onblur="_calLinearCommit(this,'${pid}')">`;
+        const inp = row.querySelector('input');
+        if (inp) { inp.focus(); inp.select(); }
+    }
+    function _calLinearKey(e, pid) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
+    }
+    function _calLinearCommit(input, pid) {
+        const cancelled = input.dataset.cancel === '1';
+        const val = input.value.trim();
+        const post = calState.posts.find(p => p.id === pid);
+        const changed = !cancelled && val !== (post ? String(post.linear_issue_id || '') : '');
+        if (changed) {
+            if (post) post.linear_issue_id = val;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].linear_issue_id = val;
+            _calFlushCardSave(pid);
+        }
+        // A blank card promotes to a real id on save — re-render the whole
+        // body so the new id is wired up everywhere.
+        if (changed && _calIsBlankId(pid)) { _calRenderBody(); return; }
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
         const ro = _isClientLink;   // client-link view — most fields locked
@@ -8543,7 +8616,7 @@
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${_calThumbContent(p)}</div>
             <div class="cal-card-body">
-                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
+                <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
                 <div class="cal-meta-row">
                     ${dateHtml}
                     ${statusHtml}

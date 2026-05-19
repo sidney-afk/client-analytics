@@ -1584,10 +1584,25 @@
             border-radius: 9px; font-family: inherit; font-size: 0.84rem; color: var(--text-primary); outline: 0; }
         .cal-linear-import-input:focus { border-color: var(--text-primary); }
         .cal-linear-sub-list { display: flex; flex-direction: column; gap: 6px; }
-        .cal-linear-sub { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border);
-            border-radius: 9px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+        .cal-linear-sub-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
+        .cal-linear-sub-count { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); }
+        .cal-linear-sort-btn { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+            border: 1px solid var(--border); border-radius: 7px; background: var(--white); color: var(--text-secondary);
+            font-family: inherit; font-size: 0.73rem; font-weight: 600; cursor: pointer;
+            transition: background 0.12s, border-color 0.12s; }
+        .cal-linear-sort-btn:hover { background: var(--bg); border-color: var(--text-muted); }
+        .cal-linear-sort-btn svg { width: 13px; height: 13px; }
+        .cal-linear-sub { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border: 1px solid var(--border);
+            border-radius: 9px; transition: background 0.12s, border-color 0.12s; }
         .cal-linear-sub:hover { background: var(--bg); }
-        .cal-linear-sub.is-disabled { opacity: 0.5; cursor: default; }
+        .cal-linear-sub.is-disabled { opacity: 0.5; }
+        .cal-linear-sub.cal-sub-dragging { opacity: 0.4; }
+        .cal-linear-sub.cal-sub-drop-target { border-color: var(--text-primary); background: var(--bg); }
+        .cal-linear-grip { display: flex; align-items: center; flex-shrink: 0; margin-top: 1px;
+            color: var(--text-muted); cursor: grab; }
+        .cal-linear-grip svg { width: 12px; height: 14px; }
+        .cal-linear-sub.is-disabled .cal-linear-grip { visibility: hidden; }
+        .cal-linear-sub-pick { display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 0; cursor: pointer; }
         .cal-linear-sub input { margin-top: 2px; flex-shrink: 0; }
         .cal-linear-sub-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
         .cal-linear-sub-title { font-size: 0.84rem; font-weight: 600; color: var(--text-primary); }
@@ -7675,12 +7690,22 @@
         else _calRenderBody();
     }
 
-    /* Re-fetch the calendar whenever the browser tab regains focus, so a
-       calendar left open in the background picks up the latest Linear sync. */
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState !== 'visible') return;
-        if (calState.client && document.getElementById('calBody')) loadCalendarPosts();
-    });
+    /* Re-fetch the calendar whenever the browser tab/window regains focus, so
+       a calendar left open in the background picks up the latest Linear sync.
+       Listens to both visibilitychange and window focus because neither alone
+       fires reliably across every tab/window switch; the timestamp de-dupes
+       the case where both fire for the same switch. */
+    let _calLastReturnLoad = 0;
+    function _calRefreshOnReturn() {
+        if (document.visibilityState === 'hidden') return;
+        if (!calState.client || !document.getElementById('calBody')) return;
+        const now = Date.now();
+        if (now - _calLastReturnLoad < 1500) return;
+        _calLastReturnLoad = now;
+        loadCalendarPosts();
+    }
+    document.addEventListener('visibilitychange', _calRefreshOnReturn);
+    window.addEventListener('focus', _calRefreshOnReturn);
 
     /* Embedded calendar — rendered inside a client profile's "Content Calendar"
        tab. Locked to one client (no client-tab picker). */
@@ -7789,6 +7814,14 @@
        Paste a parent-issue link; the linear-subissues webhook returns its
        sub-issues; the user picks which become calendar posts. */
     let _calLinearSubs = null;
+    let _calLinearParent = null;
+    let _calSubDragIdx = null;
+    /* Numeric part of a Linear identifier (VID-11949 -> 11949), used to sort
+       the import picker so sub-issues land smallest-first by default. */
+    function _calSubNum(s) {
+        const m = String((s && s.identifier) || '').match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 0;
+    }
 
     function _calMapLinearStatus(name) {
         const s = String(name || '').trim().toLowerCase();
@@ -7932,7 +7965,7 @@
             if (!json.ok) throw new Error(json.error || 'Linear lookup failed');
             const subs = json.subIssues || [];
             if (!subs.length) { _calRenderLinearImportStart(url, 'That issue has no sub-issues to import.'); return; }
-            _calLinearSubs = subs;
+            subs.sort((a, b) => _calSubNum(a) - _calSubNum(b));
             _calRenderLinearSubPick(json.parent || null, subs);
         } catch (e) {
             _calRenderLinearImportStart(url, e.message || 'Could not reach Linear.');
@@ -7941,35 +7974,88 @@
     function _calRenderLinearSubPick(parent, subs) {
         const modal = document.getElementById('calLinearImportModal');
         if (!modal) return;
+        _calLinearParent = parent;
+        _calLinearSubs = subs;
         const linkedUrls = new Set(calState.posts.map(p => String(p.linear_issue_id || '').trim()).filter(Boolean));
         const rows = subs.map((s, i) => {
-            const already = s.url && linkedUrls.has(String(s.url).trim());
+            const already = !!(s.url && linkedUrls.has(String(s.url).trim()));
+            s._already = already;
+            if (already) s._picked = false;
+            else if (typeof s._picked !== 'boolean') s._picked = true;
             const cs = _calMapLinearStatus(s.status);
-            return `<label class="cal-linear-sub${already ? ' is-disabled' : ''}">
-                <input type="checkbox" data-sub-idx="${i}" ${already ? 'disabled' : 'checked'}>
-                <span class="cal-linear-sub-main">
-                    <span class="cal-linear-sub-title">${_calEsc(s.title || 'Untitled')}</span>
-                    <span class="cal-linear-sub-meta">${_calEsc(s.identifier || '')} · maps to <strong>${_calEsc(cs)}</strong>${already ? ' · already on calendar' : ''}</span>
-                </span>
-            </label>`;
+            return `<div class="cal-linear-sub${already ? ' is-disabled' : ''}" data-sub-row="${i}" draggable="${already ? 'false' : 'true'}"
+                ondragstart="_calSubDragStart(event,${i})" ondragover="_calSubDragOver(event,${i})" ondragleave="_calSubDragLeave(event,${i})" ondrop="_calSubDrop(event,${i})" ondragend="_calSubDragEnd()">
+                <span class="cal-linear-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
+                <label class="cal-linear-sub-pick">
+                    <input type="checkbox" data-sub-idx="${i}" ${already ? 'disabled' : (s._picked ? 'checked' : '')} onchange="_calSubToggle(this)">
+                    <span class="cal-linear-sub-main">
+                        <span class="cal-linear-sub-title">${_calEsc(s.title || 'Untitled')}</span>
+                        <span class="cal-linear-sub-meta">${_calEsc(s.identifier || '')} · maps to <strong>${_calEsc(cs)}</strong>${already ? ' · already on calendar' : ''}</span>
+                    </span>
+                </label>
+            </div>`;
         }).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button>
                 <h3>Pick sub-issues to import</h3>
-                <p>${parent && parent.title ? `From <strong>${_calEsc(parent.title)}</strong>. ` : ''}Each selected sub-issue becomes a post — title and status carry over, and the post stays linked to the sub-issue.</p>
+                <p>${parent && parent.title ? `From <strong>${_calEsc(parent.title)}</strong>. ` : ''}Sub-issues import top-to-bottom into the calendar. Drag a row or use Reverse order to change it.</p>
             </div>
-            <div class="cal-import-body"><div class="cal-linear-sub-list">${rows}</div><div id="calLinearImportErr"></div></div>
+            <div class="cal-import-body">
+                <div class="cal-linear-sub-bar">
+                    <span class="cal-linear-sub-count">${subs.length} sub-issue${subs.length === 1 ? '' : 's'}</span>
+                    <button type="button" class="cal-linear-sort-btn" onclick="_calInvertSubOrder()" title="Reverse the current order">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13V3M4 3L1.8 5.2M4 3l2.2 2.2M12 3v10M12 13l2.2-2.2M12 13l-2.2-2.2"/></svg>
+                        Reverse order
+                    </button>
+                </div>
+                <div class="cal-linear-sub-list">${rows}</div><div id="calLinearImportErr"></div>
+            </div>
             <div class="cal-import-foot">
                 <button class="cal-import-btn-ghost" onclick="_calRenderLinearImportStart()">Back</button>
                 <button class="cal-import-btn-primary" id="calLinearImportRun" onclick="_calRunLinearImport()">Import selected</button>
             </div>`;
     }
+    function _calSubToggle(input) {
+        const idx = +input.dataset.subIdx;
+        if (_calLinearSubs && _calLinearSubs[idx]) _calLinearSubs[idx]._picked = input.checked;
+    }
+    function _calInvertSubOrder() {
+        if (_calLinearSubs) { _calLinearSubs.reverse(); _calRenderLinearSubPick(_calLinearParent, _calLinearSubs); }
+    }
+    function _calSubDragStart(e, idx) {
+        _calSubDragIdx = idx;
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        const row = e.currentTarget;
+        if (row) row.classList.add('cal-sub-dragging');
+    }
+    function _calSubDragOver(e, idx) {
+        if (_calSubDragIdx === null || _calSubDragIdx === idx) return;
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+        if (e.currentTarget) e.currentTarget.classList.add('cal-sub-drop-target');
+    }
+    function _calSubDragLeave(e) {
+        if (e.currentTarget) e.currentTarget.classList.remove('cal-sub-drop-target');
+    }
+    function _calSubDragEnd() {
+        _calSubDragIdx = null;
+        document.querySelectorAll('.cal-sub-dragging, .cal-sub-drop-target')
+            .forEach(el => el.classList.remove('cal-sub-dragging', 'cal-sub-drop-target'));
+    }
+    function _calSubDrop(e, idx) {
+        e.preventDefault();
+        const from = _calSubDragIdx;
+        _calSubDragIdx = null;
+        if (from === null || from === idx || !_calLinearSubs) { _calSubDragEnd(); return; }
+        const moved = _calLinearSubs.splice(from, 1)[0];
+        _calLinearSubs.splice(idx, 0, moved);
+        _calRenderLinearSubPick(_calLinearParent, _calLinearSubs);
+    }
     async function _calRunLinearImport() {
         const modal = document.getElementById('calLinearImportModal');
         if (!modal || !_calLinearSubs) return;
-        const picks = Array.from(modal.querySelectorAll('input[data-sub-idx]:checked'))
-            .map(c => _calLinearSubs[+c.dataset.subIdx]).filter(Boolean);
+        const picks = _calLinearSubs.filter(s => s && s._picked && !s._already);
         if (!picks.length) {
             const err = document.getElementById('calLinearImportErr');
             if (err) err.innerHTML = `<div class="cal-import-err">Select at least one sub-issue.</div>`;

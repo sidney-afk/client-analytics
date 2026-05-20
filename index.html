@@ -9109,10 +9109,7 @@
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
         if (calState.error) {
             body.innerHTML = `<div class="cal-empty cal-error">
-                Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.<br>
-                <small>${_calEsc(calState.error)}</small><br><br>
-                If this is a new client, run the <strong>SyncView Calendar — Setup</strong> workflow in n8n, or manually create tab <code>Calendar_${_calEsc(calClientSlug(calState.client))}</code> in the SyncView Calendar Sheet with header row:<br>
-                <code>id, order_index, scheduled_date, name, asset_url, thumbnail_url, caption, cta, tweaks, status, linear_issue_id, kasper_approved_at, posted_at, updated_at</code>
+                Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.
             </div>`;
             return;
         }

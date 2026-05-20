@@ -7929,7 +7929,6 @@
         calState.posts = [];
         calState.error = null;
         calState.previewId = null;
-        _calClearRefreshing();   // belt-and-suspenders: a stale "Refreshing…" tick from a torn-down shell can't follow us into the new one
         _calRenderShell();
         if (calState.client) loadCalendarPosts();
         else _calRenderBody();
@@ -8022,7 +8021,6 @@
         calState.posts = [];
         calState.error = null;
         calState.previewId = null;
-        _calClearRefreshing();   // see mountCalendar
         _calRenderShell();
         loadCalendarPosts();
     }
@@ -8368,24 +8366,84 @@
             return;
         }
         let baseOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Importing…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calLinearImportProg">Importing 0 / ${picks.length}…</div></div>`;
-        let done = 0, failed = 0;
-        for (const s of picks) {
+        const posts = picks.map(s => {
             baseOrder++;
-            const post = { id: _calMintId(), order_index: baseOrder, name: s.title || 'Untitled', scheduled_date: '', status: _calMapLinearStatus(s.status), asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', linear_issue_id: s.url || '' };
+            return { id: _calMintId(), order_index: baseOrder, name: s.title || 'Untitled', scheduled_date: '', status: _calMapLinearStatus(s.status), asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', linear_issue_id: s.url || '' };
+        });
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Importing…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calLinearImportProg">Importing 0 / ${posts.length}…</div></div>`;
+        const setProg = (msg) => { const p = document.getElementById('calLinearImportProg'); if (p) p.textContent = msg; };
+        const result = await _calBulkUpsertPosts(posts, (done, total) => setProg(`Importing ${done} / ${total}…`));
+        const saved = result.done - result.failed;
+        const missingNote = result.missingAfterRetry > 0
+            ? `, ${result.missingAfterRetry} couldn't be confirmed — try them again`
+            : (result.retried > 0 ? ` (${result.retried} re-sent after the first write didn't land)` : '');
+        modal.innerHTML = `
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Import complete</h3>
+                <p>${saved} post${saved === 1 ? '' : 's'} imported${result.failed ? `, ${result.failed} failed` : ''}${missingNote}.</p></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport();loadCalendarPosts();">Done</button></div>`;
+    }
+
+    /* Bulk-upsert a batch of new posts to the calendar sheet. Sends them
+       one at a time with a small gap between calls — the n8n upsert
+       workflow appears to ack the HTTP response before the Sheets write
+       fully commits, so back-to-back calls were racing and silently
+       dropping rows (or storing them with the wrong order_index). After
+       the initial loop the sheet is queried, and any id that didn't land
+       is re-sent — up to a few retry passes — until every post is on
+       the sheet or we've stopped making progress. */
+    async function _calBulkUpsertPosts(posts, progFn) {
+        const sendOne = async (post) => {
             try {
                 const resp = await fetch(CALENDAR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: calClientSlug(calState.client), post }) });
                 const json = await resp.json();
-                if (!json.ok) throw new Error('save failed');
-            } catch (e) { failed++; }
-            done++;
-            const prog = document.getElementById('calLinearImportProg');
-            if (prog) prog.textContent = `Importing ${done} / ${picks.length}…`;
+                return !!json.ok;
+            } catch (e) { return false; }
+        };
+        const sendBatch = async (batch, label) => {
+            for (let i = 0; i < batch.length; i++) {
+                await sendOne(batch[i]);
+                if (progFn) progFn(i + 1, batch.length, label);
+                if (i + 1 < batch.length) await new Promise(r => setTimeout(r, 350));
+            }
+        };
+        // Initial pass: sequential POSTs with a small inter-call gap.
+        await sendBatch(posts, null);
+        // Verify + retry up to a few rounds. The drop rate is small and
+        // independent per call, so two extra rounds is enough to converge
+        // in practice.
+        let retried = 0, missingAfterRetry = 0;
+        const MAX_RETRY_ROUNDS = 3;
+        let lastMissingCount = posts.length;
+        for (let round = 0; round < MAX_RETRY_ROUNDS; round++) {
+            const verify = await _calFetchPostsForVerify();
+            if (!verify) break;
+            const serverIds = new Set(verify.map(p => String(p.id)));
+            const missing = posts.filter(p => !serverIds.has(String(p.id)));
+            if (!missing.length) { missingAfterRetry = 0; break; }
+            // Stop if a retry round didn't shrink the missing set — the
+            // backend is rejecting these specific posts, not racing.
+            if (round > 0 && missing.length >= lastMissingCount) {
+                missingAfterRetry = missing.length;
+                break;
+            }
+            lastMissingCount = missing.length;
+            await sendBatch(missing, `Re-sending ${missing.length} that didn't land…`);
+            retried += missing.length;
+            missingAfterRetry = missing.length;   // pessimistic until we verify again next loop
         }
-        modal.innerHTML = `
-            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Import complete</h3>
-                <p>${done - failed} post${done - failed === 1 ? '' : 's'} imported${failed ? `, ${failed} failed` : ''}.</p></div>
-            <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport();loadCalendarPosts();">Done</button></div>`;
+        // Treat anything that made it through retry as "succeeded" for the
+        // caller's summary line.
+        const done = posts.length;
+        const failed = missingAfterRetry;
+        return { done, failed, retried, missingAfterRetry };
+    }
+    async function _calFetchPostsForVerify() {
+        try {
+            const slug = calClientSlug(calState.client);
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            const json = await resp.json();
+            return json.ok ? (json.posts || []) : null;
+        } catch (e) { return null; }
     }
 
     function _calRenderImportPick() {
@@ -8582,42 +8640,28 @@
             <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button><h3>Importing…</h3></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="calImportProg">Importing 0 / ${posts.length}…</div></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" id="calImportDone" disabled onclick="closeCalImport();loadCalendarPosts();">Done</button></div>`;
-        let done = 0, failed = 0;
-        for (const post of posts) {
-            try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ client: calClientSlug(calState.client), post }) });
-                const json = await resp.json();
-                if (!json.ok) throw new Error('save failed');
-            } catch (e) { failed++; }
-            done++;
+        const result = await _calBulkUpsertPosts(posts, (done, total, extra) => {
             const prog = document.getElementById('calImportProg');
-            if (prog) prog.textContent = `Importing ${done} / ${posts.length}…`;
-        }
+            if (prog) prog.textContent = extra ? extra : `Importing ${done} / ${total}…`;
+        });
+        const saved = result.done - result.failed;
         const prog = document.getElementById('calImportProg');
-        if (prog) prog.textContent = failed
-            ? `Imported ${done-failed} of ${posts.length}. ${failed} row${failed!==1?'s':''} couldn't be saved — try those again.`
-            : `Imported ${done} post${done!==1?'s':''}.`;
+        if (prog) {
+            const missingNote = result.missingAfterRetry > 0
+                ? ` ${result.missingAfterRetry} couldn't be confirmed — try those again.`
+                : (result.retried > 0 ? ` (${result.retried} re-sent after the first write didn't land.)` : '');
+            prog.textContent = result.failed
+                ? `Imported ${saved} of ${posts.length}. ${result.failed} row${result.failed !== 1 ? 's' : ''} couldn't be saved — try those again.${missingNote}`
+                : `Imported ${saved} post${saved !== 1 ? 's' : ''}.${missingNote}`;
+        }
         const doneBtn = document.getElementById('calImportDone');
         if (doneBtn) doneBtn.disabled = false;
     }
 
     let _calLoadSeq = 0;
-    /* Ref-counted: every load that turns the "Refreshing…" indicator on
-       decrements it in its own finally — regardless of whether _calLoadSeq
-       drifted past it. The indicator only hides once every in-flight load
-       has paired its own (true)/(false), so overlapping loads can't leave
-       the chip stuck visible. */
-    let _calRefreshingCount = 0;
     function _calSetRefreshing(on) {
-        if (on) _calRefreshingCount++;
-        else _calRefreshingCount = Math.max(0, _calRefreshingCount - 1);
         const el = document.getElementById('calRefreshing');
-        if (el) el.hidden = _calRefreshingCount === 0;
-    }
-    function _calClearRefreshing() {
-        _calRefreshingCount = 0;
-        const el = document.getElementById('calRefreshing');
-        if (el) el.hidden = true;
+        if (el) el.hidden = !on;
     }
     async function loadCalendarPosts(opts) {
         opts = opts || {};
@@ -8656,10 +8700,14 @@
             console.warn('[Calendar] load failed', e);
             if (!background) { calState.error = e.message || String(e); calState.posts = []; }
         } finally {
-            // Pair the (true) call from the top of THIS invocation — even if
-            // _calLoadSeq has moved past us, this load owns one refresh tick
-            // and must release it so the indicator can hide.
-            if (background) _calSetRefreshing(false);
+            // Always clear the refreshing chip — regardless of whether this
+            // load was superseded mid-flight. Tying the clear to a seq match
+            // (the old behaviour) could leak a stuck indicator when loads
+            // overlapped; clearing here is safe because (a) any newer load
+            // sets it back to true synchronously when IT starts, and (b)
+            // the only cost of an early clear is missing the chip for a
+            // brief window — never a permanent stuck state.
+            _calSetRefreshing(false);
             if (seq === _calLoadSeq) {
                 calState.loading = false;
                 if (background) {

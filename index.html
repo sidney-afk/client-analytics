@@ -7800,6 +7800,7 @@
        ============================================================ */
     const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
     const CALENDAR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+    const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
@@ -11039,7 +11040,7 @@
         // Sequential frontend writes land reliably; runs in the background
         // so we don't block the navigation back to the Linear list.
         if (mode === 'video' || mode === 'both') {
-            _writeLinearVideoCardsToCalendar(client, videos).catch(e => console.warn('[SyncView] Background calendar write failed:', e));
+            _writeLinearVideoCardsToCalendar(client, videos, title).catch(e => console.warn('[SyncView] Background calendar write failed:', e));
         }
 
         localStorage.removeItem(LINEAR_FORM_KEY);
@@ -11048,21 +11049,20 @@
         navTo('linear');
     }
 
-    /* Sequentially POST a calendar card per video in the freshly-submitted
-       Linear form. One request at a time with a small gap, so we never
-       trigger the concurrent-write contention that was dropping rows when
-       the Linear webhook tried to do this on the backend. Runs in the
-       background after the form is submitted — cards trickle in over
-       ~20-30s for 12 videos, and the calendar refresh will pick them up. */
-    async function _writeLinearVideoCardsToCalendar(clientName, videos) {
+    /* After the Linear form is submitted, write a calendar card per video.
+       Runs in the background — uses the fast /calendar-append-post endpoint
+       (pure Sheets append, no read-before-write) so each row lands in well
+       under a second and the user's calendar-get refreshes don't get
+       blocked behind a sheet-wide lock. Waits ~8s after submit so Linear
+       has time to create the sub-issues, then matches them by title and
+       writes each card with its Linear URL pre-filled. */
+    async function _writeLinearVideoCardsToCalendar(clientName, videos, formTitle) {
         const slug = wlNormalizeClient(clientName);
         if (!slug || !Array.isArray(videos) || !videos.length) return;
-        // Find the highest order_index currently on the client's calendar
-        // so the new cards land AT THE END, after anything the user has
-        // already organized — instead of squatting on positions 1..12 and
-        // shoving existing cards behind them. Fall back to a timestamp
-        // offset if we can't read the sheet, so new cards still sort to
-        // the end rather than colliding with existing low numbers.
+
+        // 1. Highest existing order_index → new cards land AFTER any
+        //    cards the user already organized. Timestamp fallback so
+        //    we don't collide if calendar-get fails.
         let baseOrder;
         try {
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
@@ -11075,14 +11075,42 @@
         } catch (e) {
             baseOrder = Math.floor(Date.now() / 1000);
         }
+
+        // 2. Wait for Linear to finish creating the parent + sub-issues,
+        //    then look them up so we can write each card pre-linked.
+        //    If anything goes wrong, fall back to unlinked cards.
+        let subIssues = [];
+        try {
+            await new Promise(r => setTimeout(r, 8000));
+            const { issues } = await loadLinearIssues(true);
+            if (Array.isArray(issues)) {
+                const parent = issues.find(i => !i.isSubIssue
+                    && wlNormalizeClient(i.clientName || '') === slug
+                    && String(i.title || '').trim() === String(formTitle || '').trim());
+                if (parent) {
+                    subIssues = issues.filter(i => i.isSubIssue && i.parentId === parent.id);
+                } else {
+                    console.warn('[SyncView] No matching Linear parent for', formTitle, '— writing unlinked cards');
+                }
+            }
+        } catch (e) {
+            console.warn('[SyncView] Linear lookup for calendar linking failed — writing unlinked cards:', e);
+        }
+
+        // 3. Sequentially append the cards. Match each video to its Linear
+        //    sub-issue by title ("Video N") so the linear_issue_id ends up
+        //    on the right row.
         const mintId = () => 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
-        let succeeded = 0;
+        let succeeded = 0, linked = 0;
         for (let i = 0; i < videos.length; i++) {
             const v = videos[i] || {};
+            const n = Number(v.number) || (i + 1);
+            const subTitle = 'Video ' + n;
+            const sub = subIssues.find(s => String(s.title || '').trim() === subTitle) || null;
             const post = {
                 id: mintId(),
-                order_index: baseOrder + (Number(v.number) || (i + 1)),
-                name: 'Video ' + (Number(v.number) || (i + 1)),
+                order_index: baseOrder + n,
+                name: subTitle,
                 scheduled_date: '',
                 status: 'In Progress',
                 asset_url: '',
@@ -11090,10 +11118,11 @@
                 caption: '',
                 cta: '',
                 tweaks: '',
-                linear_issue_id: ''
+                linear_issue_id: (sub && sub.url) || ''
             };
+            if (post.linear_issue_id) linked++;
             try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, {
+                const resp = await fetch(CALENDAR_APPEND_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ client: slug, post })
@@ -11101,11 +11130,12 @@
                 const json = await resp.json().catch(() => ({}));
                 if (json && json.ok) succeeded++;
             } catch (e) {
-                console.warn('[SyncView] calendar write failed for video', post.order_index, e);
+                console.warn('[SyncView] calendar write failed for video', n, e);
             }
-            if (i + 1 < videos.length) await new Promise(r => setTimeout(r, 400));
+            if (i + 1 < videos.length) await new Promise(r => setTimeout(r, 200));
         }
-        console.log('[SyncView] Calendar cards written:', succeeded, '/', videos.length, 'for', slug);
+        console.log('[SyncView] Calendar cards written:', succeeded, '/', videos.length,
+            'for', slug, '(linked:', linked + '/' + videos.length + ')');
         // If the user is already viewing this client's calendar, refresh
         // so the new cards show up without a manual reload.
         try {

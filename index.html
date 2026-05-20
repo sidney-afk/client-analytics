@@ -1854,12 +1854,12 @@
 
         .cal-chip { display: inline-flex; align-items: center; padding: 2px 7px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; border: 1px solid currentColor; border-radius: 99px; }
         .cal-status { display: inline-block; align-self: flex-start; padding: 3px 10px; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.05em; border-radius: 99px; background: var(--bg); color: var(--text-secondary); text-transform: uppercase; white-space: nowrap; }
-        .cal-status-in-progress { background: #fef9c3; color: #854d0e; }
+        .cal-status-in-progress { background: #fef08a; color: #713f12; }
         .cal-status-for-smm-approval { background: #fce7f3; color: #9d174d; }
         .cal-status-kasper-approval { background: #ffe4cc; color: #9a3412; }
         .cal-status-client-approval { background: #fee2e2; color: #991b1b; }
         .cal-status-approved { background: #dcfce7; color: #166534; }
-        .cal-status-tweaks-needed { background: #fed7aa; color: #7c2d12; }
+        .cal-status-tweaks-needed { background: #fdba74; color: #7c2d12; }
         .cal-status-scheduled { background: #ede9fe; color: #5b21b6; }
         .cal-status-posted { background: #064e3b; color: #ecfdf5; }
         .cal-status-archived { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
@@ -1879,29 +1879,30 @@
             opacity: 0; pointer-events: none; transform: translateY(-4px) scale(0.98); transform-origin: top center;
             transition: opacity 0.12s ease, transform 0.12s ease; }
         .cal-fld-status-menu.open { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
-        .cal-fld-status-item { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 11px;
+        /* Dropdown rows mirror the chip palette — each option is a filled,
+           coloured row instead of plain text. The "active" item shows a
+           subtle inset ring; hover slightly darkens via filter. */
+        .cal-fld-status-item { display: flex; align-items: center; width: 100%; padding: 8px 11px;
             border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary);
             font-family: inherit; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.045em;
-            text-transform: uppercase; text-align: left; cursor: pointer; transition: background 0.1s; }
-        .cal-fld-status-item:hover { background: var(--bg); color: var(--text-primary); }
-        .cal-fld-status-item.active { background: var(--bg); color: var(--text-primary); }
-        .cal-fld-status-item::before { content: ''; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
-            background: currentColor; }
-        .cal-fld-status-item.cal-fld-status-in-progress { color: #b45309; }
-        .cal-fld-status-item.cal-fld-status-for-smm-approval { color: #be185d; }
-        .cal-fld-status-item.cal-fld-status-kasper-approval { color: #c2410c; }
-        .cal-fld-status-item.cal-fld-status-client-approval { color: #b91c1c; }
-        .cal-fld-status-item.cal-fld-status-approved { color: #15803d; }
-        .cal-fld-status-item.cal-fld-status-tweaks-needed { color: #9a3412; }
-        .cal-fld-status-item.cal-fld-status-posted { color: #064e3b; }
-        .cal-fld-status-wrap[data-val="In Progress"] { background: #fef9c3; color: #854d0e; }
-        .cal-fld-status-wrap[data-val="For SMM Approval"] { background: #fce7f3; color: #9d174d; }
-        .cal-fld-status-wrap[data-val="Kasper Approval"] { background: #ffe4cc; color: #9a3412; }
-        .cal-fld-status-wrap[data-val="Client Approval"] { background: #fee2e2; color: #991b1b; }
-        .cal-fld-status-wrap[data-val="Approved"] { background: #dcfce7; color: #166534; }
-        .cal-fld-status-wrap[data-val="Tweaks Needed"] { background: #fed7aa; color: #7c2d12; }
-        .cal-fld-status-wrap[data-val="Scheduled"] { background: #ede9fe; color: #5b21b6; }
-        .cal-fld-status-wrap[data-val="Posted"] { background: #064e3b; color: #ecfdf5; }
+            text-transform: uppercase; text-align: left; cursor: pointer; margin: 2px 0; transition: filter 0.1s; }
+        .cal-fld-status-item:hover { filter: brightness(0.94); }
+        .cal-fld-status-item.active { box-shadow: inset 0 0 0 1.5px currentColor; }
+        .cal-fld-status-item.cal-fld-status-in-progress       { background: #fef08a; color: #713f12; }
+        .cal-fld-status-item.cal-fld-status-for-smm-approval  { background: #fce7f3; color: #9d174d; }
+        .cal-fld-status-item.cal-fld-status-kasper-approval   { background: #ffe4cc; color: #9a3412; }
+        .cal-fld-status-item.cal-fld-status-client-approval   { background: #fee2e2; color: #991b1b; }
+        .cal-fld-status-item.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
+        .cal-fld-status-item.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
+        .cal-fld-status-item.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
+        .cal-fld-status-wrap[data-val="In Progress"]       { background: #fef08a; color: #713f12; }
+        .cal-fld-status-wrap[data-val="For SMM Approval"]  { background: #fce7f3; color: #9d174d; }
+        .cal-fld-status-wrap[data-val="Kasper Approval"]   { background: #ffe4cc; color: #9a3412; }
+        .cal-fld-status-wrap[data-val="Client Approval"]   { background: #fee2e2; color: #991b1b; }
+        .cal-fld-status-wrap[data-val="Approved"]          { background: #dcfce7; color: #166534; }
+        .cal-fld-status-wrap[data-val="Tweaks Needed"]     { background: #fdba74; color: #7c2d12; }
+        .cal-fld-status-wrap[data-val="Scheduled"]         { background: #ede9fe; color: #5b21b6; }
+        .cal-fld-status-wrap[data-val="Posted"]            { background: #064e3b; color: #ecfdf5; }
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
@@ -2013,14 +2014,25 @@
         .cal-btn-primary:hover { opacity: 0.9; border-color: var(--text-primary); }
         .cal-btn-secondary { background: var(--white); }
 
-        /* ── Card comments button + threaded-comments modal ─────────── */
+        /* ── Card tweaks button + threaded-tweaks modal ─────────────── */
         .cal-card-foot { justify-content: space-between; gap: 8px; }
-        .cal-comments-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid transparent; color: var(--text-muted); border-radius: 99px; padding: 3px 9px 3px 7px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+        .cal-card-status-row { margin-top: 8px; }
+        /* Tweaks button — ghost pill with a small numeric badge when there
+           are open threads. Sits quietly when count is 0; turns into a
+           clear notification chip when there's something to address. */
+        .cal-comments-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid transparent; color: var(--text-muted); border-radius: 99px; padding: 4px 9px 4px 8px; font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
         .cal-comments-btn:hover { background: #f3f3f1; color: var(--text-primary); }
-        .cal-comments-btn svg { width: 12px; height: 12px; }
-        .cal-comments-btn.has-open { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
-        .cal-comments-btn.has-open:hover { background: #fde68a; }
-        .cal-comments-btn .cal-comments-count { font-variant-numeric: tabular-nums; }
+        .cal-comments-btn svg { width: 13px; height: 13px; }
+        .cal-comments-btn .cal-comments-label { letter-spacing: 0.01em; }
+        .cal-comments-btn .cal-comments-count { display: none; }
+        .cal-comments-btn.has-open { background: #fffbea; color: #92400e; border-color: #fcd34d; }
+        .cal-comments-btn.has-open:hover { background: #fef3c7; }
+        .cal-comments-btn.has-open .cal-comments-count {
+            display: inline-flex; align-items: center; justify-content: center;
+            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+            background: #f59e0b; color: #fff; font-size: 0.66rem; font-weight: 800;
+            font-variant-numeric: tabular-nums; letter-spacing: 0;
+        }
 
         /* Slack/Discord-style continuous feed. Conversation and composer
            share one background — no hard mid-modal separator. */
@@ -2038,9 +2050,9 @@
         .cal-comments-empty { font-size: 0.84rem; color: var(--text-muted); padding: 36px 24px; text-align: center; line-height: 1.5; }
         .cal-comments-empty-title { font-weight: 700; color: var(--text-primary); margin-bottom: 4px; font-size: 0.9rem; }
         .cal-cm-thread { display: flex; flex-direction: column; }
-        .cal-cm-thread.is-done .cal-cm-row { opacity: 0.5; transition: opacity 0.15s; }
-        .cal-cm-thread.is-done:hover .cal-cm-row { opacity: 0.85; }
-        .cal-cm-thread.is-done .cal-cm-row-body { color: var(--text-secondary); text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.15); text-decoration-thickness: 1px; }
+        .cal-cm-thread.is-done .cal-cm-row { opacity: 0.6; transition: opacity 0.15s; }
+        .cal-cm-thread.is-done:hover .cal-cm-row { opacity: 0.9; }
+        .cal-cm-thread.is-done .cal-cm-row-body { color: var(--text-secondary); font-style: italic; }
         .cal-cm-row { position: relative; display: flex; gap: 11px; padding: 7px 22px 7px 22px; align-items: flex-start; transition: background 0.1s; }
         .cal-cm-row:hover { background: #f7f7f5; }
         .cal-cm-row.is-reply { padding-left: 64px; }
@@ -2062,6 +2074,7 @@
         .cal-cm-action:hover { background: var(--bg); color: var(--text-primary); }
         .cal-cm-action svg { width: 12px; height: 12px; }
         .cal-cm-action.is-done-on { color: #166534; }
+        .cal-cm-action.is-danger:hover { color: #b91c1c; background: #fee2e2; }
         .cal-cm-reply-form { padding: 4px 22px 10px 64px; }
         .cal-cm-reply-form .cal-cm-composer { background: var(--bg); border: 1px solid var(--border); }
         .cal-cm-composer-wrap { padding: 10px 18px 16px; background: var(--white); border-top: 1px solid var(--border); flex-shrink: 0; }
@@ -9274,10 +9287,7 @@
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
-                <div class="cal-meta-row">
-                    ${dateHtml}
-                    ${statusHtml}
-                </div>
+                <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', ro)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', ro)}
                 <div class="cal-cap-wrap">
@@ -9290,6 +9300,7 @@
                     ${_calCommentsBtnHtml(p, pid)}
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
                 </div>
+                <div class="cal-card-status-row">${statusHtml}</div>
             </div>
         </div>`;
     }
@@ -10136,12 +10147,11 @@
     }
 
     function _calCommentsBtnHtml(post, pid) {
-        const open  = _calOpenCommentCount(post);
-        const total = _calCommentTotal(post);
-        const label = open > 0 ? `${open} open` : (total > 0 ? `${total}` : 'Tweaks');
-        const cls   = open > 0 ? ' has-open' : '';
-        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="Tweaks">${ico}<span class="cal-comments-count">${label}</span></button>`;
+        const open = _calOpenCommentCount(post);
+        const cls  = open > 0 ? ' has-open' : '';
+        const tip  = open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Tweaks';
+        const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Tweaks</span><span class="cal-comments-count">${open}</span></button>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -10256,19 +10266,33 @@
         }
     }
 
+    function _calCanDeleteComment(c) {
+        // SMM can delete anything; the client can only delete their own.
+        return _calCommentRole() === 'smm' || c.role === 'client';
+    }
+    function _calCanResolveComment() {
+        // Only the SMM resolves threads — the client never marks anything done.
+        return _calCommentRole() === 'smm';
+    }
     function _calCommentActionsHtml(c, isReply) {
-        const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
-        const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
-        const undoIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
-        // Replies don't get their own "mark done" — the whole thread resolves
-        // together via the root. Resolved roots get a "Reopen" button.
+        const replyIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const checkIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const undoIco   = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
+        const trashIco  = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
+        // Replies share the parent thread's "done" state — only the root gets
+        // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
         const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply('${rootId}')" title="Reply">${replyIco}<span>Reply</span></button>`;
-        const doneBtn  = isReply ? '' : (c.done
-            ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Reopen">${undoIco}<span>Reopen</span></button>`
-            : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Mark thread done">${checkIco}<span>Mark done</span></button>`);
-        if (!replyBtn && !doneBtn) return '';
-        return `<div class="cal-cm-actions">${replyBtn}${doneBtn}</div>`;
+        const doneBtn  = (!isReply && _calCanResolveComment())
+            ? (c.done
+                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Reopen">${undoIco}<span>Reopen</span></button>`
+                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
+            : '';
+        const delBtn = _calCanDeleteComment(c)
+            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment('${c.id}')" title="Delete">${trashIco}<span>Delete</span></button>`
+            : '';
+        if (!replyBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${doneBtn}${delBtn}</div>`;
     }
 
     function _calComposerHtml(post, comments) {
@@ -10395,6 +10419,41 @@
         _calUpdateCardStatusDisplay(pid);
         _calCaptureModalDrafts();
         _calRenderCommentsModal();
+    }
+
+    /* Delete a comment. SMM can delete anything; the client can only
+       delete their own messages — this is enforced both here and in the
+       button-visibility rules. Deleting a root cascades into its replies
+       so the thread doesn't leave orphans. If an SMM delete clears the
+       last open thread, the same Client-Approval auto-status applies. */
+    function _calDeleteComment(commentId) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
+        const target = arr.find(c => c.id === commentId);
+        if (!target || !_calCanDeleteComment(target)) return;
+        const isRoot = !target.parent_id;
+        const wasOpenRoot = isRoot && !target.done;
+        const msg = isRoot
+            ? "This deletes the message and every reply in this thread. This can't be undone."
+            : "Delete this reply? This can't be undone.";
+        showConfirm('Delete tweak?', msg, () => {
+            const next = arr.filter(c => c.id !== commentId && c.parent_id !== commentId);
+            post.comments = next;
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { comments: next });
+            // SMM clearing the last open thread mirrors a "resolve last" event.
+            if (wasOpenRoot && _calCommentRole() === 'smm') {
+                const stillOpen = next.filter(c => !c.parent_id && !c.done).length;
+                if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
+            }
+            _calFlushCardSave(pid);
+            _calRefreshCommentsBtn(pid);
+            _calUpdateCardStatusDisplay(pid);
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+        }, 'Delete');
     }
 
     /* Auto-status transitions driven by tweak activity. Returns true if a

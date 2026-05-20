@@ -7821,7 +7821,7 @@
         // We still trigger the refresh while interacting — the re-render is
         // deferred until the user blurs out (see _calMaybeRunPendingRender).
         const now = Date.now();
-        if (now - _calLastReturnLoad < 1500) return;
+        if (now - _calLastReturnLoad < 500) return;
         _calLastReturnLoad = now;
         loadCalendarPosts({ background: true });
     }
@@ -7829,16 +7829,54 @@
        render is deferred onto this flag and applied once nothing in the
        calendar is focused and there are no unsaved field edits. */
     let _calPendingBackgroundRender = false;
+    let _calPendingRenderInterval = null;
+    function _calIsCalBusy() {
+        const calBody = document.getElementById('calBody');
+        if (!calBody) return false;
+        const a = document.activeElement;
+        const isTextEntry = !!(a && (
+            (a.tagName === 'INPUT' && /^(text|url|email|search|number|tel|password|date)$/i.test(a.type || 'text')) ||
+            a.tagName === 'TEXTAREA' || a.isContentEditable
+        ));
+        if (isTextEntry && calBody.contains(a)) return true;
+        if (Object.keys(_calPendingEdits).length > 0) return true;
+        if (_calOpenStatusMenu) return true;
+        return false;
+    }
+    function _calSchedulePendingRender() {
+        if (_calPendingRenderInterval) return;
+        _calPendingRenderInterval = setInterval(() => {
+            if (!_calPendingBackgroundRender) {
+                clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; return;
+            }
+            if (_calIsCalBusy()) return;
+            _calPendingBackgroundRender = false;
+            clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null;
+            _calRenderBody({ preserveScroll: true });
+        }, 1200);
+    }
     function _calMaybeRunPendingRender() {
         if (!_calPendingBackgroundRender) return;
-        const calBody = document.getElementById('calBody');
-        if (!calBody) { _calPendingBackgroundRender = false; return; }
-        if (calBody.contains(document.activeElement)) return;
-        if (Object.keys(_calPendingEdits).length > 0) return;
+        if (_calIsCalBusy()) return;
         _calPendingBackgroundRender = false;
+        if (_calPendingRenderInterval) { clearInterval(_calPendingRenderInterval); _calPendingRenderInterval = null; }
         _calRenderBody({ preserveScroll: true });
     }
     document.addEventListener('focusout', () => { setTimeout(_calMaybeRunPendingRender, 60); });
+    /* Save in-flight tweaks/captions/etc. when the tab is being hidden so
+       a client typing a comment never loses it to a tab close or app switch. */
+    function _calFlushAllPending() {
+        const pids = Object.keys(_calPendingEdits);
+        for (const pid of pids) {
+            if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
+            _calFlushCardSave(pid);
+        }
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') _calFlushAllPending();
+    });
+    window.addEventListener('pagehide', _calFlushAllPending);
+    window.addEventListener('pageshow', _calRefreshOnReturn);
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
 
@@ -8476,10 +8514,12 @@
                 calState.loading = false;
                 _calSetRefreshing(false);
                 if (background) {
-                    const calBody = document.getElementById('calBody');
-                    const busy = (calBody && calBody.contains(document.activeElement)) || Object.keys(_calPendingEdits).length > 0;
-                    if (busy) _calPendingBackgroundRender = true;
-                    else _calRenderBody({ preserveScroll: true });
+                    if (_calIsCalBusy()) {
+                        _calPendingBackgroundRender = true;
+                        _calSchedulePendingRender();
+                    } else {
+                        _calRenderBody({ preserveScroll: true });
+                    }
                 } else {
                     _calRenderBody();
                 }

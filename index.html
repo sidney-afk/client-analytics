@@ -2038,10 +2038,9 @@
         .cal-comments-empty { font-size: 0.84rem; color: var(--text-muted); padding: 36px 24px; text-align: center; line-height: 1.5; }
         .cal-comments-empty-title { font-weight: 700; color: var(--text-primary); margin-bottom: 4px; font-size: 0.9rem; }
         .cal-cm-thread { display: flex; flex-direction: column; }
-        .cal-cm-thread.is-done .cal-cm-row-body { color: var(--text-secondary); }
-        .cal-cm-thread.is-done .cal-cm-avatar { opacity: 0.6; }
-        .cal-cm-divider { margin: 12px 22px 6px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; align-items: center; gap: 10px; font-size: 0.65rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
-        .cal-cm-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        .cal-cm-thread.is-done .cal-cm-row { opacity: 0.5; transition: opacity 0.15s; }
+        .cal-cm-thread.is-done:hover .cal-cm-row { opacity: 0.85; }
+        .cal-cm-thread.is-done .cal-cm-row-body { color: var(--text-secondary); text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.15); text-decoration-thickness: 1px; }
         .cal-cm-row { position: relative; display: flex; gap: 11px; padding: 7px 22px 7px 22px; align-items: flex-start; transition: background 0.1s; }
         .cal-cm-row:hover { background: #f7f7f5; }
         .cal-cm-row.is-reply { padding-left: 64px; }
@@ -10017,7 +10016,7 @@
             </div>
             <div class="cal-preview-foot">
                 <button class="cal-btn cal-btn-secondary" onclick="closeCalPreview()">Close</button>
-                <button class="cal-btn cal-btn-secondary" onclick="closeCalPreview();openCalComments('${_calEscAttr(p.id)}')">Comments${_calOpenCommentCount(p) ? ` · ${_calOpenCommentCount(p)} open` : ''}</button>
+                <button class="cal-btn cal-btn-secondary" onclick="closeCalPreview();openCalComments('${_calEscAttr(p.id)}')">Tweaks${_calOpenCommentCount(p) ? ` · ${_calOpenCommentCount(p)} open` : ''}</button>
                 <button class="cal-btn cal-btn-primary" onclick="editInOrganizerFromPreview('${_calEscAttr(p.id)}')">Edit in Organizer</button>
             </div>
         `;
@@ -10139,10 +10138,10 @@
     function _calCommentsBtnHtml(post, pid) {
         const open  = _calOpenCommentCount(post);
         const total = _calCommentTotal(post);
-        const label = open > 0 ? `${open} open` : (total > 0 ? `${total}` : 'Comments');
+        const label = open > 0 ? `${open} open` : (total > 0 ? `${total}` : 'Tweaks');
         const cls   = open > 0 ? ' has-open' : '';
         const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="Comments">${ico}<span class="cal-comments-count">${label}</span></button>`;
+        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="Tweaks">${ico}<span class="cal-comments-count">${label}</span></button>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -10201,10 +10200,9 @@
         if (!post) { closeCalComments(); return; }
         const comments = Array.isArray(post.comments) ? post.comments : _calLoadComments(post);
         post.comments = comments;
+        // Single chronological feed, oldest at top, newest at bottom. Resolved
+        // threads keep their place in the timeline — they just visually fade.
         const roots = _calCommentRoots(comments);
-        const open  = roots.filter(r => !r.done);
-        const done  = roots.filter(r => r.done)
-                           .sort((a,b) => String(a.done_at||a.created_at||'').localeCompare(String(b.done_at||b.created_at||'')));
         const postName = _calEsc(post.name || 'Untitled post');
 
         const renderRow = (c, isReply) => {
@@ -10234,14 +10232,14 @@
             </div>`;
         };
 
-        const feedHtml = (open.length || done.length)
-            ? `${open.map(renderThread).join('')}${done.length ? `<div class="cal-cm-divider">Resolved · ${done.length}</div>${done.map(renderThread).join('')}` : ''}`
-            : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No comments yet</div>Start the conversation — type below.</div>`;
+        const feedHtml = roots.length
+            ? roots.map(renderThread).join('')
+            : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No tweaks yet</div>Start the conversation — type below.</div>`;
 
         modal.innerHTML = `
             <div class="cal-comments-head">
                 <div class="cal-comments-head-text">
-                    <h3 id="calCommentsTitle">Comments</h3>
+                    <h3 id="calCommentsTitle">Tweaks</h3>
                     <p>${postName}</p>
                 </div>
                 <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close">×</button>
@@ -10283,7 +10281,7 @@
         const draft    = isReply ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '');
         const placeholder = isReply
             ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
-            : `Comment as ${author}…`;
+            : `Leave a tweak as ${author}…`;
         const replyingTo = isReply && target
             ? `<div class="cal-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_calBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
             : '';
@@ -10348,11 +10346,12 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
+        const role = _calCommentRole();
         arr.push({
             id: _calMintCommentId(),
             parent_id: parentId || null,
             author: _calCurrentAuthor(),
-            role: _calCommentRole(),
+            role: role,
             body: body,
             created_at: new Date().toISOString(),
             done: false,
@@ -10361,8 +10360,12 @@
         });
         post.comments = arr;
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { comments: arr });
+        // Auto-status: any tweak from the client flips the card to Tweaks
+        // Needed so it's actionable in the workload view.
+        if (role === 'client') _calApplyAutoStatus(pid, 'client_added');
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
+        _calUpdateCardStatusDisplay(pid);
     }
     function _calToggleCommentDone(rootId) {
         const pid = _calOpenCommentsPid;
@@ -10372,17 +10375,65 @@
         const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
         const root = arr.find(c => c.id === rootId && !c.parent_id);
         if (!root) return;
-        if (root.done) {
+        const wasDone = !!root.done;
+        if (wasDone) {
             root.done = false; root.done_at = ''; root.done_by = '';
         } else {
             root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor();
         }
         post.comments = arr;
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { comments: arr });
+        // Auto-status: SMM resolving the very last open thread → Client
+        // Approval. Only when SMM does it, never the client (a client
+        // closing their own thread shouldn't auto-bump the card forward).
+        if (!wasDone && _calCommentRole() === 'smm') {
+            const stillOpen = arr.filter(c => !c.parent_id && !c.done).length;
+            if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
+        }
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
+        _calUpdateCardStatusDisplay(pid);
         _calCaptureModalDrafts();
         _calRenderCommentsModal();
+    }
+
+    /* Auto-status transitions driven by tweak activity. Returns true if a
+       change was applied. Skips terminal states (Posted) so live content
+       isn't accidentally bounced backward. */
+    function _calApplyAutoStatus(pid, trigger) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        if (post.status === 'Posted') return false;
+        let next = null;
+        if (trigger === 'client_added' && post.status !== 'Tweaks Needed') {
+            next = 'Tweaks Needed';
+        } else if (trigger === 'smm_resolved_last' && post.status !== 'Client Approval') {
+            next = 'Client Approval';
+        }
+        if (!next) return false;
+        post.status = next;
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { status: next });
+        return true;
+    }
+    /* Refresh just the status chip/dropdown on a card without re-rendering
+       the whole calendar — used after an auto-status change so the card
+       behind the tweaks modal updates immediately. */
+    function _calUpdateCardStatusDisplay(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const wrap = document.querySelector(`.cal-fld-status-wrap[data-status-pid="${sel}"]`);
+        if (wrap) {
+            wrap.setAttribute('data-val', post.status);
+            const lbl = wrap.querySelector('.cal-fld-status-label');
+            if (lbl) lbl.textContent = _calStatusLabel(post.status);
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+        if (!card) return;
+        const chip = card.querySelector('.cal-client-status');
+        if (chip) chip.innerHTML = _calStatusChip(post);
+        const isPosted = String(post.status || '').toLowerCase() === 'posted';
+        card.classList.toggle('cal-card-posted', isPosted);
     }
 
     function _setCalStatus(state, message) {

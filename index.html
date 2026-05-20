@@ -8663,6 +8663,7 @@
         const el = document.getElementById('calRefreshing');
         if (el) el.hidden = !on;
     }
+    const CAL_LOAD_TIMEOUT_MS = 20000;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
@@ -8677,11 +8678,19 @@
             calState.error = null;
             _calRenderBody();
         }
+        // Hard timeout via AbortController — the n8n backend sometimes hangs
+        // (especially right after a burst of Linear-issue creations), which
+        // would otherwise leave the "Refreshing…" chip or the full-page
+        // loader on screen forever. After this much wall-clock time we
+        // abort the request, the chip clears, and a foreground load shows
+        // a "try again" error state instead of pretending to load.
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const timeoutId = ctrl ? setTimeout(() => ctrl.abort(), CAL_LOAD_TIMEOUT_MS) : null;
         let ok = false;
         let dataChanged = true;
         try {
             const slug = calClientSlug(calState.client);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
             const json = await resp.json();
             if (seq !== _calLoadSeq) return;   // a newer load (fast tab switch) superseded this one
             if (!json.ok) throw new Error(json.error || 'load failed');
@@ -8697,9 +8706,16 @@
             ok = true;
         } catch (e) {
             if (seq !== _calLoadSeq) return;
-            console.warn('[Calendar] load failed', e);
-            if (!background) { calState.error = e.message || String(e); calState.posts = []; }
+            const isAbort = e && (e.name === 'AbortError' || /aborted/i.test(String(e.message || '')));
+            console.warn('[Calendar] load failed', isAbort ? 'timed out after ' + (CAL_LOAD_TIMEOUT_MS/1000) + 's' : e);
+            if (!background) {
+                calState.error = isAbort
+                    ? "The calendar is taking longer than usual — the server might be busy. Try again in a moment."
+                    : (e.message || String(e));
+                calState.posts = [];
+            }
         } finally {
+            if (timeoutId) clearTimeout(timeoutId);
             // Always clear the refreshing chip — regardless of whether this
             // load was superseded mid-flight. Tying the clear to a seq match
             // (the old behaviour) could leak a stuck indicator when loads

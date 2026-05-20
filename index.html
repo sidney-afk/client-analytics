@@ -1623,11 +1623,27 @@
         .cal-empty { padding: 60px 20px; text-align: center; color: var(--text-muted); font-size: 0.92rem; line-height: 1.65; }
         .cal-empty.cal-error { color: var(--dn); background: var(--dn-bg); border-radius: 12px; }
         .cal-empty code { background: rgba(0,0,0,0.07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
+        /* Modern loader — single clean rotating ring with a subtle label.
+           Used everywhere the calendar shows a loading state. */
+        .cal-loader { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 70px 20px; color: var(--text-primary); }
+        .cal-loader-svg { animation: cal-loader-spin 1s linear infinite; color: var(--text-primary); display: block; }
+        .cal-loader-svg circle.track { opacity: 0.18; }
+        .cal-loader-text { font-size: 0.86rem; font-weight: 600; color: var(--text-muted); letter-spacing: 0.01em; }
+        @keyframes cal-loader-spin { to { transform: rotate(360deg); } }
         .cal-link { background: none; border: none; color: var(--text-primary); font-weight: 700; cursor: pointer; text-decoration: underline; padding: 0; font-family: inherit; font-size: inherit; }
 
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
-        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px; }
+        .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px;
+            scrollbar-width: thin; scrollbar-color: #cdcdc8 transparent; }
+        /* Subtle scrollbar — track blends into the page; thumb is solid and
+           pill-shaped. No arrow buttons. */
+        .cal-organizer-strip::-webkit-scrollbar { height: 10px; background: transparent; }
+        .cal-organizer-strip::-webkit-scrollbar-track { background: transparent; }
+        .cal-organizer-strip::-webkit-scrollbar-thumb { background: #cdcdc8; border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
+        .cal-organizer-strip::-webkit-scrollbar-thumb:hover { background: #b1b1aa; background-clip: padding-box; }
+        .cal-organizer-strip::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+        .cal-organizer-strip::-webkit-scrollbar-corner { background: transparent; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
@@ -1960,7 +1976,7 @@
         .cal-month-pill-thumb svg { width: 20px; height: 20px; }
         .cal-month-pill-meta { padding: 4px 6px 5px; display: flex; flex-direction: column; gap: 3px; }
         .cal-month-pill-name { font-size: 0.63rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
-        .cal-month-pill-meta .cal-status { font-size: 0.54rem; padding: 2px 7px; white-space: nowrap; }
+        .cal-month-pill-meta .cal-status { font-size: 0.54rem; padding: 2px 7px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
         .cal-month-pill.is-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
@@ -1985,7 +2001,8 @@
         .cal-week-card-thumb { width: 100%; height: var(--cal-week-h, 320px); flex-shrink: 0; background: #f4f4f2; display: flex; align-items: center; justify-content: center; color: var(--text-muted); overflow: hidden; }
         .cal-week-card-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .cal-week-card-thumb svg { width: 30px; height: 30px; }
-        .cal-week-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+        .cal-week-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
+        .cal-week-card-body .cal-status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
         .cal-week-card-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
 
         /* Preview popover (Month/Week → read-only post details) */
@@ -2032,6 +2049,7 @@
             min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
             background: #f59e0b; color: #fff; font-size: 0.66rem; font-weight: 800;
             font-variant-numeric: tabular-nums; letter-spacing: 0;
+            line-height: 1; box-sizing: border-box;
         }
 
         /* Slack/Discord-style continuous feed. Conversation and composer
@@ -4469,7 +4487,7 @@
         if(tab==='calendar'){
             return`<div class="client-view cal-tab-view">
                 ${toggleHtml}
-                <div class="cal-view cal-embedded" id="calView"><div class="cal-empty">Loading…</div></div>
+                <div class="cal-view cal-embedded" id="calView">${_calLoaderHtml()}</div>
             </div>`;
         }
 
@@ -7828,6 +7846,19 @@
 
     function _calMintId() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
 
+    /* Modern animated loader — a single rotating ring with a subtle label.
+       The visible arc is drawn as a short stroke-dasharray segment so the
+       spinning motion stays smooth across browsers. */
+    function _calLoaderHtml(label) {
+        return `<div class="cal-loader" role="status" aria-label="Loading">
+            <svg class="cal-loader-svg" viewBox="0 0 40 40" width="38" height="38" aria-hidden="true">
+                <circle class="track" cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3"/>
+                <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-dasharray="44 100" stroke-dashoffset="0"/>
+            </svg>
+            <div class="cal-loader-text">${_calEsc(label || 'Loading your calendar')}</div>
+        </div>`;
+    }
+
     function _calLoadPrefs() { try { return JSON.parse(localStorage.getItem(CAL_PREFS_KEY) || '{}'); } catch { return {}; } }
     function _calSavePrefs() {
         try {
@@ -7865,7 +7896,7 @@
     }
 
     function renderCalendarView() {
-        return `<div class="cal-view" id="calView"><div class="cal-empty">Loading…</div></div>`;
+        return `<div class="cal-view" id="calView">${_calLoaderHtml()}</div>`;
     }
 
     function mountCalendar() {
@@ -8680,7 +8711,7 @@
                     ${kebabHtml}
                 </div>
             </div>
-            <div class="cal-body" id="calBody"><div class="cal-empty">Loading…</div></div>
+            <div class="cal-body" id="calBody">${_calLoaderHtml()}</div>
             <div class="cal-preview-overlay" id="calPreviewOverlay" onclick="if(event.target===this)closeCalPreview()">
                 <div class="cal-preview" id="calPreview"></div>
             </div>
@@ -8913,7 +8944,7 @@
             body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
         }
-        if (calState.loading) { body.innerHTML = `<div class="cal-empty">Loading…</div>`; return; }
+        if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
         if (calState.error) {
             body.innerHTML = `<div class="cal-empty cal-error">
                 Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.<br>
@@ -9370,12 +9401,25 @@
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200);
+        const menuH = menu.offsetHeight;
         let left = rect.left;
         const maxLeft = window.innerWidth - menuW - 10;
         if (left > maxLeft) left = maxLeft;
         if (left < 10) left = 10;
         menu.style.left = left + 'px';
-        menu.style.top = (rect.bottom + 5) + 'px';
+        // Open downward by default; flip upward when the trigger sits near
+        // the bottom edge and there's more room above it. Clamps so the menu
+        // never escapes the viewport.
+        const gap = 5;
+        const spaceBelow = window.innerHeight - rect.bottom - 10;
+        const spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
+            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+        } else {
+            top = Math.max(10, rect.top - menuH - gap);
+        }
+        menu.style.top = top + 'px';
         menu.style.minWidth = Math.max(rect.width, 200) + 'px';
         requestAnimationFrame(() => menu.classList.add('open'));
         _calOpenStatusMenu = { pid, el: menu, triggerEl };
@@ -10147,7 +10191,7 @@
     function _calCommentRole() { return _isClientLink ? 'client' : 'smm'; }
     function _calCurrentAuthor() {
         if (_isClientLink) return calState.client ? String(calState.client) : 'Client';
-        return 'Social Media Manager';
+        return 'Synchro Social';
     }
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
     function _calCommentRoots(arr) {

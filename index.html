@@ -1637,12 +1637,24 @@
         .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px;
             scrollbar-width: thin; scrollbar-color: #cdcdc8 transparent; }
         /* Subtle scrollbar — track blends into the page; thumb is solid and
-           pill-shaped. No arrow buttons. */
+           pill-shaped. The arrow buttons (start / end / single-button) are
+           all zero-sized so they can't render even on platforms where
+           `display: none` is ignored for scrollbar buttons. */
         .cal-organizer-strip::-webkit-scrollbar { height: 10px; background: transparent; }
-        .cal-organizer-strip::-webkit-scrollbar-track { background: transparent; }
+        .cal-organizer-strip::-webkit-scrollbar-track,
+        .cal-organizer-strip::-webkit-scrollbar-track-piece { background: transparent; }
         .cal-organizer-strip::-webkit-scrollbar-thumb { background: #cdcdc8; border-radius: 99px; border: 2px solid transparent; background-clip: padding-box; }
         .cal-organizer-strip::-webkit-scrollbar-thumb:hover { background: #b1b1aa; background-clip: padding-box; }
-        .cal-organizer-strip::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+        .cal-organizer-strip::-webkit-scrollbar-button,
+        .cal-organizer-strip::-webkit-scrollbar-button:single-button,
+        .cal-organizer-strip::-webkit-scrollbar-button:start:decrement,
+        .cal-organizer-strip::-webkit-scrollbar-button:end:increment,
+        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:start,
+        .cal-organizer-strip::-webkit-scrollbar-button:horizontal:end,
+        .cal-organizer-strip::-webkit-scrollbar-button:vertical:start,
+        .cal-organizer-strip::-webkit-scrollbar-button:vertical:end {
+            display: block; width: 0 !important; height: 0 !important; background: transparent;
+        }
         .cal-organizer-strip::-webkit-scrollbar-corner { background: transparent; }
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
@@ -8607,15 +8619,19 @@
             _calRenderBody();
         }
         let ok = false;
+        let dataChanged = true;
         try {
             const slug = calClientSlug(calState.client);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             const json = await resp.json();
             if (seq !== _calLoadSeq) return;   // a newer load (fast tab switch) superseded this one
             if (!json.ok) throw new Error(json.error || 'load failed');
-            calState.posts = (json.posts || [])
+            const prevPosts = calState.posts;
+            const newPosts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
                 .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); p.comments = _calLoadComments(p); return p; });
+            dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
+            calState.posts = newPosts;
             calState.error = null;
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
@@ -8629,7 +8645,12 @@
                 calState.loading = false;
                 _calSetRefreshing(false);
                 if (background) {
-                    if (_calIsCalBusy()) {
+                    // No data difference → skip the re-render entirely; the
+                    // current strip is already correct, and re-rendering would
+                    // cause a brief flicker as thumbnails repaint.
+                    if (!dataChanged) {
+                        /* no-op */
+                    } else if (_calIsCalBusy()) {
                         _calPendingBackgroundRender = true;
                         _calSchedulePendingRender();
                     } else {
@@ -8933,6 +8954,54 @@
         results.hidden = false;
     }
 
+    /* Harvest loaded thumb <img> elements from the current strip, keyed by
+       post id + src. After body.innerHTML is replaced, the same nodes get
+       re-inserted into the matching new cards if the URL hasn't changed —
+       the browser keeps the loaded image data on detached nodes, so the
+       new card paints immediately with no flicker. */
+    function _calHarvestThumbs() {
+        const strip = document.getElementById('calStrip');
+        if (!strip) return null;
+        const map = new Map();
+        strip.querySelectorAll('.cal-card[data-pid] .cal-card-thumb img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            const card = img.closest('.cal-card');
+            const pid = card && card.getAttribute('data-pid');
+            const src = img.getAttribute('src') || '';
+            if (pid && src) map.set(pid + '|' + src, img);
+        });
+        return map;
+    }
+    function _calRestoreThumbs(map) {
+        if (!map || map.size === 0) return;
+        const strip = document.getElementById('calStrip');
+        if (!strip) return;
+        strip.querySelectorAll('.cal-card[data-pid] .cal-card-thumb img').forEach(newImg => {
+            const card = newImg.closest('.cal-card');
+            const pid = card && card.getAttribute('data-pid');
+            const src = newImg.getAttribute('src') || '';
+            const saved = map.get(pid + '|' + src);
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
+    function _calPostsEqualForRender(a, b) {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+        // The renderer reads exactly these fields off each post — if none
+        // of them changed, the new DOM would be identical to the current
+        // one and we can skip the re-render entirely.
+        const keys = ['id','order_index','scheduled_date','status','name',
+                      'asset_url','thumbnail_url','caption','cta',
+                      'linear_issue_id'];
+        for (let i = 0; i < a.length; i++) {
+            for (const k of keys) {
+                if (String(a[i][k] == null ? '' : a[i][k]) !== String(b[i][k] == null ? '' : b[i][k])) return false;
+            }
+            if (JSON.stringify(a[i].comments || []) !== JSON.stringify(b[i].comments || [])) return false;
+        }
+        return true;
+    }
+
     function _calRenderBody(opts) {
         const body = document.getElementById('calBody');
         if (!body) return;
@@ -8940,6 +9009,7 @@
         const stripBefore = preserveScroll ? document.getElementById('calStrip') : null;
         const scrollLeft0 = stripBefore ? stripBefore.scrollLeft : null;
         const scrollY0 = preserveScroll ? window.scrollY : null;
+        const harvestedThumbs = (preserveScroll && stripBefore) ? _calHarvestThumbs() : null;
         if (!calState.client) {
             body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab so you can switch between your clients quickly.</div>`;
             return;
@@ -8956,6 +9026,10 @@
         }
         if (calState.view === 'organizer') {
             body.innerHTML = renderCalOrganizer();
+            // Re-insert previously-loaded <img> elements into the new cards
+            // (same pid + same src) so the browser doesn't have to repaint
+            // thumbnails from the cache — no card-height shift on refresh.
+            _calRestoreThumbs(harvestedThumbs);
             // Restore the captured scroll synchronously, before the browser
             // paints the new strip — eliminates the brief jump to zero that
             // would otherwise be visible on every re-render.

@@ -7820,15 +7820,6 @@
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
     const CAL_PINS_KEY  = 'syncview_calendar_pins';
     const CAL_SAVE_DEBOUNCE_MS = 650;
-    /* Linear-creation poll: when the Linear automation submits a batch of
-       videos, the backend writes each calendar card to the sheet one-by-one
-       over a minute or two. We persist this flag so the calendar can keep
-       polling (every few seconds) until the expected cards arrive — no
-       manual refresh required. Window is generous because n8n on a busy
-       day can take a while to chew through the queue. */
-    const CAL_LINEAR_CREATION_KEY    = 'syncview_cal_linear_creation_pending_v1';
-    const CAL_LINEAR_POLL_INTERVAL_MS = 4500;
-    const CAL_LINEAR_POLL_WINDOW_MS   = 3 * 60 * 1000;
 
     const calState = {
         view: 'organizer',
@@ -8674,98 +8665,15 @@
 
     let _calLoadSeq = 0;
     let _calBgLoadInFlight = false;
-    let _calBgRetryTimer = null;
-    let _calLinearPollTimer = null;
-    let _calLinearPollContext = null;  // { client, expectedCount, baselineIds, startedAt, expiresAt }
     function _calSetRefreshing(on) {
         const el = document.getElementById('calRefreshing');
-        if (!el) return;
-        // While a Linear-creation poll owns the chip, ignore the normal
-        // background-load toggles so the "Syncing from Linear…" label and its
-        // progress count don't flicker on every poll tick.
-        if (_calLinearPollContext) { el.hidden = false; return; }
-        el.hidden = !on;
-        if (on) el.innerHTML = `<span class="cal-refresh-spin"></span>Refreshing…`;
+        if (el) el.hidden = !on;
     }
-    function _calLoadLinearCreationFlag() {
-        try {
-            const raw = localStorage.getItem(CAL_LINEAR_CREATION_KEY);
-            if (!raw) return null;
-            const f = JSON.parse(raw);
-            if (!f || !f.client || !f.expiresAt || Date.now() > Number(f.expiresAt)) {
-                localStorage.removeItem(CAL_LINEAR_CREATION_KEY);
-                return null;
-            }
-            return f;
-        } catch { return null; }
-    }
-    function _calSaveLinearCreationFlag(flag) {
-        try {
-            if (flag) localStorage.setItem(CAL_LINEAR_CREATION_KEY, JSON.stringify(flag));
-            else localStorage.removeItem(CAL_LINEAR_CREATION_KEY);
-        } catch {}
-    }
-    function _calRenderLinearPollChip(newCount) {
-        const ctx = _calLinearPollContext;
-        if (!ctx) return;
-        const el = document.getElementById('calRefreshing');
-        if (!el) return;
-        el.hidden = false;
-        const have = Math.max(0, Number(newCount || 0));
-        const expected = Number(ctx.expectedCount || 0);
-        const label = expected > 0
-            ? `Syncing from Linear (${have}/${expected})…`
-            : 'Syncing from Linear…';
-        el.innerHTML = `<span class="cal-refresh-spin"></span>${_calEsc(label)}`;
-    }
-    function _calMaybeStartLinearPoll() {
-        if (_calLinearPollTimer) return;
-        const flag = _calLoadLinearCreationFlag();
-        if (!flag) return;
-        if (!calState.client) return;
-        if (calClientSlug(calState.client) !== calClientSlug(flag.client)) return;
-        _calLinearPollContext = {
-            client: flag.client,
-            expectedCount: Number(flag.expectedCount || 0),
-            baselineIds: new Set(calState.posts.map(p => p.id)),
-            startedAt: Number(flag.startedAt) || Date.now(),
-            expiresAt: Number(flag.expiresAt) || (Date.now() + CAL_LINEAR_POLL_WINDOW_MS),
-        };
-        _calRenderLinearPollChip(0);
-        _calLinearPollTimer = setInterval(() => {
-            const ctx = _calLinearPollContext;
-            if (!ctx) { _calStopLinearPoll(); return; }
-            if (Date.now() > ctx.expiresAt) { _calStopLinearPoll(); return; }
-            if (!calState.client || calClientSlug(calState.client) !== calClientSlug(ctx.client)) return;
-            if (_calBgLoadInFlight || calState.loading || _calBgRetryTimer) return;
-            loadCalendarPosts({ background: true });
-        }, CAL_LINEAR_POLL_INTERVAL_MS);
-    }
-    function _calStopLinearPoll() {
-        if (_calLinearPollTimer) { clearInterval(_calLinearPollTimer); _calLinearPollTimer = null; }
-        _calLinearPollContext = null;
-        _calSaveLinearCreationFlag(null);
-        const el = document.getElementById('calRefreshing');
-        if (el) { el.hidden = true; el.innerHTML = `<span class="cal-refresh-spin"></span>Refreshing…`; }
-    }
-    function _calCheckLinearPollProgress() {
-        const ctx = _calLinearPollContext;
-        if (!ctx) return;
-        if (!calState.client || calClientSlug(calState.client) !== calClientSlug(ctx.client)) return;
-        const newCount = calState.posts.filter(p => !ctx.baselineIds.has(p.id)).length;
-        _calRenderLinearPollChip(newCount);
-        if (ctx.expectedCount > 0 && newCount >= ctx.expectedCount) _calStopLinearPoll();
-    }
-    const CAL_LOAD_TIMEOUT_MS = 15000;
-    // Background retries kick in after a timeout — gives the n8n backend
-    // time to clear its queue after a Linear bulk creation without the user
-    // having to manually refresh.
-    const CAL_BG_RETRY_DELAYS_MS = [4000, 10000];
+    const CAL_LOAD_TIMEOUT_MS = 20000;
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
         const seq = ++_calLoadSeq;
-        const attempt = Number(opts.attempt || 0);
         // Background refresh (tab regained focus): keep the current calendar
         // on screen and show a small spinner instead of blanking to "Loading".
         const background = !!opts.background && calState.posts.length > 0;
@@ -8773,8 +8681,6 @@
             _calBgLoadInFlight = true;
             _calSetRefreshing(true);
         } else {
-            // A foreground load takes over — cancel any pending bg retry.
-            if (_calBgRetryTimer) { clearTimeout(_calBgRetryTimer); _calBgRetryTimer = null; }
             _calBgLoadInFlight = false;
             _calSetRefreshing(false);
             calState.loading = true;
@@ -8784,8 +8690,8 @@
         // Two-layer timeout. AbortController aborts the fetch (and its body
         // stream in modern browsers); Promise.race against a wall-clock timer
         // guarantees we settle even when abort fails to propagate to a
-        // hanging response body — a quirk we hit when the n8n backend stalls
-        // mid-response after a burst of Linear-webhook traffic.
+        // hanging response body — the quirk that was leaving the chip stuck
+        // on "Refreshing…" when n8n stalled after a Linear bulk creation.
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         const TIMEOUT_SENTINEL = Symbol('cal-load-timeout');
         let timeoutId = null;
@@ -8797,7 +8703,6 @@
         });
         let ok = false;
         let dataChanged = true;
-        let willRetry = false;
         try {
             const slug = calClientSlug(calState.client);
             const fetchPromise = (async () => {
@@ -8822,17 +8727,7 @@
             if (seq !== _calLoadSeq) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));
             console.warn('[Calendar] load failed', isAbort ? 'timed out after ' + (CAL_LOAD_TIMEOUT_MS/1000) + 's' : e);
-            if (background && isAbort && attempt < CAL_BG_RETRY_DELAYS_MS.length) {
-                // Schedule a single retry with backoff. Keep the chip up so
-                // the user knows a refresh is still in progress.
-                const delay = CAL_BG_RETRY_DELAYS_MS[attempt];
-                willRetry = true;
-                if (_calBgRetryTimer) clearTimeout(_calBgRetryTimer);
-                _calBgRetryTimer = setTimeout(() => {
-                    _calBgRetryTimer = null;
-                    if (calState.client) loadCalendarPosts({ background: true, attempt: attempt + 1 });
-                }, delay);
-            } else if (!background) {
+            if (!background) {
                 calState.error = isAbort
                     ? "The calendar is taking longer than usual — the server might be busy. Try again in a moment."
                     : (e.message || String(e));
@@ -8840,36 +8735,25 @@
             }
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
+            _calSetRefreshing(false);
+            _calBgLoadInFlight = false;
             if (seq === _calLoadSeq) {
-                if (!willRetry) {
-                    _calSetRefreshing(false);
-                    _calBgLoadInFlight = false;
-                }
                 calState.loading = false;
                 if (background) {
-                    if (!willRetry) {
-                        if (!dataChanged) {
-                            /* no-op — current strip is already correct */
-                        } else if (_calIsCalBusy()) {
-                            _calPendingBackgroundRender = true;
-                            _calSchedulePendingRender();
-                        } else {
-                            _calRenderBody({ preserveScroll: true });
-                        }
+                    if (!dataChanged) {
+                        /* no-op — current strip is already correct */
+                    } else if (_calIsCalBusy()) {
+                        _calPendingBackgroundRender = true;
+                        _calSchedulePendingRender();
+                    } else {
+                        _calRenderBody({ preserveScroll: true });
                     }
                 } else {
                     _calRenderBody();
                 }
             }
         }
-        if (seq === _calLoadSeq && ok) {
-            _calReconcileLinearStatuses();
-            _calApplyFocusRequest();
-            // If a Linear creation is pending for this client, start polling (or
-            // update progress if already polling).
-            _calMaybeStartLinearPoll();
-            _calCheckLinearPollProgress();
-        }
+        if (seq === _calLoadSeq && ok) { _calReconcileLinearStatuses(); _calApplyFocusRequest(); }
     }
     /* After a load, if the workload view asked to open a specific sub-issue,
        scroll its card into view and flash it. */
@@ -11146,24 +11030,6 @@
         };
         if (mode === 'video' || mode === 'both') fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
         if (mode === 'thumbnail' || mode === 'both') fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
-
-        // Tell the calendar a Linear bulk-create is in flight so it polls
-        // for the new cards to stream in (the n8n workflow writes each
-        // card to the sheet one-by-one, so they appear over the next minute
-        // or two). The calendar picks this up on mount or on the next
-        // successful refresh.
-        try {
-            const now = Date.now();
-            localStorage.setItem(CAL_LINEAR_CREATION_KEY, JSON.stringify({
-                client,
-                expectedCount: videos.length,
-                startedAt: now,
-                expiresAt: now + CAL_LINEAR_POLL_WINDOW_MS,
-            }));
-        } catch {}
-        // If the calendar is already mounted for this client, kick the poll
-        // immediately so the user doesn't even need to navigate away first.
-        if (typeof _calMaybeStartLinearPoll === 'function' && calState.client) _calMaybeStartLinearPoll();
 
         localStorage.removeItem(LINEAR_FORM_KEY);
         localStorage.removeItem(LAST_LINK_KEY);

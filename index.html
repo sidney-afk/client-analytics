@@ -7929,6 +7929,7 @@
         calState.posts = [];
         calState.error = null;
         calState.previewId = null;
+        _calClearRefreshing();   // belt-and-suspenders: a stale "Refreshing…" tick from a torn-down shell can't follow us into the new one
         _calRenderShell();
         if (calState.client) loadCalendarPosts();
         else _calRenderBody();
@@ -8021,6 +8022,7 @@
         calState.posts = [];
         calState.error = null;
         calState.previewId = null;
+        _calClearRefreshing();   // see mountCalendar
         _calRenderShell();
         loadCalendarPosts();
     }
@@ -8600,9 +8602,22 @@
     }
 
     let _calLoadSeq = 0;
+    /* Ref-counted: every load that turns the "Refreshing…" indicator on
+       decrements it in its own finally — regardless of whether _calLoadSeq
+       drifted past it. The indicator only hides once every in-flight load
+       has paired its own (true)/(false), so overlapping loads can't leave
+       the chip stuck visible. */
+    let _calRefreshingCount = 0;
     function _calSetRefreshing(on) {
+        if (on) _calRefreshingCount++;
+        else _calRefreshingCount = Math.max(0, _calRefreshingCount - 1);
         const el = document.getElementById('calRefreshing');
-        if (el) el.hidden = !on;
+        if (el) el.hidden = _calRefreshingCount === 0;
+    }
+    function _calClearRefreshing() {
+        _calRefreshingCount = 0;
+        const el = document.getElementById('calRefreshing');
+        if (el) el.hidden = true;
     }
     async function loadCalendarPosts(opts) {
         opts = opts || {};
@@ -8641,9 +8656,12 @@
             console.warn('[Calendar] load failed', e);
             if (!background) { calState.error = e.message || String(e); calState.posts = []; }
         } finally {
+            // Pair the (true) call from the top of THIS invocation — even if
+            // _calLoadSeq has moved past us, this load owns one refresh tick
+            // and must release it so the indicator can hide.
+            if (background) _calSetRefreshing(false);
             if (seq === _calLoadSeq) {
                 calState.loading = false;
-                _calSetRefreshing(false);
                 if (background) {
                     // No data difference → skip the re-render entirely; the
                     // current strip is already correct, and re-rendering would

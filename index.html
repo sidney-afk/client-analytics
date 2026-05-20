@@ -9109,10 +9109,7 @@
         if (calState.loading) { body.innerHTML = _calLoaderHtml(); return; }
         if (calState.error) {
             body.innerHTML = `<div class="cal-empty cal-error">
-                Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.<br>
-                <small>${_calEsc(calState.error)}</small><br><br>
-                If this is a new client, run the <strong>SyncView Calendar — Setup</strong> workflow in n8n, or manually create tab <code>Calendar_${_calEsc(calClientSlug(calState.client))}</code> in the SyncView Calendar Sheet with header row:<br>
-                <code>id, order_index, scheduled_date, name, asset_url, thumbnail_url, caption, cta, tweaks, status, linear_issue_id, kasper_approved_at, posted_at, updated_at</code>
+                Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.
             </div>`;
             return;
         }
@@ -11060,13 +11057,31 @@
     async function _writeLinearVideoCardsToCalendar(clientName, videos) {
         const slug = wlNormalizeClient(clientName);
         if (!slug || !Array.isArray(videos) || !videos.length) return;
+        // Find the highest order_index currently on the client's calendar
+        // so the new cards land AT THE END, after anything the user has
+        // already organized — instead of squatting on positions 1..12 and
+        // shoving existing cards behind them. Fall back to a timestamp
+        // offset if we can't read the sheet, so new cards still sort to
+        // the end rather than colliding with existing low numbers.
+        let baseOrder;
+        try {
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            const json = await resp.json();
+            if (json && json.ok && Array.isArray(json.posts)) {
+                baseOrder = json.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+            } else {
+                baseOrder = Math.floor(Date.now() / 1000);
+            }
+        } catch (e) {
+            baseOrder = Math.floor(Date.now() / 1000);
+        }
         const mintId = () => 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
         let succeeded = 0;
         for (let i = 0; i < videos.length; i++) {
             const v = videos[i] || {};
             const post = {
                 id: mintId(),
-                order_index: Number(v.number) || (i + 1),
+                order_index: baseOrder + (Number(v.number) || (i + 1)),
                 name: 'Video ' + (Number(v.number) || (i + 1)),
                 scheduled_date: '',
                 status: 'In Progress',

@@ -7945,6 +7945,11 @@
         if (!calState.client) return;
         const calBody = document.getElementById('calBody');
         if (!calBody) return;
+        // Skip if a load is already in flight — otherwise rapid tab switches
+        // pile up overlapping fetches, each resetting the timeout and keeping
+        // the "Refreshing…" chip on indefinitely while the n8n backend is busy
+        // (typical after a bulk Linear-issue creation).
+        if (_calBgLoadInFlight || calState.loading) return;
         // We still trigger the refresh while interacting — the re-render is
         // deferred until the user blurs out (see _calMaybeRunPendingRender).
         const now = Date.now();
@@ -8659,41 +8664,64 @@
     }
 
     let _calLoadSeq = 0;
+    let _calBgLoadInFlight = false;
+    let _calBgRetryTimer = null;
     function _calSetRefreshing(on) {
         const el = document.getElementById('calRefreshing');
         if (el) el.hidden = !on;
     }
-    const CAL_LOAD_TIMEOUT_MS = 20000;
+    const CAL_LOAD_TIMEOUT_MS = 15000;
+    // Background retries kick in after a timeout — gives the n8n backend
+    // time to clear its queue after a Linear bulk creation without the user
+    // having to manually refresh.
+    const CAL_BG_RETRY_DELAYS_MS = [4000, 10000];
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
         const seq = ++_calLoadSeq;
+        const attempt = Number(opts.attempt || 0);
         // Background refresh (tab regained focus): keep the current calendar
         // on screen and show a small spinner instead of blanking to "Loading".
         const background = !!opts.background && calState.posts.length > 0;
         if (background) {
+            _calBgLoadInFlight = true;
             _calSetRefreshing(true);
         } else {
+            // A foreground load takes over — cancel any pending bg retry.
+            if (_calBgRetryTimer) { clearTimeout(_calBgRetryTimer); _calBgRetryTimer = null; }
+            _calBgLoadInFlight = false;
+            _calSetRefreshing(false);
             calState.loading = true;
             calState.error = null;
             _calRenderBody();
         }
-        // Hard timeout via AbortController — the n8n backend sometimes hangs
-        // (especially right after a burst of Linear-issue creations), which
-        // would otherwise leave the "Refreshing…" chip or the full-page
-        // loader on screen forever. After this much wall-clock time we
-        // abort the request, the chip clears, and a foreground load shows
-        // a "try again" error state instead of pretending to load.
+        // Two-layer timeout. AbortController aborts the fetch (and its body
+        // stream in modern browsers); Promise.race against a wall-clock timer
+        // guarantees we settle even when abort fails to propagate to a
+        // hanging response body — a quirk we hit when the n8n backend stalls
+        // mid-response after a burst of Linear-webhook traffic.
         const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-        const timeoutId = ctrl ? setTimeout(() => ctrl.abort(), CAL_LOAD_TIMEOUT_MS) : null;
+        const TIMEOUT_SENTINEL = Symbol('cal-load-timeout');
+        let timeoutId = null;
+        const timeoutPromise = new Promise(resolve => {
+            timeoutId = setTimeout(() => {
+                if (ctrl) { try { ctrl.abort(); } catch {} }
+                resolve(TIMEOUT_SENTINEL);
+            }, CAL_LOAD_TIMEOUT_MS);
+        });
         let ok = false;
         let dataChanged = true;
+        let willRetry = false;
         try {
             const slug = calClientSlug(calState.client);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
-            const json = await resp.json();
+            const fetchPromise = (async () => {
+                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
+                return resp.json();
+            })();
+            const json = await Promise.race([fetchPromise, timeoutPromise]);
             if (seq !== _calLoadSeq) return;   // a newer load (fast tab switch) superseded this one
-            if (!json.ok) throw new Error(json.error || 'load failed');
+            if (json === TIMEOUT_SENTINEL) throw new Error('Load timed out');
+            if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
             const newPosts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
@@ -8706,9 +8734,19 @@
             ok = true;
         } catch (e) {
             if (seq !== _calLoadSeq) return;
-            const isAbort = e && (e.name === 'AbortError' || /aborted/i.test(String(e.message || '')));
+            const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));
             console.warn('[Calendar] load failed', isAbort ? 'timed out after ' + (CAL_LOAD_TIMEOUT_MS/1000) + 's' : e);
-            if (!background) {
+            if (background && isAbort && attempt < CAL_BG_RETRY_DELAYS_MS.length) {
+                // Schedule a single retry with backoff. Keep the chip up so
+                // the user knows a refresh is still in progress.
+                const delay = CAL_BG_RETRY_DELAYS_MS[attempt];
+                willRetry = true;
+                if (_calBgRetryTimer) clearTimeout(_calBgRetryTimer);
+                _calBgRetryTimer = setTimeout(() => {
+                    _calBgRetryTimer = null;
+                    if (calState.client) loadCalendarPosts({ background: true, attempt: attempt + 1 });
+                }, delay);
+            } else if (!background) {
                 calState.error = isAbort
                     ? "The calendar is taking longer than usual — the server might be busy. Try again in a moment."
                     : (e.message || String(e));
@@ -8716,27 +8754,22 @@
             }
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
-            // Always clear the refreshing chip — regardless of whether this
-            // load was superseded mid-flight. Tying the clear to a seq match
-            // (the old behaviour) could leak a stuck indicator when loads
-            // overlapped; clearing here is safe because (a) any newer load
-            // sets it back to true synchronously when IT starts, and (b)
-            // the only cost of an early clear is missing the chip for a
-            // brief window — never a permanent stuck state.
-            _calSetRefreshing(false);
             if (seq === _calLoadSeq) {
+                if (!willRetry) {
+                    _calSetRefreshing(false);
+                    _calBgLoadInFlight = false;
+                }
                 calState.loading = false;
                 if (background) {
-                    // No data difference → skip the re-render entirely; the
-                    // current strip is already correct, and re-rendering would
-                    // cause a brief flicker as thumbnails repaint.
-                    if (!dataChanged) {
-                        /* no-op */
-                    } else if (_calIsCalBusy()) {
-                        _calPendingBackgroundRender = true;
-                        _calSchedulePendingRender();
-                    } else {
-                        _calRenderBody({ preserveScroll: true });
+                    if (!willRetry) {
+                        if (!dataChanged) {
+                            /* no-op — current strip is already correct */
+                        } else if (_calIsCalBusy()) {
+                            _calPendingBackgroundRender = true;
+                            _calSchedulePendingRender();
+                        } else {
+                            _calRenderBody({ preserveScroll: true });
+                        }
                     }
                 } else {
                     _calRenderBody();

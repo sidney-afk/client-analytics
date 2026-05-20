@@ -10010,14 +10010,19 @@
     function archiveCalPost(id) {
         if (!id || _calIsBlankId(id)) return;
         showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
-            _calSetCardStatus(id, 'saving');
+            // Drop the card from the UI immediately, then fire the archive
+            // request in the background — matches bulk-archive UX, no spinner wait.
+            const snapshot = calState.posts.slice();
+            calState.posts = calState.posts.filter(p => p.id !== id);
+            _calRenderBody({ preserveScroll: true });
             try {
                 await _calArchiveOne(id);
-                const card = document.querySelector(`.cal-card[data-pid="${id}"]`);
-                if (card) card.remove();
             } catch (e) {
                 console.warn('[Calendar] archive failed', e);
-                _calSetCardStatus(id, 'error', e.message || 'archive failed');
+                calState.posts = snapshot;
+                _calRenderBody({ preserveScroll: true });
+                showNotify('Archive failed', e.message || 'Could not archive this post — reloading the calendar.');
+                loadCalendarPosts();
             }
         }, 'Archive');
     }

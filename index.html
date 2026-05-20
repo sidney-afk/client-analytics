@@ -2012,6 +2012,53 @@
         .cal-btn-primary { background: var(--text-primary); border-color: var(--text-primary); color: var(--white); }
         .cal-btn-primary:hover { opacity: 0.9; border-color: var(--text-primary); }
         .cal-btn-secondary { background: var(--white); }
+
+        /* ── Card comments button + threaded-comments modal ─────────── */
+        .cal-card-foot { justify-content: space-between; gap: 8px; }
+        .cal-comments-btn { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 1px solid transparent; color: var(--text-muted); border-radius: 99px; padding: 3px 9px 3px 7px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+        .cal-comments-btn:hover { background: #f3f3f1; color: var(--text-primary); }
+        .cal-comments-btn svg { width: 12px; height: 12px; }
+        .cal-comments-btn.has-open { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+        .cal-comments-btn.has-open:hover { background: #fde68a; }
+        .cal-comments-btn .cal-comments-count { font-variant-numeric: tabular-nums; }
+
+        .cal-comments-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 320; align-items: center; justify-content: center; padding: 20px; }
+        .cal-comments-overlay.open { display: flex; }
+        .cal-comments-modal { background: var(--white); border-radius: 16px; width: 520px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.22); overflow: hidden; }
+        .cal-comments-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+        .cal-comments-head-text h3 { margin: 0 0 3px; font-size: 1rem; font-weight: 800; color: var(--text-primary); }
+        .cal-comments-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); }
+        .cal-comments-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--bg); font-size: 1.2rem; line-height: 1; cursor: pointer; color: var(--text-muted); flex-shrink: 0; }
+        .cal-comments-close:hover { background: var(--border); color: var(--text-primary); }
+        .cal-comments-body { padding: 14px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; flex: 1; }
+        .cal-comments-empty { font-size: 0.82rem; color: var(--text-muted); font-style: italic; padding: 24px 0; text-align: center; }
+        .cal-comments-section-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 4px; }
+        .cal-thread { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--white); display: flex; flex-direction: column; gap: 10px; }
+        .cal-thread.is-done { background: #f7f7f5; border-color: #e6e6e0; opacity: 0.85; }
+        .cal-comment { display: flex; flex-direction: column; gap: 4px; }
+        .cal-comment-reply { margin-left: 16px; padding-left: 12px; border-left: 2px solid var(--border); }
+        .cal-comment-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.74rem; color: var(--text-muted); }
+        .cal-comment-author { font-weight: 800; color: var(--text-primary); font-size: 0.78rem; }
+        .cal-comment-role { padding: 1px 7px; border-radius: 99px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+        .cal-comment-role.is-smm { background: #e0e7ff; color: #3730a3; }
+        .cal-comment-role.is-client { background: #dcfce7; color: #166534; }
+        .cal-comment-time { font-size: 0.7rem; color: var(--text-muted); }
+        .cal-comment-body { font-size: 0.86rem; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+        .cal-thread.is-done .cal-comment-body { color: var(--text-secondary); }
+        .cal-thread-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .cal-thread-action { background: transparent; border: 1px solid var(--border); border-radius: 99px; padding: 4px 11px; font-family: inherit; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+        .cal-thread-action:hover { background: #f3f3f1; color: var(--text-primary); border-color: #aaa; }
+        .cal-thread-action svg { width: 11px; height: 11px; }
+        .cal-thread-action.is-done-toggle.is-done { background: #dcfce7; border-color: #86efac; color: #166534; }
+        .cal-thread-done-meta { font-size: 0.7rem; color: #166534; font-weight: 600; }
+        .cal-comment-form { display: flex; flex-direction: column; gap: 6px; }
+        .cal-comment-form textarea { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); font-family: inherit; font-size: 0.86rem; line-height: 1.45; color: var(--text-primary); background: var(--bg); resize: vertical; min-height: 60px; outline: none; }
+        .cal-comment-form textarea:focus { background: var(--white); border-color: var(--text-primary); }
+        .cal-comment-form-row { display: flex; justify-content: flex-end; gap: 6px; }
+        .cal-comments-foot { padding: 14px 22px 18px; border-top: 1px solid var(--border); background: var(--bg); display: flex; flex-direction: column; gap: 10px; }
+        .cal-comments-author-row { display: flex; align-items: center; gap: 8px; font-size: 0.74rem; color: var(--text-muted); }
+        .cal-comments-author-row input { flex: 1; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); font-family: inherit; font-size: 0.8rem; background: var(--white); color: var(--text-primary); outline: none; min-width: 0; }
+        .cal-comments-author-row input:focus { border-color: var(--text-primary); }
     </style>
 </head>
 <body>
@@ -7682,7 +7729,10 @@
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
        Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
        caption, cta, tweaks, status, linear_issue_id, kasper_approved_at,
-       posted_at, updated_at.
+       posted_at, updated_at, comments.
+       The "comments" column holds a JSON-encoded array of threaded comment
+       objects: { id, parent_id, author, role, body, created_at, done,
+       done_at, done_by }. Both SMM and client can add/reply/mark done.
        ============================================================ */
     const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
     const CALENDAR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
@@ -8500,7 +8550,7 @@
             if (!json.ok) throw new Error(json.error || 'load failed');
             calState.posts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
-                .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); return p; });
+                .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); p.comments = _calParseComments(p.comments); return p; });
             calState.error = null;
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
@@ -8609,6 +8659,9 @@
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
                 <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close">×</button>
+            </div>
+            <div class="cal-comments-overlay" id="calCommentsOverlay" onclick="if(event.target===this)closeCalComments()">
+                <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
             </div>
         `;
         if (!embedded) {
@@ -8832,7 +8885,7 @@
                 Couldn't load calendar — <button class="cal-link" onclick="loadCalendarPosts()">try again</button>.<br>
                 <small>${_calEsc(calState.error)}</small><br><br>
                 If this is a new client, run the <strong>SyncView Calendar — Setup</strong> workflow in n8n, or manually create tab <code>Calendar_${_calEsc(calClientSlug(calState.client))}</code> in the SyncView Calendar Sheet with header row:<br>
-                <code>id, order_index, scheduled_date, name, asset_url, thumbnail_url, caption, cta, tweaks, status, linear_issue_id, kasper_approved_at, posted_at, updated_at</code>
+                <code>id, order_index, scheduled_date, name, asset_url, thumbnail_url, caption, cta, tweaks, status, linear_issue_id, kasper_approved_at, posted_at, updated_at, comments</code>
             </div>`;
             return;
         }
@@ -9076,7 +9129,7 @@
 
     function _calBlankPost() {
         const maxOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+        return { id: _calNextBlankId(), order_index: maxOrder + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [] };
     }
 
     function _calLinkLabel(url) {
@@ -9257,6 +9310,7 @@
                 </div>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
+                    ${_calCommentsBtnHtml(p, pid)}
                     <span class="cal-card-saving" data-saving="${pid}" hidden></span>
                 </div>
             </div>
@@ -9502,7 +9556,7 @@
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
         if (idx < 0) {
-            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
+            const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [] };
             post = Object.assign({}, blank, edits);
             calState.posts.push(post);
         } else {
@@ -9515,13 +9569,19 @@
         _calNoLinearPush.delete(pid);
 
         try {
+            // The `comments` column is a JSON-encoded array on the wire — the
+            // sheet stores a single string cell. In memory we always keep an
+            // array, so serialize for the request and re-parse on response.
+            const wirePost = Object.assign({}, post);
+            if ('comments' in wirePost) wirePost.comments = _calStringifyComments(wirePost.comments);
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), post })
+                body: JSON.stringify({ client: calClientSlug(calState.client), post: wirePost })
             });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
             const saved = json.post || post;
+            if ('comments' in saved) saved.comments = _calParseComments(saved.comments);
             const i2 = calState.posts.findIndex(p => p.id === realId);
             if (i2 >= 0) calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
             _calSetCardStatus(realId, 'saved');
@@ -10007,6 +10067,312 @@
             }
         }, 50);
     }
+
+    /* ── Threaded comments ─────────────────────────────────────────────
+       Both the social media manager (internal view) and the client (share
+       link) can add comments, reply to threads, and mark threads done.
+       Done threads stay visible under a "Resolved" section so the back-and-
+       forth history isn't lost. Storage lives in the post's `comments`
+       column as a JSON-encoded array (parsed into an array in memory). */
+    const CAL_AUTHOR_KEY = 'syncview_cal_comment_author';
+    let _calOpenCommentsPid = null;
+    /* Reply form state survives re-renders inside the modal so typing into a
+       reply box isn't wiped by a save round-trip. Keyed by parent thread id. */
+    let _calReplyOpen = null;
+    const _calReplyDrafts = Object.create(null);
+    let _calRootDraft = '';
+
+    function _calParseComments(raw) {
+        if (Array.isArray(raw)) return raw.filter(c => c && c.id);
+        const s = String(raw == null ? '' : raw).trim();
+        if (!s) return [];
+        try {
+            const arr = JSON.parse(s);
+            return Array.isArray(arr) ? arr.filter(c => c && c.id) : [];
+        } catch { return []; }
+    }
+    function _calStringifyComments(arr) {
+        const list = Array.isArray(arr) ? arr : _calParseComments(arr);
+        return list.length ? JSON.stringify(list) : '';
+    }
+    function _calCommentRole() { return _isClientLink ? 'client' : 'smm'; }
+    function _calDefaultAuthor() {
+        if (_isClientLink) return calState.client ? String(calState.client) : 'Client';
+        return 'Social Media Manager';
+    }
+    function _calGetAuthor() {
+        try {
+            const stored = localStorage.getItem(CAL_AUTHOR_KEY + '_' + _calCommentRole());
+            if (stored && stored.trim()) return stored.trim();
+        } catch {}
+        return _calDefaultAuthor();
+    }
+    function _calSetAuthor(name) {
+        const v = String(name || '').trim();
+        try {
+            if (v) localStorage.setItem(CAL_AUTHOR_KEY + '_' + _calCommentRole(), v);
+            else localStorage.removeItem(CAL_AUTHOR_KEY + '_' + _calCommentRole());
+        } catch {}
+    }
+    function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    function _calCommentRoots(arr) { return arr.filter(c => !c.parent_id); }
+    function _calCommentReplies(arr, rootId) {
+        return arr.filter(c => c.parent_id === rootId)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+    }
+    function _calOpenCommentCount(arr) {
+        const list = Array.isArray(arr) ? arr : _calParseComments(arr);
+        return _calCommentRoots(list).filter(c => !c.done).length;
+    }
+    function _calFmtCommentTime(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const diff = Date.now() - t;
+        const mins = Math.round(diff / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.round(hrs / 24);
+        if (days < 7) return days + 'd ago';
+        const d = new Date(t);
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function _calCommentsBtnHtml(post, pid) {
+        const open = _calOpenCommentCount(post.comments);
+        const total = _calParseComments(post.comments).length;
+        const label = open > 0
+            ? `${open} open`
+            : (total > 0 ? `${total}` : 'Comments');
+        const cls = open > 0 ? ' has-open' : '';
+        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="Comments">${ico}<span class="cal-comments-count">${label}</span></button>`;
+    }
+    function _calRefreshCommentsBtn(pid) {
+        const btn = document.querySelector(`.cal-comments-btn[data-comments-btn="${(window.CSS && CSS.escape) ? CSS.escape(pid) : pid}"]`);
+        if (!btn) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _calCommentsBtnHtml(post, pid);
+        btn.replaceWith(tmp.firstElementChild);
+    }
+
+    function openCalComments(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calOpenCommentsPid = pid;
+        _calReplyOpen = null;
+        // Clear stale per-thread drafts when opening a fresh card
+        for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
+        _calRootDraft = '';
+        const ovl = document.getElementById('calCommentsOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderCommentsModal();
+    }
+    function closeCalComments() {
+        _calCaptureModalDrafts();
+        const ovl = document.getElementById('calCommentsOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        _calOpenCommentsPid = null;
+        _calReplyOpen = null;
+    }
+    function _calCaptureModalDrafts() {
+        const root = document.getElementById('calCommentsModal');
+        if (!root) return;
+        const rootTa = root.querySelector('textarea[data-comment-root]');
+        if (rootTa) _calRootDraft = rootTa.value;
+        root.querySelectorAll('textarea[data-comment-reply]').forEach(ta => {
+            _calReplyDrafts[ta.dataset.commentReply] = ta.value;
+        });
+    }
+
+    function _calRenderCommentsModal() {
+        const pid = _calOpenCommentsPid;
+        const modal = document.getElementById('calCommentsModal');
+        if (!modal || !pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) { closeCalComments(); return; }
+        const comments = _calParseComments(post.comments);
+        const roots = _calCommentRoots(comments);
+        const open = roots.filter(r => !r.done).sort((a,b) => String(a.created_at||'').localeCompare(String(b.created_at||'')));
+        const done = roots.filter(r => r.done).sort((a,b) => String(b.done_at||b.created_at||'').localeCompare(String(a.done_at||a.created_at||'')));
+        const author = _calGetAuthor();
+        const postName = _calEsc(post.name || 'Untitled post');
+
+        const renderComment = (c, isReply) => {
+            const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
+            const roleLbl = c.role === 'client' ? 'Client' : 'SMM';
+            return `<div class="cal-comment${isReply ? ' cal-comment-reply' : ''}">
+                <div class="cal-comment-head">
+                    <span class="cal-comment-author">${_calEsc(c.author || (c.role === 'client' ? 'Client' : 'SMM'))}</span>
+                    <span class="cal-comment-role ${roleCls}">${roleLbl}</span>
+                    <span class="cal-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                </div>
+                <div class="cal-comment-body">${_calEsc(c.body || '')}</div>
+            </div>`;
+        };
+
+        const renderThread = (root) => {
+            const replies = _calCommentReplies(comments, root.id);
+            const isReplyOpen = _calReplyOpen === root.id;
+            const replyDraft = _calReplyDrafts[root.id] || '';
+            const doneCls = root.done ? ' is-done' : '';
+            const doneToggleLabel = root.done ? 'Reopen' : 'Mark done';
+            const doneIco = root.done
+                ? `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7h9M9 4.5L11.5 7L9 9.5"/></svg>`
+                : `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+            const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+            const doneMeta = root.done && root.done_by
+                ? `<span class="cal-thread-done-meta">Resolved by ${_calEsc(root.done_by)}${root.done_at ? ' · ' + _calEsc(_calFmtCommentTime(root.done_at)) : ''}</span>`
+                : '';
+            const replyForm = isReplyOpen && !root.done ? `
+                <div class="cal-comment-form" data-reply-form="${root.id}">
+                    <textarea data-comment-reply="${root.id}" placeholder="Reply to ${_calEsc(root.author || 'thread')}…" oninput="_calOnCommentDraftInput(this)">${_calEsc(replyDraft)}</textarea>
+                    <div class="cal-comment-form-row">
+                        <button class="cal-btn cal-btn-secondary" type="button" onclick="_calCancelReply('${root.id}')">Cancel</button>
+                        <button class="cal-btn cal-btn-primary" type="button" onclick="_calSubmitReply('${root.id}')">Reply</button>
+                    </div>
+                </div>` : '';
+            const replyBtn = root.done ? '' : `<button class="cal-thread-action" type="button" onclick="_calToggleReply('${root.id}')">${replyIco}${isReplyOpen ? 'Hide reply' : 'Reply'}</button>`;
+            return `<div class="cal-thread${doneCls}" data-thread="${root.id}">
+                ${renderComment(root, false)}
+                ${replies.map(r => renderComment(r, true)).join('')}
+                <div class="cal-thread-actions">
+                    ${replyBtn}
+                    <button class="cal-thread-action is-done-toggle${root.done ? ' is-done' : ''}" type="button" onclick="_calToggleCommentDone('${root.id}')">${doneIco}${doneToggleLabel}</button>
+                    ${doneMeta}
+                </div>
+                ${replyForm}
+            </div>`;
+        };
+
+        const openHtml = open.length
+            ? open.map(renderThread).join('')
+            : (done.length ? '' : `<div class="cal-comments-empty">No comments yet. Start the conversation below.</div>`);
+        const doneSection = done.length
+            ? `<div class="cal-comments-section-label">Resolved (${done.length})</div>${done.map(renderThread).join('')}`
+            : '';
+
+        modal.innerHTML = `
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text">
+                    <h3 id="calCommentsTitle">Comments</h3>
+                    <p>${postName}</p>
+                </div>
+                <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close">×</button>
+            </div>
+            <div class="cal-comments-body" id="calCommentsBody">
+                ${openHtml}
+                ${doneSection}
+            </div>
+            <div class="cal-comments-foot">
+                <div class="cal-comments-author-row">
+                    <span>Posting as</span>
+                    <input type="text" id="calCommentAuthor" value="${_calEscAttr(author)}" placeholder="Your name" oninput="_calOnAuthorInput(this)">
+                </div>
+                <div class="cal-comment-form">
+                    <textarea data-comment-root placeholder="Add a comment…" oninput="_calOnCommentDraftInput(this)">${_calEsc(_calRootDraft)}</textarea>
+                    <div class="cal-comment-form-row">
+                        <button class="cal-btn cal-btn-primary" type="button" onclick="_calSubmitRoot()">Comment</button>
+                    </div>
+                </div>
+            </div>`;
+        // Restore focus to the reply box if it was open
+        if (_calReplyOpen) {
+            const ta = modal.querySelector(`textarea[data-comment-reply="${_calReplyOpen}"]`);
+            if (ta) { ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
+        }
+    }
+
+    function _calOnCommentDraftInput(ta) {
+        if (ta.dataset.commentRoot != null || ta.hasAttribute('data-comment-root')) {
+            _calRootDraft = ta.value;
+        } else if (ta.dataset.commentReply) {
+            _calReplyDrafts[ta.dataset.commentReply] = ta.value;
+        }
+    }
+    function _calOnAuthorInput(input) {
+        _calSetAuthor(input.value);
+    }
+    function _calToggleReply(rootId) {
+        _calCaptureModalDrafts();
+        _calReplyOpen = (_calReplyOpen === rootId) ? null : rootId;
+        _calRenderCommentsModal();
+    }
+    function _calCancelReply(rootId) {
+        delete _calReplyDrafts[rootId];
+        _calReplyOpen = null;
+        _calRenderCommentsModal();
+    }
+    function _calSubmitRoot() {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        _calCaptureModalDrafts();
+        const body = (_calRootDraft || '').trim();
+        if (!body) return;
+        _calAppendComment(pid, null, body);
+        _calRootDraft = '';
+        _calRenderCommentsModal();
+    }
+    function _calSubmitReply(rootId) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        _calCaptureModalDrafts();
+        const body = (_calReplyDrafts[rootId] || '').trim();
+        if (!body) return;
+        _calAppendComment(pid, rootId, body);
+        delete _calReplyDrafts[rootId];
+        _calReplyOpen = null;
+        _calRenderCommentsModal();
+    }
+    function _calAppendComment(pid, parentId, body) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const arr = _calParseComments(post.comments);
+        const author = _calGetAuthor();
+        arr.push({
+            id: _calMintCommentId(),
+            parent_id: parentId || null,
+            author: author,
+            role: _calCommentRole(),
+            body: body,
+            created_at: new Date().toISOString(),
+            done: false,
+            done_at: '',
+            done_by: ''
+        });
+        post.comments = arr;
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { comments: arr });
+        _calFlushCardSave(pid);
+        _calRefreshCommentsBtn(pid);
+    }
+    function _calToggleCommentDone(rootId) {
+        const pid = _calOpenCommentsPid;
+        if (!pid) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const arr = _calParseComments(post.comments);
+        const root = arr.find(c => c.id === rootId && !c.parent_id);
+        if (!root) return;
+        const author = _calGetAuthor();
+        if (root.done) {
+            root.done = false; root.done_at = ''; root.done_by = '';
+        } else {
+            root.done = true; root.done_at = new Date().toISOString(); root.done_by = author;
+        }
+        post.comments = arr;
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { comments: arr });
+        _calFlushCardSave(pid);
+        _calRefreshCommentsBtn(pid);
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal();
+    }
+
     function _setCalStatus(state, message) {
         const el = document.getElementById('calStatusBadge');
         if (!el) return;

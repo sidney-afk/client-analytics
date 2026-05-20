@@ -1759,6 +1759,11 @@
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
             border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
+        .cal-stale-notice { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
+            font-weight: 600; color: #b45309; background: #fef3c7; border: 1px solid #fde68a;
+            padding: 3px 8px; border-radius: 999px; cursor: pointer; }
+        .cal-stale-notice:hover { background: #fde68a; }
+        .cal-stale-notice[hidden] { display: none; }
         .cal-card-flash { animation: cal-flash 2.2s ease; }
         @keyframes cal-flash {
             0% { box-shadow: 0 0 0 0 rgba(94,106,210,0); }
@@ -8664,10 +8669,60 @@
         if (doneBtn) doneBtn.disabled = false;
     }
 
+    /* Stale-while-revalidate cache for the calendar. Last successful
+       calendar-get response per client is stashed in localStorage so the
+       view stays usable when the backend is choked (the Linear form burst
+       can saturate n8n's executor for ~2 min). On every render we prime
+       the strip from cache, then revalidate against the network — on
+       failure we keep the cached view and show a small "couldn't refresh"
+       badge instead of blanking to a full-page error. */
+    const CAL_CACHE_KEY_PREFIX = 'syncview_calCache_v1:';
+    const CAL_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    function _calCacheKey(slug) { return CAL_CACHE_KEY_PREFIX + slug; }
+    function _calCacheRead(slug) {
+        try {
+            const raw = localStorage.getItem(_calCacheKey(slug));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.posts) || !parsed.savedAt) return null;
+            if (Date.now() - Number(parsed.savedAt) > CAL_CACHE_TTL_MS) return null;
+            return parsed;
+        } catch { return null; }
+    }
+    function _calCacheWrite(slug, posts) {
+        if (!slug || !Array.isArray(posts)) return;
+        const payload = JSON.stringify({ posts, savedAt: Date.now() });
+        try { localStorage.setItem(_calCacheKey(slug), payload); return; }
+        catch (e) {
+            // QuotaExceededError or similar — drop oldest entries with our
+            // prefix until the write fits, or silently give up.
+            try {
+                const entries = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const k = localStorage.key(i);
+                    if (!k || !k.startsWith(CAL_CACHE_KEY_PREFIX)) continue;
+                    let savedAt = 0;
+                    try { savedAt = Number(JSON.parse(localStorage.getItem(k) || '{}').savedAt) || 0; } catch {}
+                    entries.push({ k, savedAt });
+                }
+                entries.sort((a, b) => a.savedAt - b.savedAt);
+                for (const { k } of entries) {
+                    if (k === _calCacheKey(slug)) continue;
+                    localStorage.removeItem(k);
+                    try { localStorage.setItem(_calCacheKey(slug), payload); return; } catch {}
+                }
+            } catch {}
+        }
+    }
+
     let _calLoadSeq = 0;
     let _calBgLoadInFlight = false;
     function _calSetRefreshing(on) {
         const el = document.getElementById('calRefreshing');
+        if (el) el.hidden = !on;
+    }
+    function _calSetStaleNotice(on) {
+        const el = document.getElementById('calStaleNotice');
         if (el) el.hidden = !on;
     }
     const CAL_LOAD_TIMEOUT_MS = 20000;
@@ -8675,9 +8730,26 @@
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
         const seq = ++_calLoadSeq;
-        // Background refresh (tab regained focus): keep the current calendar
-        // on screen and show a small spinner instead of blanking to "Loading".
-        const background = !!opts.background && calState.posts.length > 0;
+        // Prime the view from the per-client localStorage cache so the strip
+        // is never blank while we hit the network. The fetch below is then
+        // treated as a background revalidation; on failure we keep the
+        // cached cards on screen instead of wiping to an error.
+        const slug = calClientSlug(calState.client);
+        const cached = !opts.skipCache ? _calCacheRead(slug) : null;
+        const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
+        if (haveCache && calState.posts.length === 0) {
+            calState.posts = cached.posts.map(p => {
+                p.scheduled_date = _calCoerceDate(p.scheduled_date);
+                p.status = _calNormStatus(p.status);
+                p.comments = _calLoadComments(p);
+                return p;
+            });
+            calState.fromCache = true;
+        }
+        // Background refresh (tab regained focus, or we just primed cache):
+        // keep the current calendar on screen and show a small spinner
+        // instead of blanking to "Loading".
+        const background = (!!opts.background && calState.posts.length > 0) || (calState.posts.length > 0 && haveCache);
         if (background) {
             _calBgLoadInFlight = true;
             _calSetRefreshing(true);
@@ -8705,7 +8777,6 @@
         let ok = false;
         let dataChanged = true;
         try {
-            const slug = calClientSlug(calState.client);
             const fetchPromise = (async () => {
                 const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
                 return resp.json();
@@ -8721,6 +8792,9 @@
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             calState.error = null;
+            calState.fromCache = false;
+            calState.staleNotice = null;
+            try { _calCacheWrite(slug, newPosts); } catch {}
             const liveIds = new Set(calState.posts.map(p => p.id));
             calState.selected = new Set(Array.from(calState.selected).filter(id => liveIds.has(id)));
             ok = true;
@@ -8728,7 +8802,12 @@
             if (seq !== _calLoadSeq) return;
             const isAbort = e && (e.name === 'AbortError' || /aborted|timed out/i.test(String(e.message || '')));
             console.warn('[Calendar] load failed', isAbort ? 'timed out after ' + (CAL_LOAD_TIMEOUT_MS/1000) + 's' : e);
-            if (!background) {
+            // If we already have cards on screen (live or cached), keep them
+            // and surface a small "couldn't refresh" notice instead of
+            // blanking to the full-page error.
+            if (calState.posts.length > 0) {
+                calState.staleNotice = isAbort ? 'busy' : 'failed';
+            } else if (!background) {
                 calState.error = isAbort
                     ? "The calendar is taking longer than usual — the server might be busy. Try again in a moment."
                     : (e.message || String(e));
@@ -8752,6 +8831,7 @@
                 } else {
                     _calRenderBody();
                 }
+                _calSetStaleNotice(!!calState.staleNotice);
             }
         }
         if (seq === _calLoadSeq && ok) { _calReconcileLinearStatuses(); _calApplyFocusRequest(); }
@@ -8819,6 +8899,7 @@
                 </div>
                 <div class="cal-toolbar-right">
                     <span class="cal-refreshing" id="calRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
                     ${shareBtnHtml}
                     ${selectBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
@@ -9943,6 +10024,7 @@
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         calState.posts = calState.posts.filter(p => p.id !== id);
+        try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
     }
     function _calToggleSelectMode() {
         calState.selectMode = !calState.selectMode;
@@ -9997,6 +10079,7 @@
                 const btn = document.querySelector('.cal-select-btn');
                 if (btn) btn.classList.remove('active');
                 _calRenderBody({ preserveScroll: true });
+                try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
                 const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id)));
                 const failed = results.filter(r => r.status === 'rejected').length;
                 if (failed) {
@@ -10013,6 +10096,7 @@
             const snapshot = calState.posts.slice();
             calState.posts = calState.posts.filter(p => p.id !== id);
             _calRenderBody({ preserveScroll: true });
+            try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             try {
                 await _calArchiveOne(id);
             } catch (e) {
@@ -10066,6 +10150,7 @@
             const items = ids.map((id, i) => ({ id, order_index: i + 1 }));
             const byId = new Map(calState.posts.map(p => [p.id, p]));
             items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
+            try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             persistCalReorder(items);
         });
     }
@@ -10073,15 +10158,20 @@
         if (!el || el.dataset.shiftScrollWired === '1') return;
         el.dataset.shiftScrollWired = '1';
         el.addEventListener('wheel', (e) => {
-            if (!e.shiftKey) return;
-            // When Shift is held some browsers report the scroll on deltaX,
-            // others leave it on deltaY. Take whichever is non-zero.
-            let delta = e.deltaY || e.deltaX;
+            // If the gesture already has horizontal intent (trackpad swipe,
+            // horizontal mouse wheel, Shift-wheel on Chrome) let the browser
+            // handle it natively so we don't double-apply the delta.
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+            let delta = e.deltaY;
             if (!delta) return;
             if (e.deltaMode === 1) delta *= 16;                  // lines → px
             else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
             const max = el.scrollWidth - el.clientWidth;
             if (max <= 1) return;
+            // At the strip's edges, let vertical wheel pass through to the
+            // page so the rest of the layout still scrolls normally.
+            if (el.scrollLeft <= 0 && delta < 0) return;
+            if (el.scrollLeft >= max && delta > 0) return;
             e.preventDefault();
             // Move the strip directly with the wheel — flowy and immediate,
             // no card snapping, no animation.
@@ -11060,19 +11150,17 @@
         const slug = wlNormalizeClient(clientName);
         if (!slug || !Array.isArray(videos) || !videos.length) return;
 
-        // 1. Highest existing order_index → new cards land AFTER any
-        //    cards the user already organized. Timestamp fallback so
-        //    we don't collide if calendar-get fails.
+        // 1. Highest existing order_index → new cards land AFTER any cards
+        //    the user already organized. Read from the localStorage cache
+        //    so we don't hit calendar-get at exactly the moment the Linear
+        //    monolith is firing — that webhook competes for n8n executor
+        //    slots with the user's tab-switch refreshes. Timestamp fallback
+        //    keeps new cards sorted to the end when there's no cache.
         let baseOrder;
-        try {
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            const json = await resp.json();
-            if (json && json.ok && Array.isArray(json.posts)) {
-                baseOrder = json.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
-            } else {
-                baseOrder = Math.floor(Date.now() / 1000);
-            }
-        } catch (e) {
+        const cachedForBase = _calCacheRead(slug);
+        if (cachedForBase && Array.isArray(cachedForBase.posts) && cachedForBase.posts.length > 0) {
+            baseOrder = cachedForBase.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
+        } else {
             baseOrder = Math.floor(Date.now() / 1000);
         }
 

@@ -11173,21 +11173,36 @@
         }
 
         // 2. Wait for Linear to finish creating the parent + sub-issues,
-        //    then look them up so we can write each card pre-linked.
+        //    then look them up so we can write each card pre-linked. The
+        //    n8n monolith creates sub-issues sequentially, so 5+ videos
+        //    don't all exist after a fixed 8s wait — we poll until every
+        //    expected sub-issue is visible (or we hit ~40s total).
         //    If anything goes wrong, fall back to unlinked cards.
+        const wantTitles = new Set(videos.map((v, i) => 'Video ' + (Number(v && v.number) || (i + 1))));
         let subIssues = [];
         try {
-            await new Promise(r => setTimeout(r, 8000));
-            const { issues } = await loadLinearIssues(true);
-            if (Array.isArray(issues)) {
-                const parent = issues.find(i => !i.isSubIssue
-                    && wlNormalizeClient(i.clientName || '') === slug
-                    && String(i.title || '').trim() === String(formTitle || '').trim());
-                if (parent) {
-                    subIssues = issues.filter(i => i.isSubIssue && i.parentId === parent.id);
-                } else {
-                    console.warn('[SyncView] No matching Linear parent for', formTitle, '— writing unlinked cards');
+            await new Promise(r => setTimeout(r, 6000));
+            const maxAttempts = 12;
+            const attemptDelayMs = 3000;
+            for (let attempt = 0; attempt < maxAttempts; attempt++) {
+                const { issues } = await loadLinearIssues(true);
+                if (Array.isArray(issues)) {
+                    const parent = issues.find(i => !i.isSubIssue
+                        && wlNormalizeClient(i.clientName || '') === slug
+                        && String(i.title || '').trim() === String(formTitle || '').trim());
+                    if (parent) {
+                        subIssues = issues.filter(i => i.isSubIssue && i.parentId === parent.id);
+                        const foundTitles = new Set(subIssues.map(s => String(s.title || '').trim()));
+                        const allFound = [...wantTitles].every(t => foundTitles.has(t));
+                        if (allFound) break;
+                    }
                 }
+                if (attempt + 1 < maxAttempts) await new Promise(r => setTimeout(r, attemptDelayMs));
+            }
+            if (!subIssues.length) {
+                console.warn('[SyncView] No matching Linear sub-issues for', formTitle, '— writing unlinked cards');
+            } else if (subIssues.length < videos.length) {
+                console.warn('[SyncView] Only matched', subIssues.length, 'of', videos.length, 'Linear sub-issues after polling — remaining cards will be unlinked');
             }
         } catch (e) {
             console.warn('[SyncView] Linear lookup for calendar linking failed — writing unlinked cards:', e);

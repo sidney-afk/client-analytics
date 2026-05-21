@@ -7926,6 +7926,18 @@
         refs.filter(Boolean).forEach(r => s.add(String(r)));
         try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
     }
+    /* Drop refs from the ledger — used when the user explicitly re-imports
+       a previously archived Linear sub-issue. Without this, the freshly
+       imported card would be hidden on load because its linear_issue_id
+       is still in the archive set from the original archive action. */
+    function _calArchivedRemove(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const s = _calArchivedRefs(slug);
+        let changed = false;
+        refs.filter(Boolean).forEach(r => { if (s.delete(String(r))) changed = true; });
+        if (!changed) return;
+        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
+    }
     function _calRefsForPost(p) {
         if (!p) return [];
         return [p.id, p.linear_issue_id].filter(Boolean);
@@ -8441,6 +8453,14 @@
             if (err) err.innerHTML = `<div class="cal-import-err">Select at least one sub-issue.</div>`;
             return;
         }
+        // Importing a sub-issue explicitly re-introduces it onto the
+        // calendar. If the user previously archived a card pointing at
+        // the same Linear URL, that URL is in the archive ledger and
+        // would silently hide the freshly imported card. Treat the
+        // import as an unarchive — drop those linear_issue_ids from the
+        // ledger so the new card shows up immediately.
+        const importSlug = calClientSlug(calState.client);
+        _calArchivedRemove(importSlug, picks.map(s => s && s.url).filter(Boolean));
         let baseOrder = calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0);
         const posts = picks.map(s => {
             baseOrder++;
@@ -9626,6 +9646,11 @@
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             _calPendingEdits[pid].linear_issue_id = val;
             _calFlushCardSave(pid);
+            // If the user manually pastes a Linear URL that was previously
+            // archived (e.g. relinking a sub-issue they once removed), drop
+            // it from the archive ledger so the card stays visible after a
+            // reload instead of being filtered out by the URL match.
+            if (val) _calArchivedRemove(calClientSlug(calState.client), [val]);
         }
         // On a change, re-render the whole body: a blank card promotes to a
         // real id, and linking/unlinking flips the status lock and the

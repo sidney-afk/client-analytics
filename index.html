@@ -13399,7 +13399,7 @@
             : '';
         const videoUrl = String(p.asset_url || '').trim();
         const smm = item.smm;
-        const hasSlackTarget = !!(smm && (smm.slack_profile_url || smm.slack_user_id));
+        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
         const slackTitle = smm && smm.name
             ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
             : 'Slack';
@@ -13640,32 +13640,44 @@
         }
     }
 
-    /* Slack deep link. Three column options on the Social Media Managers
-       sheet, picked in order of reliability:
-         • slack_profile_url — direct profile URL copied from Slack
-           ("Copy link to profile" on the user's Slack profile). Most
-           reliable since it always lands on the right person's DM/profile.
-         • slack_user_id (+ optional slack_team_id) — opens slack:// app
-           deep link to that user. Requires the Slack desktop app installed.
-         • Otherwise we surface a one-time notify pointing the user at the
-           sheet so it's obvious what to fill in. */
+    /* Build a Slack target URL from whatever the sheet provides. Three
+       inputs are accepted, picked in order of reliability:
+         • A full Slack profile/DM URL (starts with http/https/slack:).
+           Paste from Slack profile → ⋮ → "Copy link to profile".
+         • A bare Member ID like "U0ACW93FS30" (or W…). We wrap it in
+           Slack's universal app_redirect URL so it opens the right DM
+           regardless of workspace, as long as the visitor is logged in.
+         • A slack_user_id column with the same Member ID format. */
+    function _kasperResolveSlackTarget(entry) {
+        if (!entry) return null;
+        const raw = (entry.slack_profile_url || '').trim();
+        if (raw) {
+            if (/^https?:\/\//i.test(raw) || /^slack:\/\//i.test(raw)) return raw;
+            // Bare Member ID pasted into the profile-url column — wrap it.
+            if (/^[UW][A-Z0-9]{6,}$/.test(raw)) return `https://slack.com/app_redirect?channel=${raw}`;
+        }
+        const userId = (entry.slack_user_id || '').trim();
+        const teamId = (entry.slack_team_id || '').trim();
+        if (/^[UW][A-Z0-9]{6,}$/.test(userId)) {
+            return teamId
+                ? `https://slack.com/app_redirect?channel=${userId}&team=${teamId}`
+                : `https://slack.com/app_redirect?channel=${userId}`;
+        }
+        return null;
+    }
+
+    /* Slack deep link. The cell on the Social Media Managers sheet can be
+       either the manager's "Copy link to profile" URL or just their
+       Member ID (the U…/W… string Slack shows under the profile).
+       _kasperResolveSlackTarget handles both. If neither column is set
+       (or the value is malformed), we point the user at the sheet. */
     function _kasperOpenSlack(slug) {
         const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
         if (!entry) return;
-        const url = (entry.slack_profile_url || '').trim();
-        const userId = (entry.slack_user_id || '').trim();
-        const teamId = (entry.slack_team_id || '').trim();
-        let target = null;
-        if (url) {
-            target = url;
-        } else if (userId && teamId) {
-            target = `slack://user?team=${encodeURIComponent(teamId)}&id=${encodeURIComponent(userId)}`;
-        } else if (userId) {
-            target = `slack://user?id=${encodeURIComponent(userId)}`;
-        }
+        const target = _kasperResolveSlackTarget(entry);
         if (!target) {
             showNotify('Slack link not set up yet',
-                `Add a "slack_profile_url" column to the Social Media Managers sheet and paste ${entry.name || 'this manager'}'s "Copy link to profile" URL from Slack.`);
+                `Add ${entry.name || 'this manager'}'s Slack Member ID (e.g. U0ACW93FS30) or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
             return;
         }
         const a = document.createElement('a');

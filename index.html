@@ -2277,18 +2277,20 @@
         .kasper-history-actions a:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
         .kcard-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
         .kcard-line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .kcard-client { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .kcard-dot { color: var(--text-muted); }
-        .kcard-date { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; }
+        .kcard-client { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); cursor: default; }
+        .kcard-dot { color: var(--text-muted); cursor: default; }
+        .kcard-date { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; cursor: default; }
         .kcard-date.is-empty { color: var(--text-muted); font-weight: 500; font-style: italic; }
-        .kcard-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .kcard-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; cursor: default; }
         .kcard-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .kcard-smm { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; background: var(--bg); border-radius: 99px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+        .kcard-smm { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; background: var(--bg); border-radius: 99px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); cursor: default; }
         .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
         .kcard-smm.is-missing { background: #fef3c7; color: #92400e; }
         .kcard-smm.is-missing .kcard-smm-avatar { background: #d97706; }
         .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
         .kcard-slack-btn:hover { background: rgba(74,21,75,0.08); color: #4a154b; }
+        .kcard-slack-btn.is-stub { opacity: 0.45; }
+        .kcard-slack-btn.is-stub:hover { background: rgba(0,0,0,0.06); color: var(--text-muted); }
         .kcard-slack-btn svg { width: 13px; height: 13px; }
         .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #9a3412; background: #ffedd5; padding: 2px 8px; border-radius: 99px; }
         .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -12915,6 +12917,8 @@
     };
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
+    const KASPER_CACHE_KEY = 'syncview_kasper_review_cache_v1';
+    const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
 
     function renderKasperView() {
         const tabsHtml = KASPER_SUBTABS.map(t => `
@@ -12958,7 +12962,55 @@
     });
 
     function mountKasperView() {
+        // Hydrate cached state once per page-load so the very first visit
+        // shows last-known cards while the network re-validation is in
+        // flight. Subsequent tab switches in the same page reuse the
+        // in-memory state.
+        if (!_kasperState.lastLoaded) _kasperHydrateCache();
         _kasperRenderTab();
+    }
+
+    function _kasperHydrateCache() {
+        try {
+            const raw = localStorage.getItem(KASPER_CACHE_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== 'object') return;
+            if (!parsed.savedAt || Date.now() - parsed.savedAt > KASPER_CACHE_MAX_AGE_MS) return;
+            const items = Array.isArray(parsed.items) ? parsed.items.filter(x => x && x.post && x.post.id) : [];
+            for (const it of items) {
+                // Reset transient UI state — saving/error flags must not survive a reload.
+                it._saving = false; it._saveError = null;
+                if (typeof it._expanded !== 'boolean') it._expanded = false;
+                if (typeof it._draft !== 'string') it._draft = '';
+                if (!Array.isArray(it.post.comments)) it.post.comments = _calLoadComments(it.post);
+            }
+            _kasperState.items = items;
+            _kasperState.history = Array.isArray(parsed.history) ? parsed.history : [];
+            _kasperState.smmByClient = parsed.smmByClient
+                ? new Map(parsed.smmByClient)
+                : new Map();
+            _kasperState.lastLoaded = parsed.savedAt;
+        } catch (e) { /* corrupt cache — ignore */ }
+    }
+
+    function _kasperPersistCache() {
+        try {
+            const payload = {
+                savedAt: Date.now(),
+                items: _kasperState.items.map(it => ({
+                    post: it.post,
+                    client: it.client,
+                    slug: it.slug,
+                    smm: it.smm,
+                    _expanded: !!it._expanded,
+                    _draft: it._draft || '',
+                })),
+                history: _kasperState.history,
+                smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
+            };
+            localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
+        } catch (e) { /* quota or private-mode — ignore */ }
     }
 
     function _kasperGotoTab(tab) {
@@ -12978,24 +13030,34 @@
     async function _kasperRenderReview() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
+        const hasCached = !!_kasperState.lastLoaded;
         root.innerHTML = `
             <div class="kasper-toolbar">
-                <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">·</span><span>waiting for your review</span></div>
+                <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">${hasCached ? String(_kasperState.items.length) : '·'}</span><span>waiting for your review</span></div>
                 <button type="button" class="kasper-refresh-btn" id="kasperReviewRefresh" onclick="_kasperLoadReview(true)">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
                     Refresh
                 </button>
             </div>
-            <div id="kasperReviewBody"><div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div></div>`;
-        // Fresh load on every tab visit so a returning Casper always sees the truth.
-        await _kasperLoadReview(false);
+            <div id="kasperReviewBody">${hasCached
+                ? '' /* paint cached state right after the toolbar */
+                : `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`}</div>`;
+        if (hasCached) _kasperPaintReview();
+        // Always re-validate from the source of truth in the background.
+        // When cached data is on screen, the load doesn't wipe the body —
+        // it just spins the refresh button until the new data lands.
+        _kasperLoadReview(false);
     }
 
     async function _kasperLoadReview(forceRefresh) {
         const body = document.getElementById('kasperReviewBody');
         const btn  = document.getElementById('kasperReviewRefresh');
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (forceRefresh && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Refreshing…</div>`;
+        // Only blank the body to a spinner when there's literally nothing to
+        // show. Once cached/loaded cards are on screen, refreshes happen
+        // silently — the button spin is the only signal.
+        const hasContent = _kasperState.items.length > 0 || _kasperState.history.length > 0;
+        if (!hasContent && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`;
 
         _kasperState.loading = true;
         _kasperState.error = null;
@@ -13037,6 +13099,7 @@
             // for kasper_approved_at yet.
             _kasperState.history = _kasperMergeHistory(fetched.history, _kasperLoadHistoryLog());
             _kasperState.lastLoaded = Date.now();
+            _kasperPersistCache();
             _kasperPaintReview();
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);
@@ -13337,8 +13400,11 @@
         const videoUrl = String(p.asset_url || '').trim();
         const smm = item.smm;
         const hasSlackTarget = !!(smm && (smm.slack_profile_url || smm.slack_user_id));
-        const slackBtn = hasSlackTarget
-            ? `<button class="kcard-slack-btn" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="Message ${_calEscAttr(smm.name)} on Slack"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button>`
+        const slackTitle = smm && smm.name
+            ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
+            : 'Slack';
+        const slackBtn = (smm && smm.name)
+            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button>`
             : '';
         const smmHtml = smm && smm.name
             ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`
@@ -13387,12 +13453,18 @@
             ? `<div class="kcard-caption">${_calEsc(caption)}</div>`
             : `<div class="kcard-caption is-empty">No caption.</div>`;
         const ctaHtml = cta ? `<div class="kcard-cta-row"><strong>CTA:</strong>${_calEsc(cta)}</div>` : '';
+        // A resolved root thread "rolls down" to its replies — anything
+        // marked done on the parent crosses out the whole conversation so
+        // Casper sees at a glance that a tweak is fully closed out, not
+        // just acknowledged by the SMM.
+        const doneRoots = new Set(comments.filter(c => !c.parent_id && c.done).map(c => c.id));
         const threadHtml = comments.length
             ? comments.map(c => {
                 const author  = c.author || (c.role === 'client' ? 'Client' : (c.role === 'kasper' ? 'Kasper' : 'SMM'));
                 const roleCls = c.role === 'client' ? 'is-client' : (c.role === 'kasper' ? 'is-kasper' : '');
                 const initial = (author || '?').charAt(0).toUpperCase();
-                return `<div class="kcard-cm${c.done ? ' is-done' : ''}">
+                const isDone = c.done || (c.parent_id && doneRoots.has(c.parent_id));
+                return `<div class="kcard-cm${isDone ? ' is-done' : ''}">
                     <div class="kcard-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                     <div class="kcard-cm-body">
                         <div class="kcard-cm-line1"><span class="kcard-cm-author">${_calEsc(author)}</span><span class="kcard-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div>
@@ -13558,10 +13630,12 @@
             el.classList.add('is-removing');
             setTimeout(() => {
                 _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+                _kasperPersistCache();
                 _kasperPaintReview();
             }, 240);
         } else {
             _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+            _kasperPersistCache();
             _kasperPaintReview();
         }
     }
@@ -13573,7 +13647,8 @@
            reliable since it always lands on the right person's DM/profile.
          • slack_user_id (+ optional slack_team_id) — opens slack:// app
            deep link to that user. Requires the Slack desktop app installed.
-         • Otherwise the button is hidden so we don't open the wrong place. */
+         • Otherwise we surface a one-time notify pointing the user at the
+           sheet so it's obvious what to fill in. */
     function _kasperOpenSlack(slug) {
         const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
         if (!entry) return;
@@ -13588,7 +13663,11 @@
         } else if (userId) {
             target = `slack://user?id=${encodeURIComponent(userId)}`;
         }
-        if (!target) return;   // Button shouldn't have been clickable; bail safely.
+        if (!target) {
+            showNotify('Slack link not set up yet',
+                `Add a "slack_profile_url" column to the Social Media Managers sheet and paste ${entry.name || 'this manager'}'s "Copy link to profile" URL from Slack.`);
+            return;
+        }
         const a = document.createElement('a');
         a.href = target; a.target = '_blank'; a.rel = 'noopener';
         a.click();

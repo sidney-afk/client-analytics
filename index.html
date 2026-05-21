@@ -8707,6 +8707,8 @@
         _calBulkLinkSubs = null;
         _calBulkLinkParent = null;
         _calBulkLinkPosts = null;
+        const btn = document.querySelector('.cal-select-btn');
+        if (btn) btn.classList.remove('active');
         _calRenderBody({ preserveScroll: true });
     }
 
@@ -10597,10 +10599,9 @@
             else if (e.deltaMode === 2) delta *= el.clientWidth; // pages → px
             const max = el.scrollWidth - el.clientWidth;
             if (max <= 1) return;
-            // At the strip's edges, let vertical wheel pass through to the
-            // page so the rest of the layout still scrolls normally.
-            if (el.scrollLeft <= 0 && delta < 0) return;
-            if (el.scrollLeft >= max && delta > 0) return;
+            // Always consume vertical wheel inside the strip — even at the
+            // edges — so a wheel-down at the right edge (or wheel-up at the
+            // left edge) doesn't bleed into the page's vertical scroll.
             e.preventDefault();
             // Move the strip directly with the wheel — flowy and immediate,
             // no card snapping, no animation.

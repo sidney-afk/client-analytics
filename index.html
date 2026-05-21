@@ -2177,9 +2177,38 @@
         .kcard-thumb { position: relative; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg,#f3f3f1,#e6e6e0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .kcard-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .kcard-thumb.is-fallback { color: var(--text-muted); }
-        .kcard-thumb-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.15s; }
-        .kcard-thumb-play svg { width: 30px; height: 30px; color: #fff; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4)); }
-        .kcard-strip:hover .kcard-thumb-play { opacity: 1; }
+        .kcard-thumb-zoom { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.32); opacity: 0; transition: opacity 0.15s; border: none; cursor: zoom-in; color: #fff; padding: 0; }
+        .kcard-thumb-zoom svg { width: 22px; height: 22px; color: #fff; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4)); }
+        .kcard-thumb:hover .kcard-thumb-zoom { opacity: 1; }
+        .kcard-thumb.is-no-image .kcard-thumb-zoom { display: none; }
+        /* Kasper lightbox (reuses calendar's overlay pattern, scoped under .kasper-wrap) */
+        .kasper-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.86); z-index: 9000; display: none; align-items: center; justify-content: center; padding: 40px; cursor: zoom-out; }
+        .kasper-lightbox.open { display: flex; }
+        .kasper-lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; cursor: default; border-radius: 6px; box-shadow: 0 12px 60px rgba(0,0,0,0.6); }
+        .kasper-lightbox-close { position: absolute; top: 18px; right: 22px; background: rgba(255,255,255,0.12); border: none; color: #fff; font-size: 1.6rem; line-height: 1; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.15s; }
+        .kasper-lightbox-close:hover { background: rgba(255,255,255,0.22); }
+        /* History section */
+        .kasper-history-wrap { margin-top: 36px; padding-top: 22px; border-top: 1px dashed var(--border); }
+        .kasper-history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; cursor: pointer; user-select: none; }
+        .kasper-history-title { font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .kasper-history-count { font-size: 0.68rem; font-weight: 700; background: var(--border-light); color: var(--text-secondary); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        .kasper-history-chev { color: var(--text-muted); transition: transform 0.2s; margin-left: auto; }
+        .kasper-history-wrap.collapsed .kasper-history-chev { transform: rotate(-90deg); }
+        .kasper-history-wrap.collapsed .kasper-history-body { display: none; }
+        .kasper-history-day { margin-bottom: 18px; }
+        .kasper-history-day-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-bottom: 8px; display: flex; align-items: baseline; gap: 6px; }
+        .kasper-history-day-label .kasper-day-count { color: var(--text-muted); font-weight: 600; font-size: 0.66rem; }
+        .kasper-history-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; margin-bottom: 6px; transition: border-color 0.12s, box-shadow 0.12s; }
+        .kasper-history-row:hover { border-color: var(--border); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .kasper-history-thumb { width: 44px; height: 44px; border-radius: 7px; overflow: hidden; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-muted); flex-shrink: 0; }
+        .kasper-history-thumb img { width: 100%; height: 100%; object-fit: cover; }
+        .kasper-history-main { min-width: 0; }
+        .kasper-history-line1 { font-size: 0.85rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .kasper-history-line2 { font-size: 0.7rem; color: var(--text-muted); margin-top: 1px; display: flex; align-items: center; gap: 6px; }
+        .kasper-history-line2 .kasper-history-client { color: var(--text-secondary); font-weight: 600; }
+        .kasper-history-actions { display: flex; align-items: center; gap: 6px; }
+        .kasper-history-actions a { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 600; color: var(--text-secondary); padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; text-decoration: none; transition: all 0.12s; }
+        .kasper-history-actions a:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
         .kcard-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
         .kcard-line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .kcard-client { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
@@ -2327,7 +2356,7 @@
             TikTok Upload
         </a>
         <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="event.preventDefault();navTo('kasper')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5"/><path d="M5 10c.7-1.2 1.8-1.8 3-1.8s2.3.6 3 1.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.2" cy="6.6" r="0.85" fill="currentColor"/><circle cx="9.8" cy="6.6" r="0.85" fill="currentColor"/></svg>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
         </a>
     </div>
@@ -7970,7 +7999,7 @@
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
 
-    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Approved','Tweaks Needed','Posted'];
+    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Posted'];
     /* Map any legacy / external status string onto the current set.
        "Draft" was retired — those posts become "In Progress". */
     function _calNormStatus(s) {
@@ -12805,10 +12834,14 @@
         loading: false,
         loadingSMM: false,
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
+        history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
+        historyCollapsed: false,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
         lastLoaded: 0,
     };
+    const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
+    const KASPER_HISTORY_CAP = 200;
 
     function renderKasperView() {
         const tabsHtml = KASPER_SUBTABS.map(t => `
@@ -12822,8 +12855,34 @@
             </div>
             <div class="kasper-subtabs">${tabsHtml}</div>
             <div id="kasperContent"></div>
+            <div class="kasper-lightbox" id="kasperLightbox" onclick="_kasperCloseLightbox()">
+                <img alt="" onclick="event.stopPropagation()">
+                <button class="kasper-lightbox-close" type="button" onclick="_kasperCloseLightbox()" aria-label="Close">×</button>
+            </div>
         </div>`;
     }
+
+    function _kasperOpenLightbox(pid) {
+        const it = _kasperState.items.find(x => x.post.id === pid);
+        if (!it) return;
+        const info = _calDeriveThumbInfo(it.post);
+        if (!info || !info.url) return;
+        const ovl = document.getElementById('kasperLightbox');
+        if (!ovl) return;
+        const img = ovl.querySelector('img');
+        img.src = info.url;
+        ovl.classList.add('open');
+    }
+    function _kasperCloseLightbox() {
+        const ovl = document.getElementById('kasperLightbox');
+        if (ovl) ovl.classList.remove('open');
+    }
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            const ovl = document.getElementById('kasperLightbox');
+            if (ovl && ovl.classList.contains('open')) _kasperCloseLightbox();
+        }
+    });
 
     function mountKasperView() {
         _kasperRenderTab();
@@ -12869,11 +12928,12 @@
 
         try {
             // SMM sheet + every client's calendar in parallel.
-            const [smmMap, items] = await Promise.all([
+            const [smmMap, fetched] = await Promise.all([
                 _kasperLoadSMMMap(),
-                _kasperFetchKasperApprovalItems(),
+                _kasperFetchAllRelevantPosts(),
             ]);
             _kasperState.smmByClient = smmMap;
+            const items = fetched.queue;
             // Decorate posts with SMM info.
             for (const it of items) {
                 const slug = wlNormalizeClient(it.client);
@@ -12897,6 +12957,10 @@
                 if (prevDrafts[it.post.id]) it._draft = prevDrafts[it.post.id];
             }
             _kasperState.items = items;
+            // Merge server-known history with the local log so a refresh keeps
+            // recent approvals visible even if the sheet doesn't have a column
+            // for kasper_approved_at yet.
+            _kasperState.history = _kasperMergeHistory(fetched.history, _kasperLoadHistoryLog());
             _kasperState.lastLoaded = Date.now();
             _kasperPaintReview();
         } catch (e) {
@@ -12936,31 +13000,94 @@
         }
     }
 
-    async function _kasperFetchKasperApprovalItems() {
-        // Fetch every allowed client's calendar in parallel. A "Kasper Approval"
-        // card has the canonical status set by _calNormStatus — also accept
-        // legacy / lowercase variants defensively.
+    async function _kasperFetchAllRelevantPosts() {
+        // Fetch every allowed client's calendar in parallel and split the result
+        // into the live review queue ("Kasper Approval") and a history slice
+        // (anything Casper has previously approved, identified by either an
+        // explicit kasper_approved_at timestamp on the row or — fallback for
+        // sheets without that column yet — a status that comes after Kasper
+        // Approval in the lifecycle).
+        const downstream = new Set(['Client Approval', 'Tweaks Needed', 'Approved', 'Posted']);
         const settled = await Promise.allSettled(WL_CLIENT_NAMES.map(async client => {
             const slug = wlNormalizeClient(client);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             if (!resp.ok) throw new Error('Bad response for ' + client);
             const json = await resp.json();
-            if (!json || !json.ok) return [];
-            const posts = (json.posts || [])
-                .filter(p => _calNormStatus(p.status) === 'Kasper Approval')
-                .map(p => {
-                    p.status = 'Kasper Approval';
-                    p.scheduled_date = _calCoerceDate(p.scheduled_date);
-                    p.comments = _calLoadComments(p);
-                    return { post: p, client, slug, smm: null, _expanded: false, _saving: false, _saveError: null, _draft: '' };
-                });
-            return posts;
+            if (!json || !json.ok) return { queue: [], history: [] };
+            const queue = [];
+            const history = [];
+            for (const raw of (json.posts || [])) {
+                const status = _calNormStatus(raw.status);
+                raw.status = status;
+                raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
+                raw.comments = _calLoadComments(raw);
+                if (status === 'Kasper Approval') {
+                    queue.push({ post: raw, client, slug, smm: null, _expanded: false, _saving: false, _saveError: null, _draft: '' });
+                }
+                const approvedAt = String(raw.kasper_approved_at || '').trim();
+                if (approvedAt) {
+                    history.push(_kasperHistoryEntryFromPost(raw, client, slug, approvedAt));
+                }
+            }
+            return { queue, history };
         }));
-        const out = [];
+        const queueOut = [];
+        const historyOut = [];
         for (const s of settled) {
-            if (s.status === 'fulfilled' && Array.isArray(s.value)) out.push(...s.value);
+            if (s.status === 'fulfilled' && s.value) {
+                queueOut.push(...s.value.queue);
+                historyOut.push(...s.value.history);
+            }
         }
-        return out;
+        return { queue: queueOut, history: historyOut };
+    }
+
+    function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
+        return {
+            id: post.id,
+            client, slug,
+            name: post.name || 'Untitled post',
+            asset_url: String(post.asset_url || ''),
+            thumbnail_url: String(post.thumbnail_url || ''),
+            scheduled_date: String(post.scheduled_date || ''),
+            approvedAt,
+        };
+    }
+
+    function _kasperLoadHistoryLog() {
+        try {
+            const raw = localStorage.getItem(KASPER_HISTORY_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(x => x && x.id && x.approvedAt) : [];
+        } catch { return []; }
+    }
+    function _kasperSaveHistoryLog(list) {
+        try { localStorage.setItem(KASPER_HISTORY_KEY, JSON.stringify(list.slice(0, KASPER_HISTORY_CAP))); } catch {}
+    }
+    function _kasperRecordHistory(entry) {
+        const log = _kasperLoadHistoryLog().filter(x => x.id !== entry.id);
+        log.unshift(entry);
+        _kasperSaveHistoryLog(log);
+    }
+    function _kasperMergeHistory(serverList, localList) {
+        // Server wins when the same id appears in both (its approvedAt is
+        // authoritative once the sheet has the column populated).
+        const seen = new Set();
+        const merged = [];
+        for (const e of (serverList || [])) {
+            if (!e || !e.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            merged.push(e);
+        }
+        for (const e of (localList || [])) {
+            if (!e || !e.id || seen.has(e.id)) continue;
+            seen.add(e.id);
+            merged.push(e);
+        }
+        // Latest first.
+        merged.sort((a, b) => String(b.approvedAt || '').localeCompare(String(a.approvedAt || '')));
+        return merged;
     }
 
     function _kasperPaintReview() {
@@ -12971,15 +13098,94 @@
         if (count) count.textContent = String(items.length);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
         if (tabCount) tabCount.textContent = String(items.length);
-        if (!items.length) {
-            body.innerHTML = `<div class="kasper-empty">
+        const queueHtml = items.length
+            ? `<div class="kasper-list" id="kasperReviewList">${items.map(_kasperRenderCard).join('')}</div>`
+            : `<div class="kasper-empty">
                 <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
                 <div class="kasper-empty-title">You're all caught up</div>
                 <div class="kasper-empty-sub">No videos are sitting on Kasper Approval right now.</div>
             </div>`;
-            return;
+        body.innerHTML = queueHtml + _kasperRenderHistorySection();
+    }
+
+    function _kasperHistoryDayKey(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const d = new Date(t);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+    function _kasperHistoryDayLabel(key) {
+        if (!key) return 'Earlier';
+        const today = _kasperHistoryDayKey(new Date().toISOString());
+        const yest = new Date(); yest.setDate(yest.getDate() - 1);
+        const yKey = _kasperHistoryDayKey(yest.toISOString());
+        if (key === today) return 'Today';
+        if (key === yKey) return 'Yesterday';
+        const [y, m, d] = key.split('-').map(Number);
+        const dt = new Date(y, (m || 1) - 1, d || 1);
+        return dt.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+
+    function _kasperRenderHistorySection() {
+        const list = _kasperState.history || [];
+        if (!list.length) return '';
+        const groups = new Map();
+        for (const e of list) {
+            const key = _kasperHistoryDayKey(e.approvedAt);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(e);
         }
-        body.innerHTML = `<div class="kasper-list" id="kasperReviewList">${items.map(_kasperRenderCard).join('')}</div>`;
+        const dayKeys = [...groups.keys()].sort((a, b) => b.localeCompare(a));
+        const daysHtml = dayKeys.map(k => {
+            const rows = groups.get(k).map(e => {
+                const thumb = e.thumbnail_url || e.asset_url || '';
+                const thumbHtml = thumb
+                    ? `<img loading="lazy" src="${_calEscAttr(thumb)}" alt="" onerror="this.replaceWith(_kasperHistoryThumbFallback())">`
+                    : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+                const calUrl = `${location.pathname}#calendar/${encodeURIComponent(e.slug)}/${encodeURIComponent(e.id)}`;
+                const videoBtn = e.asset_url
+                    ? `<a href="${_calEscAttr(e.asset_url)}" target="_blank" rel="noopener">Video</a>`
+                    : '';
+                const t = Date.parse(e.approvedAt);
+                const timeStr = isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+                return `<div class="kasper-history-row">
+                    <div class="kasper-history-thumb">${thumbHtml}</div>
+                    <div class="kasper-history-main">
+                        <div class="kasper-history-line1">${_calEsc(e.name)}</div>
+                        <div class="kasper-history-line2"><span class="kasper-history-client">${_calEsc(e.client)}</span>${timeStr ? ` · approved ${_calEsc(timeStr)}` : ''}</div>
+                    </div>
+                    <div class="kasper-history-actions">${videoBtn}<a href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener">Open</a></div>
+                </div>`;
+            }).join('');
+            return `<div class="kasper-history-day">
+                <div class="kasper-history-day-label">${_calEsc(_kasperHistoryDayLabel(k))}<span class="kasper-day-count">· ${groups.get(k).length} approved</span></div>
+                ${rows}
+            </div>`;
+        }).join('');
+        const collapsedCls = _kasperState.historyCollapsed ? ' collapsed' : '';
+        return `<div class="kasper-history-wrap${collapsedCls}" id="kasperHistoryWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleHistory()">
+                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-count">${list.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${daysHtml}</div>
+        </div>`;
+    }
+
+    function _kasperHistoryThumbFallback() {
+        const span = document.createElement('span');
+        span.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+        return span.firstElementChild;
+    }
+
+    function _kasperToggleHistory() {
+        _kasperState.historyCollapsed = !_kasperState.historyCollapsed;
+        const wrap = document.getElementById('kasperHistoryWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.historyCollapsed);
     }
 
     function _kasperFmtDateNice(iso) {
@@ -12996,9 +13202,13 @@
         const title = p.name || 'Untitled post';
         const dateNice = _kasperFmtDateNice(p.scheduled_date);
         const thumbInfo = _calDeriveThumbInfo(p);
-        const thumbHtml = thumbInfo.url
-            ? `<img loading="lazy" src="${_calEscAttr(thumbInfo.url)}"${thumbInfo.isDrive ? ' data-drive="1"' : ''} alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback');">`
+        const hasThumbUrl = !!thumbInfo.url;
+        const thumbHtml = hasThumbUrl
+            ? `<img loading="lazy" src="${_calEscAttr(thumbInfo.url)}"${thumbInfo.isDrive ? ' data-drive="1"' : ''} alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback','is-no-image');">`
             : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;
+        const zoomBtnHtml = hasThumbUrl
+            ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_kasperOpenLightbox('${_calEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>`
+            : '';
         const videoUrl = String(p.asset_url || '').trim();
         const smm = item.smm;
         const smmHtml = smm && smm.name
@@ -13019,7 +13229,7 @@
         const expandedHtml = item._expanded ? _kasperRenderExpanded(item, comments, videoUrl, calUrl) : '';
         return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
             <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
-                <div class="kcard-thumb">${thumbHtml}<div class="kcard-thumb-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>
+                <div class="kcard-thumb${hasThumbUrl ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
                 <div class="kcard-main">
                     <div class="kcard-line1">
                         <span class="kcard-client">${_calEsc(item.client)}</span>
@@ -13094,7 +13304,7 @@
                     </div>
                 </div>
                 <div class="kcard-foot">
-                    <a class="kcard-open-cal-btn" href="${_calEscAttr(calUrl)}" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Open in calendar</a>
+                    <a class="kcard-open-cal-btn" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Open in calendar</a>
                     ${savingHtml}
                 </div>
             </div>
@@ -13154,13 +13364,20 @@
         if (!item || item._saving) return;
         item._saving = true; item._saveError = null;
         const prevStatus = item.post.status;
+        const prevApprovedAt = item.post.kasper_approved_at;
+        const stamp = new Date().toISOString();
         item.post.status = 'Client Approval';
+        item.post.kasper_approved_at = stamp;
         _kasperRepaintCard(pid);
         try {
             await _kasperPersistPost(item);
+            const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
+            _kasperRecordHistory(entry);
+            _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } catch (e) {
             item.post.status = prevStatus;
+            item.post.kasper_approved_at = prevApprovedAt;
             item._saving = false;
             item._saveError = e && e.message ? e.message : 'Save failed';
             _kasperRepaintCard(pid);
@@ -13252,6 +13469,10 @@
     window._kasperSubmitTweak = _kasperSubmitTweak;
     window._kasperOnDraftInput = _kasperOnDraftInput;
     window._kasperOpenSlack = _kasperOpenSlack;
+    window._kasperOpenLightbox = _kasperOpenLightbox;
+    window._kasperCloseLightbox = _kasperCloseLightbox;
+    window._kasperToggleHistory = _kasperToggleHistory;
+    window._kasperHistoryThumbFallback = _kasperHistoryThumbFallback;
 </script>
 
 <!-- Transcript preview modal -->

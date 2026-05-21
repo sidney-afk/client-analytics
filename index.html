@@ -2204,6 +2204,10 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
             Samples
         </a>
+        <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="event.preventDefault();navTo('tiktok-upload')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            TikTok Upload
+        </a>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -2343,6 +2347,15 @@
     // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
     const HOOK_LIBRARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/add-hook-to-library';
     const WEEKLY_SLACK_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/weekly-slack-top-reel';
+    // TikTok Upload module — proxies the upload-post.com API through n8n so the API
+    // key stays server-side. See the bottom of this file for the module implementation.
+    const TIKTOK_UPLOAD_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload';
+    const TIKTOK_UPLOADS_LIST_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-uploads-list';
+    const TIKTOK_UPLOAD_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-status';
+    const TIKTOK_UPLOAD_CANCEL_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-cancel';
+    const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
+    const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
+    const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // upload-post.com / TikTok limit
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -7747,7 +7760,12 @@
         if (navCal) navCal.classList.toggle('active', page === 'calendar');
         const navSamp = document.getElementById('navSamples');
         if (navSamp) navSamp.classList.toggle('active', page === 'samples');
+        const navTk = document.getElementById('navTiktokUpload');
+        if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
 
+        // Tear down the TikTok-upload polling timer whenever we leave the page so
+        // it doesn't keep hitting the queue webhook in the background.
+        if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
@@ -7782,6 +7800,11 @@
             content.innerHTML = `<iframe src="samples.html" title="Content Samples"
                 style="display:block;width:100%;height:calc(100vh - 60px);margin:-32px -32px -80px;border:none;background:var(--bg);"
                 allow="autoplay; fullscreen; clipboard-write"></iframe>`;
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'tiktok-upload') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTiktokUploadView();
+            mountTiktokUploadView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
@@ -11480,10 +11503,11 @@
             if(hash==='calendar'){navTo(hash,false);return;}
             if(hash==='samples'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
+            if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates')){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload')){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
@@ -11520,6 +11544,743 @@
         document.getElementById('passwordOverlay').style.display='flex';
         setTimeout(()=>document.getElementById('passwordInput').focus(),50);
     }
+
+    /* ============================================================
+       TIKTOK UPLOAD MODULE
+       Posts videos to upload-post.com through a server-side n8n
+       proxy so the API key never reaches the browser.
+
+       n8n workflows used (separate repo / instance):
+         POST /webhook/tiktok-upload         multipart: media + JSON metadata
+         GET  /webhook/tiktok-uploads-list   → recent uploads from TikTokUploads sheet
+         GET  /webhook/tiktok-upload-status  ?id=…  → poll a single upload
+         POST /webhook/tiktok-upload-cancel  { id } → cancel a scheduled upload
+
+       Client → upload-post.com profile mapping comes from the
+       "Clients Info" sheet column `upload_post_profile`. Falls back
+       to wlNormalizeClient(name) with a ⚠ badge so the page is still
+       usable while the sheet is being filled in.
+       ============================================================ */
+    const TK_PRIVACY_LEVELS = [
+        { v: 'PUBLIC_TO_EVERYONE', label: 'Public' },
+        { v: 'MUTUAL_FOLLOW_FRIENDS', label: 'Friends' },
+        { v: 'FOLLOWER_OF_CREATOR', label: 'Followers' },
+        { v: 'SELF_ONLY', label: 'Private (only me)' },
+    ];
+    const TK_POST_MODES = [
+        { v: 'DIRECT_POST', label: 'Direct post' },
+        { v: 'MEDIA_UPLOAD', label: 'Send to drafts' },
+    ];
+    const TK_TIMEZONES = [
+        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+        'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu',
+        'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Europe/Madrid',
+        'Asia/Dubai', 'Asia/Singapore', 'Asia/Tokyo',
+        'Australia/Sydney', 'UTC',
+    ];
+
+    const tkState = {
+        client: null,
+        profile: null,
+        profileSource: null,        // 'sheet' | 'fallback'
+        file: null,
+        fileMeta: null,             // {name,size,type} — persisted so we can warn after reload
+        objectUrl: null,
+        title: '',
+        comment: '',
+        options: {
+            privacy_level: 'PUBLIC_TO_EVERYONE',
+            post_mode: 'DIRECT_POST',
+            cover_timestamp_ms: 1000,
+            disable_duet: false,
+            disable_comment: false,
+            disable_stitch: false,
+            brand_content_toggle: false,
+            brand_organic_toggle: false,
+            is_aigc: false,
+        },
+        schedule: { postNow: true, at: '', tz: 'America/New_York' },
+        uploads: [],
+        submitting: false,
+        error: null,
+        progress: 0,
+    };
+
+    let _tkPollTimer = null;
+    let _tkSaveTimer = null;
+    let _tkActiveXhr = null;
+
+    function _tkInjectCSSOnce() {
+        if (document.getElementById('tkUploadStyles')) return;
+        const style = document.createElement('style');
+        style.id = 'tkUploadStyles';
+        style.textContent = `
+        .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
+        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; } }
+        .tk-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
+        .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
+        .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+        .tk-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+        .tk-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .tk-card h3 .tk-card-hint { float: right; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-secondary); font-size: 0.74rem; }
+        .tk-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .tk-row:last-child { margin-bottom: 0; }
+        .tk-row label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .tk-row .tk-help { font-size: 0.72rem; color: var(--text-muted); }
+        .tk-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        @media (max-width: 640px) { .tk-grid-2 { grid-template-columns: 1fr; } }
+        .tk-select { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); outline: none; cursor: pointer; transition: border-color 0.13s, background 0.13s; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+        .tk-select:hover { background-color: #ededea; }
+        .tk-select:focus { border-color: #111110; background-color: var(--white); }
+        .tk-profile-line { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-profile-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; background: var(--bg); border-radius: 99px; font-weight: 600; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.74rem; }
+        .tk-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: #fef3c7; color: #92400e; border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
+        .tk-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+        .tk-drop:hover, .tk-drop.tk-drag { border-color: #111110; background: var(--white); }
+        .tk-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .tk-drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 50%; background: var(--white); border: 1px solid var(--border); }
+        .tk-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
+        .tk-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-file-card { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+        .tk-file-card video { width: 110px; height: 165px; border-radius: 8px; background: #000; object-fit: cover; flex-shrink: 0; }
+        .tk-file-meta { flex: 1; min-width: 0; }
+        .tk-file-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-file-size { font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; }
+        .tk-file-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
+        .tk-mini-btn:hover { color: var(--text-primary); border-color: #aaa; }
+        .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        .tk-counter.over { color: #dc2626; font-weight: 700; }
+        .tk-toggles { display: flex; flex-wrap: wrap; gap: 18px 24px; }
+        .tk-toggle { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 0.82rem; color: var(--text-primary); font-weight: 600; position: relative; }
+        .tk-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+        .tk-toggle-track { position: relative; width: 30px; height: 16px; border-radius: 8px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
+        .tk-toggle-thumb { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.18); }
+        .tk-toggle input:checked ~ .tk-toggle-track { background: #111110; }
+        .tk-toggle input:checked ~ .tk-toggle-track .tk-toggle-thumb { left: 15px; }
+        .tk-radio-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .tk-radio { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border: 1.5px solid var(--border); border-radius: 99px; cursor: pointer; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); background: var(--white); transition: all 0.13s; }
+        .tk-radio input { display: none; }
+        .tk-radio:hover { border-color: #aaa; color: var(--text-primary); }
+        .tk-radio.active { background: #111110; color: #fff; border-color: #111110; }
+        .tk-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.06); }
+        .tk-submit-btn { flex-shrink: 0; padding: 12px 28px; background: #111110; color: #fff; border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .tk-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .tk-submit-btn:not(:disabled):hover { opacity: 0.88; }
+        .tk-progress { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+        .tk-progress-bar { height: 100%; background: #111110; width: 0%; transition: width 0.2s; }
+        .tk-error { color: #dc2626; font-size: 0.82rem; font-weight: 600; }
+        .tk-queue-item { padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--white); }
+        .tk-queue-item:last-child { margin-bottom: 0; }
+        .tk-queue-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .tk-queue-client { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tk-queue-when { font-size: 0.72rem; color: var(--text-secondary); margin-top: 3px; }
+        .tk-queue-title { font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .tk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
+        .tk-pill.queued    { background: #f3f4f6; color: #4b5563; }
+        .tk-pill.uploading { background: #dbeafe; color: #1e40af; }
+        .tk-pill.scheduled { background: #fef3c7; color: #92400e; }
+        .tk-pill.posted    { background: #d1fae5; color: #065f46; }
+        .tk-pill.failed    { background: #fee2e2; color: #991b1b; }
+        .tk-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+        .tk-queue-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .tk-queue-error { font-size: 0.72rem; color: #991b1b; margin-top: 6px; padding: 6px 8px; background: #fee2e2; border-radius: 6px; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function _tkResolveProfile(client) {
+        if (!client) return { profile: null, source: null };
+        const fromSheet = (clientMap[client]?.upload_post_profile || '').trim();
+        if (fromSheet) return { profile: fromSheet, source: 'sheet' };
+        return { profile: wlNormalizeClient(client), source: 'fallback' };
+    }
+
+    function _tkFormatBytes(n) {
+        if (!Number.isFinite(n) || n <= 0) return '0 B';
+        const u = ['B', 'KB', 'MB', 'GB'];
+        let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+    }
+
+    function _tkEscape(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    function _tkLoadDraft() {
+        try {
+            const raw = localStorage.getItem(TIKTOK_FORM_KEY);
+            if (!raw) return;
+            const d = JSON.parse(raw);
+            if (d.client && WL_CLIENT_NAMES.includes(d.client)) tkState.client = d.client;
+            if (typeof d.title === 'string') tkState.title = d.title;
+            if (typeof d.comment === 'string') tkState.comment = d.comment;
+            if (d.options && typeof d.options === 'object') Object.assign(tkState.options, d.options);
+            if (d.schedule && typeof d.schedule === 'object') Object.assign(tkState.schedule, d.schedule);
+            if (d.fileMeta && typeof d.fileMeta === 'object') tkState.fileMeta = d.fileMeta;
+        } catch (e) { console.warn('[SyncView] TikTok draft load error:', e); }
+    }
+
+    function _tkSaveDraft() {
+        try {
+            const payload = {
+                client: tkState.client, title: tkState.title, comment: tkState.comment,
+                options: tkState.options, schedule: tkState.schedule,
+                fileMeta: tkState.file ? { name: tkState.file.name, size: tkState.file.size, type: tkState.file.type } : tkState.fileMeta,
+            };
+            localStorage.setItem(TIKTOK_FORM_KEY, JSON.stringify(payload));
+        } catch (e) { /* quota or private mode — ignore */ }
+    }
+
+    function _tkSaveDraftSoon() {
+        clearTimeout(_tkSaveTimer);
+        _tkSaveTimer = setTimeout(_tkSaveDraft, 400);
+    }
+
+    function _tkClearDraft() {
+        try { localStorage.removeItem(TIKTOK_FORM_KEY); } catch {}
+        tkState.fileMeta = null;
+    }
+
+    function _tkLoadPending() {
+        try { return JSON.parse(localStorage.getItem(TIKTOK_PENDING_KEY) || '[]'); } catch { return []; }
+    }
+    function _tkSavePending(list) {
+        try { localStorage.setItem(TIKTOK_PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {}
+    }
+
+    function renderTiktokUploadView() {
+        _tkInjectCSSOnce();
+        return `
+            <div class="tk-page">
+                <div class="tk-header">
+                    <div>
+                        <div class="tk-title">TikTok Upload</div>
+                        <div class="tk-sub">Schedule a TikTok post for a client — uploads through upload-post.com.</div>
+                    </div>
+                </div>
+                <div class="tk-col" id="tkFormCol"></div>
+                <div class="tk-col" id="tkQueueCol"></div>
+            </div>
+        `;
+    }
+
+    function _tkRenderForm() {
+        const col = document.getElementById('tkFormCol');
+        if (!col) return;
+        const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
+        const titleCount = (tkState.title || '').length;
+        const titleOver = titleCount > 2200;
+        const submittable = !!(tkState.client && tkState.profile && tkState.file && tkState.title.trim() && !titleOver && !tkState.submitting);
+
+        let profileLine = '';
+        if (tkState.client) {
+            if (tkState.profileSource === 'sheet') {
+                profileLine = `<div class="tk-profile-line">Posts as <span class="tk-profile-chip">@${_tkEscape(tkState.profile)}</span> on upload-post.com</div>`;
+            } else if (tkState.profileSource === 'fallback') {
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No mapping</span> Fallback profile <span class="tk-profile-chip">@${_tkEscape(tkState.profile)}</span> — add an <code>upload_post_profile</code> value in the Clients Info sheet.</div>`;
+            }
+        }
+
+        let mediaCard;
+        if (tkState.file) {
+            mediaCard = `
+                <div class="tk-file-card">
+                    <video id="tkFilePreview" src="${_tkEscape(tkState.objectUrl)}" muted playsinline controls></video>
+                    <div class="tk-file-meta">
+                        <div class="tk-file-name">${_tkEscape(tkState.file.name)}</div>
+                        <div class="tk-file-size">${_tkFormatBytes(tkState.file.size)} · ${_tkEscape(tkState.file.type || 'video')}</div>
+                        <div class="tk-file-actions">
+                            <button class="tk-mini-btn" onclick="_tkReplaceFile()">Replace</button>
+                            <button class="tk-mini-btn" onclick="_tkClearFile()">Remove</button>
+                        </div>
+                    </div>
+                </div>`;
+        } else {
+            const reattachHint = tkState.fileMeta
+                ? `<div class="tk-drop-sub" style="color:#92400e">Draft restored — please re-attach <strong>${_tkEscape(tkState.fileMeta.name)}</strong> (${_tkFormatBytes(tkState.fileMeta.size)}).</div>`
+                : `<div class="tk-drop-sub">MP4, MOV or WebM · up to ${_tkFormatBytes(TIKTOK_MAX_BYTES)}</div>`;
+            mediaCard = `
+                <div class="tk-drop" id="tkDrop">
+                    <input type="file" id="tkFile" accept="video/mp4,video/quicktime,video/webm,video/*">
+                    <div class="tk-drop-icon">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 11V2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4.5 5.5L8 2L11.5 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11v2.5h12V11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <div class="tk-drop-title">Drop a video here, or click to browse</div>
+                    ${reattachHint}
+                </div>`;
+        }
+
+        const opts = tkState.options;
+        const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}</div>` : '';
+
+        col.innerHTML = `
+            <div class="tk-card">
+                <h3>Client <span class="tk-card-hint">${clientNames.length} clients</span></h3>
+                <div class="tk-row">
+                    <select class="tk-select" id="tkClient">
+                        <option value="">Select a client…</option>
+                        ${clientNames.map(n => `<option value="${_tkEscape(n)}" ${n === tkState.client ? 'selected' : ''}>${_tkEscape(n)}</option>`).join('')}
+                    </select>
+                    ${profileLine}
+                </div>
+            </div>
+
+            <div class="tk-card">
+                <h3>Media</h3>
+                ${mediaCard}
+            </div>
+
+            <div class="tk-card">
+                <h3>Caption</h3>
+                <div class="tk-row">
+                    <label for="tkTitle">Title / caption</label>
+                    <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4">${_tkEscape(tkState.title)}</textarea>
+                    <div class="tk-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
+                </div>
+                <div class="tk-row">
+                    <label for="tkComment">First comment <span class="tk-help">(optional — posted after the video goes live)</span></label>
+                    <textarea class="tpl-textarea" id="tkComment" placeholder="Add a first comment…" rows="2">${_tkEscape(tkState.comment)}</textarea>
+                </div>
+            </div>
+
+            <div class="tk-card">
+                <h3>TikTok options</h3>
+                <div class="tk-grid-2">
+                    <div class="tk-row">
+                        <label>Privacy level</label>
+                        <div class="tk-radio-row">
+                            ${TK_PRIVACY_LEVELS.map(p => `
+                                <label class="tk-radio ${opts.privacy_level === p.v ? 'active' : ''}">
+                                    <input type="radio" name="tkPrivacy" value="${p.v}" ${opts.privacy_level === p.v ? 'checked' : ''}>
+                                    ${p.label}
+                                </label>`).join('')}
+                        </div>
+                    </div>
+                    <div class="tk-row">
+                        <label>Post mode</label>
+                        <div class="tk-radio-row">
+                            ${TK_POST_MODES.map(p => `
+                                <label class="tk-radio ${opts.post_mode === p.v ? 'active' : ''}">
+                                    <input type="radio" name="tkPostMode" value="${p.v}" ${opts.post_mode === p.v ? 'checked' : ''}>
+                                    ${p.label}
+                                </label>`).join('')}
+                        </div>
+                    </div>
+                </div>
+                <div class="tk-row">
+                    <label for="tkCover">Cover timestamp (ms) <span class="tk-help">— which frame TikTok grabs as the thumbnail.</span></label>
+                    <input class="tpl-input" id="tkCover" type="number" min="0" step="100" value="${Number(opts.cover_timestamp_ms) || 0}">
+                </div>
+                <div class="tk-row">
+                    <label>Interaction</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkDuet"    ${opts.disable_duet ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable duet</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkComment" ${opts.disable_comment ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable comments</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkStitch"  ${opts.disable_stitch ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable stitch</label>
+                    </div>
+                </div>
+                <div class="tk-row">
+                    <label>Commercial content disclosure</label>
+                    <div class="tk-toggles">
+                        <label class="tk-toggle"><input type="checkbox" id="tkBrandContent" ${opts.brand_content_toggle ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Branded content</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkBrandOrganic" ${opts.brand_organic_toggle ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Your brand</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkAigc"          ${opts.is_aigc ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>AI-generated</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tk-card">
+                <h3>Scheduling</h3>
+                <div class="tk-row">
+                    <label class="tk-toggle" style="align-self:flex-start">
+                        <input type="checkbox" id="tkPostNow" ${tkState.schedule.postNow ? 'checked' : ''}>
+                        <span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>
+                        Post immediately
+                    </label>
+                </div>
+                <div class="tk-grid-2" id="tkScheduleFields" style="${tkState.schedule.postNow ? 'opacity:0.45;pointer-events:none' : ''}">
+                    <div class="tk-row">
+                        <label for="tkScheduleAt">Schedule for</label>
+                        <input class="tpl-input" id="tkScheduleAt" type="datetime-local" value="${_tkEscape(tkState.schedule.at)}">
+                    </div>
+                    <div class="tk-row">
+                        <label for="tkScheduleTz">Timezone</label>
+                        <select class="tk-select" id="tkScheduleTz">
+                            ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            ${errorBlock}
+
+            <div class="tk-submit-bar">
+                <button class="tk-submit-btn" id="tkSubmit" ${submittable ? '' : 'disabled'}>
+                    ${tkState.submitting ? 'Uploading…' : (tkState.schedule.postNow ? 'Post now' : 'Schedule post')}
+                </button>
+                <div class="tk-progress"><div class="tk-progress-bar" id="tkProgress" style="width:${tkState.progress}%"></div></div>
+                ${tkState.submitting
+                    ? `<button class="tk-mini-btn" onclick="_tkCancelUpload()">Cancel</button>`
+                    : ''}
+            </div>
+        `;
+
+        _tkWireFormEvents();
+    }
+
+    function _tkWireFormEvents() {
+        const $ = (id) => document.getElementById(id);
+
+        $('tkClient')?.addEventListener('change', (e) => {
+            tkState.client = e.target.value || null;
+            const r = _tkResolveProfile(tkState.client);
+            tkState.profile = r.profile;
+            tkState.profileSource = r.source;
+            _tkSaveDraft();
+            _tkRenderForm();
+        });
+
+        const drop = $('tkDrop');
+        const fileInput = $('tkFile');
+        if (fileInput) {
+            fileInput.addEventListener('change', (e) => _tkHandleFile(e.target.files?.[0]));
+        }
+        if (drop) {
+            ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('tk-drag'); }));
+            ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('tk-drag'); }));
+            drop.addEventListener('drop', (e) => _tkHandleFile(e.dataTransfer?.files?.[0]));
+        }
+
+        $('tkTitle')?.addEventListener('input', (e) => {
+            tkState.title = e.target.value;
+            const c = document.querySelector('.tk-counter');
+            if (c) { c.textContent = `${tkState.title.length} / 2200`; c.classList.toggle('over', tkState.title.length > 2200); }
+            const btn = $('tkSubmit');
+            if (btn) btn.disabled = !_tkCanSubmit();
+            _tkSaveDraftSoon();
+        });
+        $('tkComment')?.addEventListener('input', (e) => { tkState.comment = e.target.value; _tkSaveDraftSoon(); });
+
+        document.querySelectorAll('input[name=tkPrivacy]').forEach(el => el.addEventListener('change', (e) => {
+            tkState.options.privacy_level = e.target.value;
+            _tkSaveDraft(); _tkRenderForm();
+        }));
+        document.querySelectorAll('input[name=tkPostMode]').forEach(el => el.addEventListener('change', (e) => {
+            tkState.options.post_mode = e.target.value;
+            _tkSaveDraft(); _tkRenderForm();
+        }));
+
+        $('tkCover')?.addEventListener('input', (e) => { tkState.options.cover_timestamp_ms = Math.max(0, Number(e.target.value) || 0); _tkSaveDraftSoon(); });
+        const tog = (id, key) => $(id)?.addEventListener('change', (e) => { tkState.options[key] = e.target.checked; _tkSaveDraft(); });
+        tog('tkDuet', 'disable_duet');
+        tog('tkComment', 'disable_comment');
+        tog('tkStitch', 'disable_stitch');
+        tog('tkBrandContent', 'brand_content_toggle');
+        tog('tkBrandOrganic', 'brand_organic_toggle');
+        tog('tkAigc', 'is_aigc');
+
+        $('tkPostNow')?.addEventListener('change', (e) => {
+            tkState.schedule.postNow = e.target.checked;
+            _tkSaveDraft(); _tkRenderForm();
+        });
+        $('tkScheduleAt')?.addEventListener('input', (e) => { tkState.schedule.at = e.target.value; _tkSaveDraftSoon(); });
+        $('tkScheduleTz')?.addEventListener('change', (e) => { tkState.schedule.tz = e.target.value; _tkSaveDraft(); });
+
+        $('tkSubmit')?.addEventListener('click', _tkSubmit);
+    }
+
+    function _tkHandleFile(file) {
+        if (!file) return;
+        if (!/^video\//.test(file.type) && !/\.(mp4|mov|webm|m4v)$/i.test(file.name)) {
+            tkState.error = 'That file does not look like a video.';
+            _tkRenderForm();
+            return;
+        }
+        if (file.size > TIKTOK_MAX_BYTES) {
+            tkState.error = `Video is ${_tkFormatBytes(file.size)} — TikTok's limit is ${_tkFormatBytes(TIKTOK_MAX_BYTES)}.`;
+            _tkRenderForm();
+            return;
+        }
+        if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+        tkState.file = file;
+        tkState.objectUrl = URL.createObjectURL(file);
+        tkState.fileMeta = { name: file.name, size: file.size, type: file.type };
+        tkState.error = null;
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+
+    function _tkReplaceFile() { document.getElementById('tkFile')?.click(); }
+    function _tkClearFile() {
+        if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+        tkState.file = null;
+        tkState.objectUrl = null;
+        tkState.fileMeta = null;
+        _tkSaveDraft();
+        _tkRenderForm();
+    }
+
+    function _tkCanSubmit() {
+        return !!(tkState.client && tkState.profile && tkState.file && tkState.title.trim() && tkState.title.length <= 2200 && !tkState.submitting);
+    }
+
+    function _tkValidate() {
+        if (!tkState.client) return 'Pick a client first.';
+        if (!tkState.profile) return 'This client has no upload-post.com profile mapping.';
+        if (!tkState.file) return 'Attach a video.';
+        if (!tkState.title.trim()) return 'Add a caption.';
+        if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
+        if (!tkState.schedule.postNow) {
+            if (!tkState.schedule.at) return 'Pick a schedule time, or switch on "Post immediately".';
+            const t = new Date(tkState.schedule.at).getTime();
+            if (!Number.isFinite(t)) return 'That schedule time is not valid.';
+            if (t < Date.now() - 60_000) return 'The schedule time is in the past.';
+        }
+        return null;
+    }
+
+    function _tkSubmit() {
+        const err = _tkValidate();
+        if (err) { tkState.error = err; _tkRenderForm(); return; }
+
+        const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `tk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        const fd = new FormData();
+        fd.append('clientName', tkState.client);
+        fd.append('profile', tkState.profile);
+        fd.append('profileSource', tkState.profileSource || 'fallback');
+        fd.append('title', tkState.title);
+        fd.append('postComment', tkState.comment);
+        fd.append('options', JSON.stringify(tkState.options));
+        fd.append('scheduledAt', tkState.schedule.postNow ? '' : tkState.schedule.at);
+        fd.append('timezone', tkState.schedule.tz);
+        fd.append('idempotencyKey', idempotencyKey);
+        fd.append('media', tkState.file, tkState.file.name);
+
+        tkState.submitting = true;
+        tkState.error = null;
+        tkState.progress = 0;
+        _tkRenderForm();
+
+        const xhr = new XMLHttpRequest();
+        _tkActiveXhr = xhr;
+        xhr.open('POST', TIKTOK_UPLOAD_WEBHOOK);
+        xhr.upload.onprogress = (e) => {
+            if (!e.lengthComputable) return;
+            tkState.progress = Math.min(99, Math.round((e.loaded / e.total) * 100));
+            const bar = document.getElementById('tkProgress');
+            if (bar) bar.style.width = tkState.progress + '%';
+        };
+        xhr.onload = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                tkState.progress = 100;
+                let resp = {};
+                try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                const row = {
+                    id: resp.id || idempotencyKey,
+                    client: tkState.client,
+                    profile: tkState.profile,
+                    title: tkState.title,
+                    status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
+                    scheduled_for: tkState.schedule.postNow ? null : tkState.schedule.at,
+                    timezone: tkState.schedule.tz,
+                    created_at: new Date().toISOString(),
+                    optimistic: true,
+                };
+                const pending = _tkLoadPending().filter(r => r.id !== row.id);
+                pending.unshift(row);
+                _tkSavePending(pending);
+                tkState.uploads = _tkMergeUploads(tkState.uploads, [row]);
+
+                if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
+                tkState.file = null;
+                tkState.objectUrl = null;
+                tkState.fileMeta = null;
+                tkState.title = '';
+                tkState.comment = '';
+                tkState.progress = 0;
+                _tkClearDraft();
+                _tkRenderForm();
+                _tkRenderQueue();
+                showNotify('Upload queued', tkState.schedule.postNow ? 'The video is uploading to TikTok now.' : `Scheduled for ${row.scheduled_for} (${row.timezone}).`);
+                _tkFetchQueue();   // pick up the server-side row
+            } else {
+                tkState.error = _tkExplainError(xhr);
+                _tkRenderForm();
+            }
+        };
+        xhr.onerror = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.error = 'Network error — the upload could not reach n8n. Try again.';
+            _tkRenderForm();
+        };
+        xhr.onabort = () => {
+            _tkActiveXhr = null;
+            tkState.submitting = false;
+            tkState.progress = 0;
+            tkState.error = 'Upload cancelled.';
+            _tkRenderForm();
+        };
+        xhr.send(fd);
+    }
+
+    function _tkExplainError(xhr) {
+        try {
+            const j = JSON.parse(xhr.responseText || '{}');
+            if (j.message) return `Upload failed: ${j.message}`;
+            if (j.error)   return `Upload failed: ${j.error}`;
+        } catch {}
+        return `Upload failed (HTTP ${xhr.status || 'no response'}). Check the n8n workflow.`;
+    }
+
+    function _tkCancelUpload() {
+        if (_tkActiveXhr) _tkActiveXhr.abort();
+    }
+
+    function _tkMergeUploads(existing, incoming) {
+        const map = new Map();
+        for (const r of existing) map.set(r.id, r);
+        for (const r of incoming) {
+            const prev = map.get(r.id);
+            // Server rows always win over optimistic local rows, except they can't
+            // unset fields the local copy already filled in.
+            map.set(r.id, prev ? { ...prev, ...r, optimistic: r.optimistic && prev.optimistic } : r);
+        }
+        return [...map.values()].sort((a, b) => {
+            const da = a.scheduled_for || a.created_at || '';
+            const db = b.scheduled_for || b.created_at || '';
+            return db.localeCompare(da);
+        });
+    }
+
+    async function _tkFetchQueue() {
+        try {
+            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const json = await r.json();
+            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            tkState.uploads = _tkMergeUploads(_tkLoadPending(), rows);
+            // Trim local pending list of rows the server now knows about.
+            const knownIds = new Set(rows.map(r => r.id));
+            _tkSavePending(_tkLoadPending().filter(r => !knownIds.has(r.id)));
+            _tkRenderQueue();
+        } catch (e) {
+            // Surface only on the very first failure — keep retrying quietly afterwards.
+            const col = document.getElementById('tkQueueCol');
+            if (col && !col.dataset.everLoaded) {
+                col.innerHTML = `<div class="tk-card"><h3>Upcoming uploads</h3><div class="tk-queue-empty">Couldn't reach the queue webhook.<br><small>${_tkEscape(e.message)}</small></div></div>`;
+            }
+        }
+    }
+
+    function _tkRenderQueue() {
+        const col = document.getElementById('tkQueueCol');
+        if (!col) return;
+        col.dataset.everLoaded = '1';
+
+        const upcoming = tkState.uploads.filter(r => ['queued', 'uploading', 'scheduled'].includes((r.status || '').toLowerCase()));
+        const recent   = tkState.uploads.filter(r => !['queued', 'uploading', 'scheduled'].includes((r.status || '').toLowerCase())).slice(0, 8);
+
+        const itemHTML = (r) => {
+            const when = r.scheduled_for
+                ? new Date(r.scheduled_for).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
+            const status = (r.status || 'queued').toLowerCase();
+            const actions = [];
+            if (status === 'scheduled' || status === 'queued') {
+                actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
+            }
+            if (status === 'failed') {
+                actions.push(`<button class="tk-mini-btn" onclick="_tkRetryRow('${_tkEscape(r.id)}')">Retry</button>`);
+            }
+            if (r.tiktok_url) {
+                actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            }
+            return `
+                <div class="tk-queue-item">
+                    <div class="tk-queue-top">
+                        <div style="min-width:0">
+                            <div class="tk-queue-client">${_tkEscape(r.client || '—')}</div>
+                            <div class="tk-queue-when">${_tkEscape(when)}${r.timezone ? ' · ' + _tkEscape(r.timezone) : ''}</div>
+                        </div>
+                        <span class="tk-pill ${status}">${_tkEscape(status)}</span>
+                    </div>
+                    ${r.title ? `<div class="tk-queue-title">${_tkEscape(r.title)}</div>` : ''}
+                    ${r.error ? `<div class="tk-queue-error">${_tkEscape(r.error)}</div>` : ''}
+                    ${actions.length ? `<div class="tk-queue-actions">${actions.join('')}</div>` : ''}
+                </div>`;
+        };
+
+        col.innerHTML = `
+            <div class="tk-card">
+                <h3>Upcoming uploads <span class="tk-card-hint">${upcoming.length}</span></h3>
+                ${upcoming.length ? upcoming.map(itemHTML).join('') : `<div class="tk-queue-empty">Nothing scheduled yet.</div>`}
+            </div>
+            <div class="tk-card">
+                <h3>Recent</h3>
+                ${recent.length ? recent.map(itemHTML).join('') : `<div class="tk-queue-empty">No recent posts.</div>`}
+            </div>
+        `;
+    }
+
+    async function _tkCancelRow(id) {
+        showConfirm('Cancel upload?', 'This will remove the scheduled post from upload-post.com. The video file stays on your computer.', async () => {
+            try {
+                const r = await fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
+                _tkFetchQueue();
+            } catch (e) {
+                showNotify('Could not cancel', e.message || 'The n8n cancel webhook failed.');
+            }
+        }, 'Cancel upload');
+    }
+
+    async function _tkRetryRow(id) {
+        try {
+            const r = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            _tkFetchQueue();
+        } catch (e) {
+            showNotify('Retry failed', e.message || 'The n8n status webhook did not accept the retry.');
+        }
+    }
+
+    function _tkTeardown() {
+        if (_tkPollTimer) { clearInterval(_tkPollTimer); _tkPollTimer = null; }
+        if (tkState.objectUrl) { URL.revokeObjectURL(tkState.objectUrl); tkState.objectUrl = null; }
+        // Keep tkState.file around so navigating away and back doesn't lose the
+        // user's selection — but the object URL needs to be recreated.
+        if (tkState.file) {
+            tkState.objectUrl = URL.createObjectURL(tkState.file);
+        }
+    }
+
+    function mountTiktokUploadView() {
+        _tkLoadDraft();
+        if (tkState.client) {
+            const r = _tkResolveProfile(tkState.client);
+            tkState.profile = r.profile;
+            tkState.profileSource = r.source;
+        }
+        tkState.uploads = _tkLoadPending();   // optimistic rows show instantly
+        _tkRenderForm();
+        _tkRenderQueue();
+        _tkFetchQueue();
+        if (_tkPollTimer) clearInterval(_tkPollTimer);
+        _tkPollTimer = setInterval(_tkFetchQueue, 30_000);
+    }
+
+    // Expose handlers used by inline onclick="" so they survive page rerenders.
+    window._tkReplaceFile = _tkReplaceFile;
+    window._tkClearFile = _tkClearFile;
+    window._tkCancelUpload = _tkCancelUpload;
+    window._tkCancelRow = _tkCancelRow;
+    window._tkRetryRow = _tkRetryRow;
 </script>
 
 <!-- Transcript preview modal -->

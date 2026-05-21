@@ -1682,6 +1682,17 @@
         .cal-card:hover .cal-card-grip { opacity: 1; }
         .cal-card-grip:active { cursor: grabbing; }
         .cal-card-grip svg { width: 13px; height: 13px; display: block; }
+        /* Per-card link copy button — sits to the right of the drag grip */
+        .cal-card-link { position: absolute; top: 7px; left: 37px; z-index: 4; width: 24px; height: 24px; border-radius: 6px;
+            background: rgba(255,255,255,0.92); box-shadow: 0 1px 5px rgba(0,0,0,0.22); color: var(--text-muted);
+            display: inline-flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0;
+            transition: opacity 0.15s, color 0.15s, background 0.15s; border: 0; padding: 0; }
+        .cal-card:hover .cal-card-link { opacity: 1; }
+        .cal-card-link:hover { color: var(--text-primary); }
+        .cal-card-link.copied { background: #dcfce7; color: #15803d; opacity: 1; }
+        .cal-card-link svg { width: 13px; height: 13px; display: block; }
+        /* Persistent focus highlight after opening a per-card deep link */
+        .cal-card-focused { box-shadow: 0 0 0 3px rgba(94,106,210,0.55), 0 6px 22px rgba(94,106,210,0.18); }
         /* Full-screen thumbnail lightbox */
         .cal-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.88); z-index: 300; align-items: center; justify-content: center; cursor: zoom-out; }
         .cal-lightbox.open { display: flex; }
@@ -8153,6 +8164,51 @@
         });
     }
 
+    /* Per-card deep link. Pattern: #calendar/<clientSlug>/<cardId>.
+       The slug is the same one we use as the sheet tab name, so we can
+       round-trip from URL → client → card by walking WL_CLIENT_NAMES. */
+    function _calCopyCardLink(e, pid) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (!calState.client || !pid) return;
+        const slug = calClientSlug(calState.client);
+        const url = `${location.origin}${location.pathname}#calendar/${slug}/${encodeURIComponent(pid)}`;
+        const btn = document.querySelector(`.cal-card-link[data-card-link="${pid}"]`);
+        const checkSvg = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const restore = (origHtml) => { if (btn) { btn.classList.remove('copied'); btn.innerHTML = origHtml; } };
+        const flash = () => {
+            if (!btn) return;
+            const orig = btn.dataset.orig || btn.innerHTML;
+            btn.dataset.orig = orig;
+            btn.classList.add('copied');
+            btn.innerHTML = checkSvg;
+            setTimeout(() => restore(orig), 1600);
+        };
+        const fallback = () => {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                flash();
+            } catch { showNotify('Could not copy', url); }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(flash, fallback);
+        } else fallback();
+    }
+
+    /* Outside-click dismissal of the persistent focus highlight. */
+    function _calClearFocusHighlight() {
+        document.querySelectorAll('.cal-card-focused').forEach(el => el.classList.remove('cal-card-focused'));
+        document.removeEventListener('mousedown', _calFocusOutsideHandler, true);
+    }
+    function _calFocusOutsideHandler(e) {
+        const card = document.querySelector('.cal-card-focused');
+        if (!card) { document.removeEventListener('mousedown', _calFocusOutsideHandler, true); return; }
+        if (!card.contains(e.target)) _calClearFocusHighlight();
+    }
+
     /* ── Excel (.xlsx) import ──────────────────────────────────────────
        Pulls posts out of a Google Sheet that was exported as Microsoft
        Excel. The user maps the spreadsheet columns onto the calendar
@@ -9174,12 +9230,23 @@
         if (!req) return;
         if (wlNormalizeClient(calState.client) !== wlNormalizeClient(req.client)) return;
         _calFocusRequest = null;
-        const ident = String(req.identifier || '').replace(/[^A-Z0-9-]/g, '');
-        if (!ident) return;
-        const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
-        const post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
+        let post = null;
+        let persistent = false;
+        if (req.cardId) {
+            post = calState.posts.find(p => p.id === req.cardId);
+            persistent = true;
+        } else {
+            const ident = String(req.identifier || '').replace(/[^A-Z0-9-]/g, '');
+            if (!ident) return;
+            const re = new RegExp('(^|[^A-Z0-9])' + ident + '([^0-9]|$)');
+            post = calState.posts.find(p => re.test(String(p.linear_issue_id || '').toUpperCase()));
+            if (!post) {
+                showNotify('Not on this calendar yet', ident + ' is not linked to a card on ' + calState.client + "'s content calendar.");
+                return;
+            }
+        }
         if (!post) {
-            showNotify('Not on this calendar yet', ident + ' is not linked to a card on ' + calState.client + "'s content calendar.");
+            if (req.cardId) showNotify('Card not found', "That linked card isn't on this calendar — it may have been archived.");
             return;
         }
         requestAnimationFrame(() => {
@@ -9187,8 +9254,14 @@
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
             if (!card) return;
             card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
-            card.classList.add('cal-card-flash');
-            setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
+            if (persistent) {
+                _calClearFocusHighlight();
+                card.classList.add('cal-card-focused');
+                setTimeout(() => document.addEventListener('mousedown', _calFocusOutsideHandler, true), 0);
+            } else {
+                card.classList.add('cal-card-flash');
+                setTimeout(() => card.classList.remove('cal-card-flash'), 2200);
+            }
         });
     }
 
@@ -9943,7 +10016,8 @@
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
-            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
+            <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
             <div class="cal-card-body">
@@ -11734,6 +11808,15 @@
             if(hash==='samples'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
+            if(hash.startsWith('calendar/')){
+                const rest=hash.slice('calendar/'.length);
+                const sl=rest.indexOf('/');
+                const slug=sl>=0?rest.slice(0,sl):rest;
+                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
+                const match=clientNames.find(n=>wlNormalizeClient(n)===slug);
+                if(match){_calFocusRequest={client:match,cardId:cardId||null};navTo('calendar',false);return;}
+                navTo('calendar',false);return;
+            }
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs

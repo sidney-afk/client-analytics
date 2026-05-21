@@ -12989,6 +12989,7 @@
                 if (!slug) continue;
                 map.set(slug, {
                     name: (r.social_media_manager || r.smm_name || r.smm || '').trim(),
+                    slack_profile_url: (r.slack_profile_url || r.slack_url || r.slack_link || '').trim(),
                     slack_user_id: (r.slack_user_id || r.smm_slack_id || '').trim(),
                     slack_team_id: (r.slack_team_id || '').trim(),
                 });
@@ -13014,9 +13015,16 @@
             if (!resp.ok) throw new Error('Bad response for ' + client);
             const json = await resp.json();
             if (!json || !json.ok) return { queue: [], history: [] };
+            // Apply the same Linear-issue dedupe the calendar view uses so a
+            // double-synced row (e.g. status flipped twice on a Linear sub-issue
+            // that already had a card) doesn't surface twice in the queue.
+            const rawPosts = _calDedupeByLinearIssue(json.posts || []);
             const queue = [];
             const history = [];
-            for (const raw of (json.posts || [])) {
+            const seenIds = new Set();
+            for (const raw of rawPosts) {
+                if (!raw || !raw.id || seenIds.has(raw.id)) continue;
+                seenIds.add(raw.id);
                 const status = _calNormStatus(raw.status);
                 raw.status = status;
                 raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
@@ -13033,9 +13041,14 @@
         }));
         const queueOut = [];
         const historyOut = [];
+        const queueIds = new Set();
         for (const s of settled) {
             if (s.status === 'fulfilled' && s.value) {
-                queueOut.push(...s.value.queue);
+                for (const it of s.value.queue) {
+                    if (queueIds.has(it.post.id)) continue;
+                    queueIds.add(it.post.id);
+                    queueOut.push(it);
+                }
                 historyOut.push(...s.value.history);
             }
         }
@@ -13211,9 +13224,13 @@
             : '';
         const videoUrl = String(p.asset_url || '').trim();
         const smm = item.smm;
+        const hasSlackTarget = !!(smm && (smm.slack_profile_url || smm.slack_user_id));
+        const slackBtn = hasSlackTarget
+            ? `<button class="kcard-slack-btn" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="Message ${_calEscAttr(smm.name)} on Slack"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button>`
+            : '';
         const smmHtml = smm && smm.name
-            ? `<span class="kcard-smm"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}<button class="kcard-slack-btn" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="Message ${_calEscAttr(smm.name)} on Slack"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button></span>`
-            : `<span class="kcard-smm is-missing" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`
+            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
@@ -13437,25 +13454,29 @@
         }
     }
 
-    /* Slack deep link. With a user ID we can drop straight into the DM;
-       without one we fall back to a search-and-open URL so Casper can
-       click the right person in one extra step. */
+    /* Slack deep link. Three column options on the Social Media Managers
+       sheet, picked in order of reliability:
+         • slack_profile_url — direct profile URL copied from Slack
+           ("Copy link to profile" on the user's Slack profile). Most
+           reliable since it always lands on the right person's DM/profile.
+         • slack_user_id (+ optional slack_team_id) — opens slack:// app
+           deep link to that user. Requires the Slack desktop app installed.
+         • Otherwise the button is hidden so we don't open the wrong place. */
     function _kasperOpenSlack(slug) {
         const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
         if (!entry) return;
+        const url = (entry.slack_profile_url || '').trim();
         const userId = (entry.slack_user_id || '').trim();
         const teamId = (entry.slack_team_id || '').trim();
-        let target;
-        if (userId && teamId) {
+        let target = null;
+        if (url) {
+            target = url;
+        } else if (userId && teamId) {
             target = `slack://user?team=${encodeURIComponent(teamId)}&id=${encodeURIComponent(userId)}`;
         } else if (userId) {
             target = `slack://user?id=${encodeURIComponent(userId)}`;
-        } else if (KASPER_SLACK_TEAM_DOMAIN) {
-            target = `https://${KASPER_SLACK_TEAM_DOMAIN}.slack.com/`;
-        } else {
-            target = `https://app.slack.com/client`;
         }
-        // Use a temporary anchor so popup-blockers don't eat it.
+        if (!target) return;   // Button shouldn't have been clickable; bail safely.
         const a = document.createElement('a');
         a.href = target; a.target = '_blank'; a.rel = 'noopener';
         a.click();

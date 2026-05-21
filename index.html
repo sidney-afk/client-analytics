@@ -1737,6 +1737,10 @@
         .cal-card-select-overlay { position: absolute; inset: 0; z-index: 7; cursor: pointer; background: transparent;
             transition: background 0.12s; }
         .cal-card-select-overlay:hover { background: rgba(37,99,235,0.07); }
+        /* In select mode, shift-click should extend the selection, not the
+           browser's text range — kill text selection across the strip. */
+        .cal-organizer-strip.cal-selecting,
+        .cal-organizer-strip.cal-selecting * { user-select: none; -webkit-user-select: none; }
         .cal-card-select-check { position: absolute; top: 10px; left: 10px; width: 22px; height: 22px; border-radius: 50%;
             background: var(--white); border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center;
             color: transparent; box-shadow: 0 1px 5px rgba(0,0,0,0.18); }
@@ -7899,6 +7903,39 @@
             return isFinite(n) ? n : null;
         } catch { return null; }
     }
+    /* Per-client archive ledger. Archive lives in the Sheet's `status`
+       column, which the Linear-status-sync webhook overwrites — so once
+       a sub-issue's status changes, the BE flips Archived back to In
+       Progress and the card resurrects (sometimes alongside a freshly
+       created duplicate row). This ledger remembers what the user
+       archived in localStorage and filters those rows out client-side,
+       keyed by BOTH the row id and (when present) the Linear sub-issue
+       URL so even a brand-new duplicate row with a different id stays
+       hidden as long as it points at the same Linear issue. */
+    function _calArchivedKey(slug) { return 'syncview_cal_archived_v1_' + slug; }
+    function _calArchivedRefs(slug) {
+        if (!slug) return new Set();
+        try {
+            const arr = JSON.parse(localStorage.getItem(_calArchivedKey(slug)) || '[]');
+            return new Set(Array.isArray(arr) ? arr : []);
+        } catch { return new Set(); }
+    }
+    function _calArchivedAdd(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const s = _calArchivedRefs(slug);
+        refs.filter(Boolean).forEach(r => s.add(String(r)));
+        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
+    }
+    function _calRefsForPost(p) {
+        if (!p) return [];
+        return [p.id, p.linear_issue_id].filter(Boolean);
+    }
+    function _calIsArchivedRef(p, refs) {
+        if (!p || !refs || !refs.size) return false;
+        if (p.id && refs.has(String(p.id))) return true;
+        if (p.linear_issue_id && refs.has(String(p.linear_issue_id))) return true;
+        return false;
+    }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
     function calToggleClientPin(name) {
@@ -8738,12 +8775,15 @@
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
-            calState.posts = cached.posts.map(p => {
-                p.scheduled_date = _calCoerceDate(p.scheduled_date);
-                p.status = _calNormStatus(p.status);
-                p.comments = _calLoadComments(p);
-                return p;
-            });
+            const cacheArchivedRefs = _calArchivedRefs(slug);
+            calState.posts = cached.posts
+                .filter(p => !_calIsArchivedRef(p, cacheArchivedRefs))
+                .map(p => {
+                    p.scheduled_date = _calCoerceDate(p.scheduled_date);
+                    p.status = _calNormStatus(p.status);
+                    p.comments = _calLoadComments(p);
+                    return p;
+                });
             calState.fromCache = true;
             // The shell put a loader in #calBody — paint the cached cards
             // now so the user sees their calendar instead of a spinner
@@ -8794,8 +8834,10 @@
             if (json === TIMEOUT_SENTINEL) throw new Error('Load timed out');
             if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
+            const archivedRefs = _calArchivedRefs(slug);
             const newPosts = (json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
+                .filter(p => !_calIsArchivedRef(p, archivedRefs))
                 .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); p.comments = _calLoadComments(p); return p; });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
@@ -10080,6 +10122,12 @@
                 // Drop the cards from the UI immediately, then fire the archive
                 // requests in parallel in the background — no waiting, no reload.
                 const idSet = new Set(ids);
+                // Capture the refs (id + linear_issue_id) of the posts we're
+                // archiving so we can record successful archives in localStorage
+                // after the BE write — that prevents a later Linear status sync
+                // from resurrecting them by flipping `status` back.
+                const refsById = new Map();
+                calState.posts.forEach(p => { if (idSet.has(p.id)) refsById.set(p.id, _calRefsForPost(p)); });
                 calState.posts = calState.posts.filter(p => !idSet.has(p.id));
                 calState.selectMode = false;
                 calState.selected = new Set();
@@ -10089,6 +10137,14 @@
                 _calRenderBody({ preserveScroll: true });
                 try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
                 const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id)));
+                const okRefs = [];
+                results.forEach((r, i) => {
+                    if (r.status === 'fulfilled') {
+                        const refs = refsById.get(ids[i]);
+                        if (refs) refs.forEach(x => okRefs.push(x));
+                    }
+                });
+                _calArchivedAdd(calClientSlug(calState.client), okRefs);
                 const failed = results.filter(r => r.status === 'rejected').length;
                 if (failed) {
                     showNotify('Some posts were not archived', failed + ' of ' + ids.length + ' could not be archived — reloading the calendar.');
@@ -10102,11 +10158,18 @@
             // Drop the card from the UI immediately, then fire the archive
             // request in the background — matches bulk-archive UX, no spinner wait.
             const snapshot = calState.posts.slice();
+            const target = calState.posts.find(p => p.id === id);
+            const refs = target ? _calRefsForPost(target) : [];
             calState.posts = calState.posts.filter(p => p.id !== id);
             _calRenderBody({ preserveScroll: true });
             try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             try {
                 await _calArchiveOne(id);
+                // Persist the archive locally so a Linear status sync that
+                // flips status back to a non-archived value won't resurrect
+                // this card (and so any duplicate row the sync may create
+                // with the same linear_issue_id stays hidden too).
+                _calArchivedAdd(calClientSlug(calState.client), refs);
             } catch (e) {
                 console.warn('[Calendar] archive failed', e);
                 calState.posts = snapshot;
@@ -10123,6 +10186,7 @@
         strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_calWireDragOnCard);
         _calAutosizeTextareas(strip);
         _calWireShiftScroll(strip);
+        _calWireDragEdgeScroll(strip);
         // Restore the previously-scrolled position (persisted across browser
         // refreshes); fall back to centring the "up next" card. Skipped on a
         // background refresh so the in-memory scroll position holds.
@@ -10161,6 +10225,58 @@
             try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             persistCalReorder(items);
         });
+    }
+    /* Auto-scroll the organizer strip while dragging a card. The browser's
+       native edge-scroll fires only when the pointer is within ~15px of the
+       viewport edge, which is unusably narrow and easy to miss. We use a
+       generous ~110px zone measured against the strip itself and accelerate
+       toward the edge so a card can be moved across a long strip in one go. */
+    function _calWireDragEdgeScroll(strip) {
+        if (!strip || strip.dataset.dragScrollWired === '1') return;
+        strip.dataset.dragScrollWired = '1';
+        const EDGE_PX = 110;          // width of the hot zone at each end
+        const MAX_SPEED = 28;         // pixels per frame at the very edge
+        let lastClientX = null;
+        let active = false;
+        let rafId = null;
+        const tick = () => {
+            rafId = null;
+            if (!active || lastClientX == null) return;
+            const max = strip.scrollWidth - strip.clientWidth;
+            if (max <= 0) { active = false; return; }
+            const rect = strip.getBoundingClientRect();
+            const fromLeft = lastClientX - rect.left;
+            const fromRight = rect.right - lastClientX;
+            let delta = 0;
+            if (fromLeft < EDGE_PX && fromLeft > -EDGE_PX) {
+                delta = -MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromLeft) / EDGE_PX));
+            } else if (fromRight < EDGE_PX && fromRight > -EDGE_PX) {
+                delta = MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromRight) / EDGE_PX));
+            }
+            if (delta !== 0) {
+                const next = Math.max(0, Math.min(max, strip.scrollLeft + delta));
+                if (next !== strip.scrollLeft) strip.scrollLeft = next;
+                rafId = requestAnimationFrame(tick);
+            } else {
+                active = false;
+            }
+        };
+        const onDragOver = (e) => {
+            // Only kick in while a card is being dragged — preventDefault on
+            // the card / strip dragover already happens in the card handler.
+            if (!strip.querySelector('.cal-card.dragging')) return;
+            lastClientX = e.clientX;
+            if (!active) { active = true; if (rafId == null) rafId = requestAnimationFrame(tick); }
+        };
+        const stop = () => { active = false; lastClientX = null; if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; } };
+        strip.addEventListener('dragover', onDragOver);
+        strip.addEventListener('drop', stop);
+        strip.addEventListener('dragleave', (e) => {
+            // Only stop when the pointer actually leaves the strip — dragleave
+            // fires for child elements too, so check relatedTarget.
+            if (!e.relatedTarget || !strip.contains(e.relatedTarget)) stop();
+        });
+        document.addEventListener('dragend', stop);
     }
     function _calWireShiftScroll(el) {
         if (!el || el.dataset.shiftScrollWired === '1') return;

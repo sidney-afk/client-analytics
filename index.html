@@ -2221,11 +2221,10 @@
         .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
         .kcard-smm.is-missing { background: #fef3c7; color: #92400e; }
         .kcard-smm.is-missing .kcard-smm-avatar { background: #d97706; }
-        .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
-        .kcard-slack-btn:hover { background: rgba(74,21,75,0.08); color: #4a154b; }
-        .kcard-slack-btn.is-stub { opacity: 0.45; }
-        .kcard-slack-btn.is-stub:hover { background: rgba(0,0,0,0.06); color: var(--text-muted); }
-        .kcard-slack-btn svg { width: 13px; height: 13px; }
+        .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; padding: 2px 8px; margin-left: 2px; border: 1px solid var(--border); background: var(--white); border-radius: 99px; cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; transition: all 0.12s; }
+        .kcard-slack-btn:hover { border-color: #4a154b; color: #4a154b; background: rgba(74,21,75,0.06); }
+        .kcard-slack-btn.is-stub { opacity: 0.5; }
+        .kcard-slack-btn.is-stub:hover { border-color: var(--border); background: rgba(0,0,0,0.04); color: var(--text-muted); }
         .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #9a3412; background: #ffedd5; padding: 2px 8px; border-radius: 99px; }
         .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .kcard-watch-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; text-decoration: none; }
@@ -13292,7 +13291,7 @@
             ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
             : 'Slack';
         const slackBtn = (smm && smm.name)
-            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button>`
+            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}">Slack</button>`
             : '';
         const smmHtml = smm && smm.name
             ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`

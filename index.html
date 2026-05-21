@@ -2193,10 +2193,6 @@
         .ked-info-panel p { margin: 0 0 8px; }
         .ked-info-panel p:last-child { margin-bottom: 0; }
         .ked-info-panel strong { color: var(--text-primary); }
-        .ked-legend { display: flex; gap: 14px; margin-bottom: 12px; font-size: 0.72rem; color: var(--text-secondary); font-weight: 600; flex-wrap: wrap; }
-        .ked-legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
-        .ked-legend-dot.is-new { background: linear-gradient(180deg,#7c3aed,#5b21b6); }
-        .ked-legend-dot.is-continued { background: linear-gradient(180deg,#f59e0b,#b45309); }
         .ked-list { display: flex; flex-direction: column; gap: 12px; }
         .ked-row { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; transition: box-shadow 0.18s, border-color 0.18s; }
         .ked-row:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); border-color: #d4d4cf; }
@@ -2216,22 +2212,39 @@
         .ked-bars.with-weekend { grid-template-columns: repeat(7, 1fr); }
         .ked-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; }
         .ked-bar-stack { width: 100%; height: 68px; background: var(--bg); border-radius: 6px; display: flex; flex-direction: column-reverse; overflow: hidden; position: relative; }
-        .ked-bar-seg { width: 100%; }
-        .ked-bar-seg.is-new { background: linear-gradient(180deg,#7c3aed,#5b21b6); }
-        .ked-bar-seg.is-continued { background: linear-gradient(180deg,#f59e0b,#b45309); }
+        .ked-bar-seg { width: 100%; background: linear-gradient(180deg,#7c3aed,#5b21b6); }
         .ked-bar-count { position: absolute; top: 4px; left: 0; right: 0; text-align: center; font-size: 0.66rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; pointer-events: none; }
         .ked-bar-stack.is-empty .ked-bar-count { color: var(--text-muted); }
         .ked-bar-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .ked-events { margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 6px; }
-        .ked-event { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 7px 10px; background: var(--bg); border-radius: 8px; font-size: 0.78rem; }
-        .ked-event-kind { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 4px; }
-        .ked-event-kind.is-new { background: rgba(124,58,237,0.14); color: #5b21b6; }
-        .ked-event-kind.is-continued { background: rgba(245,158,11,0.18); color: #92400e; }
-        .ked-event-title { color: var(--text-primary); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .ked-event-id { color: var(--text-muted); font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 6px; }
-        .ked-event-when { color: var(--text-muted); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        .ked-event a { color: inherit; text-decoration: none; }
-        .ked-event a:hover .ked-event-title { color: #5b21b6; text-decoration: underline; }
+
+        /* Per-video timeline cards inside the expanded editor row */
+        .ked-vid-list { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
+        .ked-vid { background: var(--bg); border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; transition: border-color 0.13s, background 0.13s; }
+        .ked-vid:hover { border-color: var(--border); background: var(--white); }
+        .ked-vid-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+        .ked-vid-meta { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
+        .ked-vid-client { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 2px 7px; background: var(--white); border: 1px solid var(--border); border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+        .ked-vid-title { font-size: 0.84rem; font-weight: 600; color: var(--text-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        a.ked-vid-title:hover { color: #5b21b6; text-decoration: underline; }
+        .ked-vid-flow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+        .ked-trn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; line-height: 1.4; }
+        .ked-trn-day { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.7; }
+        .ked-trn-name { font-weight: 600; }
+        .ked-trn-arrow { color: var(--text-muted); font-size: 0.78rem; font-weight: 600; padding: 0 1px; }
+        .ked-trn-empty { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
+        /* Status pill palette — keyed by data-status slug from _kedStatusSlug */
+        .ked-trn[data-status="in-progress"]   { background: #ede9fe; color: #5b21b6; }
+        .ked-trn[data-status="smm"]           { background: #dbeafe; color: #1d4ed8; }
+        .ked-trn[data-status="tweak-applied"] { background: #e0e7ff; color: #3730a3; }
+        .ked-trn[data-status="kasper"]        { background: #ffedd5; color: #9a3412; }
+        .ked-trn[data-status="client"]        { background: #fef3c7; color: #92400e; }
+        .ked-trn[data-status="tweak-needed"]  { background: #fee2e2; color: #991b1b; }
+        .ked-trn[data-status="approved"]      { background: #d1fae5; color: #065f46; }
+        .ked-trn[data-status="posted"]        { background: #cffafe; color: #155e75; }
+        .ked-trn[data-status="todo"]          { background: #f1f5f9; color: #475569; }
+        .ked-trn[data-status="backlog"]       { background: #f1f5f9; color: #475569; }
+        .ked-trn[data-status="canceled"]      { background: #f1f5f9; color: #475569; text-decoration: line-through; }
+        .ked-trn[data-status="other"]         { background: #f1f5f9; color: #475569; }
         .ked-empty-msg { background: var(--white); border: 1px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--text-secondary); font-size: 0.84rem; }
 
         /* Kasper lightbox (reuses calendar's overlay pattern, scoped under .kasper-wrap) */
@@ -13608,12 +13621,11 @@
                 </div>
             </div>
             <div class="ked-info-panel" id="kedInfoPanel" hidden>
-                <p><strong>What is this?</strong> Each VID sub-issue your editors worked on last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
-                <p><span class="ked-legend-dot is-new"></span><strong>New</strong> means a video they started for the first time. <span class="ked-legend-dot is-continued"></span><strong>Continued</strong> means a video they'd already sent for SMM approval at least once before and came back to.</p>
-                <p>A submission counts every time an editor moves a video to <em>For SMM approval</em>. If a video was only moved to <em>In Progress</em> last week (started but not yet submitted), it counts once.</p>
+                <p><strong>What is this?</strong> Each VID sub-issue your editors moved last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
+                <p>The bar shows how many sub-issues each editor sent for review (<em>For&nbsp;SMM&nbsp;approval</em> or <em>Tweak&nbsp;Applied</em>) per day. If a sub-issue was only moved to <em>In&nbsp;Progress</em> last week — started, not yet submitted — it counts once.</p>
+                <p>Open any editor to see every sub-issue they touched, with the full status timeline for the week.</p>
             </div>
             <div id="kedBody"><div class="kasper-loading"><div class="spinner"></div>Pulling last week's work from Linear…</div></div>`;
-        // Reuse cached data if fresh enough (10 min). Otherwise refetch.
         const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
         if (fresh) { _kedPaint(); return; }
         await _kasperLoadEditors(false);
@@ -13676,8 +13688,8 @@
         for (const ed of editors) {
             const perDay = ed.perDay || {};
             for (const k of Object.keys(perDay)) {
-                const sum = (perDay[k].new || 0) + (perDay[k].continued || 0);
-                if (sum > globalDailyMax) globalDailyMax = sum;
+                const v = (perDay[k] && perDay[k].count) || 0;
+                if (v > globalDailyMax) globalDailyMax = v;
             }
         }
         const weekDates = _kedWeekDateKeys(data.weekStart);
@@ -13685,16 +13697,11 @@
             const pd = ed.perDay || {};
             const sat = pd[weekDates[5]?.key];
             const sun = pd[weekDates[6]?.key];
-            return (sat && (sat.new + sat.continued) > 0) || (sun && (sun.new + sun.continued) > 0);
+            return ((sat && sat.count) || 0) + ((sun && sun.count) || 0) > 0;
         });
 
         const rows = editors.map(ed => _kedRow(ed, weekDates, globalDailyMax, anyWeekendActivity)).join('');
-        body.innerHTML = `
-            <div class="ked-legend">
-                <span><span class="ked-legend-dot is-new"></span>New</span>
-                <span><span class="ked-legend-dot is-continued"></span>Continued</span>
-            </div>
-            <div class="ked-list">${rows}</div>`;
+        body.innerHTML = `<div class="ked-list">${rows}</div>`;
     }
 
     function _kedWeekDateKeys(weekStartISO) {
@@ -13728,39 +13735,27 @@
             ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback('${(ed.name || '').replace(/'/g, "\\'")}'))">`
             : _calEsc(_kedInitials(ed.name));
         const bars = days.map(d => {
-            const cell = (ed.perDay || {})[d.key] || { new: 0, continued: 0 };
-            const newCount = cell.new || 0;
-            const contCount = cell.continued || 0;
-            const total = newCount + contCount;
-            const pctTotal = Math.max(0, Math.min(1, total / globalDailyMax));
-            const heightPct = total > 0 ? Math.max(0.12, pctTotal) * 100 : 0;
-            const newShare = total > 0 ? (newCount / total) * heightPct : 0;
-            const contShare = total > 0 ? (contCount / total) * heightPct : 0;
-            const newSeg  = newCount  > 0 ? `<div class="ked-bar-seg is-new" style="height:${newShare.toFixed(2)}%;"></div>` : '';
-            const contSeg = contCount > 0 ? `<div class="ked-bar-seg is-continued" style="height:${contShare.toFixed(2)}%;"></div>` : '';
-            const titleParts = [];
-            if (newCount) titleParts.push(newCount + ' new');
-            if (contCount) titleParts.push(contCount + ' continued');
-            const titleText = titleParts.length ? `${d.label}: ${titleParts.join(' + ')}` : `${d.label}: nothing`;
+            const cell = (ed.perDay || {})[d.key] || { count: 0 };
+            const count = cell.count || 0;
+            const pct = Math.max(0, Math.min(1, count / globalDailyMax));
+            const heightPct = count > 0 ? Math.max(0.12, pct) * 100 : 0;
+            const seg = count > 0 ? `<div class="ked-bar-seg" style="height:${heightPct.toFixed(2)}%;"></div>` : '';
+            const titleText = count > 0 ? `${d.label}: ${count} status change${count === 1 ? '' : 's'}` : `${d.label}: nothing`;
             return `<div class="ked-bar">
-                <div class="ked-bar-stack${total === 0 ? ' is-empty' : ''}" title="${titleText}">
-                    ${newSeg}${contSeg}
-                    <div class="ked-bar-count">${total || '·'}</div>
+                <div class="ked-bar-stack${count === 0 ? ' is-empty' : ''}" title="${titleText}">
+                    ${seg}
+                    <div class="ked-bar-count">${count || '·'}</div>
                 </div>
                 <div class="ked-bar-label">${d.label}</div>
             </div>`;
         }).join('');
-        const continued = ed.continuedSubmissions || 0;
-        const breakdownParts = [`${ed.newSubmissions} new`];
-        if (continued) breakdownParts.push(`${continued} continued`);
-        breakdownParts.push(`${ed.distinctVideos} video${ed.distinctVideos === 1 ? '' : 's'}`);
-        const events = expanded ? _kedEvents(ed.events || []) : '';
+        const videosBlock = expanded ? _kedVideos(ed.videos || []) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}" data-ked-key="${_calEscAttr(key)}">
             <div class="ked-row-head" onclick="_kasperToggleEditor('${_calEscAttr(key)}')">
                 <div class="ked-avatar">${avatarHtml}</div>
                 <div class="ked-id">
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
-                    <div class="ked-id-breakdown">${breakdownParts.join(' · ')}</div>
+                    <div class="ked-id-breakdown">${ed.distinctVideos} video${ed.distinctVideos === 1 ? '' : 's'} · ${ed.totalEvents} status change${ed.totalEvents === 1 ? '' : 's'}</div>
                 </div>
                 <div class="ked-row-avg">
                     <span class="ked-avg-val">${ed.avgPerWorkday.toFixed(2)}</span>
@@ -13769,38 +13764,76 @@
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
             </div>
             <div class="ked-bars${showWeekend ? ' with-weekend' : ''}">${bars}</div>
-            ${events}
+            ${videosBlock}
         </div>`;
+    }
+
+    // Map a Linear state name to a stable slug used for the pill colour.
+    function _kedStatusSlug(name) {
+        const n = String(name || '').toLowerCase().trim();
+        if (!n) return 'other';
+        if (/^in\s*progress/.test(n))     return 'in-progress';
+        if (/smm/.test(n))                return 'smm';
+        if (/^tweak\s*applied/.test(n))   return 'tweak-applied';
+        if (/kasper/.test(n))             return 'kasper';
+        if (/client/.test(n))             return 'client';
+        if (/tweak\s*needed/.test(n))     return 'tweak-needed';
+        if (/^approved/.test(n))          return 'approved';
+        if (/^posted/.test(n))            return 'posted';
+        if (/^todo|^to do/.test(n))       return 'todo';
+        if (/^backlog/.test(n))           return 'backlog';
+        if (/^cancel/.test(n))            return 'canceled';
+        if (/^triage/.test(n))            return 'todo';
+        if (/^duplicate/.test(n))         return 'canceled';
+        return 'other';
+    }
+    function _kedStatusShort(name) {
+        const n = String(name || '').trim();
+        if (/^for\s+smm\s+approval$/i.test(n))    return 'For SMM';
+        if (/^for\s+kasper\s+approval$/i.test(n)) return 'For Kasper';
+        if (/^for\s+client\s+approval$/i.test(n)) return 'For Client';
+        if (/^tweak\s*needed/i.test(n))           return 'Tweak Needed';
+        if (/^tweak\s*applied/i.test(n))          return 'Tweak Applied';
+        return n.replace(/\s+/g, ' ');
+    }
+
+    function _kedVideos(videos) {
+        if (!videos.length) return '';
+        const cards = videos.map(v => {
+            const transitions = (v.transitions || []);
+            // Drop the bare ID (VID-…) — show project (= client) + title only.
+            const clientHtml = v.clientName
+                ? `<span class="ked-vid-client">${_calEsc(v.clientName)}</span>`
+                : '';
+            const titleHtml = v.url
+                ? `<a class="ked-vid-title" href="${_calEscAttr(v.url)}" target="_blank" rel="noopener">${_calEsc(v.title || 'Untitled')}</a>`
+                : `<span class="ked-vid-title">${_calEsc(v.title || 'Untitled')}</span>`;
+            const flow = transitions.length
+                ? transitions.map((t, i) => {
+                    const slug = _kedStatusSlug(t.status);
+                    const tip = `${t.weekday} ${t.time} — ${t.from ? t.from.trim() + ' → ' : ''}${t.status.trim()}`;
+                    const pill = `<span class="ked-trn" data-status="${slug}" title="${_calEscAttr(tip)}">
+                        <span class="ked-trn-day">${_calEsc(t.weekday)}</span>
+                        <span class="ked-trn-name">${_calEsc(_kedStatusShort(t.status))}</span>
+                    </span>`;
+                    const arrow = i < transitions.length - 1 ? '<span class="ked-trn-arrow" aria-hidden="true">→</span>' : '';
+                    return pill + arrow;
+                }).join('')
+                : `<span class="ked-trn-empty">No status changes in window</span>`;
+            return `<article class="ked-vid">
+                <header class="ked-vid-head">
+                    <div class="ked-vid-meta">${clientHtml}${titleHtml}</div>
+                </header>
+                <div class="ked-vid-flow">${flow}</div>
+            </article>`;
+        }).join('');
+        return `<div class="ked-vid-list">${cards}</div>`;
     }
 
     function _kedAvatarFallback(name) {
         const span = document.createElement('span');
         span.textContent = _kedInitials(name);
         return span;
-    }
-
-    function _kedEvents(events) {
-        if (!events.length) return '';
-        // Chronological newest first inside the drilldown.
-        const ordered = events.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-        const rows = ordered.map(ev => {
-            const t = Date.parse(ev.createdAt);
-            const whenStr = isFinite(t)
-                ? new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit' }).format(new Date(t))
-                : '';
-            const title = ev.title || ev.identifier || 'Untitled';
-            const idChip = ev.identifier ? `<span class="ked-event-id">${_calEsc(ev.identifier)}</span>` : '';
-            const inner = `${idChip}<span class="ked-event-title">${_calEsc(title)}</span>`;
-            const titleCell = ev.url
-                ? `<a href="${_calEscAttr(ev.url)}" target="_blank" rel="noopener" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${inner}</a>`
-                : `<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${inner}</span>`;
-            return `<div class="ked-event">
-                <span class="ked-event-kind is-${ev.kind === 'new' ? 'new' : 'continued'}">${ev.kind === 'new' ? 'New' : 'Continued'}</span>
-                ${titleCell}
-                <span class="ked-event-when">${_calEsc(whenStr)}</span>
-            </div>`;
-        }).join('');
-        return `<div class="ked-events">${rows}</div>`;
     }
 
     function _kasperToggleEditor(key) {

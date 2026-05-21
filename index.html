@@ -2284,6 +2284,8 @@
     const TIKTOK_UPLOAD_CANCEL_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-cancel';
     const TIKTOK_FORM_KEY          = 'syncview_tiktokUploadForm_v1';
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
+    const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
+    const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // upload-post.com / TikTok limit
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
@@ -10881,12 +10883,13 @@
         .tk-drop-icon { width: 36px; height: 36px; margin: 0 auto 10px; display: grid; place-items: center; border-radius: 50%; background: var(--white); border: 1px solid var(--border); }
         .tk-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
         .tk-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
-        .tk-file-card { display: flex; gap: 14px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
-        .tk-file-card video { width: 110px; height: 165px; border-radius: 8px; background: #000; object-fit: cover; flex-shrink: 0; }
-        .tk-file-meta { flex: 1; min-width: 0; }
+        .tk-file-card { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+        .tk-file-card video { width: 100%; max-width: 320px; aspect-ratio: 9 / 16; border-radius: 10px; background: #000; object-fit: contain; }
+        .tk-file-meta { width: 100%; min-width: 0; display: flex; align-items: center; gap: 12px; }
+        .tk-file-meta-text { flex: 1; min-width: 0; }
         .tk-file-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tk-file-size { font-size: 0.76rem; color: var(--text-secondary); margin-top: 4px; }
-        .tk-file-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .tk-file-actions { display: flex; gap: 6px; flex-shrink: 0; }
         .tk-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
         .tk-mini-btn:hover { color: var(--text-primary); border-color: #aaa; }
         .tk-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
@@ -10988,6 +10991,29 @@
     function _tkSavePending(list) {
         try { localStorage.setItem(TIKTOK_PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {}
     }
+    function _tkLoadHidden() {
+        try { return new Set(JSON.parse(localStorage.getItem(TIKTOK_HIDDEN_KEY) || '[]')); } catch { return new Set(); }
+    }
+    function _tkSaveHidden(set) {
+        try { localStorage.setItem(TIKTOK_HIDDEN_KEY, JSON.stringify([...set].slice(0, 200))); } catch {}
+    }
+    function _tkPrunePending(rows) {
+        // Drop optimistic rows that the server still hasn't acknowledged after the TTL —
+        // they're almost always failed uploads where the n8n workflow errored before writing to Sheets.
+        const cutoff = Date.now() - TIKTOK_OPTIMISTIC_TTL_MS;
+        return rows.filter(r => {
+            if (!r.optimistic) return true;
+            const t = Date.parse(r.created_at || '');
+            return !Number.isFinite(t) || t > cutoff;
+        });
+    }
+    function _tkEffectiveStatus(r) {
+        const s = String(r.status || '').toLowerCase();
+        // upload-post.com returned success synchronously (we have an id) — treat as posted
+        // even if the workflow never flipped status off "uploading".
+        if (s === 'uploading' && r.upload_post_id) return 'posted';
+        return s || 'queued';
+    }
 
     function renderTiktokUploadView() {
         _tkInjectCSSOnce();
@@ -11026,10 +11052,12 @@
         if (tkState.file) {
             mediaCard = `
                 <div class="tk-file-card">
-                    <video id="tkFilePreview" src="${_tkEscape(tkState.objectUrl)}" muted playsinline controls></video>
+                    <video id="tkFilePreview" src="${_tkEscape(tkState.objectUrl)}" playsinline controls preload="metadata"></video>
                     <div class="tk-file-meta">
-                        <div class="tk-file-name">${_tkEscape(tkState.file.name)}</div>
-                        <div class="tk-file-size">${_tkFormatBytes(tkState.file.size)} · ${_tkEscape(tkState.file.type || 'video')}</div>
+                        <div class="tk-file-meta-text">
+                            <div class="tk-file-name">${_tkEscape(tkState.file.name)}</div>
+                            <div class="tk-file-size">${_tkFormatBytes(tkState.file.size)} · ${_tkEscape(tkState.file.type || 'video')}</div>
+                        </div>
                         <div class="tk-file-actions">
                             <button class="tk-mini-btn" onclick="_tkReplaceFile()">Replace</button>
                             <button class="tk-mini-btn" onclick="_tkClearFile()">Remove</button>
@@ -11402,10 +11430,11 @@
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
-            tkState.uploads = _tkMergeUploads(_tkLoadPending(), rows);
-            // Trim local pending list of rows the server now knows about.
+            const prunedPending = _tkPrunePending(_tkLoadPending());
+            tkState.uploads = _tkMergeUploads(prunedPending, rows);
+            // Trim local pending list of rows the server now knows about, plus stale optimistic ones.
             const knownIds = new Set(rows.map(r => r.id));
-            _tkSavePending(_tkLoadPending().filter(r => !knownIds.has(r.id)));
+            _tkSavePending(prunedPending.filter(r => !knownIds.has(r.id)));
             _tkRenderQueue();
         } catch (e) {
             // Surface only on the very first failure — keep retrying quietly afterwards.
@@ -11421,14 +11450,16 @@
         if (!col) return;
         col.dataset.everLoaded = '1';
 
-        const upcoming = tkState.uploads.filter(r => ['queued', 'uploading', 'scheduled'].includes((r.status || '').toLowerCase()));
-        const recent   = tkState.uploads.filter(r => !['queued', 'uploading', 'scheduled'].includes((r.status || '').toLowerCase())).slice(0, 8);
+        const hidden = _tkLoadHidden();
+        const visible = tkState.uploads.filter(r => !hidden.has(r.id));
+        const upcoming = visible.filter(r => ['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r)));
+        const recent   = visible.filter(r => !['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
 
         const itemHTML = (r) => {
             const when = r.scheduled_for
                 ? new Date(r.scheduled_for).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
-            const status = (r.status || 'queued').toLowerCase();
+            const status = _tkEffectiveStatus(r);
             const actions = [];
             if (status === 'scheduled' || status === 'queued') {
                 actions.push(`<button class="tk-mini-btn" onclick="_tkCancelRow('${_tkEscape(r.id)}')">Cancel</button>`);
@@ -11439,6 +11470,7 @@
             if (r.tiktok_url) {
                 actions.push(`<a class="tk-mini-btn" href="${_tkEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
             }
+            actions.push(`<button class="tk-mini-btn" onclick="_tkDismissRow('${_tkEscape(r.id)}')">Dismiss</button>`);
             return `
                 <div class="tk-queue-item">
                     <div class="tk-queue-top">
@@ -11479,6 +11511,17 @@
         }, 'Cancel upload');
     }
 
+    function _tkDismissRow(id) {
+        // Remove from local optimistic list and from the rendered queue. Server rows are
+        // hidden via a localStorage "hidden ids" set — they stay on the sheet for audit.
+        _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
+        const hidden = _tkLoadHidden();
+        hidden.add(id);
+        _tkSaveHidden(hidden);
+        tkState.uploads = tkState.uploads.filter(r => r.id !== id);
+        _tkRenderQueue();
+    }
+
     async function _tkRetryRow(id) {
         try {
             const r = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' });
@@ -11506,7 +11549,7 @@
             tkState.profile = r.profile;
             tkState.profileSource = r.source;
         }
-        tkState.uploads = _tkLoadPending();   // optimistic rows show instantly
+        tkState.uploads = _tkPrunePending(_tkLoadPending());   // optimistic rows show instantly
         _tkRenderForm();
         _tkRenderQueue();
         _tkFetchQueue();
@@ -11520,6 +11563,7 @@
     window._tkCancelUpload = _tkCancelUpload;
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;
+    window._tkDismissRow = _tkDismissRow;
 </script>
 
 <!-- Transcript preview modal -->

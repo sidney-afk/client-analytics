@@ -12992,9 +12992,10 @@
 
         try {
             // SMM sheet + every client's calendar in parallel.
+            // forceRefresh propagates so the Refresh button bypasses the 5-min cache.
             const [smmMap, fetched] = await Promise.all([
                 _kasperLoadSMMMap(),
-                _kasperFetchAllRelevantPosts(),
+                _kasperFetchAllRelevantPosts(forceRefresh),
             ]);
             _kasperState.smmByClient = smmMap;
             const items = fetched.queue;
@@ -13065,24 +13066,37 @@
         }
     }
 
-    async function _kasperFetchAllRelevantPosts() {
-        // Fetch every allowed client's calendar in parallel and split the result
-        // into the live review queue ("Kasper Approval") and a history slice
-        // (anything Casper has previously approved, identified by either an
-        // explicit kasper_approved_at timestamp on the row or — fallback for
-        // sheets without that column yet — a status that comes after Kasper
-        // Approval in the lifecycle).
-        const downstream = new Set(['Client Approval', 'Tweaks Needed', 'Approved', 'Posted']);
-        const settled = await Promise.allSettled(WL_CLIENT_NAMES.map(async client => {
+    const KASPER_CAL_CACHE_TTL = 5 * 60 * 1000;
+    const KASPER_CAL_CONCURRENCY = 5;             // Sheets-backed calendar-get hits Google's per-user quota beyond ~5 in flight.
+    function _kasperCalCacheKey(slug) { return 'syncview_kasper_cal_' + slug + '_v1'; }
+    function _kasperCalCacheRead(slug) {
+        try {
+            const raw = localStorage.getItem(_kasperCalCacheKey(slug));
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.savedAt || !parsed.data) return null;
+            if (Date.now() - parsed.savedAt >= KASPER_CAL_CACHE_TTL) return null;
+            return parsed.data;
+        } catch { return null; }
+    }
+    function _kasperCalCacheWrite(slug, json) {
+        try { localStorage.setItem(_kasperCalCacheKey(slug), JSON.stringify({ data: json, savedAt: Date.now() })); } catch {}
+    }
+
+    async function _kasperFetchAllRelevantPosts(forceRefresh) {
+        // Fetch every allowed client's calendar and split the result into the
+        // live review queue ("Kasper Approval") and a history slice (anything
+        // Casper has previously approved, identified by either an explicit
+        // kasper_approved_at timestamp on the row or — fallback for sheets
+        // without that column yet — a status that comes after Kasper Approval
+        // in the lifecycle). Throttled to KASPER_CAL_CONCURRENCY in-flight to
+        // avoid stampeding the Google-Sheets-backed calendar-get webhook.
+        const extract = (client, json) => {
             const slug = wlNormalizeClient(client);
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            if (!resp.ok) throw new Error('Bad response for ' + client);
-            const json = await resp.json();
-            if (!json || !json.ok) return { queue: [], history: [] };
             // Apply the same Linear-issue dedupe the calendar view uses so a
             // double-synced row (e.g. status flipped twice on a Linear sub-issue
             // that already had a card) doesn't surface twice in the queue.
-            const rawPosts = _calDedupeByLinearIssue(json.posts || []);
+            const rawPosts = _calDedupeByLinearIssue((json && json.posts) || []);
             const queue = [];
             const history = [];
             const seenIds = new Set();
@@ -13102,7 +13116,31 @@
                 }
             }
             return { queue, history };
-        }));
+        };
+        const fetchOne = async (client) => {
+            const slug = wlNormalizeClient(client);
+            if (!forceRefresh) {
+                const cached = _kasperCalCacheRead(slug);
+                if (cached && cached.ok) return extract(client, cached);
+            }
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            if (!resp.ok) throw new Error('Bad response for ' + client);
+            const json = await resp.json();
+            if (json && json.ok) _kasperCalCacheWrite(slug, json);
+            if (!json || !json.ok) return { queue: [], history: [] };
+            return extract(client, json);
+        };
+        const pending = WL_CLIENT_NAMES.slice();
+        const settled = [];
+        const worker = async () => {
+            while (pending.length) {
+                const client = pending.shift();
+                try { settled.push({ status: 'fulfilled', value: await fetchOne(client) }); }
+                catch (reason) { settled.push({ status: 'rejected', reason }); }
+            }
+        };
+        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, WL_CLIENT_NAMES.length);
+        await Promise.all(Array.from({ length: workerCount }, worker));
         const queueOut = [];
         const historyOut = [];
         const queueIds = new Set();

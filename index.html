@@ -8745,6 +8745,14 @@
                 return p;
             });
             calState.fromCache = true;
+            // The shell put a loader in #calBody — paint the cached cards
+            // now so the user sees their calendar instead of a spinner
+            // while we revalidate. Without this, when the network response
+            // matches cache (dataChanged=false) the finally-block skips
+            // the render and the loader stays on screen forever.
+            calState.loading = false;
+            calState.error = null;
+            _calRenderBody();
         }
         // Background refresh (tab regained focus, or we just primed cache):
         // keep the current calendar on screen and show a small spinner

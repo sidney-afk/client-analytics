@@ -2198,7 +2198,7 @@
         </a>
         <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="event.preventDefault();navTo('calendar')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            Internal Calendar
+            Calendar
         </a>
         <a class="header-nav-btn" id="navSamples" href="#samples" onclick="event.preventDefault();navTo('samples')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
@@ -7868,6 +7868,7 @@
         embedded: false,
         zoom: 'default',
         selectMode: false,
+        selectAction: 'archive',
         selected: new Set(),
         lastSel: null,
     };
@@ -8504,6 +8505,211 @@
             <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport();loadCalendarPosts();">Done</button></div>`;
     }
 
+    /* ── Bulk Linear sync ─────────────────────────────────────────────
+       Lets the user select existing calendar cards, paste a Linear parent
+       URL, and link each card to a matching sub-issue by name. */
+    let _calBulkLinkSubs = null;
+    let _calBulkLinkParent = null;
+    let _calBulkLinkPosts = null;   // [{ pid, name, subIdx }]
+    function openCalBulkLinearSync() {
+        if (!calState.client) return;
+        if (calState.view !== 'organizer') {
+            onCalViewChange('organizer');
+        }
+        if (!calState.selectMode || calState.selectAction !== 'link') {
+            _calToggleSelectMode('link');
+        }
+    }
+    function _calOpenBulkLinkOverlay() {
+        const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
+        if (!ids.length) return;
+        _calBulkLinkSubs = null;
+        _calBulkLinkParent = null;
+        _calBulkLinkPosts = ids.map(pid => {
+            const p = calState.posts.find(x => x.id === pid);
+            return { pid, name: p ? (p.name || '') : '', subIdx: -1 };
+        });
+        const ovl = document.getElementById('calBulkLinkOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _calRenderBulkLinkStart();
+    }
+    function closeCalBulkLinkOverlay() {
+        const ovl = document.getElementById('calBulkLinkOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+    }
+    function _calRenderBulkLinkStart(prefillUrl, errMsg) {
+        const modal = document.getElementById('calBulkLinkModal');
+        if (!modal) return;
+        const n = (_calBulkLinkPosts || []).length;
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
+                <h3>Bulk Linear sync</h3>
+                <p>Paste the link to a Linear <strong>parent issue</strong>. Its sub-issues will be matched by name against the <strong>${n}</strong> selected card${n === 1 ? '' : 's'}.</p>
+            </div>
+            <div class="cal-import-body">
+                <input class="cal-linear-import-input" id="calBulkLinkUrl" type="url" placeholder="https://linear.app/team/issue/VID-123/…" value="${_calEscAttr(prefillUrl || '')}">
+                ${errMsg ? `<div class="cal-import-err">${_calEsc(errMsg)}</div>` : ''}
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="closeCalBulkLinkOverlay()">Cancel</button>
+                <button class="cal-import-btn-primary" onclick="_calBulkLinkFetch()">Fetch sub-issues</button>
+            </div>`;
+        const inp = document.getElementById('calBulkLinkUrl');
+        if (inp) { inp.focus(); inp.addEventListener('keydown', e => { if (e.key === 'Enter') _calBulkLinkFetch(); }); }
+    }
+    async function _calBulkLinkFetch() {
+        const inp = document.getElementById('calBulkLinkUrl');
+        const url = inp ? inp.value.trim() : '';
+        if (!url) { _calRenderBulkLinkStart('', 'Paste a Linear parent-issue link first.'); return; }
+        const modal = document.getElementById('calBulkLinkModal');
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.error || 'Linear lookup failed');
+            const subs = json.subIssues || [];
+            if (!subs.length) { _calRenderBulkLinkStart(url, 'That issue has no sub-issues to match.'); return; }
+            subs.sort((a, b) => _calSubNum(a) - _calSubNum(b));
+            _calBulkLinkSubs = subs;
+            _calBulkLinkParent = json.parent || null;
+            _calBulkLinkAutoMatch();
+            _calRenderBulkLinkMatch(url);
+        } catch (e) {
+            _calRenderBulkLinkStart(url, e.message || 'Could not reach Linear.');
+        }
+    }
+    function _calBulkLinkNormName(s) {
+        return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    }
+    function _calBulkLinkAutoMatch() {
+        if (!_calBulkLinkSubs || !_calBulkLinkPosts) return;
+        const used = new Set();
+        _calBulkLinkPosts.forEach(row => {
+            const target = _calBulkLinkNormName(row.name);
+            if (!target) { row.subIdx = -1; return; }
+            let idx = _calBulkLinkSubs.findIndex((s, i) => !used.has(i) && _calBulkLinkNormName(s.title) === target);
+            if (idx < 0) {
+                idx = _calBulkLinkSubs.findIndex((s, i) => {
+                    if (used.has(i)) return false;
+                    const t = _calBulkLinkNormName(s.title);
+                    return t && (t.includes(target) || target.includes(t));
+                });
+            }
+            row.subIdx = idx;
+            if (idx >= 0) used.add(idx);
+        });
+    }
+    function _calRenderBulkLinkMatch(prefillUrl) {
+        const modal = document.getElementById('calBulkLinkModal');
+        if (!modal || !_calBulkLinkSubs || !_calBulkLinkPosts) return;
+        const subs = _calBulkLinkSubs;
+        const rows = _calBulkLinkPosts.map((row, i) => {
+            const post = calState.posts.find(p => p.id === row.pid);
+            const curUrl = post ? String(post.linear_issue_id || '').trim() : '';
+            const options = ['<option value="-1">— No match —</option>']
+                .concat(subs.map((s, si) => `<option value="${si}"${row.subIdx === si ? ' selected' : ''}>${_calEsc((s.identifier ? s.identifier + ' · ' : '') + (s.title || 'Untitled'))}</option>`))
+                .join('');
+            const matched = row.subIdx >= 0;
+            return `<div class="cal-linear-sub" data-bulk-row="${i}">
+                <span class="cal-linear-sub-main" style="flex:1;min-width:0">
+                    <span class="cal-linear-sub-title">${_calEsc(row.name || 'Untitled')}</span>
+                    <span class="cal-linear-sub-meta">${matched ? 'Matched' : 'No match yet'}${curUrl ? ' · already linked (will overwrite)' : ''}</span>
+                </span>
+                <select class="cal-linear-import-input" style="width:auto;flex:1;min-width:0" data-bulk-idx="${i}" onchange="_calBulkLinkPick(this)">${options}</select>
+            </div>`;
+        }).join('');
+        const matchedCount = _calBulkLinkPosts.filter(r => r.subIdx >= 0).length;
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
+                <h3>Match cards to sub-issues</h3>
+                <p>${_calBulkLinkParent && _calBulkLinkParent.title ? `From <strong>${_calEsc(_calBulkLinkParent.title)}</strong>. ` : ''}Names were matched automatically — adjust any that look wrong before applying.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-linear-sub-bar">
+                    <span class="cal-linear-sub-count">${matchedCount} of ${_calBulkLinkPosts.length} matched</span>
+                </div>
+                <div class="cal-linear-sub-list">${rows}</div>
+                <div id="calBulkLinkErr"></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="_calRenderBulkLinkStart('${_calEscAttr(prefillUrl || '')}')">Back</button>
+                <button class="cal-import-btn-primary" id="calBulkLinkRun" onclick="_calBulkLinkApply()" ${matchedCount ? '' : 'disabled'}>Link ${matchedCount} card${matchedCount === 1 ? '' : 's'}</button>
+            </div>`;
+    }
+    function _calBulkLinkPick(sel) {
+        if (!_calBulkLinkPosts) return;
+        const i = +sel.dataset.bulkIdx;
+        const v = +sel.value;
+        _calBulkLinkPosts[i].subIdx = isNaN(v) ? -1 : v;
+        const matchedCount = _calBulkLinkPosts.filter(r => r.subIdx >= 0).length;
+        const btn = document.getElementById('calBulkLinkRun');
+        if (btn) {
+            btn.disabled = matchedCount === 0;
+            btn.textContent = 'Link ' + matchedCount + ' card' + (matchedCount === 1 ? '' : 's');
+        }
+        const bar = document.querySelector('#calBulkLinkModal .cal-linear-sub-count');
+        if (bar) bar.textContent = matchedCount + ' of ' + _calBulkLinkPosts.length + ' matched';
+        const row = sel.closest('.cal-linear-sub');
+        if (row) {
+            const meta = row.querySelector('.cal-linear-sub-meta');
+            if (meta) {
+                const pid = _calBulkLinkPosts[i].pid;
+                const post = calState.posts.find(p => p.id === pid);
+                const curUrl = post ? String(post.linear_issue_id || '').trim() : '';
+                meta.textContent = (_calBulkLinkPosts[i].subIdx >= 0 ? 'Matched' : 'No match yet') + (curUrl ? ' · already linked (will overwrite)' : '');
+            }
+        }
+    }
+    async function _calBulkLinkApply() {
+        if (!_calBulkLinkPosts || !_calBulkLinkSubs) return;
+        const work = _calBulkLinkPosts.filter(r => r.subIdx >= 0 && _calBulkLinkSubs[r.subIdx] && _calBulkLinkSubs[r.subIdx].url);
+        if (!work.length) {
+            const err = document.getElementById('calBulkLinkErr');
+            if (err) err.innerHTML = `<div class="cal-import-err">Pick at least one sub-issue to link.</div>`;
+            return;
+        }
+        const modal = document.getElementById('calBulkLinkModal');
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Linking…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calBulkLinkProg">Linking 0 / ${work.length}…</div></div>`;
+        const setProg = (msg) => { const p = document.getElementById('calBulkLinkProg'); if (p) p.textContent = msg; };
+        let done = 0, failed = 0;
+        for (const row of work) {
+            const sub = _calBulkLinkSubs[row.subIdx];
+            const url = sub && sub.url ? String(sub.url) : '';
+            const post = calState.posts.find(p => p.id === row.pid);
+            if (!post || !url) { failed++; done++; setProg(`Linking ${done} / ${work.length}…`); continue; }
+            post.linear_issue_id = url;
+            if (!_calPendingEdits[row.pid]) _calPendingEdits[row.pid] = {};
+            _calPendingEdits[row.pid].linear_issue_id = url;
+            _calArchivedRemove(calClientSlug(calState.client), [url]);
+            try {
+                await _calFlushCardSave(row.pid);
+            } catch (e) { failed++; }
+            done++;
+            setProg(`Linking ${done} / ${work.length}…`);
+        }
+        const ok = work.length - failed;
+        modal.innerHTML = `
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Linked</h3>
+                <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.</p></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
+    }
+    function _calBulkLinkFinish() {
+        closeCalBulkLinkOverlay();
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+        _calBulkLinkSubs = null;
+        _calBulkLinkParent = null;
+        _calBulkLinkPosts = null;
+        _calRenderBody({ preserveScroll: true });
+    }
+
     /* Bulk-upsert a batch of new posts to the calendar sheet. Sends them
        one at a time with a small gap between calls — the n8n upsert
        workflow appears to ack the HTTP response before the Sheets write
@@ -9000,6 +9206,7 @@
                     <div class="cal-kebab-menu" id="calKebabMenu" hidden>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                     </div>
                 </div>`
             : '';
@@ -9038,6 +9245,9 @@
             </div>
             <div class="cal-import-overlay" id="calLinearImportOverlay" onclick="if(event.target===this)closeCalLinearImport()">
                 <div class="cal-import-modal" id="calLinearImportModal"></div>
+            </div>
+            <div class="cal-import-overlay" id="calBulkLinkOverlay" onclick="if(event.target===this)closeCalBulkLinkOverlay()">
+                <div class="cal-import-modal" id="calBulkLinkModal"></div>
             </div>
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
@@ -9427,6 +9637,7 @@
         _calSavePrefs();
         if (v !== 'organizer' && calState.selectMode) {
             calState.selectMode = false;
+            calState.selectAction = 'archive';
             calState.selected = new Set();
             calState.lastSel = null;
         }
@@ -9544,10 +9755,14 @@
             : (empty
                 ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
                 : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`);
+        const isLinkAction = calState.selectAction === 'link';
+        const actionBtn = isLinkAction
+            ? `<button type="button" class="cal-select-archive" id="calSelectArchive" style="background:#5e6ad2" onclick="_calOpenBulkLinkOverlay()" disabled>Match to Linear</button>`
+            : `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
         const selectBar = (calState.selectMode && !_isClientLink)
             ? `<div class="cal-select-bar" id="calSelectBar">
                     <span class="cal-select-count" id="calSelectCount">0 selected</span>
-                    <button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>
+                    ${actionBtn}
                     <button type="button" class="cal-select-cancel" onclick="_calToggleSelectMode()">Done</button>
                 </div>`
             : '';
@@ -10154,8 +10369,19 @@
         calState.posts = calState.posts.filter(p => p.id !== id);
         try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
     }
-    function _calToggleSelectMode() {
-        calState.selectMode = !calState.selectMode;
+    function _calToggleSelectMode(action) {
+        if (action) {
+            if (calState.selectMode && calState.selectAction === action) {
+                calState.selectMode = false;
+                calState.selectAction = 'archive';
+            } else {
+                calState.selectMode = true;
+                calState.selectAction = action;
+            }
+        } else {
+            calState.selectMode = !calState.selectMode;
+            calState.selectAction = 'archive';
+        }
         calState.selected = new Set();
         calState.lastSel = null;
         const btn = document.querySelector('.cal-select-btn');
@@ -10208,6 +10434,7 @@
                 calState.posts.forEach(p => { if (idSet.has(p.id)) refsById.set(p.id, _calRefsForPost(p)); });
                 calState.posts = calState.posts.filter(p => !idSet.has(p.id));
                 calState.selectMode = false;
+                calState.selectAction = 'archive';
                 calState.selected = new Set();
                 calState.lastSel = null;
                 const btn = document.querySelector('.cal-select-btn');

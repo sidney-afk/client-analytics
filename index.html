@@ -2141,6 +2141,113 @@
         .cal-cm-send svg { width: 14px; height: 14px; }
         .cal-cm-replying-to { font-size: 0.7rem; color: var(--text-muted); padding: 0 4px 6px; display: flex; align-items: center; gap: 6px; }
         .cal-cm-replying-to strong { color: var(--text-primary); font-weight: 800; }
+
+        /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
+        .kasper-wrap { max-width: 1100px; margin: 0 auto; }
+        .kasper-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+        .kasper-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+        .kasper-sub { font-size: 0.85rem; color: var(--text-secondary); }
+        .kasper-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: max-content; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+        .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+        .kasper-subtab:hover { color: var(--text-primary); background: var(--bg); }
+        .kasper-subtab.active { background: var(--text-primary); color: var(--white); }
+        .kasper-subtab .kasper-tab-count { background: rgba(255,255,255,0.18); color: inherit; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        .kasper-subtab:not(.active) .kasper-tab-count { background: var(--bg); color: var(--text-muted); }
+        .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
+        .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
+        .kasper-refresh-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+        .kasper-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
+        .kasper-refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .kasper-refresh-btn svg { width: 12px; height: 12px; }
+        .kasper-refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+        .kasper-loading { display: flex; align-items: center; justify-content: center; padding: 80px 20px; gap: 14px; color: var(--text-secondary); font-size: 0.86rem; }
+        .kasper-loading .spinner { width: 22px; height: 22px; }
+        .kasper-empty { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+        .kasper-empty-icon { width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 16px; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--text-muted); }
+        .kasper-empty-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .kasper-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
+        .kasper-list { display: flex; flex-direction: column; gap: 12px; }
+
+        /* Card */
+        .kcard { background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow 0.18s, border-color 0.18s; }
+        .kcard:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.07); border-color: #d4d4cf; }
+        .kcard.expanded { box-shadow: 0 6px 24px rgba(0,0,0,0.09); border-color: #c9c9c4; }
+        .kcard-strip { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; padding: 12px; align-items: center; cursor: pointer; }
+        .kcard-thumb { position: relative; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg,#f3f3f1,#e6e6e0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .kcard-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .kcard-thumb.is-fallback { color: var(--text-muted); }
+        .kcard-thumb-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.15s; }
+        .kcard-thumb-play svg { width: 30px; height: 30px; color: #fff; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.4)); }
+        .kcard-strip:hover .kcard-thumb-play { opacity: 1; }
+        .kcard-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .kcard-line1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .kcard-client { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .kcard-dot { color: var(--text-muted); }
+        .kcard-date { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; }
+        .kcard-date.is-empty { color: var(--text-muted); font-weight: 500; font-style: italic; }
+        .kcard-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .kcard-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .kcard-smm { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; background: var(--bg); border-radius: 99px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); }
+        .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+        .kcard-smm.is-missing { background: #fef3c7; color: #92400e; }
+        .kcard-smm.is-missing .kcard-smm-avatar { background: #d97706; }
+        .kcard-slack-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: none; background: transparent; border-radius: 6px; cursor: pointer; color: var(--text-secondary); transition: all 0.12s; }
+        .kcard-slack-btn:hover { background: rgba(74,21,75,0.08); color: #4a154b; }
+        .kcard-slack-btn svg { width: 13px; height: 13px; }
+        .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #9a3412; background: #ffedd5; padding: 2px 8px; border-radius: 99px; }
+        .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .kcard-watch-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; text-decoration: none; }
+        .kcard-watch-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
+        .kcard-watch-btn.is-disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; pointer-events: none; }
+        .kcard-watch-btn svg { width: 12px; height: 12px; }
+        .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
+        .kcard-expand-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
+        .kcard-expand-btn svg { width: 12px; height: 12px; transition: transform 0.2s; }
+        .kcard.expanded .kcard-expand-btn svg { transform: rotate(180deg); }
+        .kcard-body { border-top: 1px solid var(--border-light); padding: 18px 20px 20px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; background: #fafaf8; }
+        @media (max-width: 820px) { .kcard-body { grid-template-columns: 1fr; } .kcard-strip { grid-template-columns: 80px 1fr; gap: 12px; } .kcard-actions { grid-column: 1 / -1; justify-content: flex-end; padding-top: 6px; } .kcard-thumb { width: 80px; height: 80px; } }
+        .kcard-col-left, .kcard-col-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+        .kcard-section-label { font-size: 0.64rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .kcard-caption { font-size: 0.88rem; line-height: 1.55; color: var(--text-primary); white-space: pre-wrap; background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px 14px; max-height: 280px; overflow-y: auto; font-weight: 500; }
+        .kcard-caption.is-empty { color: var(--text-muted); font-style: italic; font-weight: 400; }
+        .kcard-cta-row { font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: baseline; gap: 8px; }
+        .kcard-cta-row strong { color: var(--text-primary); font-weight: 700; }
+        .kcard-thread { display: flex; flex-direction: column; gap: 10px; background: var(--white); border: 1px solid var(--border-light); border-radius: 10px; padding: 12px; max-height: 260px; overflow-y: auto; }
+        .kcard-thread-empty { color: var(--text-muted); font-style: italic; font-size: 0.8rem; padding: 4px; }
+        .kcard-cm { display: flex; gap: 8px; align-items: flex-start; }
+        .kcard-cm-avatar { width: 24px; height: 24px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.66rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .kcard-cm-avatar.is-kasper { background: #7c3aed; }
+        .kcard-cm-avatar.is-client { background: #16a34a; }
+        .kcard-cm-body { flex: 1; min-width: 0; }
+        .kcard-cm-line1 { display: flex; align-items: baseline; gap: 6px; }
+        .kcard-cm-author { font-size: 0.74rem; font-weight: 700; color: var(--text-primary); }
+        .kcard-cm-time { font-size: 0.66rem; color: var(--text-muted); }
+        .kcard-cm-body-text { font-size: 0.82rem; line-height: 1.45; color: var(--text-primary); white-space: pre-wrap; margin-top: 2px; word-break: break-word; }
+        .kcard-cm.is-done .kcard-cm-body-text { color: var(--text-muted); text-decoration: line-through; }
+        .kcard-compose { background: var(--white); border: 1.5px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; transition: border-color 0.12s; }
+        .kcard-compose:focus-within { border-color: var(--text-primary); }
+        .kcard-compose textarea { width: 100%; border: none; outline: none; resize: none; background: transparent; font-family: inherit; font-size: 0.86rem; line-height: 1.45; color: var(--text-primary); min-height: 64px; padding: 4px; }
+        .kcard-compose textarea::placeholder { color: var(--text-muted); }
+        .kcard-decisions { display: flex; gap: 8px; padding-top: 4px; border-top: 1px dashed var(--border-light); }
+        .kcard-tweak-send { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 11px 14px; background: #f97316; color: #fff; border: none; border-radius: 9px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+        .kcard-tweak-send:hover:not(:disabled) { background: #ea580c; transform: translateY(-1px); }
+        .kcard-tweak-send:disabled { opacity: 0.4; cursor: not-allowed; }
+        .kcard-tweak-send svg { width: 13px; height: 13px; }
+        .kcard-approve-bar { display: flex; flex-direction: column; gap: 10px; background: linear-gradient(135deg,#dcfce7,#bbf7d0); border: 1.5px solid #86efac; border-radius: 12px; padding: 14px; }
+        .kcard-approve-title { font-size: 0.78rem; font-weight: 700; color: #14532d; display: flex; align-items: center; gap: 6px; }
+        .kcard-approve-help { font-size: 0.74rem; color: #15803d; line-height: 1.4; }
+        .kcard-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 16px; background: #16a34a; color: #fff; border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.15s; box-shadow: 0 1px 3px rgba(22,163,74,0.3); }
+        .kcard-approve-btn:hover:not(:disabled) { background: #15803d; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(22,163,74,0.35); }
+        .kcard-approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .kcard-approve-btn svg { width: 14px; height: 14px; }
+        .kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 6px; border-top: 1px solid var(--border-light); margin-top: 4px; }
+        .kcard-open-cal-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; background: transparent; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; }
+        .kcard-open-cal-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--white); }
+        .kcard-open-cal-btn svg { width: 11px; height: 11px; }
+        .kcard-saving-chip { font-size: 0.7rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 5px; }
+        .kcard-saving-chip.is-error { color: #dc2626; }
+        .kcard.is-removing { opacity: 0; transform: scale(0.97); transition: opacity 0.25s, transform 0.25s; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -2218,6 +2325,10 @@
         <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="event.preventDefault();navTo('tiktok-upload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             TikTok Upload
+        </a>
+        <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="event.preventDefault();navTo('kasper')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.25" stroke="currentColor" stroke-width="1.5"/><path d="M5 10c.7-1.2 1.8-1.8 3-1.8s2.3.6 3 1.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="6.2" cy="6.6" r="0.85" fill="currentColor"/><circle cx="9.8" cy="6.6" r="0.85" fill="currentColor"/></svg>
+            Kasper
         </a>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
@@ -7775,6 +7886,8 @@
         if (navSamp) navSamp.classList.toggle('active', page === 'samples');
         const navTk = document.getElementById('navTiktokUpload');
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
+        const navKp = document.getElementById('navKasper');
+        if (navKp) navKp.classList.toggle('active', page === 'kasper');
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
@@ -7818,6 +7931,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderTiktokUploadView();
             mountTiktokUploadView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'kasper') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderKasperView();
+            mountKasperView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
@@ -11792,6 +11910,23 @@
             const savedNav=localStorage.getItem(NAV_KEY);
             const hash=decodeURIComponent(location.hash.replace('#',''));
             renderPins();
+            // Unlock the hidden Kasper tab if anyone arrives with ?Kasper=1.
+            // Once unlocked, the tab stays visible in that browser.
+            let _kasperArrivedFromUnlockParam=false;
+            try{
+                if(new URLSearchParams(location.search).get('Kasper')==='1'){
+                    localStorage.setItem(KASPER_UNLOCK_KEY,'ok');
+                    _kasperArrivedFromUnlockParam=true;
+                }
+                if(localStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
+                    _kasperUnlocked=true;
+                    const navKp=document.getElementById('navKasper');
+                    if(navKp) navKp.style.display='';
+                }
+            }catch(e){}
+            if(_kasperArrivedFromUnlockParam && _kasperUnlocked){
+                navTo('kasper',false);return;
+            }
             // On page refresh, restore exact state from history.state
             if(history.state&&history.state.client&&clientNames.includes(history.state.client)){
                 const s=history.state,c=s.client;
@@ -11808,6 +11943,12 @@
             if(hash==='samples'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
+            if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
+            if(hash.startsWith('kasper/') && _kasperUnlocked){
+                const sub=hash.slice('kasper/'.length);
+                if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
+                navTo('kasper',false);return;
+            }
             if(hash.startsWith('calendar/')){
                 const rest=hash.slice('calendar/'.length);
                 const sl=rest.indexOf('/');
@@ -11820,7 +11961,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload')){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
@@ -12636,6 +12777,481 @@
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
+
+    /* ============================================================
+       KASPER REVIEW TAB
+       Hidden top-level nav unlocked by visiting ?Kasper=1.
+       Sub-tabs live inside; the first is "Review Session" — a queue
+       of every calendar card across all clients currently sitting on
+       "Kasper Approval". Casper watches the video, then either:
+         • Approve  → status flips to "Client Approval"
+         • Tweak    → leaves a comment and status flips to "Tweaks Needed"
+       Comments piggyback on the existing tweaks JSON column the
+       calendar uses, so they show up in the regular calendar Tweaks
+       modal too. Status pushes to Linear via the existing webhook.
+       ============================================================ */
+    const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
+    let _kasperUnlocked = false;
+    const KASPER_SUBTABS = [
+        { key: 'review', label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' }
+    ];
+    const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
+    // Optional override — if your workspace's primary domain is known, set it here.
+    // Without it the Slack button falls back to opening Slack and searching the SMM's name.
+    const KASPER_SLACK_TEAM_DOMAIN = '';
+
+    const _kasperState = {
+        tab: 'review',
+        loading: false,
+        loadingSMM: false,
+        items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
+        smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
+        error: null,
+        lastLoaded: 0,
+    };
+
+    function renderKasperView() {
+        const tabsHtml = KASPER_SUBTABS.map(t => `
+            <button type="button" class="kasper-subtab${_kasperState.tab === t.key ? ' active' : ''}" data-kasper-tab="${t.key}" onclick="_kasperGotoTab('${t.key}')">
+                ${t.icon}<span>${_calEsc(t.label)}</span><span class="kasper-tab-count" data-kasper-count="${t.key}">·</span>
+            </button>`).join('');
+        return `<div class="kasper-wrap">
+            <div class="kasper-head">
+                <div class="kasper-title">Kasper</div>
+                <div class="kasper-sub">Things waiting for your call.</div>
+            </div>
+            <div class="kasper-subtabs">${tabsHtml}</div>
+            <div id="kasperContent"></div>
+        </div>`;
+    }
+
+    function mountKasperView() {
+        _kasperRenderTab();
+    }
+
+    function _kasperGotoTab(tab) {
+        if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
+        _kasperState.tab = tab;
+        try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
+        document.querySelectorAll('.kasper-subtab').forEach(b => b.classList.toggle('active', b.getAttribute('data-kasper-tab') === tab));
+        _kasperRenderTab();
+    }
+
+    function _kasperRenderTab() {
+        if (_kasperState.tab === 'review') return _kasperRenderReview();
+    }
+
+    /* ── Review Session ─────────────────────────────────────────── */
+    async function _kasperRenderReview() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = `
+            <div class="kasper-toolbar">
+                <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">·</span><span>waiting for your review</span></div>
+                <button type="button" class="kasper-refresh-btn" id="kasperReviewRefresh" onclick="_kasperLoadReview(true)">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
+                    Refresh
+                </button>
+            </div>
+            <div id="kasperReviewBody"><div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div></div>`;
+        // Fresh load on every tab visit so a returning Casper always sees the truth.
+        await _kasperLoadReview(false);
+    }
+
+    async function _kasperLoadReview(forceRefresh) {
+        const body = document.getElementById('kasperReviewBody');
+        const btn  = document.getElementById('kasperReviewRefresh');
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        if (forceRefresh && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Refreshing…</div>`;
+
+        _kasperState.loading = true;
+        _kasperState.error = null;
+
+        try {
+            // SMM sheet + every client's calendar in parallel.
+            const [smmMap, items] = await Promise.all([
+                _kasperLoadSMMMap(),
+                _kasperFetchKasperApprovalItems(),
+            ]);
+            _kasperState.smmByClient = smmMap;
+            // Decorate posts with SMM info.
+            for (const it of items) {
+                const slug = wlNormalizeClient(it.client);
+                it.smm = smmMap.get(slug) || null;
+            }
+            // Stable sort: scheduled date first (nulls last), then client name.
+            items.sort((a, b) => {
+                const da = String(a.post.scheduled_date || '').slice(0,10);
+                const db = String(b.post.scheduled_date || '').slice(0,10);
+                if (da && db && da !== db) return da < db ? -1 : 1;
+                if (da && !db) return -1;
+                if (!da && db) return 1;
+                return String(a.client).localeCompare(String(b.client));
+            });
+            // Preserve expanded state on refresh.
+            const prevExpanded = new Set(_kasperState.items.filter(x => x._expanded).map(x => x.post.id));
+            const prevDrafts = Object.create(null);
+            for (const x of _kasperState.items) if (x._draft) prevDrafts[x.post.id] = x._draft;
+            for (const it of items) {
+                if (prevExpanded.has(it.post.id)) it._expanded = true;
+                if (prevDrafts[it.post.id]) it._draft = prevDrafts[it.post.id];
+            }
+            _kasperState.items = items;
+            _kasperState.lastLoaded = Date.now();
+            _kasperPaintReview();
+        } catch (e) {
+            _kasperState.error = e && e.message ? e.message : String(e);
+            const body2 = document.getElementById('kasperReviewBody');
+            if (body2) body2.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Couldn't load the queue</div><div class="kasper-empty-sub">${_calEsc(_kasperState.error)}</div></div>`;
+        } finally {
+            _kasperState.loading = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+        }
+    }
+
+    async function _kasperLoadSMMMap() {
+        // The "Social Media Managers" tab: client_name, social_media_manager,
+        // optional slack_user_id / slack_team_id (the script ignores anything
+        // it doesn't recognise so adding columns later is non-breaking).
+        try {
+            const resp = await fetch(KASPER_SMM_URL + '&_t=' + Date.now());
+            const text = await resp.text();
+            const rows = parseCSV(text);
+            const map = new Map();
+            for (const r of rows) {
+                const name = (r.client_name || r.client || '').trim();
+                if (!name) continue;
+                const slug = wlNormalizeClient(name);
+                if (!slug) continue;
+                map.set(slug, {
+                    name: (r.social_media_manager || r.smm_name || r.smm || '').trim(),
+                    slack_user_id: (r.slack_user_id || r.smm_slack_id || '').trim(),
+                    slack_team_id: (r.slack_team_id || '').trim(),
+                });
+            }
+            return map;
+        } catch (e) {
+            console.warn('[Kasper] SMM sheet load failed:', e);
+            return new Map();
+        }
+    }
+
+    async function _kasperFetchKasperApprovalItems() {
+        // Fetch every allowed client's calendar in parallel. A "Kasper Approval"
+        // card has the canonical status set by _calNormStatus — also accept
+        // legacy / lowercase variants defensively.
+        const settled = await Promise.allSettled(WL_CLIENT_NAMES.map(async client => {
+            const slug = wlNormalizeClient(client);
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            if (!resp.ok) throw new Error('Bad response for ' + client);
+            const json = await resp.json();
+            if (!json || !json.ok) return [];
+            const posts = (json.posts || [])
+                .filter(p => _calNormStatus(p.status) === 'Kasper Approval')
+                .map(p => {
+                    p.status = 'Kasper Approval';
+                    p.scheduled_date = _calCoerceDate(p.scheduled_date);
+                    p.comments = _calLoadComments(p);
+                    return { post: p, client, slug, smm: null, _expanded: false, _saving: false, _saveError: null, _draft: '' };
+                });
+            return posts;
+        }));
+        const out = [];
+        for (const s of settled) {
+            if (s.status === 'fulfilled' && Array.isArray(s.value)) out.push(...s.value);
+        }
+        return out;
+    }
+
+    function _kasperPaintReview() {
+        const body = document.getElementById('kasperReviewBody');
+        const count = document.getElementById('kasperReviewCount');
+        if (!body) return;
+        const items = _kasperState.items;
+        if (count) count.textContent = String(items.length);
+        const tabCount = document.querySelector('[data-kasper-count="review"]');
+        if (tabCount) tabCount.textContent = String(items.length);
+        if (!items.length) {
+            body.innerHTML = `<div class="kasper-empty">
+                <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
+                <div class="kasper-empty-title">You're all caught up</div>
+                <div class="kasper-empty-sub">No videos are sitting on Kasper Approval right now.</div>
+            </div>`;
+            return;
+        }
+        body.innerHTML = `<div class="kasper-list" id="kasperReviewList">${items.map(_kasperRenderCard).join('')}</div>`;
+    }
+
+    function _kasperFmtDateNice(iso) {
+        if (!iso) return '';
+        const s = String(iso).slice(0, 10);
+        const d = new Date(s + 'T00:00:00');
+        if (isNaN(d)) return s;
+        return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+
+    function _kasperRenderCard(item) {
+        const p   = item.post;
+        const pid = p.id;
+        const title = p.name || 'Untitled post';
+        const dateNice = _kasperFmtDateNice(p.scheduled_date);
+        const thumbInfo = _calDeriveThumbInfo(p);
+        const thumbHtml = thumbInfo.url
+            ? `<img loading="lazy" src="${_calEscAttr(thumbInfo.url)}"${thumbInfo.isDrive ? ' data-drive="1"' : ''} alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback');">`
+            : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;
+        const videoUrl = String(p.asset_url || '').trim();
+        const smm = item.smm;
+        const smmHtml = smm && smm.name
+            ? `<span class="kcard-smm"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}<button class="kcard-slack-btn" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="Message ${_calEscAttr(smm.name)} on Slack"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.5 2a2.5 2.5 0 0 0-2.5 2.5V9h4.5A2.5 2.5 0 0 0 14.5 2z"/><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5V9H7.5A2.5 2.5 0 0 1 9.5 2z" opacity=".7"/><path d="M9.5 22a2.5 2.5 0 0 1-2.5-2.5V15h4.5a2.5 2.5 0 0 1-2 4.9V22z" opacity=".7"/><path d="M14.5 22a2.5 2.5 0 0 0 2.5-2.5V15h-4.5a2.5 2.5 0 0 0 2 4.9V22z"/><path d="M22 14.5a2.5 2.5 0 0 0-2.5-2.5H15v4.5a2.5 2.5 0 0 0 4.9-2H22z"/><path d="M2 14.5A2.5 2.5 0 0 1 4.5 12H9v4.5A2.5 2.5 0 0 1 2 14.5z" opacity=".7"/><path d="M2 9.5A2.5 2.5 0 0 0 4.5 12H9V7.5A2.5 2.5 0 0 0 2 9.5z" opacity=".7"/><path d="M22 9.5A2.5 2.5 0 0 1 19.5 12H15V7.5A2.5 2.5 0 0 1 22 9.5z"/></svg></button></span>`
+            : `<span class="kcard-smm is-missing" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+        const watchBtn = videoUrl
+            ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
+            : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
+        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
+        const comments = Array.isArray(p.comments) ? p.comments : _calLoadComments(p);
+        const openTweaks = comments.filter(c => !c.parent_id && !c.done).length;
+        const tweaksChip = openTweaks > 0
+            ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
+            : '';
+        const dateHtml = dateNice
+            ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`
+            : `<span class="kcard-date is-empty">No date</span>`;
+        const expandedHtml = item._expanded ? _kasperRenderExpanded(item, comments, videoUrl, calUrl) : '';
+        return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
+            <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
+                <div class="kcard-thumb">${thumbHtml}<div class="kcard-thumb-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div></div>
+                <div class="kcard-main">
+                    <div class="kcard-line1">
+                        <span class="kcard-client">${_calEsc(item.client)}</span>
+                        <span class="kcard-dot">·</span>
+                        ${dateHtml}
+                        ${tweaksChip}
+                    </div>
+                    <div class="kcard-title">${_calEsc(title)}</div>
+                    <div class="kcard-meta-row">${smmHtml}</div>
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${watchBtn}
+                    <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${expandedHtml}
+        </div>`;
+    }
+
+    function _kasperRenderExpanded(item, comments, videoUrl, calUrl) {
+        const p   = item.post;
+        const pid = p.id;
+        const caption = String(p.caption || '').trim();
+        const cta = String(p.cta || '').trim();
+        const captionHtml = caption
+            ? `<div class="kcard-caption">${_calEsc(caption)}</div>`
+            : `<div class="kcard-caption is-empty">No caption.</div>`;
+        const ctaHtml = cta ? `<div class="kcard-cta-row"><strong>CTA:</strong>${_calEsc(cta)}</div>` : '';
+        const threadHtml = comments.length
+            ? comments.map(c => {
+                const author  = c.author || (c.role === 'client' ? 'Client' : (c.role === 'kasper' ? 'Kasper' : 'SMM'));
+                const roleCls = c.role === 'client' ? 'is-client' : (c.role === 'kasper' ? 'is-kasper' : '');
+                const initial = (author || '?').charAt(0).toUpperCase();
+                return `<div class="kcard-cm${c.done ? ' is-done' : ''}">
+                    <div class="kcard-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
+                    <div class="kcard-cm-body">
+                        <div class="kcard-cm-line1"><span class="kcard-cm-author">${_calEsc(author)}</span><span class="kcard-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div>
+                        <div class="kcard-cm-body-text">${_calEsc(c.body || '')}</div>
+                    </div>
+                </div>`;
+            }).join('')
+            : `<div class="kcard-thread-empty">No comments yet.</div>`;
+        const draft = item._draft || '';
+        const savingHtml = item._saving
+            ? `<span class="kcard-saving-chip"><div class="spinner" style="width:11px;height:11px;border-width:1.5px;"></div>Saving…</span>`
+            : (item._saveError ? `<span class="kcard-saving-chip is-error">${_calEsc(item._saveError)}</span>` : `<span class="kcard-saving-chip"></span>`);
+        return `<div class="kcard-body" onclick="event.stopPropagation();">
+            <div class="kcard-col-left">
+                <div>
+                    <div class="kcard-section-label" style="margin-bottom:8px;">Caption</div>
+                    ${captionHtml}
+                </div>
+                ${ctaHtml}
+                <div>
+                    <div class="kcard-section-label" style="margin-bottom:8px;">Tweaks history</div>
+                    <div class="kcard-thread">${threadHtml}</div>
+                </div>
+            </div>
+            <div class="kcard-col-right">
+                <div class="kcard-approve-bar">
+                    <div class="kcard-approve-title"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Looks good?</div>
+                    <div class="kcard-approve-help">Approving moves this video forward to <strong>${_calEsc(item.client)}'s</strong> review (status becomes <strong>Client Approval</strong>).</div>
+                    <button type="button" class="kcard-approve-btn" ${item._saving ? 'disabled' : ''} onclick="_kasperApprove('${_calEscAttr(pid)}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Approve · send to client</button>
+                </div>
+                <div>
+                    <div class="kcard-section-label" style="margin-bottom:8px;">Needs a tweak?</div>
+                    <div class="kcard-compose">
+                        <textarea data-kasper-draft="${_calEscAttr(pid)}" placeholder="What needs to change? e.g. tighten the intro, swap the thumbnail…" oninput="_kasperOnDraftInput(this,'${_calEscAttr(pid)}')">${_calEsc(draft)}</textarea>
+                        <div class="kcard-decisions">
+                            <button type="button" class="kcard-tweak-send" ${item._saving || !draft.trim() ? 'disabled' : ''} data-kasper-send="${_calEscAttr(pid)}" onclick="_kasperSubmitTweak('${_calEscAttr(pid)}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>Request tweaks</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="kcard-foot">
+                    <a class="kcard-open-cal-btn" href="${_calEscAttr(calUrl)}" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Open in calendar</a>
+                    ${savingHtml}
+                </div>
+            </div>
+        </div>`;
+    }
+
+    function _kasperToggleCard(pid) {
+        const it = _kasperState.items.find(x => x.post.id === pid);
+        if (!it) return;
+        it._expanded = !it._expanded;
+        _kasperRepaintCard(pid);
+    }
+
+    function _kasperRepaintCard(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        const el = document.querySelector('.kcard[data-kasper-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+        if (!item || !el) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _kasperRenderCard(item);
+        el.replaceWith(tmp.firstElementChild);
+    }
+
+    function _kasperOnDraftInput(ta, pid) {
+        const it = _kasperState.items.find(x => x.post.id === pid);
+        if (!it) return;
+        it._draft = ta.value;
+        const btn = document.querySelector('[data-kasper-send="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+        if (btn) btn.disabled = !ta.value.trim() || it._saving;
+    }
+
+    /* Save a post to the calendar sheet via the existing upsert webhook.
+       Mirrors how the calendar view saves cards: comments get serialised
+       into the `tweaks` column on the wire. After the save lands, push
+       the status change to Linear so the sub-issue follows. */
+    async function _kasperPersistPost(item) {
+        const wire = Object.assign({}, item.post);
+        if (Array.isArray(wire.comments)) {
+            wire.tweaks = _calStringifyComments(wire.comments);
+            delete wire.comments;
+        }
+        const resp = await fetch(CALENDAR_UPSERT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client: item.slug, post: wire }),
+        });
+        const json = await resp.json().catch(() => ({}));
+        if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
+        // Push status to Linear (fire-and-forget). Posted has no Linear
+        // equivalent and is rejected by the helper, so it's safe to always call.
+        if (String(item.post.linear_issue_id || '').trim()) {
+            _calPushStatusToLinear(item.post.linear_issue_id, item.post.status);
+        }
+    }
+
+    async function _kasperApprove(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item || item._saving) return;
+        item._saving = true; item._saveError = null;
+        const prevStatus = item.post.status;
+        item.post.status = 'Client Approval';
+        _kasperRepaintCard(pid);
+        try {
+            await _kasperPersistPost(item);
+            _kasperRemoveItem(pid);
+        } catch (e) {
+            item.post.status = prevStatus;
+            item._saving = false;
+            item._saveError = e && e.message ? e.message : 'Save failed';
+            _kasperRepaintCard(pid);
+        }
+    }
+
+    async function _kasperSubmitTweak(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item || item._saving) return;
+        const body = (item._draft || '').trim();
+        if (!body) return;
+        item._saving = true; item._saveError = null;
+        const prevPost = JSON.parse(JSON.stringify({
+            status: item.post.status,
+            comments: item.post.comments || [],
+        }));
+        const comments = Array.isArray(item.post.comments) ? item.post.comments.slice() : _calLoadComments(item.post);
+        comments.push({
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: 'Kasper',
+            role: 'kasper',
+            body: body,
+            created_at: new Date().toISOString(),
+            done: false,
+            done_at: '',
+            done_by: '',
+        });
+        item.post.comments = comments;
+        item.post.status = 'Tweaks Needed';
+        item._draft = '';
+        _kasperRepaintCard(pid);
+        try {
+            await _kasperPersistPost(item);
+            _kasperRemoveItem(pid);
+        } catch (e) {
+            item.post.status = prevPost.status;
+            item.post.comments = prevPost.comments;
+            item._saving = false;
+            item._saveError = e && e.message ? e.message : 'Save failed';
+            _kasperRepaintCard(pid);
+        }
+    }
+
+    function _kasperRemoveItem(pid) {
+        const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
+        if (el) {
+            el.classList.add('is-removing');
+            setTimeout(() => {
+                _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+                _kasperPaintReview();
+            }, 240);
+        } else {
+            _kasperState.items = _kasperState.items.filter(x => x.post.id !== pid);
+            _kasperPaintReview();
+        }
+    }
+
+    /* Slack deep link. With a user ID we can drop straight into the DM;
+       without one we fall back to a search-and-open URL so Casper can
+       click the right person in one extra step. */
+    function _kasperOpenSlack(slug) {
+        const entry = _kasperState.smmByClient && _kasperState.smmByClient.get(slug);
+        if (!entry) return;
+        const userId = (entry.slack_user_id || '').trim();
+        const teamId = (entry.slack_team_id || '').trim();
+        let target;
+        if (userId && teamId) {
+            target = `slack://user?team=${encodeURIComponent(teamId)}&id=${encodeURIComponent(userId)}`;
+        } else if (userId) {
+            target = `slack://user?id=${encodeURIComponent(userId)}`;
+        } else if (KASPER_SLACK_TEAM_DOMAIN) {
+            target = `https://${KASPER_SLACK_TEAM_DOMAIN}.slack.com/`;
+        } else {
+            target = `https://app.slack.com/client`;
+        }
+        // Use a temporary anchor so popup-blockers don't eat it.
+        const a = document.createElement('a');
+        a.href = target; a.target = '_blank'; a.rel = 'noopener';
+        a.click();
+    }
+
+    // Expose handlers called from inline HTML.
+    window._kasperGotoTab = _kasperGotoTab;
+    window._kasperLoadReview = _kasperLoadReview;
+    window._kasperToggleCard = _kasperToggleCard;
+    window._kasperApprove = _kasperApprove;
+    window._kasperSubmitTweak = _kasperSubmitTweak;
+    window._kasperOnDraftInput = _kasperOnDraftInput;
+    window._kasperOpenSlack = _kasperOpenSlack;
 </script>
 
 <!-- Transcript preview modal -->

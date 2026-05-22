@@ -12096,15 +12096,18 @@
             const savedNav=localStorage.getItem(NAV_KEY);
             const hash=decodeURIComponent(location.hash.replace('#',''));
             renderPins();
-            // Unlock the hidden Kasper tab if anyone arrives with ?Kasper=1.
-            // Once unlocked, the tab stays visible in that browser.
+            // Unlock the hidden Kasper tab only for visitors who arrive with
+            // ?Kasper=1. The unlock is scoped to the current browser tab via
+            // sessionStorage — closing the tab requires reusing the link.
             let _kasperArrivedFromUnlockParam=false;
             try{
+                // Drop any persistent unlock left over from the old localStorage scheme.
+                localStorage.removeItem(KASPER_UNLOCK_KEY);
                 if(new URLSearchParams(location.search).get('Kasper')==='1'){
-                    localStorage.setItem(KASPER_UNLOCK_KEY,'ok');
+                    sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
                     _kasperArrivedFromUnlockParam=true;
                 }
-                if(localStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
+                if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
                     _kasperUnlocked=true;
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';

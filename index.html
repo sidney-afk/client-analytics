@@ -13980,16 +13980,23 @@
         return { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }[short] || short;
     }
 
-    // Split videos by what kind of work happened on them this week:
-    //   tweaked = at least one Tweak Applied transition exists in window
-    //   started = first-cut work only (In Progress / For SMM, no tweak round)
+    // Split videos by what kind of work landed on them this week.
+    // Buckets are mutually exclusive and sum to distinctVideos. If a
+    // video both got a tweak round and crossed the finish line, the
+    // finish wins. Approved and Posted both count as Finished.
     function _kedSplitVideos(videos) {
-        let tweaked = 0, started = 0;
+        let finished = 0, tweaks = 0, editing = 0;
         for (const v of (videos || [])) {
-            const had = (v.transitions || []).some(t => /^tweak\s*applied$/i.test(t.status || ''));
-            if (had) tweaked++; else started++;
+            const trs = v.transitions || [];
+            const finishedNow = trs.some(t => {
+                const n = String(t.status || '').toLowerCase();
+                return /^approved/.test(n) || /^posted/.test(n);
+            });
+            if (finishedNow) { finished++; continue; }
+            const tweaked = trs.some(t => /^tweak\s*applied$/i.test(t.status || ''));
+            if (tweaked) tweaks++; else editing++;
         }
-        return { tweaked, started };
+        return { finished, tweaks, editing };
     }
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
@@ -14028,8 +14035,9 @@
 
         const split = _kedSplitVideos(ed.videos);
         const parts = [`<strong>${ed.distinctVideos}</strong> video${ed.distinctVideos === 1 ? '' : 's'}`];
-        if (split.tweaked) parts.push(`${split.tweaked} tweaked`);
-        if (split.started) parts.push(`${split.started} started`);
+        if (split.finished) parts.push(`${split.finished} finished`);
+        if (split.tweaks)   parts.push(`${split.tweaks} tweak${split.tweaks === 1 ? '' : 's'}`);
+        if (split.editing)  parts.push(`${split.editing} editing`);
         const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
@@ -14148,7 +14156,7 @@
     // Per-client per-day breakdown for the day-filter summary chips. The
     // counts are aligned with the workflow's "perDay[day].count" semantics:
     // every Tweak Applied and For SMM event counts; In Progress only counts
-    // (as a single "started" point) for sub-issues that have NO finish
+    // (as a single "editing" point) for sub-issues that have NO finish
     // events anywhere in the week. So `Σ chip counts === bar count`.
     function _kedClientDaySummary(videos, dayKey) {
         const counts = { 'Tweak Applied': 0, 'For SMM': 0, 'In Progress': 0 };
@@ -14267,7 +14275,7 @@
                 const chips = [];
                 if (sum['Tweak Applied']) chips.push(`<span class="ked-group-chip" data-tip="Revision rounds finished that day"><span class="ked-chip-n">${sum['Tweak Applied']}</span> tweak${sum['Tweak Applied'] === 1 ? '' : 's'} applied</span>`);
                 if (sum['For SMM'])       chips.push(`<span class="ked-group-chip" data-tip="First cuts sent to SMM that day"><span class="ked-chip-n">${sum['For SMM']}</span> sent for SMM</span>`);
-                if (sum['In Progress'])   chips.push(`<span class="ked-group-chip" data-tip="Started editing on this day"><span class="ked-chip-n">${sum['In Progress']}</span> started</span>`);
+                if (sum['In Progress'])   chips.push(`<span class="ked-group-chip" data-tip="Started editing on this day"><span class="ked-chip-n">${sum['In Progress']}</span> editing</span>`);
                 summaryHtml = chips.length ? `<div class="ked-group-summary">${chips.join('')}</div>` : '';
             }
             const headCls = expanded ? 'ked-vid-group-head is-expanded' : 'ked-vid-group-head';

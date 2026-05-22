@@ -2237,11 +2237,12 @@
         /* Per-video timeline cards inside the expanded editor row */
         .ked-vid-list { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); position: relative; }
         .ked-vid-empty { text-align: center; padding: 18px; color: var(--text-muted); font-size: 0.8rem; }
-        .ked-vid-filter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: linear-gradient(135deg,#ede9fe,#f5f3ff); border: 1px solid #ddd6fe; border-radius: 10px; margin-bottom: 14px; font-size: 0.82rem; }
-        .ked-vid-filter-label { color: #4c1d95; }
-        .ked-vid-filter-label strong { font-weight: 800; }
-        .ked-vid-filter-clear { background: var(--white); border: 1px solid #c4b5fd; color: #5b21b6; font-family: inherit; font-size: 0.74rem; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer; transition: background 0.13s, border-color 0.13s; }
-        .ked-vid-filter-clear:hover { background: #ede9fe; border-color: #7c3aed; }
+        .ked-vid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 6px 10px; font-size: 0.74rem; }
+        .ked-vid-toolbar-meta { color: var(--text-muted); font-weight: 600; letter-spacing: -0.005em; }
+        .ked-vid-toolbar-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; padding: 4px 9px 4px 8px; border-radius: 7px; cursor: pointer; transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease; letter-spacing: -0.005em; }
+        .ked-vid-toolbar-btn:hover { background: #f4f4f5; border-color: #d4d4d8; color: var(--text-primary); }
+        .ked-vid-toolbar-btn svg { color: var(--text-muted); flex-shrink: 0; }
+        .ked-vid-toolbar-btn:hover svg { color: var(--text-primary); }
         /* Shared horizontal day axis above the strips. Aligned with strip track via grid template. */
         .ked-vid-axis { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: end; margin-bottom: 6px; }
         .ked-vid-axis::before { content: ""; }
@@ -14007,9 +14008,11 @@
             const isSel = dayFilter === d.key;
             const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
             const dayLong = _kedDayLong(d.label);
-            const tipText = count > 0
-                ? `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to view`
-                : `${dayLong} · nothing`;
+            const tipText = count === 0
+                ? `${dayLong} · nothing`
+                : isSel
+                    ? `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to clear`
+                    : `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to view`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
@@ -14141,20 +14144,56 @@
         return segs;
     }
 
-    // Count editor-finish events per status name on a given day for a set
-    // of videos. Used to build the day-filter group summary chips.
+    // Per-client per-day breakdown for the day-filter summary chips. The
+    // counts are aligned with the workflow's "perDay[day].count" semantics:
+    // every Tweak Applied and For SMM event counts; In Progress only counts
+    // (as a single "started" point) for sub-issues that have NO finish
+    // events anywhere in the week. So `Σ chip counts === bar count`.
     function _kedClientDaySummary(videos, dayKey) {
         const counts = { 'Tweak Applied': 0, 'For SMM': 0, 'In Progress': 0 };
         for (const v of videos) {
-            for (const t of (v.transitions || [])) {
+            const transitions = v.transitions || [];
+            const hasFinishEver = transitions.some(t => {
+                const n = String(t.status || '').toLowerCase();
+                return /smm/.test(n) || /^tweak\s*applied/.test(n);
+            });
+            const earliestInProg = !hasFinishEver
+                ? transitions
+                    .filter(t => /^in\s*progress/i.test(t.status || ''))
+                    .reduce((a, b) => (!a || String(a.at) > String(b.at)) ? b : a, null)
+                : null;
+            for (const t of transitions) {
                 if (t.dayKey !== dayKey || !t.status) continue;
                 const n = t.status.toLowerCase();
-                if (/^tweak\s*applied/.test(n))                                          counts['Tweak Applied']++;
-                else if (/smm/.test(n))                                                  counts['For SMM']++;
-                else if (/^in\s*progress/.test(n))                                       counts['In Progress']++;
+                if (/^tweak\s*applied/.test(n))                                  counts['Tweak Applied']++;
+                else if (/smm/.test(n))                                          counts['For SMM']++;
+                else if (/^in\s*progress/.test(n) && earliestInProg && t.at === earliestInProg.at) counts['In Progress']++;
             }
         }
         return counts;
+    }
+
+    // A sub-issue is "in the day's filter" iff it contributed to the bar
+    // count for that day — i.e. it had a finish event that day, OR (for
+    // videos with no finish events in window) the earliest In Progress
+    // event landed on that day. Mirrors the workflow's countedEvents logic.
+    function _kedVideoContributedOnDay(v, dayKey) {
+        const transitions = v.transitions || [];
+        const hasFinishOnDay = transitions.some(t => {
+            if (t.dayKey !== dayKey) return false;
+            const n = String(t.status || '').toLowerCase();
+            return /smm/.test(n) || /^tweak\s*applied/.test(n);
+        });
+        if (hasFinishOnDay) return true;
+        const hasFinishEver = transitions.some(t => {
+            const n = String(t.status || '').toLowerCase();
+            return /smm/.test(n) || /^tweak\s*applied/.test(n);
+        });
+        if (hasFinishEver) return false;
+        const earliestInProg = transitions
+            .filter(t => /^in\s*progress/i.test(t.status || ''))
+            .reduce((a, b) => (!a || String(a.at) > String(b.at)) ? b : a, null);
+        return !!(earliestInProg && earliestInProg.dayKey === dayKey);
     }
 
     function _kedClientIsExpanded(editorKey, clientName, defaultExpanded) {
@@ -14170,18 +14209,12 @@
         const weekStartMs = Date.parse(weekStartISO);
         const weekEndMs = Date.parse(weekEndISO);
 
-        let filtered = videos;
-        let filterHeader = '';
-        if (dayFilter) {
-            filtered = videos.filter(v => (v.transitions || []).some(t => t.dayKey === dayFilter));
-            const dayObj = (days || []).find(d => d.key === dayFilter);
-            const dayLong = dayObj ? _kedDayLong(dayObj.label) : dayFilter;
-            const count = filtered.length;
-            filterHeader = `<div class="ked-vid-filter">
-                <span class="ked-vid-filter-label"><strong>${dayLong}</strong> · ${count} sub-issue${count === 1 ? '' : 's'} touched</span>
-                <button type="button" class="ked-vid-filter-clear" onclick="event.stopPropagation();_kasperClearEditorDay('${_calEscAttr(editorKey)}')" aria-label="Clear day filter">Show whole week ×</button>
-            </div>`;
-        }
+        // When a day is selected, show only the sub-issues that contributed
+        // to that day's bar count. The selected bar in the chart above acts
+        // as the visual filter indicator — click it again to clear.
+        const filtered = dayFilter
+            ? videos.filter(v => _kedVideoContributedOnDay(v, dayFilter))
+            : videos;
 
         const dayLabelsHtml = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
             .map((lbl, i) => `<span class="ked-vid-axis-day" style="left:${((i + 0.5) / 7) * 100}%;">${lbl}</span>`)
@@ -14203,6 +14236,25 @@
             if (b === 'No client') return -1;
             return a.localeCompare(b);
         });
+
+        // "Expand all / Collapse all" depends on what proportion of clients
+        // are currently expanded. If they're all expanded, the toggle
+        // collapses everything; otherwise it expands everything.
+        const expandedCount = sortedClients.reduce((n, c) =>
+            n + (_kedClientIsExpanded(editorKey, c, defaultExpanded) ? 1 : 0), 0);
+        const allExpanded = expandedCount === sortedClients.length;
+        const toolbarHtml = sortedClients.length > 1 ? `
+            <div class="ked-vid-toolbar">
+                <span class="ked-vid-toolbar-meta">${sortedClients.length} client${sortedClients.length === 1 ? '' : 's'}${dayFilter ? ' · ' + _kedDayLong((days || []).find(d => d.key === dayFilter)?.label || '') : ''}</span>
+                <button type="button" class="ked-vid-toolbar-btn" onclick="_kasperToggleAllClients('${_calEscAttr(editorKey)}')">
+                    <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        ${allExpanded
+                            ? '<path d="M2 7l4-3 4 3"/><path d="M2 10l4-3 4 3"/>'
+                            : '<path d="M2 5l4 3 4-3"/><path d="M2 2l4 3 4-3"/>'}
+                    </svg>
+                    ${allExpanded ? 'Collapse all' : 'Expand all'}
+                </button>
+            </div>` : '';
 
         const bodyHtml = sortedClients.map(c => {
             const vids = groups.get(c);
@@ -14233,7 +14285,7 @@
         }).join('');
 
         return `<div class="ked-vid-list">
-            ${filterHeader}
+            ${toolbarHtml}
             <div class="ked-vid-axis">
                 <div class="ked-vid-axis-track">${dayLabelsHtml}</div>
             </div>
@@ -14326,10 +14378,16 @@
             _kasperState.editorsDayFilter[key] = dayKey;
             _kasperState.editorsExpanded[key] = true;
         }
+        // Switching between whole-week and day-filter views resets the
+        // per-client expanded state so each view starts at its natural
+        // default (whole-week → all expanded; day-filter → all collapsed
+        // with summary chips).
+        _kasperState.editorsClientExpanded[key] = {};
         _kedPaint();
     }
     function _kasperClearEditorDay(key) {
         _kasperState.editorsDayFilter[key] = null;
+        _kasperState.editorsClientExpanded[key] = {};
         _kedPaint();
     }
     function _kasperToggleClient(editorKey, clientName) {
@@ -14338,6 +14396,24 @@
         const ed = _kasperState.editorsClientExpanded[editorKey] = _kasperState.editorsClientExpanded[editorKey] || {};
         const curr = (clientName in ed) ? ed[clientName] : defaultExpanded;
         ed[clientName] = !curr;
+        _kedPaint();
+    }
+    function _kasperToggleAllClients(editorKey) {
+        const data = _kasperState.editorsData;
+        if (!data) return;
+        const ed = (data.editors || []).find(e => (e.email || e.name) === editorKey);
+        if (!ed) return;
+        const inDayFilter = !!_kasperState.editorsDayFilter[editorKey];
+        const defaultExpanded = !inDayFilter;
+        const filtered = inDayFilter
+            ? (ed.videos || []).filter(v => _kedVideoContributedOnDay(v, _kasperState.editorsDayFilter[editorKey]))
+            : (ed.videos || []);
+        const clients = Array.from(new Set(filtered.map(v => v.clientName || 'No client')));
+        const explicit = _kasperState.editorsClientExpanded[editorKey] || {};
+        const allExpanded = clients.every(c => (c in explicit) ? explicit[c] : defaultExpanded);
+        const next = {};
+        for (const c of clients) next[c] = !allExpanded;
+        _kasperState.editorsClientExpanded[editorKey] = next;
         _kedPaint();
     }
 
@@ -14358,6 +14434,7 @@
     window._kasperToggleEditorDay = _kasperToggleEditorDay;
     window._kasperClearEditorDay = _kasperClearEditorDay;
     window._kasperToggleClient = _kasperToggleClient;
+    window._kasperToggleAllClients = _kasperToggleAllClients;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
 </script>

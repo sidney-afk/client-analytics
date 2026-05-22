@@ -2194,8 +2194,10 @@
         .ked-info-panel p { margin: 0 0 8px; }
         .ked-info-panel p:last-child { margin-bottom: 0; }
         .ked-info-panel strong { color: var(--text-primary); }
-        .ked-info-note { font-size: 0.78rem; color: var(--text-secondary); }
-        .ked-info-note em { font-style: normal; font-weight: 700; color: var(--text-primary); }
+        .ked-info-note { font-size: 0.76rem; color: var(--text-muted); font-style: italic; }
+        .ked-info-list { list-style: none; padding: 0; margin: 6px 0 10px; display: flex; flex-direction: column; gap: 5px; }
+        .ked-info-list li { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-secondary); }
+        .ked-info-list .ked-legend-swatch { flex-shrink: 0; }
         .ked-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 0.72rem; color: var(--text-secondary); }
         .ked-legend-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
         .ked-legend-swatch { display: inline-block; width: 18px; height: 8px; border-radius: 3px; flex-shrink: 0; }
@@ -2246,10 +2248,19 @@
         .ked-vid-axis-track { position: relative; height: 14px; }
         .ked-vid-axis-day { position: absolute; top: 0; transform: translateX(-50%); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
         .ked-vid-track-grid { display: none; }
-        .ked-vid-group { margin-bottom: 14px; }
+        .ked-vid-group { margin-bottom: 4px; border-radius: 8px; }
         .ked-vid-group:last-child { margin-bottom: 0; }
-        .ked-vid-group-head { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); padding: 6px 4px; display: flex; align-items: center; gap: 8px; }
-        .ked-vid-group-count { background: var(--bg); color: var(--text-muted); font-size: 0.66rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+        .ked-vid-group-head { width: 100%; background: transparent; border: 0; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); padding: 8px 6px; display: flex; align-items: center; gap: 9px; cursor: pointer; border-radius: 8px; transition: background 0.13s ease; letter-spacing: -0.005em; text-align: left; }
+        .ked-vid-group-head:hover { background: #f4f4f5; }
+        .ked-group-chev { color: var(--text-muted); flex-shrink: 0; transition: transform 0.15s ease; }
+        .ked-vid-group.is-expanded .ked-group-chev { transform: rotate(90deg); }
+        .ked-group-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .ked-vid-group-count { background: #f4f4f5; color: var(--text-muted); font-size: 0.7rem; font-weight: 700; padding: 1px 8px; border-radius: 99px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+        .ked-vid-group-head:hover .ked-vid-group-count { background: #e9e9eb; }
+        .ked-group-summary { display: inline-flex; gap: 6px; flex-wrap: wrap; margin-left: 4px; }
+        .ked-group-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; background: #f1f5f9; color: #475569; font-size: 0.7rem; font-weight: 600; border-radius: 99px; letter-spacing: -0.005em; }
+        .ked-chip-n { color: var(--text-primary); font-weight: 800; font-variant-numeric: tabular-nums; }
+        .ked-vid-group-body { padding: 4px 0 8px; }
         .ked-vid { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
         .ked-vid:last-child { border-bottom: 0; }
         .ked-vid-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -12990,12 +13001,19 @@
         editorsLoadedAt: 0,
         editorsExpanded: {},  // editorKey -> true (expanded video list visible)
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
+        editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
     };
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
     const KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1';
     const KASPER_CACHE_KEY = 'syncview_kasper_review_cache_v1';
     const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
+    // "Last week's editor labour" never changes once a week has passed, so
+    // cache the workflow response in localStorage. The cache survives across
+    // page reloads (until the user clicks Refresh or the calendar crosses
+    // into a new "last week").
+    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v1';
+    const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
     try {
         const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
         if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
@@ -13794,20 +13812,18 @@
                 </div>
             </div>
             <div class="ked-info-panel" id="kedInfoPanel" hidden>
-                <p><strong>What is this?</strong> Each VID sub-issue your editors touched last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
-                <p>Each day's bar counts the sub-issues the editor sent for review — either <em>For&nbsp;SMM&nbsp;approval</em> (first cut) or <em>Tweak&nbsp;Applied</em> (revision round). Sub-issues only moved to <em>In&nbsp;Progress</em> count once.</p>
-                <p><strong>Tip:</strong> click an editor to see every sub-issue with its full status timeline for the week. Click a single day's bar to narrow the list to just that day, grouped by client.</p>
-                <p class="ked-info-note">The timeline strip shows <em>active editor time</em> only. The yellow band is <em>In Progress</em> — when the editor was actively working. Every other state (<em>For SMM</em>, <em>For Kasper</em>, <em>For Client</em>, <em>Tweak Needed</em>, <em>Tweak Applied</em>) is a small marker, because they're hand-offs or waits, not editor workload. <em>Approved</em>, <em>Posted</em> and <em>Canceled</em> end the line.</p>
-                <div class="ked-legend">
-                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="in-progress"></span>In Progress</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="smm"></span>For SMM</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="kasper"></span>For Kasper</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="tweak-needed"></span>Tweak Needed</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="client"></span>For Client</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="tweak-applied"></span>Tweak Applied</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="approved"></span>Approved</span>
-                    <span class="ked-legend-item"><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="posted"></span>Posted</span>
-                </div>
+                <p><strong>What this is.</strong> Last week's work, one row per editor.</p>
+                <p><strong>The bars.</strong> Each bar is one weekday. The number above shows how many videos that editor <em>finished</em> that day — meaning they either sent a first cut to the SMM, or they applied a round of tweaks and sent it back for review. Higher number = busier day.</p>
+                <p><strong>Click an editor.</strong> See every video they touched last week, grouped by client. Each video gets a tiny timeline showing what happened to it across the week.</p>
+                <p><strong>Click a single day's bar.</strong> Zoom in on just that day. You'll see which clients the editor worked on and a quick summary of what they did (tweaks, first cuts, etc.).</p>
+                <p><strong>Reading the timeline.</strong></p>
+                <ul class="ked-info-list">
+                    <li><span class="ked-legend-swatch" data-status="in-progress"></span> <strong>Yellow band</strong> — the editor was actively editing.</li>
+                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="smm"></span> <strong>Coloured notch</strong> — a status changed at that moment (sent for SMM / Kasper / client, tweaks needed, tweak applied).</li>
+                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="approved"></span> <strong>Blue or dark blue cap on the right</strong> — approved or posted. The line ends there.</li>
+                    <li><span class="ked-legend-swatch" data-status="todo" style="opacity:0.5"></span> <strong>Empty gap</strong> — the video was sitting in Todo or Backlog. No editor work happening.</li>
+                </ul>
+                <p class="ked-info-note">Hover any notch or band for the status name.</p>
             </div>
             <div id="kedBody"><div class="kasper-loading"><div class="spinner"></div>Pulling last week's work from Linear…</div></div>`;
         const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
@@ -13821,11 +13837,57 @@
         panel.hidden = !panel.hidden;
     }
 
+    // YYYY-MM-DD for last week's Monday in Chicago time. The workflow's
+    // weekStart ISO encodes Chicago midnight Monday, so its UTC date portion
+    // matches this string — we use it to invalidate the cache when a new
+    // "last week" begins.
+    function _kedExpectedLastWeekMondayDate() {
+        const TZ = 'America/Chicago';
+        const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', weekday: 'short' });
+        const parts = fmt.formatToParts(new Date()).reduce((a, p) => { if (p.type !== 'literal') a[p.type] = p.value; return a; }, {});
+        const wkMap = { Sun: 7, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+        const wd = wkMap[parts.weekday];
+        const d = new Date(Date.UTC(+parts.year, +parts.month - 1, +parts.day));
+        d.setUTCDate(d.getUTCDate() - (wd - 1) - 7);
+        const y = d.getUTCFullYear();
+        const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+        const da = String(d.getUTCDate()).padStart(2, '0');
+        return `${y}-${m}-${da}`;
+    }
+    function _kedLoadEditorsCache() {
+        try {
+            const raw = localStorage.getItem(KASPER_EDITORS_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.data || !parsed.data.weekStart) return null;
+            if (Date.now() - (parsed.fetchedAt || 0) > KASPER_EDITORS_CACHE_MAX_AGE_MS) return null;
+            const cachedMon = String(parsed.data.weekStart).split('T')[0];
+            if (cachedMon !== _kedExpectedLastWeekMondayDate()) return null;
+            return parsed.data;
+        } catch (e) { return null; }
+    }
+    function _kedSaveEditorsCache(data) {
+        try { localStorage.setItem(KASPER_EDITORS_CACHE_KEY, JSON.stringify({ data, fetchedAt: Date.now() })); } catch (e) {}
+    }
+
     async function _kasperLoadEditors(forceRefresh) {
         const body = document.getElementById('kedBody');
         const btn  = document.getElementById('kedRefresh');
+
+        // Last week's data never changes — hit localStorage first unless the
+        // user explicitly hit Refresh. Cross-week boundary invalidates.
+        if (!forceRefresh) {
+            const cached = _kedLoadEditorsCache();
+            if (cached) {
+                _kasperState.editorsData = cached;
+                _kasperState.editorsLoadedAt = Date.now();
+                _kedPaint();
+                return;
+            }
+        }
+
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
-        if (forceRefresh && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Refreshing…</div>`;
+        if (body && (forceRefresh || !_kasperState.editorsData)) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>${forceRefresh ? 'Refreshing' : "Pulling last week's work from Linear"}…</div>`;
         _kasperState.editorsLoading = true;
         _kasperState.editorsError = null;
         try {
@@ -13839,6 +13901,7 @@
             if (!json || json.ok === false) throw new Error((json && json.error) || 'Unknown error');
             _kasperState.editorsData = json;
             _kasperState.editorsLoadedAt = Date.now();
+            _kedSaveEditorsCache(json);
             _kedPaint();
         } catch (e) {
             _kasperState.editorsError = e && e.message ? e.message : String(e);
@@ -13911,6 +13974,10 @@
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
 
+    function _kedDayLong(short) {
+        return { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }[short] || short;
+    }
+
     // Split videos by what kind of work happened on them this week:
     //   tweaked = at least one Tweak Applied transition exists in window
     //   started = first-cut work only (In Progress / For SMM, no tweak round)
@@ -13939,15 +14006,16 @@
             const seg = count > 0 ? `<div class="ked-bar-seg" style="height:${heightPct.toFixed(2)}%;"></div>` : '';
             const isSel = dayFilter === d.key;
             const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
-            const titleText = count > 0
-                ? `${d.label}: ${count} status change${count === 1 ? '' : 's'} — click to view`
-                : `${d.label}: nothing`;
+            const dayLong = _kedDayLong(d.label);
+            const tipText = count > 0
+                ? `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to view`
+                : `${dayLong} · nothing`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
             return `<div class="ked-bar">
                 <div class="ked-bar-count${count === 0 ? ' is-empty' : ''}">${count || '·'}</div>
-                <div class="${stackCls}" title="${titleText}"${onclickAttr}>
+                <div class="${stackCls}" data-tip="${_calEscAttr(tipText)}"${onclickAttr}>
                     ${seg}
                 </div>
                 <div class="ked-bar-label">${d.label}</div>
@@ -14073,6 +14141,28 @@
         return segs;
     }
 
+    // Count editor-finish events per status name on a given day for a set
+    // of videos. Used to build the day-filter group summary chips.
+    function _kedClientDaySummary(videos, dayKey) {
+        const counts = { 'Tweak Applied': 0, 'For SMM': 0, 'In Progress': 0 };
+        for (const v of videos) {
+            for (const t of (v.transitions || [])) {
+                if (t.dayKey !== dayKey || !t.status) continue;
+                const n = t.status.toLowerCase();
+                if (/^tweak\s*applied/.test(n))                                          counts['Tweak Applied']++;
+                else if (/smm/.test(n))                                                  counts['For SMM']++;
+                else if (/^in\s*progress/.test(n))                                       counts['In Progress']++;
+            }
+        }
+        return counts;
+    }
+
+    function _kedClientIsExpanded(editorKey, clientName, defaultExpanded) {
+        const ed = _kasperState.editorsClientExpanded[editorKey];
+        if (!ed || !(clientName in ed)) return defaultExpanded;
+        return !!ed[clientName];
+    }
+
     function _kedVideos(videos, dayFilter, weekStartISO, weekEndISO, editorKey, days) {
         if (!videos || !videos.length) {
             return `<div class="ked-vid-empty">No sub-issues to show.</div>`;
@@ -14080,13 +14170,12 @@
         const weekStartMs = Date.parse(weekStartISO);
         const weekEndMs = Date.parse(weekEndISO);
 
-        // Filter to a single day if a filter is active.
         let filtered = videos;
         let filterHeader = '';
         if (dayFilter) {
             filtered = videos.filter(v => (v.transitions || []).some(t => t.dayKey === dayFilter));
             const dayObj = (days || []).find(d => d.key === dayFilter);
-            const dayLong = dayObj ? dayObj.label : dayFilter;
+            const dayLong = dayObj ? _kedDayLong(dayObj.label) : dayFilter;
             const count = filtered.length;
             filterHeader = `<div class="ked-vid-filter">
                 <span class="ked-vid-filter-label"><strong>${dayLong}</strong> · ${count} sub-issue${count === 1 ? '' : 's'} touched</span>
@@ -14094,46 +14183,60 @@
             </div>`;
         }
 
-        // Day-tick positions for the timeline grid.
-        const tickStyles = [];
-        for (let i = 1; i < 7; i++) {
-            const pct = (i / 7) * 100;
-            tickStyles.push(pct);
-        }
         const dayLabelsHtml = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
             .map((lbl, i) => `<span class="ked-vid-axis-day" style="left:${((i + 0.5) / 7) * 100}%;">${lbl}</span>`)
             .join('');
-        const tickHtml = tickStyles.map(p => `<span class="ked-strip-tick" style="left:${p}%;"></span>`).join('');
 
-        // Group videos by client when day-filtered (helps spot which clients were worked).
-        let bodyHtml;
-        if (dayFilter) {
-            const groups = new Map();
-            for (const v of filtered) {
-                const c = v.clientName || 'No client';
-                if (!groups.has(c)) groups.set(c, []);
-                groups.get(c).push(v);
-            }
-            // Sort groups by name, videos inside by latest activity.
-            const sortedClients = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
-            bodyHtml = sortedClients.map(c => {
-                const vids = groups.get(c);
-                vids.sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)));
-                return `<div class="ked-vid-group">
-                    <div class="ked-vid-group-head">${_calEsc(c)} <span class="ked-vid-group-count">${vids.length}</span></div>
-                    ${vids.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter)).join('')}
-                </div>`;
-            }).join('');
-        } else {
-            bodyHtml = filtered.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, null)).join('');
+        // Always group by client. Whole-week view defaults each group to
+        // expanded (Kasper wants to see the strips immediately). Day-filter
+        // view defaults each group to collapsed with a summary chip row so
+        // the page reads as a compact "who/what" table.
+        const defaultExpanded = !dayFilter;
+        const groups = new Map();
+        for (const v of filtered) {
+            const c = v.clientName || 'No client';
+            if (!groups.has(c)) groups.set(c, []);
+            groups.get(c).push(v);
         }
+        const sortedClients = Array.from(groups.keys()).sort((a, b) => {
+            if (a === 'No client') return 1;
+            if (b === 'No client') return -1;
+            return a.localeCompare(b);
+        });
+
+        const bodyHtml = sortedClients.map(c => {
+            const vids = groups.get(c);
+            vids.sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)));
+            const expanded = _kedClientIsExpanded(editorKey, c, defaultExpanded);
+            let summaryHtml = '';
+            if (dayFilter) {
+                const sum = _kedClientDaySummary(vids, dayFilter);
+                const chips = [];
+                if (sum['Tweak Applied']) chips.push(`<span class="ked-group-chip" data-tip="Revision rounds finished that day"><span class="ked-chip-n">${sum['Tweak Applied']}</span> tweak${sum['Tweak Applied'] === 1 ? '' : 's'} applied</span>`);
+                if (sum['For SMM'])       chips.push(`<span class="ked-group-chip" data-tip="First cuts sent to SMM that day"><span class="ked-chip-n">${sum['For SMM']}</span> sent for SMM</span>`);
+                if (sum['In Progress'])   chips.push(`<span class="ked-group-chip" data-tip="Started editing on this day"><span class="ked-chip-n">${sum['In Progress']}</span> started</span>`);
+                summaryHtml = chips.length ? `<div class="ked-group-summary">${chips.join('')}</div>` : '';
+            }
+            const headCls = expanded ? 'ked-vid-group-head is-expanded' : 'ked-vid-group-head';
+            const bodyContent = expanded
+                ? `<div class="ked-vid-group-body">${vids.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter)).join('')}</div>`
+                : '';
+            return `<div class="ked-vid-group${expanded ? ' is-expanded' : ''}">
+                <button type="button" class="${headCls}" onclick="_kasperToggleClient('${_calEscAttr(editorKey)}','${_calEscAttr(c)}')">
+                    <svg class="ked-group-chev" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5l4 3.5-4 3.5"/></svg>
+                    <span class="ked-group-name">${_calEsc(c)}</span>
+                    <span class="ked-vid-group-count">${vids.length}</span>
+                    ${summaryHtml}
+                </button>
+                ${bodyContent}
+            </div>`;
+        }).join('');
 
         return `<div class="ked-vid-list">
             ${filterHeader}
             <div class="ked-vid-axis">
                 <div class="ked-vid-axis-track">${dayLabelsHtml}</div>
             </div>
-            <div class="ked-vid-track-grid" aria-hidden="true">${tickHtml}</div>
             ${bodyHtml}
         </div>`;
     }
@@ -14166,7 +14269,10 @@
         </article>`;
     }
 
-    // Custom tooltip for timeline strip segments — single line, status name only.
+    // Custom styled tooltip — single line. Triggered by any element carrying
+    // a `data-tip` attribute (strip segments, day bars, etc.). One floating
+    // element appended to body; mouseover delegation keeps the rendering
+    // path cheap even with hundreds of segments on screen.
     let _kedTipEl = null;
     function _kedEnsureTip() {
         if (_kedTipEl) return _kedTipEl;
@@ -14176,27 +14282,27 @@
         document.body.appendChild(_kedTipEl);
         return _kedTipEl;
     }
-    function _kedTipShow(seg) {
-        const status = seg.getAttribute('data-tip-status') || '';
-        const el = _kedEnsureTip();
-        el.querySelector('.ked-tip-status').textContent = status;
-        const r = seg.getBoundingClientRect();
-        el.style.left = (r.left + r.width / 2) + 'px';
-        el.style.top  = r.top + 'px';
-        el.classList.add('is-visible');
+    function _kedTipShow(el) {
+        const text = el.getAttribute('data-tip') || el.getAttribute('data-tip-status') || '';
+        if (!text) return;
+        const tip = _kedEnsureTip();
+        tip.querySelector('.ked-tip-status').textContent = text;
+        const r = el.getBoundingClientRect();
+        tip.style.left = (r.left + r.width / 2) + 'px';
+        tip.style.top  = r.top + 'px';
+        tip.classList.add('is-visible');
     }
     function _kedTipHide() {
         if (_kedTipEl) _kedTipEl.classList.remove('is-visible');
     }
     document.addEventListener('mouseover', e => {
-        const seg = e.target && e.target.closest && e.target.closest('.ked-strip-seg');
-        if (seg) _kedTipShow(seg);
+        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
+        if (t) _kedTipShow(t);
     });
     document.addEventListener('mouseout', e => {
-        const seg = e.target && e.target.closest && e.target.closest('.ked-strip-seg');
-        if (seg) _kedTipHide();
+        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
+        if (t) _kedTipHide();
     });
-    // Hide on scroll so the floating tip doesn't desync from its segment.
     window.addEventListener('scroll', _kedTipHide, true);
 
     function _kedAvatarFallback(name) {
@@ -14226,6 +14332,14 @@
         _kasperState.editorsDayFilter[key] = null;
         _kedPaint();
     }
+    function _kasperToggleClient(editorKey, clientName) {
+        const inDayFilter = !!_kasperState.editorsDayFilter[editorKey];
+        const defaultExpanded = !inDayFilter;
+        const ed = _kasperState.editorsClientExpanded[editorKey] = _kasperState.editorsClientExpanded[editorKey] || {};
+        const curr = (clientName in ed) ? ed[clientName] : defaultExpanded;
+        ed[clientName] = !curr;
+        _kedPaint();
+    }
 
     // Expose handlers called from inline HTML.
     window._kasperGotoTab = _kasperGotoTab;
@@ -14243,6 +14357,7 @@
     window._kasperToggleEditor = _kasperToggleEditor;
     window._kasperToggleEditorDay = _kasperToggleEditorDay;
     window._kasperClearEditorDay = _kasperClearEditorDay;
+    window._kasperToggleClient = _kasperToggleClient;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
 </script>

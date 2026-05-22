@@ -2237,12 +2237,13 @@
         /* Per-video timeline cards inside the expanded editor row */
         .ked-vid-list { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); position: relative; }
         .ked-vid-empty { text-align: center; padding: 18px; color: var(--text-muted); font-size: 0.8rem; }
-        .ked-vid-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 6px 10px; font-size: 0.74rem; }
+        .ked-vid-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 6px 10px; font-size: 0.74rem; }
         .ked-vid-toolbar-meta { color: var(--text-muted); font-weight: 600; letter-spacing: -0.005em; }
-        .ked-vid-toolbar-btn { display: inline-flex; align-items: center; gap: 6px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; padding: 4px 9px 4px 8px; border-radius: 7px; cursor: pointer; transition: background 0.13s ease, border-color 0.13s ease, color 0.13s ease; letter-spacing: -0.005em; }
-        .ked-vid-toolbar-btn:hover { background: #f4f4f5; border-color: #d4d4d8; color: var(--text-primary); }
-        .ked-vid-toolbar-btn svg { color: var(--text-muted); flex-shrink: 0; }
-        .ked-vid-toolbar-btn:hover svg { color: var(--text-primary); }
+        .ked-vid-toolbar-btn { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 0; color: var(--text-muted); font-family: inherit; font-size: 0.72rem; font-weight: 600; padding: 3px 7px; border-radius: 5px; cursor: pointer; transition: color 0.13s ease, background 0.13s ease; letter-spacing: -0.005em; }
+        .ked-vid-toolbar-btn::before { content: "·"; margin-right: 4px; color: #d4d4d8; }
+        .ked-vid-toolbar-btn:hover { color: var(--text-primary); background: #f4f4f5; }
+        .ked-vid-toolbar-btn:hover::before { color: #d4d4d8; }
+        .ked-vid-toolbar-btn svg { color: currentColor; flex-shrink: 0; opacity: 0.65; }
         /* Shared horizontal day axis above the strips. Aligned with strip track via grid template. */
         .ked-vid-axis { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: end; margin-bottom: 6px; }
         .ked-vid-axis::before { content: ""; }

@@ -2198,8 +2198,8 @@
         .ked-info-note em { font-style: normal; font-weight: 700; color: var(--text-primary); }
         .ked-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 0.72rem; color: var(--text-secondary); }
         .ked-legend-item { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
-        .ked-legend-swatch { display: inline-block; width: 16px; height: 10px; border-radius: 3px; flex-shrink: 0; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06); }
-        .ked-legend-swatch--marker { width: 8px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,0.18); }
+        .ked-legend-swatch { display: inline-block; width: 18px; height: 8px; border-radius: 3px; flex-shrink: 0; }
+        .ked-legend-swatch--marker { width: 7px; height: 12px; border-radius: 2px; box-shadow: 0 0 0 1.5px #fff, 0 1px 2px rgba(0,0,0,0.18); }
         .ked-list { display: flex; flex-direction: column; gap: 12px; }
         .ked-row { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; transition: box-shadow 0.18s, border-color 0.18s; }
         .ked-row:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); border-color: #d4d4cf; }
@@ -2217,19 +2217,20 @@
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
-        .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .ked-bars.with-weekend { grid-template-columns: repeat(7, 1fr); }
-        .ked-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-        .ked-bar-count { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
-        .ked-bar-count.is-empty { color: #cbd5e1; font-weight: 600; }
-        .ked-bar-stack { width: 100%; height: 56px; background: #f1f5f9; border-radius: 6px; display: flex; flex-direction: column-reverse; overflow: hidden; position: relative; transition: box-shadow 0.13s, transform 0.13s; }
+        .ked-bar { display: flex; flex-direction: column; align-items: stretch; gap: 6px; min-width: 0; }
+        .ked-bar-count { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; text-align: center; letter-spacing: -0.02em; }
+        .ked-bar-count.is-empty { color: #d4d4d8; font-weight: 600; }
+        .ked-bar-stack { width: 100%; height: 52px; background: #f4f4f5; border-radius: 8px; display: flex; flex-direction: column-reverse; overflow: hidden; position: relative; transition: background 0.13s ease, box-shadow 0.13s ease; }
         .ked-bar-stack.is-clickable { cursor: pointer; }
-        .ked-bar-stack.is-clickable:hover { box-shadow: 0 0 0 2px rgba(124,58,237,0.18); transform: translateY(-1px); }
-        .ked-bar-stack.is-selected { box-shadow: 0 0 0 2px #7c3aed; }
-        .ked-bar-stack.is-selected .ked-bar-seg { background: linear-gradient(180deg,#a855f7,#5b21b6); }
-        .ked-bar-seg { width: 100%; background: linear-gradient(180deg,#7c3aed,#5b21b6); transition: background 0.13s; }
-        .ked-bar-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
-        .ked-row.is-day-filtered .ked-bar-stack:not(.is-selected) { opacity: 0.55; }
+        .ked-bar-stack.is-clickable:hover { background: #ececef; }
+        .ked-bar-stack.is-clickable:hover .ked-bar-seg { background: #6d28d9; }
+        .ked-bar-stack.is-selected { background: #ede9fe; box-shadow: inset 0 0 0 1.5px #7c3aed; }
+        .ked-bar-stack.is-selected .ked-bar-seg { background: #6d28d9; }
+        .ked-bar-seg { width: 100%; background: #8b5cf6; border-radius: 6px 6px 0 0; transition: background 0.13s ease; }
+        .ked-bar-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); text-align: center; }
+        .ked-row.is-day-filtered .ked-bar-stack:not(.is-selected) { opacity: 0.45; }
 
         /* Per-video timeline cards inside the expanded editor row */
         .ked-vid-list { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); position: relative; }
@@ -2257,67 +2258,64 @@
         a.ked-vid-title:hover { color: #5b21b6; text-decoration: underline; }
         .ked-vid-strip { position: relative; min-width: 0; }
         .ked-strip-track { position: relative; height: 14px; background: #fafaf9; border-radius: 4px; overflow: visible; box-shadow: inset 0 0 0 1px #f1f5f9; background-image: linear-gradient(to right, transparent 0, transparent calc(100%/7 - 1px), #ececea calc(100%/7 - 1px), #ececea calc(100%/7), transparent calc(100%/7)); background-size: calc(100%/7 * 1.0001) 100%; }
-        .ked-strip-track::after { content:""; position: absolute; inset: 0; border-radius: 4px; overflow: hidden; pointer-events: none; }
         .ked-strip-seg { position: absolute; top: 0; bottom: 0; transition: filter 0.13s, transform 0.13s; cursor: default; }
-        .ked-strip-seg[data-kind="work"]:hover     { filter: brightness(1.06); }
-        .ked-strip-seg[data-kind="instant"]:hover,
-        .ked-strip-seg[data-kind="terminal"]:hover { filter: brightness(1.08); transform: translateX(-50%) scaleY(1.18); }
-        /* Marker shapes */
-        .ked-strip-seg[data-kind="instant"] {
-            width: 6px;
+
+        /* Work segments — In Progress only. The editor was actively working;
+           the band's width = how long they spent on it. Solid colour. */
+        .ked-strip-seg[data-kind="work"] {
+            background: #eab308; /* in-progress yellow/amber */
+        }
+        .ked-strip-seg[data-kind="work"]:hover { filter: brightness(1.06); }
+
+        /* Markers and terminals — uniform 7px notches that indicate "the
+           status changed here". They don't take time on the strip; their
+           job is to punctuate the line. Subtle left-to-right gradient in
+           the status's own colour family gives a directional feel without
+           competing with the work band visually. */
+        .ked-strip-seg[data-kind="marker"],
+        .ked-strip-seg[data-kind="terminal"] {
+            width: 7px;
             transform: translateX(-50%);
             border-radius: 2px;
             z-index: 3;
-            box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,0.18);
+            box-shadow: 0 0 0 1.5px #fff, 0 1px 2px rgba(0,0,0,0.18);
         }
-        .ked-strip-seg[data-kind="terminal"] {
-            width: 10px;
-            transform: translateX(-50%);
-            border-radius: 3px;
-            z-index: 3;
-            box-shadow: 0 0 0 1.5px #fff, 0 1px 4px rgba(0,0,0,0.22);
-        }
-        .ked-strip-highlight { position: absolute; top: -3px; bottom: -3px; background: rgba(124,58,237,0.12); border: 1.5px solid #7c3aed; border-radius: 5px; z-index: 1; pointer-events: none; }
+        .ked-strip-seg[data-kind="marker"]:hover,
+        .ked-strip-seg[data-kind="terminal"]:hover { transform: translateX(-50%) scaleY(1.22); }
 
-        /* Status palette — same colour identities the user specified
-           (todo gray, in-progress yellow, smm pink, kasper peach,
-           tweak-needed orange, client red, approved blue, tweak-applied
-           indigo, posted dark blue) but rendered as subtle top-to-bottom
-           gradients so each segment has depth instead of reading flat.
-           The legend swatches use the same gradients. */
-        .ked-strip-seg[data-status="in-progress"],
-        .ked-legend-swatch[data-status="in-progress"]   { background: linear-gradient(180deg, #fde047 0%, #eab308 100%); }
-        .ked-strip-seg[data-status="smm"],
-        .ked-legend-swatch[data-status="smm"]           { background: linear-gradient(180deg, #f9a8d4 0%, #db2777 100%); }
-        .ked-strip-seg[data-status="tweak-applied"],
-        .ked-legend-swatch[data-status="tweak-applied"] { background: linear-gradient(180deg, #818cf8 0%, #4338ca 100%); }
-        .ked-strip-seg[data-status="kasper"],
-        .ked-legend-swatch[data-status="kasper"]        { background: linear-gradient(180deg, #fed7aa 0%, #ea580c 100%); }
-        .ked-strip-seg[data-status="tweak-needed"],
-        .ked-legend-swatch[data-status="tweak-needed"]  { background: linear-gradient(180deg, #fb923c 0%, #b91c1c 100%); }
-        .ked-strip-seg[data-status="client"],
-        .ked-legend-swatch[data-status="client"]        { background: linear-gradient(180deg, #fca5a5 0%, #b91c1c 100%); }
-        .ked-strip-seg[data-status="approved"],
-        .ked-legend-swatch[data-status="approved"]      { background: linear-gradient(180deg, #60a5fa 0%, #1d4ed8 100%); }
-        .ked-strip-seg[data-status="posted"],
-        .ked-legend-swatch[data-status="posted"]        { background: linear-gradient(180deg, #1e40af 0%, #0c2566 100%); }
-        .ked-strip-seg[data-status="canceled"],
-        .ked-legend-swatch[data-status="canceled"]      { background: linear-gradient(180deg, #d1d5db 0%, #6b7280 100%); }
-        /* Hidden states won't render on the strip, but the legend may still
-           reference them if we ever surface them; keep harmless fallbacks. */
-        .ked-strip-seg[data-status="todo"],
-        .ked-legend-swatch[data-status="todo"]          { background: linear-gradient(180deg, #e5e7eb 0%, #9ca3af 100%); }
-        .ked-strip-seg[data-status="backlog"],
-        .ked-legend-swatch[data-status="backlog"]       { background: linear-gradient(180deg, #e5e7eb 0%, #9ca3af 100%); }
-        .ked-strip-seg[data-status="other"],
-        .ked-legend-swatch[data-status="other"]         { background: linear-gradient(180deg, #d1d5db 0%, #6b7280 100%); }
+        /* Marker palette — left→right gradient inside each marker. The
+           identity colour sits on the right, a lighter wash on the left. */
+        .ked-strip-seg[data-kind="marker"][data-status="smm"]           { background: linear-gradient(90deg, #fbcfe8 0%, #ec4899 100%); }
+        .ked-strip-seg[data-kind="marker"][data-status="kasper"]        { background: linear-gradient(90deg, #fed7aa 0%, #f97316 100%); }
+        .ked-strip-seg[data-kind="marker"][data-status="client"]        { background: linear-gradient(90deg, #fecaca 0%, #ef4444 100%); }
+        .ked-strip-seg[data-kind="marker"][data-status="tweak-needed"]  { background: linear-gradient(90deg, #fdba74 0%, #c2410c 100%); }
+        .ked-strip-seg[data-kind="marker"][data-status="tweak-applied"] { background: linear-gradient(90deg, #c7d2fe 0%, #4f46e5 100%); }
+        .ked-strip-seg[data-kind="terminal"][data-status="approved"]    { background: linear-gradient(90deg, #93c5fd 0%, #2563eb 100%); }
+        .ked-strip-seg[data-kind="terminal"][data-status="posted"]      { background: linear-gradient(90deg, #3b82f6 0%, #1e3a8a 100%); }
+        .ked-strip-seg[data-kind="terminal"][data-status="canceled"]    { background: linear-gradient(90deg, #d4d4d8 0%, #71717a 100%); }
+        .ked-strip-seg[data-kind="marker"][data-status="other"]         { background: linear-gradient(90deg, #d4d4d8 0%, #71717a 100%); }
 
-        /* Custom hover tooltip for strip segments */
-        .ked-tip { position: fixed; pointer-events: none; transform: translate(-50%, calc(-100% - 14px)) translateY(4px); background: #0f172a; color: #fff; padding: 7px 11px 8px; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.3; box-shadow: 0 8px 24px rgba(0,0,0,0.28), 0 2px 6px rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.12s ease, transform 0.13s ease; z-index: 9999; white-space: nowrap; }
+        /* Legend swatches — flat colour at the rightmost stop of each
+           marker gradient, so the legend doesn't introduce a different
+           visual language. */
+        .ked-legend-swatch[data-status="in-progress"]   { background: #eab308; }
+        .ked-legend-swatch[data-status="smm"]           { background: #ec4899; }
+        .ked-legend-swatch[data-status="kasper"]        { background: #f97316; }
+        .ked-legend-swatch[data-status="client"]        { background: #ef4444; }
+        .ked-legend-swatch[data-status="tweak-needed"]  { background: #c2410c; }
+        .ked-legend-swatch[data-status="tweak-applied"] { background: #4f46e5; }
+        .ked-legend-swatch[data-status="approved"]      { background: #2563eb; }
+        .ked-legend-swatch[data-status="posted"]        { background: #1e3a8a; }
+        .ked-legend-swatch[data-status="canceled"],
+        .ked-legend-swatch[data-status="todo"],
+        .ked-legend-swatch[data-status="backlog"],
+        .ked-legend-swatch[data-status="other"]         { background: #9ca3af; }
+
+        /* Custom hover tooltip — single line, status name only. */
+        .ked-tip { position: fixed; pointer-events: none; transform: translate(-50%, calc(-100% - 14px)) translateY(4px); background: #0f172a; color: #fff; padding: 6px 10px 7px; border-radius: 7px; font-size: 0.74rem; font-weight: 700; line-height: 1.2; box-shadow: 0 8px 24px rgba(0,0,0,0.24), 0 2px 6px rgba(0,0,0,0.16); opacity: 0; transition: opacity 0.12s ease, transform 0.13s ease; z-index: 9999; white-space: nowrap; letter-spacing: -0.005em; }
         .ked-tip.is-visible { opacity: 1; transform: translate(-50%, calc(-100% - 14px)); }
-        .ked-tip-status { font-size: 0.78rem; font-weight: 800; letter-spacing: -0.005em; }
-        .ked-tip-range { font-size: 0.68rem; font-weight: 500; opacity: 0.78; margin-top: 2px; font-variant-numeric: tabular-nums; }
-        .ked-tip-arrow { position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%); width: 10px; height: 10px; background: #0f172a; rotate: 45deg; border-radius: 0 0 2px 0; }
+        .ked-tip-status { font-size: 0.74rem; }
+        .ked-tip-arrow { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; background: #0f172a; rotate: 45deg; border-radius: 0 0 2px 0; }
         .ked-empty-msg { background: var(--white); border: 1px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--text-secondary); font-size: 0.84rem; }
 
         @media (max-width: 720px) {
@@ -13799,7 +13797,7 @@
                 <p><strong>What is this?</strong> Each VID sub-issue your editors touched last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
                 <p>Each day's bar counts the sub-issues the editor sent for review — either <em>For&nbsp;SMM&nbsp;approval</em> (first cut) or <em>Tweak&nbsp;Applied</em> (revision round). Sub-issues only moved to <em>In&nbsp;Progress</em> count once.</p>
                 <p><strong>Tip:</strong> click an editor to see every sub-issue with its full status timeline for the week. Click a single day's bar to narrow the list to just that day, grouped by client.</p>
-                <p class="ked-info-note">The timeline strip shows <em>active workload time</em> only — gaps mean the issue was sitting in <em>Todo</em> or <em>Backlog</em>. <em>Tweak Applied</em> shows as a small indigo notch (it's a moment, not a state to wait in); <em>Approved</em> / <em>Posted</em> show as a cap that ends the line.</p>
+                <p class="ked-info-note">The timeline strip shows <em>active editor time</em> only. The yellow band is <em>In Progress</em> — when the editor was actively working. Every other state (<em>For SMM</em>, <em>For Kasper</em>, <em>For Client</em>, <em>Tweak Needed</em>, <em>Tweak Applied</em>) is a small marker, because they're hand-offs or waits, not editor workload. <em>Approved</em>, <em>Posted</em> and <em>Canceled</em> end the line.</p>
                 <div class="ked-legend">
                     <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="in-progress"></span>In Progress</span>
                     <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="smm"></span>For SMM</span>
@@ -14019,10 +14017,10 @@
     //   terminal — small cap at the transition point; line ends here
     //   hidden   — not rendered at all (the strip just doesn't exist for that span)
     function _kedClassifyKind(slug) {
-        if (slug === 'todo' || slug === 'backlog')                 return 'hidden';
-        if (slug === 'tweak-applied')                              return 'instant';
+        if (slug === 'todo' || slug === 'backlog')                           return 'hidden';
+        if (slug === 'in-progress')                                          return 'work';
         if (slug === 'approved' || slug === 'posted' || slug === 'canceled') return 'terminal';
-        return 'work';
+        return 'marker';
     }
 
     // Build the render-ready segments. Hidden states are dropped (creating
@@ -14062,8 +14060,8 @@
                 segs.push({ status: s.status, slug: s.slug, kind: 'terminal', startMs: s.startMs, endMs: s.startMs, startPct, widthPct: 0 });
                 break; // line ends at the terminal cap
             }
-            if (s.kind === 'instant') {
-                segs.push({ status: s.status, slug: s.slug, kind: 'instant', startMs: s.startMs, endMs: s.startMs, startPct, widthPct: 0 });
+            if (s.kind === 'marker') {
+                segs.push({ status: s.status, slug: s.slug, kind: 'marker', startMs: s.startMs, endMs: s.startMs, startPct, widthPct: 0 });
                 continue;
             }
             // work — extend to the next visible segment's start (or the end of the week)
@@ -14073,12 +14071,6 @@
             segs.push({ status: s.status, slug: s.slug, kind: 'work', startMs: s.startMs, endMs: visualEndMs, startPct, widthPct });
         }
         return segs;
-    }
-
-    function _kedFmtSegRange(startMs, endMs) {
-        const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit' });
-        if (!endMs || endMs === startMs) return fmt.format(new Date(startMs));
-        return fmt.format(new Date(startMs)) + ' → ' + fmt.format(new Date(endMs));
     }
 
     function _kedVideos(videos, dayFilter, weekStartISO, weekEndISO, editorKey, days) {
@@ -14151,28 +14143,12 @@
         const segHtml = segs.length
             ? segs.map(s => {
                 const labelName = _KED_STATUS_LABELS[s.slug] || s.status;
-                const tipRange = _kedFmtSegRange(s.startMs, s.endMs);
                 const style = s.kind === 'work'
                     ? `left:${s.startPct.toFixed(3)}%;width:${s.widthPct.toFixed(3)}%;`
                     : `left:${s.startPct.toFixed(3)}%;`;
-                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip-status="${_calEscAttr(labelName)}" data-tip-range="${_calEscAttr(tipRange)}" style="${style}"></div>`;
+                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip-status="${_calEscAttr(labelName)}" style="${style}"></div>`;
             }).join('')
             : '';
-        // Highlight overlay for the filtered day, if any.
-        let highlightHtml = '';
-        if (dayFilter) {
-            const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-            // Compute the day's percentage band using the weekday from any transition matching the filter, falling back to derived index.
-            const matchT = (v.transitions || []).find(t => t.dayKey === dayFilter);
-            if (matchT) {
-                const idx = days.indexOf(matchT.weekday);
-                if (idx >= 0) {
-                    const left = (idx / 7) * 100;
-                    const width = (1 / 7) * 100;
-                    highlightHtml = `<div class="ked-strip-highlight" style="left:${left}%;width:${width}%;"></div>`;
-                }
-            }
-        }
         const clientHtml = v.clientName
             ? `<div class="ked-vid-client">${_calEsc(v.clientName)}</div>`
             : '';
@@ -14185,31 +14161,25 @@
                 ${titleHtml}
             </div>
             <div class="ked-vid-strip">
-                <div class="ked-strip-track">${highlightHtml}${segHtml}</div>
+                <div class="ked-strip-track">${segHtml}</div>
             </div>
         </article>`;
     }
 
-    // Custom tooltip for timeline strip segments — replaces the browser's
-    // default `title=` flyout with a styled card showing the status name
-    // and the time range. One floating element, delegated mouseover.
+    // Custom tooltip for timeline strip segments — single line, status name only.
     let _kedTipEl = null;
     function _kedEnsureTip() {
         if (_kedTipEl) return _kedTipEl;
         _kedTipEl = document.createElement('div');
         _kedTipEl.className = 'ked-tip';
-        _kedTipEl.innerHTML = '<div class="ked-tip-status"></div><div class="ked-tip-range"></div><div class="ked-tip-arrow"></div>';
+        _kedTipEl.innerHTML = '<div class="ked-tip-status"></div><div class="ked-tip-arrow"></div>';
         document.body.appendChild(_kedTipEl);
         return _kedTipEl;
     }
     function _kedTipShow(seg) {
         const status = seg.getAttribute('data-tip-status') || '';
-        const range = seg.getAttribute('data-tip-range') || '';
         const el = _kedEnsureTip();
         el.querySelector('.ked-tip-status').textContent = status;
-        el.querySelector('.ked-tip-range').textContent = range;
-        // Position above the segment. For narrow markers, pin to the segment's
-        // horizontal centre so the arrow lines up.
         const r = seg.getBoundingClientRect();
         el.style.left = (r.left + r.width / 2) + 'px';
         el.style.top  = r.top + 'px';

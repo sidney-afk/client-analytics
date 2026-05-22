@@ -2214,9 +2214,15 @@
         .ked-id-breakdown { font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px; font-weight: 500; font-variant-numeric: tabular-nums; }
         .ked-id-breakdown strong { color: var(--text-primary); font-weight: 800; }
         .ked-id-sep { color: var(--text-muted); margin: 0 1px; }
-        .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
+        .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 6px; }
         .ked-avg-val { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
+        .ked-avg-split { display: flex; gap: 8px; font-size: 0.66rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-muted); letter-spacing: -0.005em; }
+        .ked-avg-split-item { display: inline-flex; align-items: baseline; gap: 3px; }
+        .ked-avg-split-item .ked-avg-split-n { color: var(--text-primary); font-weight: 800; font-size: 0.78rem; }
+        .ked-avg-split-item.is-finished .ked-avg-split-n { color: #15803d; }
+        .ked-avg-split-item.is-tweaks   .ked-avg-split-n { color: #c2410c; }
+        .ked-avg-split-item.is-editing  .ked-avg-split-n { color: #6d28d9; }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
@@ -14051,6 +14057,11 @@
                 <div class="ked-row-avg">
                     <span class="ked-avg-val">${ed.avgPerWorkday.toFixed(2)}</span>
                     <span class="ked-avg-label">per workday</span>
+                    <div class="ked-avg-split">
+                        <span class="ked-avg-split-item is-finished" data-tip="Average videos finished per workday"><span class="ked-avg-split-n">${(split.finished / 5).toFixed(2)}</span>finished</span>
+                        <span class="ked-avg-split-item is-tweaks" data-tip="Average tweak rounds per workday"><span class="ked-avg-split-n">${(split.tweaks / 5).toFixed(2)}</span>tweaks</span>
+                        <span class="ked-avg-split-item is-editing" data-tip="Average first-cut videos per workday"><span class="ked-avg-split-n">${(split.editing / 5).toFixed(2)}</span>editing</span>
+                    </div>
                 </div>
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
             </div>

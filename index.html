@@ -8524,7 +8524,7 @@
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         calState.client = initial;
         calState.embedded = false;
-        calState.view = _calFocusRequest ? 'organizer' : ((['review','organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer');
+        calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
@@ -8615,13 +8615,25 @@
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
 
+    /* Picks the initial view tab on mount. Clients land on Review by default
+       (the approval queue is their main job); the SMM never lands on Review
+       because they don't have that tab — if it's leftover in saved prefs we
+       coerce back to the Sheet (organizer). */
+    function _calResolveInitialView(savedView) {
+        const allowed = ['review','organizer','month','week'];
+        const saved = allowed.includes(savedView) ? savedView : null;
+        if (_isClientLink) return saved || 'review';
+        if (saved && saved !== 'review') return saved;
+        return 'organizer';
+    }
+
     /* Embedded calendar — rendered inside a client profile's "Content Calendar"
        tab. Locked to one client (no client-tab picker). */
     function mountCalendarEmbedded(name) {
         const prefs = _calLoadPrefs();
         calState.client = name;
         calState.embedded = true;
-        calState.view = (['review','organizer','month','week'].includes(prefs.view)) ? prefs.view : 'organizer';
+        calState.view = _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
@@ -9886,13 +9898,15 @@
         const selectBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
             ? `<button class="cal-select-btn${calState.selectMode ? ' active' : ''}" type="button" onclick="_calToggleSelectMode()" title="Select multiple posts to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
             : '';
-        const viewLabels = { review: (_isClientLink ? 'Review' : 'Client review'), organizer: 'Sheet', month: 'Month', week: 'Week' };
+        const viewLabels = { review: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
+        // Review tab is client-only — the SMM doesn't need a mirror of the client queue.
+        const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['organizer','month','week'];
         view.innerHTML = `
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     <div class="cal-view-toggle">
-                        ${['review','organizer','month','week'].map(v => `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}</button>`).join('')}
+                        ${tabViews.map(v => `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}</button>`).join('')}
                     </div>
                     <div class="cal-zoom" id="calZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -11538,7 +11552,14 @@
     function _calReviewItems() {
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
-            return s !== 'Approved' && s !== 'Posted';
+            if (s === 'Approved' || s === 'Posted') return false;
+            // Clients only see cards where something is actually parked at
+            // "Client Approval" — they don't need to look at cards still
+            // sitting at SMM or Kasper review.
+            if (_isClientLink) {
+                return CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'Client Approval');
+            }
+            return true;
         }).slice().sort((a, b) => {
             const ad = String(a.scheduled_date || '').slice(0,10);
             const bd = String(b.scheduled_date || '').slice(0,10);

@@ -2149,6 +2149,7 @@
         .kasper-sub { font-size: 0.85rem; color: var(--text-secondary); }
         .kasper-subtabs { display: flex; gap: 4px; padding: 4px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 22px; width: max-content; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
         .kasper-subtab { background: transparent; border: none; font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); padding: 8px 16px; border-radius: 8px; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+        .kasper-subtab svg { width: 14px; height: 14px; flex-shrink: 0; }
         .kasper-subtab:hover { color: var(--text-primary); background: var(--bg); }
         .kasper-subtab.active { background: var(--text-primary); color: var(--white); }
         .kasper-subtab .kasper-tab-count { background: rgba(255,255,255,0.18); color: inherit; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -2193,6 +2194,9 @@
         .ked-info-panel p { margin: 0 0 8px; }
         .ked-info-panel p:last-child { margin-bottom: 0; }
         .ked-info-panel strong { color: var(--text-primary); }
+        .ked-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); font-size: 0.72rem; color: var(--text-secondary); }
+        .ked-legend-item { display: inline-flex; align-items: center; gap: 5px; font-weight: 600; }
+        .ked-legend-swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
         .ked-list { display: flex; flex-direction: column; gap: 12px; }
         .ked-row { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; transition: box-shadow 0.18s, border-color 0.18s; }
         .ked-row:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.06); border-color: #d4d4cf; }
@@ -2202,7 +2206,9 @@
         .ked-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .ked-id { min-width: 0; }
         .ked-name { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-        .ked-id-breakdown { font-size: 0.74rem; color: var(--text-muted); margin-top: 3px; font-weight: 600; font-variant-numeric: tabular-nums; }
+        .ked-id-breakdown { font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px; font-weight: 500; font-variant-numeric: tabular-nums; }
+        .ked-id-breakdown strong { color: var(--text-primary); font-weight: 800; }
+        .ked-id-sep { color: var(--text-muted); margin: 0 1px; }
         .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; }
         .ked-avg-val { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
@@ -2210,42 +2216,83 @@
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
         .ked-bars.with-weekend { grid-template-columns: repeat(7, 1fr); }
-        .ked-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-        .ked-bar-stack { width: 100%; height: 68px; background: var(--bg); border-radius: 6px; display: flex; flex-direction: column-reverse; overflow: hidden; position: relative; }
-        .ked-bar-seg { width: 100%; background: linear-gradient(180deg,#7c3aed,#5b21b6); }
-        .ked-bar-count { position: absolute; top: 4px; left: 0; right: 0; text-align: center; font-size: 0.66rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; pointer-events: none; }
-        .ked-bar-stack.is-empty .ked-bar-count { color: var(--text-muted); }
+        .ked-bar { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .ked-bar-count { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+        .ked-bar-count.is-empty { color: #cbd5e1; font-weight: 600; }
+        .ked-bar-stack { width: 100%; height: 56px; background: #f1f5f9; border-radius: 6px; display: flex; flex-direction: column-reverse; overflow: hidden; position: relative; transition: box-shadow 0.13s, transform 0.13s; }
+        .ked-bar-stack.is-clickable { cursor: pointer; }
+        .ked-bar-stack.is-clickable:hover { box-shadow: 0 0 0 2px rgba(124,58,237,0.18); transform: translateY(-1px); }
+        .ked-bar-stack.is-selected { box-shadow: 0 0 0 2px #7c3aed; }
+        .ked-bar-stack.is-selected .ked-bar-seg { background: linear-gradient(180deg,#a855f7,#5b21b6); }
+        .ked-bar-seg { width: 100%; background: linear-gradient(180deg,#7c3aed,#5b21b6); transition: background 0.13s; }
         .ked-bar-label { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .ked-row.is-day-filtered .ked-bar-stack:not(.is-selected) { opacity: 0.55; }
 
         /* Per-video timeline cards inside the expanded editor row */
-        .ked-vid-list { margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border); display: flex; flex-direction: column; gap: 10px; }
-        .ked-vid { background: var(--bg); border: 1px solid transparent; border-radius: 10px; padding: 10px 12px; transition: border-color 0.13s, background 0.13s; }
-        .ked-vid:hover { border-color: var(--border); background: var(--white); }
-        .ked-vid-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-        .ked-vid-meta { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; flex-wrap: wrap; }
-        .ked-vid-client { font-size: 0.66rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 2px 7px; background: var(--white); border: 1px solid var(--border); border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
-        .ked-vid-title { font-size: 0.84rem; font-weight: 600; color: var(--text-primary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+        .ked-vid-list { margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--border); position: relative; }
+        .ked-vid-empty { text-align: center; padding: 18px; color: var(--text-muted); font-size: 0.8rem; }
+        .ked-vid-filter { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: linear-gradient(135deg,#ede9fe,#f5f3ff); border: 1px solid #ddd6fe; border-radius: 10px; margin-bottom: 14px; font-size: 0.82rem; }
+        .ked-vid-filter-label { color: #4c1d95; }
+        .ked-vid-filter-label strong { font-weight: 800; }
+        .ked-vid-filter-clear { background: var(--white); border: 1px solid #c4b5fd; color: #5b21b6; font-family: inherit; font-size: 0.74rem; font-weight: 700; padding: 5px 10px; border-radius: 8px; cursor: pointer; transition: background 0.13s, border-color 0.13s; }
+        .ked-vid-filter-clear:hover { background: #ede9fe; border-color: #7c3aed; }
+        /* Shared horizontal day axis above the strips. Aligned with strip track via grid template. */
+        .ked-vid-axis { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: end; margin-bottom: 6px; }
+        .ked-vid-axis::before { content: ""; }
+        .ked-vid-axis-track { position: relative; height: 14px; }
+        .ked-vid-axis-day { position: absolute; top: 0; transform: translateX(-50%); font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+        .ked-vid-track-grid { display: none; }
+        .ked-vid-group { margin-bottom: 14px; }
+        .ked-vid-group:last-child { margin-bottom: 0; }
+        .ked-vid-group-head { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); padding: 6px 4px; display: flex; align-items: center; gap: 8px; }
+        .ked-vid-group-count { background: var(--bg); color: var(--text-muted); font-size: 0.66rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; }
+        .ked-vid { display: grid; grid-template-columns: 220px 1fr; gap: 14px; align-items: center; padding: 7px 0; border-bottom: 1px solid #f1f5f9; }
+        .ked-vid:last-child { border-bottom: 0; }
+        .ked-vid-meta { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .ked-vid-client { font-size: 0.72rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.005em; }
+        .ked-vid-title { font-size: 0.78rem; font-weight: 500; color: var(--text-secondary); text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
         a.ked-vid-title:hover { color: #5b21b6; text-decoration: underline; }
-        .ked-vid-flow { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-        .ked-trn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 600; line-height: 1.4; }
-        .ked-trn-day { font-size: 0.6rem; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.7; }
-        .ked-trn-name { font-weight: 600; }
-        .ked-trn-arrow { color: var(--text-muted); font-size: 0.78rem; font-weight: 600; padding: 0 1px; }
-        .ked-trn-empty { font-size: 0.72rem; color: var(--text-muted); font-style: italic; }
-        /* Status pill palette — keyed by data-status slug from _kedStatusSlug */
-        .ked-trn[data-status="in-progress"]   { background: #ede9fe; color: #5b21b6; }
-        .ked-trn[data-status="smm"]           { background: #dbeafe; color: #1d4ed8; }
-        .ked-trn[data-status="tweak-applied"] { background: #e0e7ff; color: #3730a3; }
-        .ked-trn[data-status="kasper"]        { background: #ffedd5; color: #9a3412; }
-        .ked-trn[data-status="client"]        { background: #fef3c7; color: #92400e; }
-        .ked-trn[data-status="tweak-needed"]  { background: #fee2e2; color: #991b1b; }
-        .ked-trn[data-status="approved"]      { background: #d1fae5; color: #065f46; }
-        .ked-trn[data-status="posted"]        { background: #cffafe; color: #155e75; }
-        .ked-trn[data-status="todo"]          { background: #f1f5f9; color: #475569; }
-        .ked-trn[data-status="backlog"]       { background: #f1f5f9; color: #475569; }
-        .ked-trn[data-status="canceled"]      { background: #f1f5f9; color: #475569; text-decoration: line-through; }
-        .ked-trn[data-status="other"]         { background: #f1f5f9; color: #475569; }
+        .ked-vid-strip { position: relative; min-width: 0; }
+        .ked-strip-track { position: relative; height: 14px; background: #f8fafc; border-radius: 4px; overflow: hidden; box-shadow: inset 0 0 0 1px #f1f5f9; background-image: linear-gradient(to right, transparent 0, transparent calc(100%/7 - 1px), #e5e7eb calc(100%/7 - 1px), #e5e7eb calc(100%/7), transparent calc(100%/7)); background-size: calc(100%/7 * 1.0001) 100%; }
+        .ked-strip-seg { position: absolute; top: 0; bottom: 0; transition: filter 0.13s, transform 0.13s; }
+        .ked-strip-seg:hover { filter: brightness(1.08); }
+        .ked-strip-seg.is-dim { opacity: 0.55; }
+        .ked-strip-highlight { position: absolute; top: -3px; bottom: -3px; background: rgba(124,58,237,0.10); border: 1.5px solid #7c3aed; border-radius: 4px; z-index: 1; pointer-events: none; }
+        /* Bold status palette — keyed by data-status slug from _kedStatusSlug.
+           Colours follow the spec: todo gray, in-progress yellow, smm pink,
+           kasper peach, tweak-needed orange, client red, approved blue,
+           tweak-applied indigo (continuation of approved/blue family),
+           posted dark blue, backlog/canceled neutral gray. */
+        .ked-strip-seg[data-status="todo"],
+        .ked-legend-swatch[data-status="todo"]          { background: #9ca3af; }
+        .ked-strip-seg[data-status="backlog"],
+        .ked-legend-swatch[data-status="backlog"]       { background: #cbd5e1; }
+        .ked-strip-seg[data-status="in-progress"],
+        .ked-legend-swatch[data-status="in-progress"]   { background: #facc15; }
+        .ked-strip-seg[data-status="smm"],
+        .ked-legend-swatch[data-status="smm"]           { background: #ec4899; }
+        .ked-strip-seg[data-status="tweak-applied"],
+        .ked-legend-swatch[data-status="tweak-applied"] { background: #6366f1; }
+        .ked-strip-seg[data-status="kasper"],
+        .ked-legend-swatch[data-status="kasper"]        { background: #fdba74; }
+        .ked-strip-seg[data-status="tweak-needed"],
+        .ked-legend-swatch[data-status="tweak-needed"]  { background: #ea580c; }
+        .ked-strip-seg[data-status="client"],
+        .ked-legend-swatch[data-status="client"]        { background: #ef4444; }
+        .ked-strip-seg[data-status="approved"],
+        .ked-legend-swatch[data-status="approved"]      { background: #3b82f6; }
+        .ked-strip-seg[data-status="posted"],
+        .ked-legend-swatch[data-status="posted"]        { background: #1e3a8a; }
+        .ked-strip-seg[data-status="canceled"],
+        .ked-legend-swatch[data-status="canceled"]      { background: #9ca3af; opacity: 0.55; }
+        .ked-strip-seg[data-status="other"],
+        .ked-legend-swatch[data-status="other"]         { background: #9ca3af; }
         .ked-empty-msg { background: var(--white); border: 1px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--text-secondary); font-size: 0.84rem; }
+
+        @media (max-width: 720px) {
+            .ked-vid-axis { grid-template-columns: 140px 1fr; }
+            .ked-vid { grid-template-columns: 140px 1fr; }
+        }
 
         /* Kasper lightbox (reuses calendar's overlay pattern, scoped under .kasper-wrap) */
         .kasper-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.86); z-index: 9000; display: none; align-items: center; justify-content: center; padding: 40px; cursor: zoom-out; }
@@ -12891,7 +12938,7 @@
     let _kasperUnlocked = false;
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
-        { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5C2 11.5 4 10 6 10s4 1.5 4 3.5"/><circle cx="6" cy="6" r="2.4"/><path d="M11 8.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/><path d="M10.4 10.2c1.6.2 3 1.4 3 3.3"/></svg>' }
+        { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' }
     ];
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
     // Optional override — if your workspace's primary domain is known, set it here.
@@ -12912,12 +12959,18 @@
         editorsLoading: false,
         editorsError: null,
         editorsLoadedAt: 0,
-        editorsExpanded: {},  // editorKey -> true (expanded submission list)
+        editorsExpanded: {},  // editorKey -> true (expanded video list visible)
+        editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
     };
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
+    const KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1';
     const KASPER_CACHE_KEY = 'syncview_kasper_review_cache_v1';
     const KASPER_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;   // sanity bound; staleness is fine, ancient data is not
+    try {
+        const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
+        if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
+    } catch (e) {}
 
     function renderKasperView() {
         const tabsHtml = KASPER_SUBTABS.map(t => `
@@ -13015,6 +13068,7 @@
     function _kasperGotoTab(tab) {
         if (!KASPER_SUBTABS.some(t => t.key === tab)) return;
         _kasperState.tab = tab;
+        try { localStorage.setItem(KASPER_SUBTAB_KEY, tab); } catch (e) {}
         try { history.replaceState({ nav: 'kasper' }, '', location.pathname + location.search + '#kasper' + (tab === 'review' ? '' : '/' + tab)); } catch {}
         document.querySelectorAll('.kasper-subtab').forEach(b => b.classList.toggle('active', b.getAttribute('data-kasper-tab') === tab));
         _kasperRenderTab();
@@ -13711,9 +13765,20 @@
                 </div>
             </div>
             <div class="ked-info-panel" id="kedInfoPanel" hidden>
-                <p><strong>What is this?</strong> Each VID sub-issue your editors moved last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
-                <p>The bar shows how many sub-issues each editor sent for review (<em>For&nbsp;SMM&nbsp;approval</em> or <em>Tweak&nbsp;Applied</em>) per day. If a sub-issue was only moved to <em>In&nbsp;Progress</em> last week — started, not yet submitted — it counts once.</p>
-                <p>Open any editor to see every sub-issue they touched, with the full status timeline for the week.</p>
+                <p><strong>What is this?</strong> Each VID sub-issue your editors touched last week (Mon&nbsp;→&nbsp;Sun, America/Chicago), grouped by editor.</p>
+                <p>Each day's bar counts the sub-issues the editor sent for review — either <em>For&nbsp;SMM&nbsp;approval</em> (first cut) or <em>Tweak&nbsp;Applied</em> (revision round). Sub-issues only moved to <em>In&nbsp;Progress</em> count once.</p>
+                <p><strong>Tip:</strong> click an editor to see every sub-issue with its full status timeline for the week. Click a single day's bar to narrow the list to just that day, grouped by client.</p>
+                <div class="ked-legend">
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="todo"></span>Todo</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="in-progress"></span>In Progress</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="smm"></span>For SMM</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="tweak-applied"></span>Tweak Applied</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="kasper"></span>For Kasper</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="tweak-needed"></span>Tweak Needed</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="client"></span>For Client</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="approved"></span>Approved</span>
+                    <span class="ked-legend-item"><span class="ked-legend-swatch" data-status="posted"></span>Posted</span>
+                </div>
             </div>
             <div id="kedBody"><div class="kasper-loading"><div class="spinner"></div>Pulling last week's work from Linear…</div></div>`;
         const fresh = _kasperState.editorsData && (Date.now() - _kasperState.editorsLoadedAt < 10 * 60 * 1000);
@@ -13817,9 +13882,22 @@
         return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     }
 
+    // Split videos by what kind of work happened on them this week:
+    //   tweaked = at least one Tweak Applied transition exists in window
+    //   started = first-cut work only (In Progress / For SMM, no tweak round)
+    function _kedSplitVideos(videos) {
+        let tweaked = 0, started = 0;
+        for (const v of (videos || [])) {
+            const had = (v.transitions || []).some(t => /^tweak\s*applied$/i.test(t.status || ''));
+            if (had) tweaked++; else started++;
+        }
+        return { tweaked, started };
+    }
+
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
         const key = ed.email || ed.name;
         const expanded = !!_kasperState.editorsExpanded[key];
+        const dayFilter = _kasperState.editorsDayFilter[key] || null;
         const days = showWeekend ? weekDates : weekDates.slice(0, 5);
         const avatarHtml = ed.avatarUrl
             ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback('${(ed.name || '').replace(/'/g, "\\'")}'))">`
@@ -13830,22 +13908,36 @@
             const pct = Math.max(0, Math.min(1, count / globalDailyMax));
             const heightPct = count > 0 ? Math.max(0.12, pct) * 100 : 0;
             const seg = count > 0 ? `<div class="ked-bar-seg" style="height:${heightPct.toFixed(2)}%;"></div>` : '';
-            const titleText = count > 0 ? `${d.label}: ${count} status change${count === 1 ? '' : 's'}` : `${d.label}: nothing`;
+            const isSel = dayFilter === d.key;
+            const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
+            const titleText = count > 0
+                ? `${d.label}: ${count} status change${count === 1 ? '' : 's'} — click to view`
+                : `${d.label}: nothing`;
+            const onclickAttr = count > 0
+                ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
+                : '';
             return `<div class="ked-bar">
-                <div class="ked-bar-stack${count === 0 ? ' is-empty' : ''}" title="${titleText}">
+                <div class="ked-bar-count${count === 0 ? ' is-empty' : ''}">${count || '·'}</div>
+                <div class="${stackCls}" title="${titleText}"${onclickAttr}>
                     ${seg}
-                    <div class="ked-bar-count">${count || '·'}</div>
                 </div>
                 <div class="ked-bar-label">${d.label}</div>
             </div>`;
         }).join('');
-        const videosBlock = expanded ? _kedVideos(ed.videos || []) : '';
-        return `<div class="ked-row${expanded ? ' expanded' : ''}" data-ked-key="${_calEscAttr(key)}">
+
+        const split = _kedSplitVideos(ed.videos);
+        const parts = [`<strong>${ed.distinctVideos}</strong> video${ed.distinctVideos === 1 ? '' : 's'}`];
+        if (split.tweaked) parts.push(`${split.tweaked} tweaked`);
+        if (split.started) parts.push(`${split.started} started`);
+        const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
+
+        const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
+        return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
             <div class="ked-row-head" onclick="_kasperToggleEditor('${_calEscAttr(key)}')">
                 <div class="ked-avatar">${avatarHtml}</div>
                 <div class="ked-id">
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
-                    <div class="ked-id-breakdown">${ed.distinctVideos} video${ed.distinctVideos === 1 ? '' : 's'} · ${ed.totalEvents} status change${ed.totalEvents === 1 ? '' : 's'}</div>
+                    <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-avg">
                     <span class="ked-avg-val">${ed.avgPerWorkday.toFixed(2)}</span>
@@ -13858,7 +13950,7 @@
         </div>`;
     }
 
-    // Map a Linear state name to a stable slug used for the pill colour.
+    // Map a Linear state name to a stable slug used for the colour palette.
     function _kedStatusSlug(name) {
         const n = String(name || '').toLowerCase().trim();
         if (!n) return 'other';
@@ -13870,54 +13962,175 @@
         if (/tweak\s*needed/.test(n))     return 'tweak-needed';
         if (/^approved/.test(n))          return 'approved';
         if (/^posted/.test(n))            return 'posted';
-        if (/^todo|^to do/.test(n))       return 'todo';
+        if (/^todo|^to do|^triage/.test(n)) return 'todo';
         if (/^backlog/.test(n))           return 'backlog';
-        if (/^cancel/.test(n))            return 'canceled';
-        if (/^triage/.test(n))            return 'todo';
-        if (/^duplicate/.test(n))         return 'canceled';
+        if (/^cancel|^duplicate/.test(n)) return 'canceled';
         return 'other';
     }
-    function _kedStatusShort(name) {
-        const n = String(name || '').trim();
-        if (/^for\s+smm\s+approval$/i.test(n))    return 'For SMM';
-        if (/^for\s+kasper\s+approval$/i.test(n)) return 'For Kasper';
-        if (/^for\s+client\s+approval$/i.test(n)) return 'For Client';
-        if (/^tweak\s*needed/i.test(n))           return 'Tweak Needed';
-        if (/^tweak\s*applied/i.test(n))          return 'Tweak Applied';
-        return n.replace(/\s+/g, ' ');
+    const _KED_STATUS_LABELS = {
+        'in-progress':   'In Progress',
+        'smm':           'For SMM',
+        'tweak-applied': 'Tweak Applied',
+        'kasper':        'For Kasper',
+        'client':        'For Client',
+        'tweak-needed':  'Tweak Needed',
+        'approved':      'Approved',
+        'posted':        'Posted',
+        'todo':          'Todo',
+        'backlog':       'Backlog',
+        'canceled':      'Canceled',
+        'other':         '—'
+    };
+
+    // Build proportional-width segments across the Mon→Sun span. Each segment
+    // represents the state the issue sat in between two transitions (or between
+    // week-start and the first transition, using the first transition's fromState).
+    function _kedBuildSegments(transitions, weekStartMs, weekEndMs) {
+        if (!transitions || !transitions.length) return [];
+        const total = weekEndMs - weekStartMs;
+        if (total <= 0) return [];
+        const segs = [];
+        const first = transitions[0];
+        const firstMs = Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(first.at)));
+        if (first.from && firstMs > weekStartMs) {
+            segs.push({
+                status: first.from,
+                slug: _kedStatusSlug(first.from),
+                startMs: weekStartMs,
+                endMs: firstMs,
+                startPct: 0,
+                widthPct: ((firstMs - weekStartMs) / total) * 100,
+                isLeading: true
+            });
+        }
+        for (let i = 0; i < transitions.length; i++) {
+            const t = transitions[i];
+            const start = Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(t.at)));
+            const end = i < transitions.length - 1
+                ? Math.max(weekStartMs, Math.min(weekEndMs, Date.parse(transitions[i + 1].at)))
+                : weekEndMs;
+            segs.push({
+                status: t.status,
+                slug: _kedStatusSlug(t.status),
+                startMs: start,
+                endMs: end,
+                startPct: ((start - weekStartMs) / total) * 100,
+                widthPct: Math.max(0.4, ((end - start) / total) * 100)
+            });
+        }
+        return segs;
     }
 
-    function _kedVideos(videos) {
-        if (!videos.length) return '';
-        const cards = videos.map(v => {
-            const transitions = (v.transitions || []);
-            // Drop the bare ID (VID-…) — show project (= client) + title only.
-            const clientHtml = v.clientName
-                ? `<span class="ked-vid-client">${_calEsc(v.clientName)}</span>`
-                : '';
-            const titleHtml = v.url
-                ? `<a class="ked-vid-title" href="${_calEscAttr(v.url)}" target="_blank" rel="noopener">${_calEsc(v.title || 'Untitled')}</a>`
-                : `<span class="ked-vid-title">${_calEsc(v.title || 'Untitled')}</span>`;
-            const flow = transitions.length
-                ? transitions.map((t, i) => {
-                    const slug = _kedStatusSlug(t.status);
-                    const tip = `${t.weekday} ${t.time} — ${t.from ? t.from.trim() + ' → ' : ''}${t.status.trim()}`;
-                    const pill = `<span class="ked-trn" data-status="${slug}" title="${_calEscAttr(tip)}">
-                        <span class="ked-trn-day">${_calEsc(t.weekday)}</span>
-                        <span class="ked-trn-name">${_calEsc(_kedStatusShort(t.status))}</span>
-                    </span>`;
-                    const arrow = i < transitions.length - 1 ? '<span class="ked-trn-arrow" aria-hidden="true">→</span>' : '';
-                    return pill + arrow;
-                }).join('')
-                : `<span class="ked-trn-empty">No status changes in window</span>`;
-            return `<article class="ked-vid">
-                <header class="ked-vid-head">
-                    <div class="ked-vid-meta">${clientHtml}${titleHtml}</div>
-                </header>
-                <div class="ked-vid-flow">${flow}</div>
-            </article>`;
-        }).join('');
-        return `<div class="ked-vid-list">${cards}</div>`;
+    function _kedFmtSegRange(startMs, endMs) {
+        const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', minute: '2-digit' });
+        return fmt.format(new Date(startMs)) + ' → ' + fmt.format(new Date(endMs));
+    }
+
+    function _kedVideos(videos, dayFilter, weekStartISO, weekEndISO, editorKey, days) {
+        if (!videos || !videos.length) {
+            return `<div class="ked-vid-empty">No sub-issues to show.</div>`;
+        }
+        const weekStartMs = Date.parse(weekStartISO);
+        const weekEndMs = Date.parse(weekEndISO);
+
+        // Filter to a single day if a filter is active.
+        let filtered = videos;
+        let filterHeader = '';
+        if (dayFilter) {
+            filtered = videos.filter(v => (v.transitions || []).some(t => t.dayKey === dayFilter));
+            const dayObj = (days || []).find(d => d.key === dayFilter);
+            const dayLong = dayObj ? dayObj.label : dayFilter;
+            const count = filtered.length;
+            filterHeader = `<div class="ked-vid-filter">
+                <span class="ked-vid-filter-label"><strong>${dayLong}</strong> · ${count} sub-issue${count === 1 ? '' : 's'} touched</span>
+                <button type="button" class="ked-vid-filter-clear" onclick="event.stopPropagation();_kasperClearEditorDay('${_calEscAttr(editorKey)}')" aria-label="Clear day filter">Show whole week ×</button>
+            </div>`;
+        }
+
+        // Day-tick positions for the timeline grid.
+        const tickStyles = [];
+        for (let i = 1; i < 7; i++) {
+            const pct = (i / 7) * 100;
+            tickStyles.push(pct);
+        }
+        const dayLabelsHtml = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+            .map((lbl, i) => `<span class="ked-vid-axis-day" style="left:${((i + 0.5) / 7) * 100}%;">${lbl}</span>`)
+            .join('');
+        const tickHtml = tickStyles.map(p => `<span class="ked-strip-tick" style="left:${p}%;"></span>`).join('');
+
+        // Group videos by client when day-filtered (helps spot which clients were worked).
+        let bodyHtml;
+        if (dayFilter) {
+            const groups = new Map();
+            for (const v of filtered) {
+                const c = v.clientName || 'No client';
+                if (!groups.has(c)) groups.set(c, []);
+                groups.get(c).push(v);
+            }
+            // Sort groups by name, videos inside by latest activity.
+            const sortedClients = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+            bodyHtml = sortedClients.map(c => {
+                const vids = groups.get(c);
+                vids.sort((a, b) => String(b.latestAt).localeCompare(String(a.latestAt)));
+                return `<div class="ked-vid-group">
+                    <div class="ked-vid-group-head">${_calEsc(c)} <span class="ked-vid-group-count">${vids.length}</span></div>
+                    ${vids.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter)).join('')}
+                </div>`;
+            }).join('');
+        } else {
+            bodyHtml = filtered.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, null)).join('');
+        }
+
+        return `<div class="ked-vid-list">
+            ${filterHeader}
+            <div class="ked-vid-axis">
+                <div class="ked-vid-axis-track">${dayLabelsHtml}</div>
+            </div>
+            <div class="ked-vid-track-grid" aria-hidden="true">${tickHtml}</div>
+            ${bodyHtml}
+        </div>`;
+    }
+
+    function _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter) {
+        const segs = _kedBuildSegments(v.transitions || [], weekStartMs, weekEndMs);
+        const segHtml = segs.length
+            ? segs.map(s => {
+                const labelName = _KED_STATUS_LABELS[s.slug] || s.status;
+                const tip = labelName + ' · ' + _kedFmtSegRange(s.startMs, s.endMs);
+                const dim = dayFilter ? 'is-dim' : '';
+                return `<div class="ked-strip-seg ${dim}" data-status="${s.slug}" style="left:${s.startPct.toFixed(3)}%;width:${s.widthPct.toFixed(3)}%;" title="${_calEscAttr(tip)}"></div>`;
+            }).join('')
+            : '';
+        // Highlight overlay for the filtered day, if any.
+        let highlightHtml = '';
+        if (dayFilter) {
+            const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+            // Compute the day's percentage band using the weekday from any transition matching the filter, falling back to derived index.
+            const matchT = (v.transitions || []).find(t => t.dayKey === dayFilter);
+            if (matchT) {
+                const idx = days.indexOf(matchT.weekday);
+                if (idx >= 0) {
+                    const left = (idx / 7) * 100;
+                    const width = (1 / 7) * 100;
+                    highlightHtml = `<div class="ked-strip-highlight" style="left:${left}%;width:${width}%;"></div>`;
+                }
+            }
+        }
+        const clientHtml = v.clientName
+            ? `<div class="ked-vid-client">${_calEsc(v.clientName)}</div>`
+            : '';
+        const titleHtml = v.url
+            ? `<a class="ked-vid-title" href="${_calEscAttr(v.url)}" target="_blank" rel="noopener">${_calEsc(v.title || 'Untitled')}</a>`
+            : `<span class="ked-vid-title">${_calEsc(v.title || 'Untitled')}</span>`;
+        return `<article class="ked-vid">
+            <div class="ked-vid-meta">
+                ${clientHtml}
+                ${titleHtml}
+            </div>
+            <div class="ked-vid-strip">
+                <div class="ked-strip-track">${highlightHtml}${segHtml}</div>
+            </div>
+        </article>`;
     }
 
     function _kedAvatarFallback(name) {
@@ -13927,7 +14140,24 @@
     }
 
     function _kasperToggleEditor(key) {
-        _kasperState.editorsExpanded[key] = !_kasperState.editorsExpanded[key];
+        const wasOpen = !!_kasperState.editorsExpanded[key];
+        _kasperState.editorsExpanded[key] = !wasOpen;
+        if (wasOpen) _kasperState.editorsDayFilter[key] = null;
+        _kedPaint();
+    }
+    function _kasperToggleEditorDay(key, dayKey) {
+        const current = _kasperState.editorsDayFilter[key] || null;
+        if (current === dayKey) {
+            // Clicking the same day twice clears the filter (stays expanded).
+            _kasperState.editorsDayFilter[key] = null;
+        } else {
+            _kasperState.editorsDayFilter[key] = dayKey;
+            _kasperState.editorsExpanded[key] = true;
+        }
+        _kedPaint();
+    }
+    function _kasperClearEditorDay(key) {
+        _kasperState.editorsDayFilter[key] = null;
         _kedPaint();
     }
 
@@ -13945,6 +14175,8 @@
     window._kasperHistoryThumbFallback = _kasperHistoryThumbFallback;
     window._kasperLoadEditors = _kasperLoadEditors;
     window._kasperToggleEditor = _kasperToggleEditor;
+    window._kasperToggleEditorDay = _kasperToggleEditorDay;
+    window._kasperClearEditorDay = _kasperClearEditorDay;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
 </script>

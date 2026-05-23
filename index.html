@@ -14892,10 +14892,10 @@
                 <div class="kasper-hero-head">
                     <span class="kasper-hero-title">Video</span>
                 </div>
-                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>` : ''}
+                <button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="What needs to change?" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
                 </div>
                 ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
                 <div class="cal-review-thread">${threadHtml}</div>
@@ -14942,10 +14942,10 @@
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+            <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request tweaks</button>
+                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
             <div class="cal-review-thread">${threadHtml}</div>
@@ -15003,12 +15003,23 @@
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
-        const prevHadDraft = !!String(item._drafts[comp] || '').trim();
         item._drafts[comp] = ta.value;
         const nowHasDraft = !!ta.value.trim();
-        // Only repaint when crossing the empty/non-empty boundary so the
-        // approve button toggles in/out without flashing on every keystroke.
-        if (prevHadDraft !== nowHasDraft) _kasperRepaintCard(pid);
+        // Don't repaint — that would yank the textarea out of focus mid-
+        // keystroke. Approve / Submit are always rendered now; just toggle
+        // their disabled attribute inline.
+        const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
+        const card = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
+        if (!card) return;
+        const saving = !!(item._saving && item._saving[comp]);
+        // Find the panel for this comp (hero panel has no data-comp filter
+        // but uses the same component).
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
+        if (!panel) return;
+        const approveBtn = panel.querySelector('.cal-review-approve-btn');
+        if (approveBtn) approveBtn.disabled = saving || nowHasDraft;
+        const submitBtn = panel.querySelector('.cal-review-tweak-btn');
+        if (submitBtn) submitBtn.disabled = saving || !nowHasDraft;
     }
 
     async function _kasperApproveComp(pid, comp) {
@@ -15058,11 +15069,12 @@
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
         const body = String(item._drafts[comp] || '').trim();
         if (!body || item._saving[comp]) return;
-        const subKey = comp + '_status';
-        const compArrKey = comp + '_comments';
+        // Submit adds a comment to the thread — status is NOT touched, and
+        // the card stays in Kasper's queue. He can keep layering thoughts
+        // before deciding to Approve (which moves to Client Approval). If he
+        // wants to send things back to the editor instead, the SMM picks up
+        // the comments and flips status from their side.
         const prev = {
-            [subKey]: item.post[subKey],
-            status: item.post.status,
             video_comments:   item.post.video_comments,
             graphic_comments: item.post.graphic_comments,
             caption_comments: item.post.caption_comments,
@@ -15081,8 +15093,6 @@
         };
         list.push(newComment);
         _calSetCommentsFor(item.post, comp, list);
-        item.post[subKey] = 'Tweaks Needed';
-        item.post.status = computeOverallStatus(item.post);
         item._drafts[comp] = '';
         item._saving[comp] = true;
         item._errors[comp] = null;
@@ -15092,9 +15102,7 @@
             const linUrl = _calLinearUrlFor(item.post, comp);
             if (linUrl) _calPostLinearComment(linUrl, body, 'Kasper');
             item._saving[comp] = false;
-            const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
-            if (!stillKasper) _kasperRemoveItem(pid);
-            else _kasperRepaintCard(pid);
+            _kasperRepaintCard(pid);
         } catch (e) {
             Object.assign(item.post, prev);
             item._saving[comp] = false;

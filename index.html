@@ -1972,13 +1972,19 @@
         .cal-card-substatus-row { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
         .cal-fld-substatus-wrap { display: block; border-radius: 7px; background: #f3f3f1; color: var(--text-secondary); }
         .cal-fld-substatus-wrap.is-locked { opacity: 0.55; }
-        .cal-fld-substatus-trigger { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
+        .cal-fld-substatus-trigger { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box;
             padding: 5px 9px; border: 0; border-radius: 7px; outline: 0; cursor: pointer; background: transparent;
             color: inherit; font-family: inherit; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
         .cal-fld-substatus-trigger:disabled { cursor: not-allowed; }
-        .cal-fld-substatus-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-        .cal-fld-substatus-comp { color: var(--text-muted); font-weight: 600; min-width: 50px; }
-        .cal-fld-substatus-label { flex: 1; text-align: right; font-weight: 800; }
+        /* Dot needs a thin ring so a similar-hue background (e.g. amber dot
+           on the Tweaks Needed amber pill) doesn't make it disappear. */
+        .cal-fld-substatus-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1px rgba(255,255,255,0.55); }
+        /* Comp + label inherit the button colour so a coloured-state pill
+           (tweaks, approved, etc.) reads with proper contrast against the
+           tinted background. The slight alpha differentiates label vs. comp
+           without falling back to muted gray. */
+        .cal-fld-substatus-comp { color: inherit; opacity: 0.78; font-weight: 700; }
+        .cal-fld-substatus-label { flex: 1; text-align: right; font-weight: 800; color: inherit; }
         .cal-fld-substatus-trigger.cal-fld-status-in-progress       { background: #fef08a; color: #713f12; }
         .cal-fld-substatus-trigger.cal-fld-status-for-smm-approval  { background: #fce7f3; color: #9d174d; }
         .cal-fld-substatus-trigger.cal-fld-status-kasper-approval   { background: #ffe4cc; color: #9a3412; }
@@ -2071,7 +2077,17 @@
         .cal-review-sub-pill.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
         .cal-review-sub-pill.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
         .cal-review-sub-pill.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
-        .cal-review-body { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--border); background: var(--bg); }
+        /* 3-column grid: video / thumbnail / caption side by side. Falls
+           back to a single stacked column under ~880 px wide so the cards
+           don't get crushed on small viewports. */
+        .cal-review-body { padding: 14px 18px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-top: 1px solid var(--border); background: var(--bg); align-items: start; }
+        @media (max-width: 880px) { .cal-review-body { grid-template-columns: 1fr; } }
+        /* Inside the columns, the panels themselves go vertical and the
+           preview shouldn't blow the column width on small thumbnails. */
+        .cal-review-body .cal-review-panel { padding: 12px 13px; }
+        .cal-review-body .cal-review-preview-thumb img { max-width: 100%; max-height: 180px; }
+        .cal-review-body .cal-review-panel-compose { flex-wrap: wrap; }
+        .cal-review-body .cal-review-tweak-btn { flex-shrink: 0; }
         .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; transition: background 0.18s, border-color 0.18s; }
         .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #86efac; }
         .cal-review-panel[data-state="tweaks"]   { background: #fff7ed; border-color: #fdba74; }
@@ -2193,29 +2209,28 @@
         /* ── Card tweaks button + threaded-tweaks modal ─────────────── */
         .cal-card-foot { justify-content: space-between; gap: 8px; }
         .cal-card-status-row { margin-top: 8px; }
-        /* Tweaks button — a clean rectangle (not a balloon-pill) with a
-           subtle hover. When threads are open it picks up a soft amber
-           tint and a small badge; no shouting yellow background.  */
-        .cal-comments-btn { display: inline-flex; align-items: center; gap: 7px;
-            background: transparent; border: 1px solid var(--border);
-            color: var(--text-secondary); border-radius: 8px;
-            padding: 5px 10px; font-family: inherit; font-size: 0.78rem;
-            font-weight: 600; letter-spacing: 0; cursor: pointer;
-            transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease; }
-        .cal-comments-btn:hover { background: var(--bg); color: var(--text-primary); border-color: var(--text-muted); }
-        .cal-comments-btn svg { width: 14px; height: 14px; opacity: 0.85; }
+        /* Tweaks button — compact, ghost-style. When idle it's a quiet
+           icon + label (no border, no background). When threads are open
+           it picks up a faint amber underline-style notification dot
+           with a tiny number — modern and unobtrusive. */
+        .cal-comments-btn { display: inline-flex; align-items: center; gap: 5px;
+            background: transparent; border: 0;
+            color: var(--text-muted); border-radius: 6px;
+            padding: 3px 6px; font-family: inherit; font-size: 0.74rem;
+            font-weight: 500; letter-spacing: 0; cursor: pointer; position: relative;
+            transition: color 0.14s ease, background 0.14s ease; }
+        .cal-comments-btn:hover { color: var(--text-primary); background: var(--bg); }
+        .cal-comments-btn svg { width: 13px; height: 13px; opacity: 0.7; }
+        .cal-comments-btn:hover svg { opacity: 1; }
         .cal-comments-btn .cal-comments-label { letter-spacing: 0; }
         .cal-comments-btn .cal-comments-count { display: none; }
-        .cal-comments-btn.has-open {
-            background: #fff8ec; color: #9a3412; border-color: #fed7aa;
-            box-shadow: 0 1px 2px rgba(154,52,18,0.06);
-        }
+        .cal-comments-btn.has-open { color: #c2410c; font-weight: 600; }
         .cal-comments-btn.has-open svg { opacity: 1; color: #c2410c; }
-        .cal-comments-btn.has-open:hover { background: #ffeed1; border-color: #fdba74; }
+        .cal-comments-btn.has-open:hover { background: #fff5e6; }
         .cal-comments-btn.has-open .cal-comments-count {
             display: inline-flex; align-items: center; justify-content: center;
-            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 6px;
-            background: #c2410c; color: #fff; font-size: 0.68rem; font-weight: 700;
+            min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px;
+            background: #ea580c; color: #fff; font-size: 0.62rem; font-weight: 700;
             font-variant-numeric: tabular-nums; letter-spacing: 0;
             line-height: 1; box-sizing: border-box;
         }
@@ -10749,7 +10764,11 @@
         const canApprove = ro && currentStatus === 'Client Approval';
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
         const subStatusHtml = ro ? '' : CAL_COMPONENTS.map(c => {
-            const cs = _calNormStatus(p[c + '_status'] || currentStatus);
+            // Don't fall back to overall — overall is lower-priority-wins,
+            // so seeding a blank sub from it would lie about state. Migrate
+            // already guarantees a value, so a blank reaching this point is
+            // a genuine "not set yet" and should read In Progress.
+            const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             const slug = _calStatusSlug(cs);
             const lock = (c !== 'caption' && !String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim()) ? ' is-locked' : '';
             return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
@@ -10816,6 +10835,11 @@
         _calCloseStatusMenu();
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
+        // Make sure the pill the user is opening from agrees with the
+        // value the menu is about to highlight. If a background poll or
+        // auto-status mutated post.* while the user wasn't actively
+        // editing, the pill DOM may be stale relative to calState.posts.
+        _calUpdateCardStatusDisplay(pid);
         const currentStatus = which
             ? (post[which + '_status'] || 'In Progress')
             : (post.status || 'In Progress');
@@ -12571,6 +12595,28 @@
             wrap.setAttribute('data-val', post.status);
             const lbl = wrap.querySelector('.cal-fld-status-label');
             if (lbl) lbl.textContent = _calStatusLabel(post.status);
+        }
+        // Per-component sub-status pills — without this refresh, an auto-
+        // status change from resolving the last tweak (or any in-place
+        // mutation like _calApplyAutoStatus) would leave the pill DOM
+        // stale and the dropdown's "active" highlight would disagree with
+        // the visible label.
+        for (const c of CAL_COMPONENTS) {
+            const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
+            if (!subWrap) continue;
+            const cs = _calNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            subWrap.setAttribute('data-val', cs);
+            const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
+            if (trigger) {
+                // Replace any cal-fld-status-* class with the new slug so the
+                // pill picks up the colour for the new state.
+                Array.from(trigger.classList).forEach(cls => {
+                    if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
+                });
+                trigger.classList.add('cal-fld-status-' + _calStatusSlug(cs));
+                const labelEl = trigger.querySelector('.cal-fld-substatus-label');
+                if (labelEl) labelEl.textContent = _calStatusLabel(cs);
+            }
         }
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
         if (!card) return;

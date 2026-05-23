@@ -2054,9 +2054,23 @@
         .cal-review-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: box-shadow 0.15s, border-color 0.15s; }
         .cal-review-card:hover { border-color: #888; box-shadow: 0 4px 14px rgba(0,0,0,0.07); }
         .cal-review-card.expanded { border-color: var(--text-primary); box-shadow: 0 4px 16px rgba(0,0,0,0.10); }
-        .cal-review-sub-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+        .cal-review-sub-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .cal-review-sub-row:empty { display: none; }
         .cal-review-sub-summary { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-secondary); }
         .cal-review-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        /* Compact per-component divergence pills — only shown when a sub-status
+           differs from the overall. Background colors are reused from the
+           sub-status palette below. */
+        .cal-review-sub-pill { display: inline-flex; padding: 2px 8px; border-radius: 5px;
+            font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em;
+            text-transform: uppercase; background: #f3f3f1; color: var(--text-secondary); }
+        .cal-review-sub-pill.cal-fld-status-in-progress       { background: #fef08a; color: #713f12; }
+        .cal-review-sub-pill.cal-fld-status-for-smm-approval  { background: #fce7f3; color: #9d174d; }
+        .cal-review-sub-pill.cal-fld-status-kasper-approval   { background: #ffe4cc; color: #9a3412; }
+        .cal-review-sub-pill.cal-fld-status-client-approval   { background: #fee2e2; color: #991b1b; }
+        .cal-review-sub-pill.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
+        .cal-review-sub-pill.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
+        .cal-review-sub-pill.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
         .cal-review-body { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--border); background: var(--bg); }
         .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
         .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #86efac; }
@@ -2087,9 +2101,15 @@
         .cal-review-tweak-btn:disabled { opacity: 0.5; cursor: default; }
         .cal-review-tweak-btn svg { width: 12px; height: 12px; }
         .cal-review-panel-err { margin-top: 8px; font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
-        .cal-review-thread { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
-        .cal-review-comment { padding: 7px 10px; background: var(--bg); border-radius: 7px; }
-        .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 3px; }
+        .cal-review-thread { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+        /* Quote-style: no gray fill, just a colored left rule tinted to the
+           component the comment belongs to. Feels like a chat reply, not a
+           UI panel sitting on top of another UI panel. */
+        .cal-review-comment { padding: 2px 0 2px 11px; border-left: 2px solid var(--border); background: transparent; }
+        .cal-review-panel[data-comp="video"]   .cal-review-comment { border-left-color: rgba(6,182,212,0.55); }
+        .cal-review-panel[data-comp="graphic"] .cal-review-comment { border-left-color: rgba(217,70,239,0.55); }
+        .cal-review-panel[data-comp="caption"] .cal-review-comment { border-left-color: rgba(245,158,11,0.55); }
+        .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px; }
         .cal-review-comment-time { margin-left: 6px; font-weight: 500; }
         .cal-review-comment-body { font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.45; }
         .cal-review-comment-empty { font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 6px 0; }
@@ -2203,6 +2223,11 @@
         .cal-cm-avatar.is-client { background: linear-gradient(135deg, #16a34a, #059669); }
         .cal-cm-body-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
         .cal-cm-head-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; line-height: 1.3; }
+        .cal-cm-comp-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 0.62rem;
+            font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; flex-shrink: 0; align-self: center; }
+        .cal-cm-comp-badge.cal-cm-comp-video   { background: #06b6d4; }
+        .cal-cm-comp-badge.cal-cm-comp-graphic { background: #d946ef; }
+        .cal-cm-comp-badge.cal-cm-comp-caption { background: #f59e0b; }
         .cal-cm-author { font-weight: 800; color: var(--text-primary); font-size: 0.86rem; }
         .cal-cm-row.is-reply .cal-cm-author { font-size: 0.8rem; }
         .cal-cm-time { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
@@ -8323,12 +8348,17 @@
     function _calMigratePostShape(p) {
         if (!p || typeof p !== 'object') return p;
         const legacy = _calNormStatus(p.status || 'In Progress');
-        if (!String(p.video_status || '').trim())   p.video_status   = legacy;
-        else                                         p.video_status   = _calNormStatus(p.video_status);
-        if (!String(p.graphic_status || '').trim()) p.graphic_status = legacy;
-        else                                         p.graphic_status = _calNormStatus(p.graphic_status);
-        if (!String(p.caption_status || '').trim()) p.caption_status = legacy;
-        else                                         p.caption_status = _calNormStatus(p.caption_status);
+        const hasV = !!String(p.video_status   || '').trim();
+        const hasG = !!String(p.graphic_status || '').trim();
+        const hasC = !!String(p.caption_status || '').trim();
+        // Only seed sub-statuses from the overall when this is a legacy row
+        // with no sub-statuses at all. Otherwise a blank sub means "untouched"
+        // — and seeding it from `status` (which is the worst-of) would clobber
+        // an approved component the moment a sibling moved to Tweaks Needed.
+        const isLegacyOnly = !hasV && !hasG && !hasC;
+        p.video_status   = hasV ? _calNormStatus(p.video_status)   : (isLegacyOnly ? legacy : 'In Progress');
+        p.graphic_status = hasG ? _calNormStatus(p.graphic_status) : (isLegacyOnly ? legacy : 'In Progress');
+        p.caption_status = hasC ? _calNormStatus(p.caption_status) : (isLegacyOnly ? legacy : 'In Progress');
         p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
         p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
         p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
@@ -8630,6 +8660,19 @@
     window.addEventListener('pageshow', _calRefreshOnReturn);
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
+
+    /* Background poll — keeps the SMM's calendar in sync with sub-status and
+       tweak-comment writes coming from the client review view. The fetch is
+       fire-and-forget; if the user is mid-edit the rendered result is deferred
+       until they blur (see _calSchedulePendingRender). 30 s matches the
+       Linear-status reconcile cadence elsewhere in the app. */
+    setInterval(() => {
+        if (document.visibilityState === 'hidden') return;
+        if (!calState.client) return;
+        if (!document.getElementById('calBody')) return;
+        if (_calBgLoadInFlight || calState.loading) return;
+        loadCalendarPosts({ background: true });
+    }, 30000);
 
     /* Picks the initial view tab on mount. Clients land on Review by default
        (the approval queue is their main job); the SMM never lands on Review
@@ -11608,11 +11651,18 @@
             : 'Unscheduled';
         const overall = _calNormStatus(p.status || '');
         const overallChip = _calStatusChip(p);
-        const subSummary = CAL_COMPONENTS.map(c => {
-            const st = _calNormStatus(p[c + '_status'] || '');
-            const dot = `<span class="cal-review-dot" style="background:${COMP_PILL_COLORS[c]}"></span>`;
-            return `<span class="cal-review-sub-summary" title="${_calEsc(COMP_LABELS[c])}: ${_calEsc(st)}">${dot}${_calEsc(COMP_LABELS[c])}: <strong>${_calEsc(st)}</strong></span>`;
-        }).join('');
+        // Sub-status row: when all three components share the same status,
+        // the overall chip already says everything — hide the row. Otherwise
+        // surface only the components whose status diverges from the overall,
+        // as compact status-colored pills (label = component name).
+        const subStates = CAL_COMPONENTS.map(c => ({ c, st: _calNormStatus(p[c + '_status'] || '') }));
+        const allSame = subStates.every(s => s.st === subStates[0].st);
+        const subSummary = allSame ? '' : subStates
+            .filter(s => s.st !== overall)
+            .map(s => {
+                const slug = _calStatusSlug(s.st);
+                return `<span class="cal-review-sub-pill cal-fld-status-${slug}" title="${_calEsc(COMP_LABELS[s.c])}: ${_calEsc(_calStatusLabel(s.st))}">${_calEsc(COMP_LABELS[s.c])}</span>`;
+            }).join('');
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
@@ -11668,8 +11718,12 @@
         const threadHtml = comments && comments.length
             ? comments.map(c => `<div class="cal-review-comment"><div class="cal-review-comment-head"><strong>${_calEsc(c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'))}</strong> <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div><div class="cal-review-comment-body">${_calEsc(c.body || '')}</div></div>`).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
-        const approveEnabled = canActClient && !saving && subStatus !== 'Approved' && subStatus !== 'Posted';
-        const tweakEnabled = canActClient && !saving && !!draft.trim();
+        const hasDraft = !!draft.trim();
+        const approveEnabled = canActClient && !saving && !hasDraft && subStatus !== 'Approved' && subStatus !== 'Posted';
+        // Hide the approve button entirely once the client starts typing
+        // tweaks — approving while a comment is in flight doesn't make sense.
+        const showApprove = canActClient && !hasDraft && subStatus !== 'Approved' && subStatus !== 'Posted';
+        const tweakEnabled = canActClient && !saving && hasDraft;
         const stateLabel = subStatus;
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
@@ -11679,9 +11733,9 @@
                 ${linkBadge}
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            <div class="cal-review-panel-actions">
-                <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>${subStatus === 'Approved' ? 'Approved' : 'Approve ' + COMP_LABELS[comp].toLowerCase()}</button>
-            </div>
+            ${showApprove ? `<div class="cal-review-panel-actions">
+                <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>
+            </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="What needs to change?" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>Request tweaks</button>
@@ -11698,9 +11752,12 @@
             return `<a class="cal-review-preview-link" href="${_calEscAttr(url)}" target="_blank" rel="noopener">Open video ↗</a>`;
         }
         if (comp === 'graphic') {
-            const url = String(p.thumbnail_url || '').trim();
-            if (!url) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
-            return `<div class="cal-review-preview-thumb"><img src="${_calEscAttr(url)}" alt="" onerror="this.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></div>`;
+            const raw = String(p.thumbnail_url || '').trim();
+            if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+            // Rewrite Drive sharing URLs to the /thumbnail?id= form so the
+            // <img> actually loads. Raw raw URL kept as the link fallback.
+            const imgUrl = _calDeriveThumb(p) || raw;
+            return `<div class="cal-review-preview-thumb"><a href="${_calEscAttr(raw)}" target="_blank" rel="noopener"><img src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<a class=&quot;cal-review-preview-link&quot; href=&quot;${_calEscAttr(raw)}&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Open thumbnail ↗</a>'"></a></div>`;
         }
         const cap = String(p.caption || '').trim();
         if (!cap) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
@@ -11726,12 +11783,27 @@
     }
 
     function _calReviewOnDraftInput(ta, pid, comp) {
-        _calReviewState.drafts[pid + '|' + comp] = ta.value;
-        // Don't repaint on every keystroke; just re-enable the tweak button.
+        const key = pid + '|' + comp;
+        const prevHadDraft = !!String(_calReviewState.drafts[key] || '').trim();
+        _calReviewState.drafts[key] = ta.value;
+        const nowHasDraft = !!ta.value.trim();
+        // Don't repaint on every keystroke; just flip the tweak button and
+        // the approve button (which hides whenever draft is non-empty).
         const card = ta.closest('.cal-review-card');
         if (!card) return;
-        const btn = card.querySelector('.cal-review-panel[data-comp="' + comp + '"] .cal-review-tweak-btn');
-        if (btn) btn.disabled = !ta.value.trim() || !!_calReviewState.saving[pid + '|' + comp];
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
+        const tweakBtn = panel && panel.querySelector('.cal-review-tweak-btn');
+        if (tweakBtn) tweakBtn.disabled = !nowHasDraft || !!_calReviewState.saving[key];
+        // Show/hide approve button via crossing the draft-empty boundary so
+        // we only touch the DOM when it actually flips.
+        if (prevHadDraft !== nowHasDraft && panel) {
+            const actions = panel.querySelector('.cal-review-panel-actions');
+            if (nowHasDraft) {
+                if (actions) actions.remove();
+            } else {
+                _calReviewRepaintCard(pid);
+            }
+        }
     }
 
     async function _calReviewApprove(pid, comp) {
@@ -11947,13 +12019,33 @@
         return arr.filter(c => c.parent_id === rootId)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
+    /* Count open / total threads across all three components (video, graphic,
+       caption). Older code only looked at post.comments, missing client
+       tweak requests on the thumbnail/caption components — so the SMM card
+       showed "0 open" even after the client had requested changes. */
+    function _calAllCommentLists(post) {
+        if (!post) return [];
+        const lists = [];
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(post, c);
+            if (Array.isArray(list) && list.length) lists.push(list);
+        }
+        if (!lists.length && Array.isArray(post.comments) && post.comments.length) {
+            lists.push(post.comments);
+        }
+        return lists;
+    }
     function _calOpenCommentCount(post) {
-        const list = post && Array.isArray(post.comments) ? post.comments : _calLoadComments(post || {});
-        return list.filter(c => !c.parent_id && !c.done).length;
+        let n = 0;
+        for (const list of _calAllCommentLists(post)) {
+            for (const c of list) if (!c.parent_id && !c.done) n++;
+        }
+        return n;
     }
     function _calCommentTotal(post) {
-        const list = post && Array.isArray(post.comments) ? post.comments : _calLoadComments(post || {});
-        return list.length;
+        let n = 0;
+        for (const list of _calAllCommentLists(post)) n += list.length;
+        return n;
     }
     function _calFmtCommentTime(iso) {
         const t = Date.parse(iso || '');
@@ -12037,22 +12129,34 @@
         if (!modal || !pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) { closeCalComments(); return; }
-        const comments = Array.isArray(post.comments) ? post.comments : _calLoadComments(post);
-        post.comments = comments;
-        // Single chronological feed, oldest at top, newest at bottom. Resolved
-        // threads keep their place in the timeline — they just visually fade.
-        const roots = _calCommentRoots(comments);
+        const videoComments = Array.isArray(post.comments) ? post.comments : _calLoadComments(post);
+        post.comments = videoComments;
+        // Build a per-component view: each component contributes its own
+        // thread set, tagged so the SMM can see (and reply to / resolve)
+        // tweak requests from the client across video, thumbnail, and caption
+        // in one feed.
+        const compThreads = CAL_COMPONENTS.flatMap(c => {
+            const list = c === 'video'
+                ? videoComments
+                : _calCommentsFor(post, c);
+            if (!Array.isArray(list) || !list.length) return [];
+            return _calCommentRoots(list).map(r => ({ comp: c, list, root: r }));
+        });
+        // Sort all roots chronologically across components.
+        compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
         const postName = _calEsc(post.name || 'Untitled post');
 
-        const renderRow = (c, isReply) => {
+        const renderRow = (c, isReply, comp) => {
             const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
             const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+            const compBadge = (!isReply && comp) ? `<span class="cal-cm-comp-badge cal-cm-comp-${comp}">${_calEsc(COMP_LABELS[comp])}</span>` : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
+                        ${compBadge}
                         <span class="cal-cm-author">${_calEsc(author)}</span>
                         <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
                         ${doneTag}
@@ -12063,13 +12167,15 @@
             </div>`;
         };
 
-        const renderThread = (root) => {
-            const replies = _calCommentReplies(comments, root.id);
-            return `<div class="cal-cm-thread${root.done ? ' is-done' : ''}" data-thread="${root.id}">
-                ${renderRow(root, false)}
-                ${replies.map(r => renderRow(r, true)).join('')}
+        const renderThread = (entry) => {
+            const replies = _calCommentReplies(entry.list, entry.root.id);
+            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">
+                ${renderRow(entry.root, false, entry.comp)}
+                ${replies.map(r => renderRow(r, true, entry.comp)).join('')}
             </div>`;
         };
+        const roots = compThreads;
+        const comments = videoComments;
 
         const feedHtml = roots.length
             ? roots.map(renderThread).join('')
@@ -12130,7 +12236,13 @@
         const initial  = _calAvatarInitial(author, role);
         const roleCls  = role === 'client' ? 'is-client' : 'is-smm';
         const isReply  = !!_calReplyTarget;
-        const target   = isReply ? comments.find(c => c.id === _calReplyTarget) : null;
+        // Reply target may live on any component's thread — look across all.
+        const allLists = CAL_COMPONENTS.map(c => c === 'video'
+            ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
+            : _calCommentsFor(post, c));
+        const target   = isReply
+            ? allLists.flatMap(l => l).find(c => c && c.id === _calReplyTarget)
+            : null;
         const draft    = isReply ? (_calReplyDrafts[_calReplyTarget] || '') : (_calRootDraft || '');
         const placeholder = isReply
             ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
@@ -12198,7 +12310,13 @@
     function _calAppendComment(pid, parentId, body) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
+        // Replies inherit the component of the parent thread so a reply to a
+        // thumbnail tweak lands in graphic_tweaks (not video). New root
+        // threads stay on the video component (the SMM's default workspace).
+        const comp = parentId ? _calFindCompForCommentId(post, parentId) : 'video';
+        const arr = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
         const role = _calCommentRole();
         arr.push({
             id: _calMintCommentId(),
@@ -12211,23 +12329,39 @@
             done_at: '',
             done_by: ''
         });
-        post.comments = arr;
-        post.video_comments = arr;
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { video_tweaks: _calStringifyComments(arr) });
-        // Auto-status: any tweak from the client flips the card to Tweaks
-        // Needed so it's actionable in the workload view.
-        if (role === 'client') _calApplyAutoStatus(pid, 'client_added');
+        _calSetCommentsFor(post, comp, arr);
+        if (comp === 'video') post.comments = arr;
+        const fieldKey = comp + '_tweaks';
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(arr) });
+        // Auto-status: any tweak from the client flips that component's
+        // sub-status to Tweaks Needed so it's actionable in the workload view.
+        if (role === 'client') _calApplyAutoStatus(pid, 'client_added', comp);
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
+    }
+    /* Find which component (video / graphic / caption) owns a given comment
+       id. Lets SMM resolve / delete comments on any component's thread from
+       the unified modal feed. */
+    function _calFindCompForCommentId(post, commentId) {
+        for (const c of CAL_COMPONENTS) {
+            const list = c === 'video'
+                ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
+                : _calCommentsFor(post, c);
+            if (Array.isArray(list) && list.some(x => x.id === commentId)) return c;
+        }
+        return 'video';
     }
     function _calToggleCommentDone(rootId) {
         const pid = _calOpenCommentsPid;
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
-        const root = arr.find(c => c.id === rootId && !c.parent_id);
+        const comp = _calFindCompForCommentId(post, rootId);
+        const list = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const root = list.find(c => c.id === rootId && !c.parent_id);
         if (!root) return;
         const wasDone = !!root.done;
         if (wasDone) {
@@ -12235,14 +12369,15 @@
         } else {
             root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor();
         }
-        post.comments = arr;
-        post.video_comments = arr;
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { video_tweaks: _calStringifyComments(arr) });
+        _calSetCommentsFor(post, comp, list);
+        if (comp === 'video') post.comments = list;
+        const fieldKey = comp + '_tweaks';
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(list) });
         // Auto-status: SMM resolving the very last open thread → Client
-        // Approval. Only when SMM does it, never the client (a client
-        // closing their own thread shouldn't auto-bump the card forward).
+        // Approval. Counts across ALL components, not just the one being
+        // toggled.
         if (!wasDone && _calCommentRole() === 'smm') {
-            const stillOpen = arr.filter(c => !c.parent_id && !c.done).length;
+            const stillOpen = _calOpenCommentCount(post);
             if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
         }
         _calFlushCardSave(pid);
@@ -12262,7 +12397,10 @@
         if (!pid) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
-        const arr = Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post);
+        const comp = _calFindCompForCommentId(post, commentId);
+        const arr = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
         const target = arr.find(c => c.id === commentId);
         if (!target || !_calCanDeleteComment(target)) return;
         const isRoot = !target.parent_id;
@@ -12272,12 +12410,13 @@
             : "Delete this reply? This can't be undone.";
         showConfirm('Delete tweak?', msg, () => {
             const next = arr.filter(c => c.id !== commentId && c.parent_id !== commentId);
-            post.comments = next;
-            post.video_comments = next;
-            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { video_tweaks: _calStringifyComments(next) });
+            _calSetCommentsFor(post, comp, next);
+            if (comp === 'video') post.comments = next;
+            const fieldKey = comp + '_tweaks';
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(next) });
             // SMM clearing the last open thread mirrors a "resolve last" event.
             if (wasOpenRoot && _calCommentRole() === 'smm') {
-                const stillOpen = next.filter(c => !c.parent_id && !c.done).length;
+                const stillOpen = _calOpenCommentCount(post);
                 if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
             }
             _calFlushCardSave(pid);
@@ -12291,23 +12430,24 @@
     /* Auto-status transitions driven by tweak activity. Returns true if a
        change was applied. Skips terminal states (Posted) so live content
        isn't accidentally bounced backward. */
-    function _calApplyAutoStatus(pid, trigger) {
+    function _calApplyAutoStatus(pid, trigger, comp) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return false;
         if (post.status === 'Posted') return false;
+        const which = comp || 'video';
+        const subKey = which + '_status';
         let next = null;
-        if (trigger === 'client_added' && post.video_status !== 'Tweaks Needed') {
+        if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
             next = 'Tweaks Needed';
-        } else if (trigger === 'smm_resolved_last' && post.video_status !== 'Client Approval') {
+        } else if (trigger === 'smm_resolved_last' && post[subKey] !== 'Client Approval') {
             next = 'Client Approval';
         }
         if (!next) return false;
-        // The legacy tweaks modal threads against the video sub-issue, so
-        // an auto-status change flips video_status. The overall card status
-        // is recomputed from all three sub-statuses (lower-wins).
-        post.video_status = next;
+        // Only the component the comment belongs to flips status. Overall
+        // card status is recomputed from all three sub-statuses (lower-wins).
+        post[subKey] = next;
         post.status = computeOverallStatus(post);
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { video_status: next, status: post.status });
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
         return true;
     }
     /* Refresh just the status chip/dropdown on a card without re-rendering

@@ -2475,6 +2475,27 @@
             text-shadow: 0 1px 8px rgba(0,0,0,0.5); }
         .kasper-hero-poster-empty { background: linear-gradient(135deg, #e5e5e0, #d6d6d0); }
         .kasper-hero-poster-empty .kasper-hero-play-label { color: var(--text-muted); text-shadow: none; }
+        /* Graphic hero: full thumbnail image (not blurred) with a light
+           overlay on hover, click opens the lightbox. Same silhouette as
+           the video poster so the row stays visually consistent when only
+           the thumbnail is pending Kasper. */
+        .kasper-hero-poster-graphic { padding: 0; border: 0; cursor: pointer; background: linear-gradient(135deg, #1f2937, #0f172a); }
+        .kasper-hero-poster-fg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+        .kasper-hero-poster-overlay-graphic { background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.55) 100%);
+            justify-content: flex-end; padding-bottom: 22px; opacity: 0; transition: opacity 0.18s; }
+        .kasper-hero-poster-graphic:hover .kasper-hero-poster-overlay-graphic { opacity: 1; }
+        .kasper-hero-play-light { background: rgba(255,255,255,0.92); color: #0f172a; border-color: rgba(255,255,255,0.5); }
+        .kasper-hero-poster-graphic:hover .kasper-hero-play-light { background: #fff; }
+        /* Caption hero: read-first card. Generous padding, slightly serif-y
+           reading line-height, gentle gradient ground so it doesn't feel
+           sterile in the otherwise media-heavy hero row. */
+        .kasper-hero-caption-card { width: 100%; max-width: 380px; min-height: 260px;
+            padding: 22px 24px; border-radius: 14px;
+            background: linear-gradient(140deg, #fdf6e3 0%, #fffaec 100%);
+            color: #5c4426; line-height: 1.55; font-size: 0.95rem; white-space: pre-wrap;
+            box-shadow: 0 4px 18px rgba(92,68,38,0.10), 0 1px 3px rgba(0,0,0,0.04);
+            overflow-y: auto; max-height: 520px; }
+        .kasper-hero-caption-empty { font-style: italic; color: var(--text-muted); display: flex; align-items: center; justify-content: center; }
 
         .kasper-hero-right { padding: 28px 28px 24px 12px; display: flex; flex-direction: column; gap: 16px; justify-content: center; min-height: 100%; }
         .kasper-hero-head { display: flex; align-items: baseline; gap: 12px; }
@@ -8588,10 +8609,19 @@
     function _calSetCommentsFor(post, comp, arr) {
         if (!post) return;
         const list = Array.isArray(arr) ? arr : [];
-        if (comp === 'graphic') { post.graphic_comments = list; return; }
-        if (comp === 'caption') { post.caption_comments = list; return; }
+        // Keep both the parsed-array form and the wire-string form in sync.
+        // _calMigratePostShape re-parses from the *_tweaks string on every
+        // load (cache hydrate, polling refresh, etc.) — if the string is
+        // stale the parsed array gets blown away. Updating both here means
+        // a freshly added comment survives a reload before the upsert has
+        // even reached the sheet.
+        const str = _calStringifyComments(list);
+        if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
+        if (comp === 'caption') { post.caption_comments = list; post.caption_tweaks = str; return; }
         post.video_comments = list;
         post.comments = list;
+        post.video_tweaks = str;
+        post.tweaks = str;
     }
     /* Maps a component to its Linear issue URL column. Caption has no Linear
        counterpart. */
@@ -14384,7 +14414,10 @@
         // background paint doesn't yank focus out of the draft mid-keystroke.
         const a = document.activeElement;
         if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return;
-        _kasperLoadReview(false);
+        // Force a real refetch — the per-client cache otherwise returns up
+        // to 5 minutes of stale data, so a tab-switch refresh wouldn't see
+        // anything new the SMM did in the meantime.
+        _kasperLoadReview(true);
     }
     function _kasperEnsureAutoRefresh() {
         if (!_kasperPollTimer) {
@@ -14938,33 +14971,58 @@
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
-        // Hero layout: single video panel gets the cinematic treatment —
-        // poster left, action column right. Reads more like a review
-        // moment than a form.
-        if (activeComps.length === 1 && activeComps[0] === 'video') {
-            return `<div class="cal-review-body kasper-review-body is-hero" onclick="event.stopPropagation();">${_kasperHeroVideoPanel(item)}</div>`;
+        // Hero layout: a single pending panel gets the cinematic treatment
+        // — preview on the left, action column on the right. Applies to
+        // video, thumbnail, and caption alike so the visual weight stays
+        // consistent regardless of which single component Kasper is
+        // looking at.
+        if (activeComps.length === 1) {
+            return `<div class="cal-review-body kasper-review-body is-hero" onclick="event.stopPropagation();">${_kasperHeroPanel(item, activeComps[0])}</div>`;
         }
         const panels = activeComps.map(comp => _kasperPanelHtml(item, comp)).join('');
         const cols = activeComps.length;
         return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
     }
 
-    function _kasperHeroVideoPanel(item) {
+    function _kasperHeroPreviewHtml(p, comp) {
+        const playIco = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+        const zoomIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg>`;
+        if (comp === 'video') {
+            const url = String(p.asset_url || '').trim();
+            const thumbUrl = _calDeriveThumb(p);
+            if (!url) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+            if (thumbUrl) {
+                return `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+            }
+            return `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+        }
+        if (comp === 'graphic') {
+            const raw = String(p.thumbnail_url || '').trim();
+            if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
+            const imgUrl = _calDeriveThumb(p) || raw;
+            const escPid = _calEscAttr(p.id);
+            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-poster-overlay kasper-hero-poster-overlay-graphic"><span class="kasper-hero-play kasper-hero-play-light">${zoomIco}</span><span class="kasper-hero-play-label">Open full size</span></span></button>`;
+        }
+        // caption
+        const cap = String(p.caption || '').trim();
+        if (!cap) return `<div class="kasper-hero-caption-card kasper-hero-caption-empty">No caption yet.</div>`;
+        return `<div class="kasper-hero-caption-card">${_calEsc(cap)}</div>`;
+    }
+
+    function _kasperHeroPanel(item, comp) {
         const p = item.post;
         const escId = _calEscAttr(p.id);
-        const escComp = 'video';
-        const subStatus = _calNormStatus(p.video_status || '');
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Tweaks Needed' ? 'tweaks'
                     : (subStatus === 'Approved' ? 'approved'
                     : (subStatus === 'Posted' ? 'posted' : 'pending'));
         const inTweaks = state === 'tweaks';
         const isApproved = state === 'approved' || state === 'posted';
-        const url = String(p.asset_url || '').trim();
-        const thumbUrl = _calDeriveThumb(p);
-        const draft = (item._drafts && item._drafts.video) || '';
-        const saving = !!(item._saving && item._saving.video);
-        const err = (item._errors && item._errors.video) || '';
-        const comments = _calCommentsFor(p, 'video');
+        const draft = (item._drafts && item._drafts[comp]) || '';
+        const saving = !!(item._saving && item._saving[comp]);
+        const err = (item._errors && item._errors[comp]) || '';
+        const comments = _calCommentsFor(p, comp);
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         const showApprove = !inTweaks && !isApproved;
@@ -14974,12 +15032,7 @@
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
-        const playIco = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
-        const posterHtml = url
-            ? (thumbUrl
-                ? `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`
-                : `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`)
-            : `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+        const previewHtml = _kasperHeroPreviewHtml(p, comp);
         const threadHtml = comments && comments.length
             ? comments.map(c => {
                 const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
@@ -14998,13 +15051,13 @@
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
         return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="${state}">
-            <div class="kasper-hero-left">${posterHtml}</div>
+            <div class="kasper-hero-left">${previewHtml}</div>
             <div class="kasper-hero-right">
                 <div class="kasper-hero-head">
-                    <span class="kasper-hero-title">Video</span>
+                    <span class="kasper-hero-title">${_calEsc(COMP_LABELS[comp])}</span>
                     ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
-                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>` : ''}
+                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>

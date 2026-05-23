@@ -2072,9 +2072,22 @@
         .cal-review-sub-pill.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
         .cal-review-sub-pill.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
         .cal-review-body { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--border); background: var(--bg); }
-        .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+        .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; transition: background 0.18s, border-color 0.18s; }
         .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #86efac; }
         .cal-review-panel[data-state="tweaks"]   { background: #fff7ed; border-color: #fdba74; }
+        /* Inside the tweaks panel, swap the gray boxed-caption background
+           for a transparent, slightly-translucent fill so the text reads
+           like part of the orange panel instead of a stacked gray box. */
+        .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.55); color: #7c2d12; }
+        .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.7); border-color: rgba(124,45,18,0.25); }
+        /* Compact approved/posted panel — single horizontal line. */
+        .cal-review-panel-mini { display: flex; align-items: center; gap: 9px; padding: 9px 14px; }
+        .cal-review-mini-icon { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: #16a34a; color: #fff; align-items: center; justify-content: center; flex-shrink: 0; }
+        .cal-review-mini-icon svg { width: 12px; height: 12px; }
+        .cal-review-mini-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .cal-review-mini-label { font-weight: 600; font-size: 0.82rem; color: #166534; flex: 1; }
+        .cal-review-panel-mini[data-state="posted"] .cal-review-mini-icon { background: #064e3b; }
+        .cal-review-panel-mini[data-state="posted"] .cal-review-mini-label { color: #064e3b; }
         .cal-review-panel-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
         .cal-review-panel-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
         .cal-review-panel-title { font-weight: 700; font-size: 0.86rem; color: var(--text-primary); }
@@ -8929,11 +8942,37 @@
         _calFlushCardSave(pid);
         _calRenderBody({ preserveScroll: true });
     }
+    /* Per-card, per-component "the user just changed this locally" clock.
+       Lets the post-load Linear reconcile skip cards/components whose
+       sub-status was mutated locally within the grace window — Linear's
+       state is eventually-consistent, so without this guard the reconcile
+       silently flips a freshly-approved component back to whatever stale
+       state Linear still reports. */
+    const _calLocalStatusAt = Object.create(null);
+    const CAL_LOCAL_STATUS_GRACE_MS = 5 * 60 * 1000;
+    function _calMarkLocalStatus(pid, comp) {
+        _calLocalStatusAt[pid + '|' + (comp || '')] = Date.now();
+        if (comp) _calLocalStatusAt[pid + '|'] = Date.now();
+    }
+    function _calIsLocalStatusFresh(pid, comp) {
+        const ts = _calLocalStatusAt[pid + '|' + (comp || '')] || _calLocalStatusAt[pid + '|'] || 0;
+        return ts && (Date.now() - ts) < CAL_LOCAL_STATUS_GRACE_MS;
+    }
+    /* Same idea, but cross-session: trust the sheet's updated_at as a
+       "someone just touched this from another tab/browser" signal. Without
+       this, the SMM's reconcile would clobber a client approval made in a
+       different browser the moment Linear hasn't caught up yet. */
+    function _calIsRowRecentlyTouched(post) {
+        if (!post || !post.updated_at) return false;
+        const t = Date.parse(post.updated_at);
+        if (!isFinite(t)) return false;
+        return (Date.now() - t) < CAL_LOCAL_STATUS_GRACE_MS;
+    }
     /* On load, reconcile every already-linked card against Linear in one
-       batched call. Linear is the source of truth, so any card whose status
-       no longer matches its sub-issue is corrected (and the fix is saved).
-       Catches mismatches from cards that were linked before this sync existed
-       or while the page was closed. */
+       batched call. Linear is the source of truth EXCEPT for components the
+       user just touched in this browser — those carry a freshness stamp and
+       are skipped so an in-flight Linear push doesn't get clobbered by a
+       still-stale read. */
     async function _calReconcileLinearStatuses() {
         const linked = calState.posts.filter(p => p && (String(p.linear_issue_id || '').trim() || String(p.graphic_linear_issue_id || '').trim()));
         if (!linked.length) return;
@@ -8957,7 +8996,8 @@
             const vM = String(post.linear_issue_id || '').toUpperCase().match(/([A-Z]+-\d+)/);
             const gM = String(post.graphic_linear_issue_id || '').toUpperCase().match(/([A-Z]+-\d+)/);
             let touched = false;
-            if (vM) {
+            const rowFresh = _calIsRowRecentlyTouched(post);
+            if (vM && !rowFresh && !_calIsLocalStatusFresh(post.id, 'video')) {
                 const linState = statuses[vM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.video_status || '') !== mapped
@@ -8969,7 +9009,7 @@
                     touched = true;
                 }
             }
-            if (gM) {
+            if (gM && !rowFresh && !_calIsLocalStatusFresh(post.id, 'graphic')) {
                 const linState = statuses[gM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
@@ -10793,6 +10833,7 @@
             _calPendingEdits[pid][key] = status;
             post.status = computeOverallStatus(post);
             _calPendingEdits[pid].status = post.status;
+            _calMarkLocalStatus(pid, which);
         } else {
             if (post.status === status) return;
             // Main status dropdown is a bulk override — set every sub-status
@@ -10805,6 +10846,7 @@
             _calPendingEdits[pid].video_status = status;
             _calPendingEdits[pid].graphic_status = status;
             _calPendingEdits[pid].caption_status = status;
+            _calMarkLocalStatus(pid);
         }
         _calRenderBody({ preserveScroll: true });
         _calFlushCardSave(pid);
@@ -11706,6 +11748,21 @@
             : (linUrl
                 ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();">Linear ↗</a>`
                 : `<span class="cal-review-no-link" title="Not yet linked to Linear">Not linked to Linear</span>`);
+        // Approved (and Posted) collapse to a single, minimal line — no
+        // preview / no compose / no thread-by-default. Approving is
+        // terminal from the client's seat; surfacing it as a full panel
+        // wastes real estate. A click toggles back to the full view if
+        // they want to see past comments or the asset link again.
+        if (state === 'approved' || state === 'posted') {
+            const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+            const wordAction = state === 'posted' ? 'posted' : 'approved';
+            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="${state}">
+                <span class="cal-review-mini-icon">${checkIco}</span>
+                <span class="cal-review-mini-dot" style="background:${COMP_PILL_COLORS[comp]}"></span>
+                <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} ${wordAction}</span>
+                ${linkBadge}
+            </div>`;
+        }
         const previewHtml = _calReviewComponentPreview(p, comp);
         const draftKey = p.id + '|' + comp;
         const draft = _calReviewState.drafts[draftKey] || '';
@@ -11806,7 +11863,7 @@
         }
     }
 
-    async function _calReviewApprove(pid, comp) {
+    function _calReviewApprove(pid, comp) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -11815,31 +11872,39 @@
         const prev = {
             [subKey]: post[subKey],
             status: post.status,
+            [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
         };
         post[subKey] = 'Approved';
         post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        // Stamp the local-mutation clock so the post-load Linear reconcile
+        // doesn't immediately revert this change if Linear is still showing
+        // the stale state.
+        _calMarkLocalStatus(pid, comp);
+        // Repaint immediately so the approval lands as an instant collapse
+        // to the mini panel — no spinner, no waiting on the network.
         _calReviewRepaintCard(pid);
-        try {
-            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
-                [subKey]: post[subKey],
-                [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
-                status: post.status,
-            });
-            await _calFlushCardSave(pid);
+        // Fire-and-forget the save. The pending-edits map carries the
+        // change, and _calFlushCardSave also handles the Linear push. We
+        // surface errors via a repaint only if the network actually fails.
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [subKey]: post[subKey],
+            [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
+            status: post.status,
+        });
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
-            // _calFlushCardSave handles the Linear status push.
-        } catch (e) {
+        }).catch(e => {
             Object.assign(post, prev);
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = (e && e.message) || 'Save failed';
-        }
-        _calReviewRepaintCard(pid);
+            _calReviewRepaintCard(pid);
+        });
     }
 
-    async function _calReviewRequestTweak(pid, comp) {
+    function _calReviewRequestTweak(pid, comp) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -11871,24 +11936,25 @@
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
+        _calMarkLocalStatus(pid, comp);
         _calReviewRepaintCard(pid);
-        try {
-            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
-                [comp + '_status']: post[comp + '_status'],
-                status: post.status,
-                [comp + '_tweaks']: _calStringifyComments(list),
-            });
-            await _calFlushCardSave(pid);
-            // Push the comment onto Linear (video / graphic only).
+        // Fire-and-forget the save and the Linear comment push so the
+        // textarea clears instantly. Errors bubble back via a repaint.
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [comp + '_status']: post[comp + '_status'],
+            status: post.status,
+            [comp + '_tweaks']: _calStringifyComments(list),
+        });
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
             const linUrl = _calLinearUrlFor(post, comp);
             if (linUrl) _calPostLinearComment(linUrl, body, newComment.author);
             _calReviewState.saving[key] = false;
-        } catch (e) {
+        }).catch(e => {
             Object.assign(post, prev);
             _calReviewState.saving[key] = false;
             _calReviewState.errors[key] = (e && e.message) || 'Save failed';
-        }
-        _calReviewRepaintCard(pid);
+            _calReviewRepaintCard(pid);
+        });
     }
 
     /* ── Read-only preview popover (Month/Week → click) ──────────── */
@@ -12373,12 +12439,13 @@
         if (comp === 'video') post.comments = list;
         const fieldKey = comp + '_tweaks';
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(list) });
-        // Auto-status: SMM resolving the very last open thread → Client
-        // Approval. Counts across ALL components, not just the one being
-        // toggled.
+        // Auto-status (per component): when SMM closes the last open thread
+        // for a single component, flip that component to Client Approval.
+        // Cross-component thread state is irrelevant — the caption being
+        // approved shouldn't block a video resolution from moving forward.
         if (!wasDone && _calCommentRole() === 'smm') {
-            const stillOpen = _calOpenCommentCount(post);
-            if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
+            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done).length;
+            if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
         }
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
@@ -12414,10 +12481,11 @@
             if (comp === 'video') post.comments = next;
             const fieldKey = comp + '_tweaks';
             _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(next) });
-            // SMM clearing the last open thread mirrors a "resolve last" event.
+            // Per-component: SMM deleting the last open thread for this
+            // component flips that component to Client Approval.
             if (wasOpenRoot && _calCommentRole() === 'smm') {
-                const stillOpen = _calOpenCommentCount(post);
-                if (stillOpen === 0) _calApplyAutoStatus(pid, 'smm_resolved_last');
+                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done).length;
+                if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
             }
             _calFlushCardSave(pid);
             _calRefreshCommentsBtn(pid);
@@ -12448,6 +12516,7 @@
         post[subKey] = next;
         post.status = computeOverallStatus(post);
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        _calMarkLocalStatus(pid, which);
         return true;
     }
     /* Refresh just the status chip/dropdown on a card without re-rendering

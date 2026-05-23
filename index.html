@@ -11342,6 +11342,22 @@
         _calFlushCardSave(pid);
     }
 
+    /* Fields that get rolled back to their pre-edit values when the upsert
+       fails. These are STRUCTURAL — status/order/links/approval-stamps —
+       and would silently de-sync from the sheet if left in their optimistic
+       state after a write error. Free-text fields (caption, name, cta,
+       asset/thumbnail urls, tweak comments) are intentionally NOT in here:
+       rolling them back would erase what the user just typed, which is
+       worse than the de-sync. The 'error' chip stays on the card so the
+       user knows to retry. */
+    const _CAL_ROLLBACK_FIELDS = [
+        'video_status', 'graphic_status', 'caption_status', 'status',
+        'order_index', 'scheduled_date',
+        'linear_issue_id', 'graphic_linear_issue_id',
+        'client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
+        'kasper_approved_at', 'posted_at',
+    ];
+
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -11357,6 +11373,8 @@
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
+        const prevSnapshot = idx >= 0 ? Object.assign({}, calState.posts[idx]) : null;
+        const wasNewRow    = idx < 0;
         if (idx < 0) {
             const blank = { id: realId, order_index: calState.posts.reduce((m, p) => Math.max(m, Number(p.order_index || 0)), 0) + 1, name: '', scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '', comments: [] };
             post = Object.assign({}, blank, edits);
@@ -11430,6 +11448,26 @@
         } catch (e) {
             console.warn('[Calendar] save failed', e);
             _calSetCardStatus(realId, 'error', e.message || 'save failed');
+            // Roll back structural fields the upsert failed to persist.
+            // Text fields (caption / name / cta / tweak comments / asset
+            // urls) keep their optimistic value so the user's typing isn't
+            // erased; they'll re-save on the next blur. New rows that
+            // never made it to the sheet are removed entirely.
+            if (wasNewRow) {
+                calState.posts = calState.posts.filter(p => p.id !== realId);
+            } else if (prevSnapshot) {
+                const i3 = calState.posts.findIndex(p => p.id === realId);
+                if (i3 >= 0) {
+                    const cur = calState.posts[i3];
+                    _CAL_ROLLBACK_FIELDS.forEach(k => {
+                        if (k in edits) cur[k] = prevSnapshot[k];
+                    });
+                    // updated_at must also revert so the next background
+                    // merge doesn't see a phantom "we wrote newer" stamp.
+                    cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                }
+            }
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
         }
     }
 
@@ -11696,10 +11734,15 @@
         strip.addEventListener('drop', () => {
             const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
             const items = ids.map((id, i) => ({ id, order_index: i + 1 }));
+            // Snapshot the prior order so a webhook failure can revert.
+            // Without this, a dropped card sits at its new position locally
+            // while the sheet still has the old order — next reload snaps
+            // it back and the user thinks the drag didn't happen.
+            const prevOrder = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
             const byId = new Map(calState.posts.map(p => [p.id, p]));
             items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
             try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
-            persistCalReorder(items);
+            persistCalReorder(items, prevOrder);
         });
     }
     /* Auto-scroll the organizer strip while dragging a card. The browser's
@@ -11796,7 +11839,7 @@
             strip.insertBefore(dragging, after ? card.nextSibling : card);
         });
     }
-    async function persistCalReorder(items) {
+    async function persistCalReorder(items, prevOrder) {
         _setCalStatus('saving');
         try {
             const resp = await fetch(CALENDAR_REORDER_URL, {
@@ -11809,6 +11852,16 @@
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
             _setCalStatus('error', e.message || 'reorder failed');
+            // Roll back to the prior order_index values so the next render
+            // (and the cached copy after the next successful load) match
+            // what's actually on the sheet.
+            if (prevOrder && prevOrder.size) {
+                calState.posts.forEach(p => {
+                    if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id);
+                });
+                try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+                try { _calRenderBody({ preserveScroll: true }); } catch {}
+            }
         }
     }
 

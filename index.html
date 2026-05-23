@@ -2094,14 +2094,22 @@
            the panel rather than sitting on a stacked gray box. */
         .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.6); color: #7c2d12; }
         .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.78); border-color: rgba(124,45,18,0.2); }
-        /* Compact approved/posted panel — single horizontal line. */
-        .cal-review-panel-mini { display: flex; align-items: center; gap: 9px; padding: 9px 14px; }
-        .cal-review-mini-icon { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: #16a34a; color: #fff; align-items: center; justify-content: center; flex-shrink: 0; }
-        .cal-review-mini-icon svg { width: 12px; height: 12px; }
-        .cal-review-mini-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .cal-review-mini-label { font-weight: 600; font-size: 0.82rem; color: #166534; flex: 1; }
-        .cal-review-panel-mini[data-state="posted"] .cal-review-mini-icon { background: #064e3b; }
+        /* Approved/posted: a centered, restful state — big check, gentle
+           label, optional subtitle. Same column height as the other panels
+           so the row stays symmetric; content lives in the middle vertical
+           band, not pinned to the top. */
+        .cal-review-panel-mini { display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 10px; padding: 18px 14px; text-align: center; }
+        .cal-review-mini-icon { display: inline-flex; width: 36px; height: 36px; border-radius: 50%;
+            background: #16a34a; color: #fff;
+            align-items: center; justify-content: center; flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(22,101,52,0.22); }
+        .cal-review-mini-icon svg { width: 18px; height: 18px; }
+        .cal-review-mini-label { font-weight: 700; font-size: 0.92rem; color: #166534; letter-spacing: -0.005em; }
+        .cal-review-mini-sub { font-size: 0.72rem; font-weight: 500; color: #15803d; opacity: 0.85; }
+        .cal-review-panel-mini[data-state="posted"] .cal-review-mini-icon { background: #064e3b; box-shadow: 0 3px 10px rgba(6,78,59,0.28); }
         .cal-review-panel-mini[data-state="posted"] .cal-review-mini-label { color: #064e3b; }
+        .cal-review-panel-mini[data-state="posted"] .cal-review-mini-sub { color: #047857; }
         /* Head: component name on the left, a soft status chip on the right.
            No bullet dot — the column position already says which component
            it is, and an extra dot just adds visual chatter. */
@@ -2126,10 +2134,26 @@
             transition: opacity 0.12s; }
         .cal-review-preview-link:hover { opacity: 0.88; }
         .cal-review-preview-thumb { width: 100%; display: flex; justify-content: center; }
-        .cal-review-preview-thumb-btn { padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: 8px; overflow: hidden;
+        .cal-review-preview-thumb-btn { padding: 0; border: 0; background: transparent; cursor: pointer; border-radius: 8px; overflow: hidden;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.18s, box-shadow 0.18s; }
         .cal-review-preview-thumb-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.16); }
         .cal-review-preview-thumb-btn img { display: block; width: 100%; max-width: 260px; max-height: 220px; object-fit: contain; }
+        /* Video tile — same visual silhouette as the thumbnail tile, image
+           blurred, with a centered play button + "Open video" overlay. Keeps
+           the three columns' heights matched so the Approve buttons align. */
+        .cal-review-video-tile { position: relative; display: block; width: 100%; max-width: 260px;
+            aspect-ratio: 9 / 16; max-height: 220px; margin: 0 auto;
+            border-radius: 8px; overflow: hidden; text-decoration: none;
+            background: linear-gradient(135deg, #1f2937, #0f172a);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.18);
+            transition: transform 0.18s, box-shadow 0.18s; }
+        .cal-review-video-tile:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,0.22); }
+        .cal-review-video-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(8px) brightness(0.62); transform: scale(1.06); }
+        .cal-review-video-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #fff; }
+        .cal-review-video-play { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; border-radius: 50%; background: rgba(255,255,255,0.18); backdrop-filter: blur(6px); transition: background 0.14s, transform 0.14s; }
+        .cal-review-video-play svg { width: 22px; height: 22px; margin-left: 3px; }
+        .cal-review-video-tile:hover .cal-review-video-play { background: rgba(255,255,255,0.28); transform: scale(1.06); }
+        .cal-review-video-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; text-shadow: 0 1px 4px rgba(0,0,0,0.4); }
         .cal-review-preview-caption { padding: 10px 12px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; line-height: 1.45; font-size: 0.84rem; width: 100%; }
         /* Approve button — full width, dominant. */
         .cal-review-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -9942,10 +9966,24 @@
             if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
             const archivedRefs = _calArchivedRefs(slug);
-            const newPosts = _calDedupeByLinearIssue((json.posts || [])
+            const fetchedPosts = _calDedupeByLinearIssue((json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
                 .filter(p => !_calIsArchivedRef(p, archivedRefs)))
                 .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); _calMigratePostShape(p); return p; });
+            // Last-write-wins merge: if the local copy has a newer
+            // updated_at than the fetched copy, the local copy holds an
+            // optimistic mutation the upsert hasn't propagated to the sheet
+            // yet. Keep local so a slow round-trip doesn't visibly snap the
+            // pill back to its pre-click value before the write lands.
+            const prevById = new Map(prevPosts.map(p => [p.id, p]));
+            const newPosts = fetchedPosts.map(fp => {
+                const lp = prevById.get(fp.id);
+                if (!lp) return fp;
+                const lT = Date.parse(lp.updated_at || '');
+                const fT = Date.parse(fp.updated_at || '');
+                if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
+                return fp;
+            });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             calState.error = null;
@@ -10934,6 +10972,7 @@
             _calPendingEdits[pid].caption_status = status;
             _calMarkLocalStatus(pid);
         }
+        post.updated_at = new Date().toISOString();
         _calRenderBody({ preserveScroll: true });
         _calFlushCardSave(pid);
     }
@@ -11148,6 +11187,12 @@
             post = Object.assign({}, calState.posts[idx], edits);
             calState.posts[idx] = post;
         }
+        // Local updated_at stamp so a background poll racing this write
+        // (sheet hasn't reflected the change yet) keeps our optimistic
+        // state instead of snapping the card back to its pre-mutation
+        // value. The merge in loadCalendarPosts compares local vs fetched
+        // updated_at — newer wins.
+        post.updated_at = new Date().toISOString();
         _calSetCardStatus(realId, 'saving');
         const suppressAll      = _calNoLinearPush.has(realId) || _calNoLinearPush.has(pid);
         const suppressVideo    = suppressAll || _calNoLinearPush.has(realId + '|video')    || _calNoLinearPush.has(pid + '|video');
@@ -11844,12 +11889,12 @@
         // they want to see past comments or the asset link again.
         if (state === 'approved' || state === 'posted') {
             const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
-            const wordAction = state === 'posted' ? 'posted' : 'approved';
+            const wordAction = state === 'posted' ? 'Posted' : 'Approved';
+            const sub = state === 'posted' ? 'Live on the channel' : 'Locked in — ready to schedule';
             return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="${state}">
                 <span class="cal-review-mini-icon">${checkIco}</span>
-                <span class="cal-review-mini-dot" style="background:${COMP_PILL_COLORS[comp]}"></span>
-                <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} ${wordAction}</span>
-                ${linkBadge}
+                <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} ${wordAction.toLowerCase()}</span>
+                <span class="cal-review-mini-sub">${_calEsc(sub)}</span>
             </div>`;
         }
         const previewHtml = _calReviewComponentPreview(p, comp);
@@ -11923,7 +11968,18 @@
         if (comp === 'video') {
             const url = String(p.asset_url || '').trim();
             if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
-            return `<a class="cal-review-preview-link" href="${_calEscAttr(url)}" target="_blank" rel="noopener">Open video ↗</a>`;
+            // Use the same thumbnail image as the graphic panel, blurred,
+            // with "Open video" overlaid — keeps the video column the same
+            // visual weight as the thumbnail column so the Approve buttons
+            // line up across all three panels instead of the video row
+            // collapsing to a tiny black button.
+            const thumbUrl = _calDeriveThumb(p);
+            if (!thumbUrl) {
+                // No image to blur — fall back to a styled stand-in tile
+                // so the column still has the same height.
+                return `<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+            }
+            return `<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
         }
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
@@ -11996,6 +12052,10 @@
         post[subKey] = 'Approved';
         post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
+        // Stamp updated_at locally so a background poll racing this write
+        // can't fetch the still-stale row from the sheet and clobber the
+        // optimistic state.
+        post.updated_at = new Date().toISOString();
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
         // Stamp the local-mutation clock so the post-load Linear reconcile
@@ -12052,6 +12112,7 @@
         _calSetCommentsFor(post, comp, list);
         post[comp + '_status'] = 'Tweaks Needed';
         post.status = computeOverallStatus(post);
+        post.updated_at = new Date().toISOString();
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
@@ -12634,6 +12695,7 @@
         // card status is recomputed from all three sub-statuses (lower-wins).
         post[subKey] = next;
         post.status = computeOverallStatus(post);
+        post.updated_at = new Date().toISOString();
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
         _calMarkLocalStatus(pid, which);
         return true;

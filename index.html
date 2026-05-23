@@ -2415,6 +2415,53 @@
             .kasper-review-body { display: flex !important; flex-direction: column; }
             .kasper-review-body .cal-review-panel + .cal-review-panel { border-left: 0; border-top: 1px solid var(--border); }
         }
+
+        /* Hero layout — used only when the sole pending Kasper component is
+           the video. Cinematic poster on the left, action column on the right.
+           Reads like a "review and decide" moment, not a form. */
+        .kasper-review-body.is-hero { display: grid; grid-template-columns: 1fr; padding: 0; background: linear-gradient(180deg, #fafaf7 0%, #ffffff 100%); }
+        .kasper-review-body.is-hero .kasper-hero-panel {
+            display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+            gap: 0; padding: 0; background: transparent; border: 0; border-radius: 0; max-width: none; margin: 0;
+        }
+        .kasper-hero-left { padding: 24px 18px 24px 24px; display: flex; align-items: center; justify-content: center; }
+        .kasper-hero-poster { position: relative; display: block; width: 100%; max-width: 380px;
+            aspect-ratio: 9 / 16; max-height: 520px; border-radius: 14px; overflow: hidden;
+            background: linear-gradient(135deg, #1f2937, #0f172a); text-decoration: none;
+            box-shadow: 0 8px 30px rgba(15,23,42,0.18), 0 2px 6px rgba(0,0,0,0.06);
+            transition: transform 0.22s cubic-bezier(.4,0,.2,1), box-shadow 0.22s; }
+        .kasper-hero-poster:hover { transform: translateY(-2px) scale(1.005); box-shadow: 0 18px 50px rgba(15,23,42,0.28), 0 4px 12px rgba(0,0,0,0.08); }
+        .kasper-hero-poster-bg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+            filter: blur(10px) brightness(0.6) saturate(1.05); transform: scale(1.12); }
+        .kasper-hero-poster-overlay { position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 14px; color: #fff;
+            background: radial-gradient(ellipse at center, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.35) 100%); }
+        .kasper-hero-play { display: inline-flex; align-items: center; justify-content: center;
+            width: 78px; height: 78px; border-radius: 50%;
+            background: rgba(255,255,255,0.22); backdrop-filter: blur(10px);
+            border: 1.5px solid rgba(255,255,255,0.35);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.22);
+            transition: transform 0.18s cubic-bezier(.4,0,.2,1), background 0.18s, box-shadow 0.18s; }
+        .kasper-hero-poster:hover .kasper-hero-play { transform: scale(1.08); background: rgba(255,255,255,0.32); box-shadow: 0 12px 32px rgba(0,0,0,0.28); }
+        .kasper-hero-play svg { width: 32px; height: 32px; margin-left: 4px; }
+        .kasper-hero-play-label { font-size: 0.84rem; font-weight: 600; letter-spacing: 0.01em;
+            text-shadow: 0 1px 8px rgba(0,0,0,0.5); }
+        .kasper-hero-poster-empty { background: linear-gradient(135deg, #e5e5e0, #d6d6d0); }
+        .kasper-hero-poster-empty .kasper-hero-play-label { color: var(--text-muted); text-shadow: none; }
+
+        .kasper-hero-right { padding: 28px 28px 24px 12px; display: flex; flex-direction: column; gap: 16px; justify-content: center; min-height: 100%; }
+        .kasper-hero-head { display: flex; align-items: baseline; gap: 12px; }
+        .kasper-hero-title { font-size: 1.6rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.02em; line-height: 1.1; }
+        .kasper-hero-approve { padding: 13px 18px; font-size: 0.95rem; border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(22,101,52,0.22); }
+        .kasper-hero-approve:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(22,101,52,0.28); }
+
+        @media (max-width: 720px) {
+            .kasper-review-body.is-hero .kasper-hero-panel { grid-template-columns: 1fr; }
+            .kasper-hero-left { padding: 20px 20px 0; }
+            .kasper-hero-poster { max-height: 360px; }
+            .kasper-hero-right { padding: 18px 20px 20px; }
+        }
         .kcard-strip { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; padding: 12px; align-items: center; cursor: pointer; }
         .kcard-thumb { position: relative; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg,#f3f3f1,#e6e6e0); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .kcard-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -14788,9 +14835,72 @@
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
+        // Hero layout: single video panel gets the cinematic treatment —
+        // poster left, action column right. Reads more like a review
+        // moment than a form.
+        if (activeComps.length === 1 && activeComps[0] === 'video') {
+            return `<div class="cal-review-body kasper-review-body is-hero" onclick="event.stopPropagation();">${_kasperHeroVideoPanel(item)}</div>`;
+        }
         const panels = activeComps.map(comp => _kasperPanelHtml(item, comp)).join('');
         const cols = activeComps.length;
         return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+    }
+
+    function _kasperHeroVideoPanel(item) {
+        const p = item.post;
+        const escId = _calEscAttr(p.id);
+        const escComp = 'video';
+        const url = String(p.asset_url || '').trim();
+        const thumbUrl = _calDeriveThumb(p);
+        const draft = (item._drafts && item._drafts.video) || '';
+        const saving = !!(item._saving && item._saving.video);
+        const err = (item._errors && item._errors.video) || '';
+        const comments = _calCommentsFor(p, 'video');
+        const hasDraft = !!draft.trim();
+        const approveEnabled = !saving && !hasDraft;
+        const showApprove = !hasDraft;
+        const tweakEnabled = !saving && hasDraft;
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const playIco = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+        const posterHtml = url
+            ? (thumbUrl
+                ? `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`
+                : `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`)
+            : `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved
+                    ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
+                    : '';
+                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="pending">
+            <div class="kasper-hero-left">${posterHtml}</div>
+            <div class="kasper-hero-right">
+                <div class="kasper-hero-head">
+                    <span class="kasper-hero-title">Video</span>
+                </div>
+                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>` : ''}
+                <div class="cal-review-panel-compose">
+                    <textarea class="cal-review-textarea" placeholder="What needs to change?" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request tweaks</button>
+                </div>
+                ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+                <div class="cal-review-thread">${threadHtml}</div>
+            </div>
+        </div>`;
     }
 
     function _kasperPanelHtml(item, comp) {
@@ -14830,7 +14940,6 @@
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="pending">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
-                <span class="cal-review-panel-status">For Kasper approval</span>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}

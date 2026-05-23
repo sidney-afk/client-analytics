@@ -1725,7 +1725,7 @@
         /* Linear sub-issue link — icon at the start of the title row */
         .cal-title-row { display: flex; align-items: center; gap: 4px; }
         .cal-title-row .cal-fld-name { flex: 1 1 0; min-width: 0; }
-        .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; }
+        .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
         .cal-linear-slot:empty { display: none; }
         .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;
             width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; cursor: pointer;
@@ -1791,12 +1791,20 @@
             70% { box-shadow: 0 0 0 4px rgba(94,106,210,0.45); }
             100% { box-shadow: 0 0 0 0 rgba(94,106,210,0); }
         }
-        .cal-linear-edit { display: none; align-items: center; justify-content: center;
-            width: 21px; height: 22px; padding: 0; margin-left: 2px; border: 0; border-radius: 6px;
-            cursor: pointer; background: #f3f3f1; color: #9a9a95; transition: background 0.13s, color 0.13s; }
-        .cal-linear-slot:hover .cal-linear-edit { display: inline-flex; }
-        .cal-linear-edit:hover { background: #ebebe8; color: #6b6b66; }
-        .cal-linear-edit svg { width: 11px; height: 11px; }
+        /* Pencil overlay — pinned to the top-right corner of the link icon
+           so it doesn't take any layout space (the graphic icon used to
+           shift right when this appeared next to the video icon). */
+        .cal-linear-link-wrap { position: relative; display: inline-flex; }
+        .cal-linear-edit { position: absolute; top: -4px; right: -4px;
+            visibility: hidden; opacity: 0; pointer-events: none;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 14px; height: 14px; padding: 0; margin: 0; border: 1px solid var(--border);
+            border-radius: 50%; cursor: pointer; background: #fff; color: #6b6b66;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            transition: opacity 0.12s, background 0.12s, color 0.12s; }
+        .cal-linear-link-wrap:hover .cal-linear-edit { visibility: visible; opacity: 1; pointer-events: auto; }
+        .cal-linear-edit:hover { background: #f3f3f1; color: #2a2a26; }
+        .cal-linear-edit svg { width: 8px; height: 8px; }
         .cal-linear-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 5px 9px;
             border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
             font-size: 0.78rem; color: var(--text-primary); outline: 0; }
@@ -10555,7 +10563,7 @@
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
             const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_calLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            return open + `<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button>`;
+            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
         const warn = (which === 'video' && !_calIsBlankId(pid)) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
@@ -12655,14 +12663,21 @@
         const wantTitleSet = new Set(wantTitles);
         let videoSubs = [];
         let graphicSubs = [];
+        // Track per-attempt diagnostics so we can dump them at the end if
+        // either side fails to fully match — Linear's GraphQL has eventual-
+        // consistency lag on freshly-created issues, so the trace tells us
+        // whether we ever saw the parent and how many subs it had.
+        const pollTrace = [];
+        let videoParentSeen = null;
+        let graphicParentSeen = null;
         try {
-            // GRA's path runs an LLM "Generate Titles" step (~6 s) before its
-            // sub-issues are created, so the first poll has to start later
-            // than the VID-only flow would need. 10 s keeps us under the
-            // navigation-to-Linear-tab latency while giving GRA room to land.
-            await new Promise(r => setTimeout(r, 10000));
-            const maxAttempts = 12;
-            const attemptDelayMs = 3000;
+            // GRA's path runs an LLM "Generate Titles" step (~6-8 s) before
+            // sub-issue creation, plus Linear's API takes a few seconds to
+            // index newly-created issues. 15 s keeps the first poll out of
+            // that window.
+            await new Promise(r => setTimeout(r, 15000));
+            const maxAttempts = 20;
+            const attemptDelayMs = 5000;
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
                 const { issues } = await loadLinearIssues(true);
                 if (Array.isArray(issues)) {
@@ -12672,9 +12687,12 @@
                         && (!teamKey || String(i.teamKey || '').toUpperCase() === teamKey));
                     let videoOk = !wantVideo;
                     let graphicOk = !wantGraphic;
+                    let vpIdent = null, gpIdent = null;
                     if (wantVideo) {
                         const vp = matchParent('VID') || matchParent('');
                         if (vp) {
+                            videoParentSeen = vp.identifier || vp.id;
+                            vpIdent = vp.identifier || vp.id;
                             videoSubs = issues.filter(i => i.isSubIssue && i.parentId === vp.id);
                             const foundV = new Set(videoSubs.map(s => String(s.title || '').trim()));
                             videoOk = wantTitles.every(t => foundV.has(t));
@@ -12683,12 +12701,17 @@
                     if (wantGraphic) {
                         const gp = matchParent('GRA');
                         if (gp) {
+                            graphicParentSeen = gp.identifier || gp.id;
+                            gpIdent = gp.identifier || gp.id;
                             graphicSubs = issues.filter(i => i.isSubIssue && i.parentId === gp.id);
                             const foundG = new Set(graphicSubs.map(s => String(s.title || '').trim()));
                             graphicOk = wantTitles.every(t => foundG.has(t));
                         }
                     }
+                    pollTrace.push({ attempt, vp: vpIdent, vSubs: videoSubs.length, gp: gpIdent, gSubs: graphicSubs.length });
                     if (videoOk && graphicOk) break;
+                } else {
+                    pollTrace.push({ attempt, error: 'no_issues_array' });
                 }
                 if (attempt + 1 < maxAttempts) await new Promise(r => setTimeout(r, attemptDelayMs));
             }
@@ -12696,10 +12719,16 @@
             console.warn('[SyncView] Linear lookup for calendar linking failed:', e);
         }
         if (wantVideo && videoSubs.length < videos.length) {
-            console.warn('[SyncView] Only matched', videoSubs.length, '/', videos.length, 'video sub-issues');
+            console.error('[SyncView] Only matched', videoSubs.length, '/', videos.length,
+                'video sub-issues. lastSeenParent:', videoParentSeen,
+                'formTitle:', formTitle, 'slug:', slug,
+                'pollTrace:', pollTrace);
         }
         if (wantGraphic && graphicSubs.length < videos.length) {
-            console.warn('[SyncView] Only matched', graphicSubs.length, '/', videos.length, 'graphic sub-issues');
+            console.error('[SyncView] Only matched', graphicSubs.length, '/', videos.length,
+                'graphic sub-issues. lastSeenParent:', graphicParentSeen,
+                'formTitle:', formTitle, 'slug:', slug,
+                'pollTrace:', pollTrace);
         }
 
         // Fallback pairing helper — when title-match misses, fall back to

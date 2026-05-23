@@ -13408,6 +13408,26 @@
             const qParam=new URLSearchParams(location.search).get('c');
             const clientFromQuery=qParam?decodeURIComponent(qParam):null;
             if(clientFromQuery&&clientNames.includes(clientFromQuery)){
+                // Per-client opaque token gate. The token is stored in the
+                // Clients Info sheet column `client_review_token`. URLs the
+                // SMM hands out look like ?c=<name>&t=<token>. If the
+                // column is empty for this client, fail open with a
+                // console warning so existing links keep working until
+                // tokens are populated.
+                const expectedToken=String(clientMap[clientFromQuery]?.client_review_token||'').trim();
+                const tParam=String(new URLSearchParams(location.search).get('t')||'').trim();
+                if(expectedToken && tParam!==expectedToken){
+                    document.querySelector('header.header').style.display='none';
+                    document.getElementById('pageTop').style.display='none';
+                    document.getElementById('content').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+                        <div style="font-size:1.15rem;font-weight:700;color:#111;">This link isn't valid</div>
+                        <div style="font-size:0.9rem;color:#777;max-width:380px;line-height:1.45;">Please ask your social media manager for an updated link.</div>
+                    </div>`;
+                    return;
+                }
+                if(!expectedToken){
+                    console.warn('[SyncView] No client_review_token set for "'+clientFromQuery+'" — link is unguarded. Add a token to the Clients Info sheet to enforce it.');
+                }
                 document.getElementById('selectorWrap').style.display='none';
                 document.getElementById('pageSub').style.display='none';
                 document.getElementById('pageTitle').textContent='Your Analytics';

@@ -2080,22 +2080,20 @@
         /* 3-column grid: video / thumbnail / caption side by side. Falls
            back to a single stacked column under ~880 px wide so the cards
            don't get crushed on small viewports. */
-        .cal-review-body { padding: 14px 18px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-top: 1px solid var(--border); background: var(--bg); align-items: start; }
+        .cal-review-body { padding: 14px 18px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-top: 1px solid var(--border); background: var(--bg); align-items: stretch; }
         @media (max-width: 880px) { .cal-review-body { grid-template-columns: 1fr; } }
-        /* Inside the columns, the panels themselves go vertical and the
-           preview shouldn't blow the column width on small thumbnails. */
-        .cal-review-body .cal-review-panel { padding: 12px 13px; }
-        .cal-review-body .cal-review-preview-thumb img { max-width: 100%; max-height: 180px; }
-        .cal-review-body .cal-review-panel-compose { flex-wrap: wrap; }
-        .cal-review-body .cal-review-tweak-btn { flex-shrink: 0; }
-        .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; transition: background 0.18s, border-color 0.18s; }
+        /* Each panel is a vertical stack with consistent gaps — clean,
+           predictable, no overlapping flex layouts. */
+        .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 14px 12px;
+            display: flex; flex-direction: column; gap: 12px;
+            transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+            height: 100%; }
         .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #86efac; }
         .cal-review-panel[data-state="tweaks"]   { background: #fff7ed; border-color: #fdba74; }
-        /* Inside the tweaks panel, swap the gray boxed-caption background
-           for a transparent, slightly-translucent fill so the text reads
-           like part of the orange panel instead of a stacked gray box. */
-        .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.55); color: #7c2d12; }
-        .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.7); border-color: rgba(124,45,18,0.25); }
+        /* Inside the tweaks panel, the inner caption/textarea blend with
+           the panel rather than sitting on a stacked gray box. */
+        .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.6); color: #7c2d12; }
+        .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.78); border-color: rgba(124,45,18,0.2); }
         /* Compact approved/posted panel — single horizontal line. */
         .cal-review-panel-mini { display: flex; align-items: center; gap: 9px; padding: 9px 14px; }
         .cal-review-mini-icon { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; background: #16a34a; color: #fff; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -2104,47 +2102,83 @@
         .cal-review-mini-label { font-weight: 600; font-size: 0.82rem; color: #166534; flex: 1; }
         .cal-review-panel-mini[data-state="posted"] .cal-review-mini-icon { background: #064e3b; }
         .cal-review-panel-mini[data-state="posted"] .cal-review-mini-label { color: #064e3b; }
-        .cal-review-panel-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
-        .cal-review-panel-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
-        .cal-review-panel-title { font-weight: 700; font-size: 0.86rem; color: var(--text-primary); }
-        .cal-review-panel-status { margin-left: auto; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
-        .cal-review-panel[data-state="tweaks"]   .cal-review-panel-status { color: #c2410c; }
-        .cal-review-panel[data-state="approved"] .cal-review-panel-status { color: #166534; }
-        .cal-review-panel[data-state="posted"]   .cal-review-panel-status { color: #064e3b; }
-        .cal-review-linear-link { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); text-decoration: none; padding: 3px 7px; border: 1px solid var(--border); border-radius: 5px; }
-        .cal-review-linear-link:hover { background: var(--bg); color: var(--text-primary); }
-        .cal-review-no-link { font-size: 0.72rem; color: #b45309; font-style: italic; }
-        .cal-review-panel-preview { margin-bottom: 10px; font-size: 0.82rem; color: var(--text-primary); }
+        /* Head: component name on the left, a soft status chip on the right.
+           No bullet dot — the column position already says which component
+           it is, and an extra dot just adds visual chatter. */
+        .cal-review-panel-head { display: flex; align-items: center; gap: 10px; }
+        .cal-review-panel-title { font-weight: 700; font-size: 0.92rem; color: var(--text-primary); letter-spacing: -0.005em; }
+        .cal-review-panel-status { margin-left: auto; font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.045em;
+            padding: 3px 9px; border-radius: 99px;
+            background: rgba(0,0,0,0.04); color: var(--text-secondary); }
+        .cal-review-panel[data-state="tweaks"]   .cal-review-panel-status { background: rgba(194,65,12,0.12); color: #9a3412; }
+        .cal-review-panel[data-state="approved"] .cal-review-panel-status { background: rgba(22,101,52,0.12); color: #166534; }
+        .cal-review-panel[data-state="posted"]   .cal-review-panel-status { background: rgba(6,78,59,0.18); color: #064e3b; }
+        /* Preview area — image / caption / video link. Center-aligned and
+           consistent across all three components. */
+        .cal-review-panel-preview { font-size: 0.82rem; color: var(--text-primary);
+            display: flex; align-items: flex-start; justify-content: center;
+            min-height: 36px; }
         .cal-review-preview-empty { font-size: 0.78rem; color: var(--text-muted); font-style: italic; padding: 8px 0; }
-        .cal-review-preview-link { display: inline-flex; align-items: center; padding: 6px 12px; background: var(--text-primary); color: var(--white); border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.78rem; }
-        .cal-review-preview-link:hover { opacity: 0.9; }
-        .cal-review-preview-thumb img { max-width: 220px; max-height: 220px; border-radius: 8px; display: block; }
-        .cal-review-preview-caption { padding: 10px 12px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; line-height: 1.45; font-size: 0.84rem; }
-        .cal-review-panel-actions { display: flex; gap: 8px; margin-bottom: 8px; }
-        .cal-review-approve-btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; background: #16a34a; color: var(--white); border: 0; border-radius: 7px; font-family: inherit; font-size: 0.82rem; font-weight: 700; cursor: pointer; transition: background 0.12s; }
-        .cal-review-approve-btn:hover:not(:disabled) { background: #15803d; }
-        .cal-review-approve-btn:disabled { opacity: 0.5; cursor: default; }
-        .cal-review-approve-btn svg { width: 13px; height: 13px; }
-        .cal-review-panel-compose { display: flex; gap: 8px; align-items: flex-start; }
-        .cal-review-textarea { flex: 1; min-height: 56px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.82rem; color: var(--text-primary); resize: vertical; outline: 0; }
-        .cal-review-textarea:focus { border-color: var(--text-primary); }
-        .cal-review-tweak-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px; background: var(--white); border: 1.5px solid var(--text-primary); color: var(--text-primary); border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .cal-review-preview-link { display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 13px; background: var(--text-primary); color: var(--white);
+            border-radius: 7px; text-decoration: none; font-weight: 600; font-size: 0.78rem;
+            transition: opacity 0.12s; }
+        .cal-review-preview-link:hover { opacity: 0.88; }
+        .cal-review-preview-thumb { width: 100%; display: flex; justify-content: center; }
+        .cal-review-preview-thumb-btn { padding: 0; border: 0; background: transparent; cursor: zoom-in; border-radius: 8px; overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.18s, box-shadow 0.18s; }
+        .cal-review-preview-thumb-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.16); }
+        .cal-review-preview-thumb-btn img { display: block; width: 100%; max-width: 260px; max-height: 220px; object-fit: contain; }
+        .cal-review-preview-caption { padding: 10px 12px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; line-height: 1.45; font-size: 0.84rem; width: 100%; }
+        /* Approve button — full width, dominant. */
+        .cal-review-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%; padding: 10px 14px;
+            background: #16a34a; color: var(--white); border: 0; border-radius: 8px;
+            font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer;
+            transition: background 0.12s, transform 0.08s, box-shadow 0.12s;
+            box-shadow: 0 1px 2px rgba(22,101,52,0.16); }
+        .cal-review-approve-btn:hover:not(:disabled) { background: #15803d; box-shadow: 0 3px 8px rgba(22,101,52,0.22); }
+        .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
+        .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
+        .cal-review-approve-btn svg { width: 14px; height: 14px; }
+        /* Compose block — textarea full-width, button below right-aligned.
+           No more textarea+button on the same line awkwardly fighting for
+           space. */
+        .cal-review-panel-compose { display: flex; flex-direction: column; gap: 8px; }
+        .cal-review-textarea { width: 100%; box-sizing: border-box; min-height: 64px; padding: 9px 11px;
+            border: 1px solid var(--border); border-radius: 8px;
+            font-family: inherit; font-size: 0.84rem; color: var(--text-primary);
+            resize: vertical; outline: 0; transition: border-color 0.12s, box-shadow 0.12s; }
+        .cal-review-textarea:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px rgba(0,0,0,0.04); }
+        .cal-review-tweak-btn { align-self: flex-end; display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 13px; background: var(--white);
+            border: 1px solid var(--text-primary); color: var(--text-primary);
+            border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; transition: background 0.12s, color 0.12s; }
         .cal-review-tweak-btn:hover:not(:disabled) { background: var(--text-primary); color: var(--white); }
-        .cal-review-tweak-btn:disabled { opacity: 0.5; cursor: default; }
+        .cal-review-tweak-btn:disabled { opacity: 0.45; cursor: default; }
         .cal-review-tweak-btn svg { width: 12px; height: 12px; }
-        .cal-review-panel-err { margin-top: 8px; font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
-        .cal-review-thread { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
-        /* Quote-style: no gray fill, just a colored left rule tinted to the
-           component the comment belongs to. Feels like a chat reply, not a
-           UI panel sitting on top of another UI panel. */
-        .cal-review-comment { padding: 2px 0 2px 11px; border-left: 2px solid var(--border); background: transparent; }
+        .cal-review-panel-err { font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
+        .cal-review-thread { padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+        /* Quote-style comment: left rule tinted to the component colour. */
+        .cal-review-comment { padding: 2px 0 2px 11px; border-left: 2px solid var(--border); background: transparent; transition: opacity 0.18s; }
         .cal-review-panel[data-comp="video"]   .cal-review-comment { border-left-color: rgba(6,182,212,0.55); }
         .cal-review-panel[data-comp="graphic"] .cal-review-comment { border-left-color: rgba(217,70,239,0.55); }
         .cal-review-panel[data-comp="caption"] .cal-review-comment { border-left-color: rgba(245,158,11,0.55); }
-        .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px; }
-        .cal-review-comment-time { margin-left: 6px; font-weight: 500; }
+        .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .cal-review-comment-time { font-weight: 500; }
         .cal-review-comment-body { font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.45; }
         .cal-review-comment-empty { font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 6px 0; }
+        /* Resolved comments — strike-through body + tiny "Resolved" pill so
+           the client can tell at a glance which tweaks were applied. */
+        .cal-review-comment.is-resolved { opacity: 0.62; }
+        .cal-review-comment.is-resolved .cal-review-comment-body { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: rgba(0,0,0,0.4); }
+        .cal-review-resolved-pill { display: inline-flex; align-items: center; gap: 3px;
+            padding: 1px 7px 1px 5px; border-radius: 99px;
+            background: #dcfce7; color: #166534;
+            font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+        .cal-review-resolved-pill svg { width: 9px; height: 9px; }
         .cal-month-pill[data-tweak-comp]::after { content: ""; position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; pointer-events: none; }
         .cal-month-pill[data-tweak-comp="video"]::after   { border-color: transparent #06b6d4 transparent transparent; }
         .cal-month-pill[data-tweak-comp="graphic"]::after { border-color: transparent #d946ef transparent transparent; }
@@ -11827,9 +11861,6 @@
         // the legacy single-status approval gate). Caption tweaks always
         // allowed since there's no Linear gating.
         const canActClient = _isClientLink ? (subStatus === 'Client Approval' || subStatus === 'Tweaks Needed') : true;
-        const threadHtml = comments && comments.length
-            ? comments.map(c => `<div class="cal-review-comment"><div class="cal-review-comment-head"><strong>${_calEsc(c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'))}</strong> <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div><div class="cal-review-comment-body">${_calEsc(c.body || '')}</div></div>`).join('')
-            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
         const hasDraft = !!draft.trim();
         const inTweaks = subStatus === 'Tweaks Needed';
         const approveEnabled = canActClient && !saving && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
@@ -11840,26 +11871,48 @@
         // would just confuse the handoff.
         const showApprove = canActClient && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
         const tweakEnabled = canActClient && !saving && hasDraft;
-        const stateLabel = subStatus;
+        // Friendlier status copy: clients see "Awaiting your approval"
+        // instead of the raw "Client Approval" enum, which reads like a
+        // workflow term, not a prompt for action.
+        const stateLabel = inTweaks ? 'Changes requested'
+                         : (subStatus === 'Client Approval' ? 'Awaiting your approval'
+                         : subStatus);
         // Reword the compose placeholder once a tweak is already pending —
         // emphasises that the request was received and invites follow-ups.
         const placeholder = inTweaks
             ? 'The team is working on it. Anything else to add?'
             : 'What needs to change?';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved
+                    ? `<span class="cal-review-resolved-pill" title="Marked done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
+                    : '';
+                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
-                <span class="cal-review-panel-dot" style="background:${COMP_PILL_COLORS[comp]}"></span>
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
                 <span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>
                 ${linkBadge}
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            ${showApprove ? `<div class="cal-review-panel-actions">
-                <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>
-            </div>` : ''}
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
-                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>Request tweaks</button>
+                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request tweaks</button>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
             <div class="cal-review-thread">${threadHtml}</div>
@@ -11875,10 +11928,12 @@
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
-            // Rewrite Drive sharing URLs to the /thumbnail?id= form so the
-            // <img> actually loads. Raw raw URL kept as the link fallback.
+            // Click opens a full-screen lightbox of the thumbnail rather
+            // than the Drive sharing URL — the client shouldn't be jumping
+            // into Drive just to see a bigger version.
             const imgUrl = _calDeriveThumb(p) || raw;
-            return `<div class="cal-review-preview-thumb"><a href="${_calEscAttr(raw)}" target="_blank" rel="noopener"><img src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<a class=&quot;cal-review-preview-link&quot; href=&quot;${_calEscAttr(raw)}&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Open thumbnail ↗</a>'"></a></div>`;
+            const escPid = _calEscAttr(p.id);
+            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
         }
         const cap = String(p.caption || '').trim();
         if (!cap) return `<div class="cal-review-preview-empty">No caption yet.</div>`;

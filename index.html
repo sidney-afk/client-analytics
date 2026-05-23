@@ -2411,6 +2411,20 @@
         .kasper-review-body .cal-review-panel-status { padding: 3px 8px; font-size: 0.66rem; background: transparent; color: var(--text-muted); }
         .kasper-review-body .cal-review-panel-preview { min-height: 0; }
         .kasper-review-body .cal-review-thread { padding-top: 12px; }
+        /* Tweaks-needed state — match the client review's visual signal so
+           Kasper sees the same "Changes requested" feedback after sending a
+           comment. The Kasper-specific resets above had higher specificity
+           than the base .cal-review-panel[data-state="tweaks"] rule, so the
+           orange treatment never landed. Re-apply it scoped under
+           .kasper-review-body. */
+        .kasper-review-body .cal-review-panel[data-state="tweaks"] {
+            background: #fff7ed;
+        }
+        .kasper-review-body .cal-review-panel[data-state="tweaks"] .cal-review-panel-status {
+            background: rgba(194,65,12,0.12); color: #9a3412;
+        }
+        .kasper-review-body .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.6); color: #7c2d12; }
+        .kasper-review-body .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.78); border-color: rgba(124,45,18,0.2); }
         @media (max-width: 880px) {
             .kasper-review-body { display: flex !important; flex-direction: column; }
             .kasper-review-body .cal-review-panel + .cal-review-panel { border-left: 0; border-top: 1px solid var(--border); }
@@ -2419,10 +2433,23 @@
         /* Hero layout — used only when the sole pending Kasper component is
            the video. Cinematic poster on the left, action column on the right.
            Reads like a "review and decide" moment, not a form. */
-        .kasper-review-body.is-hero { display: grid; grid-template-columns: 1fr; padding: 0; background: linear-gradient(180deg, #fafaf7 0%, #ffffff 100%); }
+        .kasper-review-body.is-hero { display: grid; grid-template-columns: 1fr; padding: 0; background: linear-gradient(180deg, #fafaf7 0%, #ffffff 100%); transition: background 0.25s; }
+        .kasper-review-body.is-hero:has(.kasper-hero-panel[data-state="tweaks"]) {
+            background: linear-gradient(180deg, #fff7ed 0%, #fffaf2 100%);
+        }
         .kasper-review-body.is-hero .kasper-hero-panel {
             display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
             gap: 0; padding: 0; background: transparent; border: 0; border-radius: 0; max-width: none; margin: 0;
+        }
+        .kasper-review-body.is-hero .kasper-hero-panel[data-state="tweaks"] .kasper-hero-title { color: #7c2d12; }
+        .kasper-review-body.is-hero .kasper-hero-panel[data-state="tweaks"] .cal-review-panel-status {
+            background: rgba(194,65,12,0.16); color: #9a3412;
+            padding: 4px 10px; font-size: 0.7rem; border-radius: 99px;
+            text-transform: uppercase; letter-spacing: 0.045em; font-weight: 700;
+            margin-left: 8px;
+        }
+        .kasper-review-body.is-hero .kasper-hero-panel[data-state="tweaks"] .cal-review-textarea {
+            background: rgba(255,255,255,0.85); border-color: rgba(124,45,18,0.2);
         }
         .kasper-hero-left { padding: 24px 18px 24px 24px; display: flex; align-items: center; justify-content: center; }
         .kasper-hero-poster { position: relative; display: block; width: 100%; max-width: 380px;
@@ -14824,7 +14851,7 @@
         // Used when he's left tweak comments and wants the card off his plate
         // without it auto-dismissing on every submission. Also dismisses when
         // he's seen what he needed and there's no decision to take here.
-        const doneBtn = `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as reviewed and remove from the queue"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Mark reviewed</button>`;
+        const doneBtn = `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Submit the review — drop the card from your queue"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Submit</button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -14939,7 +14966,7 @@
                 ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
                 </div>
                 ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
                 <div class="cal-review-thread">${threadHtml}</div>
@@ -15000,7 +15027,7 @@
             ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
+                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
             <div class="cal-review-thread">${threadHtml}</div>

@@ -8547,6 +8547,35 @@
         const subs = CAL_COMPONENTS.map(c => _calNormStatus(p[c + '_status'] || 'In Progress'));
         return subs.reduce((acc, s) => (CAL_PRIORITY[s] != null && CAL_PRIORITY[acc] != null && CAL_PRIORITY[s] < CAL_PRIORITY[acc]) ? s : acc, 'Posted');
     }
+    /* Clears approval timestamps that no longer reflect the current state.
+       Called whenever a sub-status changes. The rule: if a component's
+       sub-status drops below "Client Approval" (i.e. is now Tweaks Needed,
+       In Progress, For SMM Approval, or Kasper Approval), its
+       client_<comp>_approved_at is stale and must be cleared so the row
+       doesn't read "approved by client at <date>" while the UI shows it as
+       awaiting approval. The overall kasper_approved_at is cleared when
+       no component is at-or-above Client Approval anymore. `pending` is
+       the _calPendingEdits[pid] bucket so the cleared values get written
+       back to the sheet on the next flush. */
+    function _calClearStaleApprovals(post, pending) {
+        if (!post) return;
+        const above = new Set(['Client Approval', 'Approved', 'Posted']);
+        CAL_COMPONENTS.forEach(c => {
+            const sub = _calNormStatus(post[c + '_status'] || '');
+            const stampKey = 'client_' + c + '_approved_at';
+            if (!above.has(sub) && post[stampKey]) {
+                post[stampKey] = '';
+                if (pending) pending[stampKey] = '';
+            }
+        });
+        if (post.kasper_approved_at) {
+            const anyAbove = CAL_COMPONENTS.some(c => above.has(_calNormStatus(post[c + '_status'] || '')));
+            if (!anyAbove) {
+                post.kasper_approved_at = '';
+                if (pending) pending.kasper_approved_at = '';
+            }
+        }
+    }
     /* Parses a sheet column that holds a JSON comments array. Falls back to
        a legacy plaintext value (seeded as a single SMM note) so existing
        data is never lost during the per-component tweaks migration. */
@@ -9167,6 +9196,7 @@
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][subKey] = mapped;
         _calPendingEdits[pid].status = post.status;
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
         _calFlushCardSave(pid);
         _calRenderBody({ preserveScroll: true });
     }
@@ -9255,6 +9285,9 @@
                     post.status = overall;
                     _calPendingEdits[post.id].status = overall;
                 }
+                // Linear regressed a sub below Client Approval → drop the
+                // stale client-approval stamp(s) so audit history matches.
+                _calClearStaleApprovals(post, _calPendingEdits[post.id]);
                 _calNoLinearPush.add(post.id);
                 _calFlushCardSave(post.id);
                 changed++;
@@ -11112,6 +11145,11 @@
             _calPendingEdits[pid].caption_status = status;
             _calMarkLocalStatus(pid);
         }
+        // If any sub regressed below Client Approval, the matching
+        // client_<comp>_approved_at and/or kasper_approved_at no longer
+        // reflect reality. Clear them so the row's audit trail stays
+        // truthful (no "approved at <date>" on a card now in Tweaks Needed).
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
         post.updated_at = new Date().toISOString();
         _calRenderBody({ preserveScroll: true });
         _calFlushCardSave(pid);
@@ -12278,6 +12316,7 @@
             status: post.status,
             [comp + '_tweaks']: _calStringifyComments(list),
         });
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             const linUrl = _calLinearUrlFor(post, comp);
             if (linUrl) _calPostLinearComment(linUrl, body, newComment.author);
@@ -12864,6 +12903,7 @@
         post.status = computeOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        _calClearStaleApprovals(post, _calPendingEdits[pid]);
         _calMarkLocalStatus(pid, which);
         return true;
     }
@@ -15323,6 +15363,10 @@
             video_comments:   item.post.video_comments,
             graphic_comments: item.post.graphic_comments,
             caption_comments: item.post.caption_comments,
+            client_video_approved_at:   item.post.client_video_approved_at,
+            client_graphic_approved_at: item.post.client_graphic_approved_at,
+            client_caption_approved_at: item.post.client_caption_approved_at,
+            kasper_approved_at:         item.post.kasper_approved_at,
         };
         const list = _calCommentsFor(item.post, comp).slice();
         const newComment = {
@@ -15340,6 +15384,12 @@
         _calSetCommentsFor(item.post, comp, list);
         item.post[subKey] = 'Tweaks Needed';
         item.post.status = computeOverallStatus(item.post);
+        // Kasper just moved a sub to TN — any prior client_<comp>_approved_at
+        // and possibly kasper_approved_at are now stale. Clear them so the
+        // sheet row doesn't read "approved at <date>" on a card now in
+        // Tweaks Needed. (Persist passes through pending=null since
+        // _kasperPersistPost writes the whole row, not a pending diff.)
+        _calClearStaleApprovals(item.post, null);
         item.post.updated_at = new Date().toISOString();
         item._touchedComps.add(comp);
         item._drafts[comp] = '';

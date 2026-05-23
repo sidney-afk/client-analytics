@@ -2680,6 +2680,16 @@
         .kcard-watch-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
         .kcard-watch-btn.is-disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; pointer-events: none; }
         .kcard-watch-btn svg { width: 12px; height: 12px; }
+        /* Mark-reviewed button — sits next to Watch video in the strip. A
+           muted outlined pill so it doesn't compete with the primary watch
+           action, but still reads as an actionable affordance. */
+        .kcard-done-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 13px;
+            background: var(--white); color: var(--text-secondary);
+            border: 1px solid var(--border); border-radius: 9px;
+            font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s; }
+        .kcard-done-btn:hover { background: #f0fdf4; color: #166534; border-color: #86efac; }
+        .kcard-done-btn svg { width: 13px; height: 13px; }
         .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
         .kcard-expand-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
         .kcard-expand-btn svg { width: 12px; height: 12px; transition: transform 0.2s; }
@@ -14452,16 +14462,32 @@
                 if (!da && db) return 1;
                 return String(a.client).localeCompare(String(b.client));
             });
-            // Preserve expanded state + per-component drafts on refresh so
-            // a background poll doesn't wipe what the user was typing.
-            const prevExpanded = new Set(_kasperState.items.filter(x => x._expanded).map(x => x.post.id));
-            const prevDrafts = Object.create(null);
-            for (const x of _kasperState.items) {
-                if (x._drafts) prevDrafts[x.post.id] = x._drafts;
-            }
+            // Preserve expanded / drafts / touched-comps across refreshes.
+            // Also use last-write-wins for the post itself: if local stamped
+            // updated_at after the sheet's, keep the local post (handles the
+            // race where a poll fires while a submit is still in flight).
+            const prevById = new Map(_kasperState.items.map(x => [x.post.id, x]));
             for (const it of items) {
-                if (prevExpanded.has(it.post.id)) it._expanded = true;
-                if (prevDrafts[it.post.id]) it._drafts = Object.assign({ video: '', graphic: '', caption: '' }, prevDrafts[it.post.id]);
+                const local = prevById.get(it.post.id);
+                if (!local) continue;
+                if (local._expanded) it._expanded = true;
+                if (local._drafts) it._drafts = Object.assign({ video: '', graphic: '', caption: '' }, local._drafts);
+                if (local._touchedComps) it._touchedComps = local._touchedComps;
+                // Last-write-wins on the post itself.
+                const lT = Date.parse((local.post && local.post.updated_at) || '');
+                const fT = Date.parse(it.post.updated_at || '');
+                if (isFinite(lT) && isFinite(fT) && lT > fT) it.post = local.post;
+            }
+            // Keep cards the user has touched but the fresh queue no longer
+            // contains — submitting a tweak flips a sub to TN, which boots
+            // the card out of the KA filter. We don't want it to vanish
+            // mid-review; "Mark reviewed" / Approve are the explicit exits.
+            const freshIds = new Set(items.map(it => it.post.id));
+            for (const oldIt of _kasperState.items) {
+                if (freshIds.has(oldIt.post.id)) continue;
+                if (oldIt._touchedComps && oldIt._touchedComps.size > 0) {
+                    items.push(oldIt);
+                }
             }
             _kasperState.items = items;
             // Merge server-known history with the local log so a refresh keeps
@@ -14794,6 +14820,11 @@
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
+        // "Mark reviewed" — Kasper's explicit "I'm done with this card" button.
+        // Used when he's left tweak comments and wants the card off his plate
+        // without it auto-dismissing on every submission. Also dismisses when
+        // he's seen what he needed and there's no decision to take here.
+        const doneBtn = `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as reviewed and remove from the queue"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Mark reviewed</button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -14817,6 +14848,7 @@
                     <div class="kcard-meta-row">${smmHtml}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${doneBtn}
                     ${watchBtn}
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
@@ -14827,11 +14859,14 @@
 
     function _kasperRenderExpanded(item /*, comments, videoUrl, calUrl */) {
         const p = item.post;
-        // Kasper only sees the panels that are currently parked at Kasper
-        // Approval. Anything already past (Client Approval, Approved, Posted)
-        // or behind (In Progress, Tweaks Needed, For SMM Approval) is hidden
-        // so the card stays focused on what he actually has to act on.
-        const activeComps = CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+        // Show a component panel if it's currently at Kasper Approval (the
+        // queue criterion) OR if Kasper has touched it during this session
+        // (submitted a comment or approved). Once he interacts, the panel
+        // sticks around so he can see his comment land in the thread and
+        // continue layering notes; status flips on submit don't visually
+        // disappear the panel.
+        const touched = item._touchedComps || new Set();
+        const activeComps = CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval' || touched.has(c));
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
@@ -14850,6 +14885,12 @@
         const p = item.post;
         const escId = _calEscAttr(p.id);
         const escComp = 'video';
+        const subStatus = _calNormStatus(p.video_status || '');
+        const state = subStatus === 'Tweaks Needed' ? 'tweaks'
+                    : (subStatus === 'Approved' ? 'approved'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending'));
+        const inTweaks = state === 'tweaks';
+        const isApproved = state === 'approved' || state === 'posted';
         const url = String(p.asset_url || '').trim();
         const thumbUrl = _calDeriveThumb(p);
         const draft = (item._drafts && item._drafts.video) || '';
@@ -14857,9 +14898,11 @@
         const err = (item._errors && item._errors.video) || '';
         const comments = _calCommentsFor(p, 'video');
         const hasDraft = !!draft.trim();
-        const approveEnabled = !saving && !hasDraft;
-        const showApprove = !hasDraft;
+        const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
+        const showApprove = !inTweaks && !isApproved;
         const tweakEnabled = !saving && hasDraft;
+        const placeholder = inTweaks ? 'Anything else to add?' : 'What needs to change?';
+        const stateLabel = inTweaks ? 'Changes requested' : '';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
@@ -14886,15 +14929,16 @@
                 </div>`;
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
-        return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="pending">
+        return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="${state}">
             <div class="kasper-hero-left">${posterHtml}</div>
             <div class="kasper-hero-right">
                 <div class="kasper-hero-head">
                     <span class="kasper-hero-title">Video</span>
+                    ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
-                <button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>
+                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve video</button>` : ''}
                 <div class="cal-review-panel-compose">
-                    <textarea class="cal-review-textarea" placeholder="What needs to change?" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                    <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
                 </div>
                 ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
@@ -14907,15 +14951,24 @@
         const p = item.post;
         const escId = _calEscAttr(p.id);
         const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Tweaks Needed' ? 'tweaks'
+                    : (subStatus === 'Approved' ? 'approved'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending'));
+        const inTweaks = state === 'tweaks';
+        const isApproved = state === 'approved' || state === 'posted';
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
         const comments = _calCommentsFor(p, comp);
         const hasDraft = !!draft.trim();
-        const approveEnabled = !saving && !hasDraft;
-        const showApprove = !hasDraft;
+        const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
+        // Approve hides once Kasper has already sent the work back (TN) or
+        // signed off — only the "Mark reviewed" / Submit comment paths are
+        // relevant from there.
+        const showApprove = !inTweaks && !isApproved;
         const tweakEnabled = !saving && hasDraft;
-        const placeholder = 'What needs to change?';
+        const placeholder = inTweaks ? 'Anything else to add?' : 'What needs to change?';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
@@ -14937,12 +14990,14 @@
                 </div>`;
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
-        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="pending">
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Submit</button>
@@ -14974,6 +15029,10 @@
        into the `tweaks` column on the wire. After the save lands, push
        the status change to Linear so the sub-issue follows. */
     async function _kasperPersistPost(item) {
+        // Stamp updated_at locally so a background poll racing this write
+        // can't fetch the still-stale sheet row and clobber the freshly
+        // submitted comment / status flip.
+        item.post.updated_at = new Date().toISOString();
         const wire = Object.assign({}, item.post);
         wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
         wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
@@ -15027,7 +15086,9 @@
         if (!item) return;
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._touchedComps) item._touchedComps = new Set();
         if (item._saving[comp]) return;
+        item._touchedComps.add(comp);
         const subKey = comp + '_status';
         const prev = {
             [subKey]: item.post[subKey],
@@ -15067,14 +15128,19 @@
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        if (!item._touchedComps) item._touchedComps = new Set();
         const body = String(item._drafts[comp] || '').trim();
         if (!body || item._saving[comp]) return;
-        // Submit adds a comment to the thread — status is NOT touched, and
-        // the card stays in Kasper's queue. He can keep layering thoughts
-        // before deciding to Approve (which moves to Client Approval). If he
-        // wants to send things back to the editor instead, the SMM picks up
-        // the comments and flips status from their side.
+        // Mirrors the client-review submit: comment lands in the thread,
+        // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's
+        // queue (locally pinned via _touchedComps) so he can keep layering
+        // comments. Removal happens explicitly via "Mark reviewed" or via
+        // Approve on a still-KA component.
+        const subKey = comp + '_status';
         const prev = {
+            [subKey]: item.post[subKey],
+            status: item.post.status,
+            updated_at: item.post.updated_at,
             video_comments:   item.post.video_comments,
             graphic_comments: item.post.graphic_comments,
             caption_comments: item.post.caption_comments,
@@ -15093,6 +15159,10 @@
         };
         list.push(newComment);
         _calSetCommentsFor(item.post, comp, list);
+        item.post[subKey] = 'Tweaks Needed';
+        item.post.status = computeOverallStatus(item.post);
+        item.post.updated_at = new Date().toISOString();
+        item._touchedComps.add(comp);
         item._drafts[comp] = '';
         item._saving[comp] = true;
         item._errors[comp] = null;
@@ -15109,6 +15179,18 @@
             item._errors[comp] = e && e.message ? e.message : 'Save failed';
             _kasperRepaintCard(pid);
         }
+    }
+
+    /* Explicit "Kasper is done with this card" dismissal — drops it from
+       the local queue without changing any status. Used when his decision
+       was a series of tweaks (already submitted as comments) and the work
+       belongs back with the editor/SMM. */
+    function _kasperDismiss(pid) {
+        const idx = _kasperState.items.findIndex(x => x.post.id === pid);
+        if (idx < 0) return;
+        _kasperState.items.splice(idx, 1);
+        _kasperPersistCache();
+        _kasperRemoveItem(pid);
     }
 
     function _kasperRemoveItem(pid) {
@@ -15824,6 +15906,7 @@
     window._kasperApproveComp = _kasperApproveComp;
     window._kasperRequestTweakComp = _kasperRequestTweakComp;
     window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
+    window._kasperDismiss = _kasperDismiss;
     window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;
     window._kasperCloseLightbox = _kasperCloseLightbox;

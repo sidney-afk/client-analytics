@@ -6171,7 +6171,15 @@
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
             return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
         }
-        const resp = await fetch(LINEAR_ISSUES_WEBHOOK, { method: 'GET' });
+        // When forcing a refresh (e.g. the bulk-create polling loop), bypass
+        // the browser's HTTP cache so a previous 304 doesn't replay stale
+        // data, and append a timestamp so any CDN in front of n8n can't
+        // collapse two back-to-back GETs into the same cached response.
+        const url = force
+            ? (LINEAR_ISSUES_WEBHOOK + (LINEAR_ISSUES_WEBHOOK.includes('?') ? '&' : '?') + 't=' + Date.now())
+            : LINEAR_ISSUES_WEBHOOK;
+        const init = force ? { method: 'GET', cache: 'no-store' } : { method: 'GET' };
+        const resp = await fetch(url, init);
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         const issues = Array.isArray(data) ? data : (data.issues || []);
@@ -12648,7 +12656,11 @@
         let videoSubs = [];
         let graphicSubs = [];
         try {
-            await new Promise(r => setTimeout(r, 6000));
+            // GRA's path runs an LLM "Generate Titles" step (~6 s) before its
+            // sub-issues are created, so the first poll has to start later
+            // than the VID-only flow would need. 10 s keeps us under the
+            // navigation-to-Linear-tab latency while giving GRA room to land.
+            await new Promise(r => setTimeout(r, 10000));
             const maxAttempts = 12;
             const attemptDelayMs = 3000;
             for (let attempt = 0; attempt < maxAttempts; attempt++) {

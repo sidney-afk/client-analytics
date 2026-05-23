@@ -8437,6 +8437,8 @@
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
+        // Same for Kasper review's 30 s background poller + visibility listeners.
+        if (page !== 'kasper' && typeof _kasperTeardown === 'function') _kasperTeardown();
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
@@ -14403,6 +14405,13 @@
        is actually mounted and the tab is visible. */
     let _kasperPollTimer = null;
     let _kasperWiredVisibility = false;
+    /* Generation counter — bumped on every user mutation so an in-flight
+       background load whose response arrives AFTER a click can detect that
+       it's stale and skip applying its result. Without this, a poll fired
+       just before the user approves a card can finish 200 ms later and
+       repaint with the pre-approval state, making the card "snap back". */
+    let _kasperLoadGen = 0;
+    function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; }
     function _kasperIsReviewMounted() {
         return _kasperState.tab === 'review' && !!document.getElementById('kasperContent');
     }
@@ -14428,6 +14437,18 @@
             window.addEventListener('focus', _kasperMaybeBackgroundRefresh);
             window.addEventListener('pageshow', _kasperMaybeBackgroundRefresh);
             _kasperWiredVisibility = true;
+        }
+    }
+    /* Stop the Kasper background poller + detach its visibility listeners
+       when leaving the Kasper page. Mirrors how the TikTok upload tab tears
+       its own poller down. Called from navTo() on every navigation away. */
+    function _kasperTeardown() {
+        if (_kasperPollTimer) { clearInterval(_kasperPollTimer); _kasperPollTimer = null; }
+        if (_kasperWiredVisibility) {
+            document.removeEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
+            window.removeEventListener('focus', _kasperMaybeBackgroundRefresh);
+            window.removeEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            _kasperWiredVisibility = false;
         }
     }
 
@@ -14532,6 +14553,9 @@
 
         _kasperState.loading = true;
         _kasperState.error = null;
+        // Capture the current generation so a user mutation during the
+        // await can invalidate this load before its results are applied.
+        const myGen = ++_kasperLoadGen;
 
         try {
             // SMM sheet + every client's calendar in parallel.
@@ -14540,6 +14564,12 @@
                 _kasperLoadSMMMap(),
                 _kasperFetchAllRelevantPosts(forceRefresh),
             ]);
+            // If the user clicked approve / submit tweak / dismiss while we
+            // were fetching, _kasperLoadGen was bumped past myGen. Discard
+            // this stale response — the next load (triggered by the
+            // mutation's persist or the next poll tick) will repaint with
+            // fresh data.
+            if (myGen !== _kasperLoadGen) return;
             _kasperState.smmByClient = smmMap;
             const items = fetched.queue;
             // Decorate posts with SMM info.
@@ -15209,6 +15239,7 @@
         if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
         if (!item._touchedComps) item._touchedComps = new Set();
         if (item._saving[comp]) return;
+        _kasperInvalidateInFlightLoad();
         item._touchedComps.add(comp);
         const subKey = comp + '_status';
         const prev = {
@@ -15258,6 +15289,7 @@
         if (!item._touchedComps) item._touchedComps = new Set();
         const body = String(item._drafts[comp] || '').trim();
         if (!body || item._saving[comp]) return;
+        _kasperInvalidateInFlightLoad();
         // Mirrors the client-review submit: comment lands in the thread,
         // sub-status flips to Tweaks Needed, but the card STAYS in Kasper's
         // queue (locally pinned via _touchedComps) so he can keep layering
@@ -15318,12 +15350,14 @@
     function _kasperDismiss(pid) {
         const idx = _kasperState.items.findIndex(x => x.post.id === pid);
         if (idx < 0) return;
+        _kasperInvalidateInFlightLoad();
         _kasperState.items.splice(idx, 1);
         _kasperPersistCache();
         _kasperRemoveItem(pid);
     }
 
     function _kasperRemoveItem(pid) {
+        _kasperInvalidateInFlightLoad();
         const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
         const el = document.querySelector('.kcard[data-kasper-pid="' + sel + '"]');
         if (el) {

@@ -11967,8 +11967,21 @@
 
     function _calReviewCardBody(p) {
         const escId = _calEscAttr(p.id);
-        const panels = CAL_COMPONENTS.map(comp => _calReviewPanelHtml(p, comp)).join('');
-        return `<div class="cal-review-body" onclick="event.stopPropagation();">
+        // Client only sees panels for the components currently waiting on
+        // their approval. After they approve/tweak a panel, that component
+        // flips state and falls out of the filter — the card auto-removes
+        // once no component remains at Client Approval (handled by the
+        // _calReviewItems filter on the next render). Mirrors the Kasper
+        // review approach so the per-component idea is consistent.
+        const activeComps = _isClientLink
+            ? CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Client Approval')
+            : CAL_COMPONENTS;
+        if (!activeComps.length) {
+            return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
+        }
+        const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
+        const cols = activeComps.length;
+        return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">
             ${panels}
         </div>`;
     }
@@ -12395,6 +12408,20 @@
             for (const c of list) if (!c.parent_id && !c.done) n++;
         }
         return n;
+    }
+    /* Per-component: does this component carry at least one unresolved
+       Kasper-authored tweak? Used by the Kasper review to decide whether
+       the panel sticks around (Kasper has comments awaiting SMM action)
+       even after the sub-status flipped to Tweaks Needed. */
+    function _calCompHasUnresolvedKasperTweak(post, comp) {
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return false;
+        return list.some(x => x && x.role === 'kasper' && !x.done);
+    }
+    /* Whole-card: any unresolved Kasper tweak across any component. Used
+       for the Done-reviewing button visibility and the card-stays rule. */
+    function _calPostHasUnresolvedKasperTweak(post) {
+        return CAL_COMPONENTS.some(c => _calCompHasUnresolvedKasperTweak(post, c));
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -14512,14 +14539,15 @@
                 const fT = Date.parse(it.post.updated_at || '');
                 if (isFinite(lT) && isFinite(fT) && lT > fT) it.post = local.post;
             }
-            // Keep cards the user has touched but the fresh queue no longer
-            // contains — submitting a tweak flips a sub to TN, which boots
-            // the card out of the KA filter. We don't want it to vanish
-            // mid-review; "Mark reviewed" / Approve are the explicit exits.
+            // Cards the fresh KA filter would drop but Kasper still has
+            // unresolved tweaks on — keep them around. Submitting a tweak
+            // flips a sub to TN (boots from the KA filter); we don't want
+            // the card to vanish until Kasper either dismisses via Done
+            // reviewing or the SMM marks every Kasper tweak as resolved.
             const freshIds = new Set(items.map(it => it.post.id));
             for (const oldIt of _kasperState.items) {
                 if (freshIds.has(oldIt.post.id)) continue;
-                if (oldIt._touchedComps && oldIt._touchedComps.size > 0) {
+                if (_calPostHasUnresolvedKasperTweak(oldIt.post)) {
                     items.push(oldIt);
                 }
             }
@@ -14855,15 +14883,13 @@
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
         // "Done reviewing" — Kasper's explicit "I'm finished with this card"
-        // button. Only shown once he's actually sent at least one comment
-        // (the dismissal makes sense as the *end* of the tweak round, not
-        // as a way to skip a card before doing anything). Clicking removes
-        // the card from his queue with no further status change.
-        const hasKasperComment = CAL_COMPONENTS.some(c => {
-            const list = _calCommentsFor(p, c);
-            return list && list.some(x => x && x.role === 'kasper');
-        });
-        const doneBtn = hasKasperComment
+        // button. Only shown when there is at least one UNRESOLVED Kasper
+        // tweak on the card. Resolved (SMM-marked-done) tweaks don't count;
+        // approving a component doesn't count either (the auto-removal path
+        // handles that). Click drops the card from his queue, no status
+        // change — the tweaks are already in flight.
+        const hasUnresolvedKasperTweak = _calPostHasUnresolvedKasperTweak(p);
+        const doneBtn = hasUnresolvedKasperTweak
             ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Close this card — removes it from your queue (tweaks are already sent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
             : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
@@ -14900,14 +14926,15 @@
 
     function _kasperRenderExpanded(item /*, comments, videoUrl, calUrl */) {
         const p = item.post;
-        // Show a component panel if it's currently at Kasper Approval (the
-        // queue criterion) OR if Kasper has touched it during this session
-        // (submitted a comment or approved). Once he interacts, the panel
-        // sticks around so he can see his comment land in the thread and
-        // continue layering notes; status flips on submit don't visually
-        // disappear the panel.
-        const touched = item._touchedComps || new Set();
-        const activeComps = CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval' || touched.has(c));
+        // Two reasons to show a panel: (1) the component is at Kasper
+        // Approval — his decision is pending; (2) Kasper has at least one
+        // unresolved tweak on this component — he may want to add more
+        // notes, and the panel doubles as a thread view. Data-driven, so
+        // it survives reloads natively without session-only flags.
+        const activeComps = CAL_COMPONENTS.filter(c =>
+            _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval'
+            || _calCompHasUnresolvedKasperTweak(p, c)
+        );
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
@@ -15145,8 +15172,14 @@
         try {
             await _kasperPersistPost(item);
             item._saving[comp] = false;
+            _kasperPersistCache();
+            // Card-stays rule: keep the card while ANY component is still
+            // at Kasper Approval OR Kasper still has unresolved tweaks
+            // (those need to live until SMM resolves them, or Kasper
+            // explicitly dismisses via Done reviewing).
             const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
-            if (!stillKasper) {
+            const stillHasTweaks = _calPostHasUnresolvedKasperTweak(item.post);
+            if (!stillKasper && !stillHasTweaks) {
                 const stamp = item.post.kasper_approved_at || new Date().toISOString();
                 const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
                 _kasperRecordHistory(entry);

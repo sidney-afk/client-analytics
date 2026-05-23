@@ -2092,6 +2092,9 @@
         .cal-review-panel-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
         .cal-review-panel-title { font-weight: 700; font-size: 0.86rem; color: var(--text-primary); }
         .cal-review-panel-status { margin-left: auto; font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
+        .cal-review-panel[data-state="tweaks"]   .cal-review-panel-status { color: #c2410c; }
+        .cal-review-panel[data-state="approved"] .cal-review-panel-status { color: #166534; }
+        .cal-review-panel[data-state="posted"]   .cal-review-panel-status { color: #064e3b; }
         .cal-review-linear-link { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); text-decoration: none; padding: 3px 7px; border: 1px solid var(--border); border-radius: 5px; }
         .cal-review-linear-link:hover { background: var(--bg); color: var(--text-primary); }
         .cal-review-no-link { font-size: 0.72rem; color: #b45309; font-style: italic; }
@@ -2190,20 +2193,29 @@
         /* ── Card tweaks button + threaded-tweaks modal ─────────────── */
         .cal-card-foot { justify-content: space-between; gap: 8px; }
         .cal-card-status-row { margin-top: 8px; }
-        /* Tweaks button — ghost pill with a small numeric badge when there
-           are open threads. Sits quietly when count is 0; turns into a
-           clear notification chip when there's something to address. */
-        .cal-comments-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: 1px solid transparent; color: var(--text-muted); border-radius: 99px; padding: 4px 9px 4px 8px; font-family: inherit; font-size: 0.74rem; font-weight: 700; cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
-        .cal-comments-btn:hover { background: #f3f3f1; color: var(--text-primary); }
-        .cal-comments-btn svg { width: 13px; height: 13px; }
-        .cal-comments-btn .cal-comments-label { letter-spacing: 0.01em; }
+        /* Tweaks button — a clean rectangle (not a balloon-pill) with a
+           subtle hover. When threads are open it picks up a soft amber
+           tint and a small badge; no shouting yellow background.  */
+        .cal-comments-btn { display: inline-flex; align-items: center; gap: 7px;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text-secondary); border-radius: 8px;
+            padding: 5px 10px; font-family: inherit; font-size: 0.78rem;
+            font-weight: 600; letter-spacing: 0; cursor: pointer;
+            transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease; }
+        .cal-comments-btn:hover { background: var(--bg); color: var(--text-primary); border-color: var(--text-muted); }
+        .cal-comments-btn svg { width: 14px; height: 14px; opacity: 0.85; }
+        .cal-comments-btn .cal-comments-label { letter-spacing: 0; }
         .cal-comments-btn .cal-comments-count { display: none; }
-        .cal-comments-btn.has-open { background: #fffbea; color: #92400e; border-color: #fcd34d; }
-        .cal-comments-btn.has-open:hover { background: #fef3c7; }
+        .cal-comments-btn.has-open {
+            background: #fff8ec; color: #9a3412; border-color: #fed7aa;
+            box-shadow: 0 1px 2px rgba(154,52,18,0.06);
+        }
+        .cal-comments-btn.has-open svg { opacity: 1; color: #c2410c; }
+        .cal-comments-btn.has-open:hover { background: #ffeed1; border-color: #fdba74; }
         .cal-comments-btn.has-open .cal-comments-count {
             display: inline-flex; align-items: center; justify-content: center;
-            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
-            background: #f59e0b; color: #fff; font-size: 0.66rem; font-weight: 800;
+            min-width: 18px; height: 18px; padding: 0 5px; border-radius: 6px;
+            background: #c2410c; color: #fff; font-size: 0.68rem; font-weight: 700;
             font-variant-numeric: tabular-nums; letter-spacing: 0;
             line-height: 1; box-sizing: border-box;
         }
@@ -9930,7 +9942,14 @@
                 _calSetStaleNotice(!!calState.staleNotice);
             }
         }
-        if (seq === _calLoadSeq && ok) { _calReconcileLinearStatuses(); _calApplyFocusRequest(); }
+        if (seq === _calLoadSeq && ok) {
+            // Linear-status reconcile is a catch-up for whatever drifted
+            // while the page was closed; on background polls (focus return,
+            // 30 s tick) we already trust the sheet, and a stale Linear read
+            // would clobber a fresh client approval. Skip reconcile then.
+            if (!opts.background) _calReconcileLinearStatuses();
+            _calApplyFocusRequest();
+        }
     }
     /* After a load, if the workload view asked to open a specific sub-issue,
        scroll its card into view and flash it. */
@@ -10282,15 +10301,24 @@
         if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
         // The renderer reads exactly these fields off each post — if none
         // of them changed, the new DOM would be identical to the current
-        // one and we can skip the re-render entirely.
+        // one and we can skip the re-render entirely. Sub-statuses and the
+        // graphic Linear link drive the per-component pills, so a change
+        // there has to flip dataChanged even when the overall `status` is
+        // unchanged (e.g. graphic flips Tweaks→Approved while video is
+        // still Tweaks Needed — the overall stays Tweaks but the pill
+        // colour must update).
         const keys = ['id','order_index','scheduled_date','status','name',
                       'asset_url','thumbnail_url','caption','cta',
-                      'linear_issue_id'];
+                      'linear_issue_id','graphic_linear_issue_id',
+                      'video_status','graphic_status','caption_status',
+                      'updated_at'];
         for (let i = 0; i < a.length; i++) {
             for (const k of keys) {
                 if (String(a[i][k] == null ? '' : a[i][k]) !== String(b[i][k] == null ? '' : b[i][k])) return false;
             }
             if (JSON.stringify(a[i].comments || []) !== JSON.stringify(b[i].comments || [])) return false;
+            if (JSON.stringify(a[i].graphic_comments || []) !== JSON.stringify(b[i].graphic_comments || [])) return false;
+            if (JSON.stringify(a[i].caption_comments || []) !== JSON.stringify(b[i].caption_comments || [])) return false;
         }
         return true;
     }
@@ -11743,7 +11771,10 @@
                     : (subStatus === 'Posted' ? 'posted' : 'pending'));
         const comments = _calCommentsFor(p, comp);
         const linUrl = _calLinearUrlFor(p, comp);
-        const linkBadge = (comp === 'caption')
+        // Linear is internal-only — never expose it on the client review
+        // surface (they don't have a Linear account and shouldn't know the
+        // workflow tool exists).
+        const linkBadge = (_isClientLink || comp === 'caption')
             ? ''
             : (linUrl
                 ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();">Linear ↗</a>`
@@ -11776,12 +11807,21 @@
             ? comments.map(c => `<div class="cal-review-comment"><div class="cal-review-comment-head"><strong>${_calEsc(c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'))}</strong> <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div><div class="cal-review-comment-body">${_calEsc(c.body || '')}</div></div>`).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
         const hasDraft = !!draft.trim();
-        const approveEnabled = canActClient && !saving && !hasDraft && subStatus !== 'Approved' && subStatus !== 'Posted';
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const approveEnabled = canActClient && !saving && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
         // Hide the approve button entirely once the client starts typing
-        // tweaks — approving while a comment is in flight doesn't make sense.
-        const showApprove = canActClient && !hasDraft && subStatus !== 'Approved' && subStatus !== 'Posted';
+        // tweaks — approving while a comment is in flight doesn't make
+        // sense. Also hide while a tweak is already pending: she's waiting
+        // for the editor's revision, so approving the unchanged asset
+        // would just confuse the handoff.
+        const showApprove = canActClient && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
         const tweakEnabled = canActClient && !saving && hasDraft;
         const stateLabel = subStatus;
+        // Reword the compose placeholder once a tweak is already pending —
+        // emphasises that the request was received and invites follow-ups.
+        const placeholder = inTweaks
+            ? 'The team is working on it. Anything else to add?'
+            : 'What needs to change?';
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-dot" style="background:${COMP_PILL_COLORS[comp]}"></span>
@@ -11794,7 +11834,7 @@
                 <button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>
             </div>` : ''}
             <div class="cal-review-panel-compose">
-                <textarea class="cal-review-textarea" placeholder="What needs to change?" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>Request tweaks</button>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}

@@ -8684,6 +8684,18 @@
     };
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
+    /* Tracks the last time *this browser* successfully wrote each card.
+       Used by the background-load merge to detect concurrent writes from a
+       different user: if we just saved a card but the server now has a
+       newer updated_at, someone else's write landed after ours and our
+       version was silently overwritten. Map<pid, timestamp_ms>. Entries
+       expire after CAL_CONFLICT_WINDOW_MS so old saves don't keep alarming. */
+    const _calLocalRecentSaves = new Map();
+    const CAL_CONFLICT_WINDOW_MS = 90 * 1000;
+    /* IDs we've already warned about in the current session — prevents
+       the same conflict from re-firing the dialog on every 30 s poll
+       until either the user re-saves (refresh) or the entry ages out. */
+    const _calConflictNotified = new Set();
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
@@ -10151,15 +10163,43 @@
             // optimistic mutation the upsert hasn't propagated to the sheet
             // yet. Keep local so a slow round-trip doesn't visibly snap the
             // pill back to its pre-click value before the write lands.
+            // Also detect concurrent writes: if WE recently saved this
+            // card and the server now has a NEWER stamp than ours, somebody
+            // else wrote after us and overwrote our changes.
             const prevById = new Map(prevPosts.map(p => [p.id, p]));
+            const conflictNames = [];
+            const nowMs = Date.now();
             const newPosts = fetchedPosts.map(fp => {
                 const lp = prevById.get(fp.id);
                 if (!lp) return fp;
                 const lT = Date.parse(lp.updated_at || '');
                 const fT = Date.parse(fp.updated_at || '');
+                const recentSave = _calLocalRecentSaves.get(fp.id);
+                if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
+                    _calLocalRecentSaves.delete(fp.id);
+                }
+                const stillRecent = _calLocalRecentSaves.has(fp.id);
                 if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
+                // fT >= lT — fetched wins. If we recently saved this card,
+                // surface the overwrite so the SMM/Kasper knows their edit
+                // was lost to a concurrent change. The 2 s slop covers
+                // clock-skew between the browser and the sheet server.
+                if (stillRecent && isFinite(lT) && isFinite(fT) && (fT - lT) > 2000 && !_calConflictNotified.has(fp.id)) {
+                    _calConflictNotified.add(fp.id);
+                    conflictNames.push(String(fp.name || lp.name || fp.id));
+                }
                 return fp;
             });
+            if (conflictNames.length) {
+                // Non-blocking notice — the merge already adopted the
+                // server's newer version, so the UI is consistent. The
+                // dialog just tells the user their edit was overwritten
+                // so they can decide whether to redo it.
+                try {
+                    const list = conflictNames.slice(0, 3).join(', ') + (conflictNames.length > 3 ? ' and ' + (conflictNames.length - 3) + ' more' : '');
+                    showNotify('Your changes were overwritten', 'Another editor saved ' + list + ' after you. The board now shows their version. If you still want your changes, please re-apply them.');
+                } catch {}
+            }
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             calState.error = null;
@@ -11425,6 +11465,11 @@
             _calMigratePostShape(saved);
             const i2 = calState.posts.findIndex(p => p.id === realId);
             if (i2 >= 0) calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
+            // Record this successful local write so the next background
+            // merge can detect a remote overwrite (someone else saved AFTER
+            // us). Clears its own old entries on read.
+            _calLocalRecentSaves.set(realId, Date.now());
+            _calConflictNotified.delete(realId);
             _calSetCardStatus(realId, 'saved');
             _calRefreshCardThumb(realId);
             const savedPost = calState.posts.find(p => p.id === realId);

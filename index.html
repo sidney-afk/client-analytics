@@ -1928,7 +1928,7 @@
         .cal-fld-status-wrap { position: relative; display: flex; align-items: center; justify-content: center;
             padding: 5px 11px; border-radius: 8px; background: #f3f3f1; color: var(--text-secondary);
             font-family: inherit; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
-        .cal-fld-status-wrap.is-derived { cursor: help; user-select: none; }
+        .cal-fld-status-wrap.is-derived { cursor: default; user-select: none; }
         .cal-fld-status-wrap .cal-fld-status-label { line-height: 1; }
         .cal-fld-status-trigger { -webkit-appearance: none; appearance: none; width: 100%; box-sizing: border-box;
             padding: 8px 26px 8px 11px; border: 0; border-radius: 8px; outline: 0; cursor: pointer; text-align: left;
@@ -10857,7 +10857,7 @@
         }).join('');
         const statusHtml = ro
             ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
-            : `<div class="cal-fld-status-wrap is-derived" data-val="${_calEscAttr(currentStatus)}" data-status-pid="${pid}" title="Overall status is derived from the three components — change a component to change this">
+            : `<div class="cal-fld-status-wrap is-derived" data-val="${_calEscAttr(currentStatus)}" data-status-pid="${pid}">
                         <span class="cal-fld-status-label">${_calEsc(_calStatusLabel(currentStatus))}</span>
                     </div>
                     ${subStatusHtml ? `<div class="cal-card-substatus-row">${subStatusHtml}</div>` : ''}`;
@@ -14229,6 +14229,39 @@
         // in-memory state.
         if (!_kasperState.lastLoaded) _kasperHydrateCache();
         _kasperRenderTab();
+        _kasperEnsureAutoRefresh();
+    }
+
+    /* Background poll for the Kasper review — same cadence as the client
+       calendar (30 s) plus a refresh on tab/window focus, so a card the
+       SMM just moved to "Kasper Approval" appears here without needing
+       Kasper to hit the Refresh button. Only fires while the Kasper view
+       is actually mounted and the tab is visible. */
+    let _kasperPollTimer = null;
+    let _kasperWiredVisibility = false;
+    function _kasperIsReviewMounted() {
+        return _kasperState.tab === 'review' && !!document.getElementById('kasperContent');
+    }
+    function _kasperMaybeBackgroundRefresh() {
+        if (document.visibilityState === 'hidden') return;
+        if (!_kasperIsReviewMounted()) return;
+        if (_kasperState.loading) return;
+        // Skip while the user is actively typing in a panel textarea so a
+        // background paint doesn't yank focus out of the draft mid-keystroke.
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return;
+        _kasperLoadReview(false);
+    }
+    function _kasperEnsureAutoRefresh() {
+        if (!_kasperPollTimer) {
+            _kasperPollTimer = setInterval(_kasperMaybeBackgroundRefresh, 30000);
+        }
+        if (!_kasperWiredVisibility) {
+            document.addEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
+            window.addEventListener('focus', _kasperMaybeBackgroundRefresh);
+            window.addEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            _kasperWiredVisibility = true;
+        }
     }
 
     function _kasperHydrateCache() {
@@ -14241,10 +14274,12 @@
             const items = Array.isArray(parsed.items) ? parsed.items.filter(x => x && x.post && x.post.id) : [];
             for (const it of items) {
                 // Reset transient UI state — saving/error flags must not survive a reload.
-                it._saving = false; it._saveError = null;
+                it._saving = { video: false, graphic: false, caption: false };
+                it._errors = { video: null, graphic: null, caption: null };
                 if (typeof it._expanded !== 'boolean') it._expanded = false;
-                if (typeof it._draft !== 'string') it._draft = '';
+                if (!it._drafts || typeof it._drafts !== 'object') it._drafts = { video: '', graphic: '', caption: '' };
                 if (!Array.isArray(it.post.comments)) it.post.comments = _calLoadComments(it.post);
+                _calMigratePostShape(it.post);
             }
             _kasperState.items = items;
             _kasperState.history = Array.isArray(parsed.history) ? parsed.history : [];
@@ -14265,7 +14300,7 @@
                     slug: it.slug,
                     smm: it.smm,
                     _expanded: !!it._expanded,
-                    _draft: it._draft || '',
+                    _drafts: it._drafts || { video: '', graphic: '', caption: '' },
                 })),
                 history: _kasperState.history,
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
@@ -14347,13 +14382,16 @@
                 if (!da && db) return 1;
                 return String(a.client).localeCompare(String(b.client));
             });
-            // Preserve expanded state on refresh.
+            // Preserve expanded state + per-component drafts on refresh so
+            // a background poll doesn't wipe what the user was typing.
             const prevExpanded = new Set(_kasperState.items.filter(x => x._expanded).map(x => x.post.id));
             const prevDrafts = Object.create(null);
-            for (const x of _kasperState.items) if (x._draft) prevDrafts[x.post.id] = x._draft;
+            for (const x of _kasperState.items) {
+                if (x._drafts) prevDrafts[x.post.id] = x._drafts;
+            }
             for (const it of items) {
                 if (prevExpanded.has(it.post.id)) it._expanded = true;
-                if (prevDrafts[it.post.id]) it._draft = prevDrafts[it.post.id];
+                if (prevDrafts[it.post.id]) it._drafts = Object.assign({ video: '', graphic: '', caption: '' }, prevDrafts[it.post.id]);
             }
             _kasperState.items = items;
             // Merge server-known history with the local log so a refresh keeps
@@ -14442,8 +14480,20 @@
                 raw.status = status;
                 raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
                 raw.comments = _calLoadComments(raw);
-                if (status === 'Kasper Approval') {
-                    queue.push({ post: raw, client, slug, smm: null, _expanded: false, _saving: false, _saveError: null, _draft: '' });
+                // Per-component gating: a card lands in Kasper's queue if any
+                // component sub-status is at Kasper Approval. Overall `status`
+                // is derived (lowest-wins), so reading the overall would miss
+                // cards where, say, only the caption needs Kasper's look.
+                _calMigratePostShape(raw);
+                const hasKasperWork = CAL_COMPONENTS.some(c => _calNormStatus(raw[c + '_status'] || '') === 'Kasper Approval');
+                if (hasKasperWork) {
+                    queue.push({
+                        post: raw, client, slug, smm: null,
+                        _expanded: false,
+                        _saving:   { video: false, graphic: false, caption: false },
+                        _drafts:   { video: '',    graphic: '',    caption: '' },
+                        _errors:   { video: null,  graphic: null,  caption: null },
+                    });
                 }
                 const approvedAt = String(raw.kasper_approved_at || '').trim();
                 if (approvedAt) {
@@ -14675,15 +14725,14 @@
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
-        const comments = Array.isArray(p.comments) ? p.comments : _calLoadComments(p);
-        const openTweaks = comments.filter(c => !c.parent_id && !c.done).length;
+        const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';
         const dateHtml = dateNice
             ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`
             : `<span class="kcard-date is-empty">No date</span>`;
-        const expandedHtml = item._expanded ? _kasperRenderExpanded(item, comments, videoUrl, calUrl) : '';
+        const expandedHtml = item._expanded ? _kasperRenderExpanded(item) : '';
         return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
             <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
                 <div class="kcard-thumb${hasThumbUrl ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
@@ -14706,71 +14755,68 @@
         </div>`;
     }
 
-    function _kasperRenderExpanded(item, comments, videoUrl, calUrl) {
-        const p   = item.post;
-        const pid = p.id;
-        const caption = String(p.caption || '').trim();
-        const cta = String(p.cta || '').trim();
-        const captionHtml = caption
-            ? `<div class="kcard-caption">${_calEsc(caption)}</div>`
-            : `<div class="kcard-caption is-empty">No caption.</div>`;
-        const ctaHtml = cta ? `<div class="kcard-cta-row"><strong>CTA:</strong>${_calEsc(cta)}</div>` : '';
-        // A resolved root thread "rolls down" to its replies — anything
-        // marked done on the parent crosses out the whole conversation so
-        // Casper sees at a glance that a tweak is fully closed out, not
-        // just acknowledged by the SMM.
-        const doneRoots = new Set(comments.filter(c => !c.parent_id && c.done).map(c => c.id));
-        const threadHtml = comments.length
+    function _kasperRenderExpanded(item /*, comments, videoUrl, calUrl */) {
+        const p = item.post;
+        // Kasper only sees the panels that are currently parked at Kasper
+        // Approval. Anything already past (Client Approval, Approved, Posted)
+        // or behind (In Progress, Tweaks Needed, For SMM Approval) is hidden
+        // so the card stays focused on what he actually has to act on.
+        const activeComps = CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+        if (!activeComps.length) {
+            return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
+        }
+        const panels = activeComps.map(comp => _kasperPanelHtml(item, comp)).join('');
+        const cols = activeComps.length;
+        return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+    }
+
+    function _kasperPanelHtml(item, comp) {
+        const p = item.post;
+        const escId = _calEscAttr(p.id);
+        const escComp = _calEscAttr(comp);
+        const draft = (item._drafts && item._drafts[comp]) || '';
+        const saving = !!(item._saving && item._saving[comp]);
+        const err = (item._errors && item._errors[comp]) || '';
+        const comments = _calCommentsFor(p, comp);
+        const hasDraft = !!draft.trim();
+        const approveEnabled = !saving && !hasDraft;
+        const showApprove = !hasDraft;
+        const tweakEnabled = !saving && hasDraft;
+        const placeholder = 'What needs to change?';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const previewHtml = _calReviewComponentPreview(p, comp);
+        const threadHtml = comments && comments.length
             ? comments.map(c => {
-                const author  = c.author || (c.role === 'client' ? 'Client' : (c.role === 'kasper' ? 'Kasper' : 'SMM'));
-                const roleCls = c.role === 'client' ? 'is-client' : (c.role === 'kasper' ? 'is-kasper' : '');
-                const initial = (author || '?').charAt(0).toUpperCase();
-                const isDone = c.done || (c.parent_id && doneRoots.has(c.parent_id));
-                return `<div class="kcard-cm${isDone ? ' is-done' : ''}">
-                    <div class="kcard-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
-                    <div class="kcard-cm-body">
-                        <div class="kcard-cm-line1"><span class="kcard-cm-author">${_calEsc(author)}</span><span class="kcard-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span></div>
-                        <div class="kcard-cm-body-text">${_calEsc(c.body || '')}</div>
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved
+                    ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
+                    : '';
+                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
                     </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
                 </div>`;
             }).join('')
-            : `<div class="kcard-thread-empty">No comments yet.</div>`;
-        const draft = item._draft || '';
-        const savingHtml = item._saving
-            ? `<span class="kcard-saving-chip"><div class="spinner" style="width:11px;height:11px;border-width:1.5px;"></div>Saving…</span>`
-            : (item._saveError ? `<span class="kcard-saving-chip is-error">${_calEsc(item._saveError)}</span>` : `<span class="kcard-saving-chip"></span>`);
-        return `<div class="kcard-body" onclick="event.stopPropagation();">
-            <div class="kcard-col-left">
-                <div>
-                    <div class="kcard-section-label" style="margin-bottom:8px;">Caption</div>
-                    ${captionHtml}
-                </div>
-                ${ctaHtml}
-                <div>
-                    <div class="kcard-section-label" style="margin-bottom:8px;">Tweaks history</div>
-                    <div class="kcard-thread">${threadHtml}</div>
-                </div>
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="pending">
+            <div class="cal-review-panel-head">
+                <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                <span class="cal-review-panel-status">For Kasper approval</span>
             </div>
-            <div class="kcard-col-right">
-                <div class="kcard-approve-bar">
-                    <div class="kcard-approve-title"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Looks good?</div>
-                    <div class="kcard-approve-help">Approving moves this video forward to <strong>${_calEsc(item.client)}'s</strong> review (status becomes <strong>Client Approval</strong>).</div>
-                    <button type="button" class="kcard-approve-btn" ${item._saving ? 'disabled' : ''} onclick="_kasperApprove('${_calEscAttr(pid)}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>Approve · send to client</button>
-                </div>
-                <div>
-                    <div class="kcard-section-label" style="margin-bottom:8px;">Needs a tweak?</div>
-                    <div class="kcard-compose">
-                        <textarea data-kasper-draft="${_calEscAttr(pid)}" placeholder="What needs to change? e.g. tighten the intro, swap the thumbnail…" oninput="_kasperOnDraftInput(this,'${_calEscAttr(pid)}')">${_calEsc(draft)}</textarea>
-                        <div class="kcard-decisions">
-                            <button type="button" class="kcard-tweak-send" ${item._saving || !draft.trim() ? 'disabled' : ''} data-kasper-send="${_calEscAttr(pid)}" onclick="_kasperSubmitTweak('${_calEscAttr(pid)}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>Request tweaks</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="kcard-foot">
-                    <a class="kcard-open-cal-btn" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>Open in calendar</a>
-                    ${savingHtml}
-                </div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request tweaks</button>
             </div>
+            ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
         </div>`;
     }
 
@@ -14790,13 +14836,6 @@
         el.replaceWith(tmp.firstElementChild);
     }
 
-    function _kasperOnDraftInput(ta, pid) {
-        const it = _kasperState.items.find(x => x.post.id === pid);
-        if (!it) return;
-        it._draft = ta.value;
-        const btn = document.querySelector('[data-kasper-send="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
-        if (btn) btn.disabled = !ta.value.trim() || it._saving;
-    }
 
     /* Save a post to the calendar sheet via the existing upsert webhook.
        Mirrors how the calendar view saves cards: comments get serialised
@@ -14828,61 +14867,75 @@
         if (gUrl) _calPushStatusToLinear(gUrl, item.post.graphic_status);
     }
 
-    async function _kasperApprove(pid) {
+    function _kasperOnPanelDraftInput(ta, pid, comp) {
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item || item._saving) return;
-        item._saving = true; item._saveError = null;
+        if (!item) return;
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        const prevHadDraft = !!String(item._drafts[comp] || '').trim();
+        item._drafts[comp] = ta.value;
+        const nowHasDraft = !!ta.value.trim();
+        // Only repaint when crossing the empty/non-empty boundary so the
+        // approve button toggles in/out without flashing on every keystroke.
+        if (prevHadDraft !== nowHasDraft) _kasperRepaintCard(pid);
+    }
+
+    async function _kasperApproveComp(pid, comp) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (item._saving[comp]) return;
+        const subKey = comp + '_status';
         const prev = {
+            [subKey]: item.post[subKey],
             status: item.post.status,
-            video_status: item.post.video_status,
-            graphic_status: item.post.graphic_status,
-            caption_status: item.post.caption_status,
             kasper_approved_at: item.post.kasper_approved_at,
         };
-        const stamp = new Date().toISOString();
-        // Advance every component Kasper had to look at. Kasper signs off the
-        // whole package — anything still pre-Client-Approval moves forward;
-        // anything already Approved/Posted/etc. is left alone.
-        const bump = (cur) => {
-            const c = _calNormStatus(cur || 'In Progress');
-            return (CAL_PRIORITY[c] < CAL_PRIORITY['Client Approval']) ? 'Client Approval' : c;
-        };
-        item.post.video_status   = bump(item.post.video_status);
-        item.post.graphic_status = bump(item.post.graphic_status);
-        item.post.caption_status = bump(item.post.caption_status);
+        item.post[subKey] = 'Client Approval';
         item.post.status = computeOverallStatus(item.post);
-        item.post.kasper_approved_at = stamp;
+        item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
+        item._saving[comp] = true;
+        item._errors[comp] = null;
         _kasperRepaintCard(pid);
         try {
             await _kasperPersistPost(item);
-            const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
-            _kasperRecordHistory(entry);
-            _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
-            _kasperRemoveItem(pid);
+            item._saving[comp] = false;
+            const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
+            if (!stillKasper) {
+                const stamp = item.post.kasper_approved_at || new Date().toISOString();
+                const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
+                _kasperRecordHistory(entry);
+                _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
+                _kasperRemoveItem(pid);
+            } else {
+                _kasperRepaintCard(pid);
+            }
         } catch (e) {
             Object.assign(item.post, prev);
-            item._saving = false;
-            item._saveError = e && e.message ? e.message : 'Save failed';
+            item._saving[comp] = false;
+            item._errors[comp] = e && e.message ? e.message : 'Save failed';
             _kasperRepaintCard(pid);
         }
     }
 
-    async function _kasperSubmitTweak(pid) {
+    async function _kasperRequestTweakComp(pid, comp) {
         const item = _kasperState.items.find(x => x.post.id === pid);
-        if (!item || item._saving) return;
-        const body = (item._draft || '').trim();
-        if (!body) return;
-        item._saving = true; item._saveError = null;
-        const prev = JSON.parse(JSON.stringify({
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        const body = String(item._drafts[comp] || '').trim();
+        if (!body || item._saving[comp]) return;
+        const subKey = comp + '_status';
+        const compArrKey = comp + '_comments';
+        const prev = {
+            [subKey]: item.post[subKey],
             status: item.post.status,
-            video_status: item.post.video_status,
-            graphic_status: item.post.graphic_status,
-            caption_status: item.post.caption_status,
-            comments: item.post.comments || [],
-            video_comments:   item.post.video_comments   || [],
-            graphic_comments: item.post.graphic_comments || [],
-            caption_comments: item.post.caption_comments || [],
-        }));
+            video_comments:   item.post.video_comments,
+            graphic_comments: item.post.graphic_comments,
+            caption_comments: item.post.caption_comments,
+        };
+        const list = _calCommentsFor(item.post, comp).slice();
         const newComment = {
             id: _calMintCommentId(),
             parent_id: null,
@@ -14894,39 +14947,26 @@
             done_at: '',
             done_by: '',
         };
-        // Kasper's request applies to the whole package — push the comment
-        // onto every component thread so the editor/designer see it on
-        // their respective Linear sub-issues, and flip every component
-        // back to Tweaks Needed.
-        const vList = Array.isArray(item.post.video_comments)   ? item.post.video_comments.slice()   : _calLoadCommentsField(item.post, 'video_tweaks',   item.post.tweaks);
-        const gList = Array.isArray(item.post.graphic_comments) ? item.post.graphic_comments.slice() : _calLoadCommentsField(item.post, 'graphic_tweaks', '');
-        const cList = Array.isArray(item.post.caption_comments) ? item.post.caption_comments.slice() : _calLoadCommentsField(item.post, 'caption_tweaks', '');
-        vList.push(newComment);
-        gList.push(Object.assign({}, newComment, { id: _calMintCommentId() }));
-        cList.push(Object.assign({}, newComment, { id: _calMintCommentId() }));
-        item.post.video_comments   = vList;
-        item.post.graphic_comments = gList;
-        item.post.caption_comments = cList;
-        item.post.comments = vList;
-        item.post.video_status   = 'Tweaks Needed';
-        item.post.graphic_status = 'Tweaks Needed';
-        item.post.caption_status = 'Tweaks Needed';
-        item.post.status = 'Tweaks Needed';
-        item._draft = '';
+        list.push(newComment);
+        _calSetCommentsFor(item.post, comp, list);
+        item.post[subKey] = 'Tweaks Needed';
+        item.post.status = computeOverallStatus(item.post);
+        item._drafts[comp] = '';
+        item._saving[comp] = true;
+        item._errors[comp] = null;
         _kasperRepaintCard(pid);
         try {
             await _kasperPersistPost(item);
-            // Push the comment to both Linear sub-issues so video editor and
-            // graphic designer both see it. Caption has no Linear sub-issue.
-            const vUrl = String(item.post.linear_issue_id || '').trim();
-            const gUrl = String(item.post.graphic_linear_issue_id || '').trim();
-            if (vUrl) _calPostLinearComment(vUrl, body, 'Kasper');
-            if (gUrl) _calPostLinearComment(gUrl, body, 'Kasper');
-            _kasperRemoveItem(pid);
+            const linUrl = _calLinearUrlFor(item.post, comp);
+            if (linUrl) _calPostLinearComment(linUrl, body, 'Kasper');
+            item._saving[comp] = false;
+            const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
+            if (!stillKasper) _kasperRemoveItem(pid);
+            else _kasperRepaintCard(pid);
         } catch (e) {
             Object.assign(item.post, prev);
-            item._saving = false;
-            item._saveError = e && e.message ? e.message : 'Save failed';
+            item._saving[comp] = false;
+            item._errors[comp] = e && e.message ? e.message : 'Save failed';
             _kasperRepaintCard(pid);
         }
     }
@@ -15641,9 +15681,9 @@
     window._kasperGotoTab = _kasperGotoTab;
     window._kasperLoadReview = _kasperLoadReview;
     window._kasperToggleCard = _kasperToggleCard;
-    window._kasperApprove = _kasperApprove;
-    window._kasperSubmitTweak = _kasperSubmitTweak;
-    window._kasperOnDraftInput = _kasperOnDraftInput;
+    window._kasperApproveComp = _kasperApproveComp;
+    window._kasperRequestTweakComp = _kasperRequestTweakComp;
+    window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
     window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;
     window._kasperCloseLightbox = _kasperCloseLightbox;

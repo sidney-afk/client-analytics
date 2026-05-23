@@ -14385,6 +14385,7 @@
                 it._errors = { video: null, graphic: null, caption: null };
                 if (typeof it._expanded !== 'boolean') it._expanded = false;
                 if (!it._drafts || typeof it._drafts !== 'object') it._drafts = { video: '', graphic: '', caption: '' };
+                it._touchedComps = Array.isArray(it._touchedComps) ? new Set(it._touchedComps) : new Set();
                 if (!Array.isArray(it.post.comments)) it.post.comments = _calLoadComments(it.post);
                 _calMigratePostShape(it.post);
             }
@@ -14408,6 +14409,12 @@
                     smm: it.smm,
                     _expanded: !!it._expanded,
                     _drafts: it._drafts || { video: '', graphic: '', caption: '' },
+                    // _touchedComps is a Set in memory — serialize to array
+                    // so the cache survives JSON. Without this, a page
+                    // reload loses the "Kasper has been reviewing this"
+                    // flag and the card disappears on the next refresh,
+                    // since its sub-status is no longer at Kasper Approval.
+                    _touchedComps: it._touchedComps ? Array.from(it._touchedComps) : [],
                 })),
                 history: _kasperState.history,
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
@@ -14847,11 +14854,18 @@
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
-        // "Mark reviewed" — Kasper's explicit "I'm done with this card" button.
-        // Used when he's left tweak comments and wants the card off his plate
-        // without it auto-dismissing on every submission. Also dismisses when
-        // he's seen what he needed and there's no decision to take here.
-        const doneBtn = `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Submit the review — drop the card from your queue"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Submit</button>`;
+        // "Done reviewing" — Kasper's explicit "I'm finished with this card"
+        // button. Only shown once he's actually sent at least one comment
+        // (the dismissal makes sense as the *end* of the tweak round, not
+        // as a way to skip a card before doing anything). Clicking removes
+        // the card from his queue with no further status change.
+        const hasKasperComment = CAL_COMPONENTS.some(c => {
+            const list = _calCommentsFor(p, c);
+            return list && list.some(x => x && x.role === 'kasper');
+        });
+        const doneBtn = hasKasperComment
+            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Close this card — removes it from your queue (tweaks are already sent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
+            : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -15199,6 +15213,9 @@
             const linUrl = _calLinearUrlFor(item.post, comp);
             if (linUrl) _calPostLinearComment(linUrl, body, 'Kasper');
             item._saving[comp] = false;
+            // Persist now so a page reload before the next 30 s poll still
+            // remembers the touched flag + TN status.
+            _kasperPersistCache();
             _kasperRepaintCard(pid);
         } catch (e) {
             Object.assign(item.post, prev);

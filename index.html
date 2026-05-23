@@ -9155,30 +9155,145 @@
             || s.includes('in progress') || s.includes('in process')) return 'In Progress';
         return null;
     }
+    /* ── Linear push outbox ──────────────────────────────────────────────
+       Calendar→Linear status pushes and tweak-comment posts are
+       fire-and-forget. If the webhook is down or n8n returns a non-2xx,
+       the editor/designer never sees the comment and the Linear status
+       stays out of sync with the calendar. The outbox catches those
+       failures, persists them in localStorage, and retries on the next
+       page load + on window focus + on a 60 s timer while items are
+       queued. After LINEAR_OUTBOX_MAX_ATTEMPTS the entry is kept but
+       not retried again until manually cleared via clearLinearOutbox()
+       in the console. */
+    const LINEAR_OUTBOX_KEY = 'syncview_linear_outbox_v1';
+    const LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
+    const LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _linearOutboxFlushTimer = null;
+    function _linearOutboxRead() {
+        try {
+            const raw = localStorage.getItem(LINEAR_OUTBOX_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+        } catch { return []; }
+    }
+    function _linearOutboxWrite(arr) {
+        try { localStorage.setItem(LINEAR_OUTBOX_KEY, JSON.stringify(arr || [])); } catch {}
+    }
+    function _linearOutboxEnqueue(kind, payload, errMsg) {
+        const items = _linearOutboxRead();
+        items.push({
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('lob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+            kind: kind,          // 'status' | 'comment'
+            payload: payload,    // {issue, status} or {issue, body, author}
+            attempts: 0,
+            lastError: errMsg || '',
+            lastAttempt: 0,
+            queuedAt: Date.now(),
+        });
+        _linearOutboxWrite(items);
+        _linearOutboxScheduleRetry();
+    }
+    function _linearOutboxScheduleRetry() {
+        if (_linearOutboxFlushTimer) return;
+        _linearOutboxFlushTimer = setTimeout(() => {
+            _linearOutboxFlushTimer = null;
+            _linearOutboxFlush();
+        }, LINEAR_OUTBOX_RETRY_MS);
+    }
+    async function _linearOutboxFlush() {
+        const items = _linearOutboxRead();
+        if (!items.length) return;
+        const remaining = [];
+        for (const it of items) {
+            if (it.attempts >= LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
+            const url = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(it.payload || {})
+                });
+                let ok = resp && resp.ok;
+                try {
+                    const j = await resp.json();
+                    if (j && j.ok === false) ok = false;
+                } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+                // success — drop the item
+            } catch (e) {
+                it.attempts += 1;
+                it.lastError = (e && e.message) ? e.message : String(e);
+                it.lastAttempt = Date.now();
+                remaining.push(it);
+            }
+        }
+        _linearOutboxWrite(remaining);
+        if (remaining.some(it => it.attempts < LINEAR_OUTBOX_MAX_ATTEMPTS)) {
+            _linearOutboxScheduleRetry();
+        }
+    }
+    /* Manual escape hatch (console only) — for the rare case where a
+       payload's Linear URL is permanently broken and an admin wants to
+       drop the queue rather than keep retrying. */
+    window.clearLinearOutbox = function() {
+        const n = _linearOutboxRead().length;
+        _linearOutboxWrite([]);
+        return 'cleared ' + n + ' queued Linear pushes';
+    };
+    window.peekLinearOutbox = function() { return _linearOutboxRead(); };
+
     /* Calendar→Linear: push a card's status onto its linked Linear sub-issue.
-       Fire-and-forget — the n8n workflow maps the status and skips no-ops.
-       "Posted" has no Linear equivalent, so it is never pushed. */
+       Fires the webhook directly; on failure (network / non-2xx / ok:false)
+       the payload is enqueued in the outbox for retry. "Posted" has no
+       Linear equivalent, so it is never pushed. */
     function _calPushStatusToLinear(issueUrl, status) {
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
         if (!url || !st || st.toLowerCase() === 'posted') return;
-        fetch(LINEAR_SET_STATUS_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ issue: url, status: st })
-        }).catch(e => console.warn('[Calendar] Linear status push failed', e));
+        const payload = { issue: url, status: st };
+        (async () => {
+            try {
+                const resp = await fetch(LINEAR_SET_STATUS_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                let ok = resp && resp.ok;
+                try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Calendar] Linear status push failed — queued for retry', e);
+                _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e));
+            }
+        })();
     }
-    /* Fire-and-forget a client/kasper tweak comment to a Linear sub-issue so
-       the video editor or graphic designer sees it in Linear (their only
-       inbox). Caller is responsible for skipping the caption component. */
+    /* Posts a client/kasper tweak comment to a Linear sub-issue so the
+       video editor or graphic designer sees it in Linear (their only
+       inbox). On failure, queues for retry through the outbox. Caller is
+       responsible for skipping the caption component. */
     function _calPostLinearComment(issueUrl, body, author) {
         const url = String(issueUrl || '').trim();
         const txt = String(body || '').trim();
         if (!url || !txt) return;
-        fetch(LINEAR_ADD_COMMENT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ issue: url, body: txt, author: String(author || _calCurrentAuthor() || 'SyncView') })
-        }).catch(e => console.warn('[Calendar] Linear comment post failed', e));
+        const payload = { issue: url, body: txt, author: String(author || _calCurrentAuthor() || 'SyncView') };
+        (async () => {
+            try {
+                const resp = await fetch(LINEAR_ADD_COMMENT_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                let ok = resp && resp.ok;
+                try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Calendar] Linear comment post failed — queued for retry', e);
+                _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e));
+            }
+        })();
     }
+    // Drain any failed pushes from a previous session, and retry on focus.
+    try {
+        if (_linearOutboxRead().length) _linearOutboxFlush();
+        window.addEventListener('focus', () => { if (_linearOutboxRead().length) _linearOutboxFlush(); });
+    } catch {}
     /* Linear is the source of truth: when a sub-issue is freshly linked to a
        card, pull its current Linear status onto the card. Suppresses the
        calendar→Linear writeback so the issue is not bounced to another state. */

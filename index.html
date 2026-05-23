@@ -14980,7 +14980,18 @@
                 // cards where, say, only the caption needs Kasper's look.
                 _calMigratePostShape(raw);
                 const hasKasperWork = CAL_COMPONENTS.some(c => _calNormStatus(raw[c + '_status'] || '') === 'Kasper Approval');
-                if (hasKasperWork) {
+                // Content gate: skip cards that have NEITHER a video
+                // (asset_url) NOR a graphic/thumbnail (thumbnail_url).
+                // These are usually freshly-synced Linear sub-issues whose
+                // SMM hasn't dropped the actual deliverable into the
+                // calendar yet — Kasper has nothing to actually review.
+                // Cards that previously surfaced and have unresolved
+                // Kasper tweaks bypass this filter via the
+                // _calPostHasUnresolvedKasperTweak rescue path below, so
+                // active conversations aren't accidentally hidden.
+                const hasAsset = String(raw.asset_url || '').trim() !== '';
+                const hasThumb = String(raw.thumbnail_url || '').trim() !== '';
+                if (hasKasperWork && (hasAsset || hasThumb)) {
                     queue.push({
                         post: raw, client, slug, smm: null,
                         _expanded: false,

@@ -1925,7 +1925,11 @@
         .cal-status-posted { background: #064e3b; color: #ecfdf5; }
         .cal-status-archived { background: #f3f4f6; color: #6b7280; text-decoration: line-through; }
         /* Status — clearly a dropdown; colour mirrors the chip palette */
-        .cal-fld-status-wrap { position: relative; display: block; border-radius: 8px; background: #f3f3f1; color: var(--text-secondary); }
+        .cal-fld-status-wrap { position: relative; display: flex; align-items: center; justify-content: center;
+            padding: 5px 11px; border-radius: 8px; background: #f3f3f1; color: var(--text-secondary);
+            font-family: inherit; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
+        .cal-fld-status-wrap.is-derived { cursor: help; user-select: none; }
+        .cal-fld-status-wrap .cal-fld-status-label { line-height: 1; }
         .cal-fld-status-trigger { -webkit-appearance: none; appearance: none; width: 100%; box-sizing: border-box;
             padding: 8px 26px 8px 11px; border: 0; border-radius: 8px; outline: 0; cursor: pointer; text-align: left;
             background: transparent; color: inherit; font-family: inherit; font-size: 0.64rem; font-weight: 800;
@@ -10853,11 +10857,8 @@
         }).join('');
         const statusHtml = ro
             ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
-            : `<div class="cal-fld-status-wrap${needsLinear ? ' is-locked' : ''}" data-val="${_calEscAttr(currentStatus)}" data-status-pid="${pid}">
-                        <button type="button" class="cal-fld-status-trigger" data-pid="${pid}" onclick="_calStatusToggleMenu(event,'${pid}',this)" title="Overall status — sets every sub-component to this value">
-                            <span class="cal-fld-status-label">${_calEsc(_calStatusLabel(currentStatus))}</span>
-                        </button>
-                        <svg class="cal-status-chev" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>
+            : `<div class="cal-fld-status-wrap is-derived" data-val="${_calEscAttr(currentStatus)}" data-status-pid="${pid}" title="Overall status is derived from the three components — change a component to change this">
+                        <span class="cal-fld-status-label">${_calEsc(_calStatusLabel(currentStatus))}</span>
                     </div>
                     ${subStatusHtml ? `<div class="cal-card-substatus-row">${subStatusHtml}</div>` : ''}`;
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;

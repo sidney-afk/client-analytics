@@ -10820,6 +10820,73 @@
                 if (id) _calMovePostToDate(id, cell.getAttribute('data-iso'));
             });
         });
+        _calWireDragWindowScroll();
+    }
+    /* Edge-auto-scroll the WINDOW while dragging an unscheduled pill in the
+       month/week views. The unscheduled list lives at the bottom of the
+       month view, so getting a card back up to a day cell requires scrolling
+       the page up — and the browser's native edge-scroll on document drag
+       is unreliable (fires only in a 10–15 px sliver and sometimes not at
+       all when the drag started in a child container with its own scroll
+       context). This installs a single document-level handler that runs
+       while _calDayDragId is set and walks the window scroll position in
+       a rAF loop when the cursor is within EDGE_PX of the viewport top or
+       bottom. Also installs a wheel listener so the user can scroll
+       manually mid-drag — some browsers swallow wheel events during HTML5
+       drag, this re-applies them to window.scrollBy(). */
+    let _calDragWinScrollWired = false;
+    function _calWireDragWindowScroll() {
+        if (_calDragWinScrollWired) return;
+        _calDragWinScrollWired = true;
+        const EDGE_PX   = 110;       // hot zone at top / bottom of viewport
+        const MAX_SPEED = 32;        // pixels per frame at the very edge
+        let lastClientY = null;
+        let active = false;
+        let rafId = null;
+        const tick = () => {
+            rafId = null;
+            if (!active || !_calDayDragId || lastClientY == null) return;
+            const vh = window.innerHeight;
+            const maxY = Math.max(0, (document.documentElement.scrollHeight || 0) - vh);
+            if (maxY <= 0) { active = false; return; }
+            let delta = 0;
+            const fromTop    = lastClientY;
+            const fromBottom = vh - lastClientY;
+            if (fromTop < EDGE_PX && fromTop > -EDGE_PX) {
+                delta = -MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromTop) / EDGE_PX));
+            } else if (fromBottom < EDGE_PX && fromBottom > -EDGE_PX) {
+                delta =  MAX_SPEED * Math.max(0, Math.min(1, (EDGE_PX - fromBottom) / EDGE_PX));
+            }
+            if (delta !== 0) {
+                const cur = window.scrollY;
+                const next = Math.max(0, Math.min(maxY, cur + delta));
+                if (next !== cur) window.scrollTo(0, next);
+                rafId = requestAnimationFrame(tick);
+            } else {
+                active = false;
+            }
+        };
+        document.addEventListener('dragover', (e) => {
+            if (!_calDayDragId) return;
+            lastClientY = e.clientY;
+            if (!active) { active = true; if (rafId == null) rafId = requestAnimationFrame(tick); }
+        });
+        const stop = () => { active = false; lastClientY = null; if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; } };
+        document.addEventListener('drop', stop);
+        document.addEventListener('dragend', stop);
+        // Wheel-during-drag: some browsers gate wheel events while a native
+        // HTML5 drag is in progress. Manually applying deltaY to the window
+        // makes scrolling responsive whether the browser cooperates or not.
+        window.addEventListener('wheel', (e) => {
+            if (!_calDayDragId) return;
+            const dy = e.deltaY || 0;
+            if (!dy) return;
+            let amount = dy;
+            if (e.deltaMode === 1) amount *= 16;                       // lines → px
+            else if (e.deltaMode === 2) amount *= window.innerHeight;  // pages → px
+            e.preventDefault();
+            window.scrollBy(0, amount);
+        }, { passive: false });
     }
     async function _calMovePostToDate(id, iso) {
         const post = calState.posts.find(p => p.id === id);

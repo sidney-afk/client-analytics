@@ -15668,8 +15668,18 @@
             });
             // Preserve expanded / drafts / touched-comps across refreshes.
             // Also use last-write-wins for the post itself: if local stamped
-            // updated_at after the sheet's, keep the local post (handles the
-            // race where a poll fires while a submit is still in flight).
+            // updated_at after the sheet's, keep the local post — but only
+            // while the local stamp is very recent. The point of preferring
+            // local was to protect an in-flight tweak/approve submit from
+            // being briefly overwritten by a slower server response on the
+            // same load cycle. Long-lived local state (cache resurrected
+            // hours later, or a save that never got reconciled) silently
+            // hides server-side status progressions and was the bug behind
+            // panels still saying "Changes requested" after the SMM had
+            // already moved the component past Kasper. We cap the
+            // local-preference window at 30 s.
+            const KASPER_LOCAL_PREFER_MS = 30 * 1000;
+            const nowMs = Date.now();
             const prevById = new Map(_kasperState.items.map(x => [x.post.id, x]));
             for (const it of items) {
                 const local = prevById.get(it.post.id);
@@ -15677,36 +15687,20 @@
                 if (local._expanded) it._expanded = true;
                 if (local._drafts) it._drafts = Object.assign({ video: '', graphic: '', caption: '' }, local._drafts);
                 if (local._touchedComps) it._touchedComps = local._touchedComps;
-                // Last-write-wins on the post itself.
+                // Last-write-wins on the post itself, time-bound.
                 const lT = Date.parse((local.post && local.post.updated_at) || '');
                 const fT = Date.parse(it.post.updated_at || '');
-                if (isFinite(lT) && isFinite(fT) && lT > fT) it.post = local.post;
+                const localRecent = isFinite(lT) && (nowMs - lT) < KASPER_LOCAL_PREFER_MS;
+                if (localRecent && isFinite(fT) && lT > fT) it.post = local.post;
             }
-            // Cards the fresh KA filter would drop but Kasper still has
-            // unresolved tweaks on — keep them around. Submitting a tweak
-            // flips a sub to TN (boots from the KA filter); we don't want
-            // the card to vanish until Kasper either dismisses via Done
-            // reviewing or the SMM marks every Kasper tweak as resolved.
-            // Exceptions to the rescue:
-            //   1. SMM archived the card from the calendar — drop it,
-            //      otherwise the archive never sticks in Kasper because
-            //      the unresolved-tweak path keeps re-injecting it.
-            //   2. Every component's sub-status has progressed past the
-            //      Kasper-actionable states (Kasper Approval / Tweaks
-            //      Needed) — that means the SMM has moved the card to
-            //      SMM Approval / Client Approval / etc and Kasper has
-            //      no business reviewing it anymore. _calPostKasperVisible
-            //      enforces this so stale tweak comments can't outlive
-            //      the workflow state.
-            const freshIds = new Set(items.map(it => it.post.id));
-            for (const oldIt of _kasperState.items) {
-                if (freshIds.has(oldIt.post.id)) continue;
-                const oldArchivedRefs = _calArchivedRefs(oldIt.slug);
-                if (_calIsArchivedRef(oldIt.post, oldArchivedRefs)) continue;
-                if (!_calPostHasUnresolvedKasperTweak(oldIt.post)) continue;
-                if (!_calPostKasperVisible(oldIt.post)) continue;
-                items.push(oldIt);
-            }
+            // No more rescue loop: the fresh-fetch filter above already
+            // accepts both Kasper Approval AND Tweaks-Needed-with-tweak
+            // cards via _calPostKasperVisible. Re-injecting old items
+            // from _kasperState.items only ever re-injects stale post
+            // data — exactly the bug that left "Changes requested"
+            // panels lingering after the SMM had moved a component to
+            // Client Approval. Fresh server state is the source of
+            // truth on every refresh.
             _kasperState.items = items;
             // Merge server-known history with the local log so a refresh keeps
             // recent approvals visible even if the sheet doesn't have a column
@@ -15803,21 +15797,21 @@
                 if (status === 'Archived' || _calIsArchivedRef(raw, archivedRefs)) continue;
                 raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
                 raw.comments = _calLoadComments(raw);
-                // Per-component gating: a card lands in Kasper's queue if any
-                // component sub-status is at Kasper Approval. Overall `status`
-                // is derived (lowest-wins), so reading the overall would miss
-                // cards where, say, only the caption needs Kasper's look.
+                // Per-component gating, driven by the same _calPostKasperVisible
+                // rule the card body uses: a card lands in Kasper's queue
+                // when at least one component is still at Kasper Approval,
+                // OR it's at Tweaks Needed with an unresolved Kasper tweak.
+                // Anything else (For SMM Approval, Client Approval, Approved,
+                // Posted) drops the card immediately — even if Kasper hasn't
+                // hit Done reviewing yet — because the SMM has moved it past
+                // Kasper's purview.
                 _calMigratePostShape(raw);
-                const hasKasperWork = CAL_COMPONENTS.some(c => _calNormStatus(raw[c + '_status'] || '') === 'Kasper Approval');
+                const hasKasperWork = _calPostKasperVisible(raw);
                 // Content gate: skip cards that have NEITHER a video
                 // (asset_url) NOR a graphic/thumbnail (thumbnail_url).
                 // These are usually freshly-synced Linear sub-issues whose
                 // SMM hasn't dropped the actual deliverable into the
                 // calendar yet — Kasper has nothing to actually review.
-                // Cards that previously surfaced and have unresolved
-                // Kasper tweaks bypass this filter via the
-                // _calPostHasUnresolvedKasperTweak rescue path below, so
-                // active conversations aren't accidentally hidden.
                 const hasAsset = String(raw.asset_url || '').trim() !== '';
                 const hasThumb = String(raw.thumbnail_url || '').trim() !== '';
                 if (hasKasperWork && (hasAsset || hasThumb)) {

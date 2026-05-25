@@ -8933,7 +8933,15 @@
     }
     function _calRefsForPost(p) {
         if (!p) return [];
-        return [p.id, p.linear_issue_id].filter(Boolean);
+        // Only the row id goes in the archive ledger. We used to also
+        // track linear_issue_id to defend against the BE re-creating a
+        // row with the same Linear URL but a fresh id — the Linear
+        // status-sync workflow now refuses to touch rows already in
+        // status=Archived and prefers non-archived rows on dedupe,
+        // so the URL tracking is no longer needed and was actively
+        // hurting: it hid every re-imported sub-issue whose URL had
+        // ever been archived in this browser.
+        return [p.id].filter(Boolean);
     }
     function _calIsArchivedRef(p, refs) {
         if (!p || !refs || !refs.size) return false;
@@ -9088,18 +9096,12 @@
     document.addEventListener('visibilitychange', _calRefreshOnReturn);
     window.addEventListener('focus', _calRefreshOnReturn);
 
-    /* Background poll — keeps the SMM's calendar in sync with sub-status and
-       tweak-comment writes coming from the client review view. The fetch is
-       fire-and-forget; if the user is mid-edit the rendered result is deferred
-       until they blur (see _calSchedulePendingRender). 30 s matches the
-       Linear-status reconcile cadence elsewhere in the app. */
-    setInterval(() => {
-        if (document.visibilityState === 'hidden') return;
-        if (!calState.client) return;
-        if (!document.getElementById('calBody')) return;
-        if (_calBgLoadInFlight || calState.loading) return;
-        loadCalendarPosts({ background: true });
-    }, 30000);
+    /* Removed periodic 30 s background poll. The calendar still refreshes
+       on tab return (visibilitychange) and window focus via
+       _calRefreshOnReturn above, and the SMM can force a refresh by
+       clicking the calendar refresh control. We don't poll while the
+       tab is sitting idle — saves n8n executions and stops surprise
+       reloads while the SMM is mid-think. */
 
     /* Picks the initial view tab on mount. Clients land on Review by default
        (the approval queue is their main job); the SMM never lands on Review
@@ -10615,7 +10617,6 @@
             // card and the server now has a NEWER stamp than ours, somebody
             // else wrote after us and overwrote our changes.
             const prevById = new Map(prevPosts.map(p => [p.id, p]));
-            const conflictNames = [];
             const nowMs = Date.now();
             const newPosts = fetchedPosts.map(fp => {
                 const lp = prevById.get(fp.id);
@@ -10626,28 +10627,15 @@
                 if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
                     _calLocalRecentSaves.delete(fp.id);
                 }
-                const stillRecent = _calLocalRecentSaves.has(fp.id);
+                // Last-write-wins: keep local if its updated_at is newer
+                // than the server's. The conflict toast we used to show
+                // here is gone — it fired even when the "other editor"
+                // was the same SMM cross-tabbing between calendar and
+                // client-review on the same row, which is normal and
+                // not actually a conflict.
                 if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
-                // fT >= lT — fetched wins. If we recently saved this card,
-                // surface the overwrite so the SMM/Kasper knows their edit
-                // was lost to a concurrent change. The 2 s slop covers
-                // clock-skew between the browser and the sheet server.
-                if (stillRecent && isFinite(lT) && isFinite(fT) && (fT - lT) > 2000 && !_calConflictNotified.has(fp.id)) {
-                    _calConflictNotified.add(fp.id);
-                    conflictNames.push(String(fp.name || lp.name || fp.id));
-                }
                 return fp;
             });
-            if (conflictNames.length) {
-                // Non-blocking notice — the merge already adopted the
-                // server's newer version, so the UI is consistent. The
-                // dialog just tells the user their edit was overwritten
-                // so they can decide whether to redo it.
-                try {
-                    const list = conflictNames.slice(0, 3).join(', ') + (conflictNames.length > 3 ? ' and ' + (conflictNames.length - 3) + ' more' : '');
-                    showNotify('Your changes were overwritten', 'Another editor saved ' + list + ' after you. The board now shows their version. If you still want your changes, please re-apply them.');
-                } catch {}
-            }
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             calState.error = null;
@@ -12848,11 +12836,16 @@
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
             if (s === 'Approved' || s === 'Posted') return false;
-            // Clients only see cards where something is actually parked at
-            // "Client Approval" — they don't need to look at cards still
-            // sitting at SMM or Kasper review.
+            // Clients see cards waiting on their approval AND cards
+            // where they've already left tweaks (so they can add more
+            // tweaks or change their mind before the editor turns it
+            // around). The card only drops off the queue once that
+            // component reaches Approved.
             if (_isClientLink) {
-                return CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'Client Approval');
+                return CAL_COMPONENTS.some(c => {
+                    const cs = _calNormStatus(p[c + '_status'] || '');
+                    return cs === 'Client Approval' || cs === 'Tweaks Needed';
+                });
             }
             return true;
         }).slice().sort((a, b) => {
@@ -15632,10 +15625,12 @@
         // avoid stampeding the Google-Sheets-backed calendar-get webhook.
         const extract = (client, json) => {
             const slug = wlNormalizeClient(client);
-            // Apply the same Linear-issue dedupe the calendar view uses so a
-            // double-synced row (e.g. status flipped twice on a Linear sub-issue
-            // that already had a card) doesn't surface twice in the queue.
-            const rawPosts = _calDedupeByLinearIssue((json && json.posts) || []);
+            // Filter Archived BEFORE the Linear-issue dedupe — otherwise
+            // an old archived row can win the dedupe (highest order_index)
+            // over a freshly re-imported row sharing the same Linear URL,
+            // hiding the active card from Kasper's queue entirely.
+            const rawPosts = _calDedupeByLinearIssue(((json && json.posts) || [])
+                .filter(p => (p && p.status || '').toLowerCase() !== 'archived'));
             const queue = [];
             const history = [];
             const seenIds = new Set();

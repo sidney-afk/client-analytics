@@ -1793,13 +1793,13 @@
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: rgba(255,255,255,0.16); color: #fff; }
         .cal-select-cancel:hover { background: rgba(255,255,255,0.26); }
-        /* Floating glass pill that slides in from the top of the calendar
-           view. position:absolute keeps it out of the toolbar flow so its
-           appearance/disappearance no longer shifts the Share / Select /
-           kebab buttons sideways every few seconds. We override the
-           [hidden] attribute to keep the element in flow (so the slide
-           animation works), driving visibility via opacity + transform. */
-        .cal-refreshing { position: absolute; top: 14px; left: 50%; z-index: 40;
+        /* Floating glass pill that slides in from the top of its parent
+           (the parent needs position:relative). Reusable affordance for
+           any "background refresh in progress" state — used by both the
+           SMM calendar and the Kasper review queue. position:absolute
+           keeps it out of toolbar flow so its appearance/disappearance
+           never shifts other controls sideways. */
+        .cal-refreshing, .app-refresh-pill { position: absolute; top: 14px; left: 50%; z-index: 40;
             display: inline-flex; align-items: center; gap: 8px;
             padding: 6px 14px; background: rgba(255,255,255,0.92);
             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -1808,8 +1808,10 @@
             font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);
             opacity: 0; transform: translate(-50%, -140%); pointer-events: none;
             transition: opacity 0.22s ease-out, transform 0.22s ease-out; }
-        .cal-refreshing:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
-        .cal-refreshing[hidden] { display: inline-flex; }
+        .cal-refreshing:not([hidden]), .app-refresh-pill:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
+        .cal-refreshing[hidden], .app-refresh-pill[hidden] { display: inline-flex; }
+        .app-refresh-pill .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
+            border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
             border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
@@ -2439,12 +2441,17 @@
 
         .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,0.22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
         .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
+        /* Inner text span is a flex row so the inline spinner sits at a
+           comfortable distance from the "G" of "Generating…". Without this
+           the spinner is rendered as inline-block with zero word-spacing
+           and visually crashes into the first letter. */
+        .cal-bulk-cap-bar [data-bulk-cap-text] { display: inline-flex; align-items: center; gap: 8px; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel { background: rgba(255,255,255,0.15); color: var(--white); border: none; border-radius: 7px; padding: 4px 9px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel:hover { background: rgba(255,255,255,0.25); }
         .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: cal-cap-spin 0.9s linear infinite; }
 
         /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
-        .kasper-wrap { max-width: 1100px; margin: 0 auto; }
+        .kasper-wrap { max-width: 1100px; margin: 0 auto; position: relative; }
         .kasper-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
         .kasper-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
         .kasper-sub { font-size: 0.85rem; color: var(--text-secondary); }
@@ -15576,6 +15583,7 @@
         if (!root) return;
         const hasCached = !!_kasperState.lastLoaded;
         root.innerHTML = `
+            <span class="app-refresh-pill" id="kasperReviewRefreshPill" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
             <div class="kasper-toolbar">
                 <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">${hasCached ? String(_kasperState.items.length) : '·'}</span><span>waiting for your review</span></div>
                 <button type="button" class="kasper-refresh-btn" id="kasperReviewRefresh" onclick="_kasperLoadReview(true)">
@@ -15598,10 +15606,13 @@
         const btn  = document.getElementById('kasperReviewRefresh');
         if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
         // Only blank the body to a spinner when there's literally nothing to
-        // show. Once cached/loaded cards are on screen, refreshes happen
-        // silently — the button spin is the only signal.
+        // show. Once cached/loaded cards are on screen, refreshes surface
+        // through the same glass pill the SMM calendar uses (top-center,
+        // sliding in over the toolbar) so the affordance is consistent
+        // across the app — plus the spinning Refresh button.
         const hasContent = _kasperState.items.length > 0 || _kasperState.history.length > 0;
         if (!hasContent && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`;
+        else { const pill = document.getElementById('kasperReviewRefreshPill'); if (pill) pill.hidden = false; }
 
         _kasperState.loading = true;
         _kasperState.error = null;
@@ -15688,6 +15699,8 @@
         } finally {
             _kasperState.loading = false;
             if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+            const pill = document.getElementById('kasperReviewRefreshPill');
+            if (pill) pill.hidden = true;
         }
     }
 

@@ -2372,7 +2372,7 @@
         .cal-card-kebab-item:disabled { color: var(--text-muted); cursor: not-allowed; background: transparent; }
         .cal-card-kebab-item svg { width: 14px; height: 14px; color: var(--text-secondary); flex-shrink: 0; }
 
-        .cal-cap-gen { position: absolute; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
+        .cal-cap-gen { position: absolute; left: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
         /* Hide while the SMM is typing in the caption so the pill doesn't
            cover the text. Stays visible (and clickable) when the field is
            empty and unfocused. The is-busy state overrides this so the
@@ -2386,7 +2386,7 @@
         .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
         .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
         @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
-        .cal-cap-err { position: absolute; right: 8px; bottom: 38px; max-width: calc(100% - 16px); padding: 5px 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.35; pointer-events: none; }
+        .cal-cap-err { position: absolute; left: 8px; bottom: 38px; max-width: calc(100% - 16px); padding: 5px 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.35; pointer-events: none; }
 
         .cal-prompt-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 330; align-items: center; justify-content: center; padding: 20px; }
         .cal-prompt-overlay.open { display: flex; }
@@ -12219,28 +12219,35 @@
         const overlay = document.getElementById('calPromptOverlay');
         const modal = document.getElementById('calPromptModal');
         if (!overlay || !modal) return;
-        const current = _calCaptionPromptFor(client);
-        const isCustom = !!current;
+        const stored = _calCaptionPromptFor(client);
+        const isCustom = !!stored;
+        // Pre-fill with the default when nothing custom is saved yet — the
+        // SMM can see the baseline prompt and edit from there. On save we
+        // compare against the default and store an empty string when they
+        // match, so the workflow keeps using the canonical baked-in prompt
+        // (and any future tweak to it propagates automatically).
+        const initial = isCustom ? stored : DEFAULT_CAPTION_PROMPT;
+        const statusLine = isCustom
+            ? 'Showing the saved prompt for this client.'
+            : 'No custom prompt saved yet — showing the default Caption Writer prompt. Edit it to make a custom version for this client.';
         modal.innerHTML =
             '<div class="cal-prompt-head">' +
                 '<div class="cal-prompt-head-text">' +
                     '<h3>Caption prompt — ' + _calEsc(client) + '</h3>' +
-                    '<p>Used whenever you click <strong>Generate caption</strong> on a card for this client. ' +
-                    'Leave blank to fall back to the default Caption Writer prompt.</p>' +
+                    '<p>' + _calEsc(statusLine) + '</p>' +
                 '</div>' +
                 '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">×</button>' +
             '</div>' +
             '<div class="cal-prompt-body">' +
-                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Leave blank to use the default Caption Writer prompt."></textarea>' +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions."></textarea>' +
                 '<div class="cal-prompt-hint">' +
                     'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
-                    'Don\'t include the transcript yourself.' +
+                    'Don\'t include the transcript yourself. Clear the field and save to fall back to the default.' +
                 '</div>' +
             '</div>' +
             '<div class="cal-prompt-foot">' +
                 '<div class="cal-prompt-foot-left">' +
-                    '<button type="button" class="cal-prompt-btn" id="calPromptResetBtn" onclick="_calResetCaptionPromptToDefault()" ' +
-                        (isCustom ? '' : 'disabled') + '>Load default into editor</button>' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calResetCaptionPromptToDefault()">Reset to default</button>' +
                 '</div>' +
                 '<div class="cal-prompt-foot-right">' +
                     '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Cancel</button>' +
@@ -12249,8 +12256,8 @@
             '</div>';
         const ta = document.getElementById('calPromptTA');
         if (ta) {
-            ta.value = current;
-            setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 30);
+            ta.value = initial;
+            setTimeout(() => { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }, 30);
         }
         overlay.classList.add('open');
     }
@@ -12270,7 +12277,11 @@
         const ta = document.getElementById('calPromptTA');
         const btn = document.getElementById('calPromptSaveBtn');
         if (!ta || !btn) return;
-        const promptText = ta.value.trim();
+        const raw = ta.value.trim();
+        // Saving the default verbatim is the same as saving nothing — store
+        // empty so future default updates propagate automatically.
+        const isDefault = raw === DEFAULT_CAPTION_PROMPT.trim();
+        const promptText = isDefault ? '' : raw;
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
@@ -12285,7 +12296,7 @@
             _calCloseCaptionPromptModal();
             showNotify('Saved', promptText
                 ? 'Custom caption prompt saved for ' + client + '.'
-                : 'Cleared the custom prompt for ' + client + ' — the default will be used.');
+                : 'Using the default prompt for ' + client + '.');
         } catch (e) {
             btn.disabled = false;
             btn.textContent = 'Save';

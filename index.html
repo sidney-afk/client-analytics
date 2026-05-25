@@ -12230,6 +12230,9 @@
         const statusLine = isCustom
             ? 'Showing the saved prompt for this client.'
             : 'No custom prompt saved yet — showing the default Caption Writer prompt. Edit it to make a custom version for this client.';
+        // Embed the initial text directly in the textarea body so the field
+        // is populated the moment the modal renders — no .value race, no
+        // empty-flash. _calEsc neutralises </textarea> and HTML entities.
         modal.innerHTML =
             '<div class="cal-prompt-head">' +
                 '<div class="cal-prompt-head-text">' +
@@ -12239,7 +12242,7 @@
                 '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">×</button>' +
             '</div>' +
             '<div class="cal-prompt-body">' +
-                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions."></textarea>' +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
                 '<div class="cal-prompt-hint">' +
                     'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
                     'Don\'t include the transcript yourself. Clear the field and save to fall back to the default.' +
@@ -12256,7 +12259,6 @@
             '</div>';
         const ta = document.getElementById('calPromptTA');
         if (ta) {
-            ta.value = initial;
             setTimeout(() => { ta.focus(); ta.setSelectionRange(0, 0); ta.scrollTop = 0; }, 30);
         }
         overlay.classList.add('open');

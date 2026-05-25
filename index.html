@@ -2361,7 +2361,7 @@
         .cal-cm-replying-to strong { color: var(--text-primary); font-weight: 800; }
 
         /* ── Caption generator: per-card kebab, inline Generate, prompt-edit modal ── */
-        .cal-card-kebab { position: absolute; top: 8px; right: 64px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.92); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; z-index: 8; opacity: 0; transition: opacity 0.12s, color 0.12s; }
+        .cal-card-kebab { position: absolute; top: 8px; right: 64px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.92); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; z-index: 8; opacity: 0.55; transition: opacity 0.12s, color 0.12s; }
         .cal-card:hover .cal-card-kebab, .cal-card-kebab.is-open { opacity: 1; }
         .cal-card-kebab:hover, .cal-card-kebab.is-open { color: var(--text-primary); }
         .cal-card-kebab svg { width: 12px; height: 12px; display: block; }
@@ -2401,6 +2401,10 @@
         .cal-prompt-textarea { width: 100%; min-height: 260px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.55; color: var(--text-primary); background: var(--bg); box-sizing: border-box; outline: none; }
         .cal-prompt-textarea:focus { border-color: var(--text-primary); background: var(--white); }
         .cal-prompt-hint { font-size: 0.72rem; color: var(--text-muted); line-height: 1.45; }
+        .cal-prompt-banner { display: flex; align-items: flex-start; gap: 8px; padding: 9px 12px; border-radius: 9px; font-size: 0.78rem; font-weight: 600; line-height: 1.4; }
+        .cal-prompt-banner.is-default { background: #fef9c3; border: 1px solid #fde68a; color: #854d0e; }
+        .cal-prompt-banner.is-custom { background: #dcfce7; border: 1px solid #bbf7d0; color: #166534; }
+        .cal-prompt-banner svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 1px; }
         .cal-prompt-foot { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0; }
         .cal-prompt-foot-left { display: flex; gap: 8px; }
         .cal-prompt-foot-right { display: flex; gap: 8px; }
@@ -12227,9 +12231,14 @@
         // match, so the workflow keeps using the canonical baked-in prompt
         // (and any future tweak to it propagates automatically).
         const initial = isCustom ? stored : DEFAULT_CAPTION_PROMPT;
-        const statusLine = isCustom
-            ? 'Showing the saved prompt for this client.'
-            : 'No custom prompt saved yet — showing the default Caption Writer prompt. Edit it to make a custom version for this client.';
+        const charCount = initial.length;
+        const bannerSvgInfo = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.5"/><path d="M8 5.5v3M8 11h.01"/></svg>';
+        const bannerSvgCheck = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 5"/></svg>';
+        const bannerHtml = isCustom
+            ? '<div class="cal-prompt-banner is-custom">' + bannerSvgCheck +
+                '<span>Custom prompt loaded for <strong>' + _calEsc(client) + '</strong> (' + charCount + ' characters).</span></div>'
+            : '<div class="cal-prompt-banner is-default">' + bannerSvgInfo +
+                '<span>No custom prompt saved for <strong>' + _calEsc(client) + '</strong> yet — the editor below is pre-filled with the default Caption Writer prompt (' + charCount + ' characters). Edit and Save to make a client-specific version.</span></div>';
         // Embed the initial text directly in the textarea body so the field
         // is populated the moment the modal renders — no .value race, no
         // empty-flash. _calEsc neutralises </textarea> and HTML entities.
@@ -12237,11 +12246,12 @@
             '<div class="cal-prompt-head">' +
                 '<div class="cal-prompt-head-text">' +
                     '<h3>Caption prompt — ' + _calEsc(client) + '</h3>' +
-                    '<p>' + _calEsc(statusLine) + '</p>' +
+                    '<p>Used whenever you click Generate caption on a card for this client.</p>' +
                 '</div>' +
                 '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">×</button>' +
             '</div>' +
             '<div class="cal-prompt-body">' +
+                bannerHtml +
                 '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="The transcript is appended automatically — write only the instructions.">' + _calEsc(initial) + '</textarea>' +
                 '<div class="cal-prompt-hint">' +
                     'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +

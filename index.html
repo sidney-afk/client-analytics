@@ -2360,6 +2360,61 @@
         .cal-cm-replying-to { font-size: 0.7rem; color: var(--text-muted); padding: 0 4px 6px; display: flex; align-items: center; gap: 6px; }
         .cal-cm-replying-to strong { color: var(--text-primary); font-weight: 800; }
 
+        /* ── Caption generator: per-card kebab, inline Generate, prompt-edit modal ── */
+        .cal-card-kebab { position: absolute; top: 8px; right: 64px; width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.92); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; padding: 0; z-index: 8; opacity: 0; transition: opacity 0.12s, color 0.12s; }
+        .cal-card:hover .cal-card-kebab, .cal-card-kebab.is-open { opacity: 1; }
+        .cal-card-kebab:hover, .cal-card-kebab.is-open { color: var(--text-primary); }
+        .cal-card-kebab svg { width: 12px; height: 12px; display: block; }
+        .cal-card-kebab-menu { position: fixed; z-index: 340; min-width: 210px; background: var(--white); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.14); padding: 5px; opacity: 0; transform: translateY(-3px); transition: opacity 0.12s, transform 0.12s; pointer-events: none; }
+        .cal-card-kebab-menu.open { opacity: 1; transform: none; pointer-events: auto; }
+        .cal-card-kebab-item { display: flex; align-items: center; gap: 9px; width: 100%; box-sizing: border-box; padding: 8px 10px; background: transparent; border: none; border-radius: 7px; font-family: inherit; font-size: 0.82rem; font-weight: 600; color: var(--text-primary); cursor: pointer; text-align: left; }
+        .cal-card-kebab-item:hover { background: var(--bg); }
+        .cal-card-kebab-item:disabled { color: var(--text-muted); cursor: not-allowed; background: transparent; }
+        .cal-card-kebab-item svg { width: 14px; height: 14px; color: var(--text-secondary); flex-shrink: 0; }
+
+        .cal-cap-gen { position: absolute; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s, opacity 0.1s; }
+        /* Hide while the SMM is typing in the caption so the pill doesn't
+           cover the text. Stays visible (and clickable) when the field is
+           empty and unfocused. The is-busy state overrides this so the
+           spinner remains visible mid-generation. */
+        .cal-cap-wrap textarea.cal-fld-cap:focus ~ .cal-cap-gen:not(.is-busy),
+        .cal-cap-wrap textarea.cal-fld-cap:not(:placeholder-shown) ~ .cal-cap-gen:not(.is-busy) { opacity: 0; pointer-events: none; }
+        .cal-cap-gen:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-primary); background: var(--bg); }
+        .cal-cap-gen:disabled { opacity: 0.55; cursor: not-allowed; }
+        .cal-cap-gen svg { width: 12px; height: 12px; }
+        .cal-cap-gen.is-busy { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
+        .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
+        @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
+        .cal-cap-err { position: absolute; right: 8px; bottom: 38px; max-width: calc(100% - 16px); padding: 5px 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.35; pointer-events: none; }
+
+        .cal-prompt-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 330; align-items: center; justify-content: center; padding: 20px; }
+        .cal-prompt-overlay.open { display: flex; }
+        .cal-prompt-modal { background: var(--white); border-radius: 16px; width: 720px; max-width: 96vw; max-height: 88vh; display: flex; flex-direction: column; box-shadow: 0 24px 70px rgba(0,0,0,0.24); overflow: hidden; }
+        .cal-prompt-head { padding: 16px 20px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-shrink: 0; }
+        .cal-prompt-head-text { min-width: 0; flex: 1; }
+        .cal-prompt-head-text h3 { margin: 0 0 3px; font-size: 0.98rem; font-weight: 800; color: var(--text-primary); }
+        .cal-prompt-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); line-height: 1.45; }
+        .cal-prompt-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--bg); font-size: 1.2rem; line-height: 1; cursor: pointer; color: var(--text-muted); flex-shrink: 0; }
+        .cal-prompt-close:hover { background: var(--border); color: var(--text-primary); }
+        .cal-prompt-body { flex: 1; overflow-y: auto; padding: 14px 20px; display: flex; flex-direction: column; gap: 10px; }
+        .cal-prompt-textarea { width: 100%; min-height: 260px; resize: vertical; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-family: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace; font-size: 0.8rem; line-height: 1.55; color: var(--text-primary); background: var(--bg); box-sizing: border-box; outline: none; }
+        .cal-prompt-textarea:focus { border-color: var(--text-primary); background: var(--white); }
+        .cal-prompt-hint { font-size: 0.72rem; color: var(--text-muted); line-height: 1.45; }
+        .cal-prompt-foot { padding: 12px 20px 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0; }
+        .cal-prompt-foot-left { display: flex; gap: 8px; }
+        .cal-prompt-foot-right { display: flex; gap: 8px; }
+        .cal-prompt-btn { font-family: inherit; font-size: 0.82rem; font-weight: 700; padding: 8px 14px; border-radius: 9px; border: 1px solid var(--border); background: var(--white); color: var(--text-primary); cursor: pointer; }
+        .cal-prompt-btn:hover { background: var(--bg); }
+        .cal-prompt-btn.is-primary { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .cal-prompt-btn.is-primary:hover { opacity: 0.9; background: var(--text-primary); }
+        .cal-prompt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+        .cal-bulk-cap-bar { display: none; position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,0.22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; }
+        .cal-bulk-cap-bar.is-active { display: inline-flex; }
+        .cal-bulk-cap-bar .cal-bulk-cap-cancel { background: rgba(255,255,255,0.15); color: var(--white); border: none; border-radius: 7px; padding: 4px 9px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
+        .cal-bulk-cap-bar .cal-bulk-cap-cancel:hover { background: rgba(255,255,255,0.25); }
+
         /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
         .kasper-wrap { max-width: 1100px; margin: 0 auto; }
         .kasper-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
@@ -8523,6 +8578,25 @@
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
     const LINEAR_ADD_COMMENT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
     const EDITORS_WEEK_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/editors-week';
+    const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
+    const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
+    const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* Default Caption Writer prompt — kept in sync with the same string
+       baked into the SyncView Calendar — Generate Caption workflow. When
+       a client's CaptionPrompts row is empty, both the front-end modal
+       and the workflow fall back to this exact prompt. */
+    const DEFAULT_CAPTION_PROMPT = "Caption Writer\nGenerate an Instagram Reels caption from the following video transcript.\n\nCaption Formula:\n- 2 to 4 sentences max. Most captions are 2 sentences.\n- Occasionally one caption can be slightly longer if the script is personal/story-driven (3-5 sentences), but this is the exception.\n- Then exactly 3 hashtags immediately after the caption body.\n\nOpening line patterns (pick the one that fits):\n- Tension/contrast: Start with the common assumption, then flip it.\n- Observation about effort: Name what's invisible or unacknowledged.\n- Reframe the narrative: Challenge the cultural script.\n- Counter-intuitive take: Lead with the paradox.\n- Unexpected observation: Surface what's quietly true.\n- Personal + communal bridge: Connect the creator's experience to the reader's.\n- Two-world contrast: Juxtapose two forces.\n\nThe pivot (middle sentence):\n- Reframe the opening tension toward insight or validation.\n- Often starts with: \"But\", \"Realizing\", \"The truth is\", \"It just\", \"Because\".\n- Validates the reader's experience without toxic positivity.\n\nClosing (if a 3rd sentence is needed):\n- Short. One thought. Lands the emotional point.\n- Feels like something you'd tell a friend, not a motivational poster.\n\nTone rules:\n- Warm but honest. Never sappy.\n- First-person \"I\" mixed naturally with inclusive \"we\" or \"you\".\n- Conversational, not formal or clinical.\n- No selling, no CTA, no \"save this post\", no \"follow for more\".\n- Do NOT summarize the script. Extract the emotional core or the central insight and rewrite it entirely in your own words.\n- Do NOT use bullet points, lists, or line breaks inside the caption body.\n\nHashtag Rules:\n- Always exactly 3 hashtags.\n- Broad, niche-relevant, not hyper-specific.\n- 1 to 2 words max per hashtag.\n- Should feel like a category the video belongs to.\n\nThe caption is the emotional resonance of the video, distilled to its most honest and relatable form, written in the creator's first-person voice.\n\nRespond with ONLY the caption and 3 hashtags. Nothing else.";
+    /* Per-client caption prompts loaded from the CaptionPrompts tab on the
+       SyncView Calendar Sheet. Keyed by client slug (calClientSlug output).
+       Missing keys → fall back to DEFAULT_CAPTION_PROMPT. Populated lazily
+       on first calendar mount; cached in-memory for the session. */
+    let _calCaptionPrompts = {};
+    let _calCaptionPromptsLoaded = false;
+    let _calCaptionPromptsInFlight = null;
+    /* Per-card guards: prevents double-firing the generator on the same card
+       and tracks the active bulk run so it can be cancelled. */
+    const _calCaptionInFlight = new Set();
+    let _calBulkCaptionRun = null;
 
     const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Posted'];
     /* Worst → best. Overall card status is the lowest-priority sub-status.
@@ -10201,6 +10275,11 @@
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
         const seq = ++_calLoadSeq;
+        // Fire-and-forget — first calendar load also primes the per-client
+        // caption-prompt cache used by the Generate Caption button and the
+        // Edit caption prompt modal. Failure is non-fatal: missing entries
+        // fall back to DEFAULT_CAPTION_PROMPT at the use sites.
+        _calLoadCaptionPrompts();
         // Prime the view from the per-client localStorage cache so the strip
         // is never blank while we hit the network. The fetch below is then
         // treated as a background revalidation; on failure we keep the
@@ -10431,8 +10510,12 @@
                     </div>
                 </div>`
             : '';
+        const archiveActive = calState.selectMode && calState.selectAction !== 'caption' && calState.selectAction !== 'link';
         const selectBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
-            ? `<button class="cal-select-btn${calState.selectMode ? ' active' : ''}" type="button" onclick="_calToggleSelectMode()" title="Select multiple posts to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" onclick="_calToggleSelectMode()" title="Select multiple posts to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            : '';
+        const bulkCapBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
             : '';
         const viewLabels = { review: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
         // Review tab is client-only — the SMM doesn't need a mirror of the client queue.
@@ -10455,6 +10538,7 @@
                     <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
                     ${shareBtnHtml}
                     ${selectBtnHtml}
+                    ${bulkCapBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
                     ${kebabHtml}
                 </div>
@@ -10478,6 +10562,9 @@
             </div>
             <div class="cal-comments-overlay" id="calCommentsOverlay" onclick="if(event.target===this)closeCalComments()">
                 <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
+            </div>
+            <div class="cal-prompt-overlay" id="calPromptOverlay" onclick="if(event.target===this)_calCloseCaptionPromptModal()">
+                <div class="cal-prompt-modal" id="calPromptModal" role="dialog" aria-modal="true"></div>
             </div>
         `;
         if (!embedded) {
@@ -10991,9 +11078,12 @@
                 ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
                 : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`);
         const isLinkAction = calState.selectAction === 'link';
+        const isCaptionAction = calState.selectAction === 'caption';
         const actionBtn = isLinkAction
             ? `<button type="button" class="cal-select-archive" id="calSelectArchive" style="background:#5e6ad2" onclick="_calOpenBulkLinkOverlay()" disabled>Match to Linear</button>`
-            : `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
+            : isCaptionAction
+                ? `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calBulkGenerateCaptions()" disabled>Generate captions</button>`
+                : `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
         const selectBar = (calState.selectMode && !_isClientLink)
             ? `<div class="cal-select-bar" id="calSelectBar">
                     <span class="cal-select-count" id="calSelectCount">0 selected</span>
@@ -11193,6 +11283,7 @@
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
             ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
+            ${(isBlank || ro) ? '' : `<button class="cal-card-kebab" type="button" onclick="_calToggleCardKebab(event,'${pid}')" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>`}
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
             <div class="cal-card-body">
@@ -11203,6 +11294,7 @@
                 <div class="cal-cap-wrap">
                     <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${ro ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
+                    ${(!ro && !isBlank && !(p.caption && String(p.caption).trim())) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
                 </div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
@@ -11753,8 +11845,17 @@
         }
         calState.selected = new Set();
         calState.lastSel = null;
-        const btn = document.querySelector('.cal-select-btn');
-        if (btn) btn.classList.toggle('active', calState.selectMode);
+        // The toolbar has one button per action (archive, caption) — sync
+        // both, not just the first, so users see which mode is currently
+        // active without a full shell re-render.
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach((btn, i) => {
+            const isCaptionBtn = i === 1;
+            const active = calState.selectMode && (
+                isCaptionBtn ? calState.selectAction === 'caption'
+                             : calState.selectAction !== 'caption' && calState.selectAction !== 'link'
+            );
+            btn.classList.toggle('active', active);
+        });
         _calRenderBody({ preserveScroll: true });
     }
     function _calCardSelectClick(e, pid) {
@@ -11852,6 +11953,344 @@
                 loadCalendarPosts();
             }
         }, 'Archive');
+    }
+
+    /* ============================================================
+       Caption generator
+       ──────────────────────────────────────────────────────────────
+       Single-card and bulk "Generate caption" wired off the
+       SyncView Calendar — Generate Caption n8n workflow. Captions
+       are saved back through the standard _calFlushCardSave path so
+       the optimistic-concurrency / touched-flag protections that
+       guard manual edits also guard generated ones.
+
+       Per-client prompts live in the CaptionPrompts tab on the
+       SyncView Calendar Sheet. The Edit caption prompt modal in
+       the per-card kebab edits that tab via caption-prompts-save.
+       ============================================================ */
+    async function _calLoadCaptionPrompts() {
+        if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
+        if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
+        _calCaptionPromptsInFlight = (async () => {
+            try {
+                const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
+                const j = await r.json();
+                if (j && j.ok && j.prompts && typeof j.prompts === 'object') {
+                    _calCaptionPrompts = j.prompts;
+                }
+                _calCaptionPromptsLoaded = true;
+            } catch (e) {
+                console.warn('[Calendar] caption prompts load failed', e);
+            } finally {
+                _calCaptionPromptsInFlight = null;
+            }
+            return _calCaptionPrompts;
+        })();
+        return _calCaptionPromptsInFlight;
+    }
+    function _calCaptionPromptFor(clientName) {
+        const slug = calClientSlug(clientName || calState.client || '');
+        return (_calCaptionPrompts && _calCaptionPrompts[slug]) || '';
+    }
+    function _calCanGenerateCaption(p) {
+        if (!p) return false;
+        if (_calIsBlankId(p.id)) return false;
+        const url = String(p.asset_url || '').trim();
+        if (!url) return false;
+        if (!/f\.io|frame\.io/i.test(url)) return false;
+        return true;
+    }
+    function _calSetCaptionBusy(pid, busy, errMsg) {
+        const card = document.querySelector('.cal-card[data-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+        if (!card) return;
+        const wrap = card.querySelector('.cal-cap-wrap');
+        if (!wrap) return;
+        let btn = wrap.querySelector('.cal-cap-gen');
+        if (btn) {
+            btn.classList.toggle('is-busy', !!busy);
+            btn.disabled = !!busy;
+            btn.innerHTML = busy
+                ? '<span class="cal-cap-gen-spin"></span><span>Generating…</span>'
+                : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span>';
+        }
+        const old = wrap.querySelector('.cal-cap-err');
+        if (old) old.remove();
+        if (errMsg) {
+            const err = document.createElement('div');
+            err.className = 'cal-cap-err';
+            err.textContent = errMsg;
+            wrap.appendChild(err);
+            setTimeout(() => { if (err.parentNode) err.parentNode.removeChild(err); }, 6000);
+        }
+    }
+    async function _calGenerateCaption(pid, opts) {
+        opts = opts || {};
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return { ok: false, error: 'Post not found' };
+        if (_calCaptionInFlight.has(pid)) return { ok: false, error: 'Already generating' };
+        if (!_calCanGenerateCaption(post)) {
+            const url = String(post.asset_url || '').trim();
+            const msg = !url ? 'Add a video URL first' :
+                (!/f\.io|frame\.io/i.test(url) ? 'Frame.io URLs only' : 'Cannot generate for this card');
+            if (!opts.silent) _calSetCaptionBusy(pid, false, msg);
+            return { ok: false, error: msg };
+        }
+        if (post.caption && String(post.caption).trim() && !opts.force) {
+            return { ok: false, error: 'Caption already set', skipped: true };
+        }
+        _calCaptionInFlight.add(pid);
+        _calSetCaptionBusy(pid, true);
+        const client = calState.client;
+        const captionPrompt = _calCaptionPromptFor(client);
+        try {
+            const resp = await fetch(GENERATE_CAPTION_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client: calClientSlug(client),
+                    postId: pid,
+                    assetUrl: String(post.asset_url || '').trim(),
+                    captionPrompt: captionPrompt
+                })
+            });
+            if (!resp.ok) {
+                const txt = await resp.text().catch(() => '');
+                throw new Error('HTTP ' + resp.status + (txt ? ': ' + txt.slice(0, 180) : ''));
+            }
+            const json = await resp.json();
+            if (!json || !json.ok || !json.caption) {
+                throw new Error((json && json.error) || 'Generation returned no caption');
+            }
+            post.caption = String(json.caption).trim();
+            post.updated_at = new Date().toISOString();
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption = post.caption;
+            try { _calCacheWrite(calClientSlug(client), calState.posts); } catch {}
+            _calFlushCardSave(pid);
+            _calRenderBody({ preserveScroll: true });
+            return { ok: true };
+        } catch (e) {
+            const msg = (e && e.message) ? e.message : 'Generation failed';
+            console.warn('[Calendar] generate caption failed', pid, e);
+            if (!opts.silent) _calSetCaptionBusy(pid, false, msg.length > 90 ? msg.slice(0, 90) + '…' : msg);
+            return { ok: false, error: msg };
+        } finally {
+            _calCaptionInFlight.delete(pid);
+            const stillExists = calState.posts.find(p => p.id === pid);
+            if (stillExists) _calSetCaptionBusy(pid, false);
+        }
+    }
+    async function _calBulkGenerateCaptions() {
+        if (_calBulkCaptionRun) return;
+        const all = Array.from(calState.selected);
+        const eligible = all
+            .map(id => calState.posts.find(p => p.id === id))
+            .filter(p => p && _calCanGenerateCaption(p) && !(p.caption && String(p.caption).trim()));
+        const skippedExisting = all.length - eligible.length;
+        if (!eligible.length) {
+            showNotify('Nothing to generate',
+                skippedExisting
+                    ? 'All ' + skippedExisting + ' selected card' + (skippedExisting === 1 ? ' already has' : 's already have') + ' a caption, or are missing a Frame.io video URL.'
+                    : 'Select cards that have a Frame.io video URL and no caption yet.');
+            return;
+        }
+        const bar = _calEnsureBulkCaptionBar();
+        const run = { cancelled: false, done: 0, ok: 0, failed: 0, total: eligible.length };
+        _calBulkCaptionRun = run;
+        const updateBar = () => {
+            bar.classList.add('is-active');
+            bar.querySelector('[data-bulk-cap-text]').textContent =
+                'Generating captions: ' + run.done + ' / ' + run.total +
+                (run.failed ? '  (' + run.failed + ' failed)' : '');
+        };
+        updateBar();
+        for (const post of eligible) {
+            if (run.cancelled) break;
+            const res = await _calGenerateCaption(post.id, { force: false });
+            run.done += 1;
+            if (res && res.ok) run.ok += 1; else run.failed += 1;
+            updateBar();
+        }
+        _calBulkCaptionRun = null;
+        const summary = run.cancelled
+            ? 'Cancelled after ' + run.done + ' of ' + run.total + '. ' + run.ok + ' generated, ' + run.failed + ' failed.'
+            : run.ok + ' caption' + (run.ok === 1 ? '' : 's') + ' generated' +
+                (run.failed ? ', ' + run.failed + ' failed' : '') +
+                (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
+        showNotify(run.ok ? 'Done' : 'Generation failed', summary);
+        setTimeout(() => bar.classList.remove('is-active'), 1200);
+        if (calState.selectMode && calState.selectAction === 'caption') {
+            calState.selected = new Set();
+            _calRenderBody({ preserveScroll: true });
+        }
+    }
+    function _calCancelBulkCaption() {
+        if (_calBulkCaptionRun) _calBulkCaptionRun.cancelled = true;
+    }
+    function _calEnsureBulkCaptionBar() {
+        let bar = document.getElementById('calBulkCapBar');
+        if (bar) return bar;
+        bar = document.createElement('div');
+        bar.id = 'calBulkCapBar';
+        bar.className = 'cal-bulk-cap-bar';
+        bar.innerHTML = '<span data-bulk-cap-text>Generating captions: 0 / 0</span>' +
+            '<button type="button" class="cal-bulk-cap-cancel" onclick="_calCancelBulkCaption()">Cancel</button>';
+        document.body.appendChild(bar);
+        return bar;
+    }
+    /* Per-card kebab — single floating menu, portaled to <body> so the
+       card's overflow:hidden can't clip it. Pattern matches the existing
+       _calStatusToggleMenu helper. */
+    let _calOpenCardKebab = null;
+    function _calCloseCardKebab() {
+        if (!_calOpenCardKebab) return;
+        const { menu, trigger } = _calOpenCardKebab;
+        if (menu && menu.parentNode) menu.parentNode.removeChild(menu);
+        if (trigger) trigger.classList.remove('is-open');
+        _calOpenCardKebab = null;
+    }
+    function _calToggleCardKebab(event, pid) {
+        event.stopPropagation();
+        event.preventDefault();
+        const trigger = event.currentTarget;
+        if (_calOpenCardKebab && _calOpenCardKebab.pid === pid) { _calCloseCardKebab(); return; }
+        _calCloseCardKebab();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const hasCaption = !!(post.caption && String(post.caption).trim());
+        const canGen = _calCanGenerateCaption(post);
+        const genLabel = hasCaption ? 'Regenerate caption' : 'Generate caption';
+        const genDisabledAttr = canGen ? '' : ' disabled title="Add a Frame.io video URL first"';
+        const menu = document.createElement('div');
+        menu.className = 'cal-card-kebab-menu';
+        menu.innerHTML =
+            '<button type="button" class="cal-card-kebab-item"' + genDisabledAttr +
+                ' onclick="_calCloseCardKebab();_calGenerateCaption(\'' + _calEscAttr(pid) + '\',{force:' + (hasCaption ? 'true' : 'false') + '})">' +
+                '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg>' +
+                _calEsc(genLabel) + '</button>' +
+            '<button type="button" class="cal-card-kebab-item"' +
+                ' onclick="_calCloseCardKebab();_calOpenCaptionPromptModal()">' +
+                '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>' +
+                'Edit caption prompt</button>';
+        document.body.appendChild(menu);
+        const rect = trigger.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 210);
+        const menuH = menu.offsetHeight;
+        let left = rect.right - menuW;
+        if (left < 8) left = 8;
+        if (left + menuW > window.innerWidth - 8) left = window.innerWidth - menuW - 8;
+        const spaceBelow = window.innerHeight - rect.bottom - 10;
+        const spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
+            top = Math.min(rect.bottom + 5, window.innerHeight - menuH - 10);
+        } else {
+            top = Math.max(10, rect.top - menuH - 5);
+        }
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+        trigger.classList.add('is-open');
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenCardKebab = { pid, menu, trigger };
+    }
+    document.addEventListener('click', (e) => {
+        if (!_calOpenCardKebab) return;
+        if (_calOpenCardKebab.menu && _calOpenCardKebab.menu.contains(e.target)) return;
+        if (_calOpenCardKebab.trigger && _calOpenCardKebab.trigger.contains(e.target)) return;
+        _calCloseCardKebab();
+    }, true);
+    window.addEventListener('resize', _calCloseCardKebab);
+    window.addEventListener('scroll', _calCloseCardKebab, true);
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        const overlay = document.getElementById('calPromptOverlay');
+        if (overlay && overlay.classList.contains('open')) {
+            _calCloseCaptionPromptModal();
+            return;
+        }
+        if (_calOpenCardKebab) _calCloseCardKebab();
+    });
+    /* Caption-prompt edit modal — per client. Read-write against the
+       CaptionPrompts tab via the caption-prompts-save webhook. Empty
+       string === "use the default prompt baked into the workflow". */
+    function _calOpenCaptionPromptModal() {
+        const client = calState.client;
+        if (!client) return;
+        const overlay = document.getElementById('calPromptOverlay');
+        const modal = document.getElementById('calPromptModal');
+        if (!overlay || !modal) return;
+        const current = _calCaptionPromptFor(client);
+        const isCustom = !!current;
+        modal.innerHTML =
+            '<div class="cal-prompt-head">' +
+                '<div class="cal-prompt-head-text">' +
+                    '<h3>Caption prompt — ' + _calEsc(client) + '</h3>' +
+                    '<p>Used whenever you click <strong>Generate caption</strong> on a card for this client. ' +
+                    'Leave blank to fall back to the default Caption Writer prompt.</p>' +
+                '</div>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">×</button>' +
+            '</div>' +
+            '<div class="cal-prompt-body">' +
+                '<textarea class="cal-prompt-textarea" id="calPromptTA" placeholder="Leave blank to use the default Caption Writer prompt."></textarea>' +
+                '<div class="cal-prompt-hint">' +
+                    'Tip: the transcript is appended automatically after your prompt, prefixed with <code>Transcript:</code>. ' +
+                    'Don\'t include the transcript yourself.' +
+                '</div>' +
+            '</div>' +
+            '<div class="cal-prompt-foot">' +
+                '<div class="cal-prompt-foot-left">' +
+                    '<button type="button" class="cal-prompt-btn" id="calPromptResetBtn" onclick="_calResetCaptionPromptToDefault()" ' +
+                        (isCustom ? '' : 'disabled') + '>Load default into editor</button>' +
+                '</div>' +
+                '<div class="cal-prompt-foot-right">' +
+                    '<button type="button" class="cal-prompt-btn" onclick="_calCloseCaptionPromptModal()">Cancel</button>' +
+                    '<button type="button" class="cal-prompt-btn is-primary" id="calPromptSaveBtn" onclick="_calSaveCaptionPrompt()">Save</button>' +
+                '</div>' +
+            '</div>';
+        const ta = document.getElementById('calPromptTA');
+        if (ta) {
+            ta.value = current;
+            setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 30);
+        }
+        overlay.classList.add('open');
+    }
+    function _calCloseCaptionPromptModal() {
+        const overlay = document.getElementById('calPromptOverlay');
+        if (overlay) overlay.classList.remove('open');
+    }
+    function _calResetCaptionPromptToDefault() {
+        const ta = document.getElementById('calPromptTA');
+        if (!ta) return;
+        ta.value = DEFAULT_CAPTION_PROMPT;
+        ta.focus();
+    }
+    async function _calSaveCaptionPrompt() {
+        const client = calState.client;
+        if (!client) return;
+        const ta = document.getElementById('calPromptTA');
+        const btn = document.getElementById('calPromptSaveBtn');
+        if (!ta || !btn) return;
+        const promptText = ta.value.trim();
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const r = await fetch(CAPTION_PROMPTS_SAVE_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
+            });
+            const j = await r.json();
+            if (!r.ok || !j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+            _calCaptionPrompts[calClientSlug(client)] = promptText;
+            _calCloseCaptionPromptModal();
+            showNotify('Saved', promptText
+                ? 'Custom caption prompt saved for ' + client + '.'
+                : 'Cleared the custom prompt for ' + client + ' — the default will be used.');
+        } catch (e) {
+            btn.disabled = false;
+            btn.textContent = 'Save';
+            showNotify('Save failed', (e && e.message) || 'Could not save the caption prompt — try again.');
+        }
     }
 
     function wireCalOrganizerDrag(skipAutoCenter) {

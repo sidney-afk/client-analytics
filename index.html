@@ -12147,7 +12147,10 @@
         const modal = document.getElementById('calPromptModal');
         if (!overlay || !modal) return;
         const stored = _calCaptionPromptFor(client);
-        const isCustom = !!stored;
+        // Treat "stored matches the default verbatim" as no custom prompt —
+        // the sheet was pre-populated with the default for every client, so
+        // an exact match means the SMM hasn't tailored it yet.
+        const isCustom = !!stored && stored.trim() !== DEFAULT_CAPTION_PROMPT.trim();
         // Pre-fill with the default when nothing custom is saved yet — the
         // SMM can see the baseline prompt and edit from there. On save we
         // compare against the default and store an empty string when they

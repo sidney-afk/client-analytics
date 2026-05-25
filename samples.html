@@ -57,7 +57,7 @@ main{padding:24px 28px 48px; max-width:1400px; margin:0 auto;}
 .empty-state{padding:60px 24px; text-align:center; color:var(--text-muted); font-size:0.85rem; background:var(--white); border:1px dashed var(--border); border-radius:var(--radius);}
 
 /* GRID + CARD */
-.grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px;}
+.grid{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px; align-items:start;}
 @media (max-width: 980px){ .grid{grid-template-columns:repeat(2, minmax(0,1fr));} }
 @media (max-width: 640px){ .grid{grid-template-columns:1fr;} }
 
@@ -67,9 +67,9 @@ main{padding:24px 28px 48px; max-width:1400px; margin:0 auto;}
 .card-dot{width:6px; height:6px; border-radius:50%; background:var(--border);}
 .card-dot.has{background:#22c55e;}
 
-/* 9:16 frame */
-.frame{width:100%; aspect-ratio:9/16; background:#0e0d0c; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;}
-.frame iframe, .frame img{width:100%; height:100%; object-fit:cover; border:none; display:block;}
+/* 9:16 frame — height driven by width (column width × 16/9), capped so 3 fit on screen */
+.frame{width:100%; aspect-ratio:9/16; max-height:55vh; background:#0e0d0c; overflow:hidden; position:relative; display:flex; align-items:center; justify-content:center;}
+.frame iframe, .frame img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border:none; display:block;}
 .frame .empty{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:rgba(255,255,255,0.45); font-size:0.75rem; padding:14px; text-align:center;}
 .frame .empty .ratio-hint{font-size:0.6rem; letter-spacing:0.08em; text-transform:uppercase; color:rgba(255,255,255,0.25);}
 
@@ -231,12 +231,30 @@ function nowIso(){ return new Date().toISOString(); }
 function escAttr(s){ return String(s||'').replace(/"/g,'&quot;'); }
 
 /* ----------- media URL helpers ----------- */
-// Frame.io: accept a full share/embed URL. We pass it through.
-// If the worker pastes app.frame.io/reviews/... or f.io/... it should embed.
+// Frame.io: convert any share/review/short link to a clean embed URL.
+// Supported patterns:
+//   https://f.io/XXXXX
+//   https://app.frame.io/reviews/XXXXX[/YYYYY]
+//   https://on.frame.io/p/XXXXX
+//   https://player.frame.io/embed/XXXXX  (already correct, pass through)
 function frameioEmbedSrc(url){
   if(!url) return '';
   url = url.trim();
-  // Already an embed URL — pass through.
+
+  // Already a player embed URL — pass through.
+  if(/player\.frame\.io\/embed\//i.test(url)) return url;
+
+  var m;
+
+  // https://f.io/TOKEN  or  https://app.frame.io/reviews/TOKEN[/...]
+  m = url.match(/(?:f\.io|app\.frame\.io\/reviews)\/([a-zA-Z0-9_-]+)/i);
+  if(m) return 'https://player.frame.io/embed/' + m[1] + '?autoplay=0&loop=0';
+
+  // https://on.frame.io/p/TOKEN
+  m = url.match(/on\.frame\.io\/p\/([a-zA-Z0-9_-]+)/i);
+  if(m) return 'https://player.frame.io/embed/' + m[1] + '?autoplay=0&loop=0';
+
+  // Fallback — return as-is.
   return url;
 }
 // Google Drive: accept a file ID or a full Drive URL — extract the ID.

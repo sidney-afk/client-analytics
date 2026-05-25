@@ -15319,9 +15319,16 @@
             // flips a sub to TN (boots from the KA filter); we don't want
             // the card to vanish until Kasper either dismisses via Done
             // reviewing or the SMM marks every Kasper tweak as resolved.
+            // Exception: if the SMM archived the card from the calendar
+            // (tracked in the per-client archive ledger), don't rescue it
+            // — otherwise the archive never sticks in Kasper because the
+            // unresolved-tweak path keeps re-injecting the card on every
+            // refresh.
             const freshIds = new Set(items.map(it => it.post.id));
             for (const oldIt of _kasperState.items) {
                 if (freshIds.has(oldIt.post.id)) continue;
+                const oldArchivedRefs = _calArchivedRefs(oldIt.slug);
+                if (_calIsArchivedRef(oldIt.post, oldArchivedRefs)) continue;
                 if (_calPostHasUnresolvedKasperTweak(oldIt.post)) {
                     items.push(oldIt);
                 }
@@ -15403,6 +15410,13 @@
             // double-synced row (e.g. status flipped twice on a Linear sub-issue
             // that already had a card) doesn't surface twice in the queue.
             const rawPosts = _calDedupeByLinearIssue((json && json.posts) || []);
+            // Mirror the calendar's archive filter: the Linear-status-sync
+            // webhook resurrects archived rows on the server, so the SMM's
+            // archive only survives in this per-client ledger. Without this
+            // check, a card the SMM archived from the calendar still shows
+            // up in Kasper as long as one component sub-status is at
+            // Kasper Approval.
+            const archivedRefs = _calArchivedRefs(slug);
             const queue = [];
             const history = [];
             const seenIds = new Set();
@@ -15411,6 +15425,7 @@
                 seenIds.add(raw.id);
                 const status = _calNormStatus(raw.status);
                 raw.status = status;
+                if (status === 'Archived' || _calIsArchivedRef(raw, archivedRefs)) continue;
                 raw.scheduled_date = _calCoerceDate(raw.scheduled_date);
                 raw.comments = _calLoadComments(raw);
                 // Per-component gating: a card lands in Kasper's queue if any

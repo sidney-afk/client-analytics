@@ -1587,6 +1587,16 @@
         .cal-import-info { font-size: 0.76rem; color: var(--text-secondary); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.5; }
         .cal-import-err { font-size: 0.78rem; color: var(--dn); background: var(--dn-bg); border-radius: 8px; padding: 9px 12px; margin-top: 12px; }
         .cal-import-progress { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 20px; }
+        .cal-import-pick-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 4px 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+        .cal-import-pick-count { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+        .cal-import-pick-toggle { background: transparent; border: 1px solid var(--border); border-radius: 7px; padding: 5px 11px; font-family: inherit; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; }
+        .cal-import-pick-toggle:hover { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-import-pick-list { display: flex; flex-direction: column; gap: 2px; max-height: 56vh; overflow-y: auto; padding-right: 4px; }
+        .cal-import-pick-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; cursor: pointer; transition: background 0.08s; }
+        .cal-import-pick-row:hover { background: var(--bg); }
+        .cal-import-pick-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--text-primary); flex-shrink: 0; cursor: pointer; }
+        .cal-import-pick-name { flex: 1; font-size: 0.84rem; color: var(--text-primary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-import-pick-date { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
         .cal-linear-import-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #c7c7c4;
             border-radius: 9px; font-family: inherit; font-size: 0.84rem; color: var(--text-primary); outline: 0; }
         .cal-linear-import-input:focus { border-color: var(--text-primary); }
@@ -9147,6 +9157,11 @@
         { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
     ];
     let _calImportRows = null, _calImportHeaders = null, _calXlsxPromise = null, _calImportLayout = 'rows';
+    /* Map step output → passed forward to the select step → finally to run.
+       Kept on the module so Back from select rebuilds the map step without
+       losing what the user picked. */
+    let _calImportMap = null;
+    let _calImportSelectedIdx = null;   // Set<number> of _calImportRows indices to import
 
     function _calLoadXLSX() {
         if (window.XLSX) return Promise.resolve(window.XLSX);
@@ -9191,6 +9206,7 @@
     function openCalImport() {
         if (!calState.client) return;
         _calImportRows = null; _calImportHeaders = null;
+        _calImportMap = null; _calImportSelectedIdx = null;
         const ovl = document.getElementById('calImportOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -9750,6 +9766,7 @@
        URL, and link each card to a matching sub-issue by name. */
     let _calBulkLinkSubs = null;
     let _calBulkLinkParent = null;
+    let _calBulkLinkGraphicParent = null;
     let _calBulkLinkPosts = null;   // [{ pid, name, subIdx }]
     function openCalBulkLinearSync() {
         if (!calState.client) return;
@@ -9780,18 +9797,24 @@
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');
     }
-    function _calRenderBulkLinkStart(prefillUrl, errMsg) {
+    function _calRenderBulkLinkStart(prefill, errMsg) {
         const modal = document.getElementById('calBulkLinkModal');
         if (!modal) return;
         const n = (_calBulkLinkPosts || []).length;
+        // Backwards-compatible: legacy callers pass a single string (video URL).
+        const pv = (prefill && typeof prefill === 'object') ? (prefill.video || '') : (prefill || '');
+        const pg = (prefill && typeof prefill === 'object') ? (prefill.graphic || '') : '';
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
                 <h3>Bulk Linear sync</h3>
-                <p>Paste the link to a Linear <strong>parent issue</strong>. Its sub-issues will be matched by name against the <strong>${n}</strong> selected card${n === 1 ? '' : 's'}.</p>
+                <p>Paste the <strong>video parent</strong> link. Sub-issues are matched by name against the <strong>${n}</strong> selected card${n === 1 ? '' : 's'}. Add the <strong>thumbnail (graphic) parent</strong> link too to link both at once.</p>
             </div>
             <div class="cal-import-body">
-                <input class="cal-linear-import-input" id="calBulkLinkUrl" type="url" placeholder="https://linear.app/team/issue/VID-123/…" value="${_calEscAttr(prefillUrl || '')}">
+                <label class="cal-import-label">Video parent link <span class="cal-import-req">required</span></label>
+                <input class="cal-linear-import-input" id="calBulkLinkUrl" type="url" placeholder="https://linear.app/team/issue/VID-123/…" value="${_calEscAttr(pv)}">
+                <label class="cal-import-label" style="margin-top:10px">Thumbnail parent link <span class="cal-import-opt">optional</span></label>
+                <input class="cal-linear-import-input" id="calBulkLinkGraphicUrl" type="url" placeholder="https://linear.app/team/issue/GRA-123/…" value="${_calEscAttr(pg)}">
                 ${errMsg ? `<div class="cal-import-err">${_calEsc(errMsg)}</div>` : ''}
             </div>
             <div class="cal-import-foot">
@@ -9799,27 +9822,57 @@
                 <button class="cal-import-btn-primary" onclick="_calBulkLinkFetch()">Fetch sub-issues</button>
             </div>`;
         const inp = document.getElementById('calBulkLinkUrl');
-        if (inp) { inp.focus(); inp.addEventListener('keydown', e => { if (e.key === 'Enter') _calBulkLinkFetch(); }); }
+        const inpG = document.getElementById('calBulkLinkGraphicUrl');
+        if (inp) {
+            inp.focus();
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') _calBulkLinkFetch(); });
+        }
+        if (inpG) inpG.addEventListener('keydown', e => { if (e.key === 'Enter') _calBulkLinkFetch(); });
     }
     async function _calBulkLinkFetch() {
         const inp = document.getElementById('calBulkLinkUrl');
+        const inpG = document.getElementById('calBulkLinkGraphicUrl');
         const url = inp ? inp.value.trim() : '';
-        if (!url) { _calRenderBulkLinkStart('', 'Paste a Linear parent-issue link first.'); return; }
+        const urlG = inpG ? inpG.value.trim() : '';
+        if (!url) { _calRenderBulkLinkStart({ video: '', graphic: urlG }, 'Paste a Linear video-parent link first.'); return; }
         const modal = document.getElementById('calBulkLinkModal');
         modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
         try {
-            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
-            const json = await resp.json();
-            if (!json.ok) throw new Error(json.error || 'Linear lookup failed');
-            const subs = json.subIssues || [];
-            if (!subs.length) { _calRenderBulkLinkStart(url, 'That issue has no sub-issues to match.'); return; }
+            const fetchOne = (u) => fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) }).then(r => r.json());
+            const tasks = [fetchOne(url)];
+            if (urlG) tasks.push(fetchOne(urlG));
+            const results = await Promise.all(tasks);
+            const jsonV = results[0];
+            if (!jsonV.ok) throw new Error(jsonV.error || 'Linear lookup failed');
+            const subs = jsonV.subIssues || [];
+            if (!subs.length) { _calRenderBulkLinkStart({ video: url, graphic: urlG }, 'That issue has no sub-issues to match.'); return; }
+            let graphicParent = null;
+            let graphicSubs = [];
+            if (urlG) {
+                const jsonG = results[1];
+                if (jsonG && jsonG.ok) {
+                    graphicParent = jsonG.parent || null;
+                    graphicSubs = jsonG.subIssues || [];
+                }
+            }
+            // Pair each video sub with its title-matched graphic, fall back
+            // to identifier-order pairing for unmatched titles — same rule
+            // as the single-Linear-import flow so the two stay consistent.
             subs.sort((a, b) => _calSubNum(a) - _calSubNum(b));
+            const graphicByTitle = new Map();
+            graphicSubs.forEach(g => { graphicByTitle.set(String(g.title || '').trim(), g); });
+            const graphicSorted = graphicSubs.slice().sort((a, b) => _calSubNum(a) - _calSubNum(b));
+            subs.forEach((s, i) => {
+                const t = String(s.title || '').trim();
+                s._graphicMatch = graphicByTitle.get(t) || graphicSorted[i] || null;
+            });
             _calBulkLinkSubs = subs;
-            _calBulkLinkParent = json.parent || null;
+            _calBulkLinkParent = jsonV.parent || null;
+            _calBulkLinkGraphicParent = graphicParent;
             _calBulkLinkAutoMatch();
-            _calRenderBulkLinkMatch(url);
+            _calRenderBulkLinkMatch({ video: url, graphic: urlG });
         } catch (e) {
-            _calRenderBulkLinkStart(url, e.message || 'Could not reach Linear.');
+            _calRenderBulkLinkStart({ video: url, graphic: urlG }, e.message || 'Could not reach Linear.');
         }
     }
     function _calBulkLinkNormName(s) {
@@ -9843,41 +9896,62 @@
             if (idx >= 0) used.add(idx);
         });
     }
-    function _calRenderBulkLinkMatch(prefillUrl) {
+    function _calRenderBulkLinkMatch(prefill) {
         const modal = document.getElementById('calBulkLinkModal');
         if (!modal || !_calBulkLinkSubs || !_calBulkLinkPosts) return;
         const subs = _calBulkLinkSubs;
+        const hasGraphic = !!_calBulkLinkGraphicParent;
         const rows = _calBulkLinkPosts.map((row, i) => {
             const post = calState.posts.find(p => p.id === row.pid);
             const curUrl = post ? String(post.linear_issue_id || '').trim() : '';
+            const curG  = post ? String(post.graphic_linear_issue_id || '').trim() : '';
             const options = ['<option value="-1">— No match —</option>']
                 .concat(subs.map((s, si) => `<option value="${si}"${row.subIdx === si ? ' selected' : ''}>${_calEsc((s.identifier ? s.identifier + ' · ' : '') + (s.title || 'Untitled'))}</option>`))
                 .join('');
             const matched = row.subIdx >= 0;
+            const pickedSub = matched ? subs[row.subIdx] : null;
+            const gMatch = pickedSub && pickedSub._graphicMatch;
+            const graphicNote = hasGraphic
+                ? (gMatch
+                    ? ` · graphic: <strong>${_calEsc((gMatch.identifier ? gMatch.identifier + ' · ' : '') + (gMatch.title || 'Untitled'))}</strong>${curG ? ' (overwrite)' : ''}`
+                    : (matched ? ` · <span class="cal-linear-sub-graphic-miss">no graphic match</span>` : ''))
+                : '';
             return `<div class="cal-linear-sub" data-bulk-row="${i}">
                 <span class="cal-linear-sub-main" style="flex:1;min-width:0">
                     <span class="cal-linear-sub-title">${_calEsc(row.name || 'Untitled')}</span>
-                    <span class="cal-linear-sub-meta">${matched ? 'Matched' : 'No match yet'}${curUrl ? ' · already linked (will overwrite)' : ''}</span>
+                    <span class="cal-linear-sub-meta">${matched ? 'Matched' : 'No match yet'}${curUrl ? ' · already linked (will overwrite)' : ''}${graphicNote}</span>
                 </span>
                 <select class="cal-linear-import-input" style="width:auto;flex:1;min-width:0" data-bulk-idx="${i}" onchange="_calBulkLinkPick(this)">${options}</select>
             </div>`;
         }).join('');
         const matchedCount = _calBulkLinkPosts.filter(r => r.subIdx >= 0).length;
+        const graphicMatchedCount = _calBulkLinkPosts.filter(r => {
+            if (r.subIdx < 0) return false;
+            const s = subs[r.subIdx];
+            return s && s._graphicMatch && s._graphicMatch.url;
+        }).length;
+        const headerNote = (() => {
+            const parts = [];
+            if (_calBulkLinkParent && _calBulkLinkParent.title) parts.push(`From <strong>${_calEsc(_calBulkLinkParent.title)}</strong>`);
+            if (_calBulkLinkGraphicParent && _calBulkLinkGraphicParent.title) parts.push(`+ <strong>${_calEsc(_calBulkLinkGraphicParent.title)}</strong>`);
+            return parts.length ? parts.join(' ') + '. ' : '';
+        })();
+        const prefillJson = JSON.stringify(prefill && typeof prefill === 'object' ? prefill : { video: prefill || '', graphic: '' });
         modal.innerHTML = `
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
                 <h3>Match cards to sub-issues</h3>
-                <p>${_calBulkLinkParent && _calBulkLinkParent.title ? `From <strong>${_calEsc(_calBulkLinkParent.title)}</strong>. ` : ''}Names were matched automatically — adjust any that look wrong before applying.</p>
+                <p>${headerNote}Names were matched automatically — adjust any that look wrong before applying.</p>
             </div>
             <div class="cal-import-body">
                 <div class="cal-linear-sub-bar">
-                    <span class="cal-linear-sub-count">${matchedCount} of ${_calBulkLinkPosts.length} matched</span>
+                    <span class="cal-linear-sub-count">${matchedCount} of ${_calBulkLinkPosts.length} matched${hasGraphic ? `, ${graphicMatchedCount} with graphic` : ''}</span>
                 </div>
                 <div class="cal-linear-sub-list">${rows}</div>
                 <div id="calBulkLinkErr"></div>
             </div>
             <div class="cal-import-foot">
-                <button class="cal-import-btn-ghost" onclick="_calRenderBulkLinkStart('${_calEscAttr(prefillUrl || '')}')">Back</button>
+                <button class="cal-import-btn-ghost" onclick='_calRenderBulkLinkStart(${_calEscAttr(prefillJson)})'>Back</button>
                 <button class="cal-import-btn-primary" id="calBulkLinkRun" onclick="_calBulkLinkApply()" ${matchedCount ? '' : 'disabled'}>Link ${matchedCount} card${matchedCount === 1 ? '' : 's'}</button>
             </div>`;
     }
@@ -9892,8 +9966,14 @@
             btn.disabled = matchedCount === 0;
             btn.textContent = 'Link ' + matchedCount + ' card' + (matchedCount === 1 ? '' : 's');
         }
+        const hasGraphic = !!_calBulkLinkGraphicParent;
+        const graphicMatchedCount = _calBulkLinkPosts.filter(r => {
+            if (r.subIdx < 0) return false;
+            const s = _calBulkLinkSubs[r.subIdx];
+            return s && s._graphicMatch && s._graphicMatch.url;
+        }).length;
         const bar = document.querySelector('#calBulkLinkModal .cal-linear-sub-count');
-        if (bar) bar.textContent = matchedCount + ' of ' + _calBulkLinkPosts.length + ' matched';
+        if (bar) bar.textContent = matchedCount + ' of ' + _calBulkLinkPosts.length + ' matched' + (hasGraphic ? ', ' + graphicMatchedCount + ' with graphic' : '');
         const row = sel.closest('.cal-linear-sub');
         if (row) {
             const meta = row.querySelector('.cal-linear-sub-meta');
@@ -9901,7 +9981,16 @@
                 const pid = _calBulkLinkPosts[i].pid;
                 const post = calState.posts.find(p => p.id === pid);
                 const curUrl = post ? String(post.linear_issue_id || '').trim() : '';
-                meta.textContent = (_calBulkLinkPosts[i].subIdx >= 0 ? 'Matched' : 'No match yet') + (curUrl ? ' · already linked (will overwrite)' : '');
+                const curG = post ? String(post.graphic_linear_issue_id || '').trim() : '';
+                const matched = _calBulkLinkPosts[i].subIdx >= 0;
+                const pickedSub = matched ? _calBulkLinkSubs[_calBulkLinkPosts[i].subIdx] : null;
+                const gMatch = pickedSub && pickedSub._graphicMatch;
+                let graphicNote = '';
+                if (hasGraphic) {
+                    if (gMatch) graphicNote = ' · graphic: ' + ((gMatch.identifier ? gMatch.identifier + ' · ' : '') + (gMatch.title || 'Untitled')) + (curG ? ' (overwrite)' : '');
+                    else if (matched) graphicNote = ' · no graphic match';
+                }
+                meta.textContent = (matched ? 'Matched' : 'No match yet') + (curUrl ? ' · already linked (will overwrite)' : '') + graphicNote;
             }
         }
     }
@@ -9920,12 +10009,19 @@
         for (const row of work) {
             const sub = _calBulkLinkSubs[row.subIdx];
             const url = sub && sub.url ? String(sub.url) : '';
+            const graphicUrl = sub && sub._graphicMatch && sub._graphicMatch.url ? String(sub._graphicMatch.url) : '';
             const post = calState.posts.find(p => p.id === row.pid);
             if (!post || !url) { failed++; done++; setProg(`Linking ${done} / ${work.length}…`); continue; }
             post.linear_issue_id = url;
             if (!_calPendingEdits[row.pid]) _calPendingEdits[row.pid] = {};
             _calPendingEdits[row.pid].linear_issue_id = url;
-            _calArchivedRemove(calClientSlug(calState.client), [url]);
+            const removeRefs = [url];
+            if (graphicUrl) {
+                post.graphic_linear_issue_id = graphicUrl;
+                _calPendingEdits[row.pid].graphic_linear_issue_id = graphicUrl;
+                removeRefs.push(graphicUrl);
+            }
+            _calArchivedRemove(calClientSlug(calState.client), removeRefs);
             try {
                 await _calFlushCardSave(row.pid);
             } catch (e) { failed++; }
@@ -10177,34 +10273,129 @@
             </div>
             <div class="cal-import-foot">
                 <button class="cal-import-btn-ghost" onclick="_calRenderImportPick()">Back</button>
-                <button class="cal-import-btn-primary" id="calImportGo" onclick="_calRunImport()">Import posts</button>
+                <button class="cal-import-btn-primary" id="calImportGo" onclick="_calProceedToImportSelect()">Next: pick posts</button>
             </div>`;
     }
 
-    async function _calRunImport() {
+    /* Step 3: pick which rows to actually import. The SMM almost always
+       wants to skip a few rows (filming-plan placeholders, blanks the
+       map step couldn't filter out, etc.) — letting them deselect by
+       name is far less destructive than editing the spreadsheet. */
+    function _calProceedToImportSelect() {
         const modal = document.getElementById('calImportModal');
         if (!modal || !_calImportRows) return;
         const map = {};
         modal.querySelectorAll('select[data-import-field]').forEach(s => { if (s.value) map[s.dataset.importField] = s.value; });
         const errBox = document.getElementById('calImportErr');
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
+        _calImportMap = map;
+        // Default: every row with a non-empty mapped name is pre-selected.
+        const named = [];
+        _calImportRows.forEach((row, i) => {
+            const n = String(row[map.name] ?? '').trim();
+            if (n) named.push(i);
+        });
+        if (!named.length) {
+            if (errBox) errBox.innerHTML = `<div class="cal-import-err">No rows had a value in the selected name column — adjust the mapping.</div>`;
+            return;
+        }
+        _calImportSelectedIdx = new Set(named);
+        _calRenderImportSelect();
+    }
+
+    function _calRenderImportSelect() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal || !_calImportRows || !_calImportMap) return;
+        const map = _calImportMap;
+        const named = [];
+        _calImportRows.forEach((row, i) => {
+            const n = String(row[map.name] ?? '').trim();
+            if (n) named.push({ idx: i, name: n, date: map.scheduled_date ? _calCoerceDate(row[map.scheduled_date]) : '' });
+        });
+        const sel = _calImportSelectedIdx || new Set();
+        const allOn = named.every(r => sel.has(r.idx));
+        const rowsHtml = named.map(r => {
+            const checked = sel.has(r.idx) ? ' checked' : '';
+            const dateHtml = r.date ? `<span class="cal-import-pick-date">${_calEsc(r.date)}</span>` : '';
+            return `<label class="cal-import-pick-row">
+                <input type="checkbox" data-import-pick="${r.idx}"${checked} onchange="_calToggleImportRow(this)">
+                <span class="cal-import-pick-name">${_calEsc(r.name)}</span>
+                ${dateHtml}
+            </label>`;
+        }).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <h3>Pick posts to import</h3>
+                <p>Uncheck any rows you don't want as cards on <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-import-pick-bar">
+                    <span class="cal-import-pick-count" id="calImportPickCount">${sel.size} of ${named.length} selected</span>
+                    <button class="cal-import-pick-toggle" type="button" onclick="_calToggleAllImportRows(${allOn ? 'false' : 'true'})">${allOn ? 'Deselect all' : 'Select all'}</button>
+                </div>
+                <div class="cal-import-pick-list">${rowsHtml}</div>
+                <div id="calImportErr"></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="_calRenderImportMap()">Back</button>
+                <button class="cal-import-btn-primary" id="calImportGo" onclick="_calRunImport()"${sel.size ? '' : ' disabled'}>Import ${sel.size} post${sel.size === 1 ? '' : 's'}</button>
+            </div>`;
+    }
+
+    function _calToggleImportRow(cb) {
+        if (!_calImportSelectedIdx) return;
+        const i = parseInt(cb.getAttribute('data-import-pick'), 10);
+        if (isNaN(i)) return;
+        if (cb.checked) _calImportSelectedIdx.add(i); else _calImportSelectedIdx.delete(i);
+        const n = _calImportSelectedIdx.size;
+        const totalRow = document.querySelectorAll('.cal-import-pick-row').length;
+        const cnt = document.getElementById('calImportPickCount');
+        if (cnt) cnt.textContent = n + ' of ' + totalRow + ' selected';
+        const btn = document.getElementById('calImportGo');
+        if (btn) {
+            btn.disabled = n === 0;
+            btn.textContent = 'Import ' + n + ' post' + (n === 1 ? '' : 's');
+        }
+        const tog = document.querySelector('.cal-import-pick-toggle');
+        if (tog) tog.textContent = (n === totalRow) ? 'Deselect all' : 'Select all';
+    }
+
+    function _calToggleAllImportRows(on) {
+        if (!_calImportRows || !_calImportMap || !_calImportSelectedIdx) return;
+        _calImportSelectedIdx.clear();
+        if (on) {
+            _calImportRows.forEach((row, i) => {
+                const n = String(row[_calImportMap.name] ?? '').trim();
+                if (n) _calImportSelectedIdx.add(i);
+            });
+        }
+        _calRenderImportSelect();
+    }
+
+    async function _calRunImport() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal || !_calImportRows || !_calImportMap || !_calImportSelectedIdx) return;
+        const map = _calImportMap;
+        const errBox = document.getElementById('calImportErr');
         const statusByLower = new Map(CAL_STATUSES.map(s => [s.toLowerCase(), s]));
         statusByLower.set('draft', 'In Progress');
         statusByLower.set('for kasper approval', 'Kasper Approval');
         statusByLower.set('smm approval', 'For SMM Approval');
         let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
         const posts = [];
-        for (const row of _calImportRows) {
+        _calImportRows.forEach((row, i) => {
+            if (!_calImportSelectedIdx.has(i)) return;
             const name = String(row[map.name] ?? '').trim();
-            if (!name) continue;
+            if (!name) return;
             baseOrder++;
             const post = { id: _calMintId(), order_index: baseOrder, name, scheduled_date: '', status: 'In Progress', asset_url: '', thumbnail_url: '', caption: '', cta: '', tweaks: '' };
             if (map.scheduled_date) post.scheduled_date = _calCoerceDate(row[map.scheduled_date]);
             if (map.status) { const st = String(row[map.status] ?? '').trim().toLowerCase(); if (statusByLower.has(st)) post.status = statusByLower.get(st); }
             ['thumbnail_url','asset_url','caption','cta','tweaks'].forEach(k => { if (map[k]) post[k] = String(row[map[k]] ?? '').trim(); });
             posts.push(post);
-        }
-        if (!posts.length) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">No rows had a post name — nothing to import.</div>`; return; }
+        });
+        if (!posts.length) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick at least one post to import.</div>`; return; }
         modal.innerHTML = `
             <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button><h3>Importing…</h3></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="calImportProg">Importing 0 / ${posts.length}…</div></div>

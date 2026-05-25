@@ -1767,11 +1767,14 @@
            browser's text range — kill text selection across the strip. */
         .cal-organizer-strip.cal-selecting,
         .cal-organizer-strip.cal-selecting * { user-select: none; -webkit-user-select: none; }
-        .cal-card-select-check { position: absolute; top: 10px; left: 10px; width: 22px; height: 22px; border-radius: 50%;
+        .cal-card-select-check { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%;
             background: var(--white); border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center;
-            color: transparent; box-shadow: 0 1px 5px rgba(0,0,0,0.18); }
+            color: transparent; box-shadow: 0 1px 5px rgba(0,0,0,0.18); z-index: 8; }
         .cal-card-select-check svg { width: 12px; height: 12px; }
-        .cal-card-selected { outline: 3px solid #2563eb; outline-offset: -3px; }
+        /* box-shadow instead of outline so the highlight follows the card's
+           border-radius cleanly — outline-offset:-3px was getting visually
+           clipped at the top edge where the thumbnail sits flush. */
+        .cal-card-selected { box-shadow: 0 0 0 3px #2563eb; }
         .cal-card-selected .cal-card-select-check { background: #2563eb; border-color: #2563eb; color: #fff; }
         .cal-select-bar { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 80;
             display: flex; align-items: center; gap: 12px; padding: 9px 11px 9px 18px; background: var(--text-primary);
@@ -11536,7 +11539,7 @@
                 <div class="cal-cap-wrap">
                     <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${ro ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
-                    ${(!ro && !isBlank && !(p.caption && String(p.caption).trim())) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
+                    ${(!ro && !isBlank) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
                 </div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
@@ -12304,6 +12307,15 @@
         if (post.caption && String(post.caption).trim() && !opts.force) {
             return { ok: false, error: 'Caption already set', skipped: true };
         }
+        // If we're not nested inside a bulk run, push a single-item run
+        // onto the floating progress bar so the SMM gets the same
+        // "Generating captions: 0 / 1" affordance for single-card kicks.
+        // Bulk runs already own the bar.
+        const ownsBar = !_calBulkCaptionRun;
+        if (ownsBar) {
+            _calBulkCaptionRun = { cancelled: false, done: 0, ok: 0, failed: 0, total: 1, single: true };
+            _calUpdateBulkCaptionBar();
+        }
         _calCaptionInFlight.add(pid);
         _calSetCaptionBusy(pid, true);
         const client = calState.client;
@@ -12334,16 +12346,36 @@
             try { _calCacheWrite(calClientSlug(client), calState.posts); } catch {}
             _calFlushCardSave(pid);
             _calRenderBody({ preserveScroll: true });
+            if (ownsBar) {
+                _calBulkCaptionRun.done = 1;
+                _calBulkCaptionRun.ok = 1;
+                _calUpdateBulkCaptionBar();
+            }
             return { ok: true };
         } catch (e) {
             const msg = (e && e.message) ? e.message : 'Generation failed';
             console.warn('[Calendar] generate caption failed', pid, e);
             if (!opts.silent) _calSetCaptionBusy(pid, false, msg.length > 90 ? msg.slice(0, 90) + '…' : msg);
+            if (ownsBar) {
+                _calBulkCaptionRun.done = 1;
+                _calBulkCaptionRun.failed = 1;
+                _calUpdateBulkCaptionBar();
+            }
             return { ok: false, error: msg };
         } finally {
             _calCaptionInFlight.delete(pid);
             const stillExists = calState.posts.find(p => p.id === pid);
             if (stillExists) _calSetCaptionBusy(pid, false);
+            if (ownsBar) {
+                // Hand the bar a moment so the SMM can read the final state
+                // before it slides out.
+                const run = _calBulkCaptionRun;
+                setTimeout(() => {
+                    const bar = document.getElementById('calBulkCapBar');
+                    if (bar) bar.classList.remove('is-active');
+                    if (_calBulkCaptionRun === run) _calBulkCaptionRun = null;
+                }, 1500);
+            }
         }
     }
     async function _calBulkGenerateCaptions() {
@@ -12360,22 +12392,29 @@
                     : 'Select cards that have a Frame.io video URL and no caption yet.');
             return;
         }
-        const bar = _calEnsureBulkCaptionBar();
+        // Drop out of select mode the moment Generate is clicked — the
+        // selection is captured, the picker UI has done its job, and
+        // leaving the blue overlays + red button up is just noise
+        // alongside the floating progress bar.
+        if (calState.selectMode && calState.selectAction === 'caption') {
+            calState.selectMode = false;
+            calState.selectAction = 'archive';
+            calState.selected = new Set();
+            calState.lastSel = null;
+            document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(b => b.classList.remove('active'));
+            _calRenderBody({ preserveScroll: true });
+        }
         const run = { cancelled: false, done: 0, ok: 0, failed: 0, total: eligible.length };
         _calBulkCaptionRun = run;
-        const updateBar = () => {
-            bar.classList.add('is-active');
-            bar.querySelector('[data-bulk-cap-text]').textContent =
-                'Generating captions: ' + run.done + ' / ' + run.total +
-                (run.failed ? '  (' + run.failed + ' failed)' : '');
-        };
-        updateBar();
+        _calUpdateBulkCaptionBar();
         for (const post of eligible) {
             if (run.cancelled) break;
+            // _calGenerateCaption checks _calBulkCaptionRun and won't
+            // re-own the floating bar while we're driving it from here.
             const res = await _calGenerateCaption(post.id, { force: false });
             run.done += 1;
             if (res && res.ok) run.ok += 1; else run.failed += 1;
-            updateBar();
+            _calUpdateBulkCaptionBar();
         }
         _calBulkCaptionRun = null;
         const summary = run.cancelled
@@ -12384,14 +12423,29 @@
                 (run.failed ? ', ' + run.failed + ' failed' : '') +
                 (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
         showNotify(run.ok ? 'Done' : 'Generation failed', summary);
-        setTimeout(() => bar.classList.remove('is-active'), 1200);
-        if (calState.selectMode && calState.selectAction === 'caption') {
-            calState.selected = new Set();
-            _calRenderBody({ preserveScroll: true });
-        }
+        const bar = document.getElementById('calBulkCapBar');
+        setTimeout(() => { if (bar) bar.classList.remove('is-active'); }, 1500);
     }
     function _calCancelBulkCaption() {
         if (_calBulkCaptionRun) _calBulkCaptionRun.cancelled = true;
+    }
+    /* Single source of truth for the floating bottom-right progress
+       chip. Both single-card and bulk caption generation push state
+       into _calBulkCaptionRun and call this — keeps the affordance
+       consistent: same shape, same wording, same place. */
+    function _calUpdateBulkCaptionBar() {
+        const run = _calBulkCaptionRun;
+        const bar = _calEnsureBulkCaptionBar();
+        if (!run) { bar.classList.remove('is-active'); return; }
+        bar.classList.add('is-active');
+        const inFlight = run.total - run.done;
+        const txt = run.total === 1
+            ? (inFlight > 0 ? 'Generating caption…' : (run.ok ? 'Caption generated' : 'Generation failed'))
+            : ('Generating captions: ' + run.done + ' / ' + run.total + (run.failed ? '  (' + run.failed + ' failed)' : ''));
+        const span = bar.querySelector('[data-bulk-cap-text]');
+        if (span) span.textContent = txt;
+        const cancelBtn = bar.querySelector('.cal-bulk-cap-cancel');
+        if (cancelBtn) cancelBtn.hidden = run.total === 1;
     }
     function _calEnsureBulkCaptionBar() {
         let bar = document.getElementById('calBulkCapBar');

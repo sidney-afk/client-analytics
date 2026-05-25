@@ -12883,14 +12883,16 @@
         // Sub-status row: when all three components share the same status,
         // the overall chip already says everything — hide the row. Otherwise
         // surface only the components whose status diverges from the overall,
-        // as compact status-colored pills (label = component name).
+        // as compact status-colored pills (label = "Component: Status" so
+        // the client knows what's still pending without having to hover).
         const subStates = CAL_COMPONENTS.map(c => ({ c, st: _calNormStatus(p[c + '_status'] || '') }));
         const allSame = subStates.every(s => s.st === subStates[0].st);
         const subSummary = allSame ? '' : subStates
             .filter(s => s.st !== overall)
             .map(s => {
                 const slug = _calStatusSlug(s.st);
-                return `<span class="cal-review-sub-pill cal-fld-status-${slug}" title="${_calEsc(COMP_LABELS[s.c])}: ${_calEsc(_calStatusLabel(s.st))}">${_calEsc(COMP_LABELS[s.c])}</span>`;
+                const label = _calEsc(COMP_LABELS[s.c]) + ': ' + _calEsc(_calStatusLabel(s.st));
+                return `<span class="cal-review-sub-pill cal-fld-status-${slug}" title="${label}">${label}</span>`;
             }).join('');
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
@@ -12980,13 +12982,15 @@
         const canActClient = _isClientLink ? (subStatus === 'Client Approval' || subStatus === 'Tweaks Needed') : true;
         const hasDraft = !!draft.trim();
         const inTweaks = subStatus === 'Tweaks Needed';
-        const approveEnabled = canActClient && !saving && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
-        // Hide the approve button entirely once the client starts typing
-        // tweaks — approving while a comment is in flight doesn't make
-        // sense. Also hide while a tweak is already pending: she's waiting
-        // for the editor's revision, so approving the unchanged asset
-        // would just confuse the handoff.
-        const showApprove = canActClient && !hasDraft && !inTweaks && subStatus !== 'Approved' && subStatus !== 'Posted';
+        // Approve button is ALWAYS rendered when the client could in
+        // principle approve (not yet Approved/Posted) — but it stays
+        // disabled while they're drafting a tweak or while a tweak is
+        // already pending the editor's revision, so the affordance is
+        // visible without being misclickable. Removing it on draft was
+        // jarring: the button vanished, then came back when she cleared
+        // the textarea, which broke muscle memory.
+        const showApprove = canActClient && subStatus !== 'Approved' && subStatus !== 'Posted';
+        const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
         const tweakEnabled = canActClient && !saving && hasDraft;
         // Friendlier status copy: clients see "Awaiting your approval"
         // instead of the raw "Client Approval" enum, which reads like a
@@ -13088,26 +13092,20 @@
 
     function _calReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
-        const prevHadDraft = !!String(_calReviewState.drafts[key] || '').trim();
         _calReviewState.drafts[key] = ta.value;
         const nowHasDraft = !!ta.value.trim();
-        // Don't repaint on every keystroke; just flip the tweak button and
-        // the approve button (which hides whenever draft is non-empty).
+        // Don't repaint on every keystroke — just toggle the two action
+        // buttons in place. Approve is gated off while a draft is in
+        // flight (it's visible but unclickable), Request tweaks lights
+        // up the instant there's text to send.
         const card = ta.closest('.cal-review-card');
         if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
-        const tweakBtn = panel && panel.querySelector('.cal-review-tweak-btn');
+        if (!panel) return;
+        const tweakBtn = panel.querySelector('.cal-review-tweak-btn');
         if (tweakBtn) tweakBtn.disabled = !nowHasDraft || !!_calReviewState.saving[key];
-        // Show/hide approve button via crossing the draft-empty boundary so
-        // we only touch the DOM when it actually flips.
-        if (prevHadDraft !== nowHasDraft && panel) {
-            const actions = panel.querySelector('.cal-review-panel-actions');
-            if (nowHasDraft) {
-                if (actions) actions.remove();
-            } else {
-                _calReviewRepaintCard(pid);
-            }
-        }
+        const approveBtn = panel.querySelector('.cal-review-approve-btn');
+        if (approveBtn) approveBtn.disabled = nowHasDraft || !!_calReviewState.saving[key];
     }
 
     function _calReviewApprove(pid, comp) {
@@ -13137,6 +13135,19 @@
         // Repaint immediately so the approval lands as an instant collapse
         // to the mini panel — no spinner, no waiting on the network.
         _calReviewRepaintCard(pid);
+        // If this approval was the LAST piece the client owed on this
+        // card (no component left at Client Approval or Tweaks Needed),
+        // re-evaluate the queue so the card actually drops out instead
+        // of lingering with a stale "In Progress" overall chip from the
+        // other untouched components. Without polling, the next implicit
+        // re-render would otherwise wait for tab focus.
+        if (_isClientLink) {
+            const needsClient = CAL_COMPONENTS.some(c => {
+                const cs = _calNormStatus(post[c + '_status'] || '');
+                return cs === 'Client Approval' || cs === 'Tweaks Needed';
+            });
+            if (!needsClient) setTimeout(() => _calRenderBody({ preserveScroll: true }), 400);
+        }
         // Fire-and-forget the save. The pending-edits map carries the
         // change, and _calFlushCardSave also handles the Linear push. We
         // surface errors via a repaint only if the network actually fails.

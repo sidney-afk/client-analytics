@@ -8838,30 +8838,63 @@
        URL so even a brand-new duplicate row with a different id stays
        hidden as long as it points at the same Linear issue. */
     function _calArchivedKey(slug) { return 'syncview_cal_archived_v1_' + slug; }
+    /* The archive ledger is the FE-side "I've asked the server to archive
+       these — don't show them, regardless of what a still-in-flight
+       background poll might say". Stored as { ref: addedAtMs } so the
+       self-heal pass can age old refs out without ripping a freshly
+       enqueued one. CAL_ARCHIVE_GRACE_MS is the propagation budget: a
+       ref younger than this is trusted unconditionally; older refs are
+       cleared when the server reports the matching row as live. */
+    const CAL_ARCHIVE_GRACE_MS = 60 * 1000;
+    function _calArchivedReadRaw(slug) {
+        if (!slug) return {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_calArchivedKey(slug)) || '{}');
+            // Back-compat: v1 stored a plain string array. Treat legacy
+            // entries as ancient (ts=0) so they still hide the row but
+            // are eligible for self-heal on the next live load.
+            if (Array.isArray(raw)) {
+                const m = {};
+                raw.forEach(r => { if (r) m[String(r)] = 0; });
+                return m;
+            }
+            return (raw && typeof raw === 'object') ? raw : {};
+        } catch { return {}; }
+    }
+    function _calArchivedWriteRaw(slug, obj) {
+        if (!slug) return;
+        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
+    }
     function _calArchivedRefs(slug) {
         if (!slug) return new Set();
-        try {
-            const arr = JSON.parse(localStorage.getItem(_calArchivedKey(slug)) || '[]');
-            return new Set(Array.isArray(arr) ? arr : []);
-        } catch { return new Set(); }
+        return new Set(Object.keys(_calArchivedReadRaw(slug)));
     }
     function _calArchivedAdd(slug, refs) {
         if (!slug || !refs || !refs.length) return;
-        const s = _calArchivedRefs(slug);
-        refs.filter(Boolean).forEach(r => s.add(String(r)));
-        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
+        const m = _calArchivedReadRaw(slug);
+        const now = Date.now();
+        let changed = false;
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (m[k] !== now) { m[k] = now; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
     }
     /* Drop refs from the ledger — used when the user explicitly re-imports
        a previously archived Linear sub-issue. Without this, the freshly
        imported card would be hidden on load because its linear_issue_id
-       is still in the archive set from the original archive action. */
+       is still in the archive set from the original archive action. Also
+       used to roll back the optimistic ledger entry when an archive HTTP
+       call ends up failing. */
     function _calArchivedRemove(slug, refs) {
         if (!slug || !refs || !refs.length) return;
-        const s = _calArchivedRefs(slug);
+        const m = _calArchivedReadRaw(slug);
         let changed = false;
-        refs.filter(Boolean).forEach(r => { if (s.delete(String(r))) changed = true; });
-        if (!changed) return;
-        try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
+        refs.filter(Boolean).forEach(r => {
+            const k = String(r);
+            if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; }
+        });
+        if (changed) _calArchivedWriteRaw(slug, m);
     }
     /* Defensive cleanup: scan a freshly loaded posts list and strip any
        refs (id or linear_issue_id) from the local archive ledger that
@@ -8871,17 +8904,32 @@
        active, the ledger must not override that — otherwise a re-import
        of a previously archived Linear sub-issue stays hidden forever
        because the new row's id is fresh but the linear_issue_id matches
-       the old archive entry. */
+       the old archive entry.
+
+       Refs newer than CAL_ARCHIVE_GRACE_MS are left alone: they may
+       belong to an archive HTTP that is still propagating to the sheet,
+       which would otherwise show as "live" in this very fetch and
+       trick us into removing a valid ledger entry too early. */
     function _calCleanArchiveLedger(slug, posts) {
         if (!slug || !posts || !posts.length) return;
-        const activeRefs = [];
+        const m = _calArchivedReadRaw(slug);
+        if (!Object.keys(m).length) return;
+        const cutoff = Date.now() - CAL_ARCHIVE_GRACE_MS;
+        let changed = false;
         posts.forEach(p => {
             if (!p) return;
             if ((p.status || '').toLowerCase() === 'archived') return;
-            if (p.id) activeRefs.push(String(p.id));
-            if (p.linear_issue_id) activeRefs.push(String(p.linear_issue_id));
+            const refs = [p.id, p.linear_issue_id].filter(Boolean);
+            refs.forEach(r => {
+                const k = String(r);
+                const ts = m[k];
+                if (ts === undefined) return;
+                if (ts > cutoff) return;          // still inside the propagation grace window
+                delete m[k];
+                changed = true;
+            });
         });
-        if (activeRefs.length) _calArchivedRemove(slug, activeRefs);
+        if (changed) _calArchivedWriteRaw(slug, m);
     }
     function _calRefsForPost(p) {
         if (!p) return [];
@@ -12026,15 +12074,25 @@
 
     /* Archive one post via the upsert webhook — it reliably updates the row
        by id, flipping status to Archived so it drops off the next load. */
-    async function _calArchiveOne(id) {
+    /* Server-side archive write. Slug is captured by the caller at the
+       moment the user clicked Archive so a mid-flight client switch
+       can't redirect the write to (or write the cache against) the
+       wrong calendar tab. */
+    async function _calArchiveOne(id, slug) {
+        const useSlug = slug || calClientSlug(calState.client);
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client: calClientSlug(calState.client), post: { id, status: 'Archived' } })
+            body: JSON.stringify({ client: useSlug, post: { id, status: 'Archived' } })
         });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
-        calState.posts = calState.posts.filter(p => p.id !== id);
-        try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+        // Only mutate calState.posts / cache if the user is still on the
+        // client whose archive this is — otherwise we'd be writing one
+        // client's filtered post list into another client's localStorage.
+        if (calClientSlug(calState.client) === useSlug) {
+            calState.posts = calState.posts.filter(p => p.id !== id);
+            try { _calCacheWrite(useSlug, calState.posts); } catch {}
+        }
     }
     function _calToggleSelectMode(action) {
         if (action) {
@@ -12096,18 +12154,27 @@
     async function _calArchiveSelected() {
         const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
         if (!ids.length) return;
+        // Capture the slug at the moment of the click. The archive HTTPs
+        // can take several seconds when 30+ cards are being archived; if
+        // the SMM switches to a different client during that window we
+        // must still attribute every ledger / cache write to the calendar
+        // the action originated from.
+        const slug = calClientSlug(calState.client);
         showConfirm('Archive ' + ids.length + ' post' + (ids.length === 1 ? '' : 's') + '?',
             "They're removed from the calendar but kept (archived) in the Google Sheet on our server, so they can always be recovered.",
             async () => {
-                // Drop the cards from the UI immediately, then fire the archive
-                // requests in parallel in the background — no waiting, no reload.
                 const idSet = new Set(ids);
-                // Capture the refs (id + linear_issue_id) of the posts we're
-                // archiving so we can record successful archives in localStorage
-                // after the BE write — that prevents a later Linear status sync
-                // from resurrecting them by flipping `status` back.
                 const refsById = new Map();
                 calState.posts.forEach(p => { if (idSet.has(p.id)) refsById.set(p.id, _calRefsForPost(p)); });
+                // Pre-populate the ledger BEFORE the archive HTTPs fire.
+                // A background poll racing the writes would otherwise
+                // refetch the still-live rows and resurrect them; with
+                // the ledger entries already in place the load filter
+                // hides them immediately. Failed archives are rolled
+                // back below so the rows reappear honestly.
+                const allRefs = [];
+                refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
+                _calArchivedAdd(slug, allRefs);
                 calState.posts = calState.posts.filter(p => !idSet.has(p.id));
                 calState.selectMode = false;
                 calState.selectAction = 'archive';
@@ -12116,47 +12183,51 @@
                 const btn = document.querySelector('.cal-select-btn');
                 if (btn) btn.classList.remove('active');
                 _calRenderBody({ preserveScroll: true });
-                try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
-                const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id)));
-                const okRefs = [];
+                try { _calCacheWrite(slug, calState.posts); } catch {}
+                const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id, slug)));
+                // Roll back ledger entries for posts whose archive write
+                // failed so the row stops being hidden after the grace
+                // window — also reload to bring them back into the
+                // current view if the user is still on this client.
+                const failedRefs = [];
                 results.forEach((r, i) => {
-                    if (r.status === 'fulfilled') {
+                    if (r.status === 'rejected') {
                         const refs = refsById.get(ids[i]);
-                        if (refs) refs.forEach(x => okRefs.push(x));
+                        if (refs) refs.forEach(x => failedRefs.push(x));
                     }
                 });
-                _calArchivedAdd(calClientSlug(calState.client), okRefs);
-                const failed = results.filter(r => r.status === 'rejected').length;
-                if (failed) {
-                    showNotify('Some posts were not archived', failed + ' of ' + ids.length + ' could not be archived — reloading the calendar.');
-                    loadCalendarPosts();
+                if (failedRefs.length) _calArchivedRemove(slug, failedRefs);
+                const failedCount = results.filter(r => r.status === 'rejected').length;
+                if (failedCount) {
+                    showNotify('Some posts were not archived', failedCount + ' of ' + ids.length + ' could not be archived — reloading the calendar.');
+                    if (calClientSlug(calState.client) === slug) loadCalendarPosts();
                 }
             }, 'Archive');
     }
     function archiveCalPost(id) {
         if (!id || _calIsBlankId(id)) return;
+        const slug = calClientSlug(calState.client);
         showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
-            // Drop the card from the UI immediately, then fire the archive
-            // request in the background — matches bulk-archive UX, no spinner wait.
             const snapshot = calState.posts.slice();
             const target = calState.posts.find(p => p.id === id);
             const refs = target ? _calRefsForPost(target) : [];
+            // Pre-populate ledger so a poll racing the archive write
+            // can't resurrect this row. Rolled back on failure below.
+            _calArchivedAdd(slug, refs);
             calState.posts = calState.posts.filter(p => p.id !== id);
             _calRenderBody({ preserveScroll: true });
-            try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+            try { _calCacheWrite(slug, calState.posts); } catch {}
             try {
-                await _calArchiveOne(id);
-                // Persist the archive locally so a Linear status sync that
-                // flips status back to a non-archived value won't resurrect
-                // this card (and so any duplicate row the sync may create
-                // with the same linear_issue_id stays hidden too).
-                _calArchivedAdd(calClientSlug(calState.client), refs);
+                await _calArchiveOne(id, slug);
             } catch (e) {
                 console.warn('[Calendar] archive failed', e);
-                calState.posts = snapshot;
-                _calRenderBody({ preserveScroll: true });
+                _calArchivedRemove(slug, refs);
+                if (calClientSlug(calState.client) === slug) {
+                    calState.posts = snapshot;
+                    _calRenderBody({ preserveScroll: true });
+                }
                 showNotify('Archive failed', e.message || 'Could not archive this post — reloading the calendar.');
-                loadCalendarPosts();
+                if (calClientSlug(calState.client) === slug) loadCalendarPosts();
             }
         }, 'Archive');
     }

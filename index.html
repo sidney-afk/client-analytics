@@ -8853,6 +8853,26 @@
         if (!changed) return;
         try { localStorage.setItem(_calArchivedKey(slug), JSON.stringify([...s])); } catch {}
     }
+    /* Defensive cleanup: scan a freshly loaded posts list and strip any
+       refs (id or linear_issue_id) from the local archive ledger that
+       correspond to a post that's actually live (status != Archived).
+       The ledger only exists to hide cards while a freshly-fired archive
+       write propagates to the sheet; once the server says a row is
+       active, the ledger must not override that — otherwise a re-import
+       of a previously archived Linear sub-issue stays hidden forever
+       because the new row's id is fresh but the linear_issue_id matches
+       the old archive entry. */
+    function _calCleanArchiveLedger(slug, posts) {
+        if (!slug || !posts || !posts.length) return;
+        const activeRefs = [];
+        posts.forEach(p => {
+            if (!p) return;
+            if ((p.status || '').toLowerCase() === 'archived') return;
+            if (p.id) activeRefs.push(String(p.id));
+            if (p.linear_issue_id) activeRefs.push(String(p.linear_issue_id));
+        });
+        if (activeRefs.length) _calArchivedRemove(slug, activeRefs);
+    }
     function _calRefsForPost(p) {
         if (!p) return [];
         return [p.id, p.linear_issue_id].filter(Boolean);
@@ -10281,6 +10301,7 @@
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
+            _calCleanArchiveLedger(slug, cached.posts);
             const cacheArchivedRefs = _calArchivedRefs(slug);
             calState.posts = _calDedupeByLinearIssue(cached.posts
                 .filter(p => !_calIsArchivedRef(p, cacheArchivedRefs)))
@@ -10340,6 +10361,7 @@
             if (json === TIMEOUT_SENTINEL) throw new Error('Load timed out');
             if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
+            _calCleanArchiveLedger(slug, json.posts || []);
             const archivedRefs = _calArchivedRefs(slug);
             const fetchedPosts = _calDedupeByLinearIssue((json.posts || [])
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
@@ -12147,7 +12169,10 @@
         const modal = document.getElementById('calPromptModal');
         if (!overlay || !modal) return;
         const stored = _calCaptionPromptFor(client);
-        const isCustom = !!stored;
+        // Treat "stored matches the default verbatim" as no custom prompt —
+        // the sheet was pre-populated with the default for every client, so
+        // an exact match means the SMM hasn't tailored it yet.
+        const isCustom = !!stored && stored.trim() !== DEFAULT_CAPTION_PROMPT.trim();
         // Pre-fill with the default when nothing custom is saved yet — the
         // SMM can see the baseline prompt and edit from there. On save we
         // compare against the default and store an empty string when they

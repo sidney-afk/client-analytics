@@ -13488,6 +13488,23 @@
         if (!Array.isArray(list)) return false;
         return list.some(x => x && x.role === 'kasper' && !x.done);
     }
+    /* Per-component visibility on the Kasper review queue. A panel
+       only shows when (a) the component's sub-status is still at
+       Kasper Approval, OR (b) the SMM has flipped it to Tweaks
+       Needed but Kasper still has an unresolved tweak on it (the
+       "re-review" hand-off). Anything past that — For SMM Approval,
+       Client Approval, Approved, Posted — drops the component out
+       of Kasper's view even if a stale tweak comment lingers, so
+       SMM-driven status progressions can't be silently un-done. */
+    function _calCompKasperVisible(post, comp) {
+        const cs = _calNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval') return true;
+        if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) return true;
+        return false;
+    }
+    function _calPostKasperVisible(post) {
+        return CAL_COMPONENTS.some(c => _calCompKasperVisible(post, c));
+    }
     /* Whole-card: any unresolved Kasper tweak across any component. Used
        for the Done-reviewing button visibility and the card-stays rule. */
     function _calPostHasUnresolvedKasperTweak(post) {
@@ -15547,7 +15564,11 @@
                     client: it.client,
                     slug: it.slug,
                     smm: it.smm,
-                    _expanded: !!it._expanded,
+                    // Cards always rehydrate collapsed from cache. Kasper
+                    // opens the day fresh and decides which to dig into;
+                    // resuming with five cards already expanded under
+                    // each other is just visual noise.
+                    _expanded: false,
                     _drafts: it._drafts || { video: '', graphic: '', caption: '' },
                     // _touchedComps is a Set in memory — serialize to array
                     // so the cache survives JSON. Without this, a page
@@ -15586,10 +15607,6 @@
             <span class="app-refresh-pill" id="kasperReviewRefreshPill" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
             <div class="kasper-toolbar">
                 <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">${hasCached ? String(_kasperState.items.length) : '·'}</span><span>waiting for your review</span></div>
-                <button type="button" class="kasper-refresh-btn" id="kasperReviewRefresh" onclick="_kasperLoadReview(true)">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
-                    Refresh
-                </button>
             </div>
             <div id="kasperReviewBody">${hasCached
                 ? '' /* paint cached state right after the toolbar */
@@ -15670,19 +15687,25 @@
             // flips a sub to TN (boots from the KA filter); we don't want
             // the card to vanish until Kasper either dismisses via Done
             // reviewing or the SMM marks every Kasper tweak as resolved.
-            // Exception: if the SMM archived the card from the calendar
-            // (tracked in the per-client archive ledger), don't rescue it
-            // — otherwise the archive never sticks in Kasper because the
-            // unresolved-tweak path keeps re-injecting the card on every
-            // refresh.
+            // Exceptions to the rescue:
+            //   1. SMM archived the card from the calendar — drop it,
+            //      otherwise the archive never sticks in Kasper because
+            //      the unresolved-tweak path keeps re-injecting it.
+            //   2. Every component's sub-status has progressed past the
+            //      Kasper-actionable states (Kasper Approval / Tweaks
+            //      Needed) — that means the SMM has moved the card to
+            //      SMM Approval / Client Approval / etc and Kasper has
+            //      no business reviewing it anymore. _calPostKasperVisible
+            //      enforces this so stale tweak comments can't outlive
+            //      the workflow state.
             const freshIds = new Set(items.map(it => it.post.id));
             for (const oldIt of _kasperState.items) {
                 if (freshIds.has(oldIt.post.id)) continue;
                 const oldArchivedRefs = _calArchivedRefs(oldIt.slug);
                 if (_calIsArchivedRef(oldIt.post, oldArchivedRefs)) continue;
-                if (_calPostHasUnresolvedKasperTweak(oldIt.post)) {
-                    items.push(oldIt);
-                }
+                if (!_calPostHasUnresolvedKasperTweak(oldIt.post)) continue;
+                if (!_calPostKasperVisible(oldIt.post)) continue;
+                items.push(oldIt);
             }
             _kasperState.items = items;
             // Merge server-known history with the local log so a refresh keeps
@@ -16084,10 +16107,11 @@
         // unresolved tweak on this component — he may want to add more
         // notes, and the panel doubles as a thread view. Data-driven, so
         // it survives reloads natively without session-only flags.
-        const activeComps = CAL_COMPONENTS.filter(c =>
-            _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval'
-            || _calCompHasUnresolvedKasperTweak(p, c)
-        );
+        // Tightened: a stale tweak comment alone is no longer enough to
+        // pin a panel open — the sub-status must still be Kasper Approval
+        // OR Tweaks Needed-with-unresolved-tweak. Anything past that and
+        // the panel drops out (handled by _calCompKasperVisible).
+        const activeComps = CAL_COMPONENTS.filter(c => _calCompKasperVisible(p, c));
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }

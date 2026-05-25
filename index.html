@@ -1476,7 +1476,7 @@
         .tpl-config-banner code { background: rgba(0,0,0,0.07); padding: 2px 6px; border-radius: 4px; font-size: 0.78rem; }
 
         /* ── Content Calendar module ──────────────────────────────────────── */
-        .cal-view { padding: 8px 16px 32px;
+        .cal-view { position: relative; padding: 8px 16px 32px;
             --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; --cal-week-col: 348px; }
         .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; --cal-week-col: 282px; }
         .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; --cal-week-col: 470px; }
@@ -1684,7 +1684,7 @@
         .cal-card-thumb { cursor: default; }
         .cal-card-thumb img { cursor: zoom-in; }
         /* Asset stage — image floats centred on a soft gradient with room to breathe */
-        .cal-card-thumb { width: 100%; min-height: 110px; background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
+        .cal-card-thumb { width: 100%; height: calc(var(--cal-thumb-h, 184px) + 16px); background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
         .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; border-radius: 10px; box-shadow: 0 10px 26px rgba(0,0,0,0.20); }
         .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.12s; cursor: pointer; }
         .cal-thumb-zoom:hover { background: rgba(0,0,0,0.78); }
@@ -1767,15 +1767,22 @@
            browser's text range — kill text selection across the strip. */
         .cal-organizer-strip.cal-selecting,
         .cal-organizer-strip.cal-selecting * { user-select: none; -webkit-user-select: none; }
-        .cal-card-select-check { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%;
-            background: var(--white); border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center;
-            color: transparent; box-shadow: 0 1px 5px rgba(0,0,0,0.18); z-index: 8; }
-        .cal-card-select-check svg { width: 12px; height: 12px; }
-        /* box-shadow instead of outline so the highlight follows the card's
-           border-radius cleanly — outline-offset:-3px was getting visually
-           clipped at the top edge where the thumbnail sits flush. */
+        /* The check-circle sits OUTSIDE the card (negative offsets) so it
+           can't be mistaken for the × archive button at the same corner.
+           Backdrop-blur + double-ring shadow give it a floating, glassy
+           look that reads clearly against any thumbnail behind it.
+           overflow:visible on selectable cards lets it escape — the
+           thumbnail keeps its own overflow:hidden so the image still
+           clips against the rounded top of the card. */
+        .cal-card-selectable { overflow: visible; }
+        .cal-card-select-check { position: absolute; top: -9px; right: -9px; width: 26px; height: 26px; border-radius: 50%;
+            background: rgba(255,255,255,0.96); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+            border: 2px solid rgba(15,23,42,0.18); display: flex; align-items: center; justify-content: center;
+            color: transparent; box-shadow: 0 6px 16px rgba(0,0,0,0.22), 0 0 0 4px rgba(255,255,255,0.5); z-index: 10; }
+        .cal-card-select-check svg { width: 14px; height: 14px; stroke-width: 2.8; }
         .cal-card-selected { box-shadow: 0 0 0 3px #2563eb; }
-        .cal-card-selected .cal-card-select-check { background: #2563eb; border-color: #2563eb; color: #fff; }
+        .cal-card-selected .cal-card-select-check { background: #2563eb; border-color: #fff; color: #fff;
+            box-shadow: 0 6px 16px rgba(37,99,235,0.42), 0 0 0 3px #fff; }
         .cal-select-bar { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 80;
             display: flex; align-items: center; gap: 12px; padding: 9px 11px 9px 18px; background: var(--text-primary);
             border-radius: 13px; box-shadow: 0 10px 30px rgba(0,0,0,0.32); }
@@ -1786,9 +1793,23 @@
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: rgba(255,255,255,0.16); color: #fff; }
         .cal-select-cancel:hover { background: rgba(255,255,255,0.26); }
-        .cal-refreshing { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem;
-            font-weight: 600; color: var(--text-muted); }
-        .cal-refreshing[hidden] { display: none; }
+        /* Floating glass pill that slides in from the top of the calendar
+           view. position:absolute keeps it out of the toolbar flow so its
+           appearance/disappearance no longer shifts the Share / Select /
+           kebab buttons sideways every few seconds. We override the
+           [hidden] attribute to keep the element in flow (so the slide
+           animation works), driving visibility via opacity + transform. */
+        .cal-refreshing { position: absolute; top: 14px; left: 50%; z-index: 40;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 6px 14px; background: rgba(255,255,255,0.92);
+            -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+            border: 1px solid rgba(0,0,0,0.08); border-radius: 99px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+            font-size: 0.74rem; font-weight: 600; color: var(--text-secondary);
+            opacity: 0; transform: translate(-50%, -140%); pointer-events: none;
+            transition: opacity 0.22s ease-out, transform 0.22s ease-out; }
+        .cal-refreshing:not([hidden]) { opacity: 1; transform: translate(-50%, 0); }
+        .cal-refreshing[hidden] { display: inline-flex; }
         .cal-refresh-spin { width: 11px; height: 11px; border: 2px solid var(--border);
             border-top-color: var(--text-muted); border-radius: 50%; animation: cal-spin 0.7s linear infinite; }
         @keyframes cal-spin { to { transform: rotate(360deg); } }
@@ -2416,10 +2437,11 @@
         .cal-prompt-btn.is-primary:hover { opacity: 0.9; background: var(--text-primary); }
         .cal-prompt-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-        .cal-bulk-cap-bar { display: none; position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,0.22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; }
-        .cal-bulk-cap-bar.is-active { display: inline-flex; }
+        .cal-bulk-cap-bar { position: fixed; bottom: 24px; right: 24px; z-index: 320; background: var(--text-primary); color: var(--white); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 26px rgba(0,0,0,0.22); font-size: 0.82rem; font-weight: 700; display: inline-flex; align-items: center; gap: 10px; visibility: hidden; opacity: 0; transform: translateY(10px); pointer-events: none; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0.2s; }
+        .cal-bulk-cap-bar.is-active { visibility: visible; opacity: 1; transform: none; pointer-events: auto; transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s linear 0s; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel { background: rgba(255,255,255,0.15); color: var(--white); border: none; border-radius: 7px; padding: 4px 9px; font-family: inherit; font-size: 0.72rem; font-weight: 700; cursor: pointer; }
         .cal-bulk-cap-bar .cal-bulk-cap-cancel:hover { background: rgba(255,255,255,0.25); }
+        .cal-bulk-cap-bar .cal-bulk-cap-spin { display: inline-block; width: 12px; height: 12px; border: 1.8px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: cal-cap-spin 0.9s linear infinite; }
 
         /* ── Kasper review tab (hidden, unlocked via ?Kasper=1) ───────── */
         .kasper-wrap { max-width: 1100px; margin: 0 auto; }
@@ -12366,16 +12388,9 @@
             _calCaptionInFlight.delete(pid);
             const stillExists = calState.posts.find(p => p.id === pid);
             if (stillExists) _calSetCaptionBusy(pid, false);
-            if (ownsBar) {
-                // Hand the bar a moment so the SMM can read the final state
-                // before it slides out.
-                const run = _calBulkCaptionRun;
-                setTimeout(() => {
-                    const bar = document.getElementById('calBulkCapBar');
-                    if (bar) bar.classList.remove('is-active');
-                    if (_calBulkCaptionRun === run) _calBulkCaptionRun = null;
-                }, 1500);
-            }
+            // No explicit hide here — _calUpdateBulkCaptionBar above
+            // schedules the auto-hide + run slot release when it sees
+            // !inProgress on the run we just completed.
         }
     }
     async function _calBulkGenerateCaptions() {
@@ -12416,15 +12431,17 @@
             if (res && res.ok) run.ok += 1; else run.failed += 1;
             _calUpdateBulkCaptionBar();
         }
-        _calBulkCaptionRun = null;
+        // Final update on the bar — _calUpdateBulkCaptionBar will see
+        // !inProgress and schedule the auto-hide. We deliberately don't
+        // null _calBulkCaptionRun here so the bar can render its final
+        // state during the fade; the auto-hide callback releases it.
+        _calUpdateBulkCaptionBar();
         const summary = run.cancelled
             ? 'Cancelled after ' + run.done + ' of ' + run.total + '. ' + run.ok + ' generated, ' + run.failed + ' failed.'
             : run.ok + ' caption' + (run.ok === 1 ? '' : 's') + ' generated' +
                 (run.failed ? ', ' + run.failed + ' failed' : '') +
                 (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
         showNotify(run.ok ? 'Done' : 'Generation failed', summary);
-        const bar = document.getElementById('calBulkCapBar');
-        setTimeout(() => { if (bar) bar.classList.remove('is-active'); }, 1500);
     }
     function _calCancelBulkCaption() {
         if (_calBulkCaptionRun) _calBulkCaptionRun.cancelled = true;
@@ -12432,20 +12449,49 @@
     /* Single source of truth for the floating bottom-right progress
        chip. Both single-card and bulk caption generation push state
        into _calBulkCaptionRun and call this — keeps the affordance
-       consistent: same shape, same wording, same place. */
+       consistent: same shape, same wording, same place.
+
+       Cancel button is shown ONLY while a multi-card run is still in
+       progress (it has no effect once the loop is done). On completion
+       the bar auto-dismisses after 2 s so it doesn't linger forever. */
+    let _calBulkCapAutoHide = null;
     function _calUpdateBulkCaptionBar() {
         const run = _calBulkCaptionRun;
         const bar = _calEnsureBulkCaptionBar();
         if (!run) { bar.classList.remove('is-active'); return; }
         bar.classList.add('is-active');
         const inFlight = run.total - run.done;
-        const txt = run.total === 1
-            ? (inFlight > 0 ? 'Generating caption…' : (run.ok ? 'Caption generated' : 'Generation failed'))
-            : ('Generating captions: ' + run.done + ' / ' + run.total + (run.failed ? '  (' + run.failed + ' failed)' : ''));
+        const inProgress = inFlight > 0 && !run.cancelled;
+        const spin = '<span class="cal-bulk-cap-spin"></span>';
+        let txt;
+        if (run.total === 1) {
+            txt = inProgress
+                ? (spin + '<span>Generating caption…</span>')
+                : (run.ok ? '<span>✓ Caption generated</span>' : '<span>Generation failed</span>');
+        } else {
+            txt = (inProgress ? spin : '') +
+                '<span>Generating captions: ' + run.done + ' / ' + run.total +
+                (run.failed ? '  (' + run.failed + ' failed)' : '') + '</span>';
+        }
         const span = bar.querySelector('[data-bulk-cap-text]');
-        if (span) span.textContent = txt;
+        if (span) span.innerHTML = txt;
         const cancelBtn = bar.querySelector('.cal-bulk-cap-cancel');
-        if (cancelBtn) cancelBtn.hidden = run.total === 1;
+        if (cancelBtn) cancelBtn.hidden = run.total === 1 || !inProgress;
+        // Once everything finishes, schedule the auto-hide. Cleared on
+        // every update so a fast follow-up run doesn't get dismissed
+        // mid-progress.
+        if (_calBulkCapAutoHide) { clearTimeout(_calBulkCapAutoHide); _calBulkCapAutoHide = null; }
+        if (!inProgress) {
+            const watched = run;
+            _calBulkCapAutoHide = setTimeout(() => {
+                bar.classList.remove('is-active');
+                // Release the run slot only if a follow-up generation
+                // hasn't already replaced it — otherwise we'd null out
+                // a fresh in-flight bulk by accident.
+                if (_calBulkCaptionRun === watched) _calBulkCaptionRun = null;
+                _calBulkCapAutoHide = null;
+            }, 2000);
+        }
     }
     function _calEnsureBulkCaptionBar() {
         let bar = document.getElementById('calBulkCapBar');

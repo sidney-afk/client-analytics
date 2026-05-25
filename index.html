@@ -15395,7 +15395,11 @@
         loadingSMM: false,
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
-        historyCollapsed: false,
+        // Approved history and the Kasper-already-tweaked section both
+        // default to collapsed — they're "what I've already done" buckets
+        // that shouldn't visually compete with the live review queue.
+        historyCollapsed: true,
+        tweaksCollapsed: true,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
         lastLoaded: 0,
@@ -15505,9 +15509,11 @@
         _kasperLoadReview(true);
     }
     function _kasperEnsureAutoRefresh() {
-        if (!_kasperPollTimer) {
-            _kasperPollTimer = setInterval(_kasperMaybeBackgroundRefresh, 30000);
-        }
+        // No periodic poll — visibility/focus/pageshow events are the
+        // only refresh triggers, matching the SMM calendar's behaviour.
+        // Wasting an n8n execution every 30 s while Kasper has the tab
+        // open in the background just to find nothing changed isn't
+        // worth it.
         if (!_kasperWiredVisibility) {
             document.addEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
             window.addEventListener('focus', _kasperMaybeBackgroundRefresh);
@@ -15612,10 +15618,13 @@
                 ? '' /* paint cached state right after the toolbar */
                 : `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`}</div>`;
         if (hasCached) _kasperPaintReview();
-        // Always re-validate from the source of truth in the background.
-        // When cached data is on screen, the load doesn't wipe the body —
-        // it just spins the refresh button until the new data lands.
-        _kasperLoadReview(false);
+        // Always force-refresh on entry. The 5-minute per-client cache
+        // is fine for in-session navigation but on the initial Kasper
+        // page load — exactly when an SMM has likely been making
+        // changes elsewhere — we want fresh sheet data, not whatever
+        // was cached during a previous session. The pill shows during
+        // the fetch so the SMM/Kasper can see what's happening.
+        _kasperLoadReview(true);
     }
 
     async function _kasperLoadReview(forceRefresh) {
@@ -15918,23 +15927,75 @@
         return merged;
     }
 
+    /* Split the queue into two buckets:
+         • Waiting — at least one component is still at Kasper Approval
+           (Kasper needs to make a call).
+         • Tweaks pending — no component at Kasper Approval, but at
+           least one component sits at Tweaks Needed with an unresolved
+           Kasper tweak (Kasper has already commented; ball is in the
+           SMM's court, but he might want to add follow-up tweaks before
+           hitting Done reviewing).
+       The count chip at the top reflects only the Waiting bucket — that's
+       what "needs your attention right now" means. */
+    function _kasperPartitionItems(items) {
+        const waiting = [], tweaks = [];
+        for (const it of items) {
+            const p = it.post;
+            const hasKA = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+            if (hasKA) { waiting.push(it); continue; }
+            const hasPendingKasperTweak = CAL_COMPONENTS.some(c => {
+                const cs = _calNormStatus(p[c + '_status'] || '');
+                return cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(p, c);
+            });
+            if (hasPendingKasperTweak) tweaks.push(it);
+            // else: item is neither Waiting nor Tweaks (e.g. SMM moved
+            // past Kasper) — already filtered out by the fetch, defensive.
+        }
+        return { waiting, tweaks };
+    }
+
     function _kasperPaintReview() {
         const body = document.getElementById('kasperReviewBody');
         const count = document.getElementById('kasperReviewCount');
         if (!body) return;
-        const items = _kasperState.items;
-        if (count) count.textContent = String(items.length);
+        const { waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
+        if (count) count.textContent = String(waiting.length);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
-        if (tabCount) tabCount.textContent = String(items.length);
-        const queueHtml = items.length
-            ? `<div class="kasper-list" id="kasperReviewList">${items.map(_kasperRenderCard).join('')}</div>`
+        if (tabCount) tabCount.textContent = String(waiting.length);
+        const waitingHtml = waiting.length
+            ? `<div class="kasper-list" id="kasperReviewList">${waiting.map(_kasperRenderCard).join('')}</div>`
             : `<div class="kasper-empty">
                 <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
                 <div class="kasper-empty-title">You're all caught up</div>
                 <div class="kasper-empty-sub">No videos are sitting on Kasper Approval right now.</div>
             </div>`;
-        body.innerHTML = queueHtml + _kasperRenderHistorySection();
+        body.innerHTML = waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
     }
+
+    /* Cards Kasper has already tweaked but hasn't hit Done reviewing on
+       yet. Shares the same collapsible chrome as the Approved history
+       section. Hidden entirely when the bucket is empty so the page
+       doesn't carry empty headers. */
+    function _kasperRenderTweaksSection(tweaks) {
+        if (!tweaks.length) return '';
+        const collapsedCls = _kasperState.tweaksCollapsed ? ' collapsed' : '';
+        const cards = tweaks.map(_kasperRenderCard).join('');
+        return `<div class="kasper-history-wrap${collapsedCls}" id="kasperTweaksWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleTweaks()">
+                <span class="kasper-history-title">Tweaks pending</span>
+                <span class="kasper-history-count">${tweaks.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${cards}</div></div>
+        </div>`;
+    }
+
+    function _kasperToggleTweaks() {
+        _kasperState.tweaksCollapsed = !_kasperState.tweaksCollapsed;
+        const wrap = document.getElementById('kasperTweaksWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.tweaksCollapsed);
+    }
+    window._kasperToggleTweaks = _kasperToggleTweaks;
 
     function _kasperHistoryDayKey(iso) {
         const t = Date.parse(iso || '');

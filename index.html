@@ -12915,14 +12915,17 @@
 
     function _calReviewCardBody(p) {
         const escId = _calEscAttr(p.id);
-        // Client only sees panels for the components currently waiting on
-        // their approval. After they approve/tweak a panel, that component
-        // flips state and falls out of the filter — the card auto-removes
-        // once no component remains at Client Approval (handled by the
-        // _calReviewItems filter on the next render). Mirrors the Kasper
-        // review approach so the per-component idea is consistent.
+        // Client sees panels for components waiting on her approval AND
+        // for components where she's already left tweaks — that second
+        // case keeps the compose box around so she can pile on follow-up
+        // tweaks instead of being locked out after the first submit. The
+        // card only auto-removes once every component has reached
+        // Approved (handled by _calReviewItems on the next render).
         const activeComps = _isClientLink
-            ? CAL_COMPONENTS.filter(c => _calNormStatus(p[c + '_status'] || '') === 'Client Approval')
+            ? CAL_COMPONENTS.filter(c => {
+                const cs = _calNormStatus(p[c + '_status'] || '');
+                return cs === 'Client Approval' || cs === 'Tweaks Needed';
+              })
             : CAL_COMPONENTS;
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;

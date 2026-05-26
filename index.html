@@ -14310,14 +14310,14 @@
         if (mode === 'video' || mode === 'both') fetch(VIDEO_FORM_WEBHOOK, sendOptions).catch(() => {});
         if (mode === 'thumbnail' || mode === 'both') fetch(GRAPHIC_FORM_WEBHOOK, sendOptions).catch(() => {});
 
-        // Write the video cards to the client's calendar directly. The Linear
+        // Write the cards to the client's calendar directly. The Linear
         // webhook (linear-status-sync) used to do this on the backend, but
         // 12 concurrent Sheets writes from the burst dropped most rows.
         // Sequential frontend writes land reliably; runs in the background
         // so we don't block the navigation back to the Linear list.
-        if (mode === 'video' || mode === 'both') {
-            _writeLinearVideoCardsToCalendar(client, videos, title, { mode }).catch(e => console.warn('[SyncView] Background calendar write failed:', e));
-        }
+        // The helper is mode-aware (wantVideo/wantGraphic) so graphic-only
+        // submissions still get calendar rows linked to the GRA sub-issues.
+        _writeLinearVideoCardsToCalendar(client, videos, title, { mode }).catch(e => console.warn('[SyncView] Background calendar write failed:', e));
 
         localStorage.removeItem(LINEAR_FORM_KEY);
         localStorage.removeItem(LAST_LINK_KEY);

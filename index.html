@@ -16121,7 +16121,7 @@
         // change — the tweaks are already in flight.
         const hasUnresolvedKasperTweak = _calPostHasUnresolvedKasperTweak(p);
         const doneBtn = hasUnresolvedKasperTweak
-            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Close this card — removes it from your queue (tweaks are already sent)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
+            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as done. Components you haven't tweaked get implicit approval; the card moves to Tweaks pending until the SMM resolves your tweaks."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
             : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
@@ -16526,13 +16526,65 @@
        the local queue without changing any status. Used when his decision
        was a series of tweaks (already submitted as comments) and the work
        belongs back with the editor/SMM. */
-    function _kasperDismiss(pid) {
-        const idx = _kasperState.items.findIndex(x => x.post.id === pid);
-        if (idx < 0) return;
+    /* Done reviewing — Kasper's "I'm finished with this card" action.
+       Any component still at Kasper Approval (he didn't tweak it, he
+       didn't explicitly approve it) is treated as implicit approval
+       on his way out, then we re-render. Components he already tweaked
+       are already at Tweaks Needed with unresolved Kasper comments,
+       so the partition logic naturally moves the card into the
+       Tweaks pending section. If he has no tweaks at all (everything
+       turned out to be implicitly approved), the card moves to history
+       just like a normal full-approve flow. */
+    async function _kasperDismiss(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        const saving = item._saving || (item._saving = { video: false, graphic: false, caption: false });
+        if (saving.video || saving.graphic || saving.caption) return;
         _kasperInvalidateInFlightLoad();
-        _kasperState.items.splice(idx, 1);
-        _kasperPersistCache();
-        _kasperRemoveItem(pid);
+        const post = item.post;
+        const prev = {};
+        const stamp = new Date().toISOString();
+        let touched = false;
+        CAL_COMPONENTS.forEach(c => {
+            const cs = _calNormStatus(post[c + '_status'] || '');
+            if (cs !== 'Kasper Approval') return;
+            prev[c + '_status'] = post[c + '_status'];
+            post[c + '_status'] = 'Client Approval';
+            touched = true;
+        });
+        if (touched) {
+            prev.status = post.status;
+            prev.kasper_approved_at = post.kasper_approved_at;
+            post.kasper_approved_at = post.kasper_approved_at || stamp;
+            post.status = computeOverallStatus(post);
+            // Use the video flag as a generic "card is saving" lock.
+            saving.video = true;
+            _kasperRepaintCard(pid);
+            try {
+                await _kasperPersistPost(item);
+            } catch (e) {
+                Object.assign(post, prev);
+                saving.video = false;
+                _kasperRepaintCard(pid);
+                return;
+            }
+            saving.video = false;
+        }
+        const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        const stillHasTweaks = _calPostHasUnresolvedKasperTweak(post);
+        if (!stillKasper && !stillHasTweaks) {
+            const finalStamp = post.kasper_approved_at || new Date().toISOString();
+            const entry = _kasperHistoryEntryFromPost(post, item.client, item.slug, finalStamp);
+            _kasperRecordHistory(entry);
+            _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
+            _kasperRemoveItem(pid);
+        } else {
+            // Card now belongs in Tweaks pending. Persist cache so it
+            // survives a refresh and re-paint to let the partition move
+            // it into the lower section.
+            _kasperPersistCache();
+            _kasperPaintReview();
+        }
     }
 
     function _kasperRemoveItem(pid) {

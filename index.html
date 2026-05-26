@@ -2571,11 +2571,20 @@
            the thumbnail is pending Kasper. */
         .kasper-hero-poster-graphic { padding: 0; border: 0; cursor: pointer; background: linear-gradient(135deg, #1f2937, #0f172a); }
         .kasper-hero-poster-fg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-        .kasper-hero-poster-overlay-graphic { background: linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,0.55) 100%);
-            justify-content: flex-end; padding-bottom: 22px; opacity: 0; transition: opacity 0.18s; }
-        .kasper-hero-poster-graphic:hover .kasper-hero-poster-overlay-graphic { opacity: 1; }
-        .kasper-hero-play-light { background: rgba(255,255,255,0.92); color: #0f172a; border-color: rgba(255,255,255,0.5); }
-        .kasper-hero-poster-graphic:hover .kasper-hero-play-light { background: #fff; }
+        /* Subtle "open full size" affordance for the thumbnail hero: a
+           small glass chip in the top-right corner of the poster instead
+           of the centred white circle that was covering image content.
+           Resting at half-opacity, fully visible on hover. */
+        .kasper-hero-zoom-chip { position: absolute; top: 12px; right: 12px;
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 34px; height: 34px; border-radius: 50%;
+            background: rgba(15,23,42,0.55); color: #fff;
+            border: 1px solid rgba(255,255,255,0.18);
+            -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+            box-shadow: 0 4px 14px rgba(0,0,0,0.28);
+            opacity: 0.7; transition: opacity 0.18s, transform 0.18s, background 0.18s; }
+        .kasper-hero-poster-graphic:hover .kasper-hero-zoom-chip { opacity: 1; transform: scale(1.08); background: rgba(15,23,42,0.8); }
+        .kasper-hero-zoom-chip svg { width: 15px; height: 15px; }
         /* Caption hero: read-first card. Generous padding, slightly serif-y
            reading line-height, gentle gradient ground so it doesn't feel
            sterile in the otherwise media-heavy hero row. */
@@ -16200,7 +16209,7 @@
             if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
             const imgUrl = _calDeriveThumb(p) || raw;
             const escPid = _calEscAttr(p.id);
-            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-poster-overlay kasper-hero-poster-overlay-graphic"><span class="kasper-hero-play kasper-hero-play-light">${zoomIco}</span><span class="kasper-hero-play-label">Open full size</span></span></button>`;
+            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
         }
         // caption
         const cap = String(p.caption || '').trim();

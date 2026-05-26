@@ -2785,6 +2785,10 @@
         .kasper-lightbox-close:hover { background: rgba(255,255,255,0.22); }
         /* History section */
         .kasper-history-wrap { margin-top: 36px; padding-top: 22px; border-top: 1px dashed var(--border); }
+        /* Waiting section is the first bucket on the page — it doesn't
+           need a top divider since there's nothing above it but the
+           toolbar / refresh pill. */
+        .kasper-waiting-wrap { margin-top: 4px; padding-top: 0; border-top: 0; }
         .kasper-history-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; cursor: pointer; user-select: none; }
         .kasper-history-title { font-size: 0.84rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .kasper-history-count { font-size: 0.68rem; font-weight: 700; background: var(--border-light); color: var(--text-secondary); padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -8755,6 +8759,27 @@
         if (Array.isArray(post.video_comments)) return post.video_comments;
         return Array.isArray(post.comments) ? post.comments : [];
     }
+    /* Render-side wrapper: same data as _calCommentsFor, but in the
+       client-link view we filter out role='kasper' comments (and any
+       replies to them) so the client never sees internal Kasper review
+       chatter. Save/update code paths keep using _calCommentsFor with
+       the full list — we never *drop* Kasper comments from the row,
+       just hide them from this one audience. */
+    function _calCommentsForView(post, comp) {
+        const list = _calCommentsFor(post, comp);
+        if (!_isClientLink) return list;
+        if (!Array.isArray(list)) return [];
+        const kasperIds = new Set();
+        for (const c of list) {
+            if (c && c.role === 'kasper' && c.id) kasperIds.add(c.id);
+        }
+        return list.filter(c => {
+            if (!c) return false;
+            if (c.role === 'kasper') return false;
+            if (c.parent_id && kasperIds.has(c.parent_id)) return false;
+            return true;
+        });
+    }
     function _calSetCommentsFor(post, comp, arr) {
         if (!post) return;
         const list = Array.isArray(arr) ? arr : [];
@@ -10667,13 +10692,21 @@
                 const recentSave = _calLocalRecentSaves.get(fp.id);
                 if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
                     _calLocalRecentSaves.delete(fp.id);
+                    // recentSave now considered expired below.
                 }
-                // Last-write-wins: keep local if its updated_at is newer
-                // than the server's. The conflict toast we used to show
-                // here is gone — it fired even when the "other editor"
-                // was the same SMM cross-tabbing between calendar and
-                // client-review on the same row, which is normal and
-                // not actually a conflict.
+                const stillRecent = _calLocalRecentSaves.has(fp.id);
+                // Recent-save protection. Within CAL_CONFLICT_WINDOW_MS
+                // of a successful local upsert, prefer the local copy
+                // unconditionally — even if the server's updated_at is
+                // numerically newer. This guards against the Linear
+                // status-sync workflow round-tripping our just-set
+                // sub-status back to whatever Linear's state currently
+                // is (which can be stale by a few seconds and would
+                // otherwise flicker a freshly-approved component back
+                // to Client Approval).
+                if (stillRecent) return lp;
+                // Last-write-wins fallback: keep local if its
+                // updated_at is newer than the server's.
                 if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
                 return fp;
             });
@@ -13062,7 +13095,9 @@
         const state = subStatus === 'Approved' ? 'approved'
                     : (subStatus === 'Tweaks Needed' ? 'tweaks'
                     : (subStatus === 'Posted' ? 'posted' : 'pending'));
-        const comments = _calCommentsFor(p, comp);
+        // _calCommentsForView hides Kasper-role tweaks from the client-link
+        // surface; SMM/Kasper sessions still see everything.
+        const comments = _calCommentsForView(p, comp);
         const linUrl = _calLinearUrlFor(p, comp);
         // Linear is internal-only — never expose it on the client review
         // surface (they don't have a Linear account and shouldn't know the
@@ -13473,11 +13508,14 @@
         if (!post) return [];
         const lists = [];
         for (const c of CAL_COMPONENTS) {
-            const list = _calCommentsFor(post, c);
+            // Use the view-filtered reader so the client's "Tweaks" badge
+            // / open-comment count doesn't include Kasper-only entries.
+            const list = _calCommentsForView(post, c);
             if (Array.isArray(list) && list.length) lists.push(list);
         }
         if (!lists.length && Array.isArray(post.comments) && post.comments.length) {
-            lists.push(post.comments);
+            const seed = _isClientLink ? post.comments.filter(c => c && c.role !== 'kasper') : post.comments;
+            if (seed.length) lists.push(seed);
         }
         return lists;
     }
@@ -13611,11 +13649,10 @@
         // Build a per-component view: each component contributes its own
         // thread set, tagged so the SMM can see (and reply to / resolve)
         // tweak requests from the client across video, thumbnail, and caption
-        // in one feed.
+        // in one feed. _calCommentsForView strips Kasper-role entries when
+        // the viewer is on the client-link surface.
         const compThreads = CAL_COMPONENTS.flatMap(c => {
-            const list = c === 'video'
-                ? videoComments
-                : _calCommentsFor(post, c);
+            const list = _calCommentsForView(post, c);
             if (!Array.isArray(list) || !list.length) return [];
             return _calCommentRoots(list).map(r => ({ comp: c, list, root: r }));
         });
@@ -13944,6 +13981,18 @@
             wrap.setAttribute('data-val', post.status);
             const lbl = wrap.querySelector('.cal-fld-status-label');
             if (lbl) lbl.textContent = _calStatusLabel(post.status);
+        }
+        // If the overall status is no longer Client Approval (e.g. the
+        // client just added a tweak and the auto-status flipped a sub
+        // to Tweaks Needed, which dropped overall out of Client Approval)
+        // the green "Approve post" bar still hanging in the card body is
+        // misleading. Remove it in place so the client can't approve a
+        // card they've just requested changes on. It'll come back on
+        // next full re-render if status returns to Client Approval.
+        if (_isClientLink && post.status !== 'Client Approval') {
+            const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+            const approveBar = card && card.querySelector('.cal-approve-bar');
+            if (approveBar) approveBar.remove();
         }
         // Per-component sub-status pills — without this refresh, an auto-
         // status change from resolving the last tweak (or any in-place
@@ -15409,6 +15458,7 @@
         // that shouldn't visually compete with the live review queue.
         historyCollapsed: true,
         tweaksCollapsed: true,
+        waitingCollapsed: false,
         smmByClient: null,    // slug -> { name, slack_user_id, slack_team_id }
         error: null,
         lastLoaded: 0,
@@ -15620,9 +15670,7 @@
         const hasCached = !!_kasperState.lastLoaded;
         root.innerHTML = `
             <span class="app-refresh-pill" id="kasperReviewRefreshPill" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
-            <div class="kasper-toolbar">
-                <div class="kasper-count-chip"><span class="kasper-count-num" id="kasperReviewCount">${hasCached ? String(_kasperState.items.length) : '·'}</span><span>waiting for your review</span></div>
-            </div>
+            <span id="kasperReviewCount" hidden></span>
             <div id="kasperReviewBody">${hasCached
                 ? '' /* paint cached state right after the toolbar */
                 : `<div class="kasper-loading"><div class="spinner"></div>Pulling cards waiting on Kasper…</div>`}</div>`;
@@ -15971,13 +16019,26 @@
         if (count) count.textContent = String(waiting.length);
         const tabCount = document.querySelector('[data-kasper-count="review"]');
         if (tabCount) tabCount.textContent = String(waiting.length);
-        const waitingHtml = waiting.length
-            ? `<div class="kasper-list" id="kasperReviewList">${waiting.map(_kasperRenderCard).join('')}</div>`
+        // Waiting section uses the same collapsible-style head as Tweaks
+        // pending and Approved history so the three buckets feel like
+        // siblings rather than "the main queue plus two add-ons". Waiting
+        // defaults to open since it's where Kasper actually works.
+        const waitingCollapsedCls = _kasperState.waitingCollapsed ? ' collapsed' : '';
+        const waitingBodyHtml = waiting.length
+            ? `<div class="kasper-list">${waiting.map(_kasperRenderCard).join('')}</div>`
             : `<div class="kasper-empty">
                 <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
                 <div class="kasper-empty-title">You're all caught up</div>
                 <div class="kasper-empty-sub">No videos are sitting on Kasper Approval right now.</div>
             </div>`;
+        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${waitingCollapsedCls}" id="kasperWaitingWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleWaiting()">
+                <span class="kasper-history-title">Waiting for your review</span>
+                <span class="kasper-history-count">${waiting.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${waitingBodyHtml}</div>
+        </div>`;
         body.innerHTML = waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
     }
 
@@ -16005,6 +16066,12 @@
         if (wrap) wrap.classList.toggle('collapsed', _kasperState.tweaksCollapsed);
     }
     window._kasperToggleTweaks = _kasperToggleTweaks;
+    function _kasperToggleWaiting() {
+        _kasperState.waitingCollapsed = !_kasperState.waitingCollapsed;
+        const wrap = document.getElementById('kasperWaitingWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.waitingCollapsed);
+    }
+    window._kasperToggleWaiting = _kasperToggleWaiting;
 
     function _kasperHistoryDayKey(iso) {
         const t = Date.parse(iso || '');
@@ -16588,9 +16655,12 @@
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // Card now belongs in Tweaks pending. Persist cache so it
-            // survives a refresh and re-paint to let the partition move
-            // it into the lower section.
+            // Card now belongs in Tweaks pending. Collapse it so the
+            // sliding-down animation reads as "I'm done with this one"
+            // — leaving it expanded under a fresh card was visually
+            // chatty. Persist cache so it survives a refresh and re-
+            // paint to let the partition move it into the lower section.
+            item._expanded = false;
             _kasperPersistCache();
             _kasperPaintReview();
         }

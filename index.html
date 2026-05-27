@@ -1685,15 +1685,16 @@
         .cal-card.dragging { opacity: 0.45; }
         .cal-card.cal-card-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-card.cal-card-posted:hover { box-shadow: 0 0 0 1px #15803d, 0 4px 14px rgba(0,0,0,0.07); }
-        /* Platform strip — subtle row of icons above the thumbnail. Each
-           icon is muted by default; click colours it in to mark that the
-           post is going to that platform. */
-        .cal-card-platforms { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 7px 36px 0; flex-wrap: wrap; }
-        .cal-card-platform-btn { width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: #c5c5c2; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: color 0.12s, background 0.12s, transform 0.08s; }
-        .cal-card-platform-btn svg { width: 13px; height: 13px; display: block; }
-        .cal-card-platform-btn:hover:not(:disabled) { color: var(--text-secondary); background: var(--bg); }
-        .cal-card-platform-btn.is-active { color: #fff !important; }
-        .cal-card-platform-btn.is-active:hover { transform: scale(1.06); background: inherit; }
+        /* Platform overlay — vertical column floating inside the thumbnail
+           tub, anchored bottom-left. Sits over the gradient padding so it
+           doesn't change the card's height or width. Muted by default;
+           click colours an icon in to mark the post is going there. */
+        .cal-card-platforms { position: absolute; left: 8px; top: 38px; z-index: 3; display: flex; flex-direction: column; gap: 3px; padding: 0; }
+        .cal-card-platform-btn { width: 20px; height: 20px; border-radius: 50%; border: 0; background: rgba(255,255,255,0.78); box-shadow: 0 1px 3px rgba(0,0,0,0.18); color: #555; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: color 0.12s, background 0.12s, transform 0.08s, opacity 0.12s; opacity: 0.78; }
+        .cal-card-platform-btn svg { width: 12px; height: 12px; display: block; }
+        .cal-card-platform-btn:hover:not(:disabled) { color: var(--text-primary); opacity: 1; }
+        .cal-card-platform-btn.is-active { color: #fff !important; opacity: 1; box-shadow: 0 1px 4px rgba(0,0,0,0.28); }
+        .cal-card-platform-btn.is-active:hover { transform: scale(1.08); }
         .cal-card-platform-btn:disabled { cursor: default; }
         .cal-card-platform-btn.is-active[data-platform="instagram"] { background: #e4405f; }
         .cal-card-platform-btn.is-active[data-platform="tiktok"]    { background: #000; }
@@ -1703,6 +1704,32 @@
         .cal-card-platform-btn.is-active[data-platform="x"]         { background: #000; }
         .cal-card-platform-btn.is-active[data-platform="threads"]   { background: #000; }
         .cal-card-platform-btn.is-active[data-platform="pinterest"] { background: #e60023; }
+        /* Color tag — small circle anchored to the bottom-left of the thumb.
+           Click opens a tiny picker with four colors + a clear option. The
+           same color is then surfaced as a vertical stripe on month/week
+           pills, so a batch reads at a glance. */
+        .cal-card-color-tag { position: absolute; left: 8px; bottom: 8px; z-index: 3; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(255,255,255,0.78); box-shadow: 0 1px 3px rgba(0,0,0,0.18); cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; opacity: 0.85; transition: opacity 0.12s, transform 0.08s; }
+        .cal-card-color-tag:hover { opacity: 1; transform: scale(1.06); }
+        .cal-card-color-tag-dot { width: 11px; height: 11px; border-radius: 50%; background: #d1d1d1; box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px rgba(0,0,0,0.08); }
+        .cal-card-color-tag[data-color="red"]      .cal-card-color-tag-dot { background: #ef4444; }
+        .cal-card-color-tag[data-color="amber"]    .cal-card-color-tag-dot { background: #f59e0b; }
+        .cal-card-color-tag[data-color="emerald"]  .cal-card-color-tag-dot { background: #10b981; }
+        .cal-card-color-tag[data-color="indigo"]   .cal-card-color-tag-dot { background: #6366f1; }
+        .cal-card-color-tag.has-color { opacity: 1; }
+        .cal-card-color-picker { position: absolute; left: 8px; bottom: 36px; z-index: 5; background: var(--white); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: flex; flex-direction: row; gap: 5px; }
+        .cal-card-color-pick { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1); cursor: pointer; padding: 0; transition: transform 0.08s; }
+        .cal-card-color-pick:hover { transform: scale(1.12); }
+        .cal-card-color-pick.is-clear { background: var(--bg); position: relative; }
+        .cal-card-color-pick.is-clear::after { content: ''; position: absolute; left: 3px; right: 3px; top: 50%; height: 1.5px; background: var(--text-secondary); transform: translateY(-50%) rotate(-45deg); }
+        /* Month/week pills get a 4-px colored left stripe via a pseudo so the
+           pill's content layout doesn't shift. */
+        .cal-month-pill[data-color], .cal-week-card[data-color] { position: relative; }
+        .cal-month-pill[data-color]::before,
+        .cal-week-card[data-color]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 1; pointer-events: none; }
+        .cal-month-pill[data-color="red"]::before,     .cal-week-card[data-color="red"]::before     { background: #ef4444; }
+        .cal-month-pill[data-color="amber"]::before,   .cal-week-card[data-color="amber"]::before   { background: #f59e0b; }
+        .cal-month-pill[data-color="emerald"]::before, .cal-week-card[data-color="emerald"]::before { background: #10b981; }
+        .cal-month-pill[data-color="indigo"]::before,  .cal-week-card[data-color="indigo"]::before  { background: #6366f1; }
         /* Edit platforms modal — reuses the import modal chrome */
         .cal-platforms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
         .cal-platforms-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s; }
@@ -8892,6 +8919,72 @@
         if (!raw) return [];
         return raw.split(',').map(s => s.trim().toLowerCase()).filter(k => CAL_PLATFORM_BY_KEY[k]);
     }
+    /* Per-card color tag — for grouping into batches. Four named colors plus
+       the empty "no color" state. Persisted as post.color via the upsert. */
+    const CAL_COLORS = ['red', 'amber', 'emerald', 'indigo'];
+    const CAL_COLOR_HEX = { red: '#ef4444', amber: '#f59e0b', emerald: '#10b981', indigo: '#6366f1' };
+    function _calPostColor(post) {
+        const c = String((post && post.color) || '').toLowerCase();
+        return CAL_COLORS.includes(c) ? c : '';
+    }
+    function _calColorTagHtml(post, ro) {
+        const color = _calPostColor(post);
+        const pid = _calEscAttr(post.id);
+        if (ro) {
+            // Read-only: only render the dot when a color is set.
+            if (!color) return '';
+            return `<div class="cal-card-color-tag has-color" data-color="${color}" aria-label="Tagged ${color}"><span class="cal-card-color-tag-dot"></span></div>`;
+        }
+        return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;
+    }
+    let _calColorPickerOpenFor = null;
+    function _calOpenColorPicker(e, pid) {
+        if (e) e.stopPropagation();
+        if (_calColorPickerOpenFor === pid) { _calCloseColorPicker(); return; }
+        _calCloseColorPicker();
+        const thumb = document.querySelector(`.cal-card[data-pid="${pid}"] .cal-card-thumb`);
+        if (!thumb) return;
+        const picker = document.createElement('div');
+        picker.className = 'cal-card-color-picker is-open';
+        picker.dataset.colorPickerPid = pid;
+        picker.innerHTML = `
+            <button type="button" class="cal-card-color-pick is-clear" data-color="" title="No color" onclick="_calSetCardColor(event,'${pid}','')"></button>
+            ${CAL_COLORS.map(c => `<button type="button" class="cal-card-color-pick" data-color="${c}" style="background:${CAL_COLOR_HEX[c]}" title="${c}" onclick="_calSetCardColor(event,'${pid}','${c}')"></button>`).join('')}`;
+        thumb.appendChild(picker);
+        _calColorPickerOpenFor = pid;
+        setTimeout(() => { document.addEventListener('click', _calMaybeCloseColorPicker, { capture: true }); }, 0);
+    }
+    function _calMaybeCloseColorPicker(e) {
+        if (e.target.closest('.cal-card-color-picker')) return;
+        if (e.target.closest('.cal-card-color-tag')) return;
+        _calCloseColorPicker();
+    }
+    function _calCloseColorPicker() {
+        document.querySelectorAll('.cal-card-color-picker').forEach(p => p.remove());
+        document.removeEventListener('click', _calMaybeCloseColorPicker, { capture: true });
+        _calColorPickerOpenFor = null;
+    }
+    function _calSetCardColor(e, pid, color) {
+        if (e) e.stopPropagation();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        post.color = String(color || '');
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].color = post.color;
+        // Reflect on every dot for this post (thumb, month, week) without a
+        // full re-render so the change feels instant.
+        document.querySelectorAll(`.cal-card[data-pid="${pid}"] .cal-card-color-tag`).forEach(tag => {
+            if (post.color) { tag.classList.add('has-color'); tag.dataset.color = post.color; }
+            else { tag.classList.remove('has-color'); tag.removeAttribute('data-color'); }
+        });
+        document.querySelectorAll(`.cal-month-pill[data-cal-move="${pid}"], .cal-week-card[data-cal-move="${pid}"]`).forEach(pill => {
+            if (post.color) pill.setAttribute('data-color', post.color);
+            else pill.removeAttribute('data-color');
+        });
+        _calCloseColorPicker();
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, 200);
+    }
     function _calPlatformsStripHtml(post, ro) {
         const slug = calClientSlug(calState.client);
         const enabled = _calEnabledPlatforms(slug);
@@ -9522,6 +9615,7 @@
     function _calMapLinearStatus(name) {
         const s = String(name || '').trim().toLowerCase();
         if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
         if (s === 'approved') return 'Approved';
         if (s.includes('smm')) return 'For SMM Approval';
         if (s.includes('kasper')) return 'Kasper Approval';
@@ -9536,6 +9630,7 @@
         const s = String(name || '').trim().toLowerCase();
         if (!s) return null;
         if (s.includes('tweak')) return 'Tweaks Needed';
+        if (s.includes('scheduled')) return 'Scheduled';
         if (s === 'approved') return 'Approved';
         if (s.includes('smm')) return 'For SMM Approval';
         if (s.includes('kasper')) return 'Kasper Approval';
@@ -9637,10 +9732,11 @@
     function _calPushStatusToLinear(issueUrl, status) {
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
-        // Linear has no Scheduled state — leave the sub-issue at Approved
-        // when the calendar moves to Scheduled. Posted is similarly skipped.
+        // Posted has no Linear state — calendar holds it on its own.
+        // Scheduled used to be calendar-only too but the SMM added a
+        // matching Linear state, so it now pushes through normally.
         const lower = st.toLowerCase();
-        if (!url || !st || lower === 'posted' || lower === 'scheduled') return;
+        if (!url || !st || lower === 'posted') return;
         const payload = { issue: url, status: st };
         (async () => {
             try {
@@ -9706,9 +9802,10 @@
         const subKey = which + '_status';
         const current = _calNormStatus(post[subKey] || '');
         if (current === mapped) return;
-        // Scheduled and Posted are downstream states of Approved (Linear
-        // has no equivalent and stays at Approved) — don't bounce back.
-        if (mapped === 'Approved' && (current === 'Posted' || current === 'Scheduled')) return;
+        // Posted has no Linear equivalent (Linear stays at Approved) — don't
+        // bounce a Posted card back to Approved. Scheduled now has a Linear
+        // state and flows normally.
+        if (mapped === 'Approved' && current === 'Posted') return;
         post[subKey] = mapped;
         post.status = computeOverallStatus(post);
         _calNoLinearPush.add(pid);
@@ -9779,7 +9876,7 @@
                 const linState = statuses[vM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.video_status || '') !== mapped
-                    && !(mapped === 'Approved' && (post.video_status === 'Posted' || post.video_status === 'Scheduled'))) {
+                    && !(mapped === 'Approved' && post.video_status === 'Posted')) {
                     post.video_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].video_status = mapped;
@@ -9791,7 +9888,7 @@
                 const linState = statuses[gM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
-                    && !(mapped === 'Approved' && (post.graphic_status === 'Posted' || post.graphic_status === 'Scheduled'))) {
+                    && !(mapped === 'Approved' && post.graphic_status === 'Posted')) {
                     post.graphic_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].graphic_status = mapped;
@@ -10558,7 +10655,7 @@
             <div class="cal-import-head">
                 <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
                 <h3>Match the columns</h3>
-                <p>Matches were guessed from your column names — adjust anything that's off. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
+                <p>Matches were guessed from your column names — adjust anything that's off. Only <strong>Post name</strong> is required (red *); everything else can be left as <em>— none —</em> or unchecked to skip. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
             </div>
             <div class="cal-import-body">
                 <div class="cal-import-info">${_calImportRows.length} post${_calImportRows.length!==1?'s':''} found — read ${_calImportLayout === 'columns' ? 'one per column (field names down the side)' : 'one per row (field names across the top)'}. Posts with an empty name are skipped.</div>
@@ -11424,6 +11521,29 @@
                 e.dataTransfer.effectAllowed = 'move';
                 try { e.dataTransfer.setData('text/plain', _calDayDragId); } catch {}
                 document.addEventListener('dragover', _calOnDocDragOver);
+                // Force a deterministic drag image — the default snapshot of
+                // the pill can come out stretched / weird-height in browsers
+                // that don't honour `aspect-ratio` during drag-image capture
+                // (the thumbnail's intrinsic portrait dimensions take over).
+                // Cloning into the offscreen DOM at the pill's measured size
+                // sidesteps that.
+                try {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width && rect.height) {
+                        const clone = el.cloneNode(true);
+                        clone.style.position = 'absolute';
+                        clone.style.top = '-10000px';
+                        clone.style.left = '-10000px';
+                        clone.style.width = rect.width + 'px';
+                        clone.style.height = rect.height + 'px';
+                        clone.style.margin = '0';
+                        clone.style.pointerEvents = 'none';
+                        clone.style.opacity = '0.92';
+                        document.body.appendChild(clone);
+                        e.dataTransfer.setDragImage(clone, rect.width / 2, rect.height / 2);
+                        setTimeout(() => { if (clone.parentNode) clone.parentNode.removeChild(clone); }, 0);
+                    }
+                } catch {}
             });
             el.addEventListener('dragend', () => {
                 el.classList.remove('cal-card-dragging');
@@ -11825,8 +11945,7 @@
             ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
-            ${_calPlatformsStripHtml(p, ro)}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, ro)}${_calColorTagHtml(p, ro)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
@@ -13086,7 +13205,9 @@
         const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
         const ribbonComp = _calTweakRibbonComp(p);
         const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-        return `<button class="cal-month-pill${posted}"${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
+        const color = _calPostColor(p);
+        const colorAttr = color ? ` data-color="${color}"` : '';
+        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
     }
 
     function renderCalMonth() {
@@ -13183,7 +13304,9 @@
                                 const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
                                 const ribbonComp = _calTweakRibbonComp(p);
                                 const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-                                return `<button class="cal-week-card${posted}"${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
+                                const wColor = _calPostColor(p);
+                                const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
                             }).join('')}
                         </div>
                     </div>`;

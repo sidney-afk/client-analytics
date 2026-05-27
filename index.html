@@ -1684,8 +1684,12 @@
         .cal-card-thumb { cursor: default; }
         .cal-card-thumb img { cursor: zoom-in; }
         /* Asset stage — image floats centred on a soft gradient with room to breathe */
+        /* The thumb container is the fixed "tub" — width/height never change
+           regardless of the image's aspect ratio. Vertical/portrait videos,
+           ultrawide videos, etc. are all centered inside without stretching
+           it or the parent card. */
         .cal-card-thumb { width: 100%; height: calc(var(--cal-thumb-h, 184px) + 16px); background: linear-gradient(155deg, #f7f7f5 0%, #e7e7e3 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
-        .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; border-radius: 10px; box-shadow: 0 10px 26px rgba(0,0,0,0.20); }
+        .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; object-fit: contain; object-position: center; border-radius: 10px; box-shadow: 0 10px 26px rgba(0,0,0,0.20); }
         .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: rgba(0,0,0,0.55); color: #fff; display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.12s; cursor: pointer; }
         .cal-thumb-zoom:hover { background: rgba(0,0,0,0.78); }
         .cal-card:hover .cal-thumb-zoom { opacity: 1; }
@@ -11389,11 +11393,9 @@
         posts.forEach((p,i) => { if (String(p.status || '').toLowerCase() === 'posted') lastPostedIdx = i; });
         const currentIdx = lastPostedIdx + 1;
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        const addBtn = _isClientLink
-            ? (empty ? `<div class="cal-empty">No posts scheduled yet — check back soon.</div>` : '')
-            : (empty
-                ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>Add the first post</span></button>`
-                : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}</button>`);
+        const addBtn = empty
+            ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`
+            : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Add a card'}">${plus}</button>`;
         const isLinkAction = calState.selectAction === 'link';
         const isCaptionAction = calState.selectAction === 'caption';
         const actionBtn = isLinkAction
@@ -11490,7 +11492,7 @@
         return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
     }
     function _calLinearSlotHtml(pid, url, ro, comp) {
-        if (ro) return '';   // Linear linking is internal — never shown in the client view
+        if (ro || _isClientLink) return '';   // Linear linking is internal — never shown in the client view
         const which = comp || 'video';
         const u = String(url || '').trim();
         const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
@@ -11549,7 +11551,9 @@
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
-        const ro = _isClientLink;   // client-link view — most fields locked
+        // Client-link view locks existing posts, but blank cards the client
+        // just added stay editable so they can fill them in.
+        const ro = _isClientLink && !isBlank;
         const selectable = calState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || ro || selectable) ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
@@ -11573,7 +11577,7 @@
                     </div>`;
         const canApprove = ro && currentStatus === 'Client Approval';
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
-        const subStatusHtml = ro ? '' : CAL_COMPONENTS.map(c => {
+        const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
             // already guarantees a value, so a blank reaching this point is

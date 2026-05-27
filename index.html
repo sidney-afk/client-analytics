@@ -15085,10 +15085,12 @@
         style.id = 'tkUploadStyles';
         style.textContent = `
         .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
-        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; } .tk-right-col { grid-column: 1; grid-row: auto; padding-top: 0 !important; } .tk-preview-wrap { position: static !important; width: auto !important; right: auto !important; top: auto !important; } }
+        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; } .tk-right-col { grid-column: 1; grid-row: auto; position: static !important; max-height: none !important; overflow: visible !important; } .tk-right-col > #tkQueueCol { overflow: visible !important; } }
         .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
         .tk-form-col { grid-column: 1; grid-row: 2; }
-        .tk-right-col { grid-column: 2; grid-row: 1 / span 2; padding-top: var(--tk-preview-h, 600px); }
+        .tk-right-col { grid-column: 2; grid-row: 1 / span 2; position: sticky; top: 76px; align-self: start; max-height: calc(100vh - 92px); overflow: hidden; }
+        .tk-right-col > #tkQueueCol { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-width: none; -ms-overflow-style: none; }
+        .tk-right-col > #tkQueueCol::-webkit-scrollbar { display: none; width: 0; height: 0; }
         .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -15167,7 +15169,7 @@
         .tk-ampm-btn.active { background: #111110; color: #fff; }
         .tk-schedule-preview { margin-top: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
         .tk-schedule-preview::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
-        .tk-preview-wrap { position: fixed; top: 76px; width: 360px; right: max(32px, calc(50% - 588px)); z-index: 50; }
+        .tk-preview-wrap { flex: 0 0 auto; }
         .tk-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 18px; }
         .tk-preview-card h3 { margin: 0 0 12px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
         .tk-preview-frame { position: relative; aspect-ratio: 9 / 16; background: #000; border-radius: 18px; overflow: hidden; max-width: 260px; margin: 0 auto; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }

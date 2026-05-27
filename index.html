@@ -15156,6 +15156,15 @@
         .tk-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
         .tk-queue-actions { display: flex; gap: 6px; margin-top: 10px; }
         .tk-queue-error { font-size: 0.72rem; color: #991b1b; margin-top: 6px; padding: 6px 8px; background: #fee2e2; border-radius: 6px; }
+        .tk-time-row { display: flex; align-items: center; gap: 8px; }
+        .tk-time-select { width: auto; min-width: 64px; padding-right: 26px; flex-shrink: 0; }
+        .tk-time-sep { font-weight: 700; color: var(--text-secondary); font-size: 1rem; }
+        .tk-ampm { display: inline-flex; border: 1.5px solid var(--border); border-radius: 99px; padding: 2px; gap: 2px; background: var(--white); margin-left: 4px; }
+        .tk-ampm-btn { padding: 5px 12px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; transition: all 0.13s; }
+        .tk-ampm-btn:hover { color: var(--text-primary); }
+        .tk-ampm-btn.active { background: #111110; color: #fff; }
+        .tk-schedule-preview { margin-top: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        .tk-schedule-preview::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
         `;
         document.head.appendChild(style);
     }
@@ -15176,6 +15185,57 @@
 
     function _tkEscape(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+
+    // Schedule helpers — the form holds "YYYY-MM-DDTHH:MM" wall-clock in tkState.schedule.at,
+    // but we expose it to the user as separate date / hour / minute / AM-PM controls.
+    function _tkParseAt(at) {
+        const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(at || '');
+        if (!m) return { date: '', hour12: '', minute: '', ampm: 'AM' };
+        let h = parseInt(m[2], 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return { date: m[1], hour12: String(h), minute: m[3], ampm };
+    }
+    function _tkComposeAt(parts) {
+        if (!parts.date || parts.hour12 === '' || parts.hour12 == null || parts.minute === '' || parts.minute == null) return '';
+        let h = parseInt(parts.hour12, 10);
+        if (!Number.isFinite(h)) return '';
+        if (parts.ampm === 'PM' && h < 12) h += 12;
+        if (parts.ampm === 'AM' && h === 12) h = 0;
+        return `${parts.date}T${String(h).padStart(2, '0')}:${String(parts.minute).padStart(2, '0')}`;
+    }
+    function _tkFormatScheduledLong(at, tz) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(at || '');
+        if (!m) return '';
+        const dt = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        if (Number.isNaN(dt.getTime())) return '';
+        const human = dt.toLocaleString(undefined, {
+            weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit'
+        });
+        return tz ? `${human} · ${tz}` : human;
+    }
+    function _tkFormatQueueWhen(scheduledFor, tz) {
+        if (!scheduledFor) return '';
+        const opts = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+        // If the backend gave us an ISO instant (Z or ±HH:MM), format it in the upload's timezone
+        // so the displayed time matches the timezone label. Otherwise treat it as a wall-clock string.
+        if (/Z$|[+\-]\d{2}:?\d{2}$/.test(scheduledFor)) {
+            try { return new Date(scheduledFor).toLocaleString(undefined, { ...opts, timeZone: tz || undefined }); }
+            catch { return new Date(scheduledFor).toLocaleString(undefined, opts); }
+        }
+        const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(scheduledFor);
+        if (!m) return scheduledFor;
+        const dt = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+        return dt.toLocaleString(undefined, opts);
+    }
+    function _tkUpdateSchedulePreview() {
+        const el = document.getElementById('tkSchedulePreview');
+        if (!el) return;
+        const txt = _tkFormatScheduledLong(tkState.schedule.at, tkState.schedule.tz);
+        if (txt) { el.textContent = txt; el.style.display = ''; }
+        else { el.textContent = ''; el.style.display = 'none'; }
     }
 
     function _tkLoadDraft() {
@@ -15310,6 +15370,17 @@
         const opts = tkState.options;
         const errorBlock = tkState.error ? `<div class="tk-error" style="margin-bottom:12px">${_tkEscape(tkState.error)}</div>` : '';
 
+        // Scheduling: parse stored "YYYY-MM-DDTHH:MM" into date / 12-hr / minute / AM-PM pieces.
+        // If the current minute isn't on the 5-min grid we add it as its own option so picking it
+        // doesn't silently round.
+        const schedParts = _tkParseAt(tkState.schedule.at);
+        const schedHours = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+        const schedMinutes = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+        if (schedParts.minute && !schedMinutes.includes(schedParts.minute)) schedMinutes.push(schedParts.minute);
+        const _td = new Date();
+        const schedTodayISO = `${_td.getFullYear()}-${String(_td.getMonth() + 1).padStart(2, '0')}-${String(_td.getDate()).padStart(2, '0')}`;
+        const schedPreview = _tkFormatScheduledLong(tkState.schedule.at, tkState.schedule.tz);
+
         col.innerHTML = `
             <div class="tk-card">
                 <h3>Client <span class="tk-card-hint">${clientNames.length} clients</span></h3>
@@ -15395,17 +15466,36 @@
                         Post immediately
                     </label>
                 </div>
-                <div class="tk-grid-2" id="tkScheduleFields" style="${tkState.schedule.postNow ? 'opacity:0.45;pointer-events:none' : ''}">
-                    <div class="tk-row">
-                        <label for="tkScheduleAt">Schedule for</label>
-                        <input class="tpl-input" id="tkScheduleAt" type="datetime-local" value="${_tkEscape(tkState.schedule.at)}">
+                <div id="tkScheduleFields" style="${tkState.schedule.postNow ? 'opacity:0.45;pointer-events:none' : ''}">
+                    <div class="tk-grid-2">
+                        <div class="tk-row">
+                            <label for="tkScheduleDate">Date</label>
+                            <input class="tpl-input" id="tkScheduleDate" type="date" value="${_tkEscape(schedParts.date)}" min="${_tkEscape(schedTodayISO)}">
+                        </div>
+                        <div class="tk-row">
+                            <label>Time</label>
+                            <div class="tk-time-row">
+                                <select class="tk-select tk-time-select" id="tkScheduleHour">
+                                    ${schedHours.map(h => `<option value="${h}" ${String(h) === schedParts.hour12 ? 'selected' : ''}>${h}</option>`).join('')}
+                                </select>
+                                <span class="tk-time-sep">:</span>
+                                <select class="tk-select tk-time-select" id="tkScheduleMin">
+                                    ${schedMinutes.map(mm => `<option value="${mm}" ${mm === schedParts.minute ? 'selected' : ''}>${mm}</option>`).join('')}
+                                </select>
+                                <div class="tk-ampm" id="tkAmpm">
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'AM' ? 'active' : ''}" data-ampm="AM">AM</button>
+                                    <button type="button" class="tk-ampm-btn ${schedParts.ampm === 'PM' ? 'active' : ''}" data-ampm="PM">PM</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="tk-row">
+                    <div class="tk-row" style="margin-top:6px">
                         <label for="tkScheduleTz">Timezone</label>
                         <select class="tk-select" id="tkScheduleTz">
                             ${TK_TIMEZONES.map(tz => `<option value="${tz}" ${tz === tkState.schedule.tz ? 'selected' : ''}>${tz}</option>`).join('')}
                         </select>
                     </div>
+                    <div class="tk-schedule-preview" id="tkSchedulePreview" style="${schedPreview ? '' : 'display:none'}">${_tkEscape(schedPreview)}</div>
                 </div>
             </div>
 
@@ -15480,8 +15570,29 @@
             tkState.schedule.postNow = e.target.checked;
             _tkSaveDraft(); _tkRenderForm();
         });
-        $('tkScheduleAt')?.addEventListener('input', (e) => { tkState.schedule.at = e.target.value; _tkSaveDraftSoon(); });
-        $('tkScheduleTz')?.addEventListener('change', (e) => { tkState.schedule.tz = e.target.value; _tkSaveDraft(); });
+        const _tkSyncSchedAt = () => {
+            const date = $('tkScheduleDate')?.value || '';
+            const hour12 = $('tkScheduleHour')?.value || '';
+            const minute = $('tkScheduleMin')?.value || '';
+            const ampm = document.querySelector('#tkAmpm .tk-ampm-btn.active')?.dataset.ampm || 'AM';
+            tkState.schedule.at = _tkComposeAt({ date, hour12, minute, ampm });
+            _tkUpdateSchedulePreview();
+            _tkSaveDraftSoon();
+        };
+        $('tkScheduleDate')?.addEventListener('change', _tkSyncSchedAt);
+        $('tkScheduleHour')?.addEventListener('change', _tkSyncSchedAt);
+        $('tkScheduleMin')?.addEventListener('change', _tkSyncSchedAt);
+        document.querySelectorAll('#tkAmpm .tk-ampm-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#tkAmpm .tk-ampm-btn').forEach(b => b.classList.toggle('active', b === btn));
+                _tkSyncSchedAt();
+            });
+        });
+        $('tkScheduleTz')?.addEventListener('change', (e) => {
+            tkState.schedule.tz = e.target.value;
+            _tkUpdateSchedulePreview();
+            _tkSaveDraft();
+        });
 
         $('tkSubmit')?.addEventListener('click', _tkSubmit);
     }
@@ -15600,7 +15711,7 @@
                 _tkClearDraft();
                 _tkRenderForm();
                 _tkRenderQueue();
-                showNotify('Upload queued', tkState.schedule.postNow ? 'The video is uploading to TikTok now.' : `Scheduled for ${row.scheduled_for} (${row.timezone}).`);
+                showNotify('Upload queued', row.scheduled_for ? `Scheduled for ${_tkFormatScheduledLong(row.scheduled_for, row.timezone)}.` : 'The video is uploading to TikTok now.');
                 _tkFetchQueue();   // pick up the server-side row
             } else {
                 tkState.error = _tkExplainError(xhr);
@@ -15685,7 +15796,7 @@
 
         const itemHTML = (r) => {
             const when = r.scheduled_for
-                ? new Date(r.scheduled_for).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+                ? _tkFormatQueueWhen(r.scheduled_for, r.timezone)
                 : (r.posted_at ? `posted ${new Date(r.posted_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}` : 'now');
             const status = _tkEffectiveStatus(r);
             const actions = [];

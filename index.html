@@ -1580,10 +1580,14 @@
         .cal-import-drop svg { width: 34px; height: 34px; color: var(--text-muted); }
         .cal-import-drop-title { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); margin-top: 10px; }
         .cal-import-drop-sub { font-size: 0.74rem; color: var(--text-muted); margin-top: 4px; line-height: 1.5; }
-        .cal-import-map-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; align-items: center; padding: 7px 0; }
+        .cal-import-map-row { display: grid; grid-template-columns: 24px 1fr 1fr; gap: 10px 14px; align-items: center; padding: 7px 0; }
         .cal-import-map-row label { font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); }
         .cal-import-map-row label .req { color: var(--dn); }
         .cal-import-map-row select { font-family: inherit; font-size: 0.78rem; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--white); color: var(--text-primary); width: 100%; box-sizing: border-box; }
+        .cal-import-map-row select:disabled { background: var(--bg); color: var(--text-muted); cursor: not-allowed; }
+        .cal-import-map-row.is-off label,
+        .cal-import-map-row.is-off label .req { color: var(--text-muted); text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.25); }
+        .cal-import-skip-chk { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--text-primary); }
         .cal-import-info { font-size: 0.76rem; color: var(--text-secondary); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.5; }
         .cal-import-err { font-size: 0.78rem; color: var(--dn); background: var(--dn-bg); border-radius: 8px; padding: 9px 12px; margin-top: 12px; }
         .cal-import-progress { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 20px; }
@@ -1681,6 +1685,32 @@
         .cal-card.dragging { opacity: 0.45; }
         .cal-card.cal-card-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-card.cal-card-posted:hover { box-shadow: 0 0 0 1px #15803d, 0 4px 14px rgba(0,0,0,0.07); }
+        /* Platform strip — subtle row of icons above the thumbnail. Each
+           icon is muted by default; click colours it in to mark that the
+           post is going to that platform. */
+        .cal-card-platforms { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 7px 36px 0; flex-wrap: wrap; }
+        .cal-card-platform-btn { width: 22px; height: 22px; border-radius: 50%; border: 0; background: transparent; color: #c5c5c2; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: color 0.12s, background 0.12s, transform 0.08s; }
+        .cal-card-platform-btn svg { width: 13px; height: 13px; display: block; }
+        .cal-card-platform-btn:hover:not(:disabled) { color: var(--text-secondary); background: var(--bg); }
+        .cal-card-platform-btn.is-active { color: #fff !important; }
+        .cal-card-platform-btn.is-active:hover { transform: scale(1.06); background: inherit; }
+        .cal-card-platform-btn:disabled { cursor: default; }
+        .cal-card-platform-btn.is-active[data-platform="instagram"] { background: #e4405f; }
+        .cal-card-platform-btn.is-active[data-platform="tiktok"]    { background: #000; }
+        .cal-card-platform-btn.is-active[data-platform="youtube"]   { background: #ff0000; }
+        .cal-card-platform-btn.is-active[data-platform="facebook"]  { background: #1877f2; }
+        .cal-card-platform-btn.is-active[data-platform="linkedin"]  { background: #0a66c2; }
+        .cal-card-platform-btn.is-active[data-platform="x"]         { background: #000; }
+        .cal-card-platform-btn.is-active[data-platform="threads"]   { background: #000; }
+        .cal-card-platform-btn.is-active[data-platform="pinterest"] { background: #e60023; }
+        /* Edit platforms modal — reuses the import modal chrome */
+        .cal-platforms-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .cal-platforms-row { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s; }
+        .cal-platforms-row:hover { border-color: #aaa; background: #fafaf9; }
+        .cal-platforms-row input { margin: 0; accent-color: var(--text-primary); width: 16px; height: 16px; cursor: pointer; }
+        .cal-platforms-row-icon { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+        .cal-platforms-row-icon svg { width: 14px; height: 14px; }
+        .cal-platforms-row-label { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
         .cal-card-thumb { cursor: default; }
         .cal-card-thumb img { cursor: zoom-in; }
         /* Asset stage — image floats centred on a soft gradient with room to breathe */
@@ -1999,6 +2029,7 @@
         .cal-fld-status-item.cal-fld-status-client-approval   { background: #fee2e2; color: #991b1b; }
         .cal-fld-status-item.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
         .cal-fld-status-item.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
+        .cal-fld-status-item.cal-fld-status-scheduled         { background: #ede9fe; color: #5b21b6; }
         .cal-fld-status-item.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
         .cal-fld-status-wrap[data-val="In Progress"]       { background: #fef08a; color: #713f12; }
         .cal-fld-status-wrap[data-val="For SMM Approval"]  { background: #fce7f3; color: #9d174d; }
@@ -2035,6 +2066,7 @@
         .cal-fld-substatus-trigger.cal-fld-status-client-approval   { background: #fee2e2; color: #991b1b; }
         .cal-fld-substatus-trigger.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
         .cal-fld-substatus-trigger.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
+        .cal-fld-substatus-trigger.cal-fld-status-scheduled         { background: #ede9fe; color: #5b21b6; }
         .cal-fld-substatus-trigger.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
         /* Second Linear slot (graphics) in the title row */
         .cal-linear-btn-graphic.is-linked { color: #d946ef; }
@@ -2120,6 +2152,7 @@
         .cal-review-sub-pill.cal-fld-status-client-approval   { background: #fee2e2; color: #991b1b; }
         .cal-review-sub-pill.cal-fld-status-approved          { background: #dcfce7; color: #166534; }
         .cal-review-sub-pill.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
+        .cal-review-sub-pill.cal-fld-status-scheduled         { background: #ede9fe; color: #5b21b6; }
         .cal-review-sub-pill.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
         /* 3-column grid: video / thumbnail / caption side by side. Falls
            back to a single stacked column under ~880 px wide so the cards
@@ -8650,10 +8683,10 @@
     const _calCaptionInFlight = new Set();
     let _calBulkCaptionRun = null;
 
-    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Posted'];
+    const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Scheduled','Posted'];
     /* Worst → best. Overall card status is the lowest-priority sub-status.
        Must stay in lock-step with the n8n linear-status-sync PRIORITY table. */
-    const CAL_PRIORITY = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5,'Posted':6 };
+    const CAL_PRIORITY = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5,'Scheduled':6,'Posted':7 };
     const CAL_COMPONENTS = ['video','graphic','caption'];
     /* Map any legacy / external status string onto the current set.
        "Draft" was retired — those posts become "In Progress". */
@@ -8685,7 +8718,7 @@
        back to the sheet on the next flush. */
     function _calClearStaleApprovals(post, pending) {
         if (!post) return;
-        const above = new Set(['Client Approval', 'Approved', 'Posted']);
+        const above = new Set(['Client Approval', 'Approved', 'Scheduled', 'Posted']);
         CAL_COMPONENTS.forEach(c => {
             const sub = _calNormStatus(post[c + '_status'] || '');
             const stampKey = 'client_' + c + '_approved_at';
@@ -8812,6 +8845,138 @@
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
     const CAL_PINS_KEY  = 'syncview_calendar_pins';
     const CAL_SAVE_DEBOUNCE_MS = 650;
+    /* Platforms a post can be marked for. The SMM enables a subset via the
+       kebab → Edit platforms menu (per-client localStorage); each card then
+       toggles individual icons on/off to record where the post is going. */
+    const CAL_PLATFORMS = [
+        { key: 'instagram', label: 'Instagram', color: '#e4405f',
+          icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="0.6" fill="currentColor" stroke="none"/></svg>' },
+        { key: 'tiktok', label: 'TikTok', color: '#000000',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 3v3.5c1.1.9 2.5 1.5 4 1.5v3.4c-1.5 0-2.8-.4-4-1.1v6.2a5.8 5.8 0 1 1-5.8-5.8c.3 0 .6 0 .9.1v3.5a2.4 2.4 0 1 0 1.7 2.2V3z"/></svg>' },
+        { key: 'youtube', label: 'YouTube', color: '#ff0000',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M21.6 7.2a2.5 2.5 0 0 0-1.8-1.8C18.2 5 12 5 12 5s-6.2 0-7.8.4A2.5 2.5 0 0 0 2.4 7.2 26 26 0 0 0 2 12a26 26 0 0 0 .4 4.8 2.5 2.5 0 0 0 1.8 1.8C5.8 19 12 19 12 19s6.2 0 7.8-.4a2.5 2.5 0 0 0 1.8-1.8A26 26 0 0 0 22 12a26 26 0 0 0-.4-4.8zM10 15V9l5 3z"/></svg>' },
+        { key: 'facebook', label: 'Facebook', color: '#1877f2',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.9 3.7-3.9 1.1 0 2.2.2 2.2.2v2.5h-1.3c-1.2 0-1.6.8-1.6 1.6V12h2.8l-.4 2.9h-2.4v7A10 10 0 0 0 22 12z"/></svg>' },
+        { key: 'linkedin', label: 'LinkedIn', color: '#0a66c2',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.4 3H3.6A.6.6 0 0 0 3 3.6v16.8c0 .3.3.6.6.6h16.8a.6.6 0 0 0 .6-.6V3.6a.6.6 0 0 0-.6-.6zM8.3 18.3H5.7V9.8h2.6zM7 8.6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm11.3 9.7h-2.6v-4.1c0-1 0-2.3-1.4-2.3s-1.6 1.1-1.6 2.2v4.2H10V9.8h2.5v1.1h.1c.4-.6 1.2-1.3 2.5-1.3 2.7 0 3.2 1.8 3.2 4.1z"/></svg>' },
+        { key: 'x', label: 'X (Twitter)', color: '#000000',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 3h3.1l-6.8 7.7L22 21h-6.3l-4.9-6.5L5.2 21H2l7.3-8.3L1.8 3h6.5l4.4 5.9zm-1.1 16h1.7L7.7 4.8H5.9z"/></svg>' },
+        { key: 'threads', label: 'Threads', color: '#000000',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.2 22h-.1c-3 0-5.4-1-6.9-2.9C3.8 17.4 3 15 3 12.1V12c0-2.9.8-5.3 2.2-7C6.7 3 9.1 2 12.1 2c3.7 0 6.3 1.3 7.6 4l-1.9 1.1c-.9-1.9-2.6-2.8-5.7-2.9-2.3 0-4.1.7-5.2 2C5.8 7.4 5.2 9.4 5.2 12s.6 4.6 1.7 5.9c1.1 1.3 2.9 2 5.2 2 2 0 3.4-.5 4.6-1.6.7-.7 1.2-1.5 1.5-2.5-.5-.4-1.1-.7-1.8-.9-.5 1.7-1.7 2.7-3.5 2.7-1.7 0-2.9-.7-3.6-1.9-.7-1.2-.6-2.7.2-3.7 1.1-1.3 3.1-1.6 5.6-1 0-1.6-.8-2.5-2.3-2.5-1.3 0-2 .5-2.5 1.5l-1.8-1.1c.7-1.5 2.1-2.5 4.3-2.5 2.3 0 4.4 1.3 4.4 4.5v.1c1.1.4 2 .9 2.8 1.6 1 .9 1.5 2 1.5 3.4 0 2.6-2.5 5.3-7.2 5.3z"/></svg>' },
+        { key: 'pinterest', label: 'Pinterest', color: '#e60023',
+          icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.2 2.6 7.8 6.3 9.3-.1-.8-.2-2 0-2.9.2-.8 1.2-5 1.2-5s-.3-.6-.3-1.5c0-1.4.8-2.5 1.8-2.5.9 0 1.3.7 1.3 1.4 0 .9-.6 2.2-.9 3.4-.2 1 .5 1.8 1.5 1.8 1.8 0 3.1-1.9 3.1-4.6 0-2.4-1.7-4.1-4.2-4.1-2.9 0-4.6 2.1-4.6 4.4 0 .9.3 1.8.8 2.3 0 .1 0 .2-.1.3l-.3 1.2c0 .2-.2.3-.4.1-1.2-.6-2-2.4-2-3.9 0-3.2 2.3-6.1 6.6-6.1 3.4 0 6.1 2.4 6.1 5.7 0 3.4-2.2 6.2-5.2 6.2-1 0-2-.5-2.3-1.1l-.6 2.4c-.2.9-.8 2-1.2 2.7.9.3 1.9.4 2.9.4 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>' },
+    ];
+    const CAL_PLATFORM_BY_KEY = Object.fromEntries(CAL_PLATFORMS.map(p => [p.key, p]));
+    const CAL_ENABLED_PLATFORMS_KEY = 'syncview_cal_enabled_platforms_v1';
+    function _calEnabledPlatforms(slug) {
+        if (!slug) return [];
+        try {
+            const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            const list = Array.isArray(map[slug]) ? map[slug] : [];
+            return list.filter(k => CAL_PLATFORM_BY_KEY[k]);
+        } catch { return []; }
+    }
+    function _calSetEnabledPlatforms(slug, list) {
+        if (!slug) return;
+        try {
+            const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            map[slug] = (list || []).filter(k => CAL_PLATFORM_BY_KEY[k]);
+            localStorage.setItem(CAL_ENABLED_PLATFORMS_KEY, JSON.stringify(map));
+        } catch {}
+    }
+    function _calPostPlatforms(post) {
+        const raw = String((post && post.platforms) || '').trim();
+        if (!raw) return [];
+        return raw.split(',').map(s => s.trim().toLowerCase()).filter(k => CAL_PLATFORM_BY_KEY[k]);
+    }
+    function _calPlatformsStripHtml(post, ro) {
+        const slug = calClientSlug(calState.client);
+        const enabled = _calEnabledPlatforms(slug);
+        if (!enabled.length) return '';
+        const active = new Set(_calPostPlatforms(post));
+        const pid = _calEscAttr(post.id);
+        const cells = enabled.map(k => {
+            const p = CAL_PLATFORM_BY_KEY[k];
+            if (!p) return '';
+            const on = active.has(k);
+            const handler = ro ? '' : ` onclick="_calTogglePostPlatform(event,'${pid}','${k}')"`;
+            const disabled = ro ? ' disabled' : '';
+            const aria = `${p.label}${on ? ' (selected)' : ''}`;
+            return `<button type="button" class="cal-card-platform-btn${on ? ' is-active' : ''}" data-platform="${k}" data-platform-pid="${pid}" title="${_calEscAttr(aria)}" aria-label="${_calEscAttr(aria)}"${handler}${disabled}>${p.icon}</button>`;
+        }).join('');
+        return `<div class="cal-card-platforms" data-platforms-strip="${pid}">${cells}</div>`;
+    }
+    function _calTogglePostPlatform(e, pid, key) {
+        if (e) e.stopPropagation();
+        if (!CAL_PLATFORM_BY_KEY[key]) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const current = _calPostPlatforms(post);
+        const i = current.indexOf(key);
+        if (i >= 0) current.splice(i, 1); else current.push(key);
+        const csv = current.join(',');
+        post.platforms = csv;
+        // Reflect on the strip without redrawing the whole card so the
+        // toggle feels instant. Other strips for this post (if any) get
+        // refreshed too.
+        document.querySelectorAll(`[data-platforms-strip="${pid}"] [data-platform="${key}"]`).forEach(btn => {
+            const on = current.includes(key);
+            btn.classList.toggle('is-active', on);
+            const p = CAL_PLATFORM_BY_KEY[key];
+            const aria = `${p.label}${on ? ' (selected)' : ''}`;
+            btn.setAttribute('title', aria);
+            btn.setAttribute('aria-label', aria);
+        });
+        // Persist via the usual debounced save path so the platforms field
+        // rides on the next upsert with the rest of the post.
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].platforms = csv;
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+    }
+    function openCalPlatformsEditor() {
+        if (!calState.client) return;
+        const slug = calClientSlug(calState.client);
+        const enabled = new Set(_calEnabledPlatforms(slug));
+        const ovl = document.getElementById('calImportOverlay');
+        const modal = document.getElementById('calImportModal');
+        if (!ovl || !modal) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        const rowsHtml = CAL_PLATFORMS.map(p => `
+            <label class="cal-platforms-row" data-platform-row="${p.key}">
+                <input type="checkbox" data-platform-edit="${p.key}"${enabled.has(p.key) ? ' checked' : ''}>
+                <span class="cal-platforms-row-icon" style="background:${p.color}">${p.icon}</span>
+                <span class="cal-platforms-row-label">${_calEsc(p.label)}</span>
+            </label>`).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <h3>Edit platforms</h3>
+                <p>Pick which platforms appear as icons on every <strong>${_calEsc(calState.client)}</strong> card. Click an icon on a card to mark that the post is going to that platform.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-platforms-grid">${rowsHtml}</div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="closeCalImport()">Cancel</button>
+                <button class="cal-import-btn-primary" onclick="_calSavePlatformsSelection()">Save</button>
+            </div>`;
+    }
+    function _calSavePlatformsSelection() {
+        const modal = document.getElementById('calImportModal');
+        if (!modal || !calState.client) return;
+        const slug = calClientSlug(calState.client);
+        const picked = [];
+        modal.querySelectorAll('input[data-platform-edit]').forEach(cb => {
+            if (cb.checked) picked.push(cb.getAttribute('data-platform-edit'));
+        });
+        _calSetEnabledPlatforms(slug, picked);
+        closeCalImport();
+        try { _calRenderBody({ preserveScroll: true }); } catch {}
+    }
 
     const calState = {
         view: 'organizer',
@@ -9471,7 +9636,10 @@
     function _calPushStatusToLinear(issueUrl, status) {
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
-        if (!url || !st || st.toLowerCase() === 'posted') return;
+        // Linear has no Scheduled state — leave the sub-issue at Approved
+        // when the calendar moves to Scheduled. Posted is similarly skipped.
+        const lower = st.toLowerCase();
+        if (!url || !st || lower === 'posted' || lower === 'scheduled') return;
         const payload = { issue: url, status: st };
         (async () => {
             try {
@@ -9537,8 +9705,9 @@
         const subKey = which + '_status';
         const current = _calNormStatus(post[subKey] || '');
         if (current === mapped) return;
-        // Posted is a downstream state of Approved — don't bounce it back.
-        if (mapped === 'Approved' && current === 'Posted') return;
+        // Scheduled and Posted are downstream states of Approved (Linear
+        // has no equivalent and stays at Approved) — don't bounce back.
+        if (mapped === 'Approved' && (current === 'Posted' || current === 'Scheduled')) return;
         post[subKey] = mapped;
         post.status = computeOverallStatus(post);
         _calNoLinearPush.add(pid);
@@ -9609,7 +9778,7 @@
                 const linState = statuses[vM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.video_status || '') !== mapped
-                    && !(mapped === 'Approved' && post.video_status === 'Posted')) {
+                    && !(mapped === 'Approved' && (post.video_status === 'Posted' || post.video_status === 'Scheduled'))) {
                     post.video_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].video_status = mapped;
@@ -9621,7 +9790,7 @@
                 const linState = statuses[gM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
-                    && !(mapped === 'Approved' && post.graphic_status === 'Posted')) {
+                    && !(mapped === 'Approved' && (post.graphic_status === 'Posted' || post.graphic_status === 'Scheduled'))) {
                     post.graphic_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].graphic_status = mapped;
@@ -10373,11 +10542,15 @@
         };
         const rowsHtml = CAL_IMPORT_FIELDS.map(f => {
             const sel = guess(f);
+            // Default the toggle: required fields stay on, optional fields
+            // are on iff we matched a column. The user can flip either way.
+            const on = f.req || !!sel;
             const opts = ['<option value="">— none —</option>']
                 .concat(headers.map(h => `<option value="${_calEscAttr(h)}"${h===sel?' selected':''}>${_calEsc(h)}</option>`)).join('');
-            return `<div class="cal-import-map-row">
+            return `<div class="cal-import-map-row${on ? '' : ' is-off'}" data-import-row="${f.key}">
+                <input type="checkbox" class="cal-import-skip-chk" data-import-skip="${f.key}"${on ? ' checked' : ''}${f.req ? ' disabled title="Required field"' : ' title="Include this column"'} onchange="_calToggleImportField(this)">
                 <label>${_calEsc(f.label)}${f.req?' <span class="req">*</span>':''}</label>
-                <select data-import-field="${f.key}">${opts}</select>
+                <select data-import-field="${f.key}"${on ? '' : ' disabled'}>${opts}</select>
             </div>`;
         }).join('');
         modal.innerHTML = `
@@ -10401,11 +10574,22 @@
        wants to skip a few rows (filming-plan placeholders, blanks the
        map step couldn't filter out, etc.) — letting them deselect by
        name is far less destructive than editing the spreadsheet. */
+    function _calToggleImportField(cb) {
+        const key = cb.getAttribute('data-import-skip');
+        const row = cb.closest('.cal-import-map-row');
+        const sel = row && row.querySelector('select[data-import-field="' + key + '"]');
+        if (!sel) return;
+        sel.disabled = !cb.checked;
+        if (row) row.classList.toggle('is-off', !cb.checked);
+    }
     function _calProceedToImportSelect() {
         const modal = document.getElementById('calImportModal');
         if (!modal || !_calImportRows) return;
         const map = {};
-        modal.querySelectorAll('select[data-import-field]').forEach(s => { if (s.value) map[s.dataset.importField] = s.value; });
+        modal.querySelectorAll('select[data-import-field]').forEach(s => {
+            if (s.disabled) return;   // toggle off → skip this column entirely
+            if (s.value) map[s.dataset.importField] = s.value;
+        });
         const errBox = document.getElementById('calImportErr');
         if (!map.name) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick which column holds the post name — it's required.</div>`; return; }
         _calImportMap = map;
@@ -10502,6 +10686,9 @@
         statusByLower.set('draft', 'In Progress');
         statusByLower.set('for kasper approval', 'Kasper Approval');
         statusByLower.set('smm approval', 'For SMM Approval');
+        statusByLower.set('scheduled', 'Scheduled');
+        statusByLower.set('queued', 'Scheduled');
+        statusByLower.set('queue', 'Scheduled');
         let baseOrder = calState.posts.reduce((m,p) => Math.max(m, Number(p.order_index||0)), 0);
         const posts = [];
         _calImportRows.forEach((row, i) => {
@@ -10828,6 +11015,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
                     </div>
                 </div>`
             : '';
@@ -11199,6 +11387,33 @@
 
     /* Drag a post pill from one day cell to another to reschedule it. */
     let _calDayDragId = null;
+    /* Auto-scroll the window while a card is being dragged. Without this, a
+       pill dragged out of the bottom Unscheduled tray has no way to reach
+       cells above the viewport — the browser only fires native
+       autoscroll inside scrollable containers, and the calendar grid
+       isn't one. */
+    let _calDragScrollRAF = null;
+    let _calDragScrollSpeed = 0;
+    function _calDragScrollStep() {
+        if (!_calDragScrollSpeed) { _calDragScrollRAF = null; return; }
+        window.scrollBy(0, _calDragScrollSpeed);
+        _calDragScrollRAF = requestAnimationFrame(_calDragScrollStep);
+    }
+    function _calDragScrollFromY(y) {
+        const margin = 90;
+        const h = window.innerHeight;
+        let speed = 0;
+        if (y < margin) speed = -Math.max(4, Math.ceil((margin - y) / 4));
+        else if (y > h - margin) speed = Math.max(4, Math.ceil((y - (h - margin)) / 4));
+        _calDragScrollSpeed = speed;
+        if (speed && _calDragScrollRAF == null) _calDragScrollRAF = requestAnimationFrame(_calDragScrollStep);
+    }
+    function _calDragScrollStop() {
+        _calDragScrollSpeed = 0;
+        if (_calDragScrollRAF) cancelAnimationFrame(_calDragScrollRAF);
+        _calDragScrollRAF = null;
+    }
+    function _calOnDocDragOver(e) { if (_calDayDragId != null) _calDragScrollFromY(e.clientY); }
     function _calWireDayDrag(root) {
         if (_isClientLink) return;   // client-link view — no rescheduling
         root.querySelectorAll('[data-cal-move]').forEach(el => {
@@ -11207,10 +11422,14 @@
                 el.classList.add('cal-card-dragging');
                 e.dataTransfer.effectAllowed = 'move';
                 try { e.dataTransfer.setData('text/plain', _calDayDragId); } catch {}
+                document.addEventListener('dragover', _calOnDocDragOver);
             });
             el.addEventListener('dragend', () => {
                 el.classList.remove('cal-card-dragging');
                 root.querySelectorAll('.cal-day-drop').forEach(c => c.classList.remove('cal-day-drop'));
+                document.removeEventListener('dragover', _calOnDocDragOver);
+                _calDragScrollStop();
+                _calDayDragId = null;
             });
         });
         root.querySelectorAll('[data-iso]').forEach(cell => {
@@ -11605,6 +11824,7 @@
             ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
+            ${_calPlatformsStripHtml(p, ro)}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
@@ -12988,7 +13208,7 @@
     function _calReviewItems() {
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
-            if (s === 'Approved' || s === 'Posted') return false;
+            if (s === 'Approved' || s === 'Scheduled' || s === 'Posted') return false;
             // Clients see cards waiting on their approval AND cards
             // where they've already left tweaks (so they can add more
             // tweaks or change their mind before the editor turns it
@@ -13098,7 +13318,8 @@
         const subStatus = _calNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Approved' ? 'approved'
                     : (subStatus === 'Tweaks Needed' ? 'tweaks'
-                    : (subStatus === 'Posted' ? 'posted' : 'pending'));
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
         // _calCommentsForView hides Kasper-role tweaks from the client-link
         // surface; SMM/Kasper sessions still see everything.
         const comments = _calCommentsForView(p, comp);
@@ -13116,10 +13337,12 @@
         // terminal from the client's seat; surfacing it as a full panel
         // wastes real estate. A click toggles back to the full view if
         // they want to see past comments or the asset link again.
-        if (state === 'approved' || state === 'posted') {
+        if (state === 'approved' || state === 'posted' || state === 'scheduled') {
             const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
-            const wordAction = state === 'posted' ? 'Posted' : 'Approved';
-            const sub = state === 'posted' ? 'Live on the channel' : 'Locked in — ready to schedule';
+            const wordAction = state === 'posted' ? 'Posted' : (state === 'scheduled' ? 'Scheduled' : 'Approved');
+            const sub = state === 'posted' ? 'Live on the channel'
+                      : (state === 'scheduled' ? 'Queued — going out on its scheduled date'
+                      : 'Locked in — ready to schedule');
             return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="${state}">
                 <span class="cal-review-mini-icon">${checkIco}</span>
                 <span class="cal-review-mini-label">${_calEsc(COMP_LABELS[comp])} ${wordAction.toLowerCase()}</span>
@@ -13144,7 +13367,7 @@
         // visible without being misclickable. Removing it on draft was
         // jarring: the button vanished, then came back when she cleared
         // the textarea, which broke muscle memory.
-        const showApprove = canActClient && subStatus !== 'Approved' && subStatus !== 'Posted';
+        const showApprove = canActClient && subStatus !== 'Approved' && subStatus !== 'Scheduled' && subStatus !== 'Posted';
         const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
         const tweakEnabled = canActClient && !saving && hasDraft;
         // Friendlier status copy: clients see "Awaiting your approval"
@@ -13948,12 +14171,12 @@
     }
 
     /* Auto-status transitions driven by tweak activity. Returns true if a
-       change was applied. Skips terminal states (Posted) so live content
-       isn't accidentally bounced backward. */
+       change was applied. Skips terminal states (Scheduled / Posted) so
+       live content isn't accidentally bounced backward. */
     function _calApplyAutoStatus(pid, trigger, comp) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return false;
-        if (post.status === 'Posted') return false;
+        if (post.status === 'Posted' || post.status === 'Scheduled') return false;
         const which = comp || 'video';
         const subKey = which + '_status';
         let next = null;
@@ -16295,9 +16518,10 @@
         const subStatus = _calNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Tweaks Needed' ? 'tweaks'
                     : (subStatus === 'Approved' ? 'approved'
-                    : (subStatus === 'Posted' ? 'posted' : 'pending'));
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
         const inTweaks = state === 'tweaks';
-        const isApproved = state === 'approved' || state === 'posted';
+        const isApproved = state === 'approved' || state === 'scheduled' || state === 'posted';
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
@@ -16354,9 +16578,10 @@
         const subStatus = _calNormStatus(p[comp + '_status'] || '');
         const state = subStatus === 'Tweaks Needed' ? 'tweaks'
                     : (subStatus === 'Approved' ? 'approved'
-                    : (subStatus === 'Posted' ? 'posted' : 'pending'));
+                    : (subStatus === 'Scheduled' ? 'scheduled'
+                    : (subStatus === 'Posted' ? 'posted' : 'pending')));
         const inTweaks = state === 'tweaks';
-        const isApproved = state === 'approved' || state === 'posted';
+        const isApproved = state === 'approved' || state === 'scheduled' || state === 'posted';
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';

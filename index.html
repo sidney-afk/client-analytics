@@ -15084,9 +15084,11 @@
         const style = document.createElement('style');
         style.id = 'tkUploadStyles';
         style.textContent = `
-        .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px; align-items: start; }
-        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; } }
-        .tk-header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
+        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; } .tk-right-col { grid-column: 1; grid-row: auto; } }
+        .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+        .tk-form-col { grid-column: 1; grid-row: 2; }
+        .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
         .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -15165,7 +15167,7 @@
         .tk-ampm-btn.active { background: #111110; color: #fff; }
         .tk-schedule-preview { margin-top: 14px; padding: 10px 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; font-size: 0.84rem; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
         .tk-schedule-preview::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
-        .tk-preview-wrap { position: sticky; top: 16px; }
+        .tk-preview-wrap { position: sticky; top: 76px; }
         .tk-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 16px 18px; }
         .tk-preview-card h3 { margin: 0 0 12px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
         .tk-preview-frame { position: relative; aspect-ratio: 9 / 16; background: #000; border-radius: 18px; overflow: hidden; max-width: 260px; margin: 0 auto; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
@@ -15413,8 +15415,8 @@
                         <div class="tk-sub">Schedule a TikTok post for a client — uploads through upload-post.com.</div>
                     </div>
                 </div>
-                <div class="tk-col" id="tkFormCol"></div>
-                <div class="tk-col">
+                <div class="tk-col tk-form-col" id="tkFormCol"></div>
+                <div class="tk-col tk-right-col">
                     <div class="tk-preview-wrap" id="tkPreviewWrap"></div>
                     <div id="tkQueueCol"></div>
                 </div>
@@ -15729,7 +15731,15 @@
         _tkRenderForm();
     }
 
-    function _tkReplaceFile() { document.getElementById('tkFile')?.click(); }
+    function _tkReplaceFile() {
+        const existing = document.getElementById('tkFile');
+        if (existing) { existing.click(); return; }
+        const tmp = document.createElement('input');
+        tmp.type = 'file';
+        tmp.accept = 'video/mp4,video/quicktime,video/webm,video/*';
+        tmp.addEventListener('change', () => _tkHandleFile(tmp.files?.[0]));
+        tmp.click();
+    }
     function _tkClearFile() {
         if (tkState.objectUrl) URL.revokeObjectURL(tkState.objectUrl);
         tkState.file = null;
@@ -15806,7 +15816,7 @@
                     profile: tkState.profile,
                     title: tkState.title,
                     status: resp.status || (tkState.schedule.postNow ? 'uploading' : 'scheduled'),
-                    scheduled_for: tkState.schedule.postNow ? null : tkState.schedule.at,
+                    scheduled_for: tkState.schedule.postNow ? null : (scheduledAtUTC || tkState.schedule.at),
                     timezone: tkState.schedule.tz,
                     created_at: new Date().toISOString(),
                     optimistic: true,
@@ -15826,7 +15836,7 @@
                 _tkClearDraft();
                 _tkRenderForm();
                 _tkRenderQueue();
-                showNotify('Upload queued', row.scheduled_for ? `Scheduled for ${_tkFormatScheduledLong(row.scheduled_for, row.timezone)}.` : 'The video is uploading to TikTok now.');
+                showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
                 _tkFetchQueue();   // pick up the server-side row
             } else {
                 tkState.error = _tkExplainError(xhr);

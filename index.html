@@ -8941,13 +8941,11 @@
         return CAL_COLORS.includes(c) ? c : '';
     }
     function _calColorTagHtml(post, ro) {
+        // Color tags are an internal grouping tool for the SMM — clients
+        // don't need to see them at all (or the month/week dot).
+        if (ro || _isClientLink) return '';
         const color = _calPostColor(post);
         const pid = _calEscAttr(post.id);
-        if (ro) {
-            // Read-only: only render the dot when a color is set.
-            if (!color) return '';
-            return `<div class="cal-card-color-tag has-color" data-color="${color}" aria-label="Tagged ${color}"><span class="cal-card-color-tag-dot"></span></div>`;
-        }
         return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;
     }
     let _calColorPickerOpenFor = null;
@@ -9003,8 +9001,13 @@
         const enabled = _calEnabledPlatforms(slug);
         if (!enabled.length) return '';
         const active = new Set(_calPostPlatforms(post));
+        // Client view shows only the selected platforms — no muted icons
+        // for platforms that aren't part of this post. Drop the whole
+        // strip if the post hasn't been tagged with any.
+        const keys = ro ? enabled.filter(k => active.has(k)) : enabled;
+        if (!keys.length) return '';
         const pid = _calEscAttr(post.id);
-        const cells = enabled.map(k => {
+        const cells = keys.map(k => {
             const p = CAL_PLATFORM_BY_KEY[k];
             if (!p) return '';
             const on = active.has(k);
@@ -13218,7 +13221,8 @@
         const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
         const ribbonComp = _calTweakRibbonComp(p);
         const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-        const color = _calPostColor(p);
+        // Color tag is SMM-internal — never surface the dot on the client view.
+        const color = _isClientLink ? '' : _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
         return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
     }
@@ -13317,7 +13321,8 @@
                                 const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
                                 const ribbonComp = _calTweakRibbonComp(p);
                                 const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-                                const wColor = _calPostColor(p);
+                                // Color tag is SMM-internal — hide on client view.
+                                const wColor = _isClientLink ? '' : _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
                                 return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
                             }).join('')}

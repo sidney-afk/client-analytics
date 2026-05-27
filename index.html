@@ -1721,11 +1721,24 @@
         .cal-card-color-pick:hover { transform: scale(1.12); }
         .cal-card-color-pick.is-clear { background: var(--bg); position: relative; }
         .cal-card-color-pick.is-clear::after { content: ''; position: absolute; left: 3px; right: 3px; top: 50%; height: 1.5px; background: var(--text-secondary); transform: translateY(-50%) rotate(-45deg); }
-        /* Month/week pills get a 4-px colored left stripe via a pseudo so the
-           pill's content layout doesn't shift. */
+        /* Month/week pills get a small color dot in the bottom-right
+           corner so a batch reads at a glance without changing the pill's
+           shape. (Earlier rev used a left stripe — replaced because it
+           visually competed with the borders / posted ring.) */
         .cal-month-pill[data-color], .cal-week-card[data-color] { position: relative; }
         .cal-month-pill[data-color]::before,
-        .cal-week-card[data-color]::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; z-index: 1; pointer-events: none; }
+        .cal-week-card[data-color]::before {
+            content: '';
+            position: absolute;
+            right: 6px;
+            bottom: 6px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            z-index: 2;
+            pointer-events: none;
+            box-shadow: 0 0 0 1.5px #fff, 0 1px 2px rgba(0,0,0,0.2);
+        }
         .cal-month-pill[data-color="red"]::before,     .cal-week-card[data-color="red"]::before     { background: #ef4444; }
         .cal-month-pill[data-color="amber"]::before,   .cal-week-card[data-color="amber"]::before   { background: #f59e0b; }
         .cal-month-pill[data-color="emerald"]::before, .cal-week-card[data-color="emerald"]::before { background: #10b981; }

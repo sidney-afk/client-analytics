@@ -9477,11 +9477,22 @@
        fires reliably across every tab/window switch; the timestamp de-dupes
        the case where both fire for the same switch. */
     let _calLastReturnLoad = 0;
+    /* Throttle the auto-refresh-on-return. A calendar left open and flicked
+       in and out of used to fire a calendar-get on every single tab return;
+       that workflow is ~46% of all n8n executions. If we pulled fresh data
+       from the network within this window the strip is still current enough
+       — the Linear status-sync webhook keeps the sheet live in the
+       background regardless — so we skip the refetch. A manual refresh
+       (the ⟳ control) or any real edit still updates immediately; this only
+       suppresses the automatic focus/visibility refetch. */
+    const CAL_RETURN_REFRESH_MIN_MS = 90_000;
+    let _calLastNetworkLoadAt = 0;
     function _calRefreshOnReturn() {
         if (document.visibilityState === 'hidden') return;
         if (!calState.client) return;
         const calBody = document.getElementById('calBody');
         if (!calBody) return;
+        if (Date.now() - _calLastNetworkLoadAt < CAL_RETURN_REFRESH_MIN_MS) return;
         // Skip if a load is already in flight — otherwise rapid tab switches
         // pile up overlapping fetches, each resetting the timeout and keeping
         // the "Refreshing…" chip on indefinitely while the n8n backend is busy
@@ -11141,6 +11152,10 @@
         });
         let ok = false;
         let dataChanged = true;
+        // Stamp the moment we commit to a network fetch (any path: mount,
+        // manual refresh, or return-refresh). _calRefreshOnReturn reads this
+        // to throttle redundant refetches on rapid tab switches.
+        _calLastNetworkLoadAt = Date.now();
         try {
             const fetchPromise = (async () => {
                 const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
@@ -15527,6 +15542,8 @@
     let _tkPollTimer = null;
     let _tkSaveTimer = null;
     let _tkActiveXhr = null;
+    let _tkMounted = false;   // true while the TikTok Upload view is on screen
+    let _tkVisHooked = false; // one-time guard for the visibilitychange listener
 
     function _tkInjectCSSOnce() {
         if (document.getElementById('tkUploadStyles')) return;
@@ -16285,7 +16302,7 @@
                 _tkRenderForm();
                 _tkRenderQueue();
                 showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
-                _tkFetchQueue();   // pick up the server-side row
+                Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
             } else {
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
@@ -16416,7 +16433,7 @@
                 const r = await fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 _tkSavePending(_tkLoadPending().filter(p => p.id !== id));
-                _tkFetchQueue();
+                Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
             } catch (e) {
                 showNotify('Could not cancel', e.message || 'The n8n cancel webhook failed.');
             }
@@ -16438,14 +16455,53 @@
         try {
             const r = await fetch(TIKTOK_UPLOAD_STATUS_URL + '?id=' + encodeURIComponent(id) + '&retry=1', { method: 'POST' });
             if (!r.ok) throw new Error('HTTP ' + r.status);
-            _tkFetchQueue();
+            Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
         } catch (e) {
             showNotify('Retry failed', e.message || 'The n8n status webhook did not accept the retry.');
         }
     }
 
+    /* ---- Adaptive queue polling --------------------------------------
+       The queue used to poll /tiktok-uploads-list every 30s for as long as
+       the TikTok tab was mounted — even with an empty queue, and even while
+       the browser tab sat in the background. That single fixed interval was
+       ~2,500 mostly-empty n8n executions/week. Now we poll only while the
+       tab is visible AND there's something worth watching, and back off hard
+       (or stop entirely) when the queue is idle. New activity — a submit, a
+       retry, or simply returning to the tab — restarts the loop. */
+    function _tkActiveUploadCount() {
+        return (tkState.uploads || []).filter(r => {
+            const s = _tkEffectiveStatus(r);
+            return s === 'queued' || s === 'uploading';
+        }).length;
+    }
+    function _tkHasScheduled() {
+        return (tkState.uploads || []).some(r => _tkEffectiveStatus(r) === 'scheduled');
+    }
+    function _tkNextPollDelay() {
+        if (_tkActiveUploadCount() > 0) return 30_000;   // something in-flight — watch closely
+        if (_tkHasScheduled()) return 120_000;           // only future posts — check lazily
+        return 0;                                        // nothing pending — stop until activity resumes
+    }
+    function _tkStopPolling() {
+        if (_tkPollTimer) { clearTimeout(_tkPollTimer); _tkPollTimer = null; }
+    }
+    function _tkScheduleNextPoll() {
+        _tkStopPolling();
+        if (!_tkMounted) return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!document.getElementById('tkQueueCol')) return;   // view not on screen
+        const delay = _tkNextPollDelay();
+        if (delay <= 0) return;                               // idle — no further polling
+        _tkPollTimer = setTimeout(() => {
+            _tkPollTimer = null;
+            Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        }, delay);
+    }
+
     function _tkTeardown() {
-        if (_tkPollTimer) { clearInterval(_tkPollTimer); _tkPollTimer = null; }
+        _tkMounted = false;
+        _tkStopPolling();
         if (tkState.objectUrl) { URL.revokeObjectURL(tkState.objectUrl); tkState.objectUrl = null; }
         // Keep tkState.file around so navigating away and back doesn't lose the
         // user's selection — but the object URL needs to be recreated.
@@ -16465,9 +16521,23 @@
         _tkRenderForm();
         _tkRenderPreview();
         _tkRenderQueue();
-        _tkFetchQueue();
-        if (_tkPollTimer) clearInterval(_tkPollTimer);
-        _tkPollTimer = setInterval(_tkFetchQueue, 30_000);
+        _tkMounted = true;
+        // Fetch once on mount, then let the adaptive scheduler decide whether
+        // (and how often) to keep polling based on what's in the queue.
+        Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+        // Pause polling whenever the tab is hidden; resume + refetch on return.
+        // Registered once — the listener is a no-op unless the view is mounted.
+        if (!_tkVisHooked) {
+            _tkVisHooked = true;
+            document.addEventListener('visibilitychange', () => {
+                if (!_tkMounted) return;
+                if (document.visibilityState === 'visible') {
+                    Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);
+                } else {
+                    _tkStopPolling();
+                }
+            });
+        }
     }
 
     // Expose handlers used by inline onclick="" so they survive page rerenders.

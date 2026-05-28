@@ -1,6 +1,7 @@
-import { workflow, node, trigger, sticky, placeholder, newCredential, expr } from '@n8n/workflow-sdk';
+import { workflow, node, trigger, sticky, newCredential, expr } from '@n8n/workflow-sdk';
 
 const TEST_CHANNEL_ID = 'C0B7D49KCD6';
+const COMPETITORS_JSON_URL = 'https://raw.githubusercontent.com/sidney-afk/client-analytics/refs/heads/claude/data-competitors/data/competitors.json';
 
 const matchTopReelCode = `
 const clients = $('Read Clients Info').all().map(i => i.json);
@@ -78,39 +79,18 @@ const videoUrl = post?.videoUrl
 return { json: { ...original, videoUrl } };
 `;
 
-const parseSandcastleCode = `
-const matched = $('Match Top Reel Per Client').item.json;
-const transcriptItem = $('Transcribe with Whisper').item.json;
-const transcript = (transcriptItem?.text || '').trim();
-const sandcastleResp = $json;
-
-let competitors = [];
-
-if (Array.isArray(sandcastleResp?.competitors)) {
-  competitors = sandcastleResp.competitors;
-} else if (Array.isArray(sandcastleResp?.data?.competitors)) {
-  competitors = sandcastleResp.data.competitors;
-} else if (Array.isArray(sandcastleResp?.results)) {
-  competitors = sandcastleResp.results;
-} else if (Array.isArray(sandcastleResp)) {
-  competitors = sandcastleResp;
-}
-
-competitors = competitors.slice(0, 3).map((c) => ({
-  name: c.name || c.handle || c.username || c.title || 'Unknown',
-  handle: c.handle || c.username || '',
-  url: c.url || c.link || c.profile_url || '',
-  summary: c.summary || c.description || c.bio || c.latest_post || c.recent_activity || ''
-}));
-
-return { json: { ...matched, transcript, competitors } };
-`;
-
 const buildClaudePromptCode = `
-const data = $input.item.json;
+const data = $('Extract Video URL').item.json;
+const whisper = $json;
+const transcript = (whisper?.text || '').trim();
 
-const competitorList = (data.competitors || [])
-  .map((c, i) => \`\${i + 1}. \${c.name}\${c.handle ? ' (' + c.handle + ')' : ''}: \${c.summary || 'No recent activity summary.'}\`)
+const competitorsFile = $('Fetch Competitors JSON').first().json;
+const clientEntry = ((competitorsFile && competitorsFile.clients) || [])
+  .find(c => c.client_name === data.client_name);
+const competitors = (clientEntry && clientEntry.competitors) || [];
+
+const competitorList = competitors
+  .map((c, i) => \`\${i + 1}. \${c.competitor_name}\${c.competitor_handle ? ' (' + c.competitor_handle + ')' : ''}: \${c.summary || 'No summary available.'}\`)
   .join('\\n');
 
 const prompt = \`You are a social media strategist. A client named "\${data.client_name}" creates content about: \${data.content_description || ''}
@@ -123,16 +103,16 @@ Likes: \${data.likes}
 Comments: \${data.comments}
 
 VIDEO TRANSCRIPT:
-\${data.transcript || 'No transcript available.'}
+\${transcript || 'No transcript available.'}
 
-TOP 3 COMPETITORS IN THIS NICHE (from Sandcastle):
-\${competitorList || 'No competitor data available.'}
+TOP 3 COMPETITORS IN THIS NICHE (from Sandcastles):
+\${competitorList || 'No competitor data available for this client.'}
 
 Write a response with TWO sections, separated by the exact line "---":
 
 SECTION 1 (under 280 chars, plain text, no markdown): Explain in 2-3 sentences WHY this reel likely performed so well. Focus on hook, content angle, or trend.
 
-SECTION 2 (under 600 chars, plain text, no markdown): Briefly describe what each of the top 3 competitors is doing right now and what the client could learn from them. One short sentence per competitor.\`;
+SECTION 2 (under 600 chars, plain text, no markdown): Briefly describe what each of the top competitors is doing right now and what the client could learn from them. One short sentence per competitor. If no competitor data is available, say "No competitor data available this week."\`;
 
 const body = JSON.stringify({
   model: "claude-sonnet-4-20250514",
@@ -140,7 +120,7 @@ const body = JSON.stringify({
   messages: [{ role: "user", content: prompt }]
 });
 
-return { json: { ...data, claude_request_body: body } };
+return { json: { ...data, transcript, competitors, claude_request_body: body } };
 `;
 
 const formatSlackCode = `
@@ -185,14 +165,14 @@ if (competitors.length > 0) {
   blocks.push({ type: 'divider' });
   blocks.push({
     type: 'header',
-    text: { type: 'plain_text', text: '\\ud83d\\udd0d Top 3 Competitors This Week', emoji: true }
+    text: { type: 'plain_text', text: '\\ud83d\\udd0d Top Competitors This Week', emoji: true }
   });
   if (competitorAnalysis) {
     blocks.push({ type: 'section', text: { type: 'mrkdwn', text: competitorAnalysis } });
   }
   const compFields = competitors.map((c) => {
-    const linkText = c.url ? \`<\${c.url}|\${c.name}>\` : c.name;
-    return { type: 'mrkdwn', text: \`*\${linkText}*\${c.handle ? '\\n' + c.handle : ''}\` };
+    const linkText = c.competitor_url ? \`<\${c.competitor_url}|\${c.competitor_name}>\` : c.competitor_name;
+    return { type: 'mrkdwn', text: \`*\${linkText}*\${c.competitor_handle ? '\\n' + c.competitor_handle : ''}\${c.avg_views ? '\\n_~' + Number(c.avg_views).toLocaleString('en-US') + ' avg views_' : ''}\` };
   });
   blocks.push({ type: 'section', fields: compFields });
 }
@@ -234,6 +214,39 @@ const manualWebhookTrigger = trigger({
   output: [{ body: {} }]
 });
 
+const fetchCompetitorsJson = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.4,
+  config: {
+    name: 'Fetch Competitors JSON',
+    parameters: {
+      method: 'GET',
+      url: COMPETITORS_JSON_URL,
+      options: {
+        response: { response: { responseFormat: 'json' } },
+        timeout: 30000
+      }
+    },
+    retryOnFail: true,
+    maxTries: 2,
+    waitBetweenTries: 3000,
+    executeOnce: true,
+    position: [192, 240]
+  },
+  output: [{
+    scraped_date: '2026-05-28',
+    summary: { clients_processed: 19, total_competitor_rows: 41 },
+    clients: [
+      {
+        client_name: 'Baya Voce',
+        competitors: [
+          { rank: 1, competitor_name: 'Couples Counseling Center', competitor_handle: '@couples_counseling_center', competitor_url: 'https://www.instagram.com/couples_counseling_center/', platform: 'instagram', avg_views: 73744, summary: 'sample summary' }
+        ]
+      }
+    ]
+  }]
+});
+
 const readClientsInfo = node({
   type: 'n8n-nodes-base.googleSheets',
   version: 4.7,
@@ -247,9 +260,9 @@ const readClientsInfo = node({
       options: {}
     },
     credentials: { googleSheetsOAuth2Api: newCredential('Google Sheets') },
-    position: [304, 112]
+    position: [400, 240]
   },
-  output: [{ client_name: 'Acme Coaching', slack_channel_id: 'C012345', content_description: 'fitness coaching reels for busy moms' }]
+  output: [{ client_name: 'Baya Voce', slack_channel_id: 'C0123', content_description: 'relationship coach reels' }]
 });
 
 const readTopVideos = node({
@@ -267,9 +280,9 @@ const readTopVideos = node({
     },
     credentials: { googleSheetsOAuth2Api: newCredential('Google Sheets') },
     executeOnce: true,
-    position: [560, 112]
+    position: [608, 240]
   },
-  output: [{ client_name: 'Acme Coaching', period: 'week', views: '50000', video_url: 'https://www.instagram.com/reel/abc123', scraped_date: '2026-05-27' }]
+  output: [{ client_name: 'Baya Voce', period: 'week', views: '50000', video_url: 'https://www.instagram.com/reel/abc123', scraped_date: '2026-05-27' }]
 });
 
 const matchTopReelPerClient = node({
@@ -281,15 +294,15 @@ const matchTopReelPerClient = node({
       mode: 'runOnceForAllItems',
       jsCode: matchTopReelCode
     },
-    position: [832, 112]
+    position: [832, 240]
   },
   output: [{
-    client_name: 'Acme Coaching',
-    slack_channel_id: 'C012345',
-    content_description: 'fitness coaching reels for busy moms',
+    client_name: 'Baya Voce',
+    slack_channel_id: 'C0123',
+    content_description: 'relationship coach reels',
     platform: 'instagram',
     video_url: 'https://www.instagram.com/reel/abc123',
-    caption: 'workout tips',
+    caption: 'sample',
     views: 50000,
     likes: 1200,
     comments: 80,
@@ -320,7 +333,7 @@ const getVideoUrlViaApify = node({
     waitBetweenTries: 5000,
     alwaysOutputData: true,
     onError: 'continueRegularOutput',
-    position: [1056, 112]
+    position: [1056, 240]
   },
   output: [{ videoUrl: 'https://cdn.example.com/video.mp4' }]
 });
@@ -334,16 +347,16 @@ const extractVideoUrl = node({
       mode: 'runOnceForEachItem',
       jsCode: extractVideoUrlCode
     },
-    position: [1264, 112]
+    position: [1264, 240]
   },
   output: [{
-    client_name: 'Acme Coaching',
-    slack_channel_id: 'C012345',
-    content_description: 'fitness coaching reels for busy moms',
+    client_name: 'Baya Voce',
+    slack_channel_id: 'C0123',
+    content_description: 'relationship coach reels',
     platform: 'instagram',
     video_url: 'https://www.instagram.com/reel/abc123',
     videoUrl: 'https://cdn.example.com/video.mp4',
-    caption: 'workout tips',
+    caption: 'sample',
     views: 50000,
     likes: 1200,
     comments: 80,
@@ -367,7 +380,7 @@ const downloadVideo = node({
     maxTries: 2,
     waitBetweenTries: 5000,
     onError: 'continueRegularOutput',
-    position: [1488, 112]
+    position: [1488, 240]
   },
   output: [{}]
 });
@@ -395,71 +408,9 @@ const transcribeWithWhisper = node({
     },
     credentials: { httpHeaderAuth: newCredential('OpenAI Whisper') },
     onError: 'continueRegularOutput',
-    position: [1696, 112]
+    position: [1696, 240]
   },
   output: [{ text: 'Sample transcribed text from the video.' }]
-});
-
-const sandcastleCompetitors = node({
-  type: 'n8n-nodes-base.httpRequest',
-  version: 4.4,
-  config: {
-    name: 'Sandcastle - Find Top Competitors',
-    parameters: {
-      method: 'POST',
-      url: placeholder('Sandcastle competitor search endpoint, e.g. https://api.sandcastle.io/v1/competitors/search'),
-      authentication: 'genericCredentialType',
-      genericAuthType: 'httpHeaderAuth',
-      sendBody: true,
-      contentType: 'json',
-      specifyBody: 'json',
-      jsonBody: expr('{{ JSON.stringify({ niche: $(\"Match Top Reel Per Client\").item.json.content_description, platform: $(\"Match Top Reel Per Client\").item.json.platform, limit: 3 }) }}'),
-      options: { timeout: 60000 }
-    },
-    credentials: { httpHeaderAuth: newCredential('Sandcastle API') },
-    retryOnFail: true,
-    maxTries: 2,
-    waitBetweenTries: 5000,
-    alwaysOutputData: true,
-    onError: 'continueRegularOutput',
-    position: [1904, 112]
-  },
-  output: [{
-    competitors: [
-      { name: 'Competitor One', handle: '@comp1', url: 'https://instagram.com/comp1', summary: 'Posting daily morning workout reels.' },
-      { name: 'Competitor Two', handle: '@comp2', url: 'https://instagram.com/comp2', summary: 'Sharing meal prep tips for moms.' },
-      { name: 'Competitor Three', handle: '@comp3', url: 'https://instagram.com/comp3', summary: 'Running a 30-day challenge with high engagement.' }
-    ]
-  }]
-});
-
-const parseSandcastle = node({
-  type: 'n8n-nodes-base.code',
-  version: 2,
-  config: {
-    name: 'Parse Sandcastle Response',
-    parameters: {
-      mode: 'runOnceForEachItem',
-      jsCode: parseSandcastleCode
-    },
-    position: [2112, 112]
-  },
-  output: [{
-    client_name: 'Acme Coaching',
-    slack_channel_id: 'C012345',
-    content_description: 'fitness coaching reels for busy moms',
-    platform: 'instagram',
-    video_url: 'https://www.instagram.com/reel/abc123',
-    caption: 'workout tips',
-    views: 50000,
-    likes: 1200,
-    comments: 80,
-    shares: 30,
-    transcript: 'Sample transcribed text.',
-    competitors: [
-      { name: 'Competitor One', handle: '@comp1', url: 'https://instagram.com/comp1', summary: 'Daily morning workout reels.' }
-    ]
-  }]
 });
 
 const buildClaudePrompt = node({
@@ -471,21 +422,23 @@ const buildClaudePrompt = node({
       mode: 'runOnceForEachItem',
       jsCode: buildClaudePromptCode
     },
-    position: [2320, 112]
+    position: [1904, 240]
   },
   output: [{
-    client_name: 'Acme Coaching',
-    slack_channel_id: 'C012345',
-    content_description: 'fitness coaching reels for busy moms',
+    client_name: 'Baya Voce',
+    slack_channel_id: 'C0123',
+    content_description: 'relationship coach reels',
     platform: 'instagram',
     video_url: 'https://www.instagram.com/reel/abc123',
-    caption: 'workout tips',
+    caption: 'sample',
     views: 50000,
     likes: 1200,
     comments: 80,
     shares: 30,
     transcript: 'Sample transcribed text.',
-    competitors: [],
+    competitors: [
+      { rank: 1, competitor_name: 'Couples Counseling Center', competitor_handle: '@couples_counseling_center', competitor_url: 'https://www.instagram.com/couples_counseling_center/', platform: 'instagram', avg_views: 73744, summary: 'sample summary' }
+    ],
     claude_request_body: '{"model":"claude-sonnet-4-20250514","max_tokens":800,"messages":[]}'
   }]
 });
@@ -515,10 +468,10 @@ const claudeWhyItPerformed = node({
       options: {}
     },
     credentials: { httpHeaderAuth: newCredential('Anthropic API') },
-    position: [2528, 112]
+    position: [2128, 240]
   },
   output: [{
-    content: [{ text: 'This reel performed well because of its punchy hook.\n---\nCompetitor One is posting daily; competitor Two has strong meal prep angle; competitor Three runs challenges.' }]
+    content: [{ text: 'This reel performed well because of its punchy hook.\n---\nCompetitor One is posting daily.' }]
   }]
 });
 
@@ -531,11 +484,11 @@ const formatSlackMessage = node({
       mode: 'runOnceForEachItem',
       jsCode: formatSlackCode
     },
-    position: [2736, 112]
+    position: [2336, 240]
   },
   output: [{
-    client_name: 'Acme Coaching',
-    text: 'Top reel of the week for Acme Coaching: 50,000 views',
+    client_name: 'Baya Voce',
+    text: 'Top reel of the week for Baya Voce: 50,000 views',
     blocks: '{"blocks":[]}'
   }]
 });
@@ -561,7 +514,7 @@ const sendSlackMessage = node({
     },
     credentials: { slackApi: newCredential('Slack Bot') },
     onError: 'continueRegularOutput',
-    position: [2944, 112]
+    position: [2560, 240]
   },
   output: [{ ok: true, channel: TEST_CHANNEL_ID }]
 });
@@ -576,27 +529,28 @@ const webhookResponse = node({
       responseBody: '={ "success": true, "message": "Weekly Slack updates sent (TEST RUN)" }',
       options: {}
     },
-    position: [3168, 112]
+    position: [2784, 240]
   },
   output: [{ success: true }]
 });
 
 const safetyNote = sticky(
-  '## TEST WORKFLOW — DO NOT ACTIVATE FOR PRODUCTION\n\nThis is a duplicate of "Weekly Slack – Top Reel of the Week" used to develop the Sandcastle competitor integration.\n\n**Safety measures:**\n- No schedule trigger — webhook-only, fires only when called manually.\n- All Slack messages go to **test channel C0B7D49KCD6** (hardcoded), regardless of what is in the Clients Info sheet.\n- Workflow is created inactive.\n\n**Before running:** fill in the Sandcastle API URL and credential on the "Sandcastle - Find Top Competitors" node.',
+  '## TEST WORKFLOW — DO NOT ACTIVATE FOR PRODUCTION\n\nDuplicate of "Weekly Slack – Top Reel of the Week" with competitor integration.\n\n**Safety measures:**\n- No schedule trigger — webhook-only.\n- All Slack messages go to **test channel C0B7D49KCD6** (hardcoded).\n- Workflow stays inactive.\n\n**Data source:** Competitor data is fetched from the GitHub repo at `claude/data-competitors` branch, file `data/competitors.json`, populated by the Claude Code routine "Weekly Sandcastles Competitor Research".',
   [],
-  { color: 3, position: [-40, -120], width: 600, height: 280 }
+  { color: 3, position: [-40, -120], width: 640, height: 280 }
 );
 
-const sandcastleNote = sticky(
-  '## Sandcastle Integration\n\nThis node calls the Sandcastle API to fetch the top 3 competitors per client. Configure:\n\n1. **URL** — replace placeholder with the real endpoint\n2. **Credential (httpHeaderAuth)** — header name + API key (e.g. `Authorization: Bearer ...`)\n3. **Body** — adjust the JSON if Sandcastle expects different field names (currently sends `niche`, `platform`, `limit: 3`)\n\nThe response is parsed by "Parse Sandcastle Response" which looks for `competitors`, `data.competitors`, or `results` arrays.',
+const competitorFetchNote = sticky(
+  '## Competitor Data Source\n\nThis HTTP node fetches the latest `data/competitors.json` from your GitHub repo (claude/data-competitors branch). Public raw URL, no auth needed.\n\n`executeOnce: true` means it fetches once per workflow run, not per client. Build Claude Prompt looks up each client by name from the parsed JSON.\n\nIf the routine hasn\'t run yet (or fails), the file may be stale or missing — workflow degrades gracefully (no competitor block in Slack, just top reel section).',
   [],
-  { color: 5, position: [1880, -180], width: 480, height: 260 }
+  { color: 5, position: [160, -120], width: 440, height: 280 }
 );
 
 export default workflow('weekly-slack-with-competitors-test', 'Weekly Slack – Top Reel + Competitors (TEST)')
   .add(safetyNote)
-  .add(sandcastleNote)
+  .add(competitorFetchNote)
   .add(manualWebhookTrigger)
+  .to(fetchCompetitorsJson)
   .to(readClientsInfo)
   .to(readTopVideos)
   .to(matchTopReelPerClient)
@@ -604,8 +558,6 @@ export default workflow('weekly-slack-with-competitors-test', 'Weekly Slack – 
   .to(extractVideoUrl)
   .to(downloadVideo)
   .to(transcribeWithWhisper)
-  .to(sandcastleCompetitors)
-  .to(parseSandcastle)
   .to(buildClaudePrompt)
   .to(claudeWhyItPerformed)
   .to(formatSlackMessage)

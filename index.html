@@ -3104,7 +3104,7 @@
     <div id="content">
         <div class="loading-state">
             <div class="spinner"></div>
-            <span class="loading-text">Loading analytics…</span>
+            <span class="loading-text" id="bootLoadingText">Loading…</span>
         </div>
     </div>
 </main>
@@ -12704,13 +12704,19 @@
                     const u = String(savedPost.graphic_linear_issue_id || '').trim();
                     if (u) _calPushStatusToLinear(u, savedPost.graphic_status);
                 }
-                // Back-compat: writes that only touched the legacy `status`
-                // column (bulk archive, etc.) still propagate to the video
-                // Linear issue so existing flows keep working.
-                if (!suppressAll && 'status' in edits && !('video_status' in edits) && !('graphic_status' in edits)) {
-                    const u = String(savedPost.linear_issue_id || '').trim();
-                    if (u) _calPushStatusToLinear(u, savedPost.status);
-                }
+                // NOTE: there is deliberately no "push the overall status to
+                // the video issue" path here. The video Linear issue must only
+                // ever receive `video_status`, and the graphic issue only
+                // `graphic_status` (handled above). An older back-compat branch
+                // pushed the recomputed overall `status` to the video issue
+                // whenever an edit carried `status` without a `video_status`
+                // — which is exactly the shape of a caption-only change (the
+                // caption has no Linear issue of its own). That leaked the
+                // overall status (e.g. "Tweaks Needed") onto the video issue
+                // and clobbered a freshly approved video, which the post-load
+                // reconcile then read back as a revert. The overall-status
+                // dropdown that the branch was meant to serve no longer exists,
+                // so the branch is gone entirely.
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);
@@ -13957,6 +13963,46 @@
         if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
     }
 
+    /* Drop a review card out of the queue cleanly — used when the client's
+       last outstanding action on a post is done, so the card has no reason
+       to linger. Fades/collapses the card out, then removes it; if it was
+       the last card in the list, re-renders the body so the empty state
+       shows in its place. No intermediate "nothing left to review" stub. */
+    function _calReviewRemoveCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        if (!el) return;
+        const list = el.closest('.cal-review-list');
+        const finish = () => {
+            el.remove();
+            // If that was the final card, swap in the empty state rather than
+            // leaving the list blank.
+            if (!list || !list.querySelector('.cal-review-card')) {
+                _calRenderBody({ preserveScroll: true });
+            }
+        };
+        // Collapse the card's height + fade it so the removal reads as
+        // intentional. Falls back to an instant remove if the element can't
+        // be measured (e.g. already detached).
+        const h = el.offsetHeight;
+        if (!h) { finish(); return; }
+        el.style.overflow = 'hidden';
+        el.style.height = h + 'px';
+        el.style.transition = 'height .2s ease, opacity .15s ease, margin .2s ease';
+        // Force a reflow so the starting height is committed before we
+        // transition to zero.
+        void el.offsetHeight;
+        el.style.opacity = '0';
+        el.style.height = '0px';
+        el.style.marginTop = '0px';
+        el.style.marginBottom = '0px';
+        let done = false;
+        const onEnd = () => { if (done) return; done = true; finish(); };
+        el.addEventListener('transitionend', onEnd, { once: true });
+        // Safety net in case transitionend doesn't fire.
+        setTimeout(onEnd, 280);
+    }
+
     function _calReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _calReviewState.drafts[key] = ta.value;
@@ -13999,21 +14045,23 @@
         // doesn't immediately revert this change if Linear is still showing
         // the stale state.
         _calMarkLocalStatus(pid, comp);
-        // Repaint immediately so the approval lands as an instant collapse
-        // to the mini panel — no spinner, no waiting on the network.
-        _calReviewRepaintCard(pid);
-        // If this approval was the LAST piece the client owed on this
-        // card (no component left at Client Approval or Tweaks Needed),
-        // re-evaluate the queue so the card actually drops out instead
-        // of lingering with a stale "In Progress" overall chip from the
-        // other untouched components. Without polling, the next implicit
-        // re-render would otherwise wait for tab focus.
-        if (_isClientLink) {
-            const needsClient = CAL_COMPONENTS.some(c => {
-                const cs = _calNormStatus(post[c + '_status'] || '');
-                return cs === 'Client Approval' || cs === 'Tweaks Needed';
-            });
-            if (!needsClient) setTimeout(() => _calRenderBody({ preserveScroll: true }), 400);
+        // If this approval was the LAST piece the client owed on this card
+        // (no component left at Client Approval or Tweaks Needed), the card
+        // drops out of the queue entirely — so remove it outright rather
+        // than first repainting it to the collapsed "nothing left to review"
+        // mini-stub and waiting on a delayed re-render. That collapse-then-
+        // vanish transition read as a glitch. Otherwise just repaint the
+        // card so the approved component lands as an instant mini panel.
+        const clearsCard = _isClientLink && !CAL_COMPONENTS.some(c => {
+            const cs = _calNormStatus(post[c + '_status'] || '');
+            return cs === 'Client Approval' || cs === 'Tweaks Needed';
+        });
+        if (clearsCard) {
+            _calReviewRemoveCard(pid);
+        } else {
+            // Repaint immediately so the approval lands as an instant collapse
+            // to the mini panel — no spinner, no waiting on the network.
+            _calReviewRepaintCard(pid);
         }
         // Fire-and-forget the save. The pending-edits map carries the
         // change, and _calFlushCardSave also handles the Linear push. We
@@ -15261,6 +15309,14 @@
             // to mount; the analytics-heavy extras stream in afterwards so
             // the calendar paints fast.
             const isClientCalendarLink = !!qp.get('c') && qp.get('v') === 'calendar';
+            // Make the boot loader honest about what's actually loading. The
+            // analytics data only matters for the analytics view, so don't
+            // claim "Loading analytics…" when the visitor is refreshing
+            // straight onto the content calendar (or any non-analytics tab).
+            const _setBootLoadingText = (t) => { const el = document.getElementById('bootLoadingText'); if (el) el.textContent = t; };
+            const _landingIsCalendar = isClientCalendarLink
+                || hashRaw === 'calendar' || hashRaw.startsWith('calendar/');
+            if (_landingIsCalendar) _setBootLoadingText('Loading content calendar…');
 
             if (isClientCalendarLink) {
                 fetchExtras().then(_applyAllDataDependentChrome, err => {

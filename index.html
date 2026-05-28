@@ -9204,6 +9204,15 @@
     }
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
+    // True while an upsert for this card id is in flight. Saves are
+    // serialized per card: a second flush that fires while one is still
+    // running just leaves its edits queued in _calPendingEdits and the
+    // running save re-flushes them when it finishes. Without this, rapid
+    // status changes launch overlapping upserts to the same sheet row —
+    // each a ~1-2s read-modify-write — whose responses (and server-side
+    // writes) can land out of order, so an earlier request's stale echo
+    // reverts a component the user just changed.
+    const _calSaveInFlight = Object.create(null);
     /* Tracks the last time *this browser* successfully wrote each card.
        Used by the background-load merge to detect concurrent writes from a
        different user: if we just saved a card but the server now has a
@@ -12623,15 +12632,25 @@
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
         if (!edits) return;
+        // Serialize per card. If a save is already running for this id, leave
+        // the accumulated edits queued — the in-flight save re-flushes them on
+        // completion (see the finally below), so writes to the same sheet row
+        // stay strictly ordered and a stale echo can't revert a fresh change.
+        if (_calSaveInFlight[pid]) return;
         delete _calPendingEdits[pid];
+        _calSaveInFlight[pid] = true;
+        let realId = pid;
+        try {
         const isBlank = _calIsBlankId(pid);
         const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
         if (isBlank && !hasContent) return;
 
-        let realId = pid;
         if (isBlank) {
             realId = _calMintId();
             _calPromoteBlankCard(pid, realId);
+            // Edits made during this save land under the new real id, so the
+            // lock must cover it too or the re-flush would race this request.
+            _calSaveInFlight[realId] = true;
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
@@ -12686,7 +12705,17 @@
             const saved = json.post || post;
             _calMigratePostShape(saved);
             const i2 = calState.posts.findIndex(p => p.id === realId);
-            if (i2 >= 0) calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
+            if (i2 >= 0) {
+                const merged = Object.assign({}, calState.posts[i2], saved);
+                // Don't let this request's server echo overwrite fields the
+                // user has already changed again (queued for the next flush).
+                // Their newer local value must survive until the re-flush
+                // persists it, otherwise the card would flicker back to the
+                // value this save was carrying.
+                const queued = _calPendingEdits[realId];
+                if (queued) for (const k in queued) merged[k] = calState.posts[i2][k];
+                calState.posts[i2] = merged;
+            }
             // Record this successful local write so the next background
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.
@@ -12741,6 +12770,17 @@
                 }
             }
             try { _calRenderBody({ preserveScroll: true }); } catch {}
+        }
+        } finally {
+            // Release the per-card lock and, if the user kept editing while
+            // this save was in flight, flush the queued edits now — strictly
+            // after this request finished, so writes to the same sheet row
+            // never overlap. Edits may sit under the original pid or, for a
+            // freshly promoted blank card, the minted realId.
+            delete _calSaveInFlight[pid];
+            delete _calSaveInFlight[realId];
+            if (_calPendingEdits[realId]) _calFlushCardSave(realId);
+            else if (realId !== pid && _calPendingEdits[pid]) _calFlushCardSave(pid);
         }
     }
 

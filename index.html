@@ -3717,39 +3717,17 @@
         shares:`<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 9l4-5 4 5M8 4v9" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
     };
 
-    async function fetchAll(){
-        const [mr,cr,tr,br,mrb,cs]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL),fetch(TOPVIDS_URL),fetch(BRIEFS_URL),fetch(MR_BRIEFS_URL+'&_t='+Date.now()),fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null)]);
+    /* Essentials = the two CSVs every routing path needs: metrics (for
+       allData / clientHistory / clientNames) and clients info (for
+       clientMap, including the per-client review token). Kept separate so
+       a client share link landing on /v=calendar only waits for these
+       two and the analytics-heavy fetches (top videos, briefs, MR briefs,
+       content summaries) load in the background. */
+    let _fetchExtrasPromise = null;
+    async function fetchEssentials(){
+        const [mr,cr]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL)]);
         allData=parseCSV(await mr.text());
         parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
-        const rawVideos=parseCSV(await tr.text());
-        if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
-        topVideos=rawVideos.map(normalizeVideoRow);
-        briefs=parseCSV(await br.text());
-        const mrbText=await mrb.text();
-        console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
-        mrBriefs=parseCSV(mrbText);
-        console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
-        if(mrBriefs.length>0){
-            console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
-            mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
-        }
-        // Load pre-generated content summaries from sheet (latest per client)
-        if(cs){
-            try{
-                const csRows=parseCSV(await cs.text());
-                const latest={};
-                for(const r of csRows){
-                    if(!r.client_name||!r.bullets)continue;
-                    if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
-                }
-                for(const[name,r]of Object.entries(latest)){
-                    if(!contentSummaryState[name]?.data){
-                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
-                    }
-                }
-                console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
-            }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
-        }
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{
@@ -3758,6 +3736,55 @@
                 console.log('[SyncView] Added placeholder for new client:',name);
             }
         });
+    }
+    async function fetchExtras(){
+        if (_fetchExtrasPromise) return _fetchExtrasPromise;
+        _fetchExtrasPromise = (async () => {
+            const [tr,br,mrb,cs]=await Promise.all([
+                fetch(TOPVIDS_URL),
+                fetch(BRIEFS_URL),
+                fetch(MR_BRIEFS_URL+'&_t='+Date.now()),
+                fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null),
+            ]);
+            const rawVideos=parseCSV(await tr.text());
+            if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
+            topVideos=rawVideos.map(normalizeVideoRow);
+            briefs=parseCSV(await br.text());
+            const mrbText=await mrb.text();
+            console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
+            mrBriefs=parseCSV(mrbText);
+            console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
+            if(mrBriefs.length>0){
+                console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
+                mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
+            }
+            if(cs){
+                try{
+                    const csRows=parseCSV(await cs.text());
+                    const latest={};
+                    for(const r of csRows){
+                        if(!r.client_name||!r.bullets)continue;
+                        if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
+                    }
+                    for(const[name,r]of Object.entries(latest)){
+                        if(!contentSummaryState[name]?.data){
+                            contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
+                        }
+                    }
+                    console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
+                }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
+            }
+        })();
+        return _fetchExtrasPromise;
+    }
+    async function fetchAll(){
+        // Kick off both halves in parallel so the SMM flow keeps its original
+        // total time — the split is only useful when a caller awaits just
+        // the essentials and lets the extras stream in afterwards.
+        const e = fetchEssentials();
+        const x = fetchExtras();
+        await e;
+        await x;
     }
 
     async function fetchBriefs(){
@@ -11438,8 +11465,16 @@
         const out = document.getElementById('calZoomOut'), inb = document.getElementById('calZoomIn');
         if (out) out.disabled = i <= 0;
         if (inb) inb.disabled = i >= CAL_ZOOM_LEVELS.length - 1;
+        // Keep the zoom control always visible across views — hiding it on
+        // non-organizer tabs caused the toolbar to reflow every time the
+        // user switched tabs. Zoom only affects the organizer card sizing,
+        // but the control sitting idle elsewhere is cheaper than a layout
+        // shift on every tab click.
         const ctl = document.getElementById('calZoomCtl');
-        if (ctl) ctl.style.display = calState.view === 'organizer' ? '' : 'none';
+        if (ctl) {
+            ctl.style.display = '';
+            ctl.style.visibility = calState.view === 'organizer' ? 'visible' : 'hidden';
+        }
     }
     function calZoom(delta) {
         let i = CAL_ZOOM_LEVELS.indexOf(calState.zoom || 'm');
@@ -11926,6 +11961,15 @@
        single overall-status chip that previously sat on the right of
        client-facing cards. The pills reuse the .cal-review-sub-pill
        colour palette so the look matches the existing sub-summary chips. */
+    /* Client-facing "ready to see" filter. The client should only see a card
+       on the Sheet tab once every component (Video / Thumbnail / Caption)
+       has been approved, scheduled, or posted — anything earlier is still
+       in-flight on our side and belongs on the Review tab instead. */
+    const _CAL_CLIENT_READY_STATES = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calIsClientReady(p) {
+        if (!p) return false;
+        return CAL_COMPONENTS.every(c => _CAL_CLIENT_READY_STATES.has(_calNormStatus(p[c + '_status'] || 'In Progress')));
+    }
     function _calClientCompPillsHtml(p) {
         return CAL_COMPONENTS.map(c => {
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
@@ -12005,6 +12049,7 @@
         const monthFilter = _calNormMonthFilter(calState.monthFilter);
         const posts = calState.posts.slice()
             .filter(p => _calPostInMonthFilter(p, monthFilter))
+            .filter(p => !_isClientLink || _calIsClientReady(p))
             .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
         // When the filter is hiding everything but there ARE posts in other
@@ -12201,7 +12246,10 @@
                         </div>
                         <input class="cal-fld-date-input" type="date" data-pid="${pid}" data-fld="scheduled_date" value="${_calEscAttr(dateIso)}" onchange="_calOnDateChange(this)">
                     </div>`;
-        const canApprove = ro && currentStatus === 'Client Approval';
+        // Per the SMM, the only surface where a client should approve is the
+        // Review tab — the Sheet tab is now read-only for them. Approval
+        // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
+        const canApprove = false;
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
         const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
@@ -13525,7 +13573,10 @@
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
         }
-        const unsched = calState.posts.filter(p => !p.scheduled_date);
+        // Client view: no unscheduled tray. The client can't change a post's
+        // date, so the only thing she could do with an unscheduled card is
+        // drag it — and we'd just refuse the drop. Hide the section entirely.
+        const unsched = _isClientLink ? [] : calState.posts.filter(p => !p.scheduled_date);
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         return `<div class="cal-month-wrap">
@@ -15181,6 +15232,48 @@
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
             const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast);
+            // Client share link landing on the calendar tab: we only need
+            // essentials (metrics for clientHistory, clients for the token)
+            // to mount; the analytics-heavy extras stream in afterwards so
+            // the calendar paints fast.
+            const isClientCalendarLink = !!qp.get('c') && qp.get('v') === 'calendar';
+
+            if (isClientCalendarLink) {
+                fetchExtras().then(_applyAllDataDependentChrome, err => {
+                    console.warn('[SyncView] background fetchExtras failed', err);
+                });
+                await fetchEssentials();
+                await Promise.resolve();
+                _resumePendingBriefPolling();
+                _applyAllDataDependentChrome();
+                const clientNames = [...new Set(allData.map(r => r.client_name))];
+                const clientFromQuery = decodeURIComponent(qp.get('c'));
+                if (clientNames.includes(clientFromQuery)) {
+                    const expectedToken = String(clientMap[clientFromQuery]?.client_review_token || '').trim();
+                    const tParam = String(qp.get('t') || '').trim();
+                    if (expectedToken && tParam !== expectedToken) {
+                        document.querySelector('header.header').style.display = 'none';
+                        document.getElementById('pageTop').style.display = 'none';
+                        document.getElementById('content').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+                            <div style="font-size:1.15rem;font-weight:700;color:#111;">This link isn't valid</div>
+                            <div style="font-size:0.9rem;color:#777;max-width:380px;line-height:1.45;">Please ask your social media manager for an updated link.</div>
+                        </div>`;
+                        return;
+                    }
+                    if (!expectedToken) {
+                        console.warn('[SyncView] No client_review_token set for "' + clientFromQuery + '" — link is unguarded.');
+                    }
+                    document.getElementById('selectorWrap').style.display = 'none';
+                    document.getElementById('pageSub').style.display = 'none';
+                    document.getElementById('pageTitle').textContent = 'Your Analytics';
+                    document.querySelector('header.header').style.display = 'none';
+                    clientViewTab[clientFromQuery] = 'calendar';
+                    render(clientFromQuery, true);
+                    return;
+                }
+                // Unknown client — fall through to the regular await-everything
+                // path so the existing 'invalid link' UX still triggers.
+            }
 
             const dataPromise = fetchAll();
             dataPromise.then(_applyAllDataDependentChrome, () => {});

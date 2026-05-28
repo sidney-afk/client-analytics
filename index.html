@@ -2134,7 +2134,7 @@
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
         .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--bg); }
-        .cal-client-status { display: flex; align-items: center; gap: 7px; }
+        .cal-client-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         /* Client view — let the status pill size to its label so it never
            wraps; the date pill takes the remaining width and truncates. */
         .cal-card-ro .cal-meta-row > .cal-client-status { flex: 0 0 auto; }
@@ -11920,6 +11920,20 @@
         const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g,'-');
         return `<span class="cal-status ${cls}">${_calEsc(_calStatusLabel(s))}</span>`;
     }
+    /* Read-only component-status pills for the client review surface and
+       the client-link sheet view. Three pills — Video, Thumbnail, Caption
+       — side by side, each coloured by its own sub-status. Replaces the
+       single overall-status chip that previously sat on the right of
+       client-facing cards. The pills reuse the .cal-review-sub-pill
+       colour palette so the look matches the existing sub-summary chips. */
+    function _calClientCompPillsHtml(p) {
+        return CAL_COMPONENTS.map(c => {
+            const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
+            const slug = _calStatusSlug(cs);
+            const label = COMP_LABELS[c] + ': ' + _calStatusLabel(cs);
+            return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
+        }).join('');
+    }
 
     /* ── Organizer view (inline-editable, Sheets-like) ──────────────── */
     let _calBlankSeq = 0;
@@ -12206,11 +12220,8 @@
             </div>`;
         }).join('');
         const statusHtml = ro
-            ? `<div class="cal-client-status">${_calStatusChip(p)}</div>`
-            : `<div class="cal-fld-status-wrap is-derived" data-val="${_calEscAttr(currentStatus)}" data-status-pid="${pid}">
-                        <span class="cal-fld-status-label">${_calEsc(_calStatusLabel(currentStatus))}</span>
-                    </div>
-                    ${subStatusHtml ? `<div class="cal-card-substatus-row">${subStatusHtml}</div>` : ''}`;
+            ? `<div class="cal-client-status">${_calClientCompPillsHtml(p)}</div>`
+            : `${subStatusHtml ? `<div class="cal-card-substatus-row">${subStatusHtml}</div>` : ''}`;
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
@@ -13498,7 +13509,7 @@
         // Color tag is SMM-internal — never surface the dot on the client view.
         const color = _isClientLink ? '' : _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calStatusChip(p)}</span></button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></span></button>`;
     }
 
     function renderCalMonth() {
@@ -13598,7 +13609,7 @@
                                 // Color tag is SMM-internal — hide on client view.
                                 const wColor = _isClientLink ? '' : _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
-                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calStatusChip(p)}</span></button>`;
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span></span></button>`;
                             }).join('')}
                         </div>
                     </div>`;
@@ -13667,22 +13678,10 @@
         const dateStr = p.scheduled_date
             ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
-        const overall = _calNormStatus(p.status || '');
-        const overallChip = _calStatusChip(p);
-        // Sub-status row: when all three components share the same status,
-        // the overall chip already says everything — hide the row. Otherwise
-        // surface only the components whose status diverges from the overall,
-        // as compact status-colored pills (label = "Component: Status" so
-        // the client knows what's still pending without having to hover).
-        const subStates = CAL_COMPONENTS.map(c => ({ c, st: _calNormStatus(p[c + '_status'] || '') }));
-        const allSame = subStates.every(s => s.st === subStates[0].st);
-        const subSummary = allSame ? '' : subStates
-            .filter(s => s.st !== overall)
-            .map(s => {
-                const slug = _calStatusSlug(s.st);
-                const label = _calEsc(COMP_LABELS[s.c]) + ': ' + _calEsc(_calStatusLabel(s.st));
-                return `<span class="cal-review-sub-pill cal-fld-status-${slug}" title="${label}">${label}</span>`;
-            }).join('');
+        // Always show all three component pills (Video / Thumbnail / Caption)
+        // side by side instead of a single overall chip — easier to scan at
+        // a glance and removes the "which component is blocking?" guess.
+        const compPills = _calClientCompPillsHtml(p);
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
@@ -13693,10 +13692,9 @@
                         <span class="kcard-dot">·</span>
                         <span class="kcard-date">${_calEsc(dateStr)}</span>
                     </div>
-                    <div class="cal-review-sub-row">${subSummary}</div>
+                    <div class="cal-review-sub-row">${compPills}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
-                    ${overallChip}
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
@@ -14043,7 +14041,7 @@
                     <div class="cal-preview-title">${_calEsc(p.name || 'Untitled')}</div>
                     <button class="cal-preview-close" onclick="closeCalPreview()" title="Close">×</button>
                 </div>
-                <div class="cal-preview-meta">${_calStatusChip(p)}<span>${_calEsc(dateStr)}</span></div>
+                <div class="cal-preview-meta">${_calClientCompPillsHtml(p)}<span>${_calEsc(dateStr)}</span></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">Asset URL</div><div class="cal-preview-val">${linkify(p.asset_url)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">Caption</div><div class="cal-preview-val">${valOrEmpty(p.caption)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">CTA</div><div class="cal-preview-val">${valOrEmpty(p.cta)}</div></div>
@@ -14662,7 +14660,7 @@
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
         if (!card) return;
         const chip = card.querySelector('.cal-client-status');
-        if (chip) chip.innerHTML = _calStatusChip(post);
+        if (chip) chip.innerHTML = _calClientCompPillsHtml(post);
         const isPosted = String(post.status || '').toLowerCase() === 'posted';
         card.classList.toggle('cal-card-posted', isPosted);
     }

@@ -143,9 +143,21 @@ const comments = fmtNum(data.comments);
 const platform = (data.platform || 'instagram').charAt(0).toUpperCase() + (data.platform || 'instagram').slice(1);
 const videoUrl = data.video_url || '';
 
+const fullName = data.client_name || '';
+let firstName;
+if (fullName.includes('&')) {
+  firstName = fullName;
+} else {
+  const parts = fullName.split(' ');
+  const titles = ['Dr.', 'Mr.', 'Mrs.', 'Ms.', 'Prof.'];
+  firstName = (titles.includes(parts[0]) && parts.length > 1)
+    ? parts[0] + ' ' + parts[1]
+    : (parts[0] || fullName);
+}
+
 const blocks = [
   { type: 'header', text: { type: 'plain_text', text: '\\ud83d\\udd25 Top Reel of the Week', emoji: true } },
-  { type: 'section', text: { type: 'mrkdwn', text: \`Hey *\${data.client_name}*! Here's your top-performing reel this week:\` } },
+  { type: 'section', text: { type: 'mrkdwn', text: \`Hey *\${firstName}*! Here's your top-performing reel this week:\` } },
   {
     type: 'section',
     fields: [

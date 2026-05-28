@@ -1542,11 +1542,15 @@
         .cal-view-btn { padding: 7px 16px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
         .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
-        .cal-month-filter-select { appearance: none; -webkit-appearance: none; background: var(--bg); border: none; border-radius: 99px; padding: 7px 28px 7px 14px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); cursor: pointer; min-width: 130px; }
-        .cal-month-filter-select.is-filtered { background: var(--text-primary); color: var(--white); }
-        .cal-month-filter::after { content: ''; position: absolute; right: 11px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-65%) rotate(45deg); pointer-events: none; color: var(--text-muted); }
-        .cal-month-filter:has(.is-filtered)::after { color: var(--white); }
-        .cal-month-filter-select:focus { outline: none; }
+        .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; min-width: 150px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); justify-content: space-between; background: var(--bg); box-shadow: none; }
+        .cal-month-filter .dropdown-trigger:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.08); color: var(--text-primary); }
+        .cal-month-filter .dropdown-trigger.is-filtered { background: var(--text-primary); color: var(--white); }
+        .cal-month-filter .dropdown-trigger.is-filtered:hover { color: var(--white); }
+        .cal-month-filter .dropdown-trigger .dd-arrow { font-size: 0.62rem; margin-left: 6px; opacity: 0.55; }
+        .cal-month-filter .dropdown-menu { min-width: 200px; max-height: 320px; overflow-y: auto; left: 0; right: auto; padding: 6px; }
+        .cal-month-filter .dropdown-item { padding: 8px 12px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .cal-month-filter .dropdown-item .cal-month-filter-tag { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+        .cal-month-filter .dropdown-item.active .cal-month-filter-tag { color: var(--text-primary); }
         .cal-filter-empty { padding: 32px 22px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
         .cal-filter-empty-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 6px; }
         .cal-filter-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
@@ -11241,6 +11245,11 @@
         });
     }
 
+    function _calMonthFilterTriggerLabel(cur, today) {
+        if (cur === 'all') return 'All months';
+        const label = _calMonthLabel(cur);
+        return cur === today ? label + ' · this month' : label;
+    }
     function _calMonthFilterHtml() {
         if (!calState.client || calState.view !== 'organizer') return '';
         const cur = _calNormMonthFilter(calState.monthFilter);
@@ -11250,17 +11259,57 @@
         if (cur !== 'all' && !months.includes(cur)) months.push(cur);
         months.sort();
         const isFiltered = cur !== 'all';
-        const options = ['<option value="all"' + (cur === 'all' ? ' selected' : '') + '>All months</option>']
-            .concat(months.map(m => `<option value="${m}"${m === cur ? ' selected' : ''}>${_calEsc(_calMonthLabel(m))}${m === today ? ' (this month)' : ''}</option>`));
-        return `<div class="cal-month-filter" title="Filter posts by scheduled month">
-            <select class="cal-month-filter-select${isFiltered ? ' is-filtered' : ''}" onchange="onCalMonthFilterChange(this.value)">${options.join('')}</select>
+        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const items = [
+            `<button type="button" class="dropdown-item${cur === 'all' ? ' active' : ''}" onclick="onCalMonthFilterChange('all')">All months</button>`,
+        ].concat(months.map(m => {
+            const tag = m === today ? '<span class="cal-month-filter-tag">This month</span>' : '';
+            return `<button type="button" class="dropdown-item${m === cur ? ' active' : ''}" onclick="onCalMonthFilterChange('${m}')"><span>${_calEsc(_calMonthLabel(m))}</span>${tag}</button>`;
+        })).join('');
+        const labelText = _calEsc(_calMonthFilterTriggerLabel(cur, today));
+        return `<div class="cal-month-filter" id="calMonthFilterWrap">
+            <button type="button" class="dropdown-trigger${isFiltered ? ' is-filtered' : ''}" id="calMonthFilterBtn" onclick="_calToggleMonthFilter(event)" title="Filter posts by scheduled month" aria-haspopup="listbox" aria-expanded="false">
+                <span>${labelText}</span>${chev}
+            </button>
+            <div class="dropdown-menu" id="calMonthFilterMenu" role="listbox">${items}</div>
         </div>`;
+    }
+    function _calToggleMonthFilter(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calMonthFilterMenu');
+        const btn  = document.getElementById('calMonthFilterBtn');
+        if (!menu || !btn) return;
+        const isOpen = menu.classList.contains('open');
+        if (isOpen) {
+            menu.classList.remove('open');
+            btn.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        } else {
+            menu.classList.add('open');
+            btn.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            const close = (ev) => {
+                const wrap = document.getElementById('calMonthFilterWrap');
+                if (wrap && !wrap.contains(ev.target)) {
+                    menu.classList.remove('open');
+                    btn.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    document.removeEventListener('click', close);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
     }
     function onCalMonthFilterChange(v) {
         calState.monthFilter = _calNormMonthFilter(v === 'all' ? 'all' : v);
         _calSavePrefs();
+        const menu = document.getElementById('calMonthFilterMenu');
+        const btn  = document.getElementById('calMonthFilterBtn');
+        if (menu) menu.classList.remove('open');
+        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
         _calRenderBody({ preserveScroll: false });
-        // Refresh the toolbar so the pill reflects the new value (color, label).
+        // Refresh the toolbar pill so the trigger label and active item reflect
+        // the new value without rebuilding the whole shell.
         const mid = document.querySelector('.cal-toolbar-mid');
         if (mid) {
             const wrap = document.createElement('div');
@@ -15071,13 +15120,25 @@
 
 
 
-        async function init(){
-        try{
-            await fetchAll();
-            // Resume polling for any pending briefs (persists across page refresh)
+        // Tabs that fetch their own data sources (n8n webhooks, Apps Script
+        // etc.) and don't need the analytics CSVs to mount. When the user
+        // refreshes (or arrives) directly on one of these we kick off
+        // fetchAll in the background so the page paints immediately instead
+        // of blocking on the analytics roundtrip.
+        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'tiktok-upload'];
+
+        function _applyAllDataDependentChrome() {
+            try {
+                const dates = allData.map(r => r.date).filter(Boolean).sort().reverse();
+                const el = document.getElementById('lastUpdated');
+                if (dates[0] && el) el.textContent = `Updated ${fmtDate(dates[0])}`;
+            } catch {}
+            try { renderPins(); } catch {}
+        }
+
+        function _resumePendingBriefPolling() {
             Object.entries(pendingBriefs).forEach(([key,{triggerISO,type}])=>{
                 const triggerTime=new Date(triggerISO);
-                // Extract client name from key (format: "ClientName__type")
                 const sep=key.lastIndexOf('__');
                 const clientName=sep>-1?key.substring(0,sep):key;
                 const briefType=type||(sep>-1?key.substring(sep+2):'comp');
@@ -15087,12 +15148,71 @@
                 briefPollingState[key]={loading:true,triggerTime,intervalId:null,lastChecked:null};
                 startBriefPolling(clientName,triggerTime,briefType);
             });
+        }
+
+        async function init(){
+        try{
+            const qp = new URLSearchParams(location.search);
+            const hashRaw = decodeURIComponent(location.hash.replace('#',''));
+            const savedNav = localStorage.getItem(NAV_KEY);
+            const stateNav = history.state && history.state.nav;
+            const stateClient = history.state && history.state.client;
+            const hashIsFastTab = FAST_TABS.includes(hashRaw)
+                || hashRaw.startsWith('calendar/')
+                || hashRaw.startsWith('templates/');
+            const fallbackFast = !hashRaw && !stateClient && FAST_TABS.includes(stateNav || savedNav);
+            // ?c=<client> needs allData to validate the token + render — never
+            // a fast-tab refresh. history.state.client also needs allData.
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast);
+
+            const dataPromise = fetchAll();
+            dataPromise.then(_applyAllDataDependentChrome, () => {});
+
+            if (skipAwait) {
+                // Paint immediately; fetchAll fills the global chrome when it lands.
+                _resumePendingBriefPolling();
+                loadTemplates();
+                if (hashRaw.startsWith('calendar/')) {
+                    const rest = hashRaw.slice('calendar/'.length);
+                    const sl = rest.indexOf('/');
+                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
+                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
+                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
+                    if (match) _calFocusRequest = { client: match, cardId: cardId || null };
+                    navTo('calendar', false);
+                } else if (hashRaw.startsWith('templates/')) {
+                    // Templates name lookup needs allData — wait for it before
+                    // setting the selected client, but mount the tab now.
+                    navTo('templates', false);
+                    dataPromise.then(() => {
+                        const tn = hashRaw.slice('templates/'.length);
+                        const names = [...new Set(allData.map(r => r.client_name))];
+                        if (names.includes(tn)) {
+                            _templatesSelected = tn;
+                            navTo('templates', false);
+                        }
+                    });
+                } else if (hashIsFastTab) {
+                    navTo(hashRaw, false);
+                } else {
+                    navTo((stateNav || savedNav), false);
+                }
+                // Bubble fetch errors to the user, but only if they actually
+                // navigate somewhere that needs data — for a clean calendar
+                // session a transient analytics fetch failure isn't fatal.
+                dataPromise.catch(err => {
+                    console.warn('[SyncView] background fetchAll failed', err);
+                });
+                return;
+            }
+
+            await dataPromise;
+            _resumePendingBriefPolling();
             // Content summaries now generate lazily — only when the user opens a specific client's profile.
             // See buildContentSummarySection for the per-profile auto-trigger.
             // Load shared client templates from the Apps Script backend (non-blocking).
             loadTemplates();
-            const dates=allData.map(r=>r.date).filter(Boolean).sort().reverse();
-            if(dates[0])document.getElementById('lastUpdated').textContent=`Updated ${fmtDate(dates[0])}`;
+            _applyAllDataDependentChrome();
             const clientNames=[...new Set(allData.map(r=>r.client_name))];
             const qParam=new URLSearchParams(location.search).get('c');
             const clientFromQuery=qParam?decodeURIComponent(qParam):null;
@@ -15125,9 +15245,7 @@
                 if(vParam==='calendar')clientViewTab[clientFromQuery]='calendar';
                 render(clientFromQuery,true);return;
             }
-            const savedNav=localStorage.getItem(NAV_KEY);
             const hash=decodeURIComponent(location.hash.replace('#',''));
-            renderPins();
             // Unlock the hidden Kasper tab only for visitors who arrive with
             // ?Kasper=1. The unlock is scoped to the current browser tab via
             // sessionStorage — closing the tab requires reusing the link.

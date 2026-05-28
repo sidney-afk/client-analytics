@@ -5724,7 +5724,7 @@
     let _templatesActiveTab = 'reels';      // 'reels' | 'thumbnails'
     let _templatesEditMode = false;         // false = view mode, true = edit mode
     const _tplSaveTimers = {};              // debounce timers by `${client}::${field}`
-    const _tplSaveAbort  = {};              // abort controllers by client
+    const _tplSaveInFlight = {};            // true while a save is in flight, by client (serializes saves)
     const _tplDirty      = {};              // pending patches by client {field: value}
     const TPL_RECENT_KEY = 'syncview_tpl_recent_searches';
     const TPL_PINS_KEY   = 'syncview_tpl_pinned_clients';
@@ -5780,20 +5780,25 @@
     }
 
     async function _tplFlush(name) {
+        if (!TEMPLATES_SAVE_URL) { if (_tplDirty[name] && Object.keys(_tplDirty[name]).length) _setTplStatus('error','Endpoint not configured'); return; }
+        // Serialize per client. A second flush firing while one is in flight
+        // used to abort the first request, but the first had already cleared
+        // _tplDirty — so its fields were dropped (the AbortError branch never
+        // re-queued them) and a typed value could be lost. Instead, leave the
+        // accumulated patch in _tplDirty and let the in-flight flush re-flush
+        // it when it finishes, mirroring the calendar's _calSaveInFlight.
+        if (_tplSaveInFlight[name]) return;
         const patch = _tplDirty[name];
         if (!patch || !Object.keys(patch).length) return;
-        if (!TEMPLATES_SAVE_URL) { _setTplStatus('error','Endpoint not configured'); return; }
         delete _tplDirty[name];
-        if (_tplSaveAbort[name]) { try { _tplSaveAbort[name].abort(); } catch {} }
-        const ctrl = new AbortController();
-        _tplSaveAbort[name] = ctrl;
+        _tplSaveInFlight[name] = true;
         _setTplStatus('saving');
+        let ok = false;
         try {
             const resp = await fetch(TEMPLATES_SAVE_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientName: name, patch }),
-                signal: ctrl.signal,
             });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'Save failed');
@@ -5801,16 +5806,24 @@
             // (plus updated_at), so a replace would wipe every other field from local state
             // until the next page reload.
             templatesData[name] = Object.assign({}, templatesData[name] || {}, json.template || {});
+            ok = true;
             _setTplStatus('saved');
             setTimeout(() => {
                 const badge = document.getElementById('tplStatusBadge');
                 if (badge && badge.classList.contains('saved')) _setTplStatus('idle');
             }, 2000);
         } catch (e) {
-            if (e.name === 'AbortError') return;
             console.warn('[SyncView] template save failed:', e);
-            _tplDirty[name] = Object.assign(patch, _tplDirty[name] || {});
+            // Re-queue this patch (newer edits made mid-flight win over it).
+            _tplDirty[name] = Object.assign({}, patch, _tplDirty[name] || {});
             _setTplStatus('error', e.message || 'Save failed — try again');
+        } finally {
+            delete _tplSaveInFlight[name];
+            // Flush edits that accumulated during the round-trip. Only auto-
+            // re-flush on success — on failure the patch sits in _tplDirty and
+            // re-sends on the next edit/blur, so we don't hammer a failing
+            // endpoint in a tight loop.
+            if (ok && _tplDirty[name] && Object.keys(_tplDirty[name]).length) _tplFlush(name);
         }
     }
 
@@ -9204,14 +9217,16 @@
     }
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
-    // True while an upsert for this card id is in flight. Saves are
-    // serialized per card: a second flush that fires while one is still
-    // running just leaves its edits queued in _calPendingEdits and the
-    // running save re-flushes them when it finishes. Without this, rapid
-    // status changes launch overlapping upserts to the same sheet row —
-    // each a ~1-2s read-modify-write — whose responses (and server-side
-    // writes) can land out of order, so an earlier request's stale echo
-    // reverts a component the user just changed.
+    // Holds a pending Promise while an upsert for this card id is in flight
+    // (falsy otherwise). Saves are serialized per card: a second flush that
+    // fires while one is still running just leaves its edits queued in
+    // _calPendingEdits and the running save re-flushes them when it finishes.
+    // Without this, rapid status changes launch overlapping upserts to the
+    // same sheet row — each a ~1-2s read-modify-write — whose responses (and
+    // server-side writes) can land out of order, so an earlier request's
+    // stale echo reverts a component the user just changed. Other per-card
+    // mutation paths (move-to-date, archive) await this promise so their
+    // writes can't race an in-flight save either.
     const _calSaveInFlight = Object.create(null);
     /* Tracks the last time *this browser* successfully wrote each card.
        Used by the background-load merge to detect concurrent writes from a
@@ -11194,6 +11209,13 @@
             const newPosts = fetchedPosts.map(fp => {
                 const lp = prevById.get(fp.id);
                 if (!lp) return fp;
+                // A save for this card is mid-flight: our optimistic local
+                // state hasn't been acknowledged by the sheet yet, so the
+                // fetched row is by definition pre-change. Never let a poll
+                // overwrite it. (The success-gated _calLocalRecentSaves guard
+                // below only kicks in AFTER the upsert resolves, leaving the
+                // ~1-2s in-flight window exposed to a clock-skewed revert.)
+                if (_calSaveInFlight[fp.id]) return lp;
                 const lT = Date.parse(lp.updated_at || '');
                 const fT = Date.parse(fp.updated_at || '');
                 const recentSave = _calLocalRecentSaves.get(fp.id);
@@ -11215,6 +11237,13 @@
                 // Last-write-wins fallback: keep local if its
                 // updated_at is newer than the server's.
                 if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
+                // Taking the server copy — but never silently drop edits the
+                // user has queued locally that haven't been written yet (e.g.
+                // a debounced field still waiting on its timer, or edits the
+                // reconcile queued without bumping updated_at). Overlay them
+                // so the next flush still has them.
+                const pend = _calPendingEdits[fp.id];
+                if (pend) return Object.assign({}, fp, pend);
                 return fp;
             });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
@@ -11877,24 +11906,22 @@
             });
         });
     }
-    async function _calMovePostToDate(id, iso) {
+    function _calMovePostToDate(id, iso) {
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
         post.scheduled_date = iso;
+        post.updated_at = new Date().toISOString();
+        // Route the reschedule through the same per-card save funnel as every
+        // other edit instead of firing its own bare upsert. That bare write
+        // bypassed _calSaveInFlight and could overlap an in-flight autosave on
+        // the same row — two whole-row read-modify-writes racing, one
+        // reverting the other (the move OR the concurrent edit). _calFlushCardSave
+        // owns the saving/saved/error indicator and the queued-merge guard.
+        if (!_calPendingEdits[id]) _calPendingEdits[id] = {};
+        _calPendingEdits[id].scheduled_date = iso;
         _calRenderBody();
-        _setCalStatus('saving');
-        try {
-            const resp = await fetch(CALENDAR_UPSERT_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), post })
-            });
-            const json = await resp.json();
-            if (!json.ok) throw new Error('move failed');
-            _setCalStatus('saved');
-        } catch (e) {
-            _setCalStatus('error', 'Move failed');
-        }
+        _calFlushCardSave(id);
     }
 
     // Shift-scroll over the Month/Week grid steps the period one at a time,
@@ -12638,7 +12665,8 @@
         // stay strictly ordered and a stale echo can't revert a fresh change.
         if (_calSaveInFlight[pid]) return;
         delete _calPendingEdits[pid];
-        _calSaveInFlight[pid] = true;
+        let _releaseSave;
+        _calSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
         let realId = pid;
         try {
         const isBlank = _calIsBlankId(pid);
@@ -12650,7 +12678,7 @@
             _calPromoteBlankCard(pid, realId);
             // Edits made during this save land under the new real id, so the
             // lock must cover it too or the re-flush would race this request.
-            _calSaveInFlight[realId] = true;
+            _calSaveInFlight[realId] = _calSaveInFlight[pid];
         }
         let post;
         const idx = calState.posts.findIndex(p => p.id === realId);
@@ -12779,6 +12807,7 @@
             // freshly promoted blank card, the minted realId.
             delete _calSaveInFlight[pid];
             delete _calSaveInFlight[realId];
+            if (_releaseSave) _releaseSave();
             if (_calPendingEdits[realId]) _calFlushCardSave(realId);
             else if (realId !== pid && _calPendingEdits[pid]) _calFlushCardSave(pid);
         }
@@ -12896,6 +12925,17 @@
        wrong calendar tab. */
     async function _calArchiveOne(id, slug) {
         const useSlug = slug || calClientSlug(calState.client);
+        // The card is being archived, so any queued edits for it are moot —
+        // drop them so the in-flight save's finally doesn't re-flush them on
+        // top of our Archived write. Then wait out any save already in flight
+        // so the Archived write lands strictly AFTER it; otherwise the save's
+        // full-row echo (status still Client Approval, etc.) would resurrect
+        // the row we just archived. (This write can't go through the normal
+        // flush funnel because _calFlushCardSave recomputes `status` from the
+        // sub-statuses, which would clobber 'Archived'.)
+        delete _calPendingEdits[id];
+        const inflight = _calSaveInFlight[id];
+        if (inflight) { try { await inflight; } catch (e) {} }
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ client: useSlug, post: { id, status: 'Archived' } })
@@ -17646,7 +17686,22 @@
        Mirrors how the calendar view saves cards: comments get serialised
        into the `tweaks` column on the wire. After the save lands, push
        the status change to Linear so the sub-issue follows. */
-    async function _kasperPersistPost(item) {
+    // Serialize whole-row writes per card. The button locks above are
+    // PER-COMPONENT (item._saving[comp]), but _kasperPersistPostWrite POSTs the
+    // ENTIRE row — so approving the video while submitting a graphic tweak holds
+    // two different component locks yet fires two overlapping read-modify-writes
+    // against the same sheet row, and the slower response's snapshot reverts the
+    // other component. Chain each write after the previous so they apply in
+    // order; since every caller mutates item.post synchronously before calling,
+    // the last write in the chain carries the fully-merged row.
+    function _kasperPersistPost(item) {
+        const run = () => _kasperPersistPostWrite(item);
+        const chain = (item._persistChain || Promise.resolve()).then(run, run);
+        // Stored link must never reject or it would poison every later .then.
+        item._persistChain = chain.catch(() => {});
+        return chain;
+    }
+    async function _kasperPersistPostWrite(item) {
         // Stamp updated_at locally so a background poll racing this write
         // can't fetch the still-stale sheet row and clobber the freshly
         // submitted comment / status flip.

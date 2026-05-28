@@ -12620,7 +12620,37 @@
         'kasper_approved_at', 'posted_at',
     ];
 
-    async function _calFlushCardSave(pid) {
+    // Per-card save serialization. Rapid edits to the same card — e.g.
+    // flipping video / thumbnail / caption status in quick succession before
+    // the "Saved" tag appears — used to fire overlapping full-row upserts.
+    // A slower one's echoed row would then merge back on top of a sibling
+    // field that a faster, later save had already changed, reverting it
+    // (and, on out-of-order server arrival, persisting the stale value).
+    // Now only one upsert runs per card at a time; additional flush requests
+    // coalesce into a single trailing re-run that picks up whatever edits
+    // accumulated in _calPendingEdits in the meantime.
+    const _calSaveInFlight = Object.create(null);  // pid -> Promise (running save)
+    const _calSaveAgain = Object.create(null);     // pid -> true when a re-run is pending
+    function _calFlushCardSave(pid) {
+        if (_calSaveInFlight[pid]) {
+            // A save is already running for this card. Let the pending edits
+            // keep accumulating; the in-flight save re-runs when it finishes.
+            _calSaveAgain[pid] = true;
+            return _calSaveInFlight[pid];
+        }
+        const run = Promise.resolve(_calFlushCardSaveNow(pid)).finally(() => {
+            delete _calSaveInFlight[pid];
+            if (_calSaveAgain[pid]) {
+                delete _calSaveAgain[pid];
+                // Only re-flush if edits actually piled up while we were saving.
+                if (_calPendingEdits[pid]) _calFlushCardSave(pid);
+            }
+        });
+        _calSaveInFlight[pid] = run;
+        return run;
+    }
+
+    async function _calFlushCardSaveNow(pid) {
         const edits = _calPendingEdits[pid];
         if (!edits) return;
         delete _calPendingEdits[pid];
@@ -12686,7 +12716,13 @@
             const saved = json.post || post;
             _calMigratePostShape(saved);
             const i2 = calState.posts.findIndex(p => p.id === realId);
-            if (i2 >= 0) calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
+            // If another flush for this card is already queued to run right
+            // after us, our echoed row is stale for whatever that later edit
+            // changed — merging it would revert that sibling field. Skip the
+            // merge; the trailing flush will write the authoritative full row.
+            if (i2 >= 0 && !_calSaveAgain[pid]) {
+                calState.posts[i2] = Object.assign({}, calState.posts[i2], saved);
+            }
             // Record this successful local write so the next background
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.

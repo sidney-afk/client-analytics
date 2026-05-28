@@ -112,7 +112,7 @@ Write a response with TWO sections, separated by the exact line "---":
 
 SECTION 1 (under 280 chars, plain text, no markdown): Explain in 2-3 sentences WHY this reel likely performed so well. Focus on hook, content angle, or trend.
 
-SECTION 2 (under 600 chars, plain text, no markdown): Briefly describe what each of the top competitors is doing right now and what the client could learn from them. One short sentence per competitor. If no competitor data is available, say "No competitor data available this week."\`;
+SECTION 2 (under 600 chars, plain text, no markdown): Briefly describe what each of the top competitors is doing right now and what YOU could learn from them. Address the client directly using "you" — do NOT use the client's name (write "you could try..." not "\${data.client_name} could try..."). One short sentence per competitor. If no competitor data is available, say "No competitor data available this week."\`;
 
 const body = JSON.stringify({
   model: "claude-sonnet-4-20250514",
@@ -145,7 +145,7 @@ const videoUrl = data.video_url || '';
 
 const blocks = [
   { type: 'header', text: { type: 'plain_text', text: '\\ud83d\\udd25 Top Reel of the Week', emoji: true } },
-  { type: 'section', text: { type: 'mrkdwn', text: \`Hey *\${data.client_name}* team! Here's your top-performing reel this week:\` } },
+  { type: 'section', text: { type: 'mrkdwn', text: \`Hey *\${data.client_name}*! Here's your top-performing reel this week:\` } },
   {
     type: 'section',
     fields: [
@@ -159,6 +159,18 @@ const blocks = [
   { type: 'divider' },
   { type: 'section', text: { type: 'mrkdwn', text: \`*Why it performed well:*\\n\${whyAnalysis}\` } }
 ];
+
+if (videoUrl && videoUrl !== '#') {
+  blocks.push({
+    type: 'actions',
+    elements: [{
+      type: 'button',
+      text: { type: 'plain_text', text: '\\u25b6\\ufe0f Watch Reel', emoji: true },
+      url: videoUrl,
+      action_id: 'watch_reel'
+    }]
+  });
+}
 
 const competitors = data.competitors || [];
 if (competitors.length > 0) {
@@ -175,18 +187,6 @@ if (competitors.length > 0) {
     return { type: 'mrkdwn', text: \`*\${linkText}*\${c.competitor_handle ? '\\n' + c.competitor_handle : ''}\${c.avg_views ? '\\n_~' + Number(c.avg_views).toLocaleString('en-US') + ' avg views_' : ''}\` };
   });
   blocks.push({ type: 'section', fields: compFields });
-}
-
-if (videoUrl && videoUrl !== '#') {
-  blocks.push({
-    type: 'actions',
-    elements: [{
-      type: 'button',
-      text: { type: 'plain_text', text: '\\u25b6\\ufe0f Watch Reel', emoji: true },
-      url: videoUrl,
-      action_id: 'watch_reel'
-    }]
-  });
 }
 
 return {

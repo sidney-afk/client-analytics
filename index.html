@@ -12704,28 +12704,19 @@
                     const u = String(savedPost.graphic_linear_issue_id || '').trim();
                     if (u) _calPushStatusToLinear(u, savedPost.graphic_status);
                 }
-                // Back-compat: writes that ONLY touched the legacy `status`
-                // column (no per-component status in the edit at all) still
-                // propagate to the video Linear issue so truly status-only
-                // legacy flows keep working.
-                //
-                // Critically, this must NOT fire for per-component edits that
-                // merely carry the recomputed overall `status` alongside a
-                // sub-status. A caption-only change (the caption has no Linear
-                // issue of its own) includes `caption_status` + the overall
-                // `status` but neither `video_status` nor `graphic_status`,
-                // so without the caption_status guard below the overall
-                // status — e.g. "Tweaks Needed" when the client tweaks the
-                // caption — leaks onto the VIDEO issue and clobbers a freshly
-                // approved video. That stale Linear state then reverts the
-                // video on the next post-load reconcile.
-                if (!suppressAll && 'status' in edits
-                    && !('video_status' in edits)
-                    && !('graphic_status' in edits)
-                    && !('caption_status' in edits)) {
-                    const u = String(savedPost.linear_issue_id || '').trim();
-                    if (u) _calPushStatusToLinear(u, savedPost.status);
-                }
+                // NOTE: there is deliberately no "push the overall status to
+                // the video issue" path here. The video Linear issue must only
+                // ever receive `video_status`, and the graphic issue only
+                // `graphic_status` (handled above). An older back-compat branch
+                // pushed the recomputed overall `status` to the video issue
+                // whenever an edit carried `status` without a `video_status`
+                // — which is exactly the shape of a caption-only change (the
+                // caption has no Linear issue of its own). That leaked the
+                // overall status (e.g. "Tweaks Needed") onto the video issue
+                // and clobbered a freshly approved video, which the post-load
+                // reconcile then read back as a revert. The overall-status
+                // dropdown that the branch was meant to serve no longer exists,
+                // so the branch is gone entirely.
             }
         } catch (e) {
             console.warn('[Calendar] save failed', e);

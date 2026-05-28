@@ -9366,17 +9366,26 @@
        Linear-status-sync workflow now dedupes on writes, but existing
        rows would still both surface here. linear_issue_id is unique per
        Linear sub-issue, so any two rows sharing it are necessarily a
-       duplicate — keep the one with the highest order_index (the newer
-       one, since duplicates were appended at the end). Rows without a
+       duplicate — keep the most-recently-touched row, with order_index
+       as a tiebreaker. Using updated_at first means a row the user just
+       dragged / edited (and bumped updated_at on) wins over a stale
+       legacy duplicate at a higher order_index. Rows without a
        linear_issue_id are passed through unchanged. */
     function _calDedupeByLinearIssue(posts) {
         if (!Array.isArray(posts) || posts.length < 2) return posts || [];
         const bestByLink = new Map();
+        const score = (p) => {
+            const t = Date.parse(p && p.updated_at || '');
+            return isFinite(t) ? t : 0;
+        };
         for (const p of posts) {
             const link = p && p.linear_issue_id ? String(p.linear_issue_id).trim() : '';
             if (!link) continue;
             const prev = bestByLink.get(link);
-            if (!prev || Number(p.order_index || 0) > Number(prev.order_index || 0)) {
+            if (!prev) { bestByLink.set(link, p); continue; }
+            const sNew = score(p), sPrev = score(prev);
+            if (sNew > sPrev
+                || (sNew === sPrev && Number(p.order_index || 0) > Number(prev.order_index || 0))) {
                 bestByLink.set(link, p);
             }
         }
@@ -15179,6 +15188,12 @@
             dataPromise.then(_applyAllDataDependentChrome, () => {});
 
             if (skipAwait) {
+                // Yield one microtask so any top-level let/const declarations
+                // below init()'s call site (e.g. _tkPollTimer down in the
+                // TikTok module) finish initializing before navTo touches
+                // them — _tkTeardown reads _tkPollTimer and would otherwise
+                // hit a TDZ error on a direct calendar refresh.
+                await Promise.resolve();
                 // Paint immediately; fetchAll fills the global chrome when it lands.
                 _resumePendingBriefPolling();
                 loadTemplates();

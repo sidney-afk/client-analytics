@@ -1541,6 +1541,16 @@
         .cal-view-toggle { display: inline-flex; background: var(--bg); border-radius: 99px; padding: 3px; }
         .cal-view-btn { padding: 7px 16px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
+        .cal-month-filter-select { appearance: none; -webkit-appearance: none; background: var(--bg); border: none; border-radius: 99px; padding: 7px 28px 7px 14px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); cursor: pointer; min-width: 130px; }
+        .cal-month-filter-select.is-filtered { background: var(--text-primary); color: var(--white); }
+        .cal-month-filter::after { content: ''; position: absolute; right: 11px; top: 50%; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: translateY(-65%) rotate(45deg); pointer-events: none; color: var(--text-muted); }
+        .cal-month-filter:has(.is-filtered)::after { color: var(--white); }
+        .cal-month-filter-select:focus { outline: none; }
+        .cal-filter-empty { padding: 32px 22px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
+        .cal-filter-empty-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 6px; }
+        .cal-filter-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
+        .cal-filter-empty-sub .cal-link { background: none; border: none; padding: 0; color: var(--text-primary); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: inherit; font-family: inherit; }
         .cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
         .cal-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
         .cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
@@ -9126,7 +9136,33 @@
         selectAction: 'archive',
         selected: new Set(),
         lastSel: null,
+        monthFilter: null,
     };
+    function _calCurrentMonthIso() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    function _calNormMonthFilter(v) {
+        if (v === 'all') return 'all';
+        if (typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return v;
+        return _calCurrentMonthIso();
+    }
+    function _calShiftMonthIso(ym, n) {
+        const [Y, M] = ym.split('-').map(Number);
+        const d = new Date(Y, M - 1 + n, 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+    function _calMonthLabel(ym) {
+        const [Y, M] = ym.split('-').map(Number);
+        const d = new Date(Y, M - 1, 1);
+        return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    }
+    function _calPostInMonthFilter(p, ym) {
+        if (!ym || ym === 'all') return true;
+        const d = String(p && p.scheduled_date || '').slice(0, 7);
+        if (!d) return true;
+        return d === ym;
+    }
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
     /* Tracks the last time *this browser* successfully wrote each card.
@@ -9179,7 +9215,7 @@
         try {
             const prev = _calLoadPrefs();
             const client = calState.embedded ? prev.client : calState.client;
-            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom }));
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom, monthFilter: calState.monthFilter }));
         } catch {}
     }
     /* Per-client strip scroll, persisted across browser refreshes. */
@@ -9375,6 +9411,7 @@
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
+        calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -9491,6 +9528,7 @@
         calState.embedded = true;
         calState.view = _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
+        calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -11203,6 +11241,35 @@
         });
     }
 
+    function _calMonthFilterHtml() {
+        if (!calState.client || calState.view !== 'organizer') return '';
+        const cur = _calNormMonthFilter(calState.monthFilter);
+        const today = _calCurrentMonthIso();
+        const months = [];
+        for (let i = -1; i <= 5; i++) months.push(_calShiftMonthIso(today, i));
+        if (cur !== 'all' && !months.includes(cur)) months.push(cur);
+        months.sort();
+        const isFiltered = cur !== 'all';
+        const options = ['<option value="all"' + (cur === 'all' ? ' selected' : '') + '>All months</option>']
+            .concat(months.map(m => `<option value="${m}"${m === cur ? ' selected' : ''}>${_calEsc(_calMonthLabel(m))}${m === today ? ' (this month)' : ''}</option>`));
+        return `<div class="cal-month-filter" title="Filter posts by scheduled month">
+            <select class="cal-month-filter-select${isFiltered ? ' is-filtered' : ''}" onchange="onCalMonthFilterChange(this.value)">${options.join('')}</select>
+        </div>`;
+    }
+    function onCalMonthFilterChange(v) {
+        calState.monthFilter = _calNormMonthFilter(v === 'all' ? 'all' : v);
+        _calSavePrefs();
+        _calRenderBody({ preserveScroll: false });
+        // Refresh the toolbar so the pill reflects the new value (color, label).
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (mid) {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = _calMonthFilterHtml();
+            const existing = mid.querySelector('.cal-month-filter');
+            if (existing && wrap.firstChild) existing.replaceWith(wrap.firstChild);
+        }
+    }
+
     function _calRenderShell() {
         const view = document.getElementById('calView');
         if (!view) return;
@@ -11239,6 +11306,7 @@
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
+                    ${_calMonthFilterHtml()}
                     <div class="cal-view-toggle">
                         ${tabViews.map(v => `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}</button>`).join('')}
                     </div>
@@ -11738,6 +11806,25 @@
             selBtn.style.display = v === 'organizer' ? '' : 'none';
             selBtn.classList.toggle('active', calState.selectMode);
         }
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (mid) {
+            const existing = mid.querySelector('.cal-month-filter');
+            const html = _calMonthFilterHtml();
+            if (existing) {
+                if (html) {
+                    const wrap = document.createElement('div');
+                    wrap.innerHTML = html;
+                    existing.replaceWith(wrap.firstChild);
+                } else {
+                    existing.remove();
+                }
+            } else if (html) {
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                const toggle = mid.querySelector('.cal-view-toggle');
+                if (wrap.firstChild) mid.insertBefore(wrap.firstChild, toggle);
+            }
+        }
         _calApplyZoom();
         _calRenderBody();
     }
@@ -11833,8 +11920,15 @@
     }
 
     function renderCalOrganizer() {
-        const posts = calState.posts.slice().sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+        const monthFilter = _calNormMonthFilter(calState.monthFilter);
+        const posts = calState.posts.slice()
+            .filter(p => _calPostInMonthFilter(p, monthFilter))
+            .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
+        // When the filter is hiding everything but there ARE posts in other
+        // months, surface that — otherwise the user sees the "Add the first
+        // post" hero and thinks the calendar is genuinely empty.
+        const hiddenByFilter = empty && monthFilter !== 'all' && calState.posts.length > 0;
         // The "current" card is the first one after the last posted one — the
         // next post still to be worked on.
         let lastPostedIdx = -1;
@@ -11842,7 +11936,9 @@
         const currentIdx = lastPostedIdx + 1;
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
         const addBtn = empty
-            ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`
+            ? (hiddenByFilter
+                ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts scheduled for ${_calEsc(_calMonthLabel(monthFilter))}</div><div class="cal-filter-empty-sub">Switch to <button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">All months</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
+                : `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`)
             : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Add a card'}">${plus}</button>`;
         const isLinkAction = calState.selectAction === 'link';
         const isCaptionAction = calState.selectAction === 'caption';
@@ -12515,20 +12611,29 @@
         const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
         if (!blank) return;
         blank.classList.remove('is-blank');
-        blank.setAttribute('data-pid', newId);
         blank.setAttribute('draggable', 'true');
-        blank.querySelectorAll(`[data-pid="${oldPid}"]`).forEach(el => el.setAttribute('data-pid', newId));
-        const saveTag = blank.querySelector('.cal-card-saving');
-        if (saveTag) saveTag.setAttribute('data-saving', newId);
-        const dateDisplay = blank.querySelector(`[data-date-display="${oldPid}"]`);
-        if (dateDisplay) dateDisplay.setAttribute('data-date-display', newId);
-        const thumbDiv = blank.querySelector('.cal-card-thumb');
-        if (thumbDiv) thumbDiv.setAttribute('onclick', `_calThumbClick(event,'${newId}')`);
-        blank.querySelectorAll(`[data-pid-wrap="${oldPid}"]`).forEach(el => el.setAttribute('data-pid-wrap', newId));
-        blank.querySelectorAll('.cal-link-pill-open, .cal-link-edit').forEach(b => {
-            const oc = b.getAttribute('onclick');
-            if (oc) b.setAttribute('onclick', oc.split(oldPid).join(newId));
-        });
+        // Rewrite every reference to the old blank pid on this card — data-pid,
+        // data-title-row, data-status-pid, data-substatus-pid, inline onclick
+        // strings, etc. The previous code surgically updated a handful of
+        // attributes by class/name and missed others (data-title-row, the
+        // cal-linear-btn / substatus / generate-caption / copy-link onclicks),
+        // so a click on those before the next full re-render fired with the
+        // stale blank pid. _calFlushCardSave then minted a SECOND fresh id and
+        // pushed a ghost row to the sheet, with the original card looking
+        // unlinked because the edit was applied to the wrong post.
+        const oldEsc = oldPid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(oldEsc, 'g');
+        const walk = (el) => {
+            if (!el || !el.attributes) return;
+            for (let i = 0; i < el.attributes.length; i++) {
+                const a = el.attributes[i];
+                if (typeof a.value === 'string' && a.value.indexOf(oldPid) !== -1) {
+                    el.setAttribute(a.name, a.value.replace(re, newId));
+                }
+            }
+            for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
+        };
+        walk(blank);
         if (!blank.querySelector('.cal-card-grip')) {
             const grip = document.createElement('span');
             grip.className = 'cal-card-grip'; grip.title = 'Drag to reorder';
@@ -13154,13 +13259,22 @@
         strip.dataset.dropWired = '1';
         strip.addEventListener('drop', () => {
             const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
-            const items = ids.map((id, i) => ({ id, order_index: i + 1 }));
+            if (!ids.length) return;
+            const byId = new Map(calState.posts.map(p => [p.id, p]));
+            // Recycle the existing order_index slots of these visible posts
+            // instead of renumbering 1..N globally. With the month filter
+            // active, only a subset is rendered — assigning 1..N would clobber
+            // the order_index of hidden posts (e.g. a May-only reorder would
+            // jump renumbered May posts ahead of June). Sorting the slots and
+            // reassigning by DOM order keeps the visible subset shuffled in
+            // place without disturbing hidden posts' relative position.
+            const slots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            const items = ids.map((id, i) => ({ id, order_index: slots[i] }));
             // Snapshot the prior order so a webhook failure can revert.
             // Without this, a dropped card sits at its new position locally
             // while the sheet still has the old order — next reload snaps
             // it back and the user thinks the drag didn't happen.
             const prevOrder = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
-            const byId = new Map(calState.posts.map(p => [p.id, p]));
             items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
             try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             persistCalReorder(items, prevOrder);

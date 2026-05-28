@@ -2127,9 +2127,14 @@
         .cal-fld-substatus-trigger.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
         .cal-fld-substatus-trigger.cal-fld-status-scheduled         { background: #ede9fe; color: #5b21b6; }
         .cal-fld-substatus-trigger.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
-        /* Second Linear slot (graphics) in the title row */
-        .cal-linear-btn-graphic.is-linked { color: #d946ef; }
-        .cal-linear-btn-graphic { color: #d946ef; }
+        /* Second Linear slot (graphics) in the title row — purple ONLY when
+           linked, so an unlinked graphic slot falls back to the neutral
+           gray (default) or warn-orange (cal-linear-btn-warn) the same way
+           the video slot does. The previous unscoped rule kept it purple
+           even when there was no link, which masked the "needs linking"
+           visual cue. */
+        .cal-linear-btn-graphic.is-linked { color: #d946ef; background: #fbe7fe; }
+        .cal-linear-btn-graphic.is-linked:hover { background: #f5d0fe; }
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }

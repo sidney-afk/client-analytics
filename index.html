@@ -1601,6 +1601,8 @@
         .cal-import-pick-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--text-primary); flex-shrink: 0; cursor: pointer; }
         .cal-import-pick-name { flex: 1; font-size: 0.84rem; color: var(--text-primary); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-import-pick-date { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+        button.cal-import-sheet-row { background: transparent; border: 1px solid var(--border); font-family: inherit; text-align: left; width: 100%; }
+        button.cal-import-sheet-row:hover { border-color: var(--text-primary); }
         .cal-linear-import-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1.5px solid #c7c7c4;
             border-radius: 9px; font-family: inherit; font-size: 0.84rem; color: var(--text-primary); outline: 0; }
         .cal-linear-import-input:focus { border-color: var(--text-primary); }
@@ -9557,6 +9559,10 @@
        losing what the user picked. */
     let _calImportMap = null;
     let _calImportSelectedIdx = null;   // Set<number> of _calImportRows indices to import
+    /* Parsed workbook + chosen sheet name. Held on the module so the user
+       can flip between sheets via Back without re-uploading the file. */
+    let _calImportWorkbook = null;
+    let _calImportSheetName = null;
 
     function _calLoadXLSX() {
         if (window.XLSX) return Promise.resolve(window.XLSX);
@@ -9602,6 +9608,7 @@
         if (!calState.client) return;
         _calImportRows = null; _calImportHeaders = null;
         _calImportMap = null; _calImportSelectedIdx = null;
+        _calImportWorkbook = null; _calImportSheetName = null;
         const ovl = document.getElementById('calImportOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -10550,18 +10557,82 @@
             const XLSX = await _calLoadXLSX();
             const buf = await file.arrayBuffer();
             const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            if (!ws) throw new Error('That workbook has no sheets.');
+            if (!wb.SheetNames.length) throw new Error('That workbook has no sheets.');
+            _calImportWorkbook = wb;
+            if (wb.SheetNames.length > 1) {
+                _calRenderImportSheetPick();
+            } else {
+                _calLoadImportSheet(wb.SheetNames[0]);
+            }
+        } catch (e) {
+            if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that file')}</div>`;
+        }
+    }
+
+    /* Parse one sheet from the loaded workbook and continue into the
+       column-matching step. Errors surface in the sheet-picker (if we
+       came from there) or in the upload step. */
+    function _calLoadImportSheet(name) {
+        const wb = _calImportWorkbook;
+        if (!wb) return;
+        const errBox = document.getElementById('calImportErr');
+        try {
+            const XLSX = window.XLSX;
+            const ws = wb.Sheets[name];
+            if (!ws) throw new Error('That sheet is empty.');
             const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
             if (!aoa.length) throw new Error('That sheet looks empty.');
             const parsed = _calDetectSheetLayout(aoa);
+            _calImportSheetName = name;
             _calImportRows = parsed.rows;
             _calImportHeaders = parsed.headers;
             _calImportLayout = parsed.transposed ? 'columns' : 'rows';
             _calRenderImportMap();
         } catch (e) {
-            if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that file')}</div>`;
+            if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that sheet')}</div>`;
         }
+    }
+
+    /* Step 1.5: when the workbook has multiple sheets, make the user pick
+       which one holds the posts. Auto-picking the first sheet bites us
+       when the calendar tab is sheet 2+ (e.g. a cover sheet or per-channel
+       tabs like "Tiktok"/"Instagram"). */
+    function _calRenderImportSheetPick() {
+        const modal = document.getElementById('calImportModal');
+        const wb = _calImportWorkbook;
+        if (!modal || !wb) return;
+        const XLSX = window.XLSX;
+        const sheets = wb.SheetNames.map(name => {
+            let rowCount = 0;
+            try {
+                const ws = wb.Sheets[name];
+                if (ws) {
+                    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
+                    rowCount = aoa.filter(r => r.some(c => String(c).trim() !== '')).length;
+                }
+            } catch (_) {}
+            return { name, rowCount };
+        });
+        const rowsHtml = sheets.map(s => {
+            const hint = s.rowCount ? `${s.rowCount} non-empty row${s.rowCount === 1 ? '' : 's'}` : 'empty';
+            return `<button type="button" class="cal-import-pick-row cal-import-sheet-row" onclick="_calLoadImportSheet(${_calEscAttr(JSON.stringify(s.name))})">
+                <span class="cal-import-pick-name">${_calEsc(s.name)}</span>
+                <span class="cal-import-pick-date">${_calEsc(hint)}</span>
+            </button>`;
+        }).join('');
+        modal.innerHTML = `
+            <div class="cal-import-head">
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <h3>Pick a sheet</h3>
+                <p>This workbook has ${sheets.length} sheets — choose the one with the posts you want to import.</p>
+            </div>
+            <div class="cal-import-body">
+                <div class="cal-import-pick-list">${rowsHtml}</div>
+                <div id="calImportErr"></div>
+            </div>
+            <div class="cal-import-foot">
+                <button class="cal-import-btn-ghost" onclick="_calRenderImportPick()">Back</button>
+            </div>`;
     }
 
     /* Figure out how the spreadsheet is laid out. Most calendars put one
@@ -10674,12 +10745,12 @@
                 <p>Matches were guessed from your column names — adjust anything that's off. Only <strong>Post name</strong> is required (red *); everything else can be left as <em>— none —</em> or unchecked to skip. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
             </div>
             <div class="cal-import-body">
-                <div class="cal-import-info">${_calImportRows.length} post${_calImportRows.length!==1?'s':''} found — read ${_calImportLayout === 'columns' ? 'one per column (field names down the side)' : 'one per row (field names across the top)'}. Posts with an empty name are skipped.</div>
+                <div class="cal-import-info">${_calImportRows.length} post${_calImportRows.length!==1?'s':''} found${_calImportSheetName ? ` in sheet <strong>${_calEsc(_calImportSheetName)}</strong>` : ''} — read ${_calImportLayout === 'columns' ? 'one per column (field names down the side)' : 'one per row (field names across the top)'}. Posts with an empty name are skipped.</div>
                 ${rowsHtml}
                 <div id="calImportErr"></div>
             </div>
             <div class="cal-import-foot">
-                <button class="cal-import-btn-ghost" onclick="_calRenderImportPick()">Back</button>
+                <button class="cal-import-btn-ghost" onclick="${_calImportWorkbook && _calImportWorkbook.SheetNames.length > 1 ? '_calRenderImportSheetPick()' : '_calRenderImportPick()'}">Back</button>
                 <button class="cal-import-btn-primary" id="calImportGo" onclick="_calProceedToImportSelect()">Next: pick posts</button>
             </div>`;
     }

@@ -3139,7 +3139,7 @@
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
-    let followersPlat = 'ig', followersMode = 'total', currentClientHistory = [];
+    let followersPlat = 'ig', followersMode = 'total', viewsPlat = 'all', currentClientHistory = [];
     let briefs = [];
     let mrBriefs = [];
     let linearProjects = [];
@@ -5293,9 +5293,11 @@
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
         const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:`<em>daily changes show after 2+ days</em>`;
-        const viewsLegends=[hasIG?`<div class="leg-item"><div class="leg-dot" style="background:#E1306C"></div>Instagram</div>`:'',hasTT?`<div class="leg-item"><div class="leg-dot" style="background:#2EC4B6"></div>TikTok</div>`:'',hasYT?`<div class="leg-item"><div class="leg-dot" style="background:#FF4444"></div>YouTube</div>`:''].filter(Boolean).join('');
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
         if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
+        if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))viewsPlat='all';
+        const mkViewsBtn=(plat,color,label)=>`<button class="chart-plat-btn${viewsPlat===plat?' active':''}" onclick="switchViewsPlat('${plat}',this)">${color?`<span class="cpb-dot" style="background:${color}"></span>`:''}${label}</button>`;
+        const viewsPlatToggle=[mkViewsBtn('all','','All'),hasIG?mkViewsBtn('ig','#E1306C','Instagram'):'',hasTT?mkViewsBtn('tt','#2EC4B6','TikTok'):'',hasYT?mkViewsBtn('yt','#FF4444','YouTube'):''].filter(Boolean).join('');
         const mkPlatBtn=(plat,color,label)=>`<button class="chart-plat-btn${followersPlat===plat?' active':''}" onclick="switchFollowersPlat('${plat}',this)"><span class="cpb-dot" style="background:${color}"></span>${label}</button>`;
         const platToggle=[hasIG?mkPlatBtn('ig','#E1306C','Instagram'):'',hasTT?mkPlatBtn('tt','#2EC4B6','TikTok'):'',hasYT?mkPlatBtn('yt','#FF4444','YouTube'):''].filter(Boolean).join('');
         const shareBtnHtml=!clientOnly?`<button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`:'';
@@ -5343,7 +5345,7 @@
             <div class="chart-section">
                 <div class="chart-top">
                     <span class="chart-title">Daily Views Over Time</span>
-                    <div class="chart-legend">${viewsLegends}</div>
+                    <div class="chart-plat-toggle">${viewsPlatToggle}</div>
                 </div>
                 <div class="chart-wrap"><canvas id="viewsChart"></canvas></div>
             </div>`;
@@ -5495,13 +5497,32 @@
     function renderViewsChart(history){
         const ctx=document.getElementById('viewsChart');if(!ctx)return;
         if(viewsChart){viewsChart.destroy();viewsChart=null;}
-        const c2d=ctx.getContext('2d'),h=240,labels=history.map(r=>fmtDate(r.date)),ds=[],sc={x:_xAxis};let yi=0;
-        const push=(label,key,color,r,g,b)=>{const data=history.map(row=>n(row[key])||null);if(!data.some(v=>v))return;const yId='y'+yi;ds.push({label,data,borderColor:color,backgroundColor:_mkGrad(c2d,h,r,g,b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});sc[yId]=_mkYAxis(yi===0);yi++;};
-        push('Instagram','ig_views_gained_today','#E1306C',225,48,108);
-        push('TikTok','tiktok_plays_gained_today','#2EC4B6',46,196,182);
-        push('YouTube','yt_views_gained_today','#FF4444',255,68,68);
+        const c2d=ctx.getContext('2d'),h=240;
+        const allSeries=[
+            {plat:'ig',label:'Instagram',key:'ig_views_gained_today',color:'#E1306C',r:225,g:48,b:108},
+            {plat:'tt',label:'TikTok',key:'tiktok_plays_gained_today',color:'#2EC4B6',r:46,g:196,b:182},
+            {plat:'yt',label:'YouTube',key:'yt_views_gained_today',color:'#FF4444',r:255,g:68,b:68},
+        ];
+        const series=allSeries.filter(s=>(viewsPlat==='all'||viewsPlat===s.plat)&&history.some(row=>n(row[s.key])));
+        let start=history.length;
+        for(let i=0;i<history.length;i++){if(series.some(s=>n(history[i][s.key]))){start=i;break;}}
+        const trimmed=history.slice(start);
+        const labels=trimmed.map(r=>fmtDate(r.date));
+        const ds=[],sc={x:_xAxis};let yi=0;
+        series.forEach(s=>{
+            const data=trimmed.map(row=>n(row[s.key])||null);
+            const yId='y'+yi;
+            ds.push({label:s.label,data,borderColor:s.color,backgroundColor:_mkGrad(c2d,h,s.r,s.g,s.b),fill:true,tension:0.3,borderWidth:2,pointRadius:0,pointHoverRadius:5,pointHoverBackgroundColor:s.color,pointHoverBorderColor:'#fff',pointHoverBorderWidth:2,yAxisID:yId});
+            sc[yId]=_mkYAxis(yi===0);yi++;
+        });
         if(!ds.length){ctx.parentElement.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.82rem">Daily views will appear after a few days of data.</div>`;return;}
         viewsChart=new Chart(ctx,{type:'line',data:{labels,datasets:ds},options:{..._baseOpts(v=>v.toLocaleString()),scales:sc}});
+    }
+    function switchViewsPlat(plat,btn){
+        viewsPlat=plat;
+        btn.closest('.chart-plat-toggle').querySelectorAll('.chart-plat-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        renderViewsChart(currentClientHistory);
     }
 
     function render(sel,clientOnly){

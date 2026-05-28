@@ -12174,7 +12174,11 @@
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
             return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_calLinearEdit('${pid}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
-        const warn = (which === 'video' && !_calIsBlankId(pid)) ? ' cal-linear-btn-warn' : '';
+        // Warn (orange) state on any unlinked Linear slot on a real (non-
+        // blank) card, regardless of component. Was previously video-only,
+        // which left the graphic slot in default gray and made it easy to
+        // miss that the thumbnail was unlinked from its Linear sub-issue.
+        const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
     }
     function _calTitleRowHtml(pid, p, ro) {

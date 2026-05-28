@@ -4,7 +4,14 @@ const TEST_CHANNEL_ID = 'C0B7D49KCD6';
 const COMPETITORS_JSON_URL = 'https://raw.githubusercontent.com/sidney-afk/client-analytics/refs/heads/claude/data-competitors/data/competitors.json';
 
 const matchTopReelCode = `
-const clients = $('Read Clients Info').all().map(i => i.json);
+// TEST_CLIENT_FILTER: limit to specific clients for cheap testing.
+// Set to [] (empty array) to process ALL clients (production mode).
+const TEST_CLIENT_FILTER = ['Adriana Rizzolo'];
+
+const allClients = $('Read Clients Info').all().map(i => i.json);
+const clients = TEST_CLIENT_FILTER.length > 0
+  ? allClients.filter(c => TEST_CLIENT_FILTER.includes(c.client_name))
+  : allClients;
 const videos  = $input.all().map(i => i.json);
 
 const results = [];

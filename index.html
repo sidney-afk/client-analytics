@@ -16871,6 +16871,11 @@
         loadingSMM: false,
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
+        dismissed: {},        // pid -> true: cards Kasper hit "Done reviewing" on while a
+                              // tweak was still unresolved. Keeps them out of his queue
+                              // across refreshes until the SMM either resolves the tweak
+                              // (card leaves naturally) or sends a component back to
+                              // Kasper Approval (un-dismissed — see _kasperKeepAfterDismiss).
         // Approved history and the Kasper-already-tweaked section both
         // default to collapsed — they're "what I've already done" buckets
         // that shouldn't visually compete with the live review queue.
@@ -17031,6 +17036,7 @@
             }
             _kasperState.items = items;
             _kasperState.history = Array.isArray(parsed.history) ? parsed.history : [];
+            _kasperState.dismissed = (parsed.dismissed && typeof parsed.dismissed === 'object') ? parsed.dismissed : {};
             _kasperState.smmByClient = parsed.smmByClient
                 ? new Map(parsed.smmByClient)
                 : new Map();
@@ -17061,6 +17067,7 @@
                     _touchedComps: it._touchedComps ? Array.from(it._touchedComps) : [],
                 })),
                 history: _kasperState.history,
+                dismissed: _kasperState.dismissed || {},
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
             };
             localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
@@ -17135,7 +17142,18 @@
             // fresh data.
             if (myGen !== _kasperLoadGen) return;
             _kasperState.smmByClient = smmMap;
-            const items = fetched.queue;
+            // Honour explicit "Done reviewing" dismissals across refreshes.
+            // The fetch re-includes any card with an unresolved Kasper tweak,
+            // so without this a dismissed card would pop straight back into
+            // the queue. Prune dismissals whose card has fully left Kasper's
+            // purview (tweak resolved / status moved on) so the set can't
+            // grow without bound — those ids are simply absent from the fetch.
+            if (!_kasperState.dismissed || typeof _kasperState.dismissed !== 'object') _kasperState.dismissed = {};
+            const _fetchedIds = new Set(fetched.queue.map(it => it.post.id));
+            for (const id of Object.keys(_kasperState.dismissed)) {
+                if (!_fetchedIds.has(id)) delete _kasperState.dismissed[id];
+            }
+            const items = fetched.queue.filter(it => _kasperKeepAfterDismiss(it.post));
             // Decorate posts with SMM info.
             for (const it of items) {
                 const slug = wlNormalizeClient(it.client);
@@ -17415,6 +17433,18 @@
            hitting Done reviewing).
        The count chip at the top reflects only the Waiting bucket — that's
        what "needs your attention right now" means. */
+    /* Should a card survive a refresh given Kasper's explicit dismissals?
+       A card Kasper hit "Done reviewing" on stays hidden — UNLESS the SMM
+       has since sent a component back to Kasper Approval, which is a fresh
+       ask. In that case we drop the dismissal and let it back into the
+       queue. (Tweak-resolved cards never reach here: they fail
+       _calPostKasperVisible upstream and aren't fetched at all.) */
+    function _kasperKeepAfterDismiss(post) {
+        if (!post || !_kasperState.dismissed || !_kasperState.dismissed[post.id]) return true;
+        const backToKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        if (backToKasper) { delete _kasperState.dismissed[post.id]; return true; }
+        return false;
+    }
     function _kasperPartitionItems(items) {
         const waiting = [], tweaks = [];
         for (const it of items) {
@@ -17618,7 +17648,7 @@
         // change — the tweaks are already in flight.
         const hasUnresolvedKasperTweak = _calPostHasUnresolvedKasperTweak(p);
         const doneBtn = hasUnresolvedKasperTweak
-            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as done. Components you haven't tweaked get implicit approval; the card moves to Tweaks pending until the SMM resolves your tweaks."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
+            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as done and remove it from your review. Components you haven't tweaked get implicit approval; any tweaks you left still go to the SMM. It only comes back if the SMM sends a component back to Kasper Approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
             : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
@@ -18061,13 +18091,15 @@
        belongs back with the editor/SMM. */
     /* Done reviewing — Kasper's "I'm finished with this card" action.
        Any component still at Kasper Approval (he didn't tweak it, he
-       didn't explicitly approve it) is treated as implicit approval
-       on his way out, then we re-render. Components he already tweaked
-       are already at Tweaks Needed with unresolved Kasper comments,
-       so the partition logic naturally moves the card into the
-       Tweaks pending section. If he has no tweaks at all (everything
-       turned out to be implicitly approved), the card moves to history
-       just like a normal full-approve flow. */
+       didn't explicitly approve it) is treated as implicit approval on
+       his way out. Either way the card then leaves his review entirely:
+         • No unresolved tweaks → it was a clean approve, logged to
+           Approved history.
+         • Has unresolved tweaks → handed off to the SMM and recorded as
+           dismissed so a refresh (which re-fetches any card with an open
+           Kasper tweak) doesn't drag it back. It returns only if the SMM
+           sends a component back to Kasper Approval. See
+           _kasperKeepAfterDismiss / _kasperState.dismissed. */
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
@@ -18112,14 +18144,16 @@
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // Card now belongs in Tweaks pending. Collapse it so the
-            // sliding-down animation reads as "I'm done with this one"
-            // — leaving it expanded under a fresh card was visually
-            // chatty. Persist cache so it survives a refresh and re-
-            // paint to let the partition move it into the lower section.
-            item._expanded = false;
+            // "Done reviewing" means Kasper is finished with the card —
+            // it leaves his view entirely, even with an unresolved tweak
+            // still riding along to the SMM. We record the dismissal so a
+            // refresh doesn't re-surface it (the fetch re-includes any card
+            // with an open Kasper tweak); it only comes back if the SMM
+            // sends a component back to Kasper Approval. It's NOT logged to
+            // Approved history — it isn't approved, it's handed off.
+            _kasperState.dismissed[pid] = true;
             _kasperPersistCache();
-            _kasperPaintReview();
+            _kasperRemoveItem(pid);
         }
     }
 

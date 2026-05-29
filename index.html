@@ -11208,43 +11208,61 @@
             const nowMs = Date.now();
             const newPosts = fetchedPosts.map(fp => {
                 const lp = prevById.get(fp.id);
-                if (!lp) return fp;
-                // A save for this card is mid-flight: our optimistic local
-                // state hasn't been acknowledged by the sheet yet, so the
-                // fetched row is by definition pre-change. Never let a poll
-                // overwrite it. (The success-gated _calLocalRecentSaves guard
-                // below only kicks in AFTER the upsert resolves, leaving the
-                // ~1-2s in-flight window exposed to a clock-skewed revert.)
-                if (_calSaveInFlight[fp.id]) return lp;
-                const lT = Date.parse(lp.updated_at || '');
-                const fT = Date.parse(fp.updated_at || '');
-                const recentSave = _calLocalRecentSaves.get(fp.id);
-                if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
-                    _calLocalRecentSaves.delete(fp.id);
-                    // recentSave now considered expired below.
-                }
-                const stillRecent = _calLocalRecentSaves.has(fp.id);
-                // Recent-save protection. Within CAL_CONFLICT_WINDOW_MS
-                // of a successful local upsert, prefer the local copy
-                // unconditionally — even if the server's updated_at is
-                // numerically newer. This guards against the Linear
-                // status-sync workflow round-tripping our just-set
-                // sub-status back to whatever Linear's state currently
-                // is (which can be stale by a few seconds and would
-                // otherwise flicker a freshly-approved component back
-                // to Client Approval).
-                if (stillRecent) return lp;
-                // Last-write-wins fallback: keep local if its
-                // updated_at is newer than the server's.
-                if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
-                // Taking the server copy — but never silently drop edits the
-                // user has queued locally that haven't been written yet (e.g.
-                // a debounced field still waiting on its timer, or edits the
-                // reconcile queued without bumping updated_at). Overlay them
-                // so the next flush still has them.
-                const pend = _calPendingEdits[fp.id];
-                if (pend) return Object.assign({}, fp, pend);
-                return fp;
+                if (!lp) { fp._baseAt = fp.updated_at || ''; return fp; }
+                const winner = (() => {
+                    // A save for this card is mid-flight: our optimistic local
+                    // state hasn't been acknowledged by the sheet yet, so the
+                    // fetched row is by definition pre-change. Never let a poll
+                    // overwrite it. (The success-gated _calLocalRecentSaves
+                    // guard below only kicks in AFTER the upsert resolves,
+                    // leaving the ~1-2s in-flight window exposed to a
+                    // clock-skewed revert.)
+                    if (_calSaveInFlight[fp.id]) return lp;
+                    const lT = Date.parse(lp.updated_at || '');
+                    const fT = Date.parse(fp.updated_at || '');
+                    const recentSave = _calLocalRecentSaves.get(fp.id);
+                    if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
+                        _calLocalRecentSaves.delete(fp.id);
+                        // recentSave now considered expired below.
+                    }
+                    const stillRecent = _calLocalRecentSaves.has(fp.id);
+                    // Recent-save protection. Within CAL_CONFLICT_WINDOW_MS
+                    // of a successful local upsert, prefer the local copy
+                    // unconditionally — even if the server's updated_at is
+                    // numerically newer. This guards against the Linear
+                    // status-sync workflow round-tripping our just-set
+                    // sub-status back to whatever Linear's state currently
+                    // is (which can be stale by a few seconds and would
+                    // otherwise flicker a freshly-approved component back
+                    // to Client Approval).
+                    if (stillRecent) return lp;
+                    // Last-write-wins fallback: keep local if its
+                    // updated_at is newer than the server's.
+                    if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
+                    // Taking the server copy — but never silently drop edits
+                    // the user has queued locally that haven't been written
+                    // yet (e.g. a debounced field still waiting on its timer,
+                    // or edits the reconcile queued without bumping
+                    // updated_at). Overlay them so the next flush still has
+                    // them.
+                    const pend = _calPendingEdits[fp.id];
+                    if (pend) return Object.assign({}, fp, pend);
+                    return fp;
+                })();
+                // Comments live in one cell per component that both the client
+                // and the SMM overwrite wholesale, so the LWW winner may carry
+                // a stale thread that dropped the other side's comments or
+                // un-resolved one. Union them per-comment so neither side's
+                // tweaks/resolutions vanish from the view. (The server upsert
+                // is authoritative for persistence and deletions.)
+                _calMergePostComments(winner, winner === lp ? fp : lp);
+                // Record the server version we just observed as the base for
+                // the server's next 3-way comment merge. Only ever advanced by
+                // a real server read or save echo — never by an optimistic
+                // local write — so it always reflects what this browser last
+                // saw the sheet contain.
+                winner._baseAt = fp.updated_at || '';
+                return winner;
             });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
@@ -12724,9 +12742,15 @@
             delete wirePost.video_comments;
             delete wirePost.graphic_comments;
             delete wirePost.caption_comments;
+            delete wirePost._baseAt;
+            // comments_base_at = the sheet's updated_at this browser last saw.
+            // The upsert workflow 3-way-merges each *_tweaks cell against this
+            // base so a concurrent comment from another browser (e.g. the
+            // client added a caption tweak while the SMM was acting) survives
+            // our whole-cell write instead of being clobbered.
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), post: wirePost })
+                body: JSON.stringify({ client: calClientSlug(calState.client), post: wirePost, comments_base_at: String(post._baseAt || '') })
             });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
@@ -12742,6 +12766,9 @@
                 // value this save was carrying.
                 const queued = _calPendingEdits[realId];
                 if (queued) for (const k in queued) merged[k] = calState.posts[i2][k];
+                // The echo is the freshly-merged server row, so advance the
+                // comment-merge base to its updated_at.
+                merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');
                 calState.posts[i2] = merged;
             }
             // Record this successful local write so the next background
@@ -14168,13 +14195,15 @@
         const body = String(_calReviewState.drafts[key] || '').trim();
         if (!body || _calReviewState.saving[key]) return;
         const list = _calCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
         const newComment = {
             id: _calMintCommentId(),
             parent_id: null,
             author: _calCurrentAuthor(),
             role: _calCommentRole(),
             body: body,
-            created_at: new Date().toISOString(),
+            created_at: _now,
+            updated_at: _now,
             done: false,
             done_at: '',
             done_by: '',
@@ -14307,6 +14336,46 @@
     function _calStringifyComments(arr) {
         const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : [];
         return list.length ? JSON.stringify(list) : '';
+    }
+    /* Per-comment last-write-wins clock. Comments live in a single per-component
+       cell that both the client and the SMM/Kasper rewrite wholesale, so the
+       same comment can exist in two browsers' copies with divergent resolution
+       state. Each comment carries an updated_at that bumps on every change;
+       merges keep the copy with the newer stamp. (Falls back to created_at for
+       legacy comments written before this field existed.) */
+    function _calCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
+    /* Union two comment lists by id for DISPLAY. For an id on both sides keep
+       the newer-stamped copy (so a stale write can't un-resolve a comment or
+       drop a fresh edit); ids on only one side are kept (a comment the other
+       surface just added). The server upsert is authoritative for deletions —
+       it 3-way-merges against each writer's last-seen base — so this client
+       union may briefly show a just-deleted comment until the next fetch, which
+       is strictly safer than the old whole-cell overwrite that silently lost
+       comments. */
+    function _calMergeCommentLists(a, b) {
+        const out = new Map();
+        const absorb = (list) => {
+            if (!Array.isArray(list)) return;
+            for (const c of list) {
+                if (!c || !c.id) continue;
+                const prev = out.get(c.id);
+                if (!prev || _calCommentStamp(c) >= _calCommentStamp(prev)) out.set(c.id, c);
+            }
+        };
+        absorb(a); absorb(b);
+        return Array.from(out.values());
+    }
+    /* Merge the per-component comment threads of `other` into `winner` in place
+       so neither side's comments/resolutions are lost when a poll picks one row
+       over the other. Returns winner. */
+    function _calMergePostComments(winner, other) {
+        if (!winner || !other) return winner;
+        for (const comp of CAL_COMPONENTS) {
+            const merged = _calMergeCommentLists(_calCommentsFor(winner, comp), _calCommentsFor(other, comp));
+            _calSetCommentsFor(winner, comp, merged);
+        }
+        if (Array.isArray(winner.video_comments)) winner.comments = winner.video_comments;
+        return winner;
     }
     /* Returns the canonical comments array for a post. Reads from
        `post.comments` (in-memory, already parsed) if present; otherwise
@@ -14676,13 +14745,15 @@
             ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
             : _calCommentsFor(post, comp).slice();
         const role = _calCommentRole();
+        const _now = new Date().toISOString();
         arr.push({
             id: _calMintCommentId(),
             parent_id: parentId || null,
             author: _calCurrentAuthor(),
             role: role,
             body: body,
-            created_at: new Date().toISOString(),
+            created_at: _now,
+            updated_at: _now,
             done: false,
             done_at: '',
             done_by: ''
@@ -14727,6 +14798,9 @@
         } else {
             root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor();
         }
+        // Bump the per-comment merge clock so this resolution change wins over
+        // any stale copy another browser holds (cross-surface comment merge).
+        root.updated_at = new Date().toISOString();
         _calSetCommentsFor(post, comp, list);
         if (comp === 'video') post.comments = list;
         const fieldKey = comp + '_tweaks';
@@ -17132,6 +17206,9 @@
                 // hit Done reviewing yet — because the SMM has moved it past
                 // Kasper's purview.
                 _calMigratePostShape(raw);
+                // Base watermark for the server's 3-way comment merge: the
+                // server version this browser last saw.
+                raw._baseAt = String(raw.updated_at || '');
                 const hasKasperWork = _calPostKasperVisible(raw);
                 // Content gate: skip cards that have NEITHER a video
                 // (asset_url) NOR a graphic/thumbnail (thumbnail_url).
@@ -17716,13 +17793,30 @@
         delete wire.video_comments;
         delete wire.graphic_comments;
         delete wire.caption_comments;
+        delete wire._baseAt;
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client: item.slug, post: wire }),
+            // comments_base_at lets the upsert 3-way-merge the comment cells so
+            // a client tweak made while the SMM was reviewing isn't clobbered.
+            body: JSON.stringify({ client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') }),
         });
         const json = await resp.json().catch(() => ({}));
         if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
+        // Advance the merge base + adopt the server-merged comment cells so a
+        // concurrent comment that the server merged in shows up locally too.
+        const echo = json.post;
+        if (echo && typeof echo === 'object') {
+            _calMigratePostShape(echo);
+            for (const comp of CAL_COMPONENTS) {
+                if (!((comp + '_tweaks') in echo)) continue;
+                // Union, don't replace: keep any comment added locally between
+                // this chained write and its echo while still adopting the
+                // concurrent comments the server merged in.
+                _calSetCommentsFor(item.post, comp, _calMergeCommentLists(_calCommentsFor(item.post, comp), _calCommentsFor(echo, comp)));
+            }
+            item.post._baseAt = String(echo.updated_at || item.post._baseAt || '');
+        }
         // Push each sub-status to its Linear sub-issue. Caption has no Linear
         // counterpart. Posted has no Linear equivalent (helper rejects it).
         const vUrl = String(item.post.linear_issue_id || '').trim();
@@ -17831,13 +17925,15 @@
             kasper_approved_at:         item.post.kasper_approved_at,
         };
         const list = _calCommentsFor(item.post, comp).slice();
+        const _now = new Date().toISOString();
         const newComment = {
             id: _calMintCommentId(),
             parent_id: null,
             author: 'Kasper',
             role: 'kasper',
             body: body,
-            created_at: new Date().toISOString(),
+            created_at: _now,
+            updated_at: _now,
             done: false,
             done_at: '',
             done_by: '',

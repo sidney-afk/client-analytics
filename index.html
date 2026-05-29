@@ -8908,6 +8908,13 @@
         p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
         p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
         p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
+        // Per-comment merge clock. Legacy comments (and any written before the
+        // field existed) lack updated_at; seed it from created_at so newer-wins
+        // comparisons in the CRDT merge are always well-defined and a later
+        // resolve/delete reliably beats the original.
+        [p.video_comments, p.graphic_comments, p.caption_comments].forEach(arr => {
+            if (Array.isArray(arr)) arr.forEach(c => { if (c && !c.updated_at) c.updated_at = c.created_at || ''; });
+        });
         p.comments = p.video_comments;
         p.status = computeOverallStatus(p);
         return p;
@@ -8929,9 +8936,13 @@
        the full list — we never *drop* Kasper comments from the row,
        just hide them from this one audience. */
     function _calCommentsForView(post, comp) {
-        const list = _calCommentsFor(post, comp);
-        if (!_isClientLink) return list;
+        let list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return [];
+        // Tombstoned (soft-deleted) comments stay in storage so the delete
+        // propagates and can't be resurrected by a stale merge or a laggy
+        // poll, but they never render or count for anyone.
+        list = list.filter(c => c && !c.deleted);
+        if (!_isClientLink) return list;
         const kasperIds = new Set();
         for (const c of list) {
             if (c && c.role === 'kasper' && c.id) kasperIds.add(c.id);
@@ -14452,11 +14463,11 @@
     }
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
     function _calCommentRoots(arr) {
-        return arr.filter(c => !c.parent_id)
+        return arr.filter(c => !c.parent_id && !c.deleted)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     function _calCommentReplies(arr, rootId) {
-        return arr.filter(c => c.parent_id === rootId)
+        return arr.filter(c => c.parent_id === rootId && !c.deleted)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     /* Count open / total threads across all three components (video, graphic,
@@ -14492,7 +14503,7 @@
     function _calCompHasUnresolvedKasperTweak(post, comp) {
         const list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return false;
-        return list.some(x => x && x.role === 'kasper' && !x.done);
+        return list.some(x => x && x.role === 'kasper' && !x.done && !x.deleted);
     }
     /* Per-component visibility on the Kasper review queue. A panel
        only shows when (a) the component's sub-status is still at
@@ -14856,7 +14867,7 @@
         // Cross-component thread state is irrelevant — the caption being
         // approved shouldn't block a video resolution from moving forward.
         if (!wasDone && _calCommentRole() === 'smm') {
-            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done).length;
+            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted).length;
             if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
         }
         _calFlushCardSave(pid);
@@ -14888,7 +14899,18 @@
             ? "This deletes the message and every reply in this thread. This can't be undone."
             : "Delete this reply? This can't be undone.";
         showConfirm('Delete tweak?', msg, () => {
-            const next = arr.filter(c => c.id !== commentId && c.parent_id !== commentId);
+            // Soft-delete (tombstone) instead of dropping the comment. A bare
+            // removal can be resurrected by any later merge that still carries
+            // the live copy (a laggy background poll, the save echo, or the
+            // other surface's row) — a union can't tell "deleted" from "not
+            // yet seen". A tombstone carries a fresh updated_at, so newer-wins
+            // keeps it dead everywhere; render/count filters hide it.
+            const _delAt = new Date().toISOString();
+            const next = arr.map(c => (
+                (c.id === commentId || c.parent_id === commentId)
+                    ? Object.assign({}, c, { deleted: true, updated_at: _delAt })
+                    : c
+            ));
             _calSetCommentsFor(post, comp, next);
             if (comp === 'video') post.comments = next;
             const fieldKey = comp + '_tweaks';
@@ -14896,7 +14918,7 @@
             // Per-component: SMM deleting the last open thread for this
             // component flips that component to Client Approval.
             if (wasOpenRoot && _calCommentRole() === 'smm') {
-                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done).length;
+                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted).length;
                 if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
             }
             _calFlushCardSave(pid);
@@ -17681,7 +17703,7 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp);
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted);
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         const showApprove = !inTweaks && !isApproved;
@@ -17741,7 +17763,7 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp);
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted);
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         // Approve hides once Kasper has already sent the work back (TN) or

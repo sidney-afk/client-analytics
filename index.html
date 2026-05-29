@@ -8881,8 +8881,13 @@
         if (!seed) return [];
         return [{
             id: 'c_legacy_' + Math.random().toString(36).slice(2, 8),
-            parent_id: null, author: 'Notes', role: 'smm',
-            body: seed, created_at: '', done: false, done_at: '', done_by: ''
+            parent_id: null,
+            author: 'Legacy import — please send to Sidney before deleting',
+            role: 'smm',
+            body: seed, created_at: '', done: false, done_at: '', done_by: '',
+            source: 'legacy_tweaks_column_seed',
+            source_field: fieldName,
+            seeded_at: new Date().toISOString()
         }];
     }
     /* Idempotent migration of a post row from the legacy single-status shape
@@ -14452,8 +14457,13 @@
         }
         return [{
             id: 'c_legacy_' + Math.random().toString(36).slice(2, 8),
-            parent_id: null, author: 'Notes', role: 'smm',
-            body: raw, created_at: '', done: false, done_at: '', done_by: ''
+            parent_id: null,
+            author: 'Legacy import — please send to Sidney before deleting',
+            role: 'smm',
+            body: raw, created_at: '', done: false, done_at: '', done_by: '',
+            source: 'legacy_tweaks_column_seed',
+            source_field: fromVideoCol ? 'video_tweaks' : 'tweaks',
+            seeded_at: new Date().toISOString()
         }];
     }
     function _calCommentRole() { return _isClientLink ? 'client' : 'smm'; }

@@ -9894,6 +9894,14 @@
        Fires the webhook directly; on failure (network / non-2xx / ok:false)
        the payload is enqueued in the outbox for retry. "Posted" has no
        Linear equivalent, so it is never pushed. */
+    // Per-issue serialization. Two rapid status pushes for the SAME issue
+    // (e.g. Tweaks Needed → Approved) would otherwise race and could resolve
+    // out of order at the webhook, leaving Linear on the older state. Chain
+    // pushes per issue URL, and coalesce: if a newer status is requested while
+    // an older one is still queued, the older one is skipped (the card, not
+    // Linear, is the source of truth, so only the latest state need land).
+    const _calLinearPushChain  = Object.create(null);
+    const _calLinearPushLatest = Object.create(null);
     function _calPushStatusToLinear(issueUrl, status) {
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
@@ -9902,8 +9910,11 @@
         // matching Linear state, so it now pushes through normally.
         const lower = st.toLowerCase();
         if (!url || !st || lower === 'posted') return;
-        const payload = { issue: url, status: st };
-        (async () => {
+        _calLinearPushLatest[url] = st;
+        const run = async () => {
+            // Superseded by a newer push queued behind us — let that one send.
+            if (_calLinearPushLatest[url] !== st) return;
+            const payload = { issue: url, status: st };
             try {
                 const resp = await fetch(LINEAR_SET_STATUS_URL, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -9916,7 +9927,9 @@
                 console.warn('[Calendar] Linear status push failed — queued for retry', e);
                 _linearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e));
             }
-        })();
+        };
+        // run() never rejects (it catches + enqueues), so the chain stays live.
+        _calLinearPushChain[url] = (_calLinearPushChain[url] || Promise.resolve()).then(run, run);
     }
     /* Posts a client/kasper tweak comment to a Linear sub-issue so the
        video editor or graphic designer sees it in Linear (their only
@@ -11236,9 +11249,13 @@
                     // otherwise flicker a freshly-approved component back
                     // to Client Approval).
                     if (stillRecent) return lp;
-                    // Last-write-wins fallback: keep local if its
-                    // updated_at is newer than the server's.
-                    if (isFinite(lT) && isFinite(fT) && lT > fT) return lp;
+                    // Last-write-wins fallback: keep local if its updated_at
+                    // is newer than — or equal to — the server's. On an exact
+                    // tie the two are almost always the same version (so the
+                    // choice is moot), but preferring local guarantees a
+                    // same-second local edit is never silently dropped for an
+                    // equally-stamped server row.
+                    if (isFinite(lT) && isFinite(fT) && lT >= fT) return lp;
                     // Taking the server copy — but never silently drop edits
                     // the user has queued locally that haven't been written
                     // yet (e.g. a debounced field still waiting on its timer,
@@ -13638,7 +13655,15 @@
             strip.insertBefore(dragging, after ? card.nextSibling : card);
         });
     }
+    let _calReorderInFlight = false;
+    let _calReorderPending  = null;   // latest {items, prevOrder} requested mid-flight
     async function persistCalReorder(items, prevOrder) {
+        // Serialize reorders. Two quick drags would otherwise fire overlapping
+        // writes whose responses can land out of order, leaving order_index in
+        // the earlier drag's arrangement. Coalesce to the latest desired order:
+        // a drag made while a write is in flight is held and run after it.
+        if (_calReorderInFlight) { _calReorderPending = { items, prevOrder }; return; }
+        _calReorderInFlight = true;
         _setCalStatus('saving');
         try {
             const resp = await fetch(CALENDAR_REORDER_URL, {
@@ -13660,6 +13685,16 @@
                 });
                 try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
                 try { _calRenderBody({ preserveScroll: true }); } catch {}
+            }
+        } finally {
+            _calReorderInFlight = false;
+            // Run the most recent drag that arrived while this write was in
+            // flight, strictly after it, so the final order on the sheet
+            // matches the last thing the user did.
+            if (_calReorderPending) {
+                const next = _calReorderPending;
+                _calReorderPending = null;
+                persistCalReorder(next.items, next.prevOrder);
             }
         }
     }

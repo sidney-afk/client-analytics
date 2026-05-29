@@ -12783,6 +12783,17 @@
                 // value this save was carrying.
                 const queued = _calPendingEdits[realId];
                 if (queued) for (const k in queued) merged[k] = calState.posts[i2][k];
+                // The server echo only reflects the comments THIS request
+                // carried. A comment added to another component while this
+                // save was in flight (e.g. video tweak still saving when the
+                // caption tweak lands) lives only in our local copy, not the
+                // echo. Because the wire builder re-derives each *_tweaks cell
+                // from the *_comments arrays, a plain field-copy from the echo
+                // would drop that comment — and the very next (trailing) save
+                // would then persist its loss to the sheet. Union the comment
+                // threads (newer-stamp wins per id) so locally-held comments
+                // survive the echo adoption instead of being clobbered.
+                _calMergePostComments(merged, calState.posts[i2]);
                 // The echo is the freshly-merged server row, so advance the
                 // comment-merge base to its updated_at.
                 merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');

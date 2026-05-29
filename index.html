@@ -1579,6 +1579,19 @@
             font-weight: 600; color: var(--text-primary); text-align: left; }
         .cal-kebab-item:hover { background: var(--bg); }
         .cal-kebab-item svg { width: 15px; height: 15px; color: var(--text-secondary); flex-shrink: 0; }
+        .cal-kebab-item.cal-kebab-toggle { gap: 8px; }
+        .cal-kebab-item .cal-kebab-label { flex: 1 1 auto; }
+        .cal-kebab-info-i { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+            border-radius: 50%; background: #e5e5e1; color: var(--text-secondary);
+            font-family: Georgia, 'Times New Roman', serif; font-size: 0.62rem; font-weight: 700; font-style: italic;
+            line-height: 1; cursor: help; flex-shrink: 0; user-select: none; }
+        .cal-kebab-info-i:hover { background: #d8d8d4; color: var(--text-primary); }
+        .cal-kebab-switch { position: relative; display: inline-block; width: 26px; height: 15px; border-radius: 99px;
+            background: #d4d4d0; flex-shrink: 0; transition: background 0.15s; }
+        .cal-kebab-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
+            border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.18); transition: transform 0.15s; }
+        .cal-kebab-switch.is-on { background: #10b981; }
+        .cal-kebab-switch.is-on::after { transform: translateX(11px); }
         .cal-import-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; background: var(--white); border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.76rem; font-weight: 700; color: var(--text-secondary); cursor: pointer; white-space: nowrap; transition: all 0.15s; }
         .cal-import-btn:hover { border-color: #aaa; color: var(--text-primary); }
         /* Excel import modal */
@@ -9205,7 +9218,96 @@
         selected: new Set(),
         lastSel: null,
         monthFilter: null,
+        settings: { collab_mode: false },
     };
+
+    /* Per-client calendar settings ride on a sentinel row inside the same
+       Google Sheet tab the posts live on, written via the existing
+       calendar-upsert-post webhook. id is fixed so the row is found/updated
+       in place; the JSON payload lives in the `caption` cell (the only
+       cell wide enough to hold structured data without a schema change).
+       The row is split off from `json.posts` immediately on load so it never
+       renders, never gets archived, and never participates in the
+       de-duplication or filter passes that run over real posts. */
+    const CAL_SETTINGS_PID = 'p_cal_settings';
+    const CAL_SETTINGS_DEFAULTS = { collab_mode: false };
+    function _calIsSettingsId(pid) { return String(pid || '') === CAL_SETTINGS_PID; }
+    function _calSplitSettings(rows) {
+        const settings = Object.assign({}, CAL_SETTINGS_DEFAULTS);
+        const posts = [];
+        if (!Array.isArray(rows)) return { settings, posts };
+        for (const r of rows) {
+            if (!r) continue;
+            if (_calIsSettingsId(r.id)) {
+                const raw = String(r.caption || '').trim();
+                if (raw) {
+                    try {
+                        const parsed = JSON.parse(raw);
+                        if (parsed && typeof parsed === 'object') Object.assign(settings, parsed);
+                    } catch {}
+                }
+            } else {
+                posts.push(r);
+            }
+        }
+        return { settings, posts };
+    }
+    function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
+    async function _calSaveSettings(patch) {
+        if (!calState.client) return false;
+        const next = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, patch || {});
+        calState.settings = next;
+        const wirePost = {
+            id: CAL_SETTINGS_PID,
+            order_index: -1,
+            name: '__cal_settings__',
+            scheduled_date: '',
+            status: 'Archived',
+            asset_url: '',
+            thumbnail_url: '',
+            caption: JSON.stringify(next),
+            cta: '',
+            tweaks: '',
+            video_tweaks: '', graphic_tweaks: '', caption_tweaks: '',
+            video_status: '', graphic_status: '', caption_status: '',
+            updated_at: new Date().toISOString()
+        };
+        try {
+            const resp = await fetch(CALENDAR_UPSERT_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: calClientSlug(calState.client), post: wirePost, comments_base_at: '' })
+            });
+            const j = await resp.json();
+            if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
+            return true;
+        } catch (e) {
+            console.warn('[Calendar] settings save failed', e);
+            return false;
+        }
+    }
+    function _calSyncCollabSwitch() {
+        const sw = document.getElementById('calCollabSwitch');
+        if (sw) sw.classList.toggle('is-on', _calIsCollabOn());
+    }
+    async function _calToggleCollabMode() {
+        const next = !_calIsCollabOn();
+        const prev = !!(calState.settings && calState.settings.collab_mode);
+        // Optimistic flip so the UI feels instant; the kebab is already closed.
+        calState.settings = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, { collab_mode: next });
+        _calSyncCollabSwitch();
+        try { _calRenderBody({ preserveScroll: true }); } catch {}
+        const ok = await _calSaveSettings({ collab_mode: next });
+        if (!ok) {
+            calState.settings.collab_mode = prev;
+            _calSyncCollabSwitch();
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+            showNotify('Save failed', 'Could not save the Collaborative mode setting — try again.');
+            return;
+        }
+        // Persist into the per-client cache too so a hard refresh restores
+        // the new setting without waiting on the network round-trip.
+        try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+    }
     function _calCurrentMonthIso() {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -11103,7 +11205,10 @@
     }
     function _calCacheWrite(slug, posts) {
         if (!slug || !Array.isArray(posts)) return;
-        const payload = JSON.stringify({ posts, savedAt: Date.now() });
+        // Persist the current collab/settings alongside the posts so the next
+        // cold load can render the right shape without waiting for the network.
+        const settings = Object.assign({}, CAL_SETTINGS_DEFAULTS, calState.settings || {});
+        const payload = JSON.stringify({ posts, settings, savedAt: Date.now() });
         try { localStorage.setItem(_calCacheKey(slug), payload); return; }
         catch (e) {
             // QuotaExceededError or similar — drop oldest entries with our
@@ -11155,9 +11260,13 @@
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
-            _calCleanArchiveLedger(slug, cached.posts);
+            const cacheSplit = _calSplitSettings(cached.posts);
+            calState.settings = (cached.settings && typeof cached.settings === 'object')
+                ? Object.assign({}, CAL_SETTINGS_DEFAULTS, cached.settings)
+                : cacheSplit.settings;
+            _calCleanArchiveLedger(slug, cacheSplit.posts);
             const cacheArchivedRefs = _calArchivedRefs(slug);
-            calState.posts = _calDedupeByLinearIssue(cached.posts
+            calState.posts = _calDedupeByLinearIssue(cacheSplit.posts
                 .filter(p => !_calIsArchivedRef(p, cacheArchivedRefs)))
                 .map(p => {
                     p.scheduled_date = _calCoerceDate(p.scheduled_date);
@@ -11219,9 +11328,11 @@
             if (json === TIMEOUT_SENTINEL) throw new Error('Load timed out');
             if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
-            _calCleanArchiveLedger(slug, json.posts || []);
+            const split = _calSplitSettings(json.posts || []);
+            calState.settings = split.settings;
+            _calCleanArchiveLedger(slug, split.posts);
             const archivedRefs = _calArchivedRefs(slug);
-            const fetchedPosts = _calDedupeByLinearIssue((json.posts || [])
+            const fetchedPosts = _calDedupeByLinearIssue(split.posts
                 .filter(p => (p.status || '').toLowerCase() !== 'archived')
                 .filter(p => !_calIsArchivedRef(p, archivedRefs)))
                 .map(p => { p.scheduled_date = _calCoerceDate(p.scheduled_date); p.status = _calNormStatus(p.status); _calMigratePostShape(p); return p; });
@@ -11493,6 +11604,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calCloseKebab();_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-i" title="When on, the client sees every post on the calendar — including ones still being worked on — with read-only status pills so they know what's in progress. The 'Suggest a post' button also turns on so the client can add their own ideas. When off, the client only sees finished posts and can't add new ones." onclick="event.stopPropagation()">i</span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                     </div>
                 </div>`
             : '';
@@ -12156,7 +12268,7 @@
         const monthFilter = _calNormMonthFilter(calState.monthFilter);
         const posts = calState.posts.slice()
             .filter(p => _calPostInMonthFilter(p, monthFilter))
-            .filter(p => !_isClientLink || _calIsClientReady(p))
+            .filter(p => !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
             .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
         // When the filter is hiding everything but there ARE posts in other
@@ -12169,11 +12281,20 @@
         posts.forEach((p,i) => { if (String(p.status || '').toLowerCase() === 'posted') lastPostedIdx = i; });
         const currentIdx = lastPostedIdx + 1;
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+        // The client can only add ("Suggest a post") when the SMM has flipped
+        // Collaborative mode on. Status visibility and the suggest button are
+        // paired so a card a client creates (status: In Progress) doesn't
+        // immediately vanish behind the _calIsClientReady filter.
+        const canAddCard = !_isClientLink || _calIsCollabOn();
         const addBtn = empty
             ? (hiddenByFilter
                 ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts scheduled for ${_calEsc(_calMonthLabel(monthFilter))}</div><div class="cal-filter-empty-sub">Switch to <button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">All months</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
-                : `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`)
-            : `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Add a card'}">${plus}</button>`;
+                : (canAddCard
+                    ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`
+                    : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts to show yet</div><div class="cal-filter-empty-sub">Finished posts will appear here.</div></div>`))
+            : (canAddCard
+                ? `<button class="cal-card-add" type="button" onclick="addCalBlankCard()" title="${_isClientLink ? 'Suggest a post' : 'Add a card'}">${plus}</button>`
+                : '');
         const isLinkAction = calState.selectAction === 'link';
         const isCaptionAction = calState.selectAction === 'caption';
         const actionBtn = isLinkAction

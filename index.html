@@ -14875,6 +14875,14 @@
         _calUpdateCardStatusDisplay(pid);
         _calCaptureModalDrafts();
         _calRenderCommentsModal();
+        // Re-rendering rebuilds the feed and resets its scroll to the top.
+        // Keep the conversation pinned to the bottom (where the action just
+        // happened and the composer lives) instead of jumping up — mirrors
+        // the post-send behaviour in _calSubmitComposer.
+        setTimeout(() => {
+            const feed = document.getElementById('calCommentsFeed');
+            if (feed) feed.scrollTop = feed.scrollHeight;
+        }, 0);
     }
 
     /* Delete a comment. SMM can delete anything; the client can only
@@ -15742,12 +15750,20 @@
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     if(_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
         if(_isClientLink){
-            // Client share link: hide all admin chrome immediately, show clean loader
+            // Client share link: hide all admin chrome immediately, show clean loader.
+            // Match the loader copy to the tab the link actually opens — a
+            // ?v=calendar link lands straight on the content calendar, so
+            // "Loading your analytics…" was wrong there. (init() can't fix
+            // this text later: it rewrites #bootLoadingText, but this client
+            // loader replaces #content with its own markup.)
             document.querySelector('header.header').style.display='none';
             document.getElementById('pageTop').style.display='none';
+            const _clientLoaderText = new URLSearchParams(location.search).get('v') === 'calendar'
+                ? 'Loading content calendar…'
+                : 'Loading your analytics…';
             document.getElementById('content').innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;">
                 <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;flex-shrink:0;opacity:0.35"><circle cx="14" cy="14" r="11" stroke="#111" stroke-width="2.5" stroke-dasharray="50 20"/></svg>
-                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;color:#aaa;font-weight:500;">Loading your analytics…</span>
+                <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;color:#aaa;font-weight:500;">${_clientLoaderText}</span>
             </div>`;
         }
         init();

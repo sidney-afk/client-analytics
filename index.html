@@ -8945,8 +8945,12 @@
         if (!Array.isArray(list)) return [];
         // Tombstoned (soft-deleted) comments stay in storage so the delete
         // propagates and can't be resurrected by a stale merge or a laggy
-        // poll, but they never render or count for anyone.
-        list = list.filter(c => c && !c.deleted);
+        // poll, but they never render or count for anyone. `hidden` is the same
+        // idea for audit-suppressed comments (e.g. legacy cross-client feedback
+        // that bled onto the wrong client's row): the text is preserved in the
+        // sheet (hide-not-delete) but never shown or counted. The save path uses
+        // _calCommentsFor (unfiltered) so these are never written away.
+        list = list.filter(c => c && !c.deleted && !c.hidden);
         if (!_isClientLink) return list;
         const kasperIds = new Set();
         for (const c of list) {
@@ -11655,6 +11659,9 @@
         const pins = _calGetPins().filter(n => n !== name);
         _calSavePins(pins);
         if (calState.client === name) {
+            // Flush debounced saves for the client we're closing before we drop
+            // its posts and switch away, so in-flight edits aren't lost.
+            _calFlushAllPending();
             const next = pins[0] || null;
             calState.client = next;
             calState.posts = [];
@@ -11699,6 +11706,8 @@
             const pins = _calGetPins();
             if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
             _calCloseTabSearch();
+            // Persist debounced saves for the outgoing client before switching.
+            _calFlushAllPending();
             calState.client = name;
             calState.posts = [];
             _calSavePrefs();
@@ -11994,6 +12003,11 @@
 
     function onCalClientChange(name) {
         if (!name) return;
+        // Flush any debounced card saves against the CURRENT client before we
+        // switch. Each save captured its slug at start, so flushing now persists
+        // them to the right tab; without this they'd fire after the switch and
+        // either leak into the new client's tab or be silently dropped.
+        _calFlushAllPending();
         calState.client = name;
         _calSavePrefs();
         calState.posts = [];
@@ -12710,6 +12724,14 @@
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
         if (!edits) return;
+        // Pin the destination client at the moment the save starts, BEFORE any
+        // await. calClientSlug(calState.client) read later (post-await) could
+        // resolve to a DIFFERENT client if the user switched tabs while this
+        // debounced save was queued — which is exactly how an edit leaked into
+        // another client's Calendar_<slug> tab and created a cross-tab phantom
+        // row. A client switch now flushes pending saves first (see
+        // _calFlushAllPending callers), so this captured slug is the correct one.
+        const _saveSlug = calClientSlug(calState.client);
         // Serialize per card. If a save is already running for this id, leave
         // the accumulated edits queued — the in-flight save re-flushes them on
         // completion (see the finally below), so writes to the same sheet row
@@ -12783,7 +12805,7 @@
             // our whole-cell write instead of being clobbered.
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), post: wirePost, comments_base_at: String(post._baseAt || '') })
+                body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: String(post._baseAt || '') })
             });
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
@@ -13684,18 +13706,22 @@
     }
     let _calReorderInFlight = false;
     let _calReorderPending  = null;   // latest {items, prevOrder} requested mid-flight
-    async function persistCalReorder(items, prevOrder) {
+    async function persistCalReorder(items, prevOrder, slug) {
+        // Pin the destination client at call time. Read live (post-await) it
+        // could resolve to a different client if the user switched tabs while a
+        // coalesced reorder was queued, writing order_index onto the wrong tab.
+        if (slug == null) slug = calClientSlug(calState.client);
         // Serialize reorders. Two quick drags would otherwise fire overlapping
         // writes whose responses can land out of order, leaving order_index in
         // the earlier drag's arrangement. Coalesce to the latest desired order:
         // a drag made while a write is in flight is held and run after it.
-        if (_calReorderInFlight) { _calReorderPending = { items, prevOrder }; return; }
+        if (_calReorderInFlight) { _calReorderPending = { items, prevOrder, slug }; return; }
         _calReorderInFlight = true;
         _setCalStatus('saving');
         try {
             const resp = await fetch(CALENDAR_REORDER_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: calClientSlug(calState.client), items })
+                body: JSON.stringify({ client: slug, items })
             });
             const json = await resp.json();
             if (!json.ok) throw new Error('reorder failed');
@@ -13710,8 +13736,13 @@
                 calState.posts.forEach(p => {
                     if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id);
                 });
-                try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
-                try { _calRenderBody({ preserveScroll: true }); } catch {}
+                // Only repaint/cache the rollback if we're still on the tab this
+                // reorder targeted — otherwise we'd write one client's order into
+                // another client's cache after a tab switch.
+                if (calClientSlug(calState.client) === slug) {
+                    try { _calCacheWrite(slug, calState.posts); } catch {}
+                    try { _calRenderBody({ preserveScroll: true }); } catch {}
+                }
             }
         } finally {
             _calReorderInFlight = false;
@@ -13721,7 +13752,7 @@
             if (_calReorderPending) {
                 const next = _calReorderPending;
                 _calReorderPending = null;
-                persistCalReorder(next.items, next.prevOrder);
+                persistCalReorder(next.items, next.prevOrder, next.slug);
             }
         }
     }
@@ -14473,11 +14504,11 @@
     }
     function _calMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
     function _calCommentRoots(arr) {
-        return arr.filter(c => !c.parent_id && !c.deleted)
+        return arr.filter(c => !c.parent_id && !c.deleted && !c.hidden)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     function _calCommentReplies(arr, rootId) {
-        return arr.filter(c => c.parent_id === rootId && !c.deleted)
+        return arr.filter(c => c.parent_id === rootId && !c.deleted && !c.hidden)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     /* Count open / total threads across all three components (video, graphic,
@@ -17759,7 +17790,7 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted);
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden);
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         const showApprove = !inTweaks && !isApproved;
@@ -17819,7 +17850,7 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted);
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden);
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         // Approve hides once Kasper has already sent the work back (TN) or

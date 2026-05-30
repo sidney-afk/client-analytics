@@ -7130,6 +7130,17 @@
     //   - Items whose work date falls before the cursor overflow back to that work date.
     //   - Video editors: 5/day capacity. Graphic designers: 15/day capacity.
     function scheduleAll(plannedSubs, todayISO) {
+        // Floor "today" to the next working day. When the page is viewed on a
+        // weekend (or a holiday handled by wlNextWorkingDay), the raw calendar
+        // today is a non-working day that the Mon–Fri week grid never renders
+        // — and weekStart is likewise the next working day. If we seeded the
+        // cursor with the raw weekend date, the most-urgent work (which sorts
+        // to the front of the ASAP queue) would be packed onto that off-screen
+        // Saturday/Sunday and silently vanish from the calendar while less
+        // urgent work landed on the visible weekdays. Flooring here keeps the
+        // scheduler's day-0 aligned with the grid's leftmost column. On a
+        // weekday wlNextWorkingDay is a no-op, so behaviour is unchanged.
+        todayISO = wlNextWorkingDay(todayISO);
         const byAssignee = new Map();
         for (const s of plannedSubs) {
             s.effectiveWorkDate = wlEffectiveWorkDate(s.dueDate, todayISO);

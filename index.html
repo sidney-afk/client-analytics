@@ -1581,11 +1581,26 @@
         .cal-kebab-item svg { width: 15px; height: 15px; color: var(--text-secondary); flex-shrink: 0; }
         .cal-kebab-item.cal-kebab-toggle { gap: 8px; }
         .cal-kebab-item .cal-kebab-label { flex: 1 1 auto; }
-        .cal-kebab-info-i { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+        .cal-kebab-info-wrap { position: relative; display: inline-flex; align-items: center; flex-shrink: 0; }
+        .cal-kebab-info-i { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
             border-radius: 50%; background: #e5e5e1; color: var(--text-secondary);
-            font-family: Georgia, 'Times New Roman', serif; font-size: 0.62rem; font-weight: 700; font-style: italic;
-            line-height: 1; cursor: help; flex-shrink: 0; user-select: none; }
-        .cal-kebab-info-i:hover { background: #d8d8d4; color: var(--text-primary); }
+            font-family: Georgia, 'Times New Roman', serif; font-size: 0.66rem; font-weight: 700; font-style: italic;
+            line-height: 1; cursor: pointer; flex-shrink: 0; user-select: none;
+            transition: background 0.12s, color 0.12s; }
+        .cal-kebab-info-i:hover, .cal-kebab-info-wrap.is-open .cal-kebab-info-i { background: #2a2a28; color: #fff; }
+        .cal-kebab-info-tip { position: absolute; top: calc(100% + 9px); right: -10px; z-index: 1500;
+            width: 260px; padding: 10px 12px;
+            background: #2a2a28; color: #f5f5f3;
+            font-size: 0.72rem; font-weight: 500; line-height: 1.45; letter-spacing: 0;
+            border-radius: 8px; box-shadow: 0 8px 22px rgba(0,0,0,0.22);
+            opacity: 0; pointer-events: none; transform: translateY(-4px);
+            transition: opacity 0.14s ease, transform 0.14s ease;
+            white-space: normal; text-align: left; font-style: normal; }
+        .cal-kebab-info-tip::before { content: ''; position: absolute; bottom: 100%; right: 14px;
+            border: 6px solid transparent; border-bottom-color: #2a2a28; }
+        .cal-kebab-info-wrap:hover .cal-kebab-info-tip,
+        .cal-kebab-info-wrap.is-open .cal-kebab-info-tip {
+            opacity: 1; transform: translateY(0); pointer-events: auto; }
         .cal-kebab-switch { position: relative; display: inline-block; width: 26px; height: 15px; border-radius: 99px;
             background: #d4d4d0; flex-shrink: 0; transition: background 0.15s; }
         .cal-kebab-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
@@ -9231,14 +9246,41 @@
        de-duplication or filter passes that run over real posts. */
     const CAL_SETTINGS_PID = 'p_cal_settings';
     const CAL_SETTINGS_DEFAULTS = { collab_mode: false };
+    /* localStorage holds the authoritative per-client settings on this
+       device. The backend write is a best-effort sync so a different SMM /
+       a different browser eventually sees the same setting — but localStorage
+       is what survives a refresh on this device even if the backend write
+       silently lost the row (e.g. n8n filtered the sentinel out). */
+    const CAL_SETTINGS_LS_KEY = 'syncview_calendar_settings_v1';
+    function _calLoadLocalSettings(slug) {
+        if (!slug) return null;
+        try {
+            const raw = localStorage.getItem(CAL_SETTINGS_LS_KEY);
+            const map = raw ? JSON.parse(raw) : null;
+            if (!map || typeof map !== 'object') return null;
+            const row = map[slug];
+            return (row && typeof row === 'object') ? Object.assign({}, CAL_SETTINGS_DEFAULTS, row) : null;
+        } catch { return null; }
+    }
+    function _calSaveLocalSettings(slug, settings) {
+        if (!slug) return;
+        try {
+            const raw = localStorage.getItem(CAL_SETTINGS_LS_KEY);
+            const map = (raw && typeof JSON.parse(raw) === 'object') ? JSON.parse(raw) : {};
+            map[slug] = Object.assign({}, CAL_SETTINGS_DEFAULTS, settings || {});
+            localStorage.setItem(CAL_SETTINGS_LS_KEY, JSON.stringify(map));
+        } catch {}
+    }
     function _calIsSettingsId(pid) { return String(pid || '') === CAL_SETTINGS_PID; }
     function _calSplitSettings(rows) {
         const settings = Object.assign({}, CAL_SETTINGS_DEFAULTS);
         const posts = [];
-        if (!Array.isArray(rows)) return { settings, posts };
+        let found = false;
+        if (!Array.isArray(rows)) return { settings, posts, found };
         for (const r of rows) {
             if (!r) continue;
             if (_calIsSettingsId(r.id)) {
+                found = true;
                 const raw = String(r.caption || '').trim();
                 if (raw) {
                     try {
@@ -9250,7 +9292,7 @@
                 posts.push(r);
             }
         }
-        return { settings, posts };
+        return { settings, posts, found };
     }
     function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
     async function _calSaveSettings(patch) {
@@ -9262,12 +9304,18 @@
         const _saveSlug = calClientSlug(calState.client);
         const next = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, patch || {});
         calState.settings = next;
+        // localStorage is the durable source of truth on this device — written
+        // synchronously so a refresh, even a crash mid-fetch, keeps the value.
+        _calSaveLocalSettings(_saveSlug, next);
+        // Status is left blank (not 'Archived') so server-side row filters
+        // that drop archived posts before returning them can't silently strip
+        // the settings row before it reaches the client.
         const wirePost = {
             id: CAL_SETTINGS_PID,
             order_index: -1,
             name: '__cal_settings__',
             scheduled_date: '',
-            status: 'Archived',
+            status: '',
             asset_url: '',
             thumbnail_url: '',
             caption: JSON.stringify(next),
@@ -9286,29 +9334,40 @@
             if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
             return true;
         } catch (e) {
-            console.warn('[Calendar] settings save failed', e);
-            return false;
+            // Backend sync failed but localStorage already holds the value;
+            // the toggle still persists on this device. Log so a console-watching
+            // SMM can spot a backend issue without surfacing a scary modal.
+            console.warn('[Calendar] settings backend sync failed (localStorage still authoritative)', e);
+            return true;
         }
     }
     function _calSyncCollabSwitch() {
         const sw = document.getElementById('calCollabSwitch');
         if (sw) sw.classList.toggle('is-on', _calIsCollabOn());
     }
+    /* Click toggles the "lock open" state on the info popover so the user can
+       read the tooltip without having to keep the cursor over the icon. Hover
+       still shows it via CSS — the lock only matters for keyboards / touch
+       and for people who want the tip to stick around. A second click on the
+       icon closes the lock; closing the kebab menu hides it implicitly. */
+    function _calToggleInfoTip(e, wrap) {
+        if (e) e.stopPropagation();
+        if (!wrap) return;
+        // Only the icon itself toggles — clicking the tooltip body shouldn't
+        // dismiss the tooltip the user is trying to read.
+        if (e && e.target && e.target.closest && e.target.closest('.cal-kebab-info-tip')) return;
+        if (e) e.preventDefault();
+        wrap.classList.toggle('is-open');
+    }
     async function _calToggleCollabMode() {
         const next = !_calIsCollabOn();
-        const prev = !!(calState.settings && calState.settings.collab_mode);
-        // Optimistic flip so the UI feels instant; the kebab is already closed.
+        // Optimistic flip + localStorage write happen synchronously inside
+        // _calSaveSettings; the backend sync is best-effort. We render here
+        // so the calendar reflects the new state immediately.
         calState.settings = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, { collab_mode: next });
         _calSyncCollabSwitch();
         try { _calRenderBody({ preserveScroll: true }); } catch {}
-        const ok = await _calSaveSettings({ collab_mode: next });
-        if (!ok) {
-            calState.settings.collab_mode = prev;
-            _calSyncCollabSwitch();
-            try { _calRenderBody({ preserveScroll: true }); } catch {}
-            showNotify('Save failed', 'Could not save the Collaborative mode setting — try again.');
-            return;
-        }
+        await _calSaveSettings({ collab_mode: next });
         // Persist into the per-client cache too so a hard refresh restores
         // the new setting without waiting on the network round-trip.
         try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
@@ -11262,13 +11321,31 @@
         // treated as a background revalidation; on failure we keep the
         // cached cards on screen instead of wiping to an error.
         const slug = calClientSlug(calState.client);
+        // Settings hydrate FIRST, from the durable per-client localStorage
+        // record — so a hard refresh restores the right shape (collab on/off)
+        // before the cache or network respond. The defaults are the fallback
+        // when there's no record yet.
+        const localSettings = _calLoadLocalSettings(slug);
+        calState.settings = localSettings
+            ? Object.assign({}, CAL_SETTINGS_DEFAULTS, localSettings)
+            : Object.assign({}, CAL_SETTINGS_DEFAULTS);
+        // Toolbar (and thus the kebab switch) was rendered against the previous
+        // client's settings — keep it in sync now that we've hydrated for the
+        // new client. Same reason _calSyncCollabSwitch is called after the
+        // network split below.
+        _calSyncCollabSwitch();
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
             const cacheSplit = _calSplitSettings(cached.posts);
-            calState.settings = (cached.settings && typeof cached.settings === 'object')
-                ? Object.assign({}, CAL_SETTINGS_DEFAULTS, cached.settings)
-                : cacheSplit.settings;
+            // Cache.settings only overrides defaults; localStorage already took
+            // priority above. Skip the override entirely if localStorage had a
+            // value — local is the authoritative record on this device.
+            if (!localSettings) {
+                calState.settings = (cached.settings && typeof cached.settings === 'object')
+                    ? Object.assign({}, CAL_SETTINGS_DEFAULTS, cached.settings)
+                    : cacheSplit.settings;
+            }
             _calCleanArchiveLedger(slug, cacheSplit.posts);
             const cacheArchivedRefs = _calArchivedRefs(slug);
             calState.posts = _calDedupeByLinearIssue(cacheSplit.posts
@@ -11334,7 +11411,16 @@
             if (!json || !json.ok) throw new Error((json && json.error) || 'load failed');
             const prevPosts = calState.posts;
             const split = _calSplitSettings(json.posts || []);
-            calState.settings = split.settings;
+            // Only let the backend override settings when it actually returned
+            // the sentinel row. If the row is missing (server-side row filter
+            // stripped it, settings never saved, etc.) the localStorage value
+            // we primed earlier stays authoritative instead of getting reset
+            // to defaults on every refresh.
+            if (split.found) {
+                calState.settings = split.settings;
+                _calSaveLocalSettings(slug, split.settings);
+                _calSyncCollabSwitch();
+            }
             _calCleanArchiveLedger(slug, split.posts);
             const archivedRefs = _calArchivedRefs(slug);
             const fetchedPosts = _calDedupeByLinearIssue(split.posts
@@ -11609,7 +11695,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
-                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calCloseKebab();_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-i" title="When on, the client sees every post on the calendar — including ones still being worked on — with read-only status pills so they know what's in progress. The 'Suggest a post' button also turns on so the client can add their own ideas. When off, the client only sees finished posts and can't add new ones." onclick="event.stopPropagation()">i</span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calCloseKebab();_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" onclick="_calToggleInfoTip(event,this)"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">When on, the client sees every post on the calendar — including ones still being worked on — with read-only status pills so they know what's in progress. The "Suggest a post" button also turns on so the client can add their own ideas. When off, the client only sees finished posts and can't add new ones. (Status pills for Approved, Scheduled and Posted are always visible to the client.)</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                     </div>
                 </div>`
             : '';
@@ -12195,13 +12281,15 @@
         return CAL_COMPONENTS.every(c => _CAL_CLIENT_READY_STATES.has(_calNormStatus(p[c + '_status'] || 'In Progress')));
     }
     function _calClientCompPillsHtml(p) {
-        // Status pills reveal what each component is up to. Collaborative mode
-        // is the single gate for client-facing status visibility — sheet card,
-        // review card, preview meta, and the chip update all flow through this
-        // helper, so hiding them here covers every surface in one place.
-        if (_isClientLink && !_calIsCollabOn()) return '';
+        // In the client view, Collaborative mode gates whether the in-progress
+        // status of a component is visible. Finished components (Approved /
+        // Scheduled / Posted) are ALWAYS shown — the client should be able to
+        // see what's locked in regardless of mode. Only the "what's still
+        // being worked on" pills follow the toggle.
+        const clientHideInProgress = _isClientLink && !_calIsCollabOn();
         return CAL_COMPONENTS.map(c => {
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
+            if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
             const slug = _calStatusSlug(cs);
             const label = COMP_LABELS[c] + ': ' + _calStatusLabel(cs);
             return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;

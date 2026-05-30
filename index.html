@@ -1585,11 +1585,11 @@
         .cal-kebab-info-i { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px;
             border-radius: 50%; background: #e5e5e1; color: var(--text-secondary);
             font-family: Georgia, 'Times New Roman', serif; font-size: 0.66rem; font-weight: 700; font-style: italic;
-            line-height: 1; cursor: pointer; flex-shrink: 0; user-select: none;
+            line-height: 1; cursor: help; flex-shrink: 0; user-select: none;
             transition: background 0.12s, color 0.12s; }
-        .cal-kebab-info-i:hover, .cal-kebab-info-wrap.is-open .cal-kebab-info-i { background: #2a2a28; color: #fff; }
+        .cal-kebab-info-wrap:hover .cal-kebab-info-i { background: #2a2a28; color: #fff; }
         .cal-kebab-info-tip { position: absolute; top: calc(100% + 9px); right: -10px; z-index: 1500;
-            width: 260px; padding: 10px 12px;
+            width: 230px; padding: 10px 12px;
             background: #2a2a28; color: #f5f5f3;
             font-size: 0.72rem; font-weight: 500; line-height: 1.45; letter-spacing: 0;
             border-radius: 8px; box-shadow: 0 8px 22px rgba(0,0,0,0.22);
@@ -1598,9 +1598,7 @@
             white-space: normal; text-align: left; font-style: normal; }
         .cal-kebab-info-tip::before { content: ''; position: absolute; bottom: 100%; right: 14px;
             border: 6px solid transparent; border-bottom-color: #2a2a28; }
-        .cal-kebab-info-wrap:hover .cal-kebab-info-tip,
-        .cal-kebab-info-wrap.is-open .cal-kebab-info-tip {
-            opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .cal-kebab-info-wrap:hover .cal-kebab-info-tip { opacity: 1; transform: translateY(0); }
         .cal-kebab-switch { position: relative; display: inline-block; width: 26px; height: 15px; border-radius: 99px;
             background: #d4d4d0; flex-shrink: 0; transition: background 0.15s; }
         .cal-kebab-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px;
@@ -9354,20 +9352,6 @@
         const sw = document.getElementById('calCollabSwitch');
         if (sw) sw.classList.toggle('is-on', _calIsCollabOn());
     }
-    /* Click toggles the "lock open" state on the info popover so the user can
-       read the tooltip without having to keep the cursor over the icon. Hover
-       still shows it via CSS — the lock only matters for keyboards / touch
-       and for people who want the tip to stick around. A second click on the
-       icon closes the lock; closing the kebab menu hides it implicitly. */
-    function _calToggleInfoTip(e, wrap) {
-        if (e) e.stopPropagation();
-        if (!wrap) return;
-        // Only the icon itself toggles — clicking the tooltip body shouldn't
-        // dismiss the tooltip the user is trying to read.
-        if (e && e.target && e.target.closest && e.target.closest('.cal-kebab-info-tip')) return;
-        if (e) e.preventDefault();
-        wrap.classList.toggle('is-open');
-    }
     async function _calToggleCollabMode() {
         // Pin the slug up front: the awaited save below could let the user
         // switch clients mid-flight, and the cache write at the end must
@@ -11725,7 +11709,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
-                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calCloseKebab();_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" onclick="_calToggleInfoTip(event,this)"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">When on, the client sees every post on the calendar — including ones still being worked on — with read-only status pills so they know what's in progress. The "Suggest a post" button also turns on so the client can add their own ideas. When off, the client only sees finished posts and can't add new ones. (Status pills for Approved, Scheduled and Posted are always visible to the client.)</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                     </div>
                 </div>`
             : '';

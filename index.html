@@ -16328,7 +16328,14 @@
                     if(navKp) navKp.style.display='';
                 }
             }catch(e){}
-            if(_kasperArrivedFromUnlockParam && _kasperUnlocked){
+            if(_kasperArrivedFromUnlockParam && _kasperUnlocked && !hash){
+                // Bare /?Kasper=1 — drop straight into Kasper as a one-step
+                // unlock. If the URL also carries a hash (e.g. someone
+                // bookmarked /?Kasper=1#calendar so Kasper stays unlocked
+                // while they're working in the calendar) the hash router
+                // below decides which tab to land on; the Kasper nav
+                // button was already revealed unconditionally above, so
+                // it stays visible from any tab.
                 navTo('kasper',false);return;
             }
             // On page refresh, restore exact state from history.state

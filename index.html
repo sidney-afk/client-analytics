@@ -1974,12 +1974,16 @@
            keeps it out of toolbar flow so its appearance/disappearance
            never shifts other controls sideways. */
         /* Refreshing pill is fixed to the viewport so it stays visible while
-           the user scrolls — previously it was position:absolute anchored
-           to the toolbar and slid off-screen with the rest of the header
-           on long pages. The fixed position pins it to the very top
-           centre regardless of scroll position; z-index 40 keeps it
-           above the page content but still under modals (1000+). */
-        .cal-refreshing, .app-refresh-pill { position: fixed; top: 14px; left: 50%; z-index: 40;
+           the user scrolls — previously it was position:absolute and slid
+           off-screen with the page on long calendars. Sits 14px below
+           the 60px sticky header (top:74px) so it never lands on top of
+           the nav buttons / logo. z-index 101 puts it just over the
+           header (header is z-index 100) but still under modals (1000+),
+           so the pill is always visible even when the header is in the
+           same vertical region. When the page hides the header
+           (client share link view, etc.) the pill still floats 74px from
+           the viewport top — well inside the visible content area. */
+        .cal-refreshing, .app-refresh-pill { position: fixed; top: 74px; left: 50%; z-index: 101;
             display: inline-flex; align-items: center; gap: 8px;
             padding: 6px 14px; background: rgba(255,255,255,0.92);
             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
@@ -16151,6 +16155,15 @@
             });
         }
 
+        // Kasper unlock state — declared early so the unlock block near the
+        // top of init() can assign to _kasperUnlocked without triggering a
+        // TDZ ReferenceError that the surrounding try/catch would swallow
+        // (which is exactly what was happening when this lived next to
+        // the Kasper module further down the file — the unlock silently
+        // failed and the nav button stayed hidden on every refresh).
+        const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
+        let _kasperUnlocked = false;
+
         async function init(){
         try{
             const qp = new URLSearchParams(location.search);
@@ -17515,8 +17528,10 @@
        calendar uses, so they show up in the regular calendar Tweaks
        modal too. Status pushes to Linear via the existing webhook.
        ============================================================ */
-    const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
-    let _kasperUnlocked = false;
+    // KASPER_UNLOCK_KEY + _kasperUnlocked were hoisted up to before init()
+    // (search for "Kasper unlock state — declared early") so the unlock
+    // block at the top of init() can touch _kasperUnlocked without hitting
+    // a TDZ; their old declarations have been removed from this spot.
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' }

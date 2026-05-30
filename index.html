@@ -2211,6 +2211,13 @@
            pink Video / blue Thumbnail pill on the client sheet looks
            clipped on the right. */
         .cal-link-field.cal-link-ro .cal-link-pill-open { border-radius: 8px; }
+        /* "Coming soon" placeholder — same shape as the populated pink Video
+           pill so the layout doesn't shift when the SMM later fills in the
+           link, but greyed out and non-interactive so the client can tell
+           it's a slot, not a button. Tooltip on hover spells it out. */
+        .cal-link-field.cal-link-empty .cal-link-pill-open { background: #f3f3f1; color: var(--text-muted); cursor: default; font-style: italic; }
+        .cal-link-field.cal-link-empty .cal-link-pill-open:hover { background: #f3f3f1; }
+        .cal-link-field.cal-link-empty .cal-link-ico { color: var(--text-muted); opacity: 0.7; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -12502,7 +12509,7 @@
         try { return new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); }
         catch { return u.length > 26 ? u.slice(0,26) + '…' : u; }
     }
-    function _calLinkFieldHtml(pid, fld, val, placeholder, ro) {
+    function _calLinkFieldHtml(pid, fld, val, placeholder, ro, showEmptyPlaceholder) {
         const v = String(val || '').trim();
         const isThumb = fld === 'thumbnail_url';
         const kind = isThumb ? 'thumb' : 'post';
@@ -12512,7 +12519,20 @@
         if (ro) {
             // Client-link view — links can be opened but never edited.
             // The raw thumbnail link is hidden (the thumbnail image is shown).
-            if (!v || isThumb) return '';
+            if (!v) {
+                // Blank suggest-a-post cards (showEmptyPlaceholder=false) keep
+                // the field hidden entirely — the client is creating, not
+                // viewing, so no SMM-only slot belongs on the form. Once the
+                // card is saved, the caller flips showEmptyPlaceholder=true so
+                // the video slot reappears as a faded "awaiting" pill, holding
+                // the layout for the SMM to fill in later. Thumbnail keeps no
+                // placeholder — the actual thumbnail image carries that slot.
+                if (!showEmptyPlaceholder || isThumb) return '';
+                return `<div class="cal-link-field cal-link-ro cal-link-empty cal-link-${kind}" title="Your manager will add the ${label.toLowerCase()} link.">
+                    <span class="cal-link-pill-open">${extIco}<span class="cal-link-label">${label} (coming soon)</span></span>
+                </div>`;
+            }
+            if (isThumb) return '';
             const href = /^https?:\/\//i.test(v) ? v : 'https://' + v;
             return `<div class="cal-link-field has-link cal-link-ro cal-link-${kind}">
                 <a class="cal-link-pill-open" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer">${extIco}<span class="cal-link-label">${label}</span></a>
@@ -12702,8 +12722,8 @@
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
-                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro)}
-                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro)}
+                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank)}
                 <div class="cal-cap-wrap">
                     <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
@@ -13251,6 +13271,21 @@
             _calConflictNotified.delete(realId);
             _calSetCardStatus(realId, 'saved');
             _calRefreshCardThumb(realId);
+            // A freshly-promoted blank card carries the blank-time layout in
+            // the DOM (no media slots, no status pills, etc.) — _calPromoteBlankCard
+            // only rewrites identifiers, not the visual shape. Without a
+            // re-render the client wouldn't see the "Video (coming soon)"
+            // placeholder appear when they tab/click out of the new post.
+            // Only re-render when focus is NOT inside this card so a
+            // mid-edit textarea doesn't lose its caret.
+            if (isBlank && wasNewRow) {
+                const focusInThisCard = document.activeElement
+                    && document.activeElement.closest
+                    && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
+                if (!focusInThisCard) {
+                    try { _calRenderBody({ preserveScroll: true }); } catch {}
+                }
+            }
             const savedPost = calState.posts.find(p => p.id === realId);
             if (savedPost) {
                 if ('video_status' in edits && !suppressVideo) {

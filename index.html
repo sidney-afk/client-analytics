@@ -16216,10 +16216,47 @@
                 // path so the existing 'invalid link' UX still triggers.
             }
 
+            // Kasper unlock must run BEFORE the skipAwait branch so the nav
+            // button is visible regardless of which navigation path init()
+            // takes. Previously this lived after the fast-path return, so
+            // refreshing on /?Kasper=1#calendar (or any other fast-tab hash)
+            // never ran it — the nav button stayed hidden and the user lost
+            // their Kasper access on every reload. ?Kasper=1 sets a
+            // sessionStorage flag that persists for the tab's lifetime, so
+            // subsequent navigations within the same browser tab keep
+            // Kasper unlocked even after the search param has dropped off.
+            let _kasperArrivedFromUnlockParam=false;
+            try{
+                // Drop any persistent unlock left over from the old localStorage scheme.
+                localStorage.removeItem(KASPER_UNLOCK_KEY);
+                if(qp.get('Kasper')==='1'){
+                    sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
+                    _kasperArrivedFromUnlockParam=true;
+                }
+                if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
+                    _kasperUnlocked=true;
+                    const navKp=document.getElementById('navKasper');
+                    if(navKp) navKp.style.display='';
+                }
+            }catch(e){}
+
             const dataPromise = fetchAll();
             dataPromise.then(_applyAllDataDependentChrome, () => {});
 
             if (skipAwait) {
+                // Bare /?Kasper=1 with no hash — drop straight into Kasper
+                // from the fast path too, matching the full-path behaviour
+                // below. Any other URL (with a hash) lets the hash router
+                // decide which tab to mount; the Kasper nav button was
+                // already revealed unconditionally above.
+                if (_kasperArrivedFromUnlockParam && _kasperUnlocked && !hashRaw) {
+                    await Promise.resolve();
+                    _resumePendingBriefPolling();
+                    loadTemplates();
+                    navTo('kasper', false);
+                    dataPromise.catch(err => console.warn('[SyncView] background fetchAll failed', err));
+                    return;
+                }
                 // Yield one microtask so any top-level let/const declarations
                 // below init()'s call site (e.g. _tkPollTimer down in the
                 // TikTok module) finish initializing before navTo touches
@@ -16302,24 +16339,10 @@
                 if(vParam==='calendar')clientViewTab[clientFromQuery]='calendar';
                 render(clientFromQuery,true);return;
             }
-            const hash=decodeURIComponent(location.hash.replace('#',''));
-            // Unlock the hidden Kasper tab only for visitors who arrive with
-            // ?Kasper=1. The unlock is scoped to the current browser tab via
-            // sessionStorage — closing the tab requires reusing the link.
-            let _kasperArrivedFromUnlockParam=false;
-            try{
-                // Drop any persistent unlock left over from the old localStorage scheme.
-                localStorage.removeItem(KASPER_UNLOCK_KEY);
-                if(new URLSearchParams(location.search).get('Kasper')==='1'){
-                    sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
-                    _kasperArrivedFromUnlockParam=true;
-                }
-                if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
-                    _kasperUnlocked=true;
-                    const navKp=document.getElementById('navKasper');
-                    if(navKp) navKp.style.display='';
-                }
-            }catch(e){}
+            // hash is hashRaw from the top of init() — alias kept for the
+            // existing routing branches below. The Kasper unlock setup now
+            // lives above the skipAwait branch so it runs on every path.
+            const hash = hashRaw;
             if(_kasperArrivedFromUnlockParam && _kasperUnlocked && !hash){
                 // Bare /?Kasper=1 — drop straight into Kasper as a one-step
                 // unlock. If the URL also carries a hash (e.g. someone

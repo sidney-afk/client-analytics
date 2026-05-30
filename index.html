@@ -1704,7 +1704,14 @@
         /* Organizer — inline-editable cards */
         .cal-organizer-wrap { padding: 4px 0; }
         .cal-organizer-strip { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 6px; align-items: flex-start; min-height: 320px;
-            scrollbar-width: thin; scrollbar-color: #cdcdc8 transparent; }
+            scrollbar-width: thin; scrollbar-color: #cdcdc8 transparent;
+            /* Generous right runway so the user can scroll past the last
+               card into empty canvas — and so a newly added card can be
+               scrolled into the centre of the viewport instead of pinning
+               against the right edge of the strip. Clamped so the empty
+               space stays sensible on tiny and wide screens. */
+            scroll-padding-right: clamp(120px, 40vw, 800px); }
+        .cal-organizer-strip::after { content: ''; flex: 0 0 clamp(120px, 40vw, 800px); align-self: stretch; }
         /* Subtle scrollbar — track blends into the page; thumb is solid and
            pill-shaped. The arrow buttons (start / end / single-button) are
            all zero-sized so they can't render even on platforms where
@@ -1730,8 +1737,34 @@
         .cal-card.is-blank { background: #fcfcfb; border-style: dashed; border-color: #d4d4d2; }
         .cal-card.is-blank .cal-card-thumb { background: #f4f4f2; }
         .cal-card.is-blank:hover { border-color: #888; }
-        .cal-card.is-saving { box-shadow: 0 0 0 1px var(--text-primary) inset; }
-        .cal-card.is-error { box-shadow: 0 0 0 1px var(--dn) inset; border-color: var(--dn); }
+        /* Saving / error frame is painted by a pseudo-element overlay
+           rather than an inset box-shadow on .cal-card itself. The card
+           has overflow:hidden so the inset shadow was being clipped by
+           the thumbnail at the top edge — the border only showed on the
+           sides + bottom. The overlay sits on top of every card child,
+           shares the card's border-radius, and so the dark frame traces
+           the full rounded shape including the top. */
+        .cal-card.is-saving::after, .cal-card.is-error::after { content: ''; position: absolute; inset: 0;
+            border: 1.5px solid currentColor; border-radius: 14px; pointer-events: none; z-index: 12; box-sizing: border-box; }
+        .cal-card.is-saving::after { color: var(--text-primary); }
+        .cal-card.is-error::after  { color: var(--dn); }
+        .cal-card.is-error { border-color: var(--dn); }
+        /* Close-button × glyphs across the app are now SVG crosses instead of
+           the unicode multiplication sign — the unicode glyph sits a pixel
+           or two above the geometric centre of its box in every system
+           font, so close buttons of different sizes had their crosses at
+           visibly different vertical positions. A single shared SVG with a
+           symmetric path centres perfectly in any size container, so every
+           × in the app (calendar archive, tab close, modal close,
+           lightbox close, search clear, etc.) aligns. The relative sizing
+           (% of the parent) keeps the cross proportional to whatever
+           button it lives in. */
+        .cal-card-del > svg, .cal-tab-x > svg, .cal-import-x > svg,
+        .cal-lightbox-close > svg, .kasper-lightbox-close > svg,
+        .cal-preview-close > svg, .cal-comments-close > svg,
+        .cal-prompt-close > svg, .cr-modal-close > svg,
+        .workload-popover-close > svg, .wl-client-search-clear > svg {
+            display: block; width: 42%; height: 42%; }
         .cal-card.dragging { opacity: 0.45; }
         .cal-card.cal-card-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-card.cal-card-posted:hover { box-shadow: 0 0 0 1px #15803d, 0 4px 14px rgba(0,0,0,0.07); }
@@ -7169,7 +7202,7 @@
                             </div>
                             <div class="wl-client-search" data-wl-filter="client">
                                 <input type="text" class="wl-client-search-input" id="wlClientSearchInput" placeholder="All clients" autocomplete="off">
-                                <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear">×</button>
+                                <button type="button" class="wl-client-search-clear" id="wlClientSearchClear" hidden aria-label="Clear"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                                 <div class="wl-client-search-results" id="wlClientSearchResults" hidden role="listbox"></div>
                             </div>
                         </div>
@@ -7220,7 +7253,7 @@
                         <h3 id="crModalTitle">Content revision email</h3>
                         <p>Notify a client that their content is ready for review.</p>
                     </div>
-                    <button type="button" class="cr-modal-close" onclick="closeRevisionModal()" aria-label="Close">×</button>
+                    <button type="button" class="cr-modal-close" onclick="closeRevisionModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 </div>
                 <div class="cr-modal-body">
                     <div>
@@ -8361,7 +8394,7 @@
                 ${templatesLink}
             </div>
             ${parentUrl ? `<a class="workload-popover-parent" href="${wlEscape(parentUrl)}" target="_blank" rel="noopener noreferrer">Open parent →</a>` : ''}
-            <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close">×</button>
+            <button type="button" class="workload-popover-close" data-wl-popover-close="1" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
         </div>`;
         // When the popover spans multiple clients (editor-total badge), label
         // each row with the client too so it's obvious whose work it is.
@@ -9253,7 +9286,7 @@
             </label>`).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Edit platforms</h3>
                 <p>Pick which platforms appear as icons on every <strong>${_calEsc(calState.client)}</strong> card. Click an icon on a card to mark that the post is going to that platform.</p>
             </div>
@@ -10362,7 +10395,7 @@
         const pg = (prefill && prefill.graphic) || '';
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Import posts from Linear</h3>
                 <p>Paste the <strong>video parent</strong> issue link. Optionally paste the matching <strong>thumbnail (graphic) parent</strong> link — sub-issues will be paired by "Video N" so each card gets both links.</p>
             </div>
@@ -10392,7 +10425,7 @@
         const urlG = inpG ? inpG.value.trim() : '';
         if (!url) { _calRenderLinearImportStart({ video: '', graphic: urlG }, 'Paste a Linear video-parent link first.'); return; }
         const modal = document.getElementById('calLinearImportModal');
-        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
         try {
             const fetchOne = (u) => fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) }).then(r => r.json());
             const tasks = [fetchOne(url)];
@@ -10457,7 +10490,7 @@
         }).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Pick sub-issues to import</h3>
                 <p>${parent && parent.title ? `From <strong>${_calEsc(parent.title)}</strong>. ` : ''}Sub-issues import top-to-bottom into the calendar. Drag a row or use Reverse order to change it.</p>
             </div>
@@ -10563,7 +10596,7 @@
                 graphic_linear_issue_id: (s._graphicMatch && s._graphicMatch.url) || ''
             };
         });
-        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Importing…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calLinearImportProg">Importing 0 / ${posts.length}…</div></div>`;
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Importing…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calLinearImportProg">Importing 0 / ${posts.length}…</div></div>`;
         const setProg = (msg) => { const p = document.getElementById('calLinearImportProg'); if (p) p.textContent = msg; };
         const result = await _calBulkUpsertPosts(posts, (done, total) => setProg(`Importing ${done} / ${total}…`));
         const saved = result.done - result.failed;
@@ -10571,7 +10604,7 @@
             ? `, ${result.missingAfterRetry} couldn't be confirmed — try them again`
             : (result.retried > 0 ? ` (${result.retried} re-sent after the first write didn't land)` : '');
         modal.innerHTML = `
-            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close">×</button><h3>Import complete</h3>
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalLinearImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Import complete</h3>
                 <p>${saved} post${saved === 1 ? '' : 's'} imported${result.failed ? `, ${result.failed} failed` : ''}${missingNote}.</p></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="closeCalLinearImport();loadCalendarPosts();">Done</button></div>`;
     }
@@ -10621,7 +10654,7 @@
         const pg = (prefill && typeof prefill === 'object') ? (prefill.graphic || '') : '';
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Bulk Linear sync</h3>
                 <p>Paste the <strong>video parent</strong> link. Sub-issues are matched by name against the <strong>${n}</strong> selected card${n === 1 ? '' : 's'}. Add the <strong>thumbnail (graphic) parent</strong> link too to link both at once.</p>
             </div>
@@ -10651,7 +10684,7 @@
         const urlG = inpG ? inpG.value.trim() : '';
         if (!url) { _calRenderBulkLinkStart({ video: '', graphic: urlG }, 'Paste a Linear video-parent link first.'); return; }
         const modal = document.getElementById('calBulkLinkModal');
-        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Fetching sub-issues…</h3></div><div class="cal-import-body"><div class="cal-import-progress">Asking Linear…</div></div>`;
         try {
             const fetchOne = (u) => fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: u }) }).then(r => r.json());
             const tasks = [fetchOne(url)];
@@ -10754,7 +10787,7 @@
         const prefillJson = JSON.stringify(prefill && typeof prefill === 'object' ? prefill : { video: prefill || '', graphic: '' });
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Match cards to sub-issues</h3>
                 <p>${headerNote}Names were matched automatically — adjust any that look wrong before applying.</p>
             </div>
@@ -10818,7 +10851,7 @@
             return;
         }
         const modal = document.getElementById('calBulkLinkModal');
-        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Linking…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calBulkLinkProg">Linking 0 / ${work.length}…</div></div>`;
+        modal.innerHTML = `<div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linking…</h3></div><div class="cal-import-body"><div class="cal-import-progress" id="calBulkLinkProg">Linking 0 / ${work.length}…</div></div>`;
         const setProg = (msg) => { const p = document.getElementById('calBulkLinkProg'); if (p) p.textContent = msg; };
         let done = 0, failed = 0;
         for (const row of work) {
@@ -10845,7 +10878,7 @@
         }
         const ok = work.length - failed;
         modal.innerHTML = `
-            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close">×</button><h3>Linked</h3>
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalBulkLinkOverlay()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Linked</h3>
                 <p>${ok} card${ok === 1 ? '' : 's'} linked${failed ? `, ${failed} failed` : ''}.</p></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" onclick="_calBulkLinkFinish()">Done</button></div>`;
     }
@@ -10931,7 +10964,7 @@
         if (!modal) return;
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Import posts from Excel</h3>
                 <p>In your Google Sheet choose <strong>File ▸ Download ▸ Microsoft Excel (.xlsx)</strong>, then drop that file here. You'll match the columns on the next step.</p>
             </div>
@@ -11027,7 +11060,7 @@
         }).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Pick a sheet</h3>
                 <p>This workbook has ${sheets.length} sheets — choose the one with the posts you want to import.</p>
             </div>
@@ -11145,7 +11178,7 @@
         }).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Match the columns</h3>
                 <p>Matches were guessed from your column names — adjust anything that's off. Only <strong>Post name</strong> is required (red *); everything else can be left as <em>— none —</em> or unchecked to skip. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
             </div>
@@ -11219,7 +11252,7 @@
         }).join('');
         modal.innerHTML = `
             <div class="cal-import-head">
-                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button>
+                <button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 <h3>Pick posts to import</h3>
                 <p>Uncheck any rows you don't want as cards on <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
             </div>
@@ -11294,7 +11327,7 @@
         });
         if (!posts.length) { if (errBox) errBox.innerHTML = `<div class="cal-import-err">Pick at least one post to import.</div>`; return; }
         modal.innerHTML = `
-            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close">×</button><h3>Importing…</h3></div>
+            <div class="cal-import-head"><button class="cal-import-x" type="button" onclick="closeCalImport()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button><h3>Importing…</h3></div>
             <div class="cal-import-body"><div class="cal-import-progress" id="calImportProg">Importing 0 / ${posts.length}…</div></div>
             <div class="cal-import-foot"><button class="cal-import-btn-primary" id="calImportDone" disabled onclick="closeCalImport();loadCalendarPosts();">Done</button></div>`;
         const result = await _calBulkUpsertPosts(posts, (done, total, extra) => {
@@ -11825,7 +11858,7 @@
             </div>
             <div class="cal-lightbox" id="calLightbox" onclick="closeCalLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
-                <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close">×</button>
+                <button class="cal-lightbox-close" type="button" onclick="closeCalLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
             <div class="cal-comments-overlay" id="calCommentsOverlay" onclick="if(event.target===this)closeCalComments()">
                 <div class="cal-comments-modal" id="calCommentsModal" role="dialog" aria-modal="true" aria-labelledby="calCommentsTitle"></div>
@@ -11908,7 +11941,7 @@
             const isActive = name === active;
             return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick('${_calEscAttr(name)}')">
                 <span class="cal-tab-name">${_calEsc(name)}</span>
-                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove('${_calEscAttr(name)}')" title="Remove tab">×</span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove('${_calEscAttr(name)}')" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
             </button>`;
         }).join('');
         const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
@@ -12719,7 +12752,7 @@
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
             ${(isBlank || _isClientLink) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
-            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
@@ -13399,7 +13432,7 @@
             const del = document.createElement('button');
             del.className = 'cal-card-del'; del.type = 'button'; del.title = 'Archive';
             del.addEventListener('click', () => archiveCalPost(newId));
-            del.textContent = '×';
+            del.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
             blank.insertBefore(del, blank.firstChild);
         }
         if (_calPendingEdits[oldPid]) {
@@ -13441,7 +13474,11 @@
         strip.insertBefore(newCard, addBtn);
         const nameInput = newCard.querySelector('.cal-fld-name');
         if (nameInput) {
-            newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+            // Centre the new card in the viewport instead of pinning it to
+            // the right edge — paired with the strip's right-side runway
+            // (.cal-organizer-strip::after) so there's always enough empty
+            // canvas to actually reach the centred position.
+            newCard.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             setTimeout(() => nameInput.focus(), 80);
         }
     }
@@ -13918,7 +13955,7 @@
                     '<h3>Caption prompt — ' + _calEsc(client) + '</h3>' +
                     '<p>Used whenever you click Generate caption on a card for this client.</p>' +
                 '</div>' +
-                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close">×</button>' +
+                '<button class="cal-prompt-close" type="button" onclick="_calCloseCaptionPromptModal()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>' +
             '</div>' +
             '<div class="cal-prompt-body">' +
                 bannerHtml +
@@ -14833,7 +14870,7 @@
             <div class="cal-preview-body">
                 <div class="cal-preview-head">
                     <div class="cal-preview-title">${_calEsc(p.name || 'Untitled')}</div>
-                    <button class="cal-preview-close" onclick="closeCalPreview()" title="Close">×</button>
+                    <button class="cal-preview-close" onclick="closeCalPreview()" title="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 </div>
                 <div class="cal-preview-meta">${_calClientCompPillsHtml(p)}<span>${_calEsc(dateStr)}</span></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">Asset URL</div><div class="cal-preview-val">${linkify(p.asset_url)}</div></div>
@@ -15197,7 +15234,7 @@
                     <h3 id="calCommentsTitle">Tweaks</h3>
                     <p>${postName}</p>
                 </div>
-                <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close">×</button>
+                <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
             <div class="cal-comments-feed" id="calCommentsFeed">
                 <div class="cal-comments-feed-inner">${feedHtml}</div>
@@ -17449,7 +17486,7 @@
             <div id="kasperContent"></div>
             <div class="kasper-lightbox" id="kasperLightbox" onclick="_kasperCloseLightbox()">
                 <img alt="" onclick="event.stopPropagation()">
-                <button class="kasper-lightbox-close" type="button" onclick="_kasperCloseLightbox()" aria-label="Close">×</button>
+                <button class="kasper-lightbox-close" type="button" onclick="_kasperCloseLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
         </div>`;
     }

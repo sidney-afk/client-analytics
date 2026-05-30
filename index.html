@@ -9302,7 +9302,16 @@
         // setting into another client's tab (same race as the cross-client
         // upsert fix in _calFlushCardSave / persistCalReorder).
         const _saveSlug = calClientSlug(calState.client);
-        const next = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, patch || {});
+        // Stamp every write with a client-side timestamp. The backend's
+        // row.updated_at reflects when n8n processed the request, not the
+        // client's intent — so under out-of-order arrival (rare but real:
+        // POST A sent before POST B can still land after it), comparing
+        // server-side updated_at would let a stale POST overwrite a fresher
+        // one. The _ts in the JSON payload travels WITH the value, so the
+        // load-time merge can pick the truly-newest write regardless of
+        // arrival order. localStorage stores it; backend stores it; the
+        // merge compares them.
+        const next = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, patch || {}, { _ts: Date.now() });
         calState.settings = next;
         // localStorage is the durable source of truth on this device — written
         // synchronously so a refresh, even a crash mid-fetch, keeps the value.
@@ -9360,17 +9369,29 @@
         wrap.classList.toggle('is-open');
     }
     async function _calToggleCollabMode() {
+        // Pin the slug up front: the awaited save below could let the user
+        // switch clients mid-flight, and the cache write at the end must
+        // target the client this toggle actually changed.
+        const slug = calClientSlug(calState.client);
         const next = !_calIsCollabOn();
-        // Optimistic flip + localStorage write happen synchronously inside
-        // _calSaveSettings; the backend sync is best-effort. We render here
-        // so the calendar reflects the new state immediately.
-        calState.settings = Object.assign({}, calState.settings || CAL_SETTINGS_DEFAULTS, { collab_mode: next });
+        // _calSaveSettings does its in-memory flip + localStorage write + _ts
+        // stamp SYNCHRONOUSLY before its first await; only the backend POST
+        // is async. So we kick it off and immediately repaint — the user
+        // sees the toggle change instantly, and the backend sync rides
+        // behind in the background.
+        const savePromise = _calSaveSettings({ collab_mode: next });
         _calSyncCollabSwitch();
         try { _calRenderBody({ preserveScroll: true }); } catch {}
-        await _calSaveSettings({ collab_mode: next });
-        // Persist into the per-client cache too so a hard refresh restores
-        // the new setting without waiting on the network round-trip.
-        try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
+        // Cache write only if the user is still on the same client. If they've
+        // moved on, the new client's calState.posts is unrelated to this slug,
+        // and writing it would corrupt the destination cache.
+        if (calClientSlug(calState.client) === slug) {
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+        }
+        // Keep the function's promise pending until the backend round-trip
+        // settles so callers (and console error logging) can observe the
+        // outcome without changing the user-visible timing.
+        await savePromise;
     }
     function _calCurrentMonthIso() {
         const d = new Date();
@@ -11417,9 +11438,18 @@
             // we primed earlier stays authoritative instead of getting reset
             // to defaults on every refresh.
             if (split.found) {
-                calState.settings = split.settings;
-                _calSaveLocalSettings(slug, split.settings);
-                _calSyncCollabSwitch();
+                // Only let the backend value overwrite localStorage when its
+                // client-side _ts is strictly newer. Comparing payload _ts
+                // (not row.updated_at) survives out-of-order n8n arrivals: an
+                // older toggle that lands at the backend AFTER a newer one
+                // would have an older _ts in its JSON and is rejected here.
+                const backendTs = Number((split.settings && split.settings._ts) || 0);
+                const localTs = Number((calState.settings && calState.settings._ts) || 0);
+                if (backendTs > localTs) {
+                    calState.settings = Object.assign({}, CAL_SETTINGS_DEFAULTS, split.settings);
+                    _calSaveLocalSettings(slug, calState.settings);
+                    _calSyncCollabSwitch();
+                }
             }
             _calCleanArchiveLedger(slug, split.posts);
             const archivedRefs = _calArchivedRefs(slug);
@@ -13985,8 +14015,13 @@
         const startMonday = _calIsoMondayOf(_calParseIso(firstISO));
         const cells = Array.from({ length: 42 }, (_, i) => _calAddDaysISO(startMonday, i));
         const byDate = new Map();
+        // Client view + Collaborative mode off: same ready-only filter the
+        // Sheet tab uses, so the Month grid doesn't leak unfinished posts the
+        // Sheet tab is already hiding from the client.
+        const hideUnready = _isClientLink && !_calIsCollabOn();
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
+            if (hideUnready && !_calIsClientReady(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
@@ -14036,8 +14071,12 @@
         const start = calState.weekCursor;
         const days = Array.from({ length: 7 }, (_, i) => _calAddDaysISO(start, i));
         const byDate = new Map();
+        // Mirror the Sheet/Month tabs' client-view filter: when Collaborative
+        // mode is off, unfinished posts stay hidden across all client tabs.
+        const hideUnready = _isClientLink && !_calIsCollabOn();
         for (const p of calState.posts) {
             if (!p.scheduled_date) continue;
+            if (hideUnready && !_calIsClientReady(p)) continue;
             const d = String(p.scheduled_date).slice(0,10);
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);

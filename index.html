@@ -1354,6 +1354,11 @@
         .tpl-edit-btn.done:hover { background: #2a2a28; }
 
         .tpl-status-badge { font-size: 0.72rem; font-weight: 600; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; min-height: 18px; }
+        /* Empty status badge would otherwise still be a flex child and take
+           a gap slot in the toolbar — visible as an extra ~10px gap between
+           the bulk-action buttons and the kebab. Hide it until it carries
+           text so the toolbar spacing stays uniform. */
+        .tpl-status-badge:empty { display: none; }
         .tpl-status-badge.saving { color: #6b6b67; }
         .tpl-status-badge.saved  { color: #10b981; }
         .tpl-status-badge.error  { color: #dc2626; }
@@ -1873,7 +1878,7 @@
         .cal-thumb-linear-warn:hover { background: #c2410c; }
         .cal-thumb-linear-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
         /* Multi-select mode — pick several posts, then bulk-archive. */
-        .cal-select-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px;
+        .cal-select-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
             border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary);
             cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
         .cal-select-btn:hover { background: var(--bg); color: var(--text-primary); }

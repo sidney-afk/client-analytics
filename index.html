@@ -2130,6 +2130,28 @@
            status individually. Click opens the same portal menu as the
            overall dropdown, but writes to the chosen sub-status. */
         .cal-card-substatus-row { display: flex; flex-direction: column; gap: 4px; margin-top: 5px; }
+        /* "Set all" pill — visually distinct from the three component pills:
+           neutral background, chain-link icon, and a centred label. Sits on
+           top of the component pills as a fourth row. Clicking opens the
+           same status picker the per-component pills use, but the selection
+           writes to every component the SMM is allowed to change (caption
+           always; video/graphic only if linked to a Linear sub-issue). */
+        .cal-fld-setall { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box;
+            padding: 6px 10px; border-radius: 7px; border: 1px dashed #cfcec7;
+            background: #f7f7f5; color: var(--text-secondary);
+            font-family: inherit; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.04em;
+            text-transform: uppercase; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
+        .cal-fld-setall:hover { background: #f0efea; border-color: var(--text-secondary); color: var(--text-primary); }
+        .cal-fld-setall svg { width: 13px; height: 13px; flex-shrink: 0; }
+        .cal-fld-setall-label { flex: 1 1 auto; text-align: left; }
+        .cal-fld-setall-chev { width: 9px; height: 9px; flex-shrink: 0; opacity: 0.55; }
+        /* Header strip inside the status menu when it's opened from the
+           Set-all pill — names which components the pick will affect, so
+           the SMM sees the scope (and any skipped components) before they
+           commit to a status. */
+        .cal-fld-setall-menu-head { padding: 7px 11px 8px; margin-bottom: 4px;
+            border-bottom: 1px solid var(--border); color: var(--text-secondary);
+            font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-fld-substatus-wrap { display: block; border-radius: 7px; background: #f3f3f1; color: var(--text-secondary); }
         .cal-fld-substatus-wrap.is-locked { opacity: 0.55; }
         .cal-fld-substatus-trigger { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box;
@@ -12611,9 +12633,19 @@
                 </button>
             </div>`;
         }).join('');
+        // "Set all to..." pill — chain-link icon signals the three components
+        // are about to move together. Hidden on blank cards (no statuses yet
+        // to set) and the client view. Always rendered for SMM cards even
+        // when some components are locked: the writer will quietly skip the
+        // locked ones, matching the "click each pill" semantics.
+        const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_calOpenSetAllMenu(event,'${pid}',this)" title="Set all three statuses to the same value">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </button>`;
         const statusHtml = ro
             ? `<div class="cal-client-status">${_calClientCompPillsHtml(p)}</div>`
-            : `${subStatusHtml ? `<div class="cal-card-substatus-row">${subStatusHtml}</div>` : ''}`;
+            : `${(setAllHtml || subStatusHtml) ? `<div class="cal-card-substatus-row">${setAllHtml}${subStatusHtml}</div>` : ''}`;
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
@@ -12736,6 +12768,116 @@
         _calRenderBody({ preserveScroll: true });
         _calFlushCardSave(pid);
     }
+
+    /* "Set all to…" — opens the same status menu as the per-component pills
+       but the selection writes to every component the SMM is allowed to
+       change in one atomic save. Equivalent to clicking each pill in turn:
+       caption is always settable; video/graphic are skipped when they have
+       no Linear sub-issue linked (same lock the per-component pill enforces).
+       Per-component Linear pushes ride on the regular _calFlushCardSave
+       path, so each Linear sub-issue receives ONLY its own sub-status — no
+       repeat of the old "overall status leaks onto the video issue" bug. */
+    function _calOpenSetAllMenu(event, pid, triggerEl) {
+        event.stopPropagation();
+        event.preventDefault();
+        const menuKey = pid + '|__setall__';
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === menuKey) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        // Header row reuses the menu's chrome to spell out exactly what
+        // "Set all" will do for this card — so an SMM with one component
+        // unlinked sees that the unlinked one will be skipped before they
+        // pick a status, not after.
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
+        const skipped = CAL_COMPONENTS.filter(c => !settable.includes(c));
+        const headLabel = skipped.length
+            ? `Apply to ${settable.map(c => COMP_LABELS[c]).join(', ')} — ${skipped.map(c => COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
+            : 'Apply to all three components';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
+            + CAL_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}" onclick="_calSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(s)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 220);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        let top = rect.bottom + 6;
+        if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
+        menu.style.left = left + 'px';
+        menu.style.top  = top + 'px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenStatusMenu = { el: menu, key: menuKey, triggerEl };
+    }
+    function _calSetAllSettable(post, comp) {
+        if (!post) return false;
+        if (comp === 'caption') return true;
+        const link = comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id;
+        return String(link || '').trim() !== '';
+    }
+    const _CAL_SETALL_TERMINAL = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calSetAllSkipKey(status) {
+        return 'cal-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-');
+    }
+    function _calSetAllStatus(pid, status) {
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const settable = CAL_COMPONENTS.filter(c => _calSetAllSettable(post, c));
+        if (!settable.length) {
+            showNotify('Nothing to set', 'None of the components on this card can be updated yet — link the Linear sub-issues first.');
+            return;
+        }
+        const apply = (dontAskAgain) => {
+            if (dontAskAgain) {
+                try { localStorage.setItem(_calSetAllSkipKey(status), '1'); } catch {}
+            }
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            const edits = _calPendingEdits[pid];
+            let changed = false;
+            for (const c of settable) {
+                const key = c + '_status';
+                if (_calNormStatus(post[key] || '') === status) continue;
+                post[key] = status;
+                edits[key] = status;
+                changed = true;
+            }
+            if (!changed) return;   // nothing to do — every settable component already at this status
+            // Recompute overall from the new sub-statuses. The overall is
+            // NEVER pushed to Linear (the historical bug); only the
+            // per-component *_status edits in this patch will, via the
+            // existing _calFlushCardSave Linear push code.
+            post.status = computeOverallStatus(post);
+            edits.status = post.status;
+            // Mark the whole card as locally-changed so the post-load
+            // reconcile against Linear won't clobber any of these in the
+            // 5-minute grace window while Linear's state catches up.
+            _calMarkLocalStatus(pid);
+            _calClearStaleApprovals(post, edits);
+            post.updated_at = new Date().toISOString();
+            _calRenderBody({ preserveScroll: true });
+            _calFlushCardSave(pid);
+        };
+        // Confirm before flipping into a "terminal" / client-visible state.
+        // Other states (mid-workflow) go through silently — they're cheap
+        // to undo.
+        let skip = false;
+        try { skip = localStorage.getItem(_calSetAllSkipKey(status)) === '1'; } catch {}
+        if (_CAL_SETALL_TERMINAL.has(status) && !skip) {
+            const settableLabel = settable.map(c => COMP_LABELS[c]).join(', ');
+            const skippedLabel = CAL_COMPONENTS.filter(c => !settable.includes(c)).map(c => COMP_LABELS[c]).join(' and ');
+            const msg = `Set ${settableLabel} to "${status}".`
+                + (skippedLabel ? ` (${skippedLabel} not linked to Linear — skipped.)` : '');
+            showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
+        } else {
+            apply(false);
+        }
+    }
+
     document.addEventListener('click', (e) => {
         if (!_calOpenStatusMenu) return;
         if (_calOpenStatusMenu.el && _calOpenStatusMenu.el.contains(e.target)) return;

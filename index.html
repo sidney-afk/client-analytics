@@ -2218,6 +2218,22 @@
         .cal-link-field.cal-link-empty .cal-link-pill-open { background: #f3f3f1; color: var(--text-muted); cursor: default; font-style: italic; }
         .cal-link-field.cal-link-empty .cal-link-pill-open:hover { background: #f3f3f1; }
         .cal-link-field.cal-link-empty .cal-link-ico { color: var(--text-muted); opacity: 0.7; }
+        /* Global styled tooltip — same dark pill the Collab mode "i" uses,
+           applied site-wide by the script at the end of the file in place
+           of native browser title tooltips. See setupGlobalTooltip() for
+           the wire-up and opt-out semantics (data-no-tip, form fields, etc.). */
+        .global-tip { position: fixed; z-index: 99999; max-width: 240px; padding: 7px 11px;
+            background: #2a2a28; color: #f5f5f3;
+            font-family: inherit; font-size: 0.72rem; font-weight: 500; line-height: 1.4; letter-spacing: 0;
+            border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.22);
+            pointer-events: none; white-space: normal; word-wrap: break-word; text-align: left;
+            animation: globalTipFade 0.12s ease-out; }
+        @keyframes globalTipFade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+        .global-tip::before { content: ''; position: absolute;
+            left: var(--arrow-left, 50%); transform: translateX(-50%);
+            border: 5px solid transparent; }
+        .global-tip[data-placement="above"]::before { top: 100%; border-top-color: #2a2a28; }
+        .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: #2a2a28; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -11760,7 +11776,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
-                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                     </div>
                 </div>`
             : '';
@@ -19426,6 +19442,187 @@
     window._kasperToggleAllClients = _kasperToggleAllClients;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
+
+    /* ──────────────────────────────────────────────────────────────────
+       Global styled tooltip — replaces every browser-native title popup
+       with the dark pill used for the Collaborative mode "i" icon.
+
+       Why: native tooltips are ugly, inconsistent across OSes, can't be
+       styled, and have a long mystery delay. The dark pill matches the
+       rest of the app's design language and renders identically on
+       every machine.
+
+       How it works:
+       - On mouseover the handler walks up from e.target until it finds
+         an element with `title` or `data-tip` and isn't opted out.
+       - It removes the `title` attribute while the custom tip is shown
+         so the browser's native popup never appears alongside it (and
+         restores the title on mouseout so screen readers and any
+         future hover still see the same text).
+       - Positions a single shared tip element (portaled to <body>) above
+         the trigger, flips below when it would go off-screen, and the
+         arrow tracks the trigger horizontally so a tip near the edge
+         still points at the right element.
+
+       Opt-out is intentional and easy:
+       - Add `data-no-tip` to any element (or wrap an area in it).
+       - Form fields (input / textarea / select / option), SVG <title>
+         elements, and contenteditable areas are skipped automatically.
+       - Elements with no title/data-tip content are skipped (so empty
+         tooltips never paint a stub).
+
+       Existing custom tooltips (e.g. .cal-kebab-info-tip on the Collab
+       mode icon) keep working as-is — they don't use `title` so this
+       handler never targets them. */
+    (function setupGlobalTooltip() {
+        'use strict';
+        const SHOW_DELAY_MS = 350;
+        const TIP_CLASS = 'global-tip';
+        let tipEl = null;
+        let activeTarget = null;
+        let savedTitle = null;
+        let showTimer = 0;
+
+        function ensureTipEl() {
+            if (tipEl) return tipEl;
+            tipEl = document.createElement('div');
+            tipEl.className = TIP_CLASS;
+            tipEl.setAttribute('role', 'tooltip');
+            return tipEl;
+        }
+
+        function getTipText(el) {
+            const t = (el.getAttribute('data-tip') || el.getAttribute('title') || '');
+            return t.trim();
+        }
+
+        function isOptedOut(el) {
+            if (!el || el.nodeType !== 1) return true;
+            if (el.hasAttribute('data-no-tip')) return true;
+            // .closest is the cheap way to check ancestors too. The wrap
+            // around the Collab info icon (and any other custom tooltip
+            // area) sets data-no-tip so the global handler doesn't
+            // double up on its hover.
+            if (el.closest && el.closest('[data-no-tip]')) return true;
+            const tag = el.tagName;
+            // Form fields: title may be used for HTML5 validation messages
+            // or accessibility hints — leave them alone.
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'OPTION') return true;
+            // SVG <title> is a child node read by assistive tech, never
+            // an interactive trigger.
+            if (tag === 'TITLE') return true;
+            if (el.isContentEditable) return true;
+            return false;
+        }
+
+        function findBearer(start) {
+            let el = start;
+            while (el && el !== document.body) {
+                if (el.nodeType === 1 && !isOptedOut(el) && getTipText(el)) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
+
+        function position(el, target) {
+            const rect = target.getBoundingClientRect();
+            // Measure with current content but no positional constraints,
+            // so we know the natural width/height before clamping.
+            el.style.top = '0px';
+            el.style.left = '0px';
+            const tipRect = el.getBoundingClientRect();
+            const margin = 8;
+            const edge = 6;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            let top, placement;
+            // Prefer above; fall back to below when the trigger sits
+            // near the top of the viewport.
+            if (rect.top - tipRect.height - margin >= edge) {
+                top = rect.top - tipRect.height - margin;
+                placement = 'above';
+            } else {
+                top = Math.min(vh - tipRect.height - edge, rect.bottom + margin);
+                placement = 'below';
+            }
+            let left = rect.left + rect.width / 2 - tipRect.width / 2;
+            left = Math.max(edge, Math.min(vw - tipRect.width - edge, left));
+            el.style.top = top + 'px';
+            el.style.left = left + 'px';
+            el.dataset.placement = placement;
+            // Arrow tracks the trigger's centre so a tip clamped to the
+            // edge still points at the right element instead of floating
+            // adrift.
+            const arrowLeft = Math.max(10, Math.min(tipRect.width - 10, rect.left + rect.width / 2 - left));
+            el.style.setProperty('--arrow-left', arrowLeft + 'px');
+        }
+
+        function show(target) {
+            if (!target || target === activeTarget) return;
+            hide();
+            const text = getTipText(target);
+            if (!text) return;
+            activeTarget = target;
+            // Suppress the browser's native popup by temporarily peeling
+            // the title attribute off. Restored on hide so a11y / future
+            // hovers keep their text.
+            if (target.hasAttribute('title')) {
+                savedTitle = target.getAttribute('title');
+                target.removeAttribute('title');
+            }
+            const el = ensureTipEl();
+            el.textContent = text;
+            document.body.appendChild(el);
+            position(el, target);
+        }
+
+        function hide() {
+            if (showTimer) { clearTimeout(showTimer); showTimer = 0; }
+            if (!activeTarget) return;
+            if (savedTitle !== null) {
+                activeTarget.setAttribute('title', savedTitle);
+                savedTitle = null;
+            }
+            if (tipEl && tipEl.parentNode) tipEl.parentNode.removeChild(tipEl);
+            activeTarget = null;
+        }
+
+        document.addEventListener('mouseover', function (e) {
+            // Garbage-collect: if the active trigger has been removed from
+            // the DOM by a re-render, drop the stale tip silently.
+            if (activeTarget && !document.contains(activeTarget)) hide();
+            const bearer = findBearer(e.target);
+            if (!bearer) return;
+            if (bearer === activeTarget) return;
+            if (showTimer) clearTimeout(showTimer);
+            showTimer = setTimeout(function () { show(bearer); }, SHOW_DELAY_MS);
+        }, true);
+
+        document.addEventListener('mouseout', function (e) {
+            if (!activeTarget && !showTimer) return;
+            const next = e.relatedTarget;
+            // Moving inside the bearer (e.g., over its icon child) is
+            // not a leave — keep the tip showing.
+            if (activeTarget && next && activeTarget.contains(next)) return;
+            // Same idea for the queued show: the trigger we were about to
+            // show is what e.target leads to, but if the cursor is still
+            // inside the trigger area, don't cancel.
+            const stillInsideBearer = activeTarget && next && next === activeTarget;
+            if (stillInsideBearer) return;
+            hide();
+        }, true);
+
+        // Any click / keyboard escape / scroll / resize should drop the
+        // tip immediately — keeping it floating during interaction
+        // looks broken.
+        document.addEventListener('mousedown', hide, true);
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hide(); });
+        window.addEventListener('scroll', hide, true);
+        window.addEventListener('resize', hide);
+        // When the page is hidden (tab switch) drop the tip so it
+        // doesn't reappear stale when the tab is restored.
+        document.addEventListener('visibilitychange', function () { if (document.hidden) hide(); });
+    })();
 </script>
 
 <!-- Transcript preview modal -->

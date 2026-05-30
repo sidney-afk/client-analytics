@@ -1131,7 +1131,7 @@
         .wl-client-search-input::placeholder { color: var(--text-muted); font-weight: 600; }
         .wl-client-search-input:hover  { box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
         .wl-client-search-input:focus  { box-shadow: 0 0 0 2px #6c5ce7; }
-        .wl-client-search-clear { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); background: transparent; border: 0; padding: 2px 6px; font-size: 1rem; line-height: 1; color: var(--text-muted); cursor: pointer; border-radius: 4px; }
+        .wl-client-search-clear { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); width: 20px; height: 20px; padding: 0; box-sizing: border-box; background: transparent; border: 0; font-size: 1rem; line-height: 1; color: var(--text-muted); cursor: pointer; border-radius: 50%; }
         .wl-client-search-clear:hover { background: var(--bg); color: var(--text-primary); }
         .wl-client-search-results { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--white); border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); padding: 6px; z-index: 1000; max-height: 260px; overflow-y: auto; }
         .wl-client-search-result { display: block; width: 100%; padding: 8px 12px; border: 0; background: transparent; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); text-align: left; cursor: pointer; border-radius: 8px; }
@@ -1153,7 +1153,8 @@
         .workload-popover-templates svg { flex-shrink: 0; opacity: 0.85; }
         .workload-popover-parent { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); text-decoration: none; white-space: nowrap; flex-shrink: 0; }
         .workload-popover-parent:hover { color: var(--text-primary); text-decoration: underline; }
-        .workload-popover-close { background: transparent; border: 0; padding: 2px 6px; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; }
+        .workload-popover-close { width: 24px; height: 24px; padding: 0; box-sizing: border-box; background: transparent; border: 0; color: var(--text-muted); font-size: 1rem; cursor: pointer; line-height: 1; flex-shrink: 0; border-radius: 6px; }
+        .workload-popover-close:hover { background: var(--bg); color: var(--text-primary); }
         .workload-popover-item { display: flex; align-items: center; gap: 4px; padding: 3px 4px 3px 8px; border-radius: 6px; color: var(--text-primary); font-size: 0.76rem; }
         .workload-popover-item:hover { background: var(--bg); }
         .workload-popover-item-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 4px 0; text-decoration: none; color: inherit; }
@@ -1316,7 +1317,7 @@
         .cr-modal-head { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .cr-modal-head-text h3 { margin: 0 0 3px; font-size: 1rem; font-weight: 800; color: var(--text-primary); }
         .cr-modal-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); }
-        .cr-modal-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.2rem; line-height: 1; padding: 2px 4px; border-radius: 6px; transition: all 0.1s; flex-shrink: 0; }
+        .cr-modal-close { width: 26px; height: 26px; padding: 0; box-sizing: border-box; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 1.2rem; line-height: 1; border-radius: 6px; transition: all 0.1s; flex-shrink: 0; }
         .cr-modal-close:hover { background: var(--bg); color: var(--text-primary); }
         .cr-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
         .cr-label { font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
@@ -1764,7 +1765,22 @@
         .cal-preview-close > svg, .cal-comments-close > svg,
         .cal-prompt-close > svg, .cr-modal-close > svg,
         .workload-popover-close > svg, .wl-client-search-clear > svg {
-            display: block; width: 42%; height: 42%; }
+            display: block; width: 42%; height: 42%;
+            /* DEFENSIVE CAP — do not remove. The cross is sized as a % of its
+               button so it stays proportional. But a percentage on a replaced
+               element (an inline <svg> with no width/height attribute) only
+               resolves when the button has a *definite* box size. If a close
+               button is ever styled with only padding + font-size (no explicit
+               width/height), the % cannot resolve and the SVG silently falls
+               back to the CSS default replaced size of 300x150px — which is
+               exactly the "giant X" regression this rule guards against.
+               max-width/height are expressed in `em` (always definite, derived
+               from the button's font-size), so they bound the fallback to a
+               sane glyph size no matter how the parent is laid out. Every
+               button above currently declares an explicit width/height, so the
+               cap never actually clamps the intended size today — it is purely
+               a safety net for future additions. */
+            max-width: 1em; max-height: 1em; }
         /* Audit follow-up: every close-button class that hosts the shared
            SVG cross must also center it. Most of these classes already
            had display:inline-flex + align/justify center, but

@@ -1765,6 +1765,23 @@
         .cal-prompt-close > svg, .cr-modal-close > svg,
         .workload-popover-close > svg, .wl-client-search-clear > svg {
             display: block; width: 42%; height: 42%; }
+        /* Audit follow-up: every close-button class that hosts the shared
+           SVG cross must also center it. Most of these classes already
+           had display:inline-flex + align/justify center, but
+           cal-comments-close / cal-preview-close / cal-prompt-close /
+           cal-lightbox-close / cr-modal-close / workload-popover-close
+           / wl-client-search-clear were laying out the SVG as a plain
+           block child — the cross visibly sat in the top-left of the
+           button. Applying centering as a shared follow-up rule means
+           any future close-button class added to the list above
+           automatically gets centred too, and we can't regress this
+           by forgetting to set the centering flags on a new class. */
+        .cal-card-del, .cal-tab-x, .cal-import-x,
+        .cal-lightbox-close, .kasper-lightbox-close,
+        .cal-preview-close, .cal-comments-close,
+        .cal-prompt-close, .cr-modal-close,
+        .workload-popover-close, .wl-client-search-clear {
+            display: inline-flex; align-items: center; justify-content: center; }
         .cal-card.dragging { opacity: 0.45; }
         .cal-card.cal-card-posted { border-color: #15803d; box-shadow: 0 0 0 1px #15803d; }
         .cal-card.cal-card-posted:hover { box-shadow: 0 0 0 1px #15803d, 0 4px 14px rgba(0,0,0,0.07); }
@@ -1956,7 +1973,13 @@
            SMM calendar and the Kasper review queue. position:absolute
            keeps it out of toolbar flow so its appearance/disappearance
            never shifts other controls sideways. */
-        .cal-refreshing, .app-refresh-pill { position: absolute; top: 14px; left: 50%; z-index: 40;
+        /* Refreshing pill is fixed to the viewport so it stays visible while
+           the user scrolls — previously it was position:absolute anchored
+           to the toolbar and slid off-screen with the rest of the header
+           on long pages. The fixed position pins it to the very top
+           centre regardless of scroll position; z-index 40 keeps it
+           above the page content but still under modals (1000+). */
+        .cal-refreshing, .app-refresh-pill { position: fixed; top: 14px; left: 50%; z-index: 40;
             display: inline-flex; align-items: center; gap: 8px;
             padding: 6px 14px; background: rgba(255,255,255,0.92);
             -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);

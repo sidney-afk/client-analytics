@@ -2016,8 +2016,53 @@
         .cal-date-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-date-chip.is-empty .cal-date-txt { color: var(--text-muted); font-weight: 500; }
         .cal-chev { width: 9px; height: 9px; flex-shrink: 0; color: var(--text-muted); }
-        .cal-fld-date-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; cursor: pointer; }
-        .cal-fld-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+        /* The native <input type="date"> is kept ONLY as the storage / change
+           event sink — clicks go through to the chip, which opens the
+           custom modern picker (.dp-popup) below. pointer-events: none
+           on the input lets the chip absorb every click; the picker
+           writes input.value and dispatches a change event so the existing
+           _calOnDateChange / save plumbing keeps working unchanged. */
+        .cal-fld-date-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; opacity: 0; pointer-events: none; }
+        .cal-fld-date-input::-webkit-calendar-picker-indicator { display: none; }
+        .cal-fld-date-wrap .cal-date-chip { cursor: pointer; }
+        .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
+        /* Modern custom date picker — replaces the OS-rendered native popup
+           so the calendar looks the same on every machine and inherits the
+           app's styled tooltip + typography. Portaled to <body>; one
+           shared instance per page. See setupDatePicker() at the bottom
+           of the script block. */
+        .dp-popup { position: fixed; z-index: 9999; width: 280px; padding: 12px 12px 10px;
+            background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+            box-shadow: 0 14px 40px rgba(0,0,0,0.16);
+            font-family: inherit; user-select: none; animation: dpFade 0.13s ease-out; }
+        @keyframes dpFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        .dp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 2px 10px; }
+        .dp-head-label { font-size: 0.86rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; }
+        .dp-head-nav { display: inline-flex; gap: 2px; }
+        .dp-nav-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+            border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); cursor: pointer;
+            transition: background 0.12s, color 0.12s; }
+        .dp-nav-btn:hover { background: var(--bg); color: var(--text-primary); }
+        .dp-nav-btn svg { width: 12px; height: 12px; }
+        .dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .dp-dow { text-align: center; font-size: 0.62rem; font-weight: 700; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 0 6px; }
+        .dp-day { aspect-ratio: 1; border: 0; background: transparent; border-radius: 8px;
+            font-family: inherit; font-size: 0.78rem; font-weight: 500; color: var(--text-primary); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            transition: background 0.12s, color 0.12s; }
+        .dp-day:hover { background: var(--bg); }
+        .dp-day.is-out { color: var(--text-muted); opacity: 0.45; }
+        .dp-day.is-today { box-shadow: inset 0 0 0 1.5px var(--text-secondary); font-weight: 700; }
+        .dp-day.is-selected, .dp-day.is-selected:hover { background: var(--text-primary); color: #fff; font-weight: 700;
+            box-shadow: none; }
+        .dp-foot { display: flex; justify-content: space-between; align-items: center;
+            margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--border); }
+        .dp-foot-btn { background: transparent; border: 0; font-family: inherit; font-size: 0.72rem; font-weight: 600;
+            color: var(--text-secondary); cursor: pointer; padding: 5px 9px; border-radius: 6px;
+            transition: background 0.12s, color 0.12s; }
+        .dp-foot-btn:hover { background: var(--bg); color: var(--text-primary); }
+        .dp-foot-btn.is-primary { color: var(--text-primary); font-weight: 700; }
 
         /* Link fields — paste a URL, then it becomes a click-to-open pill */
         .cal-link-field { display: flex; }
@@ -19628,6 +19673,211 @@
         // When the page is hidden (tab switch) drop the tip so it
         // doesn't reappear stale when the tab is restored.
         document.addEventListener('visibilitychange', function () { if (document.hidden) hide(); });
+    })();
+
+    /* ──────────────────────────────────────────────────────────────────
+       Modern date picker — replaces the OS-rendered native popup that
+       <input type="date"> opens with a styled in-app calendar. One
+       shared popover, portaled to <body>, opened when the user clicks
+       a .cal-date-chip and dismissed on outside click / Esc / scroll.
+
+       It treats the existing <input type="date"> purely as the storage
+       sink + change-event source: the chip's click bubbles into the
+       picker (clicks on the input itself are disabled via
+       pointer-events:none in CSS), and selecting a date writes
+       input.value + dispatches a change event so _calOnDateChange and
+       the rest of the save plumbing run unchanged. Clearing the date
+       sets input.value to '' and dispatches the same event.
+
+       Read-only date chips (.cal-fld-date-wrap.is-readonly — the client
+       view when Collaborative mode is off) skip the open path entirely,
+       matching the readonly attribute that used to suppress the native
+       popup. */
+    (function setupDatePicker() {
+        'use strict';
+        let dpEl = null;
+        let dpInput = null;        // hidden <input type="date"> driving the chip
+        let dpTriggerEl = null;    // the .cal-date-chip we opened from
+        let cursorISO = null;      // 'YYYY-MM-01' — the month currently in view
+        let selectedISO = null;    // 'YYYY-MM-DD' or null
+
+        function pad(n) { return String(n).padStart(2, '0'); }
+        function todayISO() {
+            const d = new Date();
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        }
+        function isoOf(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+        function firstOfMonth(iso) { return iso.slice(0, 7) + '-01'; }
+        function shiftMonth(iso, delta) {
+            const [y, m] = iso.split('-').map(Number);
+            const d = new Date(y, m - 1 + delta, 1);
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
+        }
+
+        function ensureEl() {
+            if (dpEl) return dpEl;
+            dpEl = document.createElement('div');
+            dpEl.className = 'dp-popup';
+            dpEl.setAttribute('role', 'dialog');
+            dpEl.setAttribute('aria-label', 'Pick a date');
+            return dpEl;
+        }
+
+        function position() {
+            if (!dpEl || !dpTriggerEl) return;
+            // Reset, measure, then place.
+            dpEl.style.top = '0px';
+            dpEl.style.left = '0px';
+            const t = dpTriggerEl.getBoundingClientRect();
+            const r = dpEl.getBoundingClientRect();
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            const margin = 6, edge = 8;
+            // Prefer below the chip; flip above when there isn't room.
+            let top = t.bottom + margin;
+            if (top + r.height > vh - edge) {
+                top = Math.max(edge, t.top - r.height - margin);
+            }
+            let left = t.left;
+            if (left + r.width > vw - edge) left = vw - r.width - edge;
+            if (left < edge) left = edge;
+            dpEl.style.top = top + 'px';
+            dpEl.style.left = left + 'px';
+        }
+
+        function render() {
+            if (!dpEl) return;
+            const [y, m] = cursorISO.split('-').map(Number);
+            const monthLabel = new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            // First-day-of-month dow (Sunday=0); fill 6 weeks for stable height.
+            const firstDow = new Date(y, m - 1, 1).getDay();
+            const days = [];
+            for (let i = 0; i < 42; i++) {
+                const d = new Date(y, m - 1, 1 - firstDow + i);
+                days.push(d);
+            }
+            const today = todayISO();
+            const dows = ['S','M','T','W','T','F','S'];
+            const cellHtml = days.map(function (d) {
+                const dIso = isoOf(d);
+                const isOut = d.getMonth() !== (m - 1);
+                const isToday = dIso === today;
+                const isSelected = dIso === selectedISO;
+                const cls = ['dp-day'];
+                if (isOut) cls.push('is-out');
+                if (isToday) cls.push('is-today');
+                if (isSelected) cls.push('is-selected');
+                return `<button type="button" class="${cls.join(' ')}" data-dp-day="${dIso}">${d.getDate()}</button>`;
+            }).join('');
+            dpEl.innerHTML = `
+                <div class="dp-head">
+                    <div class="dp-head-label">${monthLabel}</div>
+                    <div class="dp-head-nav">
+                        <button type="button" class="dp-nav-btn" data-dp-nav="-1" aria-label="Previous month"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l-4 4 4 4"/></svg></button>
+                        <button type="button" class="dp-nav-btn" data-dp-nav="1" aria-label="Next month"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg></button>
+                    </div>
+                </div>
+                <div class="dp-grid">
+                    ${dows.map(function (d) { return `<div class="dp-dow">${d}</div>`; }).join('')}
+                    ${cellHtml}
+                </div>
+                <div class="dp-foot">
+                    <button type="button" class="dp-foot-btn" data-dp-act="clear">Clear</button>
+                    <button type="button" class="dp-foot-btn is-primary" data-dp-act="today">Today</button>
+                </div>`;
+            // Reposition AFTER innerHTML in case content height changed
+            // (the grid is always 6 rows so this is mostly a no-op).
+            position();
+        }
+
+        function commit(iso) {
+            if (!dpInput) return;
+            dpInput.value = iso || '';
+            // bubbles:true so any delegated change listeners still fire.
+            dpInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        function close() {
+            if (dpEl && dpEl.parentNode) dpEl.parentNode.removeChild(dpEl);
+            dpEl = null;
+            dpInput = null;
+            dpTriggerEl = null;
+            cursorISO = null;
+            selectedISO = null;
+            document.removeEventListener('mousedown', outsideMouse, true);
+            document.removeEventListener('keydown', keyHandler);
+            window.removeEventListener('scroll', close, true);
+            window.removeEventListener('resize', close);
+        }
+
+        function open(chip) {
+            const wrap = chip && chip.closest('.cal-fld-date-wrap');
+            if (!wrap || wrap.classList.contains('is-readonly')) return;
+            const input = wrap.querySelector('input[type="date"]');
+            if (!input) return;
+            close();   // any previous one
+            dpInput = input;
+            dpTriggerEl = chip;
+            const startIso = (input.value || '').slice(0, 10) || todayISO();
+            selectedISO = (input.value || '').slice(0, 10) || null;
+            cursorISO = firstOfMonth(startIso);
+            ensureEl();
+            document.body.appendChild(dpEl);
+            render();
+            // Clicks on the popover itself shouldn't bubble to the outside
+            // handler — but plain delegation handles the inner buttons.
+            dpEl.addEventListener('click', onPopupClick);
+            document.addEventListener('mousedown', outsideMouse, true);
+            document.addEventListener('keydown', keyHandler);
+            // Scroll / resize close (a scroll could move the chip out from
+            // under the popover, leaving it floating in the wrong place).
+            window.addEventListener('scroll', close, true);
+            window.addEventListener('resize', close);
+        }
+
+        function onPopupClick(e) {
+            const t = e.target.closest('[data-dp-day], [data-dp-nav], [data-dp-act]');
+            if (!t) return;
+            if (t.hasAttribute('data-dp-day')) {
+                selectedISO = t.getAttribute('data-dp-day');
+                commit(selectedISO);
+                close();
+            } else if (t.hasAttribute('data-dp-nav')) {
+                cursorISO = shiftMonth(cursorISO, Number(t.getAttribute('data-dp-nav')) || 0);
+                render();
+            } else if (t.hasAttribute('data-dp-act')) {
+                const act = t.getAttribute('data-dp-act');
+                if (act === 'clear') { commit(''); close(); }
+                else if (act === 'today') { commit(todayISO()); close(); }
+            }
+        }
+
+        function outsideMouse(e) {
+            if (!dpEl) return;
+            if (dpEl.contains(e.target)) return;
+            // Re-clicking the same chip should toggle closed (and let the
+            // chip-open handler reopen) instead of leaving a stale popup.
+            if (dpTriggerEl && dpTriggerEl.contains(e.target)) { close(); return; }
+            close();
+        }
+
+        function keyHandler(e) {
+            if (e.key === 'Escape') { e.preventDefault(); close(); }
+        }
+
+        // Capture-phase click on date chips. The chip is inside a card and
+        // may have other click handlers attached to ancestors, so we
+        // catch in the capture phase and stop propagation to keep the
+        // open() call clean.
+        document.addEventListener('click', function (e) {
+            const chip = e.target && e.target.closest && e.target.closest('.cal-date-chip');
+            if (!chip) return;
+            const wrap = chip.closest('.cal-fld-date-wrap');
+            if (!wrap || wrap.classList.contains('is-readonly')) return;
+            e.preventDefault();
+            e.stopPropagation();
+            open(chip);
+        }, true);
     })();
 </script>
 

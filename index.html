@@ -2201,6 +2201,11 @@
         .cal-approve-bar:active { transform: translateY(1px); box-shadow: 0 1px 5px rgba(22,101,52,0.3); }
         .cal-approve-bar svg { width: 14px; height: 14px; }
         .cal-link-field.cal-link-ro a.cal-link-pill-open { text-decoration: none; }
+        /* Client read-only view has no edit button alongside the pill, so the
+           pill's right-side corners need to round too — without this the
+           pink Video / blue Thumbnail pill on the client sheet looks
+           clipped on the right. */
+        .cal-link-field.cal-link-ro .cal-link-pill-open { border-radius: 8px; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -2965,6 +2970,14 @@
         .kcard-date { font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 4px; cursor: default; }
         .kcard-date.is-empty { color: var(--text-muted); font-weight: 500; font-style: italic; }
         .kcard-title { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; cursor: default; }
+        /* Client review card — plain-English line telling the client what's
+           waiting on them (or what we're working on for them). Sits right
+           below the big title, before the date / status pills, so the
+           collapsed card carries the gist on its own. */
+        .cal-review-card .kcard-title { font-size: 1.15rem; line-height: 1.25; }
+        .cal-review-card .kcard-pending { font-size: 0.82rem; font-weight: 500; color: var(--text-secondary); line-height: 1.35; }
+        .cal-review-card .kcard-pending-strong { color: var(--text-primary); font-weight: 700; }
+        .cal-review-card .kcard-date { font-size: 0.72rem; color: var(--text-muted); letter-spacing: 0.03em; }
         .kcard-meta-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .kcard-smm { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 6px; background: var(--bg); border-radius: 99px; font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); cursor: default; }
         .kcard-smm-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--text-primary); color: var(--white); font-size: 0.62rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
@@ -12543,9 +12556,15 @@
         const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
     }
-    function _calTitleRowHtml(pid, p, ro) {
+    function _calTitleRowHtml(pid, p, ro, editableText) {
+        // editableText defaults to !ro so existing callers (the SMM-only
+        // render paths) keep their old behaviour. The new client-Collab
+        // flow passes editableText=true explicitly so the client can rename
+        // the post while everything else (Linear slots, video/thumb pills)
+        // stays SMM-only.
+        const nameRo = (editableText == null) ? ro : !editableText;
         return `<div class="cal-linear-slot" data-linear-slot="${pid}">${_calLinearSlotHtml(pid, p.linear_issue_id, ro, 'video')}${ro ? '' : _calLinearSlotHtml(pid, p.graphic_linear_issue_id, ro, 'graphic')}</div>
-                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>`;
+                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
     }
     function _calLinearEdit(pid, comp) {
         const which = comp || 'video';
@@ -12589,15 +12608,23 @@
     function _calRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _calEscAttr(p.id);
         // Client-link view locks existing posts, but blank cards the client
-        // just added stay editable so they can fill them in.
+        // just added stay editable so they can fill them in. `ro` still
+        // governs the MEDIA surface (video / thumbnail / Linear / status /
+        // platforms) — clients never touch those, in either mode.
         const ro = _isClientLink && !isBlank;
+        // Collaborative mode opens up the TEXT fields (title, date, caption,
+        // CTA) for the client on existing cards. Blank cards have always
+        // been client-editable (the Suggest-a-post flow). SMM is never
+        // locked. This is the only flag that diverges from `ro` when collab
+        // is on, so it stays scoped to the four text inputs and nowhere else.
+        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
         const selectable = calState.selectMode && !ro && !isBlank;
         const draggable = (isBlank || ro || selectable) ? 'false' : 'true';
         const dateIso = String(p.scheduled_date || '').slice(0,10);
         const dateFmt = _calFmtDateShort(dateIso);
         const currentStatus = p.status || 'In Progress';
         const isPosted = String(p.status || '').toLowerCase() === 'posted';
-        const dateHtml = ro
+        const dateHtml = !editableText
             ? `<div class="cal-fld-date-wrap is-readonly">
                         <div class="cal-date-chip${dateFmt ? '' : ' is-empty'}">
                             <svg class="cal-cal-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>
@@ -12649,21 +12676,21 @@
         const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${isPosted ? ' cal-card-posted' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && calState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_calCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
-            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
+            ${(isBlank || _isClientLink) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
-            ${(isBlank || ro) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, ro)}${_calColorTagHtml(p, ro)}</div>
+            ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive">×</button>`}
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}</div>
             <div class="cal-card-body">
-                <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro)}</div>
+                <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
-                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', ro)}
-                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', ro)}
+                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro)}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro)}
                 <div class="cal-cap-wrap">
-                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${ro ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
+                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
-                    ${(!ro && !isBlank) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
+                    ${(!_isClientLink && !isBlank) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
                 </div>
-                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${ro ? ' readonly' : ''}>
+                <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
                     ${_calCommentsBtnHtml(p, pid)}
@@ -14301,6 +14328,37 @@
         return `<div class="cal-review-wrap"><div class="cal-review-list">${cards}</div></div>`;
     }
 
+    /* Plain-English summary of what the client needs to do (or what's being
+       worked on for them) on this card. Drives the line that sits right
+       under the title on the review card so a glance at the collapsed card
+       answers "why is this in my queue?" without expanding. Bolds the
+       component names so they stand out from the connecting words. */
+    function _calReviewPendingLabel(p) {
+        const awaiting = [], inFlight = [];
+        for (const c of CAL_COMPONENTS) {
+            const cs = _calNormStatus(p[c + '_status'] || '');
+            if (cs === 'Client Approval') awaiting.push(c);
+            else if (cs === 'Tweaks Needed') inFlight.push(c);
+        }
+        if (!awaiting.length && !inFlight.length) return '';
+        const human = (list) => {
+            const labels = list.map(c => `<span class="kcard-pending-strong">${_calEsc(COMP_LABELS[c])}</span>`);
+            if (labels.length === 1) return labels[0];
+            if (labels.length === 2) return labels[0] + ' and ' + labels[1];
+            return labels.slice(0, -1).join(', ') + ', and ' + labels.slice(-1)[0];
+        };
+        const parts = [];
+        if (awaiting.length) {
+            parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + ' your review');
+        }
+        if (inFlight.length) {
+            parts.push("we're working on your tweaks for " + human(inFlight));
+        }
+        // First letter uppercase on the final sentence.
+        const joined = parts.join(' · ');
+        return joined.charAt(0).toUpperCase() + joined.slice(1);
+    }
+
     function _calReviewCardHtml(p) {
         const pid = p.id;
         const escId = _calEscAttr(pid);
@@ -14309,24 +14367,26 @@
         const thumbHtml = info.url
             ? `<img src="${_calEscAttr(info.url)}" alt="" onerror="this.style.display='none'">`
             : `<span class="kcard-thumb-fallback">${_calThumbIconSvg()}</span>`;
+        // Weekday included so the client can place the date without doing
+        // mental arithmetic ("Sat 21 Jun 2026" reads faster than "21 Jun 2026").
         const dateStr = p.scheduled_date
-            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
-        // Always show all three component pills (Video / Thumbnail / Caption)
-        // side by side instead of a single overall chip — easier to scan at
-        // a glance and removes the "which component is blocking?" guess.
+        const pendingLabel = _calReviewPendingLabel(p);
+        // Component pills are gated by Collaborative mode — when off, only
+        // finished states render here, so the pill row will usually be empty
+        // for cards in the review queue. The pending label above carries
+        // the same information in plain English regardless.
         const compPills = _calClientCompPillsHtml(p);
         const body = expanded ? _calReviewCardBody(p) : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
             <div class="kcard-strip" onclick="_calReviewToggleCard('${escId}')">
                 <div class="kcard-thumb">${thumbHtml}</div>
                 <div class="kcard-main">
-                    <div class="kcard-line1">
-                        <span class="kcard-client">${_calEsc(p.name || 'Untitled')}</span>
-                        <span class="kcard-dot">·</span>
-                        <span class="kcard-date">${_calEsc(dateStr)}</span>
-                    </div>
-                    <div class="cal-review-sub-row">${compPills}</div>
+                    <div class="kcard-title">${_calEsc(p.name || 'Untitled')}</div>
+                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
+                    <div class="kcard-line1"><span class="kcard-date">${_calEsc(dateStr)}</span></div>
+                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
@@ -14877,16 +14937,32 @@
             const list = _calCommentsForView(post, c);
             if (Array.isArray(list) && list.length) lists.push(list);
         }
-        if (!lists.length && Array.isArray(post.comments) && post.comments.length) {
-            const seed = _isClientLink ? post.comments.filter(c => c && c.role !== 'kasper') : post.comments;
-            if (seed.length) lists.push(seed);
-        }
+        // Safety: the badge MUST walk the same source the modal renders from.
+        // The old fallback to post.comments here let stale legacy data
+        // (post.comments out-of-sync with the per-component arrays after a
+        // manual Google-Sheets cell deletion, for example) produce a badge
+        // counting comments the modal couldn't see — the "I see 2 tweaks but
+        // when I open it nothing is there" bug. The per-component arrays are
+        // the single source of truth; if all three are empty, there are no
+        // tweaks to count, period.
         return lists;
     }
+    /* Safety harness: count open tweak THREADS the same way the modal
+       renders them — _calCommentRoots filters out deleted, hidden, and
+       (in client view) Kasper-only entries before counting. Going through
+       the same helper guarantees the badge can never overcount past what
+       the modal will actually show, which was the root cause of the
+       "Tweaks (N)" badge with an empty panel reported on Dr. Sonia's
+       calendar after she cleared comment cells directly in Google Sheets. */
     function _calOpenCommentCount(post) {
+        if (!post) return 0;
         let n = 0;
-        for (const list of _calAllCommentLists(post)) {
-            for (const c of list) if (!c.parent_id && !c.done) n++;
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) continue;
+            for (const root of _calCommentRoots(list)) {
+                if (!root.done) n++;
+            }
         }
         return n;
     }

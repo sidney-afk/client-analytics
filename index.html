@@ -16289,9 +16289,17 @@
             try{
                 // Drop any persistent unlock left over from the old localStorage scheme.
                 localStorage.removeItem(KASPER_UNLOCK_KEY);
+                // "Just arrived" means this is the FIRST time we've seen
+                // ?Kasper=1 in this browser tab — i.e. sessionStorage wasn't
+                // already holding the unlock. On subsequent refreshes the
+                // sessionStorage flag is still there, so we leave the
+                // arrived-flag false: the user is mid-session and the redirect
+                // to Kasper below shouldn't yank them out of whatever tab
+                // they're currently looking at.
+                const _kasperAlreadyUnlocked = sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok';
                 if(qp.get('Kasper')==='1'){
                     sessionStorage.setItem(KASPER_UNLOCK_KEY,'ok');
-                    _kasperArrivedFromUnlockParam=true;
+                    _kasperArrivedFromUnlockParam = !_kasperAlreadyUnlocked;
                 }
                 if(sessionStorage.getItem(KASPER_UNLOCK_KEY)==='ok'){
                     _kasperUnlocked=true;

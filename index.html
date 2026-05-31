@@ -1912,6 +1912,13 @@
         .cal-thumb-drive-warn span { font-size: 0.7rem; line-height: 1.45; font-weight: 600; color: #b45309; max-width: 240px; }
         .cal-mini-drive-warn { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #fffbeb; color: #b45309; padding: 6px; }
         .cal-mini-drive-warn svg { width: 22px; height: 22px; }
+        /* "Awaiting SMM approval but no media linked" — banner on the editable
+           card / preview, and a small corner badge on the month/week pills. */
+        .cal-smm-warn { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 0.72rem; line-height: 1.35; font-weight: 600; }
+        .cal-smm-warn svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: #c2410c; }
+        .cal-smm-warn strong { font-weight: 800; }
+        .cal-smm-warn-dot { position: absolute; top: 4px; right: 4px; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #fff7ed; border: 1px solid #fdba74; color: #c2410c; box-shadow: 0 1px 3px rgba(0,0,0,0.12); pointer-events: auto; z-index: 2; }
+        .cal-smm-warn-dot svg { width: 11px; height: 11px; }
         .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
         .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
         .cal-card-body { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
@@ -7130,6 +7137,17 @@
     //   - Items whose work date falls before the cursor overflow back to that work date.
     //   - Video editors: 5/day capacity. Graphic designers: 15/day capacity.
     function scheduleAll(plannedSubs, todayISO) {
+        // Floor "today" to the next working day. When the page is viewed on a
+        // weekend (or a holiday handled by wlNextWorkingDay), the raw calendar
+        // today is a non-working day that the Mon–Fri week grid never renders
+        // — and weekStart is likewise the next working day. If we seeded the
+        // cursor with the raw weekend date, the most-urgent work (which sorts
+        // to the front of the ASAP queue) would be packed onto that off-screen
+        // Saturday/Sunday and silently vanish from the calendar while less
+        // urgent work landed on the visible weekdays. Flooring here keeps the
+        // scheduler's day-0 aligned with the grid's leftmost column. On a
+        // weekday wlNextWorkingDay is a no-op, so behaviour is unchanged.
+        todayISO = wlNextWorkingDay(todayISO);
         const byAssignee = new Map();
         for (const s of plannedSubs) {
             s.effectiveWorkDate = wlEffectiveWorkDate(s.dueDate, todayISO);
@@ -9966,14 +9984,17 @@
        tab is sitting idle — saves n8n executions and stops surprise
        reloads while the SMM is mid-think. */
 
-    /* Picks the initial view tab on mount. Clients land on Review by default
-       (the approval queue is their main job); the SMM never lands on Review
-       because they don't have that tab — if it's leftover in saved prefs we
-       coerce back to the Sheet (organizer). */
+    /* Picks the initial view tab on mount. Clients land on their Review
+       (Client Approval) queue by default — it's their main job. The SMM lands
+       on the Sheet (organizer) by default but can pin their own Review (SMM
+       Approval) queue; a saved view belonging to the other audience is coerced
+       back to that side's default. */
     function _calResolveInitialView(savedView) {
-        const allowed = ['review','organizer','month','week'];
+        const allowed = ['review','smmreview','organizer','month','week'];
         const saved = allowed.includes(savedView) ? savedView : null;
-        if (_isClientLink) return saved || 'review';
+        // Each audience only has its own review tab: coerce away a saved view
+        // that belongs to the other side (client ↔ smmreview, SMM ↔ review).
+        if (_isClientLink) return (saved && saved !== 'smmreview') ? saved : 'review';
         if (saved && saved !== 'review') return saved;
         return 'organizer';
     }
@@ -11908,9 +11929,11 @@
         const bulkCapBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
             ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
             : '';
-        const viewLabels = { review: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
-        // Review tab is client-only — the SMM doesn't need a mirror of the client queue.
-        const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['organizer','month','week'];
+        const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
+        // The client link gets the client approval queue ('review'); the SMM
+        // gets the parallel SMM-approval queue ('smmreview'). Both run on the
+        // same review machinery — only the target status differs.
+        const tabViews = _isClientLink ? ['review','organizer','month','week'] : ['smmreview','organizer','month','week'];
         view.innerHTML = `
             <div class="cal-toolbar">
                 <div class="cal-toolbar-left">${leftHtml}</div>
@@ -12252,7 +12275,7 @@
             </div>`;
             return;
         }
-        if (calState.view === 'review') {
+        if (calState.view === 'review' || calState.view === 'smmreview') {
             body.innerHTML = renderCalReview();
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
@@ -12416,7 +12439,7 @@
         loadCalendarPosts();
     }
     function onCalViewChange(v) {
-        if (!['review','organizer','month','week'].includes(v)) return;
+        if (!['review','smmreview','organizer','month','week'].includes(v)) return;
         calState.view = v;
         _calSavePrefs();
         if (v !== 'organizer' && calState.selectMode) {
@@ -12857,6 +12880,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}</div>
             <div class="cal-card-body">
+                ${(!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnBannerHtml() : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}
@@ -14370,7 +14394,8 @@
         // Color tag is SMM-internal — never surface the dot on the client view.
         const color = _isClientLink ? '' : _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></span></button>`;
+        const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml() : '';
+        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></span>${warn}</button>`;
     }
 
     function renderCalMonth() {
@@ -14482,7 +14507,8 @@
                                 // Color tag is SMM-internal — hide on client view.
                                 const wColor = _isClientLink ? '' : _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
-                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span></span></button>`;
+                                const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml() : '';
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span></span>${wWarn}</button>`;
                             }).join('')}
                         </div>
                     </div>`;
@@ -14495,30 +14521,80 @@
     function calWeekToday() { calState.weekCursor = _calIsoMondayOf(new Date()); _calRenderBody(); }
 
     /* ── Review tab ──────────────────────────────────────────────────
-       Client-facing approval queue. Shows every post whose overall status
-       isn't yet Approved or Posted. Each card splits into three component
-       panels (video / graphic / caption) so the client can approve or
-       request tweaks on each independently. Reuses the .kcard-* styles
-       from the existing Kasper Review tab. Internal (SMM) users see the
-       same UI labelled "Client review" so they know what the client sees. */
+       Approval queue. Each card splits into three component panels (video /
+       graphic / caption) so the reviewer can approve or request tweaks on
+       each independently. Reuses the .kcard-* styles from the Kasper Review
+       tab. Two audiences run on this one surface (see _calReviewMode): the
+       client link reviews at "Client Approval" (approve → Approved), and the
+       SMM's own Review tab reviews at "For SMM Approval" (approve → Kasper
+       Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };
     const COMP_PILL_COLORS = { video: '#06b6d4', graphic: '#d946ef', caption: '#f59e0b' };
     const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
 
+    /* ── Review audience (client vs SMM) ──────────────────────────────
+       The same review machinery powers two surfaces: the client-link
+       approval queue (targets the "Client Approval" component status) and
+       the SMM's in-app Review tab (targets "For SMM Approval"). Keeping a
+       single code path means tweaks / approvals / threads stay in lockstep
+       across both — only the target status and the approve destination
+       differ, which is all this config captures. */
+    const _CAL_REVIEW_CFG = {
+        client: { reviewStatus: 'Client Approval', approveTo: 'Approved' },
+        smm:    { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' },
+    };
+    function _calReviewMode() {
+        return (!_isClientLink && calState.view === 'smmreview') ? 'smm' : 'client';
+    }
+    // A component is "in play" on a review surface when it's sitting at that
+    // surface's approval status, or it's been sent back for tweaks — the
+    // reviewer keeps it so they can pile on more notes before it's turned
+    // around (mirrors the existing client-review behaviour).
+    function _calReviewComponentActive(p, c, mode) {
+        const cs = _calNormStatus(p[c + '_status'] || '');
+        return cs === _CAL_REVIEW_CFG[mode].reviewStatus || cs === 'Tweaks Needed';
+    }
+    // "Has media" = at least one of the video / thumbnail URL is linked. A
+    // post with neither isn't ready for SMM sign-off, so the SMM Review tab
+    // hides it and the calendar card flags it (see _calSmmMissingMedia).
+    function _calHasMedia(p) {
+        return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim());
+    }
+    // A post awaiting SMM approval that has no media at all. Drives the
+    // warning banner on the calendar card / pills so the SMM can't miss that
+    // the post can't actually be reviewed until a URL lands.
+    function _calSmmMissingMedia(p) {
+        if (!p || _calHasMedia(p)) return false;
+        if (_calNormStatus(p.status || '') === 'For SMM Approval') return true;
+        return CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'For SMM Approval');
+    }
+    function _calSmmWarnBannerHtml() {
+        return `<div class="cal-smm-warn" title="Awaiting SMM approval but no video or thumbnail is linked yet — add a URL before this can be reviewed."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span><strong>No media linked.</strong> Add a video or thumbnail URL before this can go for approval.</span></div>`;
+    }
+    function _calSmmWarnDotHtml() {
+        return `<span class="cal-smm-warn-dot" title="Awaiting SMM approval but no video or thumbnail linked yet."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
+    }
+
     function _calReviewItems() {
+        const mode = _calReviewMode();
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
             if (s === 'Approved' || s === 'Scheduled' || s === 'Posted') return false;
+            // SMM Review tab: only posts with a component awaiting SMM
+            // approval (or sent back for tweaks), AND that actually have
+            // something to look at — a post with no video and no thumbnail
+            // isn't ready for sign-off, so it stays hidden until media lands.
+            if (mode === 'smm') {
+                if (!_calHasMedia(p)) return false;
+                return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'smm'));
+            }
             // Clients see cards waiting on their approval AND cards
             // where they've already left tweaks (so they can add more
             // tweaks or change their mind before the editor turns it
             // around). The card only drops off the queue once that
             // component reaches Approved.
             if (_isClientLink) {
-                return CAL_COMPONENTS.some(c => {
-                    const cs = _calNormStatus(p[c + '_status'] || '');
-                    return cs === 'Client Approval' || cs === 'Tweaks Needed';
-                });
+                return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'client'));
             }
             return true;
         }).slice().sort((a, b) => {
@@ -14534,7 +14610,10 @@
     function renderCalReview() {
         const items = _calReviewItems();
         if (!items.length) {
-            return `<div class="cal-review-wrap"><div class="cal-empty">Nothing to review right now — every post is either fully approved or already posted.</div></div>`;
+            const msg = _calReviewMode() === 'smm'
+                ? 'Nothing waiting on SMM approval right now — posts with a linked video or thumbnail will appear here when they reach the SMM Approval stage.'
+                : 'Nothing to review right now — every post is either fully approved or already posted.';
+            return `<div class="cal-review-wrap"><div class="cal-empty">${msg}</div></div>`;
         }
         const cards = items.map(p => _calReviewCardHtml(p)).join('');
         return `<div class="cal-review-wrap"><div class="cal-review-list">${cards}</div></div>`;
@@ -14546,10 +14625,12 @@
        answers "why is this in my queue?" without expanding. Bolds the
        component names so they stand out from the connecting words. */
     function _calReviewPendingLabel(p) {
+        const mode = _calReviewMode();
+        const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         const awaiting = [], inFlight = [];
         for (const c of CAL_COMPONENTS) {
             const cs = _calNormStatus(p[c + '_status'] || '');
-            if (cs === 'Client Approval') awaiting.push(c);
+            if (cs === reviewStatus) awaiting.push(c);
             else if (cs === 'Tweaks Needed') inFlight.push(c);
         }
         if (!awaiting.length && !inFlight.length) return '';
@@ -14561,10 +14642,13 @@
         };
         const parts = [];
         if (awaiting.length) {
-            parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + ' your review');
+            const verb = awaiting.length === 1 ? ' needs' : ' need';
+            parts.push(human(awaiting) + verb + (mode === 'smm' ? ' SMM approval' : ' your review'));
         }
         if (inFlight.length) {
-            parts.push("we're working on your tweaks for " + human(inFlight));
+            parts.push(mode === 'smm'
+                ? ('tweaks requested on ' + human(inFlight))
+                : ("we're working on your tweaks for " + human(inFlight)));
         }
         // First letter uppercase on the final sentence.
         const joined = parts.join(' · ');
@@ -14616,12 +14700,12 @@
         // tweaks instead of being locked out after the first submit. The
         // card only auto-removes once every component has reached
         // Approved (handled by _calReviewItems on the next render).
-        const activeComps = _isClientLink
-            ? CAL_COMPONENTS.filter(c => {
-                const cs = _calNormStatus(p[c + '_status'] || '');
-                return cs === 'Client Approval' || cs === 'Tweaks Needed';
-              })
-            : CAL_COMPONENTS;
+        const _reviewMode = _calReviewMode();
+        const activeComps = (_reviewMode === 'smm')
+            ? CAL_COMPONENTS.filter(c => _calReviewComponentActive(p, c, 'smm'))
+            : (_isClientLink
+                ? CAL_COMPONENTS.filter(c => _calReviewComponentActive(p, c, 'client'))
+                : CAL_COMPONENTS);
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
@@ -14674,10 +14758,16 @@
         const draft = _calReviewState.drafts[draftKey] || '';
         const saving = !!_calReviewState.saving[draftKey];
         const err = _calReviewState.errors[draftKey] || '';
-        // Client can act only if status is Client Approval (the gate matches
-        // the legacy single-status approval gate). Caption tweaks always
-        // allowed since there's no Linear gating.
-        const canActClient = _isClientLink ? (subStatus === 'Client Approval' || subStatus === 'Tweaks Needed') : true;
+        // The reviewer can act only while the component is sitting at their
+        // surface's approval status (or has been sent back for tweaks). On the
+        // SMM Review tab that's "For SMM Approval"; on the client link it's
+        // "Client Approval". A plain SMM Sheet view (no review surface) can
+        // always act, matching the legacy behaviour.
+        const _reviewMode = _calReviewMode();
+        const _reviewStatus = _CAL_REVIEW_CFG[_reviewMode].reviewStatus;
+        const canActClient = (_reviewMode === 'smm' || _isClientLink)
+            ? (subStatus === _reviewStatus || subStatus === 'Tweaks Needed')
+            : true;
         const hasDraft = !!draft.trim();
         const inTweaks = subStatus === 'Tweaks Needed';
         // Approve button is ALWAYS rendered when the client could in
@@ -14695,7 +14785,8 @@
         // workflow term, not a prompt for action.
         const stateLabel = inTweaks ? 'Changes requested'
                          : (subStatus === 'Client Approval' ? 'Awaiting your approval'
-                         : subStatus);
+                         : (subStatus === 'For SMM Approval' ? 'Awaiting SMM approval'
+                         : subStatus));
         // Reword the compose placeholder once a tweak is already pending —
         // emphasises that the request was received and invites follow-ups.
         const placeholder = inTweaks
@@ -14851,14 +14942,19 @@
         if (!post) return;
         const key = pid + '|' + comp;
         if (_calReviewState.saving[key]) return;
+        const mode = _calReviewMode();
         const subKey = comp + '_status';
         const prev = {
             [subKey]: post[subKey],
             status: post.status,
             [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
         };
-        post[subKey] = 'Approved';
-        post[`client_${comp}_approved_at`] = new Date().toISOString();
+        // Client approval is terminal (→ Approved); SMM approval just advances
+        // the component to the next reviewer in the pipeline (→ Kasper
+        // Approval). Only a client approval stamps the client_<comp>_approved_at
+        // sign-off timestamp.
+        post[subKey] = _CAL_REVIEW_CFG[mode].approveTo;
+        if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
         // Stamp updated_at locally so a background poll racing this write
         // can't fetch the still-stale row from the sheet and clobber the
@@ -14870,17 +14966,15 @@
         // doesn't immediately revert this change if Linear is still showing
         // the stale state.
         _calMarkLocalStatus(pid, comp);
-        // If this approval was the LAST piece the client owed on this card
-        // (no component left at Client Approval or Tweaks Needed), the card
-        // drops out of the queue entirely — so remove it outright rather
-        // than first repainting it to the collapsed "nothing left to review"
-        // mini-stub and waiting on a delayed re-render. That collapse-then-
-        // vanish transition read as a glitch. Otherwise just repaint the
-        // card so the approved component lands as an instant mini panel.
-        const clearsCard = _isClientLink && !CAL_COMPONENTS.some(c => {
-            const cs = _calNormStatus(post[c + '_status'] || '');
-            return cs === 'Client Approval' || cs === 'Tweaks Needed';
-        });
+        // If this approval was the LAST piece owed on this card (no component
+        // left in play for this review surface), the card drops out of the
+        // queue entirely — so remove it outright rather than first repainting
+        // it to the collapsed "nothing left to review" mini-stub and waiting
+        // on a delayed re-render. That collapse-then-vanish transition read as
+        // a glitch. Otherwise just repaint the card so the approved component
+        // lands as an instant mini panel.
+        const clearsCard = (mode === 'smm' || _isClientLink)
+            && !CAL_COMPONENTS.some(c => _calReviewComponentActive(post, c, mode));
         if (clearsCard) {
             _calReviewRemoveCard(pid);
         } else {
@@ -14893,9 +14987,8 @@
         // surface errors via a repaint only if the network actually fails.
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
             [subKey]: post[subKey],
-            [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
             status: post.status,
-        });
+        }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {});
         Promise.resolve(_calFlushCardSave(pid)).then(() => {
             _calReviewState.saving[key] = false;
         }).catch(e => {
@@ -14992,6 +15085,7 @@
                     <button class="cal-preview-close" onclick="closeCalPreview()" title="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
                 </div>
                 <div class="cal-preview-meta">${_calClientCompPillsHtml(p)}<span>${_calEsc(dateStr)}</span></div>
+                ${(!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnBannerHtml() : ''}
                 <div class="cal-preview-row"><div class="cal-preview-label">Asset URL</div><div class="cal-preview-val">${linkify(p.asset_url)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">Caption</div><div class="cal-preview-val">${valOrEmpty(p.caption)}</div></div>
                 <div class="cal-preview-row"><div class="cal-preview-label">CTA</div><div class="cal-preview-val">${valOrEmpty(p.cta)}</div></div>

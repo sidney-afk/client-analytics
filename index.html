@@ -1172,8 +1172,13 @@
         .workload-needs-assignment.empty { display: none; }
         .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-capacity.empty { display: none; }
-        .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; }
+        .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; margin-bottom: 0; }
         .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
+        .workload-capacity-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 0; background: transparent; border: 0; cursor: pointer; font-family: inherit; }
+        .workload-capacity-chevron { width: 15px; height: 15px; color: var(--text-muted); transition: transform 0.16s ease; flex-shrink: 0; }
+        .workload-capacity.collapsed .workload-capacity-chevron { transform: rotate(-90deg); }
+        .workload-capacity:not(.collapsed) .workload-capacity-row { margin-top: 10px; }
+        .workload-capacity.collapsed .workload-capacity-row { display: none; }
         /* Editor workload — a ranked list (freest at top): name · capacity bar
            · plain label. The bar fills as the editor gets busier, so an empty
            bar reads as "free" at a glance and the column shades downward. */
@@ -2441,19 +2446,21 @@
         /* 3-column grid: video / thumbnail / caption side by side. Falls
            back to a single stacked column under ~880 px wide so the cards
            don't get crushed on small viewports. */
-        .cal-review-body { padding: 14px 18px 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; border-top: 1px solid var(--border); background: var(--bg); align-items: stretch; }
+        .cal-review-body { padding: 16px 18px 18px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 26px; border-top: 1px solid var(--border); background: var(--white); align-items: stretch; }
         @media (max-width: 880px) { .cal-review-body { grid-template-columns: 1fr; } }
         /* Each panel is a vertical stack with consistent gaps — clean,
            predictable, no overlapping flex layouts. */
-        .cal-review-panel { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px 14px 12px;
+        .cal-review-panel { background: transparent; border: 0; border-radius: 12px; padding: 0;
             display: flex; flex-direction: column; gap: 12px;
-            transition: background 0.18s, border-color 0.18s, box-shadow 0.18s;
+            transition: background 0.18s;
             height: 100%; }
-        .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-color: #86efac; }
-        .cal-review-panel[data-state="tweaks"]   { background: #fff7ed; border-color: #fdba74; }
+        /* Only the "done" / "tweaks" states get a gentle fill — everything else
+           is just stacked content on the white card, no boxes-in-boxes. */
+        .cal-review-panel[data-state="approved"] { background: linear-gradient(135deg,#f0fdf4,#dcfce7); }
+        .cal-review-panel[data-state="tweaks"]   { background: #fff7ed; padding: 14px; }
         /* Inside the tweaks panel, the inner caption/textarea blend with
            the panel rather than sitting on a stacked gray box. */
-        .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { background: rgba(255,255,255,0.6); color: #7c2d12; }
+        .cal-review-panel[data-state="tweaks"] .cal-review-preview-caption { color: #7c2d12; }
         .cal-review-panel[data-state="tweaks"] .cal-review-textarea { background: rgba(255,255,255,0.78); border-color: rgba(124,45,18,0.2); }
         /* Approved/posted: a centered, restful state — big check, gentle
            label, optional subtitle. Same column height as the other panels
@@ -2530,7 +2537,7 @@
         .cal-review-video-play svg { width: 22px; height: 22px; margin-left: 3px; }
         .cal-review-video-tile:hover .cal-review-video-play { background: rgba(255,255,255,0.28); transform: scale(1.06); }
         .cal-review-video-label { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.01em; text-shadow: 0 1px 4px rgba(0,0,0,0.4); }
-        .cal-review-preview-caption { padding: 10px 12px; background: var(--bg); border-radius: 8px; white-space: pre-wrap; line-height: 1.45; font-size: 0.84rem; width: 100%; }
+        .cal-review-preview-caption { padding: 0; background: transparent; white-space: pre-wrap; line-height: 1.5; font-size: 0.84rem; width: 100%; }
         /* Approve button — full width, dominant. */
         .cal-review-approve-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             width: 100%; padding: 10px 14px;
@@ -7320,6 +7327,21 @@
             .join(' ') || s;
     }
 
+    // Editor-workload panel collapse state (collapsed by default).
+    function wlCapacityCollapsedPref() {
+        try { return localStorage.getItem('syncview_wl_capacity_collapsed') !== 'false'; }
+        catch { return true; }
+    }
+    function wlToggleCapacity() {
+        const box = document.getElementById('wlCapacity');
+        if (!box) return;
+        const collapsed = !box.classList.contains('collapsed');
+        box.classList.toggle('collapsed', collapsed);
+        const hdr = box.querySelector('.workload-capacity-header');
+        if (hdr) hdr.setAttribute('aria-expanded', String(!collapsed));
+        try { localStorage.setItem('syncview_wl_capacity_collapsed', collapsed ? 'true' : 'false'); } catch {}
+    }
+
     function renderWorkloadShell() {
         return `<div class="workload-view">
             <div class="workload-toolbar">
@@ -7370,8 +7392,11 @@
                     </div>
                 </div>
             </div>
-            <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
+            <div id="wlCapacity" class="workload-capacity empty${wlCapacityCollapsedPref() ? ' collapsed' : ''}">
+                <button type="button" class="workload-capacity-header" onclick="wlToggleCapacity()" aria-expanded="${wlCapacityCollapsedPref() ? 'false' : 'true'}">
+                    <span class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></span>
+                    <svg class="workload-capacity-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l4 4 4-4"/></svg>
+                </button>
                 <div class="workload-capacity-row" id="wlCapacityRow"></div>
             </div>
             <div id="wlOverdue" class="workload-overdue empty">
@@ -14899,16 +14924,9 @@
         // _calCommentsForView hides Kasper-role tweaks from the client-link
         // surface; SMM/Kasper sessions still see everything.
         const comments = _calCommentsForView(p, comp);
-        const linUrl = _calLinearUrlFor(p, comp);
-        // Linear is internal-only — never expose it on the client review
-        // surface (they don't have a Linear account and shouldn't know the
-        // workflow tool exists).
-        const _linMark = `<svg class="cal-review-linear-mark" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
-        const linkBadge = (_isClientLink || comp === 'caption')
-            ? ''
-            : (linUrl
-                ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open this component's sub-issue in Linear" aria-label="Open in Linear">${_linMark}</a>`
-                : `<span class="cal-review-no-link" title="Not yet linked to Linear" aria-label="Not linked to Linear">${_linMark}</span>`);
+        // The per-panel Linear icon was visual noise — dropped. Linear linking
+        // still lives on the Sheet/organizer cards for the SMM.
+        const linkBadge = '';
         // Approved (and Posted) collapse to a single, minimal line — no
         // preview / no compose / no thread-by-default. Approving is
         // terminal from the client's seat; surfacing it as a full panel

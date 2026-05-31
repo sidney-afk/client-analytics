@@ -2541,20 +2541,23 @@
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
-        /* SMM split approve: prominent smart-default route + a small attached
-           segment for the other destination. */
-        .cal-review-approve-split { display: flex; align-items: stretch; width: 100%; }
-        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px;
-            background: #ecfdf3; color: #15803d; border: 1px solid #bbf7d0; border-left: 0;
-            border-top-right-radius: 8px; border-bottom-right-radius: 8px;
-            font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
-            transition: background 0.12s, color 0.12s; }
-        .cal-review-approve-alt:hover:not(:disabled) { background: #d1fae5; color: #166534; }
+        /* SMM split approve — one cohesive green pill: a prominent smart-default
+           route, plus an attached, slightly darker segment for the other
+           destination, divided by a hairline. */
+        .cal-review-approve-split { display: flex; align-items: stretch; width: 100%; border-radius: 9px; overflow: hidden; box-shadow: 0 1px 2px rgba(22,101,52,0.18); transition: box-shadow 0.12s; }
+        .cal-review-approve-split:hover { box-shadow: 0 3px 9px rgba(22,101,52,0.24); }
+        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; border-radius: 0; box-shadow: none; }
+        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 16px;
+            background: #12893e; color: #fff; border: 0; box-shadow: inset 1px 0 0 rgba(255,255,255,0.22);
+            font-family: inherit; font-size: 0.8rem; font-weight: 700; line-height: 1; cursor: pointer; white-space: nowrap;
+            transition: background 0.13s; }
+        .cal-review-approve-alt:hover:not(:disabled) { background: #0d7335; }
+        .cal-review-approve-alt:active:not(:disabled) { background: #0a652e; }
         .cal-review-approve-alt:disabled { opacity: 0.55; cursor: default; }
         /* "First review" flag — this component hasn't been to Kasper yet. */
-        .cal-review-firstpass { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px;
+        .cal-review-firstpass { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px;
             background: #f3e8ff; color: #7c3aed; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+        .cal-review-firstpass::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
         /* Compose block — textarea full-width, button below right-aligned.
            No more textarea+button on the same line awkwardly fighting for
            space. */
@@ -14637,19 +14640,42 @@
         const cs = _calNormStatus(p[c + '_status'] || '');
         return cs === _CAL_REVIEW_CFG[mode].reviewStatus || cs === 'Tweaks Needed';
     }
+    // Persistent "this component has been in Kasper review at least once"
+    // ledger. Once a component is sent to Kasper (or is ever observed at/past
+    // Kasper), we remember it forever — so even after it bounces back to "For
+    // SMM Approval" it's no longer treated as brand new. Stored in
+    // localStorage keyed by postId|comp, so it survives reloads on this
+    // browser without needing a new sheet column.
+    const CAL_KASPER_SEEN_KEY = 'syncview_kasper_seen_v1';
+    const _calKasperSeen = (() => {
+        try { return new Set(JSON.parse(localStorage.getItem(CAL_KASPER_SEEN_KEY) || '[]')); }
+        catch { return new Set(); }
+    })();
+    function _calKasperSeenKey(pid, comp) { return String(pid) + '|' + comp; }
+    function _calMarkKasperSeen(pid, comp) {
+        const k = _calKasperSeenKey(pid, comp);
+        if (!pid || _calKasperSeen.has(k)) return;
+        _calKasperSeen.add(k);
+        try { localStorage.setItem(CAL_KASPER_SEEN_KEY, JSON.stringify([..._calKasperSeen])); } catch {}
+    }
+    function _calWasKasperSeen(pid, comp) { return _calKasperSeen.has(_calKasperSeenKey(pid, comp)); }
+
     // Has THIS component already been through Kasper? Drives the SMM Review
     // tab's smart approve default (brand-new → Kasper, already-seen → client)
-    // and the "First review" flag. Kept per-component: a Kasper comment on the
-    // component (every Kasper tweak leaves one) or the component sitting
-    // at/above Kasper in the pipeline. We deliberately don't use the
-    // post-level kasper_approved_at stamp here — it would wrongly flag a
-    // brand-new caption just because a sibling video reached Kasper.
+    // and the "First review" flag. Checks the persistent ledger first, then
+    // live signals (sitting at/above Kasper in the pipeline, or a Kasper
+    // comment on the component) — and records any positive into the ledger so
+    // it stays "seen" even once those live signals disappear. Kept strictly
+    // per-component so a brand-new caption isn't flagged just because a sibling
+    // video reached Kasper.
     function _calHasBeenToKasper(post, comp) {
         if (!post) return false;
+        if (_calWasKasperSeen(post.id, comp)) return true;
         const cs = _calNormStatus(post[comp + '_status'] || '');
-        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved' || cs === 'Scheduled' || cs === 'Posted') return true;
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved' || cs === 'Scheduled' || cs === 'Posted') { _calMarkKasperSeen(post.id, comp); return true; }
         const list = _calCommentsFor(post, comp) || [];
-        return list.some(c => c && c.role === 'kasper');
+        if (list.some(c => c && c.role === 'kasper')) { _calMarkKasperSeen(post.id, comp); return true; }
+        return false;
     }
     // "Has media" = at least one of the video / thumbnail URL is linked. A
     // post with neither isn't ready for SMM sign-off, so the SMM Review tab
@@ -15120,6 +15146,9 @@
         // stamps the client_<comp>_approved_at sign-off timestamp.
         let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
         if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : 'Kasper Approval';
+        // Routing to Kasper means this component has now appeared in Kasper
+        // review — remember it so it's never treated as "first review" again.
+        if (approveTo === 'Kasper Approval') _calMarkKasperSeen(pid, comp);
         post[subKey] = approveTo;
         if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);

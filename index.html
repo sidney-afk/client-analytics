@@ -1106,6 +1106,7 @@
         .workload-toolbar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
         .workload-toolbar-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
         .workload-toolbar-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .workload-toolbar-divider { width: 1px; align-self: stretch; min-height: 22px; background: var(--border); margin: 0 4px; }
         .workload-toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .workload-title-group { display: flex; flex-direction: column; gap: 2px; }
         .workload-title { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
@@ -2541,19 +2542,20 @@
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
-        /* SMM split approve — one cohesive green pill: a prominent smart-default
-           route, plus an attached, slightly darker segment for the other
-           destination, divided by a hairline. */
-        .cal-review-approve-split { display: flex; align-items: stretch; width: 100%; border-radius: 9px; overflow: hidden; box-shadow: 0 1px 2px rgba(22,101,52,0.18); transition: box-shadow 0.12s; }
-        .cal-review-approve-split:hover { box-shadow: 0 3px 9px rgba(22,101,52,0.24); }
-        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; border-radius: 0; box-shadow: none; }
-        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 16px;
-            background: #12893e; color: #fff; border: 0; box-shadow: inset 1px 0 0 rgba(255,255,255,0.22);
-            font-family: inherit; font-size: 0.8rem; font-weight: 700; line-height: 1; cursor: pointer; white-space: nowrap;
-            transition: background 0.13s; }
-        .cal-review-approve-alt:hover:not(:disabled) { background: #0d7335; }
-        .cal-review-approve-alt:active:not(:disabled) { background: #0a652e; }
-        .cal-review-approve-alt:disabled { opacity: 0.55; cursor: default; }
+        /* SMM split approve — a primary "Approve" with a route chip showing the
+           smart-default destination, paired with a soft ghost button for the
+           other destination. No arrow glyphs; clean pill geometry. */
+        .cal-review-approve-split { display: flex; align-items: stretch; gap: 8px; width: 100%; }
+        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; gap: 8px; border-radius: 11px; padding: 11px 16px; letter-spacing: -0.005em; }
+        .cal-ap-verb { font-weight: 700; }
+        .cal-ap-route { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; background: rgba(255,255,255,0.24); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.01em; }
+        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 17px;
+            background: #ffffff; color: #15803d; border: 1.5px solid #c5efd5; border-radius: 11px;
+            font-family: inherit; font-size: 0.82rem; font-weight: 700; line-height: 1; cursor: pointer; white-space: nowrap;
+            transition: background 0.13s, border-color 0.13s, color 0.13s, box-shadow 0.13s; }
+        .cal-review-approve-alt:hover:not(:disabled) { background: #f0fdf4; border-color: #86efac; color: #166534; box-shadow: 0 2px 8px rgba(22,101,52,0.10); }
+        .cal-review-approve-alt:active:not(:disabled) { background: #dcfce7; }
+        .cal-review-approve-alt:disabled { opacity: 0.5; cursor: default; }
         /* "First review" flag — this component hasn't been to Kasper yet. */
         .cal-review-firstpass { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px;
             background: #f3e8ff; color: #7c3aed; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
@@ -7345,10 +7347,7 @@
                         <div class="workload-nav">
                             <button type="button" data-wl-nav="refresh" title="Refresh from Linear"><span class="wl-refresh-icon">↻</span></button>
                         </div>
-                    </div>
-                </div>
-                <div class="workload-toolbar-row">
-                    <div class="workload-toolbar-left">
+                        <span class="workload-toolbar-divider" aria-hidden="true"></span>
                         <div class="workload-pills" id="wlTeamPills" role="tablist" aria-label="Team">
                             <button type="button" data-wl-team="all">All</button>
                             <button type="button" data-wl-team="video">Video</button>
@@ -15010,8 +15009,8 @@
                 const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
                 const dis = approveEnabled ? '' : 'disabled';
                 approveControl = `<div class="cal-review-approve-split">
-                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}Approve → ${lbl(primary)}</button>
-                    <button type="button" class="cal-review-approve-alt" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${alt}')" title="Send to ${lbl(alt)} approval instead">→ ${lbl(alt)}</button>
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button>
+                    <button type="button" class="cal-review-approve-alt" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${alt}')" title="Approve &amp; send to ${lbl(alt)} instead">${lbl(alt)}</button>
                 </div>`;
             } else {
                 approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;

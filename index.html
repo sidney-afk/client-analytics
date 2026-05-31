@@ -1173,16 +1173,21 @@
         .workload-capacity.empty { display: none; }
         .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; }
         .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
-        .workload-capacity-row { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-capacity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); font-family: inherit; cursor: pointer; transition: transform 0.08s ease, box-shadow 0.08s ease; }
-        .workload-capacity-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        /* Editor workload — a ranked list (freest at top): name · capacity bar
+           · plain label. The bar fills as the editor gets busier, so an empty
+           bar reads as "free" at a glance and the column shades downward. */
+        .workload-capacity-row { display: flex; flex-direction: column; gap: 5px; }
+        .workload-capacity-chip { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--white); font-family: inherit; cursor: pointer; text-align: left; transition: border-color 0.1s ease, box-shadow 0.1s ease; }
+        .workload-capacity-chip:hover { border-color: #bbb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
         .workload-capacity-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-        .workload-capacity-chip-count { font-weight: 800; }
-        .workload-capacity-chip-days { font-size: 0.62rem; font-weight: 600; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
-        .workload-capacity-chip.free  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-        .workload-capacity-chip.light { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
-        .workload-capacity-chip.busy  { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
-        .workload-capacity-chip.full  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+        .wl-cap-name { flex: 0 0 auto; min-width: 132px; max-width: 200px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wl-cap-bar { flex: 1 1 auto; min-width: 70px; height: 8px; border-radius: 999px; background: #eef0f2; overflow: hidden; }
+        .wl-cap-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.25s ease; }
+        .wl-cap-label { flex: 0 0 auto; min-width: 66px; text-align: right; font-size: 0.72rem; font-weight: 700; }
+        .workload-capacity-chip.free  .wl-cap-bar-fill { background: #34d399; } .workload-capacity-chip.free  .wl-cap-label { color: #059669; }
+        .workload-capacity-chip.light .wl-cap-bar-fill { background: #38bdf8; } .workload-capacity-chip.light .wl-cap-label { color: #0284c7; }
+        .workload-capacity-chip.busy  .wl-cap-bar-fill { background: #fbbf24; } .workload-capacity-chip.busy  .wl-cap-label { color: #b45309; }
+        .workload-capacity-chip.full  .wl-cap-bar-fill { background: #f87171; } .workload-capacity-chip.full  .wl-cap-label { color: #dc2626; }
         .workload-in-progress { border: 1.5px solid #fde047; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #fefce8; }
         .workload-in-progress.empty { display: none; }
         .workload-in-progress .workload-section-label { color: #854d0e; display: flex; align-items: center; gap: 8px; }
@@ -7350,7 +7355,7 @@
                 </div>
             </div>
             <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">freest first</span></div>
+                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
                 <div class="workload-capacity-row" id="wlCapacityRow"></div>
             </div>
             <div id="wlOverdue" class="workload-overdue empty">
@@ -8155,15 +8160,18 @@
             else if (days <= 4) cls = 'busy';
             else                cls = 'full';
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
-            const dayLabel = days + 'd';
+            // Bar fills toward "full" at 5 days of backlog; the plain label
+            // spells out what the old bare number didn't.
+            const fillPct = Math.min(100, Math.round(days / 5 * 100));
+            const label = days === 0 ? 'Free' : ('~' + days + ' day' + (days === 1 ? '' : 's'));
             // Chip is a button so the editor's name opens a popover of all
             // their active sub-issues (planned + in-progress, deduped).
             // data-wl-source="active" tells wlOpenRollupPopover to use that
             // combined source instead of the day-bound or in-progress lists.
             return `<button type="button" class="workload-capacity-chip ${cls}" title="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ~${days} day${days !== 1 ? 's' : ''} of work at ${cap}/day · click to see them" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}">
-                <span>${wlEscape(name)}</span>
-                <span class="workload-capacity-chip-count">${ed.count}</span>
-                <span class="workload-capacity-chip-days">${wlEscape(dayLabel)}</span>
+                <span class="wl-cap-name">${wlEscape(name)}</span>
+                <span class="wl-cap-bar"><span class="wl-cap-bar-fill" style="width:${fillPct}%"></span></span>
+                <span class="wl-cap-label">${wlEscape(label)}</span>
             </button>`;
         }).join('');
     }
@@ -15223,7 +15231,17 @@
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+            // Centre the card horizontally within the Sheet's strip only. The
+            // Sheet is a horizontal rail, so we scroll the strip — never the
+            // page vertically (scrollIntoView's block:center was yanking the
+            // whole page down, which is what we don't want).
+            const strip = document.getElementById('calStrip');
+            if (strip) {
+                const sRect = strip.getBoundingClientRect();
+                const cRect = card.getBoundingClientRect();
+                const target = strip.scrollLeft + (cRect.left - sRect.left) - (strip.clientWidth - card.offsetWidth) / 2;
+                strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+            }
             card.classList.add('cal-card-flash');
             setTimeout(() => card.classList.remove('cal-card-flash'), 1700);
         }, 60);

@@ -1545,8 +1545,10 @@
         .wl-client-search-section { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); padding: 6px 12px 2px; }
         .wl-client-search-divider { height: 1px; background: var(--border); margin: 4px 6px; }
         .cal-view-toggle { display: inline-flex; background: var(--bg); border-radius: 99px; padding: 3px; }
-        .cal-view-btn { padding: 7px 16px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
+        .cal-view-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border: none; background: transparent; border-radius: 99px; font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); cursor: pointer; }
         .cal-view-btn.active { background: var(--white); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .cal-view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: #ec4899; color: #fff; font-size: 0.64rem; font-weight: 800; line-height: 1; }
+        .cal-view-btn.active .cal-view-badge { background: #db2777; }
         .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
         .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; min-width: 150px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); justify-content: space-between; background: var(--bg); box-shadow: none; }
         .cal-month-filter .dropdown-trigger:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.08); color: var(--text-primary); }
@@ -7048,6 +7050,17 @@
         'rocioperez',
         'perezrocio',
     ]);
+    // The full roster of current video editors (Linear user id + display
+    // name), so the "freest first" panel can always show everyone — even an
+    // editor with zero active sub-issues, who is by definition the freest.
+    // ids match the assigneeId on Linear sub-issues, so a roster entry and an
+    // editor's live work collapse into one chip rather than duplicating.
+    const WL_VIDEO_EDITORS = [
+        { id: 'b199cff7-2b9b-4164-8824-d3644d13f1fd', name: 'Iara Miraille' },
+        { id: '6b70f1d8-f73e-4222-9a59-944b86da2cc9', name: 'Martin' },
+        { id: 'e19eb17e-fb0d-45c6-b303-7907d1ccfaaa', name: 'Nahuel Espindola' },
+        { id: '2cea7628-c64e-4abb-9b3e-3f8bd9f64ae4', name: 'Santi Gimelli' },
+    ];
     function wlNormalizeEditor(s) {
         if (!s) return '';
         const lower = String(s).trim().toLowerCase()
@@ -8039,14 +8052,15 @@
         return { groups, count: plannedSubs.length };
     }
 
-    // Editor workload — sorts every editor with active scheduled work by how
-    // busy they are so a SMM can see at a glance who has the most free time
-    // before assigning a new sub-issue. The count matches what's actually
-    // visible on the calendar + strip (planned + in-progress, deduped on id);
-    // sub-issues without a due date aren't counted because they aren't
-    // scheduled anywhere visible. "Days of work" = count / per-day capacity
-    // (5 for video, 15 for graphics). Honours team and client filters but
-    // ignores the editor filter so the panel always compares across editors.
+    // Editor workload — ranks every current video editor by how busy they are
+    // so a SMM can see at a glance who has the most free time before assigning
+    // a new sub-issue. The whole roster always shows (see WL_VIDEO_EDITORS):
+    // an editor with no active sub-issues sorts first as the freest. The count
+    // matches what's actually visible on the calendar + strip (planned +
+    // in-progress, deduped on id); sub-issues without a due date aren't counted
+    // because they aren't scheduled anywhere visible. "Days of work" = count /
+    // per-day capacity (5 for video). Honours the team filter (video-only
+    // panel) and the client filter for counts, but always lists the roster.
     function renderEditorWorkload() {
         const wrap = document.getElementById('wlCapacity');
         const row  = document.getElementById('wlCapacityRow');
@@ -8078,6 +8092,20 @@
             }
             byEditor.get(s.assigneeId).count++;
         };
+        // Seed the full video-editor roster first so everyone shows up, even
+        // an editor with zero active sub-issues — they're the freest of all
+        // and belong at the top of the ranking, not missing from it. The
+        // roster is video-only, so skip it when the team filter is graphics.
+        // The client filter is intentionally NOT applied here: a free editor
+        // has capacity for any client, so they should still appear (at 0) when
+        // the panel is narrowed to a single client. Real work merges onto
+        // these entries by id (see WL_VIDEO_EDITORS) and the roster's clean
+        // display name wins over the raw Linear email.
+        if (wlState.team === 'all' || wlState.team === 'video') {
+            for (const r of WL_VIDEO_EDITORS) {
+                byEditor.set(r.id, { assigneeId: r.id, assigneeName: r.name, teamKey: '', teamName: '', count: 0 });
+            }
+        }
         for (const s of (wlState.planned      || [])) consider(s);
         for (const s of (wlState.nowWorking   || [])) consider(s);
         for (const s of (wlState.tweaksNeeded || [])) consider(s);
@@ -8097,7 +8125,9 @@
 
         row.innerHTML = editors.map(ed => {
             const cap = wlEditorCapacity(ed.teamKey, ed.teamName);
-            const days = Math.max(1, Math.ceil(ed.count / cap));
+            // An editor with no active work shows 0 days (the freest); everyone
+            // else rounds up to at least one day.
+            const days = ed.count === 0 ? 0 : Math.max(1, Math.ceil(ed.count / cap));
             let cls;
             if (days <= 1)      cls = 'free';
             else if (days <= 2) cls = 'light';
@@ -11940,7 +11970,11 @@
                 <div class="cal-toolbar-mid">
                     ${_calMonthFilterHtml()}
                     <div class="cal-view-toggle">
-                        ${tabViews.map(v => `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}</button>`).join('')}
+                        ${tabViews.map(v => {
+                            const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
+                            const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
+                            return `<button type="button" class="cal-view-btn${calState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onCalViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
+                        }).join('')}
                     </div>
                     <div class="cal-zoom" id="calZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
@@ -12302,6 +12336,7 @@
             _calWireDayDrag(body);
         }
         if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
+        _calUpdateReviewBadge();
     }
 
     /* Drag a post pill from one day cell to another to reschedule it. */
@@ -14575,6 +14610,36 @@
         return `<span class="cal-smm-warn-dot" title="Awaiting SMM approval but no video or thumbnail linked yet."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
     }
 
+    /* Count of posts actually awaiting this surface's sign-off — i.e. at least
+       one component sitting at the review status (Tweaks-Needed cards are
+       waiting on the editor, not the reviewer, so they don't count). Drives
+       the little number badge on the Review tab. Honours the SMM tab's
+       no-media rule so the badge matches what the tab will actually show. */
+    function _calApprovalBadgeCount(mode) {
+        const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
+        return (calState.posts || []).reduce((n, p) => {
+            if (mode === 'smm' && !_calHasMedia(p)) return n;
+            const awaiting = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
+            return n + (awaiting ? 1 : 0);
+        }, 0);
+    }
+    // Refresh the Review tab's badge in place (the toolbar isn't re-rendered on
+    // every approve/tweak, so we patch the badge node directly).
+    function _calUpdateReviewBadge() {
+        document.querySelectorAll('.cal-view-btn').forEach(btn => {
+            const v = btn.dataset.calView;
+            if (v !== 'review' && v !== 'smmreview') return;
+            const count = _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client');
+            let badge = btn.querySelector('.cal-view-badge');
+            if (count > 0) {
+                if (!badge) { badge = document.createElement('span'); badge.className = 'cal-view-badge'; btn.appendChild(badge); }
+                badge.textContent = String(count);
+            } else if (badge) {
+                badge.remove();
+            }
+        });
+    }
+
     function _calReviewItems() {
         const mode = _calReviewMode();
         return (calState.posts || []).filter(p => {
@@ -14877,6 +14942,7 @@
         const tmp = document.createElement('div');
         tmp.innerHTML = _calReviewCardHtml(post);
         if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
+        _calUpdateReviewBadge();
     }
 
     /* Drop a review card out of the queue cleanly — used when the client's
@@ -14896,6 +14962,7 @@
             if (!list || !list.querySelector('.cal-review-card')) {
                 _calRenderBody({ preserveScroll: true });
             }
+            _calUpdateReviewBadge();
         };
         // Collapse the card's height + fade it so the removal reads as
         // intentional. Falls back to an instant remove if the element can't

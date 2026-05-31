@@ -2467,6 +2467,21 @@
            it is, and an extra dot just adds visual chatter. */
         .cal-review-panel-head { display: flex; align-items: center; gap: 10px; }
         .cal-review-panel-title { font-weight: 700; font-size: 0.92rem; color: var(--text-primary); letter-spacing: -0.005em; }
+        /* Right-aligned cluster: status pill (when shown) + Linear link, so the
+           Linear button stays pinned right even when the pill is hidden. */
+        .cal-review-panel-head-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
+        .cal-review-panel-head-right:empty { display: none; }
+        .cal-review-panel-head-right .cal-review-panel-status { margin-left: 0; }
+        /* Linear link — a quiet pill with the Linear mark + an external arrow,
+           instead of a raw blue browser link. */
+        .cal-review-linear-link { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px;
+            background: #f3f4fb; border: 1px solid #e2e3f3; color: #5e6ad2; font-size: 0.72rem; font-weight: 700;
+            text-decoration: none; line-height: 1; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s; }
+        .cal-review-linear-link:hover { background: #ecedfb; border-color: #c7c9f2; color: #4a54c0; box-shadow: 0 1px 3px rgba(94,106,210,0.18); }
+        .cal-review-linear-mark { width: 11px; height: 11px; flex-shrink: 0; }
+        .cal-review-linear-ext { width: 9px; height: 9px; flex-shrink: 0; opacity: 0.75; }
+        .cal-review-no-link { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; font-weight: 600; color: var(--text-muted); font-style: italic; }
+        .cal-review-no-link .cal-review-linear-mark { opacity: 0.5; }
         .cal-review-panel-status { margin-left: auto; font-size: 0.7rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.045em;
             padding: 3px 9px; border-radius: 99px;
@@ -14796,11 +14811,12 @@
         // Linear is internal-only — never expose it on the client review
         // surface (they don't have a Linear account and shouldn't know the
         // workflow tool exists).
+        const _linMark = `<svg class="cal-review-linear-mark" viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`;
         const linkBadge = (_isClientLink || comp === 'caption')
             ? ''
             : (linUrl
-                ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();">Linear ↗</a>`
-                : `<span class="cal-review-no-link" title="Not yet linked to Linear">Not linked to Linear</span>`);
+                ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open this component's sub-issue in Linear">${_linMark}<span>Linear</span><svg class="cal-review-linear-ext" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5h5v5"/><path d="M9.5 2.5L3 9"/></svg></a>`
+                : `<span class="cal-review-no-link" title="Not yet linked to Linear">${_linMark}<span>Not linked</span></span>`);
         // Approved (and Posted) collapse to a single, minimal line — no
         // preview / no compose / no thread-by-default. Approving is
         // terminal from the client's seat; surfacing it as a full panel
@@ -14877,11 +14893,17 @@
                 </div>`;
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        // The SMM Review tab is itself the "for SMM approval" queue, so the
+        // per-panel "Awaiting SMM approval" pill is just noise — drop it there
+        // (but keep "Changes requested", which is real signal). Other surfaces
+        // keep the pill as before.
+        const statusPill = (_reviewMode === 'smm' && !inTweaks)
+            ? ''
+            : `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>`;
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
-                <span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>
-                ${linkBadge}
+                <div class="cal-review-panel-head-right">${statusPill}${linkBadge}</div>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}

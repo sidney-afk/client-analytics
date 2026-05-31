@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SyncView — What's New</title>
+<style>
+  :root{
+    --ink:#111110;
+    --paper:#f3f3f1;
+    --card:#ffffff;
+    --purple:#7c3aed;
+    --purple-soft:#ede9fe;
+    --green:#15803d;
+    --amber:#f59e0b;
+    --red:#dc2626;
+    --line:#e7e5e1;
+    --muted:#6b6a66;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:#d9d8d4;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    display:flex;justify-content:center;
+    padding:40px 20px;
+  }
+
+  /* The screenshot canvas — Instagram-portrait-ish */
+  .poster{
+    width:1080px;
+    background:var(--paper);
+    border-radius:28px;
+    overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.25);
+  }
+
+  /* ---- Header ---- */
+  .head{
+    padding:56px 64px 40px;
+    background:
+      radial-gradient(1200px 300px at 110% -40%, rgba(124,58,237,.18), transparent 60%),
+      var(--ink);
+    color:#fff;
+  }
+  .brand{display:flex;align-items:center;gap:12px;margin-bottom:26px;}
+  .logo{
+    width:38px;height:38px;border-radius:10px;
+    background:linear-gradient(135deg,#7c3aed,#6c5ce7);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .logo svg{width:22px;height:22px;}
+  .brand b{font-size:20px;letter-spacing:.3px;}
+  .eyebrow{
+    color:#c4b5fd;font-size:15px;font-weight:600;letter-spacing:2px;
+    text-transform:uppercase;margin-bottom:14px;
+  }
+  .head h1{
+    font-size:54px;line-height:1.05;font-weight:800;letter-spacing:-1px;
+  }
+  .head p{
+    margin-top:18px;font-size:21px;color:#d6d4cf;max-width:680px;line-height:1.5;
+  }
+
+  /* ---- Status flow strip ---- */
+  .flow{
+    background:var(--card);
+    margin:0;
+    padding:30px 64px;
+    border-bottom:1px solid var(--line);
+    display:flex;align-items:center;flex-wrap:wrap;gap:10px;
+  }
+  .flow .step{
+    font-size:17px;font-weight:700;padding:9px 16px;border-radius:999px;
+    background:#f3f3f1;color:#44423d;border:1px solid var(--line);white-space:nowrap;
+  }
+  .flow .step.s-proc{background:#f3f3f1;color:#6b6a66;}
+  .flow .step.s-kasper{background:#fef3c7;color:#92400e;border-color:#fde68a;}
+  .flow .step.s-appr{background:#dcfce7;color:#166534;border-color:#bbf7d0;}
+  .flow .step.s-sched{background:#ede9fe;color:#5b21b6;border-color:#ddd6fe;}
+  .flow .step.s-post{background:#111110;color:#fff;border-color:#111110;}
+  .flow .new{font-size:11px;vertical-align:super;font-weight:800;}
+  .flow .arrow{color:#c9c7c2;font-size:18px;font-weight:700;}
+
+  /* ---- Feature grid ---- */
+  .grid{
+    padding:48px 64px 30px;
+    display:grid;grid-template-columns:1fr 1fr;gap:26px;
+  }
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:30px;
+  }
+  .card .ico{
+    width:52px;height:52px;border-radius:14px;
+    background:var(--purple-soft);
+    display:flex;align-items:center;justify-content:center;margin-bottom:20px;
+  }
+  .card .ico svg{width:28px;height:28px;stroke:var(--purple);}
+  .card h3{font-size:24px;font-weight:800;letter-spacing:-.3px;margin-bottom:10px;}
+  .card p{font-size:18px;line-height:1.5;color:var(--muted);}
+
+  /* screenshot slot */
+  .shot{
+    margin-top:20px;
+    border:2px dashed #cfcdc8;border-radius:14px;
+    background:repeating-linear-gradient(45deg,#fafaf9,#fafaf9 12px,#f1f0ee 12px,#f1f0ee 24px);
+    height:150px;
+    display:flex;align-items:center;justify-content:center;
+    color:#9b998f;font-size:14px;font-weight:600;text-align:center;padding:0 16px;
+  }
+
+  /* ---- Footer ---- */
+  .foot{
+    padding:30px 64px 50px;
+    display:flex;align-items:center;justify-content:space-between;gap:20px;
+  }
+  .foot .tag{font-size:18px;color:var(--muted);font-weight:600;}
+  .foot .tag b{color:var(--ink);}
+  .pill{
+    background:var(--ink);color:#fff;font-weight:700;font-size:17px;
+    padding:12px 22px;border-radius:999px;
+  }
+</style>
+</head>
+<body>
+  <div class="poster">
+
+    <!-- HEADER -->
+    <header class="head">
+      <div class="brand">
+        <span class="logo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/>
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/>
+          </svg>
+        </span>
+        <b>SyncView</b>
+      </div>
+      <div class="eyebrow">What's new</div>
+      <h1>Your whole calendar,<br>in one place.</h1>
+      <p>Plan, review and approve client content — synced with Linear, both ways.</p>
+    </header>
+
+    <!-- STATUS FLOW -->
+    <div class="flow">
+      <span class="step s-proc">In process</span>
+      <span class="arrow">→</span>
+      <span class="step s-kasper">Kasper</span>
+      <span class="arrow">→</span>
+      <span class="step s-appr">Approved</span>
+      <span class="arrow">→</span>
+      <span class="step s-sched">Scheduled<span class="new">NEW</span></span>
+      <span class="arrow">→</span>
+      <span class="step s-post">Posted</span>
+    </div>
+
+    <!-- FEATURES -->
+    <section class="grid">
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 0 1-9 9"/><path d="M3 12a9 9 0 0 1 9-9"/>
+            <path d="M16 7l5-1-1 5"/><path d="M8 17l-5 1 1-5"/>
+          </svg>
+        </div>
+        <h3>Synced with Linear</h3>
+        <p>Move a card here, it moves in Linear. Move it there, it shows up here. Both ways, automatically.</p>
+        <div class="shot">Drop screenshot: card + Linear link</div>
+      </div>
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+          </svg>
+        </div>
+        <h3>Clear statuses</h3>
+        <p>Always know where a post is — from in process, to Kasper, to scheduled, to posted.</p>
+        <div class="shot">Drop screenshot: status pills on a card</div>
+      </div>
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+          </svg>
+        </div>
+        <h3>Platform tags</h3>
+        <p>Mark where each post goes — IG, TikTok, YouTube, FB, LinkedIn, X, Threads, Pinterest.</p>
+        <div class="shot">Drop screenshot: platform icons on a card</div>
+      </div>
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10z"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/>
+          </svg>
+        </div>
+        <h3>Color labels</h3>
+        <p>Group your content into batches. Only your team sees these — clients don't.</p>
+        <div class="shot">Drop screenshot: colored dots on cards</div>
+      </div>
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
+          </svg>
+        </div>
+        <h3>Import from Excel</h3>
+        <p>Bring your current posts straight in. Match the columns and skip the ones you don't need.</p>
+        <div class="shot">Drop screenshot: match-the-columns step</div>
+      </div>
+
+      <div class="card">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-2.7.7 1.6 1.6 0 0 0-1.1 1.5V22a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 8 20.3a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0-1.2-2.7H2a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 3.7 8a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H8a1.6 1.6 0 0 0 1-1.5V2a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 2.7 1.2 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V8a1.6 1.6 0 0 0 1.5 1H22a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/>
+          </svg>
+        </div>
+        <h3>You control the client view</h3>
+        <p>Per client, choose what they see and whether they can add posts. Default: Approved and up.</p>
+        <div class="shot">Drop screenshot: collaborative-mode settings</div>
+      </div>
+
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="foot">
+      <div class="tag">Views: <b>Sheet · Week · Month</b></div>
+      <div class="pill">Built for SMMs</div>
+    </footer>
+
+  </div>
+</body>
+</html>

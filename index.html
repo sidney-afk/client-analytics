@@ -1173,16 +1173,21 @@
         .workload-capacity.empty { display: none; }
         .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; }
         .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
-        .workload-capacity-row { display: flex; flex-wrap: wrap; gap: 6px; }
-        .workload-capacity-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); font-family: inherit; cursor: pointer; transition: transform 0.08s ease, box-shadow 0.08s ease; }
-        .workload-capacity-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        /* Editor workload — a ranked list (freest at top): name · capacity bar
+           · plain label. The bar fills as the editor gets busier, so an empty
+           bar reads as "free" at a glance and the column shades downward. */
+        .workload-capacity-row { display: flex; flex-direction: column; gap: 5px; }
+        .workload-capacity-chip { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--white); font-family: inherit; cursor: pointer; text-align: left; transition: border-color 0.1s ease, box-shadow 0.1s ease; }
+        .workload-capacity-chip:hover { border-color: #bbb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
         .workload-capacity-chip:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-        .workload-capacity-chip-count { font-weight: 800; }
-        .workload-capacity-chip-days { font-size: 0.62rem; font-weight: 600; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.04em; }
-        .workload-capacity-chip.free  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-        .workload-capacity-chip.light { background: #f0f9ff; border-color: #bae6fd; color: #075985; }
-        .workload-capacity-chip.busy  { background: #fef3c7; border-color: #fcd34d; color: #78350f; }
-        .workload-capacity-chip.full  { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+        .wl-cap-name { flex: 0 0 auto; min-width: 132px; max-width: 200px; font-size: 0.8rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .wl-cap-bar { flex: 1 1 auto; min-width: 70px; height: 8px; border-radius: 999px; background: #eef0f2; overflow: hidden; }
+        .wl-cap-bar-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.25s ease; }
+        .wl-cap-label { flex: 0 0 auto; min-width: 66px; text-align: right; font-size: 0.72rem; font-weight: 700; }
+        .workload-capacity-chip.free  .wl-cap-bar-fill { background: #34d399; } .workload-capacity-chip.free  .wl-cap-label { color: #059669; }
+        .workload-capacity-chip.light .wl-cap-bar-fill { background: #38bdf8; } .workload-capacity-chip.light .wl-cap-label { color: #0284c7; }
+        .workload-capacity-chip.busy  .wl-cap-bar-fill { background: #fbbf24; } .workload-capacity-chip.busy  .wl-cap-label { color: #b45309; }
+        .workload-capacity-chip.full  .wl-cap-bar-fill { background: #f87171; } .workload-capacity-chip.full  .wl-cap-label { color: #dc2626; }
         .workload-in-progress { border: 1.5px solid #fde047; border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: #fefce8; }
         .workload-in-progress.empty { display: none; }
         .workload-in-progress .workload-section-label { color: #854d0e; display: flex; align-items: center; gap: 8px; }
@@ -2536,6 +2541,20 @@
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
+        /* SMM split approve: prominent smart-default route + a small attached
+           segment for the other destination. */
+        .cal-review-approve-split { display: flex; align-items: stretch; width: 100%; }
+        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px;
+            background: #ecfdf3; color: #15803d; border: 1px solid #bbf7d0; border-left: 0;
+            border-top-right-radius: 8px; border-bottom-right-radius: 8px;
+            font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.12s, color 0.12s; }
+        .cal-review-approve-alt:hover:not(:disabled) { background: #d1fae5; color: #166534; }
+        .cal-review-approve-alt:disabled { opacity: 0.55; cursor: default; }
+        /* "First review" flag — this component hasn't been to Kasper yet. */
+        .cal-review-firstpass { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px;
+            background: #f3e8ff; color: #7c3aed; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
         /* Compose block — textarea full-width, button below right-aligned.
            No more textarea+button on the same line awkwardly fighting for
            space. */
@@ -7350,7 +7369,7 @@
                 </div>
             </div>
             <div id="wlCapacity" class="workload-capacity empty">
-                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">freest first</span></div>
+                <div class="workload-section-label"><span>Editor workload</span><span class="workload-capacity-hint">most free → busiest</span></div>
                 <div class="workload-capacity-row" id="wlCapacityRow"></div>
             </div>
             <div id="wlOverdue" class="workload-overdue empty">
@@ -8155,15 +8174,18 @@
             else if (days <= 4) cls = 'busy';
             else                cls = 'full';
             const name = wlDisplayName(ed.assigneeName) || 'Unknown';
-            const dayLabel = days + 'd';
+            // Bar fills toward "full" at 5 days of backlog; the plain label
+            // spells out what the old bare number didn't.
+            const fillPct = Math.min(100, Math.round(days / 5 * 100));
+            const label = days === 0 ? 'Free' : ('~' + days + ' day' + (days === 1 ? '' : 's'));
             // Chip is a button so the editor's name opens a popover of all
             // their active sub-issues (planned + in-progress, deduped).
             // data-wl-source="active" tells wlOpenRollupPopover to use that
             // combined source instead of the day-bound or in-progress lists.
             return `<button type="button" class="workload-capacity-chip ${cls}" title="${wlEscape(name)} · ${ed.count} active sub-issue${ed.count !== 1 ? 's' : ''} · ~${days} day${days !== 1 ? 's' : ''} of work at ${cap}/day · click to see them" data-wl-rollup="1" data-wl-count-badge="1" data-wl-source="active" data-wl-assignee-id="${wlEscape(ed.assigneeId || '')}" data-wl-client="" data-wl-editor-name="${wlEscape(name)}">
-                <span>${wlEscape(name)}</span>
-                <span class="workload-capacity-chip-count">${ed.count}</span>
-                <span class="workload-capacity-chip-days">${wlEscape(dayLabel)}</span>
+                <span class="wl-cap-name">${wlEscape(name)}</span>
+                <span class="wl-cap-bar"><span class="wl-cap-bar-fill" style="width:${fillPct}%"></span></span>
+                <span class="wl-cap-label">${wlEscape(label)}</span>
             </button>`;
         }).join('');
     }
@@ -14615,6 +14637,20 @@
         const cs = _calNormStatus(p[c + '_status'] || '');
         return cs === _CAL_REVIEW_CFG[mode].reviewStatus || cs === 'Tweaks Needed';
     }
+    // Has THIS component already been through Kasper? Drives the SMM Review
+    // tab's smart approve default (brand-new → Kasper, already-seen → client)
+    // and the "First review" flag. Kept per-component: a Kasper comment on the
+    // component (every Kasper tweak leaves one) or the component sitting
+    // at/above Kasper in the pipeline. We deliberately don't use the
+    // post-level kasper_approved_at stamp here — it would wrongly flag a
+    // brand-new caption just because a sibling video reached Kasper.
+    function _calHasBeenToKasper(post, comp) {
+        if (!post) return false;
+        const cs = _calNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved' || cs === 'Scheduled' || cs === 'Posted') return true;
+        const list = _calCommentsFor(post, comp) || [];
+        return list.some(c => c && c.role === 'kasper');
+    }
     // "Has media" = at least one of the video / thumbnail URL is linked. A
     // post with neither isn't ready for SMM sign-off, so the SMM Review tab
     // hides it and the calendar card flags it (see _calSmmMissingMedia).
@@ -14912,13 +14948,38 @@
         const statusPill = (_reviewMode === 'smm' && !inTweaks)
             ? ''
             : `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>`;
+        // SMM only: has Kasper seen this yet? A brand-new component gets a
+        // "First review" flag and the approve default points at Kasper; once
+        // Kasper has touched it, the default flips to the client. The smart
+        // default is the prominent button; the other route is the small
+        // attached segment, so it's a one-click choice either way.
+        const _seenByKasper = _reviewMode === 'smm' && _calHasBeenToKasper(p, comp);
+        const firstReviewBadge = (_reviewMode === 'smm' && showApprove && !_seenByKasper)
+            ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper for approval yet">First review</span>`
+            : '';
+        let approveControl = '';
+        if (showApprove) {
+            if (_reviewMode === 'smm') {
+                const primary = _seenByKasper ? 'client' : 'kasper';
+                const alt = _seenByKasper ? 'kasper' : 'client';
+                const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
+                const dis = approveEnabled ? '' : 'disabled';
+                approveControl = `<div class="cal-review-approve-split">
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}Approve → ${lbl(primary)}</button>
+                    <button type="button" class="cal-review-approve-alt" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${alt}')" title="Send to ${lbl(alt)} approval instead">→ ${lbl(alt)}</button>
+                </div>`;
+            } else {
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+            }
+        }
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                ${firstReviewBadge}
                 <div class="cal-review-panel-head-right">${statusPill}${linkBadge}</div>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+            ${approveControl}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request tweaks</button>
@@ -15034,11 +15095,14 @@
         if (!panel) return;
         const tweakBtn = panel.querySelector('.cal-review-tweak-btn');
         if (tweakBtn) tweakBtn.disabled = !nowHasDraft || !!_calReviewState.saving[key];
-        const approveBtn = panel.querySelector('.cal-review-approve-btn');
-        if (approveBtn) approveBtn.disabled = nowHasDraft || !!_calReviewState.saving[key];
+        // Disable every approve control (the plain button, or both segments of
+        // the SMM split button) while a tweak is being drafted.
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = nowHasDraft || !!_calReviewState.saving[key];
+        });
     }
 
-    function _calReviewApprove(pid, comp) {
+    function _calReviewApprove(pid, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -15050,11 +15114,13 @@
             status: post.status,
             [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
         };
-        // Client approval is terminal (→ Approved); SMM approval just advances
-        // the component to the next reviewer in the pipeline (→ Kasper
-        // Approval). Only a client approval stamps the client_<comp>_approved_at
-        // sign-off timestamp.
-        post[subKey] = _CAL_REVIEW_CFG[mode].approveTo;
+        // Client approval is terminal (→ Approved). SMM approval routes the
+        // component to the next reviewer the SMM picked: Kasper (default for a
+        // brand-new post) or straight to the client. Only a client approval
+        // stamps the client_<comp>_approved_at sign-off timestamp.
+        let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
+        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : 'Kasper Approval';
+        post[subKey] = approveTo;
         if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
         // Stamp updated_at locally so a background poll racing this write
@@ -15223,7 +15289,17 @@
         setTimeout(() => {
             const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
             if (!card) return;
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+            // Centre the card horizontally within the Sheet's strip only. The
+            // Sheet is a horizontal rail, so we scroll the strip — never the
+            // page vertically (scrollIntoView's block:center was yanking the
+            // whole page down, which is what we don't want).
+            const strip = document.getElementById('calStrip');
+            if (strip) {
+                const sRect = strip.getBoundingClientRect();
+                const cRect = card.getBoundingClientRect();
+                const target = strip.scrollLeft + (cRect.left - sRect.left) - (strip.clientWidth - card.offsetWidth) / 2;
+                strip.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+            }
             card.classList.add('cal-card-flash');
             setTimeout(() => card.classList.remove('cal-card-flash'), 1700);
         }, 60);

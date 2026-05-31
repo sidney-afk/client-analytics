@@ -1172,7 +1172,7 @@
         .workload-needs-assignment.empty { display: none; }
         .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-capacity.empty { display: none; }
-        .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 6px; margin-bottom: 0; }
+        .workload-capacity .workload-section-label { display: flex; align-items: center; gap: 8px; margin-bottom: 0; color: #4f46e5; font-size: 0.76rem; }
         .workload-capacity-hint { font-size: 0.66rem; font-weight: 500; color: var(--text-muted); text-transform: none; letter-spacing: 0; }
         .workload-capacity-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 0; background: transparent; border: 0; cursor: pointer; font-family: inherit; }
         .workload-capacity-chevron { width: 15px; height: 15px; color: var(--text-muted); transition: transform 0.16s ease; flex-shrink: 0; }
@@ -15005,11 +15005,10 @@
                 </div>`;
             }).join('')
             : `<div class="cal-review-comment-empty">No comments yet.</div>`;
-        // The SMM Review tab is itself the "for SMM approval" queue, so the
-        // per-panel "Awaiting SMM approval" pill is just noise — drop it there
-        // (but keep "Changes requested", which is real signal). Other surfaces
-        // keep the pill as before.
-        const statusPill = (_reviewMode === 'smm' && !inTweaks)
+        // The "awaiting approval" pill is just noise on every review surface —
+        // the whole tab is the approval queue. Only keep the pill when it's
+        // carrying real signal ("Changes requested" for a tweaks state).
+        const statusPill = !inTweaks
             ? ''
             : `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>`;
         // SMM only: has Kasper seen this yet? A brand-new component gets a

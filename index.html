@@ -1914,6 +1914,9 @@
         .cal-thumb-drive-warn span { font-size: 0.7rem; line-height: 1.45; font-weight: 600; color: #b45309; max-width: 240px; }
         .cal-mini-drive-warn { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #fffbeb; color: #b45309; padding: 6px; }
         .cal-mini-drive-warn svg { width: 22px; height: 22px; }
+        /* Brief highlight when a card is jumped-to from the review queue. */
+        @keyframes cal-card-flash-kf { 0%, 18% { box-shadow: 0 0 0 3px rgba(94,106,210,0.6); } 100% { box-shadow: 0 0 0 3px rgba(94,106,210,0); } }
+        .cal-card-flash { animation: cal-card-flash-kf 1.7s ease-out; }
         /* "Awaiting SMM approval but no media linked" — banner on the editable
            card / preview, and a small corner badge on the month/week pills. */
         .cal-smm-warn { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 8px; background: #fff7ed; border: 1px solid #fdba74; color: #9a3412; font-size: 0.72rem; line-height: 1.35; font-weight: 600; }
@@ -2472,15 +2475,15 @@
         .cal-review-panel-head-right { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; }
         .cal-review-panel-head-right:empty { display: none; }
         .cal-review-panel-head-right .cal-review-panel-status { margin-left: 0; }
-        /* Linear link — a quiet pill with the Linear mark + an external arrow,
-           instead of a raw blue browser link. */
-        .cal-review-linear-link { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px;
-            background: #f3f4fb; border: 1px solid #e2e3f3; color: #5e6ad2; font-size: 0.72rem; font-weight: 700;
-            text-decoration: none; line-height: 1; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s; }
+        /* Linear link — a compact icon-only button (the Linear mark), instead
+           of a raw blue browser link. */
+        .cal-review-linear-link { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px;
+            background: #f3f4fb; border: 1px solid #e2e3f3; color: #5e6ad2;
+            text-decoration: none; line-height: 0; transition: background 0.12s, border-color 0.12s, color 0.12s, box-shadow 0.12s; }
         .cal-review-linear-link:hover { background: #ecedfb; border-color: #c7c9f2; color: #4a54c0; box-shadow: 0 1px 3px rgba(94,106,210,0.18); }
-        .cal-review-linear-mark { width: 11px; height: 11px; flex-shrink: 0; }
-        .cal-review-linear-ext { width: 9px; height: 9px; flex-shrink: 0; opacity: 0.75; }
-        .cal-review-no-link { display: inline-flex; align-items: center; gap: 5px; font-size: 0.68rem; font-weight: 600; color: var(--text-muted); font-style: italic; }
+        .cal-review-linear-mark { width: 13px; height: 13px; flex-shrink: 0; }
+        .cal-review-no-link { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 7px;
+            border: 1px dashed var(--border); color: var(--text-muted); }
         .cal-review-no-link .cal-review-linear-mark { opacity: 0.5; }
         .cal-review-panel-status { margin-left: auto; font-size: 0.7rem; font-weight: 700;
             text-transform: uppercase; letter-spacing: 0.045em;
@@ -3178,6 +3181,9 @@
         .kcard-done-btn svg { width: 13px; height: 13px; }
         .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
         .kcard-expand-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
+        .kcard-open-sheet { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
+        .kcard-open-sheet:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
+        .kcard-open-sheet svg { width: 14px; height: 14px; }
         .kcard-expand-btn svg { width: 12px; height: 12px; transition: transform 0.2s; }
         .kcard.expanded .kcard-expand-btn svg { transform: rotate(180deg); }
         .kcard-body { border-top: 1px solid var(--border-light); padding: 18px 20px 20px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; background: #fafaf8; }
@@ -12491,6 +12497,9 @@
     function onCalViewChange(v) {
         if (!['review','smmreview','organizer','month','week'].includes(v)) return;
         calState.view = v;
+        // The review→Sheet focus override only applies while you're on the
+        // Sheet you jumped to; drop it the moment you navigate elsewhere.
+        if (v !== 'organizer') calState.focusPid = null;
         _calSavePrefs();
         if (v !== 'organizer' && calState.selectMode) {
             calState.selectMode = false;
@@ -12650,8 +12659,10 @@
     function renderCalOrganizer() {
         const monthFilter = _calNormMonthFilter(calState.monthFilter);
         const posts = calState.posts.slice()
-            .filter(p => _calPostInMonthFilter(p, monthFilter))
-            .filter(p => !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
+            // A card opened from the review queue (focusPid) is forced through
+            // both filters so the jump-to-Sheet always lands on it.
+            .filter(p => p.id === calState.focusPid || _calPostInMonthFilter(p, monthFilter))
+            .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
             .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
         // When the filter is hiding everything but there ARE posts in other
@@ -14765,6 +14776,7 @@
                     ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
@@ -14815,8 +14827,8 @@
         const linkBadge = (_isClientLink || comp === 'caption')
             ? ''
             : (linUrl
-                ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open this component's sub-issue in Linear">${_linMark}<span>Linear</span><svg class="cal-review-linear-ext" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 2.5h5v5"/><path d="M9.5 2.5L3 9"/></svg></a>`
-                : `<span class="cal-review-no-link" title="Not yet linked to Linear">${_linMark}<span>Not linked</span></span>`);
+                ? `<a class="cal-review-linear-link" href="${_calEscAttr(linUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();" title="Open this component's sub-issue in Linear" aria-label="Open in Linear">${_linMark}</a>`
+                : `<span class="cal-review-no-link" title="Not yet linked to Linear" aria-label="Not linked to Linear">${_linMark}</span>`);
         // Approved (and Posted) collapse to a single, minimal line — no
         // preview / no compose / no thread-by-default. Approving is
         // terminal from the client's seat; surfacing it as a full panel
@@ -15194,6 +15206,27 @@
         if (ovl) ovl.classList.remove('open');
         calState.previewId = null;
         document.body.classList.remove('cal-modal-open');
+    }
+
+    /* From a review card → jump to the Sheet and centre that card. Sets a
+       transient focus pid so the Sheet shows the card even if the client's
+       "ready only" filter (or an active month filter) would otherwise hide an
+       in-review post; the focus clears when the user leaves the Sheet. */
+    function _calReviewOpenInSheet(pid) {
+        calState.focusPid = pid;
+        if (calState.view !== 'organizer') {
+            calState.view = 'organizer';
+            _calSavePrefs();
+            document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer'));
+        }
+        _calRenderBody();
+        setTimeout(() => {
+            const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+            if (!card) return;
+            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+            card.classList.add('cal-card-flash');
+            setTimeout(() => card.classList.remove('cal-card-flash'), 1700);
+        }, 60);
     }
 
     function editInOrganizerFromPreview(id) {

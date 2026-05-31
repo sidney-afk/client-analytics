@@ -2963,6 +2963,8 @@
         .kasper-hero-approve { padding: 13px 18px; font-size: 0.95rem; border-radius: 10px;
             box-shadow: 0 2px 8px rgba(22,101,52,0.22); }
         .kasper-hero-approve:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(22,101,52,0.28); }
+        /* Keep the hero approve's larger sizing even inside the split control. */
+        .cal-review-approve-split .cal-review-approve-main.kasper-hero-approve { padding: 13px 18px; font-size: 0.95rem; }
 
         @media (max-width: 720px) {
             .kasper-review-body.is-hero .kasper-hero-panel { grid-template-columns: 1fr; }
@@ -18876,7 +18878,10 @@
                     <span class="kasper-hero-title">${_calEsc(COMP_LABELS[comp])}</span>
                     ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
-                ${showApprove ? `<button type="button" class="cal-review-approve-btn kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+                ${showApprove ? `<div class="cal-review-approve-split">
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
+                    <button type="button" class="cal-review-approve-alt" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','smm')" title="Approve &amp; send back to the SMM instead">SMM</button>
+                </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                     <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
@@ -18938,7 +18943,10 @@
                 ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+            ${showApprove ? `<div class="cal-review-approve-split">
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
+                <button type="button" class="cal-review-approve-alt" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','smm')" title="Approve &amp; send back to the SMM instead">SMM</button>
+            </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
@@ -19048,13 +19056,12 @@
         // but uses the same component).
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
         if (!panel) return;
-        const approveBtn = panel.querySelector('.cal-review-approve-btn');
-        if (approveBtn) approveBtn.disabled = saving || nowHasDraft;
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = saving || nowHasDraft; });
         const submitBtn = panel.querySelector('.cal-review-tweak-btn');
         if (submitBtn) submitBtn.disabled = saving || !nowHasDraft;
     }
 
-    async function _kasperApproveComp(pid, comp) {
+    async function _kasperApproveComp(pid, comp, dest) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
@@ -19068,10 +19075,16 @@
             [subKey]: item.post[subKey],
             status: item.post.status,
             kasper_approved_at: item.post.kasper_approved_at,
+            kasper_seen: item.post.kasper_seen,
         };
-        item.post[subKey] = 'Client Approval';
+        // Kasper picks where the component goes next: forward to the client
+        // (default) or back to the SMM. It's been through Kasper either way, so
+        // record kasper_seen (cross-device); only a client hand-off stamps the
+        // kasper_approved_at sign-off.
+        _calRecordKasperSeenOnPost(item.post, comp);
+        item.post[subKey] = dest === 'smm' ? 'For SMM Approval' : 'Client Approval';
         item.post.status = computeOverallStatus(item.post);
-        item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
+        if (dest !== 'smm') item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
         item._saving[comp] = true;
         item._errors[comp] = null;
         _kasperRepaintCard(pid);

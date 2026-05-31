@@ -2541,6 +2541,20 @@
         .cal-review-approve-btn:active:not(:disabled) { transform: translateY(1px); }
         .cal-review-approve-btn:disabled { opacity: 0.55; cursor: default; }
         .cal-review-approve-btn svg { width: 14px; height: 14px; }
+        /* SMM split approve: prominent smart-default route + a small attached
+           segment for the other destination. */
+        .cal-review-approve-split { display: flex; align-items: stretch; width: 100%; }
+        .cal-review-approve-split .cal-review-approve-main { width: auto; flex: 1 1 auto; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+        .cal-review-approve-alt { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px;
+            background: #ecfdf3; color: #15803d; border: 1px solid #bbf7d0; border-left: 0;
+            border-top-right-radius: 8px; border-bottom-right-radius: 8px;
+            font-family: inherit; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+            transition: background 0.12s, color 0.12s; }
+        .cal-review-approve-alt:hover:not(:disabled) { background: #d1fae5; color: #166534; }
+        .cal-review-approve-alt:disabled { opacity: 0.55; cursor: default; }
+        /* "First review" flag — this component hasn't been to Kasper yet. */
+        .cal-review-firstpass { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px;
+            background: #f3e8ff; color: #7c3aed; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
         /* Compose block — textarea full-width, button below right-aligned.
            No more textarea+button on the same line awkwardly fighting for
            space. */
@@ -14623,6 +14637,20 @@
         const cs = _calNormStatus(p[c + '_status'] || '');
         return cs === _CAL_REVIEW_CFG[mode].reviewStatus || cs === 'Tweaks Needed';
     }
+    // Has THIS component already been through Kasper? Drives the SMM Review
+    // tab's smart approve default (brand-new → Kasper, already-seen → client)
+    // and the "First review" flag. Kept per-component: a Kasper comment on the
+    // component (every Kasper tweak leaves one) or the component sitting
+    // at/above Kasper in the pipeline. We deliberately don't use the
+    // post-level kasper_approved_at stamp here — it would wrongly flag a
+    // brand-new caption just because a sibling video reached Kasper.
+    function _calHasBeenToKasper(post, comp) {
+        if (!post) return false;
+        const cs = _calNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved' || cs === 'Scheduled' || cs === 'Posted') return true;
+        const list = _calCommentsFor(post, comp) || [];
+        return list.some(c => c && c.role === 'kasper');
+    }
     // "Has media" = at least one of the video / thumbnail URL is linked. A
     // post with neither isn't ready for SMM sign-off, so the SMM Review tab
     // hides it and the calendar card flags it (see _calSmmMissingMedia).
@@ -14920,13 +14948,38 @@
         const statusPill = (_reviewMode === 'smm' && !inTweaks)
             ? ''
             : `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>`;
+        // SMM only: has Kasper seen this yet? A brand-new component gets a
+        // "First review" flag and the approve default points at Kasper; once
+        // Kasper has touched it, the default flips to the client. The smart
+        // default is the prominent button; the other route is the small
+        // attached segment, so it's a one-click choice either way.
+        const _seenByKasper = _reviewMode === 'smm' && _calHasBeenToKasper(p, comp);
+        const firstReviewBadge = (_reviewMode === 'smm' && showApprove && !_seenByKasper)
+            ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper for approval yet">First review</span>`
+            : '';
+        let approveControl = '';
+        if (showApprove) {
+            if (_reviewMode === 'smm') {
+                const primary = _seenByKasper ? 'client' : 'kasper';
+                const alt = _seenByKasper ? 'kasper' : 'client';
+                const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
+                const dis = approveEnabled ? '' : 'disabled';
+                approveControl = `<div class="cal-review-approve-split">
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}Approve → ${lbl(primary)}</button>
+                    <button type="button" class="cal-review-approve-alt" ${dis} onclick="_calReviewApprove('${escId}','${escComp}','${alt}')" title="Send to ${lbl(alt)} approval instead">→ ${lbl(alt)}</button>
+                </div>`;
+            } else {
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+            }
+        }
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
+                ${firstReviewBadge}
                 <div class="cal-review-panel-head-right">${statusPill}${linkBadge}</div>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
-            ${showApprove ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_calReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_calEsc(COMP_LABELS[comp].toLowerCase())}</button>` : ''}
+            ${approveControl}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
                 <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request tweaks</button>
@@ -15042,11 +15095,14 @@
         if (!panel) return;
         const tweakBtn = panel.querySelector('.cal-review-tweak-btn');
         if (tweakBtn) tweakBtn.disabled = !nowHasDraft || !!_calReviewState.saving[key];
-        const approveBtn = panel.querySelector('.cal-review-approve-btn');
-        if (approveBtn) approveBtn.disabled = nowHasDraft || !!_calReviewState.saving[key];
+        // Disable every approve control (the plain button, or both segments of
+        // the SMM split button) while a tweak is being drafted.
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
+            b.disabled = nowHasDraft || !!_calReviewState.saving[key];
+        });
     }
 
-    function _calReviewApprove(pid, comp) {
+    function _calReviewApprove(pid, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -15058,11 +15114,13 @@
             status: post.status,
             [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`],
         };
-        // Client approval is terminal (→ Approved); SMM approval just advances
-        // the component to the next reviewer in the pipeline (→ Kasper
-        // Approval). Only a client approval stamps the client_<comp>_approved_at
-        // sign-off timestamp.
-        post[subKey] = _CAL_REVIEW_CFG[mode].approveTo;
+        // Client approval is terminal (→ Approved). SMM approval routes the
+        // component to the next reviewer the SMM picked: Kasper (default for a
+        // brand-new post) or straight to the client. Only a client approval
+        // stamps the client_<comp>_approved_at sign-off timestamp.
+        let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
+        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : 'Kasper Approval';
+        post[subKey] = approveTo;
         if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
         // Stamp updated_at locally so a background poll racing this write

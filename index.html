@@ -16908,10 +16908,22 @@
         style.id = 'tkUploadStyles';
         style.textContent = `
         .tk-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
-        @media (max-width: 1024px) { .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; } .tk-right-col { grid-column: 1; grid-row: auto; } }
         .tk-header { grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
         .tk-form-col { grid-column: 1; grid-row: 2; }
         .tk-right-col { grid-column: 2; grid-row: 1 / span 2; }
+        /* Collapse to a single stacked column on narrow screens. This block must
+           come AFTER the base column-placement rules above: it has the same
+           selector specificity, so it only wins on source order. When it lived
+           before them, the unconditional right-column rule (grid-column 2)
+           always overrode the override — the layout never collapsed, the right
+           column forced an implicit 2nd track, and the form column (with the
+           upload drop zone) got squeezed to a ~85px sliver on phones. */
+        @media (max-width: 1024px) {
+            .tk-page { grid-template-columns: 1fr; grid-template-rows: auto; }
+            .tk-header { grid-column: 1; grid-row: 1; }
+            .tk-form-col { grid-column: 1; grid-row: 2; }
+            .tk-right-col { grid-column: 1; grid-row: 3; }
+        }
         .tk-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); }
         .tk-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 2px; }
         .tk-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }

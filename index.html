@@ -1488,9 +1488,9 @@
 
         /* ── Content Calendar module ──────────────────────────────────────── */
         .cal-view { position: relative; padding: 8px 16px 32px;
-            --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; --cal-week-col: 348px; }
-        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; --cal-week-col: 282px; }
-        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; --cal-week-col: 470px; }
+            --cal-card-w: 320px; --cal-thumb-h: 240px; --cal-month-w: 146px; --cal-week-h: 224px; }
+        .cal-view[data-zoom="s"] { --cal-card-w: 268px; --cal-thumb-h: 178px; --cal-month-w: 116px;  --cal-week-h: 172px; }
+        .cal-view[data-zoom="l"] { --cal-card-w: 420px; --cal-thumb-h: 340px; --cal-month-w: 184px; --cal-week-h: 320px; }
         .cal-zoom { display: inline-flex; align-items: center; gap: 2px; background: var(--bg); border-radius: 99px; padding: 3px 6px; }
         .cal-zoom .cal-zoom-ico { width: 14px; height: 14px; color: var(--text-muted); margin: 0 3px; }
         .cal-zoom button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: transparent; cursor: pointer; color: var(--text-secondary); display: inline-flex; align-items: center; justify-content: center; }
@@ -2624,7 +2624,12 @@
            columns) fully visible while hiding the horizontal overflow. */
         .cal-week-viewport { overflow-x: clip; }
         .cal-week-grid { display: flex; flex-wrap: nowrap; gap: 8px; will-change: transform; transition: transform 0.08s ease-out; }
-        .cal-week-col { flex: 0 0 var(--cal-week-colw, 200px); background: var(--white); border: 1px solid var(--border); border-radius: 10px; min-height: var(--cal-week-col, 470px); display: flex; flex-direction: column; overflow: hidden; }
+        /* min-height holds one full card (thumb + 2-line title + badge) plus
+           the day header, so empty/sparse days reserve the same height as a
+           day with a post and the strip never collapses as weeks slide by.
+           Tied to --cal-week-h so it scales with the zoom level. Flex stretch
+           then keeps every column in the strip the same height. */
+        .cal-week-col { flex: 0 0 var(--cal-week-colw, 200px); background: var(--white); border: 1px solid var(--border); border-radius: 10px; min-height: calc(var(--cal-week-h, 320px) + 160px); display: flex; flex-direction: column; overflow: hidden; }
         .cal-week-col.today { border-color: #4f46e5; }
         .cal-week-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
         .cal-week-col.today .cal-week-head { background: #eef0fe; border-bottom-color: #d9daf8; }

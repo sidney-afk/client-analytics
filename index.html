@@ -12409,7 +12409,7 @@
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
             body.innerHTML = renderCalWeek();
-            _calWireWheelNav(body.querySelector('.cal-week-wrap'), calWeekShiftDays);
+            _calWireWheelNav(body.querySelector('.cal-week-wrap'), calWeekShiftDays, false);
             _calWireDayDrag(body);
         }
         if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
@@ -12520,13 +12520,15 @@
         _calFlushCardSave(id);
     }
 
-    // Shift-scroll over the Month/Week grid steps the period one at a time,
-    // so there's no need to reach for the next/prev arrows.
+    // Wheel-scroll over the Month/Week grid steps the period one at a time,
+    // so there's no need to reach for the next/prev arrows. The Month grid
+    // keeps the Shift guard (it scrolls vertically); the Week grid steps on a
+    // plain wheel so a normal scroll slides the days left/right.
     let _calWheelNavLast = 0;
-    function _calWireWheelNav(el, shiftFn) {
+    function _calWireWheelNav(el, shiftFn, requireShift = true) {
         if (!el) return;
         el.addEventListener('wheel', (e) => {
-            if (!e.shiftKey) return;
+            if (requireShift && !e.shiftKey) return;
             const raw = e.deltaY || e.deltaX;
             if (!raw) return;
             e.preventDefault();
@@ -14544,6 +14546,19 @@
         if (_calNormStatus(p.video_status || '')   === 'Tweaks Needed') return 'video';
         return '';
     }
+    /* Superficial Month/Week badge. Surfaces a status chip next to the post
+       title only when all three components (video/graphic/caption) have
+       reached one of Approved / Scheduled / Posted. computeOverallStatus is
+       the lowest-priority sub-status, so an overall in that set guarantees
+       every component is at-or-above Approved. Purely derived in the UI —
+       nothing is persisted. */
+    const _CAL_PILL_BADGE = new Set(['Approved', 'Scheduled', 'Posted']);
+    function _calPillBadgeHtml(p) {
+        const s = computeOverallStatus(p);
+        if (!_CAL_PILL_BADGE.has(s)) return '';
+        const cls = 'cal-status-' + s.toLowerCase().replace(/\s+/g, '-');
+        return `<span class="cal-status ${cls}">${_calEsc(s)}</span>`;
+    }
     function _calMonthPillHtml(p) {
         const info = _calDeriveThumbInfo(p);
         const thumb = info.url
@@ -14561,7 +14576,7 @@
         const color = _isClientLink ? '' : _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml() : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span></span>${warn}</button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
 
     function renderCalMonth() {
@@ -14674,7 +14689,7 @@
                                 const wColor = _isClientLink ? '' : _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
                                 const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml() : '';
-                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span></span>${wWarn}</button>`;
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
                             }).join('')}
                         </div>
                     </div>`;

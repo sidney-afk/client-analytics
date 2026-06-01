@@ -1,0 +1,53 @@
+{
+  "scraped_date": "2026-06-01",
+  "summary": {
+    "clients_processed": 1,
+    "clients_with_3_videos": 1,
+    "clients_with_partial": 0,
+    "clients_skipped_no_handles": [],
+    "clients_skipped_not_in_sandcastles": [],
+    "clients_skipped_inactive": [],
+    "total_video_rows": 3
+  },
+  "clients": [
+    {
+      "client_name": "Chelsey Scaffidi",
+      "handle": "@chelseyscaffidi",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 14435,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DY5Q-jvBDlC/",
+          "creator_name": "Toddler & Big Kid Experts",
+          "creator_handle": "@biglittlefeelings",
+          "views": 1054130,
+          "outlier_score": 2.2,
+          "summary": "This video struck a nerve by naming the specific overwhelm of May for moms (school events, sports, forms, emotional labor) and calling it 'Maycember,' giving a collective exhaustion a label people immediately recognized and shared. The hook — 'not one mom I know is actually okay' — validated a widespread but rarely spoken feeling, driving massive shares among women who felt seen. For Chelsey's matrescence angle, the video's framing of modern motherhood as 'psychologically impossible' by design, backed by neuroscience references to overload and mental burden, maps directly onto the biological and identity-shift science she teaches about why mothers feel so disoriented.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYr7Yj_OECq/",
+          "creator_name": "Jenna Mazzillo",
+          "creator_handle": "@abanaturally",
+          "views": 1201127,
+          "outlier_score": 15.3,
+          "summary": "This video hit 15.3x its creator's average by responding to a widely circulated piece of advice and dismantling it point by point with behavioral science, a format that drives both shares and saves as viewers feel they are getting real expert knowledge that contradicts conventional wisdom. The specific, step-by-step parenting instruction and the use of a real-life clip as evidence made it highly actionable and credible. For Chelsey's audience of early-stage mothers navigating overwhelm, the underlying theme — that parents who stay regulated and don't react impulsively produce better outcomes — connects to her content about why maternal nervous system health and identity are the foundation of good mothering.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DY3AJ-4hP8x/",
+          "creator_name": "Sara Martinez",
+          "creator_handle": "@itsmesaramartinez",
+          "views": 1295250,
+          "outlier_score": 5.5,
+          "summary": "This video is the highest-viewed piece across all competitor channels in the past 30 days, succeeding because it leads with radical permission ('parent from a patio chair') and delivers an absurdly low-effort, high-reward activity that makes moms feel clever rather than guilty for not doing more. The series format, practical materials list, and comment-to-receive-DM mechanic all contributed to strong algorithmic amplification. While the content sits in practical mom-hacks rather than Chelsey's matrescence identity lane, the underlying tension it exploits — mothers being conditioned to give everything and feeling relieved to do less — is exactly the self-sacrifice vs. self-preservation dynamic Chelsey addresses, making it a useful format reference for her niche.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    }
+  ]
+}

@@ -2186,8 +2186,10 @@
 
         .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; min-height: 0; }
         .cal-card-saving { font-size: 0.64rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
+        button.cal-card-saving { background: none; border: 0; padding: 0; margin: 0; font-family: inherit; cursor: pointer; }
         .cal-card-saving.is-saved { color: #166534; }
         .cal-card-saving.is-error { color: var(--dn); }
+        button.cal-card-saving.is-error:hover { text-decoration: underline; }
         .cal-card-del { position: absolute; top: 7px; right: 7px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; border: 0;
             background: rgba(255,255,255,0.92); box-shadow: 0 1px 5px rgba(0,0,0,0.22); color: var(--text-secondary); cursor: pointer;
             font-size: 1.1rem; line-height: 1; opacity: 0; transition: opacity 0.15s, background 0.12s, color 0.12s;
@@ -9722,6 +9724,11 @@
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */
     const _calNoLinearPush = new Set();
+    /* Brand-new cards whose first save failed. They're kept on screen with a
+       "Save failed" chip (instead of being deleted) and preserved through
+       background polls, so a failed create is a visible, retryable state
+       rather than a silent vanish. Cleared on a successful save or archive. */
+    const _calFailedNewCards = new Set();
 
     function calClientSlug(name) { return wlNormalizeClient(name); }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -11820,7 +11827,7 @@
                 if (fetchedIds.has(lp.id)) return;
                 const recentSave = _calLocalRecentSaves.get(lp.id);
                 const stillRecent = recentSave && (nowMs - recentSave) <= CAL_CONFLICT_WINDOW_MS;
-                if (_calSaveInFlight[lp.id] || _calPendingEdits[lp.id] || stillRecent) newPosts.push(lp);
+                if (_calSaveInFlight[lp.id] || _calPendingEdits[lp.id] || stillRecent || _calFailedNewCards.has(lp.id)) newPosts.push(lp);
             });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
@@ -13004,7 +13011,9 @@
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
                     ${_calCommentsBtnHtml(p, pid)}
-                    <span class="cal-card-saving" data-saving="${pid}" hidden></span>
+                    ${p._saveError
+                        ? `<button type="button" class="cal-card-saving is-error" data-saving="${pid}" onclick="_calRetrySave('${pid}')" title="${_calEscAttr(typeof p._saveError === 'string' ? p._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
+                        : `<span class="cal-card-saving" data-saving="${pid}" hidden></span>`}
                 </div>
                 <div class="cal-card-status-row">${statusHtml}</div>
             </div>
@@ -13486,6 +13495,10 @@
         // value. The merge in loadCalendarPosts compares local vs fetched
         // updated_at — newer wins.
         post.updated_at = new Date().toISOString();
+        // Clear any stale "Save failed" flag now that a fresh attempt is in
+        // flight, so a mid-save re-render shows "Saving…" rather than the old
+        // error (the flag is re-set in the catch if this attempt also fails).
+        delete post._saveError;
         _calSetCardStatus(realId, 'saving');
         const suppressAll      = _calNoLinearPush.has(realId) || _calNoLinearPush.has(pid);
         const suppressVideo    = suppressAll || _calNoLinearPush.has(realId + '|video')    || _calNoLinearPush.has(pid + '|video');
@@ -13513,6 +13526,7 @@
             delete wirePost.graphic_comments;
             delete wirePost.caption_comments;
             delete wirePost._baseAt;
+            delete wirePost._saveError;
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
             // base so a concurrent comment from another browser (e.g. the
@@ -13557,6 +13571,12 @@
             // us). Clears its own old entries on read.
             _calLocalRecentSaves.set(realId, Date.now());
             _calConflictNotified.delete(realId);
+            // Save landed — drop any failed-create flag so the "Save failed"
+            // chip clears and the poll-merge no longer force-keeps the card on
+            // that basis (the recent-save guard now covers it).
+            _calFailedNewCards.delete(realId);
+            const _okPost = calState.posts.find(p => p.id === realId);
+            if (_okPost && _okPost._saveError) delete _okPost._saveError;
             _calSetCardStatus(realId, 'saved');
             _calRefreshCardThumb(realId);
             // A freshly-promoted blank card carries the blank-time layout in
@@ -13604,21 +13624,29 @@
             // Roll back structural fields the upsert failed to persist.
             // Text fields (caption / name / cta / tweak comments / asset
             // urls) keep their optimistic value so the user's typing isn't
-            // erased; they'll re-save on the next blur. New rows that
-            // never made it to the sheet are removed entirely.
+            // erased; they'll re-save on the next blur.
+            //
+            // A `_saveError` flag is stamped on the card so the "Save failed"
+            // chip survives the re-render below (the DOM-only chip set by
+            // _calSetCardStatus would be wiped) and the next background poll.
+            // A brand-new card whose first save failed is KEPT on screen (not
+            // deleted) and marked in _calFailedNewCards so the poll-merge's
+            // local-card preservation holds onto it — a failed create should be
+            // a visible, retryable state, not a silent vanish. The user can
+            // click the chip (or just edit the card) to retry.
+            const iErr = calState.posts.findIndex(p => p.id === realId);
             if (wasNewRow) {
-                calState.posts = calState.posts.filter(p => p.id !== realId);
-            } else if (prevSnapshot) {
-                const i3 = calState.posts.findIndex(p => p.id === realId);
-                if (i3 >= 0) {
-                    const cur = calState.posts[i3];
-                    _CAL_ROLLBACK_FIELDS.forEach(k => {
-                        if (k in edits) cur[k] = prevSnapshot[k];
-                    });
-                    // updated_at must also revert so the next background
-                    // merge doesn't see a phantom "we wrote newer" stamp.
-                    cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
-                }
+                _calFailedNewCards.add(realId);
+                if (iErr >= 0) calState.posts[iErr]._saveError = e.message || 'save failed';
+            } else if (prevSnapshot && iErr >= 0) {
+                const cur = calState.posts[iErr];
+                _CAL_ROLLBACK_FIELDS.forEach(k => {
+                    if (k in edits) cur[k] = prevSnapshot[k];
+                });
+                // updated_at must also revert so the next background
+                // merge doesn't see a phantom "we wrote newer" stamp.
+                cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                cur._saveError = e.message || 'save failed';
             }
             try { _calRenderBody({ preserveScroll: true }); } catch {}
         }
@@ -13636,6 +13664,16 @@
         }
     }
 
+    /* Retry a card whose save failed. Queues an empty edit bucket so the flush
+       re-sends the card's current full row (built from calState.posts) and
+       runs it through the normal save funnel — _calFlushCardSave clears the
+       _saveError flag on success or re-stamps it on another failure. */
+    function _calRetrySave(pid) {
+        if (!pid) return;
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calSetCardStatus(pid, 'saving');
+        _calFlushCardSave(pid);
+    }
     function _calSetCardStatus(pid, state, msg) {
         const tag = document.querySelector(`[data-saving="${pid}"]`);
         if (!tag) return;
@@ -13761,6 +13799,7 @@
         // flush funnel because _calFlushCardSave recomputes `status` from the
         // sub-statuses, which would clobber 'Archived'.)
         delete _calPendingEdits[id];
+        _calFailedNewCards.delete(id);
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
         const resp = await fetch(CALENDAR_UPSERT_URL, {

@@ -1,0 +1,844 @@
+{
+  "scraped_date": "2026-06-01",
+  "summary": {
+    "total_clients": 24,
+    "active": 21,
+    "inactive": 3,
+    "total_videos": 62
+  },
+  "clients": [
+    {
+      "client_name": "Baya Voce",
+      "handle": "@bayavoce",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 67675,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYFQiSOtUlk/",
+          "creator_name": "Chiara King",
+          "creator_handle": "@chiaraking",
+          "views": 6821283,
+          "outlier_score": 8.1,
+          "summary": "A wordless broken-heart emoji reel went viral because the universal pain of a failed relationship needed no explanation — silence functioned as a stronger hook than any scripted opening. The mass of relationship hashtags ensured algorithmic placement directly in front of users actively consuming heartbreak content. Every viewer could project their own story onto the blank canvas, making saves and reshares instinctive.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYbLUKYxAaO/",
+          "creator_name": "Jony M. Lee",
+          "creator_handle": "@jonymlee",
+          "views": 4783872,
+          "outlier_score": 4.9,
+          "summary": "A short couples therapy scene drew 4.8M views by making therapy feel accessible and human rather than clinical or shameful. The format leveraged the rising mainstream acceptance of couples counseling — a cultural inflection point where viewers actively want validation that going to therapy is normal. Its broad 'anyone with a partner' angle drove strong saves and shares across relationship demographics.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYHfuMjjvgJ/",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 4025948,
+          "outlier_score": 48.6,
+          "summary": "This reel diagnosed anxious attachment in one sentence that millions felt but couldn't name — 'your nervous system addicted to chaos.' The 'tag a friend' mechanic built in peer-to-peer sharing while the attachment neuroscience framing positioned the creator as an authority rather than an opinion-giver. A 48.6x outlier score signals it dramatically exceeded niche expectations, driven by mass discovery from new audiences.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Jessica Winterstern",
+      "handle": "@jessicawinterstern",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 27490,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYDjQUXu1lk/",
+          "creator_name": "Miss Intuition",
+          "creator_handle": "@missintuition_",
+          "views": 5182366,
+          "outlier_score": 223.5,
+          "summary": "This spiritual video about signs from deceased loved ones achieved a 223.5x outlier by hitting one of the most universally felt human experiences — grief and longing for connection with those who have passed. The 'Drop a 💜 if this resonates' CTA transformed passive viewers into participants, flooding the comments and boosting algorithmic reach. The reassuring message that 'spirit doesn't just disappear' provides comfort that people compulsively share with grieving friends.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYsCKXiE8aY/",
+          "creator_name": "Nico Canon",
+          "creator_handle": "@nicocanon_",
+          "views": 2090036,
+          "outlier_score": 149.1,
+          "summary": "A grounded spirituality post challenging 'love and light' bypassing in favor of authentic freedom resonated with 2M+ viewers tired of performative wellness content. The 149.1x outlier score signals this struck a nerve with an audience that feels alienated by traditional spiritual content but still craves depth. Its contrarian hook ('Real game is about being FREE') made it highly shareable among spiritually curious but skeptical audiences who see spiritual bypassing everywhere.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYZvtYERRfs/",
+          "creator_name": "Joi Hunt, Esq.",
+          "creator_handle": "@joihunt_esq",
+          "views": 2002228,
+          "outlier_score": 385.9,
+          "summary": "This reel framing women as spiritual protections for their partners achieved a stunning 385.9x outlier by tapping into both spiritual identity and deep feminine validation simultaneously. The 'he thought she was just a woman — whole time she was the protection' reveal structure creates an emotionally charged narrative arc that feels revelatory. A 9% engagement rate reflects an intensely activated audience sharing as both personal affirmation and implicit instruction to the men in their lives.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Morgan Burton",
+      "handle": "@morganburton_",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1126,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DY71uLoszcv/",
+          "creator_name": "The Female Quotient",
+          "creator_handle": "@femalequotient",
+          "views": 517995,
+          "outlier_score": 1.1,
+          "summary": "This Malala Yousafzai mother-daughter video performed by layering celebrity recognition onto a universal emotional theme — what becomes possible when women support each other across generations. The 'ripple effect that can change generations' message is inherently shareable to women in positions of influence, coaching, and mentorship who see their own work validated in the frame. Its 4% engagement rate on a 3.8M-follower account signals genuine emotional resonance beyond passive scrolling.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DX5cYEIiiz-/",
+          "creator_name": "Female Alpha Club",
+          "creator_handle": "@femalealphaclub",
+          "views": 487893,
+          "outlier_score": 13.2,
+          "summary": "With a 13.2x outlier score, this 'She is me' affirmation reel became the account's breakout hit by using a first-person identity statement that invites immediate emotional adoption — viewers see themselves in the frame and share it to declare their own identity. No-caption simplicity keeps friction to zero, making saving and reposting effortless for an audience that communicates through curated content. The hook works as a mirror: brevity plus universality equals viral reach.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYymyjOIBwo/",
+          "creator_name": "Female Alpha Club",
+          "creator_handle": "@femalealphaclub",
+          "views": 96901,
+          "outlier_score": 2.4,
+          "summary": "This feel-good empowerment clip captured attention through a strong visual of female capability, relying on the audience's desire to see and share representations of their own potential. The consistency of @femalealphaclub's content formula — short, affirming, visually punchy — built a reliable share mechanic where the account's style itself cues the save reflex. At 2.4x outlier it consistently over-delivered on channel norms while remaining shareable across women's empowerment communities.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Dr. Sonia Chopra",
+      "handle": "@drsoniachopr",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 10585,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYlPbehNPxk/",
+          "creator_name": "Jerry RDH",
+          "creator_handle": "@jerry_rdh",
+          "views": 6849001,
+          "outlier_score": 40.2,
+          "summary": "This dental hygienist's industry call-out reel went massively viral — 40.2x outlier, 6.8M views — by speaking directly to the shared frustration millions have with the dental industry as insiders and patients alike. The 'Episode 42926 of delusional dental offices' format signals an ongoing series that builds loyal returning viewers while each episode has fresh viral potential. Dentists and hygienists share it as professional validation; patients share it as 'I KNEW it,' creating a dual-audience share loop.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://tiktok.com/@thebentist/video/7635759504486927647",
+          "creator_name": "The Bentist",
+          "creator_handle": "@thebentist",
+          "views": 3600000,
+          "outlier_score": 4.8,
+          "summary": "The curiosity-gap hook 'Is This How A Cavity ACTUALLY Gets Fixed?!' triggers immediate clicks from the vast majority of viewers who've had a filling but never thought to question the process. The 'actually' signals misconceptions will be corrected, a reliable viral trigger that positions education as revelation rather than lecture. Short, visually satisfying dental procedure content reliably crosses into mainstream virality because pain avoidance is one of the most universally shared human motivations.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYfPMaQIrfV/",
+          "creator_name": "Dr. Shaadi Manouchehri",
+          "creator_handle": "@dr.shaadi.manouchehri",
+          "views": 930833,
+          "outlier_score": 119.3,
+          "summary": "Despite a smaller raw view count, this London dentist achieved a 119.3x outlier — meaning it vastly outperformed all expectations for her account size — through the 'quick and easy hack' save-worthy format that drives library saves for later reference. The direct booking CTA with multiple contact methods converts viral discovery into appointment leads, showing how educational hooks can be practical business tools. Medical authority from a credentialed practitioner giving actionable prevention advice consistently earns higher trust shares than generic content.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Doug Cartwright",
+      "handle": "@dougcartwright",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 13624,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@mdmotivator/video/7639415209316338965",
+          "creator_name": "MD Motivator",
+          "creator_handle": "@mdmotivator",
+          "views": 90500000,
+          "outlier_score": 21.0,
+          "summary": "With 90.5M TikTok views, this stranger-helps-terminally-ill-cancer-patient story became one of the biggest viral moments in the healing niche this month by combining peak emotional stakes — kindness, terminal diagnosis, stranger generosity — into one narrative. The real-time crowdfund CTA channeled viral energy into immediate action, creating a measurable impact loop that kept the post circulating as updates came in. The 'be kind and love always' message transcended any single niche to reach a universal human audience that shares cancer stories across all demographics.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYzYkyuube6/",
+          "creator_name": "Good News Movement",
+          "creator_handle": "@goodnews_movement",
+          "views": 2733202,
+          "outlier_score": 2.9,
+          "summary": "This story of a woman diagnosed with terminal cancer while pregnant who defied her prognosis and danced with her daughter on her 3rd birthday tapped every viral trigger simultaneously — pregnancy vulnerability, motherhood, cancer survival, and a child's milestone. The before-and-after structure (diagnosis vs. dancing three years later) delivers the emotional arc audiences crave and compulsively share. Specificity of 'her 3rd birthday' creates a concrete, timestamped milestone that makes the impossible feel real.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DX91EQxPa4Y/",
+          "creator_name": "Lewis Howes",
+          "creator_handle": "@lewishowes",
+          "views": 1287827,
+          "outlier_score": 4.6,
+          "summary": "Lewis Howes' NDE/cancer episode clip featuring NYT bestselling author Anita Moorjani drove 1.3M views through authority stacking — bestselling author, cancer miracle, and a credible podcast host all in one frame. The 'realization that saved her life' hook creates maximum curiosity gap, compelling viewers to comment and watch the full episode. Healing through consciousness is a rising search trend that this clip captures at the growth curve, making discovery-stage views dominant over repeat plays.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Dr. Rocco Piazza",
+      "handle": "@droccopiazza",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1830,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DX4UfvwPaAN/",
+          "creator_name": "Garrett Welsh",
+          "creator_handle": "@garrett_welsh_",
+          "views": 5908525,
+          "outlier_score": 31.4,
+          "summary": "This personal skin removal surgery reel hit 5.9M views by reframing the procedure from vanity to functional necessity — 'it was never about aesthetics...it was about how I move, feel, and live every day.' The hook instantly humanizes a procedure that often faces stigma, opening it to shares from people who've experienced weight-loss body changes and felt seen for the first time. A 31.4x outlier reflects how underrepresented but emotionally resonant this honest angle is in plastic surgery content dominated by before/after aesthetics.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DY3E7TbxgfM/",
+          "creator_name": "Dr. Tony Youn MD",
+          "creator_handle": "@tonyyounmd",
+          "views": 4916104,
+          "outlier_score": 22.9,
+          "summary": "Dr. Tony Youn's workplace comedy skit hit 4.9M views because self-deprecating professional humor from high-status specialists — 'they have me trapped' — crosses over from the surgeon's audience into mainstream comedy feeds. Behind-the-scenes content revealing that plastic surgeons face the same petty workplace frustrations as everyone else is a proven viral format that creates parasocial relatability. The @clickupcomedy collaboration injected it into an entirely new audience segment, generating discovery-phase distribution.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://tiktok.com/@oscar.patel/video/7642865309682027798",
+          "creator_name": "Oscar Patel",
+          "creator_handle": "@oscar.patel",
+          "views": 4500000,
+          "outlier_score": 12.4,
+          "summary": "This 'entire transformation story' TikTok achieved 4.5M views by packaging a complete aesthetic journey — start, struggle, visible result — into one compelling 'full story' video that's inherently binge-worthy. The 'health, looks' tags signal broad appeal beyond plastic surgery into general self-improvement audiences, expanding reach beyond the niche's typical boundary. Transformation arc storytelling is one of the most reliably viral content structures on short-form video because the narrative promise of change keeps viewers watching to the end.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Edward Mannix",
+      "handle": "@edwardmannix",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1831,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYVZr43iuhy/",
+          "creator_name": "Candasi Fama Barnes",
+          "creator_handle": "@candasifamabarnes",
+          "views": 15878090,
+          "outlier_score": 1893.6,
+          "summary": "This one-sentence hook video — 'Healing starts with awareness' — achieved the highest outlier score in this dataset at 1,893.6x, demonstrating that spiritual healing content rewards emotional compression over information density. The near-perfect simplicity makes it universally shareable as a daily affirmation while the open question 'What's one thing you've faced lately?' generates comment depth that feeds the algorithm. At 15.8M views with 9% engagement, it's the category-defining viral post for lightworker and healing creators this month.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYeq-8FCM97/",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 2808577,
+          "outlier_score": 32.2,
+          "summary": "With 32.2x outlier and 2.8M views, this manifestation reel struck the perfect balance between spiritual specificity ('signs you're meant to be seen') and universal aspiration that draws people regardless of spiritual background. The save-worthy format works because audiences keep these videos as personal talismans to replay during moments of self-doubt, which also boosts long-tail reach as saves drive algorithmic replay. Its Instagram-native aesthetic and pacing kept distribution strong within the platform's discovery surface.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYQTBbbJ5MN/",
+          "creator_name": "Mariia Healing Light",
+          "creator_handle": "@mariia_healing_light",
+          "views": 2435996,
+          "outlier_score": 13.7,
+          "summary": "This reiki energy healing reel for releasing money blocks achieved 13.7x outlier and 2.4M views by intersecting the two most emotionally charged topics for its audience — financial anxiety and spiritual healing. The 'send this to yourself & receive more' instruction created a self-referential share mechanic where forwarding IS the ritual, dramatically boosting organic distribution. A 10% engagement rate signals deep resonance with the healing community, which treats high-performing content as living proof of the energies being discussed.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Alli Schaper",
+      "handle": "@allischaper",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 14828,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@ztspeaks/video/7636143663201914125",
+          "creator_name": "ZT Speaks",
+          "creator_handle": "@ztspeaks",
+          "views": 2800000,
+          "outlier_score": 209.0,
+          "summary": "This cannabis edibles cautionary video hit 209x outlier and 2.8M views because controversial takes on psychoactive substances — even critical ones — generate massive debate and shares across both pro and anti communities simultaneously. The clinical, addiction-recovery authority framing makes it sharable by health professionals, parents, and plant medicine skeptics while also drawing defensive engagement from cannabis advocates. This 'controversial truth from a credentialed perspective' format consistently outperforms pure advocacy content in the psychedelics education space.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DX8JRcnoP2S/",
+          "creator_name": "Danica Walker Energy",
+          "creator_handle": "@danicawalkerenergy",
+          "views": 2237945,
+          "outlier_score": 48.1,
+          "summary": "This alarm-raising post about modern toxins and chemical burden reached 2.24M views at 48.1x outlier by activating primal safety instincts with phrases like 'self-preservation' and 'no one is coming to protect your health.' The zeolite/detox solution offer at the end converts viewers alarmed by the hook into warm leads for the practitioner's protocols. The fear hook followed by natural solution formula is the dominant viral pattern in the holistic healing space and travels naturally into psychedelic healing adjacent communities.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DX-jmjzR_xi/",
+          "creator_name": "Herbal Ash",
+          "creator_handle": "@herbal.ash",
+          "views": 2141744,
+          "outlier_score": 41.0,
+          "summary": "Framing familiar medicinal plants (saffron, frankincense, hyssop) through biblical Scripture references achieved 41x outlier and 2.1M views by bridging the plant medicine community with faith-based audiences — two groups that rarely overlap but share reverence for nature's healing power. Listing chapter-and-verse citations gives the content academic credibility that drives screenshots and reshares by both herbalists and Christian audiences. The 12% engagement rate reflects a highly activated niche audience that treats plant wisdom as confirmation of a deeply held worldview.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Eben & Annie",
+      "handle": "@ebenannie",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 3429,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DY8MyXxFVdL/",
+          "creator_name": "The Gottman Institute",
+          "creator_handle": "@gottmaninstitute",
+          "views": 536597,
+          "outlier_score": 6.3,
+          "summary": "This behind-the-scenes glimpse showing that even the Gottmans struggle with the same domestic tensions as everyone else hit 536K views and 6.3x outlier — because vulnerability from relationship authorities breaks the authority-pedestal dynamic and creates instant relatability. The practical example of attunement (caring about clutter because your partner cares) gives couples an immediately actionable lesson they can implement that evening. 'Even the experts have perpetual problems' is exactly the permission-granting message that couples in conflict need to share with each other.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYSyfK_qy41/",
+          "creator_name": "Happy Couples Connect",
+          "creator_handle": "@happycouplesconnect",
+          "views": 85510,
+          "outlier_score": 2.4,
+          "summary": "This emotionally charged message that 'not every relationship needs to end' resonated deeply with audiences actively questioning whether to stay or leave, providing permission to keep trying without demanding they stay. The 'Comment HELP' CTA transforms passive readers into self-identified leads who've pre-qualified themselves as wanting resources. The 'both people willing to grow' framing creates a safe, non-blaming entry point for couples to share the video with each other as an invitation rather than an accusation.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYozQfgq6fW/",
+          "creator_name": "Happy Couples Connect",
+          "creator_handle": "@happycouplesconnect",
+          "views": 57449,
+          "outlier_score": 1.6,
+          "summary": "This nuanced post separating 'didn't care' from 'didn't know how' achieved 57K views at 1.6x outlier by validating pain without assigning blame — a rare and disarming tone in relationship content that typically traffics in fault-finding. The dual accountability frame ('ask what's my part') makes it safe to share with a partner without triggering defensiveness, enabling the 'send this to them' mechanic that couples coaching content depends on. The free Couples Communication Handbook CTA converts viral reach into a warm lead pipeline for coaching programs.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Miki Agrawal",
+      "handle": "@mikiagrawal",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 24241,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYnEgyCz8om/",
+          "creator_name": "Zero Waste Store",
+          "creator_handle": "@zerowastestore",
+          "views": 94295,
+          "outlier_score": 1.4,
+          "summary": "This sustainably-branded purchase-as-activism video achieved 94K views and an 8% engagement rate by framing everyday consumer choices as acts of environmental agency — shifting from product promotion to mission alignment. The 'Be a part of the change!' CTA gives viewers a sense of moral participation that sustainability communities compulsively share to signal group membership and values. This 'your wallet is your vote' positioning is the dominant viral frame for conscious commerce brands with engaged niche audiences.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DX4d7n2ht_q/",
+          "creator_name": "Zero Waste Store",
+          "creator_handle": "@zerowastestore",
+          "views": 74940,
+          "outlier_score": 1.3,
+          "summary": "With 74.9K views and a 1.3x outlier, this climate action affirmation performed through the power of hope framing — 'you CAN make a difference' directly counters the eco-anxiety and individual powerlessness that cause disengagement from sustainability communities. Research consistently shows hope-coded sustainability content outperforms doom content in shares and saves because it gives audiences emotional permission to believe their actions matter. The short-form brevity makes it low-friction to share as a motivational moment on Stories and in group chats.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Dr. Erica Matluck",
+      "handle": "@drericamatluck",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1248,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DX4Q7Q5kypA/",
+          "creator_name": "Dr. Jaban Moore",
+          "creator_handle": "@drjabanmoore",
+          "views": 160604,
+          "outlier_score": 2.2,
+          "summary": "Framing spirulina through NASA research and Aztec warrior history elevated a common superfood into something extraordinary, driving 160K views at 2.2x outlier for a practitioner-sized account. The 'share this with someone who eats clean and still feels depleted' CTA triggers social care-sharing — a powerful mechanism for functional medicine content that positions the sharer as a helpful expert among their network. By connecting modern chronic fatigue to an overlooked nutritional solution, the video converts educational reach into practice consultation leads.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DX-Kat2B-yw/",
+          "creator_name": "Dr. Felice Chan",
+          "creator_handle": "@drfelicechan",
+          "views": 83756,
+          "outlier_score": 2.0,
+          "summary": "Dr. Felice Chan's accessible explanation of acupuncture as qi flow achieved 83.7K views and 2.0x outlier by translating a complex ancient concept into one memorable phrase — 'Where there is pain, there is no free flow' — that functions as a shareable truth bite. The podcast episode cross-promotion and 'comment LINK' CTA softens the sales conversion while building the practitioner's authority across platforms. This is a textbook functional medicine content strategy: education → curiosity → consultation request.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYdHvZXS3qX/",
+          "creator_name": "Dr. Josh Axe",
+          "creator_handle": "@drjoshaxe",
+          "views": 57645,
+          "outlier_score": 1.3,
+          "summary": "Dr. Josh Axe's mold illness video opened with a real patient story — Dr. Ann Shippy nearly misdiagnosed with ALS — creating maximum storytelling stakes before pivoting to a hope message about recovery. The 'your symptoms are not random' reframe directly addresses the core emotional wound of chronic illness: feeling dismissed and unexplained, which makes it instantly shareable by the chronically ill community. The evidence-plus-anecdote format consistently outperforms pure educational content in functional medicine because it combines credibility with relatability.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Natalie MacNeil",
+      "handle": "@nataliemacneil",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 1781,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYDHp3AvyCI/",
+          "creator_name": "Edwina Voice of AI",
+          "creator_handle": "@edwinavoiceofai",
+          "views": 71514,
+          "outlier_score": 3.4,
+          "summary": "This investigation into OpenAI buying a talk show reframed corporate AI strategy as a direct threat to women creators — 'In five years every woman with a public archive will have a digital twin working 24 hours a day for free' — triggering urgency among the female entrepreneur audience that sees self-preservation stakes. The 3.4x outlier and 6% engagement rate reflect deep activation among women business owners who consume AI strategy content and are motivated to act before the window closes. The 'this is not innovation — this is the oldest playbook' framing gives progressive audiences a shareable critical lens.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DY7cvbKBsVB/",
+          "creator_name": "Edwina Voice of AI",
+          "creator_handle": "@edwinavoiceofai",
+          "views": 27707,
+          "outlier_score": 1.4,
+          "summary": "The '$1M empire' hook paired with a comment-CTA gating structure drove a 1.4x outlier among the entrepreneurially motivated women who dominate AI coaching audiences. The 'bad → good → amazing' AI tool comparison framework gives the video a clear educational skeleton that audiences save as a reference guide for their own tool evaluation. The DM funnel mechanic is a proven conversion strategy in the AI business coaching space, converting comment engagement into warm leads at scale.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYK1C-lBmdu/",
+          "creator_name": "Edwina Voice of AI",
+          "creator_handle": "@edwinavoiceofai",
+          "views": 21839,
+          "outlier_score": 1.0,
+          "summary": "This post connecting AI disruption to corporate disillusionment among Black professional women achieved a 9% engagement rate — unusually high for this view count — by speaking to an audience with strong personal stakes in both AI adoption and corporate equity. The McKinsey $43B wealth gap data point gives the emotional argument empirical credibility that AI strategy audiences specifically look for before sharing as fact. The 'Comment birthday' CTA personalizes the conversion touch, converting comment engagement into direct DM relationships that feel mentorship-adjacent.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "John Wineland",
+      "handle": "@johnwineland",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": 0,
+      "top_videos": []
+    },
+    {
+      "client_name": "David Kessler",
+      "handle": "@iamdavidkessler",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 15070,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@tamsenfadal/video/7637635136539888927",
+          "creator_name": "Tamsen Fadal",
+          "creator_handle": "@tamsenfadal",
+          "views": 7000000,
+          "outlier_score": 1243.2,
+          "summary": "This fashion creator's response to grief therapist Gina Moffa achieved a 1,243.2x outlier and 7M TikTok views — one of the most extreme outlier scores in any niche this session — by creating an unexpected celebrity-meets-grief-therapist collision that no algorithm could predict. The surprise pairing drove massive cross-audience shares from both fashion communities and grief support networks who each saw their world being validated by an outsider. The 1,200x+ performance signals a once-in-a-cycle discovery moment that David Kessler's team should study for format replication.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://tiktok.com/@werenotreallystrangers/video/7638293690066242829",
+          "creator_name": "We're Not Really Strangers",
+          "creator_handle": "@werenotreallystrangers",
+          "views": 3000000,
+          "outlier_score": 92.2,
+          "summary": "This grief post — 'we all want our parents to get to know who we grow up to be' — earned 3M TikTok views and 92.2x outlier by capturing one of grief's most painful yet rarely articulated dimensions: the longing for deceased parents to witness adult achievements. The sentence itself functions as a complete emotional story that needs no development, making it compulsively shareable for anyone who has ever lost a parent. @werenotreallystrangers' emotionally intelligent millennial audience means every share reaches a pre-qualified community ready to feel and engage with grief content.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYLK8A-vth_/",
+          "creator_name": "A Good Witch",
+          "creator_handle": "@agoodwitchofficial",
+          "views": 2638882,
+          "outlier_score": 5.8,
+          "summary": "This eccentric 'funeral rehearsal on my birthday at age 70+' video achieved 2.6M views by combining shock value with profound wisdom about embracing mortality while living fully — a message perfectly calibrated for David Kessler's grief-education audience. The participatory eulogy format, where followers submitted their own eulogies, made it uniquely community-driven content that extends beyond a single post. The 'don't take life so seriously that you forget to actually live it' message reframes grief work as a path to fuller living, which is the core transformation David Kessler teaches.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Chelsey Scaffidi",
+      "handle": "@chelseyscaffidi",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 14435,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYHYsMHN_Qt/",
+          "creator_name": "Dr. Shalini (OBGYN)",
+          "creator_handle": "@drshalini_obgyn",
+          "views": 18673748,
+          "outlier_score": 41.7,
+          "summary": "This birth journey montage achieved 18.7M views and 41.7x outlier — the highest single view count in the motherhood niche this session — by posting for Mother's Day with a 'send to dads too so they know what moms go through' cross-gender share trigger that expanded distribution beyond the new-mom audience. The cinematic visual storytelling of both C-section and vaginal delivery combined with emotionally charged narration created a moment parents rewatched and shared to feel seen in a way mainstream culture rarely offers them. Its OBGYN authority gives it medical credibility that elevates it above personal birth vlogs.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYMsP2xuiMZ/",
+          "creator_name": "Jay Shetty",
+          "creator_handle": "@jayshetty",
+          "views": 11935127,
+          "outlier_score": 5.7,
+          "summary": "Jay Shetty's Hayden Panettiere episode clip drove 11.9M views by combining celebrity recognition with the rising mainstream conversation around postpartum mental health, anxiety, and addiction recovery. The 'held it all together while silently struggling' angle validates the secret suffering that many new mothers feel but don't discuss publicly, creating a deeply resonant share-to-a-friend moment. The comment-to-receive CTA converts viral reach into podcast listenership while the celebrity hook draws in audiences who might not otherwise seek out postpartum content.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYfsKwNB4Hl/",
+          "creator_name": "Mama Nurse Tina",
+          "creator_handle": "@mama_nurse_tina",
+          "views": 4326804,
+          "outlier_score": 112.7,
+          "summary": "This postpartum friendship humor reel earned 4.3M views and a 112.7x outlier by packaging actionable advice — 'be this friend' — with gentle humor and a relatable postpartum scenario that new mothers immediately recognize. The 'Be this friend' directive format triggers social gifting, as viewers share it with the specific friend they want to show up for them in the postpartum period. The nurse's professional authority adds medical-grade credibility that distinguishes it from opinion content, while the humor keeps the share instinct light rather than guilt-laden.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Dani Robin",
+      "handle": "@danirobin",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 26946,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYFQiSOtUlk/",
+          "creator_name": "Chiara King",
+          "creator_handle": "@chiaraking",
+          "views": 6821283,
+          "outlier_score": 8.1,
+          "summary": "This wordless broken-heart emoji reel hit 6.8M views in the modern dating niche by leveraging the oldest performance hack: total emotional silence. The complete lack of text maximizes relatable identification — every woman in a disappointing situationship can project her exact experience onto the blank canvas without the creator restricting the interpretation. Its relationship hashtag array ensured algorithmic delivery directly to users actively consuming heartbreak and dating advice content, creating discovery from exactly the audience Dani Robin serves.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYI0hRAxSli/",
+          "creator_name": "Treena Berry",
+          "creator_handle": "@treena_berry_",
+          "views": 5049533,
+          "outlier_score": 364.1,
+          "summary": "This 'Me and who? #dateidea' modern dating humor reel hit 5M views and an astonishing 364.1x outlier — dramatically exceeding all expectations — by capturing the dry comedy of being perpetually single in a world optimized for couples. The self-referential humor ('me and who?') works simultaneously as comedy and community identification, letting single women share it as group belonging content without feeling pathetic. Its exceptional outlier score signals mass discovery by audiences outside the creator's base, driven by reshares from the single women's community.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYHfuMjjvgJ/",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 4025948,
+          "outlier_score": 48.6,
+          "summary": "The 'your nervous system addicted to chaos' one-liner for anxious attachment in dating drove 4M views and 48.6x outlier by providing women with scientific language to explain why they keep choosing emotionally unavailable men. The 'tag a friend who keeps calling the good one boring' hook mechanics make it one of the most powerful share prompts in dating content because it implicitly indicts someone the viewer knows — and lets them forward it instead of having the direct conversation. This format of diagnosing a painful pattern with a clinical name is Dani Robin's core content angle made viral by a competitor.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Morgan Burch",
+      "handle": "@morganburch",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 32430,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYDxohSh13L/",
+          "creator_name": "Embracing Joy Psychotherapy",
+          "creator_handle": "@embracingjoypsychotherapy",
+          "views": 131719,
+          "outlier_score": 3.1,
+          "summary": "This secure attachment definition — 'The people who make you feel safe when you're falling apart are not a luxury. They are the standard.' — hit 131K views at 3.1x outlier by delivering one of the most emotionally resonant reframes in the attachment therapy space in one quotable sentence. The contrast between 'safe' and 'perfect' love gives readers a reframe that feels both surprising and obviously true, the exact cognitive signature that drives shares. Its 4% engagement rate reflects an audience that doesn't just scroll — they save, share with their partners, and return to it repeatedly.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYRlDVECt0H/",
+          "creator_name": "Embracing Joy Psychotherapy",
+          "creator_handle": "@embracingjoypsychotherapy",
+          "views": 104631,
+          "outlier_score": 2.5,
+          "summary": "This reframe of the 'pursuer' attachment pattern — 'The partner who keeps bringing things up isn't trying to start a fight. They're trying to stay close.' — hit 104K views by inverting the most common criticism anxious partners face into a statement of love. This exact perspective shift is what couples therapists describe in session, but compressed into 3 sentences for social media scale. The 'What's something you wish your partner understood before you stopped saying it out loud?' question drives high-depth comments that boost algorithmic reach while doubling as therapy-style reflection prompts.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYS-7z4kRwl/",
+          "creator_name": "Embracing Joy Psychotherapy",
+          "creator_handle": "@embracingjoypsychotherapy",
+          "views": 89348,
+          "outlier_score": 2.1,
+          "summary": "This 'If someone sent you this, here's what they're trying to say' withdrawer partner video hit 89K views by deploying the most powerful mechanic in couples content: framing the video as a message to share rather than content to consume, converting passive viewership into active relationship communication. The withdrawer partner focus fills a content gap — most couples therapy content centers the anxious partner — giving a different and underserved portion of the audience their moment of validation and a tool to use with their partners. The 'drop a number 1 if this landed' micro-CTA drives engagement without requiring emotional effort from viewers.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Jesse Israel",
+      "handle": "@jesseisrael",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 21460,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@livbedumb/video/7637583728956493070",
+          "creator_name": "Liv Be Dumb",
+          "creator_handle": "@livbedumb",
+          "views": 38100000,
+          "outlier_score": 2.6,
+          "summary": "This wordless meditation/yoga TikTok — just three 🧘‍♀️ emojis — achieved 38.1M views and 16% engagement by distilling the aesthetic appeal of mindfulness into a pure visual experience that needs no narration, translation, or explanation. The universally accessible emoji hook ensures algorithmic delivery to anyone on the platform regardless of whether they follow meditation content, creating discovery-stage virality at scale. Its extraordinary engagement rate (16% on 38M views) suggests the content triggered genuine emotional responses across a massive cross-niche audience that the meditation space rarely reaches.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYKUOd2OXlr/",
+          "creator_name": "Dan Brule",
+          "creator_handle": "@danbruleofficial",
+          "views": 4641956,
+          "outlier_score": 552.0,
+          "summary": "Dan Brule's breathwork clip hit 4.6M views and a 552x outlier — one of the highest single-video outlier scores in the meditation niche — by reframing breathwork as an energy amplifier rather than a relaxation tool, a counter-intuitive angle that breaks the typical audience expectation. The 'no caffeine needed' contrast elevates the practice as a productivity hack for high performers who are already tuned to optimization messaging, expanding the audience from yogis to biohackers and entrepreneurs. A 552x outlier signals this reached a massive new audience well beyond the channel's subscribers through discovery-stage algorithmic distribution.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://tiktok.com/@nevernsubermoney/video/7639268038679760149",
+          "creator_name": "Never N Subermoney",
+          "creator_handle": "@nevernsubermoney",
+          "views": 3700000,
+          "outlier_score": 146.8,
+          "summary": "This vagus nerve activation demonstration clip achieved 3.7M TikTok views and 146.8x outlier through the 'Can you do this?' challenge format, which drives immediate physical participation — viewers try the exercise while watching, dramatically increasing completion rates and shares. The physical immediacy of performing the technique in real time turns passive viewers into active practitioners, which is the experiential hook that Jesse Israel's group meditation format also uses. Vagus nerve and somatic healing content is at the beginning of its mainstream growth curve, and this video's discovery-phase virality reflects that moment.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Mastin Kipp",
+      "handle": "@mastinkipp",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 6765,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://tiktok.com/@nevernsubermoney/video/7639268038679760149",
+          "creator_name": "Never N Subermoney",
+          "creator_handle": "@nevernsubermoney",
+          "views": 3700000,
+          "outlier_score": 146.8,
+          "summary": "This vagus nerve demonstration achieved 3.7M TikTok views and 146.8x outlier through the 'Can you do this?' challenge format that drives immediate physical engagement — viewers perform the exercise while watching, turning passive consumption into somatic practice. The nervous system regulation space is in rapid growth due to mainstream polyvagal theory awareness, and this video lands perfectly at the beginning of that adoption curve where educational content gets shared as discovery rather than reinforcement. Its minimal production (just showing the exercise) lowers the barrier for replication and resharing among Mastin Kipp's trauma healing audience.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYDbzdURmLC/",
+          "creator_name": "Jacqueline Vagar",
+          "creator_handle": "@jacquelinevagar",
+          "views": 2737039,
+          "outlier_score": 76.7,
+          "summary": "With 2.7M views and a 76.7x outlier, this feminine-coded nervous system regulation reel turned a clinical practice into a self-care identity statement using the '& regulating that nervous system!!!' format that reads as affirmation-in-progress rather than instruction. The 8% engagement rate signals a loyal niche audience sharing within tight-knit healing communities where this content functions as mutual accountability — 'we're all doing this work together.' The rising-action energy of the caption creates a momentum that's both aspirational and immediately achievable.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYNzgBnteDX/",
+          "creator_name": "Flow With Meg",
+          "creator_handle": "@flowwithmegg",
+          "views": 1643667,
+          "outlier_score": 73.6,
+          "summary": "This 1.6M view nervous system truth-bomb achieved 73.6x outlier by articulating the exact frustration shared by millions who have done 'all the mindset work' without lasting change — 'you can journal every day... and still feel stuck.' The validation-then-reframe structure (naming failed attempts then providing a physiological explanation) is one of the most effective conversion strategies in the trauma healing space, because it meets the audience where they are before leading them somewhere new. This is the exact insight framework Mastin Kipp teaches: real healing is physiological, not just intellectual.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Melissa Pruett",
+      "handle": "@melissapruett",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 2731,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYNMkuXIHpq/",
+          "creator_name": "Lenka Lul",
+          "creator_handle": "@lenkalul",
+          "views": 12550868,
+          "outlier_score": 3.6,
+          "summary": "This 'no makeup vs also no makeup in the eyes of men' contrast reel became viral at 12.6M views by exposing the impossible standard of what 'no makeup' actually means when women are wearing foundation, concealer, and full skin prep. The ad disclosure alongside luxury brand product list created an editorial transparency moment that bridged entertainment, beauty journalism, and consumer awareness simultaneously. The beauty community compulsively shares content that validates the impossibility of beauty standards because it functions as collective grievance, community bonding, and market research all at once.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DYpdLhwNB_d/",
+          "creator_name": "Albina",
+          "creator_handle": "@albina",
+          "views": 7678812,
+          "outlier_score": 13.1,
+          "summary": "With 7.7M views and 13.1x outlier, this 'It's not makeup' skincare demonstration positioned great skin as the foundation of effortless beauty — the most compelling organic argument for clean skincare investment over cosmetic coverage. The wordless approach of showing visibly healthy skin as its own 'no makeup look' speaks directly to the clean beauty philosophy that skin health is the ultimate product. Its 13.1x outlier signals discovery-phase virality from audiences outside the creator's base, suggesting the content was shared into clean beauty communities where it served as proof of concept.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYu-m0ghpMF/",
+          "creator_name": "Dr. Pompa",
+          "creator_handle": "@drpompa",
+          "views": 1407650,
+          "outlier_score": 14.1,
+          "summary": "Dr. Pompa's 'The Most TOXIC Thing You're Buying!' video is the most on-brand competitor content for Melissa Pruett's clean beauty niche — the emoji warning triangle with an innocent rose creates maximum curiosity gap before the reveal of a common toxic product. The 14.1x outlier confirms it dramatically outperformed expectations through mass sharing by clean beauty communities who treat this type of content as confirmation and community alarm. This 'the thing you think is safe is actually toxic' format drives the highest shares in the clean beauty space because it validates the audience's lifestyle choice to spend more on safer products.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Adriana Rizzolo",
+      "handle": "@adrianarizzolo",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 3156,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYVZr43iuhy/",
+          "creator_name": "Candasi Fama Barnes",
+          "creator_handle": "@candasifamabarnes",
+          "views": 15878090,
+          "outlier_score": 1893.6,
+          "summary": "The dominant viral post in the healing and feminine embodiment space this month, 'Healing starts with awareness' achieved 15.9M views and a 1,893.6x outlier through near-perfect simplicity — 5 words that serve as a complete embodiment practice. For Adriana Rizzolo's somatic feminine audience, this video models the reflective awareness practice she teaches: simple, body-first, non-intellectual, and open-ended. The 'What's one thing you've faced lately?' question converts a viral moment into a therapy-adjacent community ritual that her audience shares as both content and practice.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://www.instagram.com/reel/DX9SmmWN_oT/",
+          "creator_name": "Yog Journey",
+          "creator_handle": "@yogjourney",
+          "views": 9026116,
+          "outlier_score": 55.8,
+          "summary": "This lymphatic drainage and breast health routine achieved 9M views and a 55.8x outlier by making visible the connection between women's somatic self-care and nervous system regulation — translating clinical practice into a beautiful 5-minute daily ritual. The specificity of breast health as a wellness topic addresses an underserved niche in women's somatic practice, creating share-worthy content that women send to friends as both useful guidance and permission to prioritize their own bodies. Its multi-step protocol balances accessibility with depth, positioning it as the kind of saved-and-returned-to content that drives long-tail reach.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://tiktok.com/@fitbyma/video/7643190594600275213",
+          "creator_name": "Fit By Ma",
+          "creator_handle": "@fitbyma",
+          "views": 6900000,
+          "outlier_score": 73.7,
+          "summary": "With 6.9M TikTok views and 73.7x outlier, this post-transformation vulnerability video went viral by naming the psychological cost of physical change that fitness culture typically erases — 'It's the hardest thing mentally seeing myself look completely different.' The pivot from 'my life revolving around my physique' to 'revolving around my energy and my community' is a perfect articulation of the somatic feminine philosophy Adriana Rizzolo teaches: body as vessel for energy, not aesthetic object. The 10% engagement rate signals deep resonance with women in body-image healing work who recognized their own journey in the story.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Lisa Kleyn",
+      "handle": "@lisakleyn",
+      "platform": "instagram",
+      "status": "active",
+      "avg_views": 7031,
+      "top_videos": [
+        {
+          "rank": 1,
+          "video_url": "https://www.instagram.com/reel/DYbLUKYxAaO/",
+          "creator_name": "Jony M. Lee",
+          "creator_handle": "@jonymlee",
+          "views": 4783872,
+          "outlier_score": 4.9,
+          "summary": "This couples therapy relatability video hit 4.8M views and 4.9x outlier by normalizing the therapy experience through authentic portrayal that destigmatizes seeking professional help for relationship attachment wounds. For Lisa Kleyn's attachment-focused coaching audience, content that makes couples therapy feel accessible and human is directly shareable with partners who are reluctant to engage with the process. The relatable comedy format creates emotional safety around a topic many people approach with shame, which is exactly why Lisa Kleyn's work exists.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 2,
+          "video_url": "https://tiktok.com/@will.smith.motivat/video/7641354583301786903",
+          "creator_name": "Will Smith Motivat",
+          "creator_handle": "@will.smith.motivat",
+          "views": 4400000,
+          "outlier_score": 1005.3,
+          "summary": "This psychology facts TikTok about attachment styles and dreams achieved 4.4M views and a 1,005.3x outlier — meaning it 1,000x outperformed channel norms, indicating true discovery-phase viral spread across audiences who had never seen this content before. The dream-interpretation hook triggers immediate curiosity ('If You See Someone in Your Dream...') while the underlying attachment science frame ensures it lands in Lisa Kleyn's core audience territory. Disguising attachment psychology inside an irresistible curiosity hook is one of the highest-performing virality strategies in the relationship therapy niche.",
+          "scraped_date": "2026-06-01"
+        },
+        {
+          "rank": 3,
+          "video_url": "https://www.instagram.com/reel/DYHfuMjjvgJ/",
+          "creator_name": "Paget Kagy",
+          "creator_handle": "@pagetkagy",
+          "views": 4025948,
+          "outlier_score": 48.6,
+          "summary": "With 4M views and 48.6x outlier, this anxious attachment reel is directly in Lisa Kleyn's core content territory — explaining to the healing community why they keep choosing emotionally unavailable partners in neuroscience terms they can immediately use and share. The 'tag a friend who keeps calling the good one boring' mechanism converts individual viewers into peer-to-peer educators within the same healing community, creating organic reach among exactly the audience Lisa Kleyn serves. The scientific framing ('nervous system addicted to chaos') gives the insight the clinical weight that distinguishes it from opinion content.",
+          "scraped_date": "2026-06-01"
+        }
+      ]
+    },
+    {
+      "client_name": "Lauren Taus",
+      "handle": "@laurentaus",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": 0,
+      "top_videos": []
+    },
+    {
+      "client_name": "Henry Ammar",
+      "handle": "@henryammar",
+      "platform": "instagram",
+      "status": "client_inactive",
+      "avg_views": 0,
+      "top_videos": []
+    }
+  ]
+}

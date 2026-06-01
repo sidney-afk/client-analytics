@@ -2618,8 +2618,13 @@
 
         /* Week */
         .cal-week-wrap { padding: 4px 0; }
-        .cal-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-        .cal-week-col { background: var(--white); border: 1px solid var(--border); border-radius: 10px; min-height: var(--cal-week-col, 470px); display: flex; flex-direction: column; overflow: hidden; }
+        /* The grid is a horizontal strip translated by the wheel handler; the
+           viewport clips the 1-day buffer column on each side so the visible
+           week sits flush. overflow-x:clip keeps vertical content (tall day
+           columns) fully visible while hiding the horizontal overflow. */
+        .cal-week-viewport { overflow-x: clip; }
+        .cal-week-grid { display: flex; flex-wrap: nowrap; gap: 8px; will-change: transform; transition: transform 0.08s ease-out; }
+        .cal-week-col { flex: 0 0 var(--cal-week-colw, 200px); background: var(--white); border: 1px solid var(--border); border-radius: 10px; min-height: var(--cal-week-col, 470px); display: flex; flex-direction: column; overflow: hidden; }
         .cal-week-col.today { border-color: #4f46e5; }
         .cal-week-head { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg); }
         .cal-week-col.today .cal-week-head { background: #eef0fe; border-bottom-color: #d9daf8; }
@@ -2637,7 +2642,10 @@
         .cal-week-card-thumb svg { width: 30px; height: 30px; }
         .cal-week-card-body { padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-width: 0; }
         .cal-week-card-body .cal-status { max-width: 100%; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box; }
-        .cal-week-card-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+        /* Clamp to two lines with a reserved two-line min-height so a card's
+           height never shifts with title length as days slide into view. */
+        .cal-week-card-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); line-height: 1.3;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
 
         /* Preview popover (Month/Week → read-only post details) */
         .cal-preview-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.35); z-index: 250; align-items: center; justify-content: center; }
@@ -12409,7 +12417,7 @@
             _calWireDayDrag(body);
         } else if (calState.view === 'week') {
             body.innerHTML = renderCalWeek();
-            _calWireWheelNav(body.querySelector('.cal-week-wrap'), calWeekShiftDays, false);
+            _calWireWeekWheel(body);
             _calWireDayDrag(body);
         }
         if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
@@ -12520,10 +12528,9 @@
         _calFlushCardSave(id);
     }
 
-    // Wheel-scroll over the Month/Week grid steps the period one at a time,
-    // so there's no need to reach for the next/prev arrows. The Month grid
-    // keeps the Shift guard (it scrolls vertically); the Week grid steps on a
-    // plain wheel so a normal scroll slides the days left/right.
+    // Shift-scroll over the Month grid steps it one month at a time, so
+    // there's no need to reach for the next/prev arrows. (The Week grid uses
+    // the gradual plain-scroll handler below instead.)
     let _calWheelNavLast = 0;
     function _calWireWheelNav(el, shiftFn, requireShift = true) {
         if (!el) return;
@@ -12536,6 +12543,64 @@
             if (now - _calWheelNavLast < 70) return;
             _calWheelNavLast = now;
             shiftFn(raw > 0 ? 1 : -1);
+        }, { passive: false });
+    }
+
+    /* Week view: a normal wheel (no Shift, for both client and SMM) slides the
+       days left/right in small, gradual steps. We translate the strip pixel by
+       pixel and only commit a whole-day cursor shift once a full column has
+       scrolled past, so the motion stays smooth but always settles on a day
+       boundary. renderCalWeek draws a 1-day buffer column on each side so the
+       slide always reveals real content. The residual sub-day offset is carried
+       across the commit re-render via _calWeekWheelOffset, keeping it seamless.
+       Lower factor → more wheeling needed per day (gentler steps). */
+    let _calWeekWheelOffset = 0;
+    let _calWeekWheelCommitting = false;
+    const _CAL_WEEK_WHEEL_FACTOR = 0.7;
+    function _calWireWeekWheel(body) {
+        const vp = body.querySelector('.cal-week-viewport');
+        const grid = vp && vp.querySelector('.cal-week-grid');
+        if (!vp || !grid) return;
+        const GAP = 8;
+        const colW = Math.max(40, (vp.clientWidth - GAP * 6) / 7);
+        const stepPx = colW + GAP; // one day's worth of horizontal travel
+        grid.style.setProperty('--cal-week-colw', colW + 'px');
+        // A non-wheel re-render (zoom, view switch, button nav) starts centred;
+        // only a wheel commit carries its residual offset across the re-render.
+        if (!_calWeekWheelCommitting) _calWeekWheelOffset = 0;
+        _calWeekWheelCommitting = false;
+        let offset = _calWeekWheelOffset;
+        // Baseline -stepPx hides the leading buffer column so the real week sits
+        // flush against the viewport's left edge. `animate=false` suppresses the
+        // CSS transition so a freshly mounted strip never slides in on render.
+        const apply = (animate) => {
+            grid.style.transition = animate ? '' : 'none';
+            grid.style.transform = `translateX(${-(stepPx + offset)}px)`;
+        };
+        apply(false);
+        grid.addEventListener('wheel', (e) => {
+            const raw = e.deltaY || e.deltaX;
+            if (!raw) return;
+            e.preventDefault();
+            offset += raw * _CAL_WEEK_WHEEL_FACTOR;
+            if (offset >= stepPx) {            // scrolled a full day forward
+                let r = offset - stepPx;
+                if (r >= stepPx) r = stepPx - 1; // drop runaway flings to stay within the buffer
+                _calWeekWheelOffset = r;
+                _calWeekWheelCommitting = true;
+                calWeekShiftDays(1);
+                return;
+            }
+            if (offset <= -stepPx) {           // a full day backward
+                let r = offset + stepPx;
+                if (r <= -stepPx) r = -(stepPx - 1);
+                _calWeekWheelOffset = r;
+                _calWeekWheelCommitting = true;
+                calWeekShiftDays(-1);
+                return;
+            }
+            _calWeekWheelOffset = offset;
+            apply(true);
         }, { passive: false });
     }
 
@@ -14640,7 +14705,11 @@
     /* ── Week view (read-only) ──────────────────────────────────────── */
     function renderCalWeek() {
         const start = calState.weekCursor;
-        const days = Array.from({ length: 7 }, (_, i) => _calAddDaysISO(start, i));
+        // Render one buffer day on each side (indices -1..7 → 9 columns) so the
+        // gradual wheel-slide always has real content to reveal instead of a
+        // blank gutter. The middle 7 columns are the actual week and sit in the
+        // viewport at rest; the buffer columns live just outside the clip edge.
+        const days = Array.from({ length: 9 }, (_, i) => _calAddDaysISO(start, i - 1));
         const byDate = new Map();
         // Mirror the Sheet/Month tabs' client-view filter: when Collaborative
         // mode is off, unfinished posts stay hidden across all client tabs.
@@ -14652,7 +14721,6 @@
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
         }
-        const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const startDate = _calParseIso(start);
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
@@ -14664,13 +14732,15 @@
                 <button class="cal-nav-btn" onclick="calWeekShift(1)" title="Next week">›</button>
                 <button class="cal-today-btn" onclick="calWeekToday()">Today</button>
             </div>
+            <div class="cal-week-viewport">
             <div class="cal-week-grid">
-                ${days.map((iso, i) => {
+                ${days.map((iso) => {
                     const list = byDate.get(iso) || [];
                     const today = iso === todayISO;
+                    const dow = _calParseIso(iso).toLocaleDateString('en-US', { weekday: 'short' });
                     return `<div class="cal-week-col${today ? ' today' : ''}" data-iso="${iso}">
                         <div class="cal-week-head">
-                            <div class="cal-week-day">${labels[i]}</div>
+                            <div class="cal-week-day">${dow}</div>
                             <div class="cal-week-num">${parseInt(iso.slice(8,10), 10)}</div>
                         </div>
                         <div class="cal-week-stack">
@@ -14694,6 +14764,7 @@
                         </div>
                     </div>`;
                 }).join('')}
+            </div>
             </div>
         </div>`;
     }

@@ -2623,7 +2623,7 @@
            week sits flush. overflow-x:clip keeps vertical content (tall day
            columns) fully visible while hiding the horizontal overflow. */
         .cal-week-viewport { overflow-x: clip; }
-        .cal-week-grid { display: flex; flex-wrap: nowrap; gap: 8px; will-change: transform; transition: transform 0.08s ease-out; }
+        .cal-week-grid { display: flex; flex-wrap: nowrap; gap: 8px; will-change: transform; }
         /* min-height holds one full card (thumb + 2-line title + badge) plus
            the day header, so empty/sparse days reserve the same height as a
            day with a post and the strip never collapses as weeks slide by.
@@ -12552,60 +12552,97 @@
     }
 
     /* Week view: a normal wheel (no Shift, for both client and SMM) slides the
-       days left/right in small, gradual steps. We translate the strip pixel by
-       pixel and only commit a whole-day cursor shift once a full column has
-       scrolled past, so the motion stays smooth but always settles on a day
-       boundary. renderCalWeek draws a 1-day buffer column on each side so the
-       slide always reveals real content. The residual sub-day offset is carried
-       across the commit re-render via _calWeekWheelOffset, keeping it seamless.
-       Lower factor → more wheeling needed per day (gentler steps). */
+       days left/right. To keep the motion smooth we drive it frame-by-frame
+       (requestAnimationFrame easing toward a target offset) instead of a CSS
+       transition — irregular wheel-event timing used to make the easing lurch.
+       renderCalWeek draws a whole week of buffer columns on each side, so the
+       slide is a pure transform across many days and we only re-render once the
+       motion settles (then snap to the nearest day boundary and recentre the
+       buffer). That removes the per-day re-render hitch that caused the jitter.
+       A generation counter retires frames/timers from superseded strips. */
     let _calWeekWheelOffset = 0;
     let _calWeekWheelCommitting = false;
-    const _CAL_WEEK_WHEEL_FACTOR = 0.7;
+    let _calWeekRaf = 0;
+    let _calWeekIdle = 0;
+    let _calWeekGen = 0;
+    const _CAL_WEEK_WHEEL_FACTOR = 0.7; // wheel px → content px (lower = gentler)
+    const _CAL_WEEK_BUFFER = 7;         // buffer days each side (matches renderCalWeek)
     function _calWireWeekWheel(body) {
         const vp = body.querySelector('.cal-week-viewport');
         const grid = vp && vp.querySelector('.cal-week-grid');
         if (!vp || !grid) return;
+        const gen = ++_calWeekGen; // any pending frame/timer from the old strip is now stale
+        if (_calWeekRaf) { cancelAnimationFrame(_calWeekRaf); _calWeekRaf = 0; }
+        if (_calWeekIdle) { clearTimeout(_calWeekIdle); _calWeekIdle = 0; }
+
         const GAP = 8;
         const colW = Math.max(40, (vp.clientWidth - GAP * 6) / 7);
         const stepPx = colW + GAP; // one day's worth of horizontal travel
         grid.style.setProperty('--cal-week-colw', colW + 'px');
+        grid.style.transition = 'none'; // motion is driven by rAF, never CSS easing
+
+        const baseline = _CAL_WEEK_BUFFER * stepPx; // leading buffer width
+        const limit = (_CAL_WEEK_BUFFER - 1) * stepPx; // recentre before the buffer runs out
+
         // A non-wheel re-render (zoom, view switch, button nav) starts centred;
-        // only a wheel commit carries its residual offset across the re-render.
+        // only a settle/recentre carries its residual offset across the render.
         if (!_calWeekWheelCommitting) _calWeekWheelOffset = 0;
         _calWeekWheelCommitting = false;
-        let offset = _calWeekWheelOffset;
-        // Baseline -stepPx hides the leading buffer column so the real week sits
-        // flush against the viewport's left edge. `animate=false` suppresses the
-        // CSS transition so a freshly mounted strip never slides in on render.
-        const apply = (animate) => {
-            grid.style.transition = animate ? '' : 'none';
-            grid.style.transform = `translateX(${-(stepPx + offset)}px)`;
+
+        let target = _calWeekWheelOffset;
+        let cur = _calWeekWheelOffset;
+        let recentreOnRest = false;
+        const draw = () => { grid.style.transform = `translateX(${-(baseline + cur)}px)`; };
+        draw();
+
+        // Shift the cursor by the whole days scrolled and re-render with the
+        // leftover sub-day offset, so the strip looks identical before/after.
+        const recentre = () => {
+            const days = Math.round(cur / stepPx);
+            if (days === 0) return;
+            _calWeekWheelOffset = cur - days * stepPx;
+            _calWeekWheelCommitting = true;
+            calWeekShiftDays(days);
         };
-        apply(false);
+
+        const tick = () => {
+            if (gen !== _calWeekGen) return;
+            cur += (target - cur) * 0.25;
+            if (Math.abs(target - cur) < 0.4) cur = target;
+            draw();
+            if (cur !== target) {
+                _calWeekRaf = requestAnimationFrame(tick);
+            } else {
+                _calWeekRaf = 0;
+                if (recentreOnRest) { recentreOnRest = false; recentre(); }
+            }
+        };
+        const animate = () => { if (!_calWeekRaf) _calWeekRaf = requestAnimationFrame(tick); };
+
         grid.addEventListener('wheel', (e) => {
             const raw = e.deltaY || e.deltaX;
             if (!raw) return;
             e.preventDefault();
-            offset += raw * _CAL_WEEK_WHEEL_FACTOR;
-            if (offset >= stepPx) {            // scrolled a full day forward
-                let r = offset - stepPx;
-                if (r >= stepPx) r = stepPx - 1; // drop runaway flings to stay within the buffer
-                _calWeekWheelOffset = r;
-                _calWeekWheelCommitting = true;
-                calWeekShiftDays(1);
+            if (_calWeekIdle) { clearTimeout(_calWeekIdle); _calWeekIdle = 0; }
+            recentreOnRest = false; // an active wheel cancels any pending settle
+            target += raw * _CAL_WEEK_WHEEL_FACTOR;
+            if (target > limit || target < -limit) {
+                // near the buffer edge — settle on the nearest day and recentre
+                // so a long continuous scroll gets a fresh runway.
+                target = Math.round(target / stepPx) * stepPx;
+                recentreOnRest = true;
+                animate();
                 return;
             }
-            if (offset <= -stepPx) {           // a full day backward
-                let r = offset + stepPx;
-                if (r <= -stepPx) r = -(stepPx - 1);
-                _calWeekWheelOffset = r;
-                _calWeekWheelCommitting = true;
-                calWeekShiftDays(-1);
-                return;
-            }
-            _calWeekWheelOffset = offset;
-            apply(true);
+            animate();
+            // when the wheel goes quiet, ease to the nearest day and recentre
+            _calWeekIdle = setTimeout(() => {
+                if (gen !== _calWeekGen) return;
+                _calWeekIdle = 0;
+                target = Math.round(target / stepPx) * stepPx;
+                recentreOnRest = true;
+                animate();
+            }, 140);
         }, { passive: false });
     }
 
@@ -14710,11 +14747,12 @@
     /* ── Week view (read-only) ──────────────────────────────────────── */
     function renderCalWeek() {
         const start = calState.weekCursor;
-        // Render one buffer day on each side (indices -1..7 → 9 columns) so the
-        // gradual wheel-slide always has real content to reveal instead of a
-        // blank gutter. The middle 7 columns are the actual week and sit in the
-        // viewport at rest; the buffer columns live just outside the clip edge.
-        const days = Array.from({ length: 9 }, (_, i) => _calAddDaysISO(start, i - 1));
+        // Render a full week of buffer days on each side so the wheel can slide
+        // smoothly across many days via a pure CSS transform before we ever
+        // re-render (re-render only happens once the motion settles — see
+        // _calWireWeekWheel). The middle 7 columns are the actual week and sit
+        // in the viewport at rest; the buffer columns extend past the clip edge.
+        const days = Array.from({ length: 7 + _CAL_WEEK_BUFFER * 2 }, (_, i) => _calAddDaysISO(start, i - _CAL_WEEK_BUFFER));
         const byDate = new Map();
         // Mirror the Sheet/Month tabs' client-view filter: when Collaborative
         // mode is off, unfinished posts stay hidden across all client tabs.

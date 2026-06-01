@@ -1,7 +1,7 @@
 import { workflow, node, trigger, sticky, newCredential, expr } from '@n8n/workflow-sdk';
 
 const TEST_CHANNEL_ID = 'C0B7D49KCD6';
-const COMPETITORS_JSON_URL = 'https://raw.githubusercontent.com/sidney-afk/client-analytics/refs/heads/claude/data-competitors/data/competitors.json';
+const TOP_VIDEOS_JSON_URL = 'https://raw.githubusercontent.com/sidney-afk/client-analytics/refs/heads/claude/data-competitors/data/top_videos.json';
 
 const matchTopReelCode = `
 // TEST_CLIENT_FILTER: limit to specific clients for cheap testing.
@@ -91,20 +91,15 @@ const data = $('Extract Video URL').item.json;
 const whisper = $json;
 const transcript = (whisper?.text || '').trim();
 
-const competitorsFile = $('Fetch Competitors JSON').first().json;
-const clientEntry = ((competitorsFile && competitorsFile.clients) || [])
+const topVideosFile = $('Fetch Top Videos JSON').first().json;
+const clientEntry = ((topVideosFile && topVideosFile.clients) || [])
   .find(c => c.client_name === data.client_name);
-const competitors = (clientEntry && clientEntry.competitors) || [];
+const topVideos = (clientEntry && clientEntry.top_videos) || [];
 
-const competitorList = competitors
-  .map((c, i) => \`\${i + 1}. \${c.competitor_name}\${c.competitor_handle ? ' (' + c.competitor_handle + ')' : ''}: \${c.summary || 'No summary available.'}\`)
-  .join('\\n');
+const prompt = \`You are a social media strategist analyzing a client's top reel this week.
 
-const prompt = \`You are a social media strategist. A client named "\${data.client_name}" creates content about: \${data.content_description || ''}
-
-Their top-performing reel this week got \${data.views} views.
-
-Platform: \${data.platform}
+Client: "\${data.client_name}"
+Their top-performing reel this week got \${data.views} views on \${data.platform}.
 Caption: "\${data.caption || ''}"
 Likes: \${data.likes}
 Comments: \${data.comments}
@@ -112,22 +107,15 @@ Comments: \${data.comments}
 VIDEO TRANSCRIPT:
 \${transcript || 'No transcript available.'}
 
-TOP 3 COMPETITORS IN THIS NICHE (from Sandcastles):
-\${competitorList || 'No competitor data available for this client.'}
-
-Write a response with TWO sections, separated by the exact line "---":
-
-SECTION 1 (under 280 chars, plain text, no markdown): Explain in 2-3 sentences WHY this reel likely performed so well. Focus on hook, content angle, or trend.
-
-SECTION 2 (under 600 chars, plain text, no markdown): Briefly describe what each of the top competitors is doing right now and what YOU could learn from them. Address the client directly using "you" — do NOT use the client's name (write "you could try..." not "\${data.client_name} could try..."). One short sentence per competitor. If no competitor data is available, say "No competitor data available this week."\`;
+In 2-3 concise sentences (under 280 chars, plain text, NO markdown), explain WHY this reel likely performed so well. Address the client directly using "you" — do NOT use their name (write "your hook worked because..." not "\${data.client_name}'s hook..."). Focus on the hook, content angle, or trend it tapped into.\`;
 
 const body = JSON.stringify({
   model: "claude-sonnet-4-20250514",
-  max_tokens: 800,
+  max_tokens: 400,
   messages: [{ role: "user", content: prompt }]
 });
 
-return { json: { ...data, transcript, competitors, claude_request_body: body } };
+return { json: { ...data, transcript, top_videos: topVideos, claude_request_body: body } };
 `;
 
 const formatSlackCode = `
@@ -136,12 +124,7 @@ const itemIndex = $itemIndex;
 const data = inputItems[itemIndex].json;
 
 const claudeResp = $json;
-const fullAnalysis = (claudeResp.content && claudeResp.content[0] && claudeResp.content[0].text)
-  || 'Great engagement this week!';
-
-const parts = fullAnalysis.split(/^---$/m);
-const whyAnalysis = (parts[0] || '').trim() || 'Great engagement this week!';
-const competitorAnalysis = (parts[1] || '').trim();
+const whyAnalysis = ((claudeResp.content && claudeResp.content[0] && claudeResp.content[0].text) || 'Great engagement this week!').trim();
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('en-US');
 const views = fmtNum(data.views);
@@ -191,21 +174,20 @@ if (videoUrl && videoUrl !== '#') {
   });
 }
 
-const competitors = data.competitors || [];
-if (competitors.length > 0) {
+const topVideos = data.top_videos || [];
+if (topVideos.length > 0) {
   blocks.push({ type: 'divider' });
   blocks.push({
     type: 'header',
-    text: { type: 'plain_text', text: '\\ud83d\\udd0d Top Competitors This Week', emoji: true }
+    text: { type: 'plain_text', text: '\\ud83d\\udd25 Top Viral Videos in Your Niche', emoji: true }
   });
-  if (competitorAnalysis) {
-    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: competitorAnalysis } });
-  }
-  const compFields = competitors.map((c) => {
-    const linkText = c.competitor_url ? \`<\${c.competitor_url}|\${c.competitor_name}>\` : c.competitor_name;
-    return { type: 'mrkdwn', text: \`*\${linkText}*\${c.competitor_handle ? '\\n' + c.competitor_handle : ''}\${c.avg_views ? '\\n_~' + Number(c.avg_views).toLocaleString('en-US') + ' avg views_' : ''}\` };
+  topVideos.forEach((v) => {
+    const header = \`*By \${v.creator_name || 'Unknown'}* \\u2014 \${Number(v.views || 0).toLocaleString('en-US')} views\${v.outlier_score ? ' (' + Number(v.outlier_score).toFixed(1) + 'x outlier)' : ''}\`;
+    const videoLine = v.video_url || '';
+    const summaryText = (v.summary || '').trim();
+    const sectionText = \`\${header}\\n\${videoLine}\${summaryText ? '\\n>' + summaryText : ''}\`;
+    blocks.push({ type: 'section', text: { type: 'mrkdwn', text: sectionText } });
   });
-  blocks.push({ type: 'section', fields: compFields });
 }
 
 return {
@@ -233,14 +215,14 @@ const manualWebhookTrigger = trigger({
   output: [{ body: {} }]
 });
 
-const fetchCompetitorsJson = node({
+const fetchTopVideosJson = node({
   type: 'n8n-nodes-base.httpRequest',
   version: 4.4,
   config: {
-    name: 'Fetch Competitors JSON',
+    name: 'Fetch Top Videos JSON',
     parameters: {
       method: 'GET',
-      url: COMPETITORS_JSON_URL,
+      url: TOP_VIDEOS_JSON_URL,
       options: {
         response: { response: { responseFormat: 'json' } },
         timeout: 30000
@@ -250,16 +232,20 @@ const fetchCompetitorsJson = node({
     maxTries: 2,
     waitBetweenTries: 3000,
     executeOnce: true,
+    alwaysOutputData: true,
+    onError: 'continueRegularOutput',
     position: [192, 240]
   },
   output: [{
-    scraped_date: '2026-05-28',
-    summary: { clients_processed: 19, total_competitor_rows: 41 },
+    scraped_date: '2026-06-01',
+    summary: { clients_processed: 1, total_video_rows: 3 },
     clients: [
       {
-        client_name: 'Baya Voce',
-        competitors: [
-          { rank: 1, competitor_name: 'Couples Counseling Center', competitor_handle: '@couples_counseling_center', competitor_url: 'https://www.instagram.com/couples_counseling_center/', platform: 'instagram', avg_views: 73744, summary: 'sample summary' }
+        client_name: 'Adriana Rizzolo',
+        client_handle: '@artofloving',
+        status: 'active',
+        top_videos: [
+          { rank: 1, video_url: 'https://www.instagram.com/reel/abc123/', creator_name: 'Sah D. Simone', creator_handle: '@sahdsimone', views: 352000, outlier_score: 7.1, summary: 'sample summary', scraped_date: '2026-06-01' }
         ]
       }
     ]
@@ -444,21 +430,21 @@ const buildClaudePrompt = node({
     position: [1904, 240]
   },
   output: [{
-    client_name: 'Baya Voce',
+    client_name: 'Adriana Rizzolo',
     slack_channel_id: 'C0123',
-    content_description: 'relationship coach reels',
+    content_description: 'somatic healing reels',
     platform: 'instagram',
-    video_url: 'https://www.instagram.com/reel/abc123',
+    video_url: 'https://www.instagram.com/reel/xyz/',
     caption: 'sample',
-    views: 50000,
-    likes: 1200,
-    comments: 80,
-    shares: 30,
+    views: 7500,
+    likes: 500,
+    comments: 9,
+    shares: 0,
     transcript: 'Sample transcribed text.',
-    competitors: [
-      { rank: 1, competitor_name: 'Couples Counseling Center', competitor_handle: '@couples_counseling_center', competitor_url: 'https://www.instagram.com/couples_counseling_center/', platform: 'instagram', avg_views: 73744, summary: 'sample summary' }
+    top_videos: [
+      { rank: 1, video_url: 'https://www.instagram.com/reel/abc123/', creator_name: 'Sah D. Simone', creator_handle: '@sahdsimone', views: 352000, outlier_score: 7.1, summary: 'sample why-it-worked summary', scraped_date: '2026-06-01' }
     ],
-    claude_request_body: '{"model":"claude-sonnet-4-20250514","max_tokens":800,"messages":[]}'
+    claude_request_body: '{"model":"claude-sonnet-4-20250514","max_tokens":400,"messages":[]}'
   }]
 });
 
@@ -538,6 +524,9 @@ const sendSlackMessage = node({
   output: [{ ok: true, channel: TEST_CHANNEL_ID }]
 });
 
+// Note: the sendSlackMessage above uses unfurl_media: true (set in otherOptions)
+// so Instagram video URLs render as media previews in Slack.
+
 const webhookResponse = node({
   type: 'n8n-nodes-base.respondToWebhook',
   version: 1.5,
@@ -554,22 +543,22 @@ const webhookResponse = node({
 });
 
 const safetyNote = sticky(
-  '## TEST WORKFLOW — DO NOT ACTIVATE FOR PRODUCTION\n\nDuplicate of "Weekly Slack – Top Reel of the Week" with competitor integration.\n\n**Safety measures:**\n- No schedule trigger — webhook-only.\n- All Slack messages go to **test channel C0B7D49KCD6** (hardcoded).\n- Workflow stays inactive.\n\n**Data source:** Competitor data is fetched from the GitHub repo at `claude/data-competitors` branch, file `data/competitors.json`, populated by the Claude Code routine "Weekly Sandcastles Competitor Research".',
+  '## TEST WORKFLOW — DO NOT ACTIVATE FOR PRODUCTION\n\nDuplicate of "Weekly Slack – Top Reel of the Week" with TOP VIDEOS IN NICHE section added.\n\n**Safety measures:**\n- No schedule trigger — webhook-only.\n- All Slack messages go to **test channel C0B7D49KCD6** (hardcoded).\n- Workflow stays inactive.\n- TEST_CLIENT_FILTER in "Match Top Reel Per Client" defaults to a single client. Empty the array for full production run.\n\n**Data source:** Top viral video data is fetched from the GitHub repo at `claude/data-competitors` branch, file `data/top_videos.json`, populated by the Sandcastles routine.',
   [],
-  { color: 3, position: [-40, -120], width: 640, height: 280 }
+  { color: 3, position: [-40, -120], width: 640, height: 320 }
 );
 
-const competitorFetchNote = sticky(
-  '## Competitor Data Source\n\nThis HTTP node fetches the latest `data/competitors.json` from your GitHub repo (claude/data-competitors branch). Public raw URL, no auth needed.\n\n`executeOnce: true` means it fetches once per workflow run, not per client. Build Claude Prompt looks up each client by name from the parsed JSON.\n\nIf the routine hasn\'t run yet (or fails), the file may be stale or missing — workflow degrades gracefully (no competitor block in Slack, just top reel section).',
+const topVideosFetchNote = sticky(
+  '## Top Videos Data Source\n\nFetches `data/top_videos.json` from GitHub `claude/data-competitors` branch.\n\nFor each client, the JSON contains top 3 VIRAL VIDEOS in their niche from OTHER creators (NOT the client themselves), with: video_url, creator_name, creator_handle, views, outlier_score, and a "why this worked" summary.\n\n`executeOnce: true` — fetches once per run. `alwaysOutputData` + `continueRegularOutput` — if file missing/stale, workflow degrades to top-reel-only Slack message.',
   [],
-  { color: 5, position: [160, -120], width: 440, height: 280 }
+  { color: 5, position: [160, -120], width: 440, height: 320 }
 );
 
-export default workflow('weekly-slack-with-competitors-test', 'Weekly Slack – Top Reel + Competitors (TEST)')
+export default workflow('weekly-slack-with-top-videos-test', 'Weekly Slack – Top Reel + Top Videos in Niche (TEST)')
   .add(safetyNote)
-  .add(competitorFetchNote)
+  .add(topVideosFetchNote)
   .add(manualWebhookTrigger)
-  .to(fetchCompetitorsJson)
+  .to(fetchTopVideosJson)
   .to(readClientsInfo)
   .to(readTopVideos)
   .to(matchTopReelPerClient)

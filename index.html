@@ -2204,6 +2204,10 @@
         .cal-card-add svg { width: 20px; height: 20px; }
         /* First-post state — centred, larger, with a label */
         .cal-organizer-strip.is-empty { justify-content: center; align-items: center; }
+        /* The right-side scroll runway (::after) takes up real flex space, which
+           pulls the lone "Add the first post" hero left of the true centre when
+           the strip is empty. Drop it in the empty state so the hero centres. */
+        .cal-organizer-strip.is-empty::after { content: none; }
         .cal-card-add.cal-card-add-hero { width: auto; min-width: 168px; height: 168px; border-radius: 18px;
             flex-direction: column; gap: 12px; padding: 0 28px; }
         .cal-card-add-hero svg { width: 34px; height: 34px; }
@@ -13343,6 +13347,23 @@
             chip.classList.toggle('is-empty', !fmt);
         }
         _calOnFieldBlur(el);
+        // The Sheet strip is filtered by scheduled month (default: the current
+        // month). Scheduling a card for a different month would drop it out of
+        // that filter on the next re-render — so it looks like the card you just
+        // created vanished. Follow the post to its month so it stays in view.
+        _calRevealMonthForDate(el.value);
+    }
+    /* If a single specific month is being filtered and `iso` falls outside it,
+       switch the filter to that date's month so a just-scheduled card doesn't
+       silently disappear from the strip. No-op on the "All months" filter or
+       when the date is empty / already in the active month. */
+    function _calRevealMonthForDate(iso) {
+        const cur = _calNormMonthFilter(calState.monthFilter);
+        if (cur === 'all') return;
+        const ym = String(iso || '').slice(0, 7);
+        if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym)) return;
+        if (ym === cur) return;
+        onCalMonthFilterChange(ym);
     }
     function _calOnUrlInput(el) {
         _calOnFieldInput(el);

@@ -17261,6 +17261,15 @@
     function _tkRenderForm() {
         const col = document.getElementById('tkFormCol');
         if (!col) return;
+        // Keep the resolved profile in sync with the latest client map on every
+        // render, so the "@profile" chip self-heals once the Clients Info sheet
+        // loads — otherwise a profile resolved before the data arrived would keep
+        // showing the "⚠ No mapping" fallback warning even after the mapping is in.
+        if (tkState.client) {
+            const r = _tkResolveProfile(tkState.client);
+            tkState.profile = r.profile;
+            tkState.profileSource = r.source;
+        }
         const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
         const titleCount = (tkState.title || '').length;
         const titleOver = titleCount > 2200;
@@ -17603,6 +17612,20 @@
     }
 
     function _tkSubmit() {
+        // Re-resolve the profile from the freshest client map right before sending.
+        // The profile is derived purely from the selected client, but it gets
+        // resolved-and-cached early (on draft restore / client select). If that
+        // happened before the Clients Info sheet finished loading (e.g. a cold
+        // load landing straight on this tab), tkState.profile froze to the
+        // fallback slug from wlNormalizeClient() — lowercased, spaces stripped —
+        // which almost never matches an upload-post.com profile name and earns a
+        // "Username not associated with any profile" rejection. Resolving again
+        // here picks up the sheet mapping now that data is in.
+        if (tkState.client) {
+            const r = _tkResolveProfile(tkState.client);
+            tkState.profile = r.profile;
+            tkState.profileSource = r.source;
+        }
         const err = _tkValidate();
         if (err) { tkState.error = err; _tkRenderForm(); return; }
 

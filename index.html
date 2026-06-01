@@ -11805,6 +11805,23 @@
                 winner._baseAt = fp.updated_at || '';
                 return winner;
             });
+            // Preserve locally-created/edited cards the fetch doesn't include
+            // yet. A just-saved row can be absent from a background poll for a
+            // few seconds while the sheet read catches up — and because
+            // newPosts is built purely from the fetched set, that card would
+            // otherwise be dropped from the strip, so a post the user just made
+            // appears to vanish on the next tab-switch / 30 s tick. Keep any
+            // prev card that's missing from the fetch AND that we have a local
+            // reason to trust: a save in flight, queued edits, or a successful
+            // write within the conflict window. (A card archived/removed
+            // elsewhere isn't in prevPosts, so this can't resurrect deletions.)
+            const fetchedIds = new Set(fetchedPosts.map(p => p.id));
+            prevPosts.forEach(lp => {
+                if (fetchedIds.has(lp.id)) return;
+                const recentSave = _calLocalRecentSaves.get(lp.id);
+                const stillRecent = recentSave && (nowMs - recentSave) <= CAL_CONFLICT_WINDOW_MS;
+                if (_calSaveInFlight[lp.id] || _calPendingEdits[lp.id] || stillRecent) newPosts.push(lp);
+            });
             dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
             calState.posts = newPosts;
             calState.error = null;

@@ -12556,11 +12556,13 @@
        (requestAnimationFrame easing toward a target offset) instead of a CSS
        transition — irregular wheel-event timing used to make the easing lurch.
        renderCalWeek draws a whole week of buffer columns on each side, so the
-       slide is a pure transform across many days and we only re-render once the
-       motion settles (then snap to the nearest day boundary and recentre the
-       buffer). That removes the per-day re-render hitch that caused the jitter.
+       slide is a pure transform across many days and we only re-render to
+       recentre the buffer (carrying the exact sub-day offset, so nothing moves
+       on screen). The strip rests wherever you release it — there is no
+       snap-to-day, which felt like the view "locking back" onto a grid.
        A generation counter retires frames/timers from superseded strips. */
     let _calWeekWheelOffset = 0;
+    let _calWeekWheelTarget = 0;
     let _calWeekWheelCommitting = false;
     let _calWeekRaf = 0;
     let _calWeekIdle = 0;
@@ -12585,29 +12587,32 @@
         const limit = (_CAL_WEEK_BUFFER - 1) * stepPx; // recentre before the buffer runs out
 
         // A non-wheel re-render (zoom, view switch, button nav) starts centred;
-        // only a settle/recentre carries its residual offset across the render.
-        if (!_calWeekWheelCommitting) _calWeekWheelOffset = 0;
+        // only a recentre carries its residual offset/target across the render.
+        const carrying = _calWeekWheelCommitting;
         _calWeekWheelCommitting = false;
+        if (!carrying) { _calWeekWheelOffset = 0; _calWeekWheelTarget = 0; }
 
-        let target = _calWeekWheelOffset;
+        let target = _calWeekWheelTarget;
         let cur = _calWeekWheelOffset;
         let recentreOnRest = false;
         const draw = () => { grid.style.transform = `translateX(${-(baseline + cur)}px)`; };
         draw();
 
         // Shift the cursor by the whole days scrolled and re-render with the
-        // leftover sub-day offset, so the strip looks identical before/after.
+        // leftover sub-day offset (and target), so the strip looks pixel-for-
+        // pixel identical before/after — a silent buffer recentre, never a snap.
         const recentre = () => {
             const days = Math.round(cur / stepPx);
             if (days === 0) return;
             _calWeekWheelOffset = cur - days * stepPx;
+            _calWeekWheelTarget = target - days * stepPx;
             _calWeekWheelCommitting = true;
             calWeekShiftDays(days);
         };
 
         const tick = () => {
             if (gen !== _calWeekGen) return;
-            cur += (target - cur) * 0.25;
+            cur += (target - cur) * 0.3;
             if (Math.abs(target - cur) < 0.4) cur = target;
             draw();
             if (cur !== target) {
@@ -12624,25 +12629,31 @@
             if (!raw) return;
             e.preventDefault();
             if (_calWeekIdle) { clearTimeout(_calWeekIdle); _calWeekIdle = 0; }
-            recentreOnRest = false; // an active wheel cancels any pending settle
+            recentreOnRest = false; // an active wheel cancels any pending recentre
             target += raw * _CAL_WEEK_WHEEL_FACTOR;
             if (target > limit || target < -limit) {
-                // near the buffer edge — settle on the nearest day and recentre
-                // so a long continuous scroll gets a fresh runway.
-                target = Math.round(target / stepPx) * stepPx;
-                recentreOnRest = true;
-                animate();
-                return;
+                // Past the buffer's safe range — recentre now (carrying the
+                // residual + remaining target) so a long scroll keeps its runway
+                // without anything visibly jumping.
+                const days = Math.round(cur / stepPx);
+                if (days !== 0) {
+                    _calWeekWheelOffset = cur - days * stepPx;
+                    _calWeekWheelTarget = target - days * stepPx;
+                    _calWeekWheelCommitting = true;
+                    calWeekShiftDays(days);
+                    return;
+                }
+                target = Math.max(-limit, Math.min(limit, target));
             }
             animate();
-            // when the wheel goes quiet, ease to the nearest day and recentre
+            // When the wheel goes quiet, silently recentre the buffer in place
+            // (no snap, no visible move) so the cursor/label track what's shown.
             _calWeekIdle = setTimeout(() => {
                 if (gen !== _calWeekGen) return;
                 _calWeekIdle = 0;
-                target = Math.round(target / stepPx) * stepPx;
-                recentreOnRest = true;
-                animate();
-            }, 140);
+                if (_calWeekRaf) { recentreOnRest = true; } // wait for the glide to finish
+                else { recentre(); }
+            }, 160);
         }, { passive: false });
     }
 

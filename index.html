@@ -15272,7 +15272,7 @@
         // for the tweak — verify the edit was applied, then send to the client
         // (no Kasper re-review needed). SMM surface only.
         const aatBadge = (_reviewMode === 'smm' && _calShowApprovedAfterTweaks(p, comp))
-            ? `<span class="cal-review-aat-pill" title="Approved after tweaks — Kasper pre-cleared this for the client.">${checkIco}Approved after tweaks</span>`
+            ? `<span class="cal-review-aat-pill" title="No more tweaks needed — Kasper pre-cleared this for the client.">${checkIco}No More Tweaks</span>`
             : '';
         let approveControl = '';
         if (showApprove) {
@@ -15858,7 +15858,7 @@
     function _calAatBadgeHtml(post) {
         if (!post || !CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(post, c))) return '';
         const ico = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
-        return `<span class="cal-aat-badge" title="Approved after tweaks — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}Approved after tweaks</span>`;
+        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}No More Tweaks</span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
@@ -19051,7 +19051,7 @@
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';
         const aatChip = CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(p, c))
-            ? `<span class="kcard-aat-chip" title="Approved after tweaks — pre-cleared for the client"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>Approved after tweaks</span>`
+            ? `<span class="kcard-aat-chip" title="No more tweaks needed — pre-cleared for the client"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>No More Tweaks</span>`
             : '';
         const dateHtml = dateNice
             ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`

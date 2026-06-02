@@ -19855,21 +19855,16 @@
         }
     }
 
-    /* Explicit "Kasper is done with this card" dismissal — drops it from
-       the local queue without changing any status. Used when his decision
-       was a series of tweaks (already submitted as comments) and the work
-       belongs back with the editor/SMM. */
-    /* Done reviewing — Kasper's "I'm finished with this card" action.
-       Any component still at Kasper Approval (he didn't tweak it, he
-       didn't explicitly approve it) is treated as implicit approval on
-       his way out. Either way the card then leaves his review entirely:
-         • No unresolved tweaks → it was a clean approve, logged to
-           Approved history.
-         • Has unresolved tweaks → handed off to the SMM and recorded as
-           dismissed so a refresh (which re-fetches any card with an open
-           Kasper tweak) doesn't drag it back. It returns only if the SMM
-           sends a component back to Kasper Approval. See
-           _kasperKeepAfterDismiss / _kasperState.dismissed. */
+    /* "Finish reviewing" — Kasper's explicit "I'm done with this card" exit.
+       The button is disabled until every component has an explicit decision
+       (approve or request a change); a comment does NOT count, so a card he
+       has only commented on can't be finished and stays in his queue. There is
+       NO implicit approval and NO status write here:
+         • No unresolved tweaks → he approved everything → logged to Approved.
+         • Has unresolved tweaks → handed off to the SMM, recorded as dismissed
+           (+ last-seen stamp) so a refresh doesn't drag it back. It returns
+           only when the SMM re-routes a component to Kasper Approval or replies
+           in the thread. See _kasperKeepAfterDismiss / _kasperState.dismissed. */
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;

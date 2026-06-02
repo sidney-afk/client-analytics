@@ -2764,6 +2764,15 @@
         .cal-comments-head-text p { margin: 0; font-size: 0.74rem; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-comments-close { width: 28px; height: 28px; border-radius: 50%; border: none; background: var(--bg); font-size: 1.2rem; line-height: 1; cursor: pointer; color: var(--text-muted); flex-shrink: 0; }
         .cal-comments-close:hover { background: var(--border); color: var(--text-primary); }
+        /* History (resolved) toggle, top-right next to close. */
+        .cal-comments-hist { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 9px; border-radius: 99px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; flex-shrink: 0; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+        .cal-comments-hist:hover { background: var(--bg); color: var(--text-primary); }
+        .cal-comments-hist.is-active { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
+        .cal-comments-hist svg { width: 14px; height: 14px; }
+        .cal-comments-hist-count { font-size: 0.68rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+        /* Bare internal lock icon on a row (no text). */
+        .cal-cm-lock { display: inline-flex; align-items: center; color: #8b5cf6; flex-shrink: 0; }
+        .cal-cm-lock svg { width: 12px; height: 12px; }
         .cal-comments-feed { flex: 1; overflow-y: auto; padding: 8px 0 0; display: flex; flex-direction: column; background: var(--white); }
         .cal-comments-feed-inner { display: flex; flex-direction: column; padding: 8px 4px 14px; flex: 1; }
         .cal-comments-empty { font-size: 0.84rem; color: var(--text-muted); padding: 36px 24px; text-align: center; line-height: 1.5; }
@@ -2780,7 +2789,7 @@
         .cal-cm-avatar.is-smm { background: linear-gradient(135deg, #4f46e5, #7c3aed); }
         .cal-cm-avatar.is-client { background: linear-gradient(135deg, #16a34a, #059669); }
         .cal-cm-body-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .cal-cm-head-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; line-height: 1.3; }
+        .cal-cm-head-line { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; line-height: 1.3; }
         .cal-cm-comp-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 0.62rem;
             font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: #fff; flex-shrink: 0; align-self: center; }
         .cal-cm-comp-badge.cal-cm-comp-video   { background: #06b6d4; }
@@ -15967,6 +15976,14 @@
         const ta = document.getElementById('calCommentComposer');
         if (ta && !_calReplyTarget) ta.placeholder = _calComposeIsTweak ? 'Describe the change you need…' : _calComposePlaceholder('client');
     }
+    /* Resolved (done) change-requests are history — hidden from the live feed
+       until the user opens the history toggle (top-right of the modal). */
+    let _calShowResolved = false;
+    function _calToggleShowResolved() {
+        _calShowResolved = !_calShowResolved;
+        _calCaptureModalDrafts();
+        _calRenderCommentsModal();
+    }
     /* Composer prompt that names the recipient, so picking the toggle visibly
        changes who you're writing to. */
     function _calComposePlaceholder(role) {
@@ -16229,6 +16246,7 @@
         _calRootDraft = '';
         _calComposeAudience = 'internal';   // safe default each open
         _calComposeIsTweak = false;         // default to a plain comment
+        _calShowResolved = false;           // start on the live feed, not history
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         const ovl = document.getElementById('calCommentsOverlay');
         if (!ovl) return;
@@ -16285,6 +16303,10 @@
         });
         // Sort all roots chronologically across components.
         compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        // Resolved threads (done change-requests) are history — hidden from the
+        // live feed unless the user opens history via the top-right icon.
+        const resolvedCount = compThreads.filter(e => e.root.done).length;
+        const visibleThreads = _calShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
         const postName = _calEsc(post.name || 'Untitled post');
 
         const renderRow = (c, isReply, comp) => {
@@ -16292,17 +16314,14 @@
             const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
-            // Which deliverable, shown as a small colour dot (tooltip names it)
-            // instead of a full text badge — far less visual noise per row.
+            // Which deliverable, shown as a small colour dot (tooltip names it).
             const compDot = (!isReply && comp) ? `<span class="cal-cm-comp-dot cal-cm-comp-${comp}" title="${_calEsc(COMP_LABELS[comp])}"></span>` : '';
-            // Only the internal (hidden-from-client) state is tagged — a row
-            // with no lock is client-visible by default. Less to read; the lock
-            // is the signal that matters.
-            const audTag = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
-                ? `<span class="cal-cm-aud-tag is-internal" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>Internal</span>`
+            // Internal threads get a bare lock icon — no word. No lock = the
+            // client can see it.
+            const lock = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
+                ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
                 : '';
-            // Only change-requests get a tag — a comment is the unmarked default,
-            // so most rows carry no type tag at all.
+            // Only change-requests get a tag — sits right after the name.
             const typeTag = (!isReply && _calMsgIsTweak(c))
                 ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
                 : '';
@@ -16310,10 +16329,10 @@
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
-                        ${compDot}
-                        ${typeTag}
-                        ${audTag}
                         <span class="cal-cm-author">${_calEsc(author)}</span>
+                        ${typeTag}
+                        ${lock}
+                        ${compDot}
                         <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
                         ${doneTag}
                     </div>
@@ -16330,19 +16349,28 @@
                 ${replies.map(r => renderRow(r, true, entry.comp)).join('')}
             </div>`;
         };
-        const roots = compThreads;
+        const roots = visibleThreads;
         const comments = videoComments;
 
-        const feedHtml = roots.length
-            ? roots.map(renderThread).join('')
-            : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
+        const emptyMsg = _calShowResolved
+            ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
+            : (resolvedCount
+                ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>`
+                : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
+        const feedHtml = roots.length ? roots.map(renderThread).join('') : emptyMsg;
+
+        // History toggle (top-right): hidden unless there's something resolved.
+        const histBtn = resolvedCount
+            ? `<button class="cal-comments-hist${_calShowResolved ? ' is-active' : ''}" type="button" onclick="_calToggleShowResolved()" title="${_calShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_calShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>`
+            : '';
 
         modal.innerHTML = `
             <div class="cal-comments-head">
                 <div class="cal-comments-head-text">
-                    <h3 id="calCommentsTitle">Notes</h3>
+                    <h3 id="calCommentsTitle">${_calShowResolved ? 'Resolved' : 'Notes'}</h3>
                     <p>${postName}</p>
                 </div>
+                ${histBtn}
                 <button class="cal-comments-close" type="button" onclick="closeCalComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
             <div class="cal-comments-feed" id="calCommentsFeed">

@@ -2741,11 +2741,11 @@
         .cal-comments-btn.has-open svg { opacity: 1; color: #c2410c; }
         .cal-comments-btn.has-open:hover { background: #fff5e6; }
         .cal-comments-btn.has-open .cal-comments-count {
-            display: inline-flex; align-items: center; justify-content: center;
-            min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px;
-            background: #ea580c; color: #fff; font-size: 0.62rem; font-weight: 700;
-            font-variant-numeric: tabular-nums; letter-spacing: 0;
-            line-height: 1; box-sizing: border-box;
+            display: inline-block; min-width: 16px; height: 16px; padding: 0 4px;
+            border-radius: 99px; background: #ea580c; color: #fff;
+            font-size: 0.62rem; font-weight: 700; font-variant-numeric: tabular-nums;
+            letter-spacing: 0; line-height: 16px; text-align: center;
+            box-sizing: border-box; vertical-align: middle;
         }
 
         /* Slack/Discord-style continuous feed. Conversation and composer
@@ -2806,6 +2806,11 @@
         .cal-cm-aud-tag svg { width: 9px; height: 9px; }
         .cal-cm-aud-tag.is-internal { background: rgba(124,58,237,0.12); color: #6d28d9; }
         .cal-cm-aud-tag.is-client { background: rgba(22,163,74,0.12); color: #15803d; }
+        /* Tweak vs comment tag on each thread root. */
+        .cal-cm-type-tag { display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 5px; }
+        .cal-cm-type-tag.is-tweak { background: rgba(234,88,12,0.12); color: #c2410c; }
+        .cal-cm-type-tag.is-comment { background: var(--bg-muted, #f1f1f2); color: var(--text-secondary, #6b6b6b); }
         .cal-cm-aud-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
         .cal-cm-aud-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white);
             border: 0; border-right: 1px solid var(--border); color: var(--text-secondary, #6b6b6b);
@@ -16168,11 +16173,20 @@
                     ? `<span class="cal-cm-aud-tag is-internal" title="Team only — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>Internal</span>`
                     : `<span class="cal-cm-aud-tag is-client" title="Shared with the client">Client</span>`)
                 : '';
+            // Tweak vs comment — so it's clear at a glance whether this thread
+            // is a change request (moves the card to Tweaks Needed) or just a
+            // conversation. Shown on the root of each thread.
+            const typeTag = !isReply
+                ? (_calMsgIsTweak(c)
+                    ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
+                    : `<span class="cal-cm-type-tag is-comment" title="Comment — no status change">Comment</span>`)
+                : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
                         ${compBadge}
+                        ${typeTag}
                         ${audTag}
                         <span class="cal-cm-author">${_calEsc(author)}</span>
                         <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>

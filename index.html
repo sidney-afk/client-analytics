@@ -3229,11 +3229,10 @@
         /* "Approved after tweaks" chip on the Kasper queue card (green sibling
            of the orange tweaks chip). */
         .kcard-aat-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
-        /* Card-level badge to the right of the Tweaks pill (organizer/calendar).
-           Two-line layout: check icon vertically centred, label stacked. */
-        .cal-aat-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.74rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 5px 11px; border-radius: 10px; line-height: 1.15; }
-        .cal-aat-badge svg { width: 13px; height: 13px; flex-shrink: 0; }
-        .cal-aat-badge-txt { display: block; }
+        /* Card-level badge to the right of the Tweaks pill (organizer/calendar). */
+        .cal-foot-tweaks { display: inline-flex; align-items: center; gap: 7px; }
+        .cal-aat-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.72rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
+        .cal-aat-badge svg { width: 11px; height: 11px; flex-shrink: 0; }
         .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .kcard-watch-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; text-decoration: none; }
         .kcard-watch-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
@@ -15301,7 +15300,7 @@
         // for the tweak — verify the edit was applied, then send to the client
         // (no Kasper re-review needed). SMM surface only.
         const aatBadge = (_reviewMode === 'smm' && _calShowApprovedAfterTweaks(p, comp))
-            ? `<span class="cal-review-aat-pill" title="Approved after tweaks — Kasper pre-cleared this for the client.">${checkIco}Approved after tweaks</span>`
+            ? `<span class="cal-review-aat-pill" title="No more tweaks needed — Kasper pre-cleared this for the client.">${checkIco}No More Tweaks</span>`
             : '';
         let approveControl = '';
         if (showApprove) {
@@ -15887,24 +15886,27 @@
     function _calAatBadgeHtml(post) {
         if (!post || !CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(post, c))) return '';
         const ico = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
-        return `<span class="cal-aat-badge" title="Approved after tweaks — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}<span class="cal-aat-badge-txt">Approved<br>after tweaks</span></span>`;
+        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}No More Tweaks</span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
         const cls  = open > 0 ? ' has-open' : '';
         const tip  = open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Tweaks';
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Tweaks</span><span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}`;
+        // Tweaks pill + "Approved after tweaks" badge are kept in one left-
+        // aligned group so the badge sits right next to the pill (the footer is
+        // space-between, which would otherwise fling the badge to the far right).
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Tweaks</span><span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
-        const btn = document.querySelector(`.cal-comments-btn[data-comments-btn="${sel}"]`);
-        if (!btn) return;
+        const wrap = document.querySelector(`.cal-foot-tweaks[data-comments-wrap="${sel}"]`);
+        if (!wrap) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const tmp = document.createElement('div');
         tmp.innerHTML = _calCommentsBtnHtml(post, pid);
-        btn.replaceWith(tmp.firstElementChild);
+        wrap.replaceWith(tmp.firstElementChild);
     }
 
     function openCalComments(pid) {
@@ -19077,7 +19079,7 @@
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';
         const aatChip = CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(p, c))
-            ? `<span class="kcard-aat-chip" title="Approved after tweaks — pre-cleared for the client"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>Approved after tweaks</span>`
+            ? `<span class="kcard-aat-chip" title="No more tweaks needed — pre-cleared for the client"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>No More Tweaks</span>`
             : '';
         const dateHtml = dateNice
             ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`

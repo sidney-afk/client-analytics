@@ -2786,6 +2786,10 @@
         .cal-cm-comp-badge.cal-cm-comp-video   { background: #06b6d4; }
         .cal-cm-comp-badge.cal-cm-comp-graphic { background: #d946ef; }
         .cal-cm-comp-badge.cal-cm-comp-caption { background: #f59e0b; }
+        .cal-cm-comp-dot { display: inline-block; width: 7px; height: 7px; border-radius: 99px; flex-shrink: 0; }
+        .cal-cm-comp-dot.cal-cm-comp-video   { background: #06b6d4; }
+        .cal-cm-comp-dot.cal-cm-comp-graphic { background: #d946ef; }
+        .cal-cm-comp-dot.cal-cm-comp-caption { background: #f59e0b; }
         .cal-cm-author { font-weight: 800; color: var(--text-primary); font-size: 0.86rem; }
         .cal-cm-row.is-reply .cal-cm-author { font-size: 0.8rem; }
         .cal-cm-time { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
@@ -2914,6 +2918,9 @@
         .kasper-replies-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .kasper-replies-read { flex-shrink: 0; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 7px; padding: 6px 11px; font-family: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background 0.12s, color 0.12s; }
         .kasper-replies-read:hover { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); }
+        .kasper-replies-open { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; text-decoration: none; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 7px; padding: 6px 11px; font-size: 0.76rem; font-weight: 600; transition: background 0.12s, color 0.12s; }
+        .kasper-replies-open:hover { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); }
+        .kasper-replies-open svg { width: 13px; height: 13px; }
         .kasper-replies-thread { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
         .kasper-replies-compose { margin-top: 10px; }
         /* New (unseen) message highlight in a thread. */
@@ -15937,15 +15944,28 @@
        client unless it's deliberately shared. Resets each time the modal opens.
        Replies don't use this — they inherit their thread root's audience. */
     let _calComposeAudience = 'internal';
+    /* Whether the NEXT new root the CLIENT sends is a change request (→ Tweaks
+       Needed) or a plain comment (no status change). Defaults to comment, so a
+       reply or a question never moves the status. SMM modal posts are always
+       comments (they request changes from the review panel). Resets on open. */
+    let _calComposeIsTweak = false;
     function _calSetComposeAudience(val) {
         _calComposeAudience = (val === 'client') ? 'client' : 'internal';
-        const seg = document.querySelector('.cal-cm-audience');
+        const seg = document.querySelector('[data-cm-toggle="audience"]');
         if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
             b.classList.toggle('is-active', b.dataset.aud === _calComposeAudience));
         // Keep the composer prompt in sync so it's obvious who the message
         // goes to as the toggle flips.
         const ta = document.getElementById('calCommentComposer');
         if (ta && !_calReplyTarget) ta.placeholder = _calComposePlaceholder('smm');
+    }
+    function _calSetComposeIsTweak(val) {
+        _calComposeIsTweak = !!val;
+        const seg = document.querySelector('[data-cm-toggle="tweak"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
+            b.classList.toggle('is-active', (b.dataset.tweak === '1') === _calComposeIsTweak));
+        const ta = document.getElementById('calCommentComposer');
+        if (ta && !_calReplyTarget) ta.placeholder = _calComposeIsTweak ? 'Describe the change you need…' : _calComposePlaceholder('client');
     }
     /* Composer prompt that names the recipient, so picking the toggle visibly
        changes who you're writing to. */
@@ -16208,6 +16228,7 @@
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
         _calRootDraft = '';
         _calComposeAudience = 'internal';   // safe default each open
+        _calComposeIsTweak = false;         // default to a plain comment
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         const ovl = document.getElementById('calCommentsOverlay');
         if (!ovl) return;
@@ -16271,27 +16292,25 @@
             const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
-            const compBadge = (!isReply && comp) ? `<span class="cal-cm-comp-badge cal-cm-comp-${comp}">${_calEsc(COMP_LABELS[comp])}</span>` : '';
-            // Internal vs shared tag on each root — only the team (SMM/Casper)
-            // needs it; the client's feed is all-shared, so it'd just be noise.
-            const audTag = (!isReply && !_isClientLink)
-                ? (_calMsgAudience(c) === 'internal'
-                    ? `<span class="cal-cm-aud-tag is-internal" title="Team only — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>Internal</span>`
-                    : `<span class="cal-cm-aud-tag is-client" title="Shared with the client">Client</span>`)
+            // Which deliverable, shown as a small colour dot (tooltip names it)
+            // instead of a full text badge — far less visual noise per row.
+            const compDot = (!isReply && comp) ? `<span class="cal-cm-comp-dot cal-cm-comp-${comp}" title="${_calEsc(COMP_LABELS[comp])}"></span>` : '';
+            // Only the internal (hidden-from-client) state is tagged — a row
+            // with no lock is client-visible by default. Less to read; the lock
+            // is the signal that matters.
+            const audTag = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
+                ? `<span class="cal-cm-aud-tag is-internal" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>Internal</span>`
                 : '';
-            // Tweak vs comment — so it's clear at a glance whether this thread
-            // is a change request (moves the card to Tweaks Needed) or just a
-            // conversation. Shown on the root of each thread.
-            const typeTag = !isReply
-                ? (_calMsgIsTweak(c)
-                    ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
-                    : `<span class="cal-cm-type-tag is-comment" title="Comment — no status change">Comment</span>`)
+            // Only change-requests get a tag — a comment is the unmarked default,
+            // so most rows carry no type tag at all.
+            const typeTag = (!isReply && _calMsgIsTweak(c))
+                ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
                 : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
-                        ${compBadge}
+                        ${compDot}
                         ${typeTag}
                         ${audTag}
                         <span class="cal-cm-author">${_calEsc(author)}</span>
@@ -16394,7 +16413,7 @@
         // root's audience, so the toggle only shows on a fresh root; the client
         // has no toggle (everything they post is shared with them by nature).
         const audienceToggle = (!isReply && role !== 'client')
-            ? `<div class="cal-cm-audience" role="group" aria-label="Who can see this note">
+            ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
                 <div class="cal-cm-aud-seg">
                     <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only — you and Casper. The client never sees it.">${lockIco}Casper / team</button>
@@ -16402,10 +16421,22 @@
                 </div>
             </div>`
             : '';
+        // Client picks comment vs change request. Default comment, so a reply or
+        // a question never flips the post to Tweaks Needed.
+        const changeToggle = (!isReply && role === 'client')
+            ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request">
+                <span class="cal-cm-audience-cap">This is a…</span>
+                <div class="cal-cm-aud-seg">
+                    <button type="button" class="cal-cm-aud-btn${!_calComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_calSetComposeIsTweak(false)" title="A comment or question — won't change the status">Comment</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_calSetComposeIsTweak(true)" title="Request a change — moves the post to Tweaks Needed">Request a change</button>
+                </div>
+            </div>`
+            : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         return `<div class="cal-cm-composer-wrap">
             ${replyingTo}
             ${audienceToggle}
+            ${changeToggle}
             <div class="cal-cm-composer">
                 <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="calCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_calOnComposerInput(this)" onkeydown="_calOnComposerKey(event)">${_calEsc(draft)}</textarea>
@@ -16485,24 +16516,24 @@
             done_at: '',
             done_by: ''
         };
-        // Audience + type live on the thread root; replies inherit them via the
-        // root (the view filter resolves a reply's audience from its root). A
-        // note from the Notes modal is a conversation message, not a change
-        // request (is_tweak:false) — EXCEPT a client message, which historically
-        // flips the component to Tweaks Needed (see auto-status below), so it
-        // stays a tweak. The SMM picks the audience; a client is always 'client'.
+        // Audience + type live on the thread ROOT; replies inherit them via the
+        // root (the view filter resolves a reply's audience from its root), and a
+        // reply is NEVER a change request. For a root: the SMM picks audience and
+        // always posts a plain comment (they request changes from the review
+        // panel); the client posts a comment by default and only flips status
+        // when they explicitly pick "Request a change".
         if (isRoot) {
             msg.audience = (role === 'client') ? 'client' : _calComposeAudience;
-            msg.is_tweak = (role === 'client');
+            msg.is_tweak = (role === 'client') ? _calComposeIsTweak : false;
         }
         arr.push(msg);
         _calSetCommentsFor(post, comp, arr);
         if (comp === 'video') post.comments = arr;
         const fieldKey = comp + '_tweaks';
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(arr) });
-        // Auto-status: any tweak from the client flips that component's
-        // sub-status to Tweaks Needed so it's actionable in the workload view.
-        if (role === 'client') _calApplyAutoStatus(pid, 'client_added', comp);
+        // Only a client's explicit change-REQUEST root flips status — a plain
+        // comment or any reply leaves the status untouched.
+        if (isRoot && role === 'client' && msg.is_tweak) _calApplyAutoStatus(pid, 'client_added', comp);
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
@@ -18914,8 +18945,8 @@
         const threadHtml = msgs.map(m => {
             const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
             const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
-            const typeTag = !m.parent_id
-                ? `<span class="cal-cm-type-tag ${_calMsgIsTweak(m) ? 'is-tweak">Tweak' : 'is-comment">Comment'}</span>`
+            const typeTag = (!m.parent_id && _calMsgIsTweak(m))
+                ? `<span class="cal-cm-type-tag is-tweak">Tweak</span>`
                 : '';
             return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isNew ? ' is-new' : ''}">
                 <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
@@ -18924,6 +18955,7 @@
         }).join('');
         const draft = item._replyDraft || '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
@@ -18931,6 +18963,7 @@
                     <div class="kasper-replies-client">${_calEsc(item.client)}</div>
                     <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
                 </div>
+                <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
                 <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your replies">Mark as read</button>
             </div>
             <div class="kasper-replies-thread">${threadHtml || '<div class="cal-review-comment-empty">No messages.</div>'}</div>

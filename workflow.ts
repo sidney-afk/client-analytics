@@ -6,7 +6,7 @@ const TOP_VIDEOS_JSON_URL = 'https://raw.githubusercontent.com/sidney-afk/client
 const matchTopReelCode = `
 // TEST_CLIENT_FILTER: limit to specific clients for cheap testing.
 // Set to [] (empty array) to process ALL clients (production mode).
-const TEST_CLIENT_FILTER = ['Chelsey Scaffidi'];
+const TEST_CLIENT_FILTER = [];
 
 const allClients = $('Read Clients Info').all().map(i => i.json);
 const clients = TEST_CLIENT_FILTER.length > 0

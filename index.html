@@ -15972,7 +15972,10 @@
             const list = _calCommentsForView(post, c);
             if (!Array.isArray(list) || !list.length) continue;
             for (const root of _calCommentRoots(list)) {
-                if (!root.done) n++;
+                // Count only open change-requests (tweaks). A plain comment is
+                // a conversation, not an open task, so it never adds to the
+                // "N open" badge and isn't something to resolve.
+                if (_calMsgIsTweak(root) && !root.done) n++;
             }
         }
         return n;
@@ -15984,7 +15987,11 @@
     function _calCompHasUnresolvedKasperTweak(post, comp) {
         const list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return false;
-        return list.some(x => x && x.role === 'kasper' && !x.done && !x.deleted);
+        // Only actual change-requests count — a plain Kasper comment (is_tweak
+        // false) is discussion, not a tweak, so it must not masquerade as one
+        // here (otherwise it inflates the tweak chip, lands the card in the
+        // "tweaks pending" partition, and routes Finish as a hand-off).
+        return list.some(x => x && x.role === 'kasper' && _calMsgIsTweak(x) && !x.done && !x.deleted);
     }
     /* Per-component visibility on the Kasper review queue. A panel
        only shows when (a) the component's sub-status is still at
@@ -16023,19 +16030,15 @@
         }
         return max;
     }
-    /* Components Kasper still owes a decision on: at Kasper Approval with no
-       message from him yet. Approving moves the component past Kasper Approval
-       and requesting a change flips it to Tweaks Needed — both clear the block.
-       A comment also clears it: it parks the component as "waiting on the SMM"
-       rather than leaving it undecided. So "Finish reviewing" is enabled only
-       once every component has had an explicit action — no implicit approval,
-       and the end state never depends on the order he clicked. */
+    /* Components Kasper still owes a DECISION on: anything still at Kasper
+       Approval. Only an explicit decision clears it — approving (moves it past
+       Kasper Approval) or requesting a change (flips it to Tweaks Needed). A
+       comment does NOT count: it's just a question, the component is still
+       genuinely pending his call, so the card stays in his queue (never
+       finished into limbo) until he actually decides — typically after the SMM
+       answers. This is what keeps "Finish reviewing" honest and order-proof. */
     function _kasperUndecidedComps(post) {
-        return CAL_COMPONENTS.filter(c => {
-            if (_calNormStatus(post[c + '_status'] || '') !== 'Kasper Approval') return false;
-            const list = _calCommentsFor(post, c);
-            return !(Array.isArray(list) && list.some(x => x && x.role === 'kasper' && !x.deleted));
-        });
+        return CAL_COMPONENTS.filter(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -16232,7 +16235,9 @@
         // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
         const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply('${rootId}')" title="Reply">${replyIco}<span>Reply</span></button>`;
-        const doneBtn  = (!isReply && _calCanResolveComment())
+        // Resolve toggle is only meaningful on a change-request (tweak). A plain
+        // comment is a conversation, not a task, so it gets no "Mark done".
+        const doneBtn  = (!isReply && _calCanResolveComment() && _calMsgIsTweak(c))
             ? (c.done
                 ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Reopen">${undoIco}<span>Reopen</span></button>`
                 : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
@@ -16423,7 +16428,9 @@
         // Cross-component thread state is irrelevant — the caption being
         // approved shouldn't block a video resolution from moving forward.
         if (!wasDone && _calCommentRole() === 'smm') {
-            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted).length;
+            // Only open change-requests gate the advance — a lingering plain
+            // comment must not hold the component back (it's just discussion).
+            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
             if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
         }
         _calFlushCardSave(pid);
@@ -16458,7 +16465,9 @@
         const target = arr.find(c => c.id === commentId);
         if (!target || !_calCanDeleteComment(target)) return;
         const isRoot = !target.parent_id;
-        const wasOpenRoot = isRoot && !target.done;
+        // Only an open change-request gates the auto-advance — deleting a plain
+        // comment must never move the component's status.
+        const wasOpenRoot = isRoot && !target.done && _calMsgIsTweak(target);
         const msg = isRoot
             ? "This deletes the message and every reply in this thread. This can't be undone."
             : "Delete this reply? This can't be undone.";
@@ -16482,7 +16491,7 @@
             // Per-component: SMM deleting the last open thread for this
             // component flips that component to Client Approval.
             if (wasOpenRoot && _calCommentRole() === 'smm') {
-                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted).length;
+                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
                 if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
             }
             _calFlushCardSave(pid);
@@ -19088,15 +19097,15 @@
         //     thread he left open). A component parked at Kasper Approval purely
         //     because Kasper commented on it is NOT a fresh ask, so it stays
         //     dismissed until the SMM actually responds.
-        const freshAsk = CAL_COMPONENTS.some(c => {
-            if (_calNormStatus(post[c + '_status'] || '') !== 'Kasper Approval') return false;
-            const list = _calCommentsFor(post, c);
-            return !(Array.isArray(list) && list.some(x => x && x.role === 'kasper' && !x.deleted));
-        });
+        // A dismissed card has no component at Kasper Approval at dismiss time
+        // (Finish is blocked otherwise), so any component back at Kasper
+        // Approval now is a genuine fresh ask from the SMM. It also returns if
+        // the SMM replied in the thread since he finished.
+        const backToKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
         const latest = _calLatestMsgAt(post);
         const seenAt = _kasperGetSeenAt(post.id);
         const newReply = latest && (!seenAt || latest > seenAt);
-        if (freshAsk || newReply) { delete _kasperState.dismissed[post.id]; return true; }
+        if (backToKasper || newReply) { delete _kasperState.dismissed[post.id]; return true; }
         return false;
     }
     function _kasperPartitionItems(items) {
@@ -19305,7 +19314,7 @@
         const canFinish = undecidedComps.length === 0;
         const finishTitle = canFinish
             ? 'Finish reviewing — remove this card from your queue. Approved components go to the client; change requests go to the SMM; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
-            : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change (a comment also counts) to finish.';
+            : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish. (A comment is just a question; it doesn\'t count as a decision.)';
         const doneBtn = `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
@@ -19870,14 +19879,13 @@
         // message from him is undecided and blocks finishing.
         if (_kasperUndecidedComps(post).length) return;
         _kasperInvalidateInFlightLoad();
-        // Finish changes NO status — each component already holds Kasper's
-        // explicit decision (approved earlier → Client Approval; change
-        // requested → Tweaks Needed; commented → still Kasper Approval, parked).
-        // So there's nothing to persist here; we only route the card out of his
-        // active queue and record where it went.
-        const anyCommentWait = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        // Finish writes NO status (each component already holds its explicit
+        // decision: approved → Client Approval, or change requested → Tweaks
+        // Needed) and persists nothing. Because the guard above blocks finishing
+        // while anything is still at Kasper Approval, there are no "parked
+        // comment" components to worry about here.
         const anyTweak = _calPostHasUnresolvedKasperTweak(post);
-        if (!anyCommentWait && !anyTweak) {
+        if (!anyTweak) {
             // Clean approve: he approved everything, nothing outstanding.
             const finalStamp = post.kasper_approved_at || new Date().toISOString();
             const entry = _kasperHistoryEntryFromPost(post, item.client, item.slug, finalStamp);
@@ -19885,13 +19893,11 @@
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // Outstanding change requests (handed to the SMM) and/or open
-            // comment threads (waiting on the SMM's reply). Leaves the active
-            // queue; we stamp the last-seen message time and record the
-            // dismissal so a refresh doesn't drag it back. It returns when the
-            // SMM re-routes a component to Kasper Approval or replies in a
-            // thread (see _kasperKeepAfterDismiss). Not logged as Approved —
-            // it isn't approved, it's handed off / waiting.
+            // Outstanding change requests, handed to the SMM. Stamp the
+            // last-seen message time and record the dismissal so a refresh
+            // doesn't drag it back; it returns when the SMM re-routes a
+            // component to Kasper Approval or replies in the thread (see
+            // _kasperKeepAfterDismiss). Not logged as Approved — it's a hand-off.
             _kasperMarkSeenAt(pid, _calLatestMsgAt(post));
             _kasperState.dismissed[pid] = true;
             _kasperPersistCache();

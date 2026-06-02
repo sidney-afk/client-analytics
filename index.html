@@ -3288,7 +3288,8 @@
             border: 1px solid var(--border); border-radius: 9px;
             font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
             transition: background 0.15s, color 0.15s, border-color 0.15s; }
-        .kcard-done-btn:hover { background: #f0fdf4; color: #166534; border-color: #86efac; }
+        .kcard-done-btn:hover:not(:disabled) { background: #f0fdf4; color: #166534; border-color: #86efac; }
+        .kcard-done-btn:disabled { opacity: 0.4; cursor: default; }
         .kcard-done-btn svg { width: 13px; height: 13px; }
         .kcard-expand-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
         .kcard-expand-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
@@ -14994,6 +14995,27 @@
         try { localStorage.setItem(CAL_KASPER_SEEN_KEY, JSON.stringify([..._calKasperSeen])); } catch {}
     }
     function _calWasKasperSeen(pid, comp) { return _calKasperSeen.has(_calKasperSeenKey(pid, comp)); }
+    /* Per-card "last message Kasper had seen" timestamp (local, per-device).
+       Distinct from the boolean _calKasperSeen above: this records WHEN he last
+       caught up on a card's conversation, so we can tell whether the SMM has
+       replied since. Used by _kasperKeepAfterDismiss (don't drag a finished
+       comment-thread card back until there's a genuine new reply) and, next,
+       by the Replies tab / unread badges (phase 3D). */
+    const KASPER_SEEN_AT_KEY = 'syncview_kasper_seen_at_v1';
+    let _kasperSeenAtMap = null;
+    function _kasperLoadSeenAt() {
+        if (_kasperSeenAtMap) return _kasperSeenAtMap;
+        try { _kasperSeenAtMap = JSON.parse(localStorage.getItem(KASPER_SEEN_AT_KEY) || '{}') || {}; }
+        catch { _kasperSeenAtMap = {}; }
+        return _kasperSeenAtMap;
+    }
+    function _kasperGetSeenAt(pid) { return _kasperLoadSeenAt()[pid] || ''; }
+    function _kasperMarkSeenAt(pid, ts) {
+        if (!pid) return;
+        const m = _kasperLoadSeenAt();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(KASPER_SEEN_AT_KEY, JSON.stringify(m)); } catch {}
+    }
     // Record a component as Kasper-seen on the post's cross-device `kasper_seen`
     // column (a CSV of components), unioning with whatever's already there and
     // the local cache. Returns the new CSV so the caller can queue it for save.
@@ -15985,6 +16007,35 @@
        for the Done-reviewing button visibility and the card-stays rule. */
     function _calPostHasUnresolvedKasperTweak(post) {
         return CAL_COMPONENTS.some(c => _calCompHasUnresolvedKasperTweak(post, c));
+    }
+    /* Newest message timestamp across every component (ignores tombstones).
+       Used to detect "has anyone replied since Kasper last caught up?". */
+    function _calLatestMsgAt(post) {
+        let max = '';
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+    /* Components Kasper still owes a decision on: at Kasper Approval with no
+       message from him yet. Approving moves the component past Kasper Approval
+       and requesting a change flips it to Tweaks Needed — both clear the block.
+       A comment also clears it: it parks the component as "waiting on the SMM"
+       rather than leaving it undecided. So "Finish reviewing" is enabled only
+       once every component has had an explicit action — no implicit approval,
+       and the end state never depends on the order he clicked. */
+    function _kasperUndecidedComps(post) {
+        return CAL_COMPONENTS.filter(c => {
+            if (_calNormStatus(post[c + '_status'] || '') !== 'Kasper Approval') return false;
+            const list = _calCommentsFor(post, c);
+            return !(Array.isArray(list) && list.some(x => x && x.role === 'kasper' && !x.deleted));
+        });
     }
     function _calCommentTotal(post) {
         let n = 0;
@@ -19030,8 +19081,22 @@
        _calPostKasperVisible upstream and aren't fetched at all.) */
     function _kasperKeepAfterDismiss(post) {
         if (!post || !_kasperState.dismissed || !_kasperState.dismissed[post.id]) return true;
-        const backToKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
-        if (backToKasper) { delete _kasperState.dismissed[post.id]; return true; }
+        // A dismissed card comes back on a genuine fresh ask:
+        //   • a component is back at Kasper Approval that he has NOT commented on
+        //     (the SMM re-routed it to him) — a real new request; or
+        //   • a new message arrived since he finished (the SMM replied in a
+        //     thread he left open). A component parked at Kasper Approval purely
+        //     because Kasper commented on it is NOT a fresh ask, so it stays
+        //     dismissed until the SMM actually responds.
+        const freshAsk = CAL_COMPONENTS.some(c => {
+            if (_calNormStatus(post[c + '_status'] || '') !== 'Kasper Approval') return false;
+            const list = _calCommentsFor(post, c);
+            return !(Array.isArray(list) && list.some(x => x && x.role === 'kasper' && !x.deleted));
+        });
+        const latest = _calLatestMsgAt(post);
+        const seenAt = _kasperGetSeenAt(post.id);
+        const newReply = latest && (!seenAt || latest > seenAt);
+        if (freshAsk || newReply) { delete _kasperState.dismissed[post.id]; return true; }
         return false;
     }
     function _kasperPartitionItems(items) {
@@ -19229,16 +19294,19 @@
         const watchBtn = videoUrl
             ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
             : `<span class="kcard-watch-btn is-disabled" title="No video URL on this card"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
-        // "Done reviewing" — Kasper's explicit "I'm finished with this card"
-        // button. Only shown when there is at least one UNRESOLVED Kasper
-        // tweak on the card. Resolved (SMM-marked-done) tweaks don't count;
-        // approving a component doesn't count either (the auto-removal path
-        // handles that). Click drops the card from his queue, no status
-        // change — the tweaks are already in flight.
-        const hasUnresolvedKasperTweak = _calPostHasUnresolvedKasperTweak(p);
-        const doneBtn = hasUnresolvedKasperTweak
-            ? `<button type="button" class="kcard-done-btn" onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="Mark this card as done and remove it from your review. Components you haven't tweaked get implicit approval; any tweaks you left still go to the SMM. It only comes back if the SMM sends a component back to Kasper Approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Done reviewing</button>`
-            : '';
+        // "Finish reviewing" — Kasper's explicit "I'm done with this card"
+        // exit. Always shown, but enabled only once EVERY component has had an
+        // explicit action (approve / request change / comment). There is no
+        // implicit approval, so the end state can't depend on click order.
+        // Clicking it changes no status (each component already carries its
+        // decision): all-approved → logged Approved; any change request →
+        // handed to the SMM; any open comment → waiting on the SMM's reply.
+        const undecidedComps = _kasperUndecidedComps(p);
+        const canFinish = undecidedComps.length === 0;
+        const finishTitle = canFinish
+            ? 'Finish reviewing — remove this card from your queue. Approved components go to the client; change requests go to the SMM; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
+            : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change (a comment also counts) to finish.';
+        const doneBtn = `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -19796,54 +19864,35 @@
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
-        const saving = item._saving || (item._saving = { video: false, graphic: false, caption: false });
-        if (saving.video || saving.graphic || saving.caption) return;
-        _kasperInvalidateInFlightLoad();
         const post = item.post;
-        const prev = {};
-        const stamp = new Date().toISOString();
-        let touched = false;
-        CAL_COMPONENTS.forEach(c => {
-            const cs = _calNormStatus(post[c + '_status'] || '');
-            if (cs !== 'Kasper Approval') return;
-            prev[c + '_status'] = post[c + '_status'];
-            post[c + '_status'] = 'Client Approval';
-            touched = true;
-        });
-        if (touched) {
-            prev.status = post.status;
-            prev.kasper_approved_at = post.kasper_approved_at;
-            post.kasper_approved_at = post.kasper_approved_at || stamp;
-            post.status = computeOverallStatus(post);
-            // Use the video flag as a generic "card is saving" lock.
-            saving.video = true;
-            _kasperRepaintCard(pid);
-            try {
-                await _kasperPersistPost(item);
-            } catch (e) {
-                Object.assign(post, prev);
-                saving.video = false;
-                _kasperRepaintCard(pid);
-                return;
-            }
-            saving.video = false;
-        }
-        const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
-        const stillHasTweaks = _calPostHasUnresolvedKasperTweak(post);
-        if (!stillKasper && !stillHasTweaks) {
+        // Guard: every component must carry an explicit decision first. No
+        // implicit approval — a component still at Kasper Approval with no
+        // message from him is undecided and blocks finishing.
+        if (_kasperUndecidedComps(post).length) return;
+        _kasperInvalidateInFlightLoad();
+        // Finish changes NO status — each component already holds Kasper's
+        // explicit decision (approved earlier → Client Approval; change
+        // requested → Tweaks Needed; commented → still Kasper Approval, parked).
+        // So there's nothing to persist here; we only route the card out of his
+        // active queue and record where it went.
+        const anyCommentWait = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        const anyTweak = _calPostHasUnresolvedKasperTweak(post);
+        if (!anyCommentWait && !anyTweak) {
+            // Clean approve: he approved everything, nothing outstanding.
             const finalStamp = post.kasper_approved_at || new Date().toISOString();
             const entry = _kasperHistoryEntryFromPost(post, item.client, item.slug, finalStamp);
             _kasperRecordHistory(entry);
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // "Done reviewing" means Kasper is finished with the card —
-            // it leaves his view entirely, even with an unresolved tweak
-            // still riding along to the SMM. We record the dismissal so a
-            // refresh doesn't re-surface it (the fetch re-includes any card
-            // with an open Kasper tweak); it only comes back if the SMM
-            // sends a component back to Kasper Approval. It's NOT logged to
-            // Approved history — it isn't approved, it's handed off.
+            // Outstanding change requests (handed to the SMM) and/or open
+            // comment threads (waiting on the SMM's reply). Leaves the active
+            // queue; we stamp the last-seen message time and record the
+            // dismissal so a refresh doesn't drag it back. It returns when the
+            // SMM re-routes a component to Kasper Approval or replies in a
+            // thread (see _kasperKeepAfterDismiss). Not logged as Approved —
+            // it isn't approved, it's handed off / waiting.
+            _kasperMarkSeenAt(pid, _calLatestMsgAt(post));
             _kasperState.dismissed[pid] = true;
             _kasperPersistCache();
             _kasperRemoveItem(pid);

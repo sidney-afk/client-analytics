@@ -2737,15 +2737,20 @@
         .cal-comments-btn:hover svg { opacity: 1; }
         .cal-comments-btn .cal-comments-label { letter-spacing: 0; }
         .cal-comments-btn .cal-comments-count { display: none; }
+        /* Unread-replies dot — a new message the viewer hasn't opened yet. */
+        .cal-comments-dot { display: inline-block; width: 7px; height: 7px; border-radius: 99px;
+            background: #ea580c; flex-shrink: 0; }
+        .cal-comments-btn.has-unread { color: #c2410c; font-weight: 600; }
+        .cal-comments-btn.has-unread svg { opacity: 1; color: #c2410c; }
         .cal-comments-btn.has-open { color: #c2410c; font-weight: 600; }
         .cal-comments-btn.has-open svg { opacity: 1; color: #c2410c; }
         .cal-comments-btn.has-open:hover { background: #fff5e6; }
         .cal-comments-btn.has-open .cal-comments-count {
-            display: inline-flex; align-items: center; justify-content: center;
-            min-width: 15px; height: 15px; padding: 0 4px; border-radius: 99px;
-            background: #ea580c; color: #fff; font-size: 0.62rem; font-weight: 700;
-            font-variant-numeric: tabular-nums; letter-spacing: 0;
-            line-height: 1; box-sizing: border-box;
+            display: inline-block; min-width: 16px; height: 16px; padding: 0 4px;
+            border-radius: 99px; background: #ea580c; color: #fff;
+            font-size: 0.62rem; font-weight: 700; font-variant-numeric: tabular-nums;
+            letter-spacing: 0; line-height: 16px; text-align: center;
+            box-sizing: border-box; vertical-align: middle;
         }
 
         /* Slack/Discord-style continuous feed. Conversation and composer
@@ -2806,6 +2811,11 @@
         .cal-cm-aud-tag svg { width: 9px; height: 9px; }
         .cal-cm-aud-tag.is-internal { background: rgba(124,58,237,0.12); color: #6d28d9; }
         .cal-cm-aud-tag.is-client { background: rgba(22,163,74,0.12); color: #15803d; }
+        /* Tweak vs comment tag on each thread root. */
+        .cal-cm-type-tag { display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 5px; }
+        .cal-cm-type-tag.is-tweak { background: rgba(234,88,12,0.12); color: #c2410c; }
+        .cal-cm-type-tag.is-comment { background: var(--bg-muted, #f1f1f2); color: var(--text-secondary, #6b6b6b); }
         .cal-cm-aud-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
         .cal-cm-aud-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white);
             border: 0; border-right: 1px solid var(--border); color: var(--text-secondary, #6b6b6b);
@@ -2894,6 +2904,22 @@
         .kasper-subtab.active { background: var(--text-primary); color: var(--white); }
         .kasper-subtab .kasper-tab-count { background: rgba(255,255,255,0.18); color: inherit; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 99px; font-variant-numeric: tabular-nums; }
         .kasper-subtab:not(.active) .kasper-tab-count { background: var(--bg); color: var(--text-muted); }
+        /* Replies inbox */
+        .kasper-replies-list { display: flex; flex-direction: column; gap: 14px; }
+        .kasper-replies-card { border: 1px solid var(--border); border-radius: 12px; padding: 14px; background: var(--white); }
+        .kasper-replies-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+        .kasper-replies-thumb { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+        .kasper-replies-meta { flex: 1; min-width: 0; }
+        .kasper-replies-client { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; }
+        .kasper-replies-title { font-size: 0.95rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .kasper-replies-read { flex-shrink: 0; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); border-radius: 7px; padding: 6px 11px; font-family: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .kasper-replies-read:hover { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); }
+        .kasper-replies-thread { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+        .kasper-replies-compose { margin-top: 10px; }
+        /* New (unseen) message highlight in a thread. */
+        .cal-review-comment.is-new { background: rgba(234,88,12,0.07); border-left-color: #ea580c !important; border-radius: 0 6px 6px 0; padding-right: 8px; }
+        /* "New reply" chip on a review-queue card. */
+        .kcard-newreply-chip { display: inline-flex; align-items: center; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: rgba(234,88,12,0.12); color: #c2410c; }
         .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
         .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -15016,6 +15042,84 @@
         m[pid] = ts || new Date().toISOString();
         try { localStorage.setItem(KASPER_SEEN_AT_KEY, JSON.stringify(m)); } catch {}
     }
+    /* Per-card "I last opened this card's Notes" timestamp, for the unread dot
+       on the Notes button (SMM + client surfaces). Local/per-device — one map
+       per browser, which is fine since a browser is a single role (SMM, or
+       client via ?c). Opening the Notes modal stamps it to now, clearing the
+       dot. A card is "unread" when a message the viewer can see — and didn't
+       write themselves — is newer than that stamp. */
+    const NOTES_SEEN_KEY = 'syncview_notes_seen_v1';
+    let _notesSeenMap = null;
+    function _notesSeenLoad() {
+        if (_notesSeenMap) return _notesSeenMap;
+        try { _notesSeenMap = JSON.parse(localStorage.getItem(NOTES_SEEN_KEY) || '{}') || {}; }
+        catch { _notesSeenMap = {}; }
+        return _notesSeenMap;
+    }
+    function _notesGetSeen(pid) { return _notesSeenLoad()[pid] || ''; }
+    function _notesMarkSeen(pid, ts) {
+        if (!pid) return;
+        const m = _notesSeenLoad();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(NOTES_SEEN_KEY, JSON.stringify(m)); } catch {}
+    }
+    function _calHasUnreadNotes(post) {
+        if (!post) return false;
+        const myRole = _calCommentRole();           // 'smm' or 'client'
+        const seen = _notesGetSeen(post.id);
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsForView(post, c); // respects client visibility
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue; // skip my own
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    /* Kasper's view of unread: a message he didn't write, on one of HIS
+       internal threads (audience 'internal'), newer than the last time he
+       caught up on this card. Drives the Replies inbox + the "New reply" pill.
+       Replies inherit their root's audience, so we resolve each message's root
+       to decide whether it's part of an internal conversation. */
+    function _kasperHasUnreadReply(post) {
+        if (!post) return false;
+        const seen = _kasperGetSeenAt(post.id);
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === 'kasper') continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    /* Component owning the most recent internal message — where a Kasper reply
+       from the Replies inbox should land so the conversation stays together. */
+    function _kasperLatestInternalComp(post) {
+        let best = null, bestT = '';
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > bestT) { bestT = t; best = c; }
+            }
+        }
+        return best;
+    }
     // Record a component as Kasper-seen on the post's cross-device `kasper_seen`
     // column (a CSV of components), unioning with whatever's already there and
     // the local cache. Returns the new CSV so the caller can queue it for save.
@@ -16075,13 +16179,15 @@
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
-        const cls  = open > 0 ? ' has-open' : '';
-        const tip  = open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Tweaks';
+        const unread = _calHasUnreadNotes(post);
+        const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
+        const tip  = unread ? 'New replies — open Notes'
+                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
         // space-between, which would otherwise fling the badge to the far right).
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span><span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -16102,6 +16208,7 @@
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
         _calRootDraft = '';
         _calComposeAudience = 'internal';   // safe default each open
+        _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         const ovl = document.getElementById('calCommentsOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -16120,8 +16227,12 @@
         const ovl = document.getElementById('calCommentsOverlay');
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');
+        const pid = _calOpenCommentsPid;
         _calOpenCommentsPid = null;
         _calReplyTarget = null;
+        // Caught up while it was open — re-stamp seen and refresh the button so
+        // the unread dot clears immediately.
+        if (pid) { _notesMarkSeen(pid); _calRefreshCommentsBtn(pid); }
     }
     function _calCaptureModalDrafts() {
         const root = document.getElementById('calCommentsModal');
@@ -16168,11 +16279,20 @@
                     ? `<span class="cal-cm-aud-tag is-internal" title="Team only — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>Internal</span>`
                     : `<span class="cal-cm-aud-tag is-client" title="Shared with the client">Client</span>`)
                 : '';
+            // Tweak vs comment — so it's clear at a glance whether this thread
+            // is a change request (moves the card to Tweaks Needed) or just a
+            // conversation. Shown on the root of each thread.
+            const typeTag = !isReply
+                ? (_calMsgIsTweak(c)
+                    ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
+                    : `<span class="cal-cm-type-tag is-comment" title="Comment — no status change">Comment</span>`)
+                : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
                 <div class="cal-cm-body-col">
                     <div class="cal-cm-head-line">
                         ${compBadge}
+                        ${typeTag}
                         ${audTag}
                         <span class="cal-cm-author">${_calEsc(author)}</span>
                         <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
@@ -18507,6 +18627,7 @@
     // a TDZ; their old declarations have been removed from this spot.
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
+        { key: 'replies', label: 'Replies',        icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' }
     ];
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
@@ -18519,6 +18640,7 @@
         loading: false,
         loadingSMM: false,
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
+        replies: [],          // [{ post, client, slug, smm, _replyDraft }] — unread-reply inbox
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
         dismissed: {},        // pid -> true: cards Kasper hit "Done reviewing" on while a
                               // tweak was still unresolved. Keeps them out of his queue
@@ -18734,7 +18856,126 @@
 
     function _kasperRenderTab() {
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
+        if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
+    }
+
+    /* ── Replies ───────────────────────────────────────────────────
+       An inbox of cards (including ones he's already approved) where the SMM
+       or client replied on one of Kasper's internal threads since he last
+       caught up. Self-contained: shows the conversation and lets him reply or
+       mark it read, without touching the approval-queue machinery. */
+    function _kasperUpdateReplyCount() {
+        const n = (_kasperState.replies || []).length;
+        const el = document.querySelector('[data-kasper-count="replies"]');
+        if (el) el.textContent = String(n);
+    }
+    function _kasperRenderReplies() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        _kasperUpdateReplyCount();
+        // Landing straight on Replies (persisted tab) with nothing loaded yet —
+        // kick a fetch; it re-renders this tab when done.
+        if (!_kasperState.lastLoaded && !_kasperState.loading) _kasperLoadReview(true);
+        const list = _kasperState.replies || [];
+        if (!list.length) {
+            const loadingNote = _kasperState.loading && !_kasperState.lastLoaded
+                ? `<div class="kasper-loading"><div class="spinner"></div>Checking for replies…</div>`
+                : `<div class="kasper-empty">
+                    <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
+                    <div class="kasper-empty-title">No new replies</div>
+                    <div class="kasper-empty-sub">When an SMM or client replies on one of your threads, it shows up here.</div>
+                </div>`;
+            root.innerHTML = loadingNote;
+            return;
+        }
+        root.innerHTML = `<div class="kasper-replies-list">${list.map(_kasperRepliesCardHtml).join('')}</div>`;
+    }
+    function _kasperRepliesCardHtml(item) {
+        const p = item.post;
+        const pid = p.id;
+        const thumb = _calDeriveThumb(p);
+        const seen = _kasperGetSeenAt(pid);
+        // Internal conversation across all components, chronological.
+        const msgs = [];
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(p, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const r = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(r) !== 'internal') continue;
+                msgs.push(m);
+            }
+        }
+        msgs.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+        const threadHtml = msgs.map(m => {
+            const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
+            const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
+            const typeTag = !m.parent_id
+                ? `<span class="cal-cm-type-tag ${_calMsgIsTweak(m) ? 'is-tweak">Tweak' : 'is-comment">Comment'}</span>`
+                : '';
+            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isNew ? ' is-new' : ''}">
+                <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
+                <div class="cal-review-comment-body">${_calEsc(m.body || '')}</div>
+            </div>`;
+        }).join('');
+        const draft = item._replyDraft || '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        return `<div class="kasper-replies-card" data-kasper-replies-pid="${_calEscAttr(pid)}">
+            <div class="kasper-replies-head">
+                ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
+                <div class="kasper-replies-meta">
+                    <div class="kasper-replies-client">${_calEsc(item.client)}</div>
+                    <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
+                </div>
+                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your replies">Mark as read</button>
+            </div>
+            <div class="kasper-replies-thread">${threadHtml || '<div class="cal-review-comment-empty">No messages.</div>'}</div>
+            <div class="cal-review-panel-compose kasper-replies-compose">
+                <textarea class="cal-review-textarea" placeholder="Reply to the team…" oninput="_kasperRepliesDraftInput(this,'${_calEscAttr(pid)}')">${_calEsc(draft)}</textarea>
+                <button type="button" class="cal-review-tweak-btn" ${draft.trim() ? '' : 'disabled'} onclick="_kasperRepliesReply('${_calEscAttr(pid)}')">${sendIco}Reply</button>
+            </div>
+        </div>`;
+    }
+    function _kasperRepliesDraftInput(ta, pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (item) item._replyDraft = ta.value;
+        const card = ta.closest('.kasper-replies-card');
+        const btn = card && card.querySelector('.cal-review-tweak-btn');
+        if (btn) btn.disabled = !ta.value.trim();
+    }
+    function _kasperMarkRepliesRead(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (item) _kasperMarkSeenAt(pid, _calLatestMsgAt(item.post));
+        _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
+        _kasperRenderReplies();
+    }
+    async function _kasperRepliesReply(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (!item) return;
+        const body = String(item._replyDraft || '').trim();
+        if (!body) return;
+        // Continue the conversation as an internal comment on whichever
+        // component carries the latest internal thread (keeps it together).
+        const comp = _kasperLatestInternalComp(item.post) || 'video';
+        const list = _calCommentsFor(item.post, comp).slice();
+        const now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper',
+            is_tweak: false, audience: 'internal', body: body,
+            created_at: now, updated_at: now, done: false, done_at: '', done_by: '',
+        });
+        _calSetCommentsFor(item.post, comp, list);
+        item.post.updated_at = now;
+        item._replyDraft = '';
+        // Replying means he's caught up — clear it from the inbox.
+        _kasperMarkSeenAt(pid, now);
+        _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
+        _kasperRenderReplies();
+        try { await _kasperPersistPost(item); } catch (e) { /* surfaced on next load */ }
     }
 
     /* ── Review Session ─────────────────────────────────────────── */
@@ -18853,6 +19094,17 @@
             // Client Approval. Fresh server state is the source of
             // truth on every refresh.
             _kasperState.items = items;
+            // Replies inbox — decorate with SMM info and preserve any in-flight
+            // reply draft across the refresh. Not filtered by dismissals; it's
+            // an inbox of unread conversation, independent of the approval queue.
+            const repliesIn = (fetched.replies || []);
+            for (const it of repliesIn) it.smm = smmMap.get(wlNormalizeClient(it.client)) || null;
+            const _prevReplies = new Map((_kasperState.replies || []).map(x => [x.post.id, x]));
+            for (const it of repliesIn) {
+                const lo = _prevReplies.get(it.post.id);
+                if (lo && lo._replyDraft) it._replyDraft = lo._replyDraft;
+            }
+            _kasperState.replies = repliesIn;
             // Merge server-known history with the local log so a refresh keeps
             // recent approvals visible even if the sheet doesn't have a column
             // for kasper_approved_at yet.
@@ -18860,6 +19112,8 @@
             _kasperState.lastLoaded = Date.now();
             _kasperPersistCache();
             _kasperPaintReview();
+            _kasperUpdateReplyCount();
+            if (_kasperState.tab === 'replies') _kasperRenderReplies();
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);
             const body2 = document.getElementById('kasperReviewBody');
@@ -18939,6 +19193,7 @@
                 .filter(p => (p && p.status || '').toLowerCase() !== 'archived'));
             const queue = [];
             const history = [];
+            const replies = [];
             const seenIds = new Set();
             for (const raw of rawPosts) {
                 if (!raw || !raw.id || seenIds.has(raw.id)) continue;
@@ -18981,8 +19236,14 @@
                 if (approvedAt) {
                     history.push(_kasperHistoryEntryFromPost(raw, client, slug, approvedAt));
                 }
+                // Replies inbox: any card (incl. already-approved/posted) with
+                // an unread reply on one of Kasper's internal threads. Not gated
+                // by the queue's media/status rules — it's a conversation inbox.
+                if (_kasperHasUnreadReply(raw)) {
+                    replies.push({ post: raw, client, slug, smm: null, _replyDraft: '' });
+                }
             }
-            return { queue, history };
+            return { queue, history, replies };
         };
         const fetchOne = async (client) => {
             const slug = wlNormalizeClient(client);
@@ -18994,7 +19255,7 @@
             if (!resp.ok) throw new Error('Bad response for ' + client);
             const json = await resp.json();
             if (json && json.ok) _kasperCalCacheWrite(slug, json);
-            if (!json || !json.ok) return { queue: [], history: [] };
+            if (!json || !json.ok) return { queue: [], history: [], replies: [] };
             return extract(client, json);
         };
         const pending = WL_CLIENT_NAMES.slice();
@@ -19010,7 +19271,9 @@
         await Promise.all(Array.from({ length: workerCount }, worker));
         const queueOut = [];
         const historyOut = [];
+        const repliesOut = [];
         const queueIds = new Set();
+        const repliesIds = new Set();
         for (const s of settled) {
             if (s.status === 'fulfilled' && s.value) {
                 for (const it of s.value.queue) {
@@ -19019,9 +19282,14 @@
                     queueOut.push(it);
                 }
                 historyOut.push(...s.value.history);
+                for (const it of (s.value.replies || [])) {
+                    if (repliesIds.has(it.post.id)) continue;
+                    repliesIds.add(it.post.id);
+                    repliesOut.push(it);
+                }
             }
         }
-        return { queue: queueOut, history: historyOut };
+        return { queue: queueOut, history: historyOut, replies: repliesOut };
     }
 
     function _kasperHistoryEntryFromPost(post, client, slug, approvedAt) {
@@ -19338,6 +19606,7 @@
                         ${dateHtml}
                         ${tweaksChip}
                         ${aatChip}
+                        ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New reply</span>' : ''}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>
@@ -19855,21 +20124,16 @@
         }
     }
 
-    /* Explicit "Kasper is done with this card" dismissal — drops it from
-       the local queue without changing any status. Used when his decision
-       was a series of tweaks (already submitted as comments) and the work
-       belongs back with the editor/SMM. */
-    /* Done reviewing — Kasper's "I'm finished with this card" action.
-       Any component still at Kasper Approval (he didn't tweak it, he
-       didn't explicitly approve it) is treated as implicit approval on
-       his way out. Either way the card then leaves his review entirely:
-         • No unresolved tweaks → it was a clean approve, logged to
-           Approved history.
-         • Has unresolved tweaks → handed off to the SMM and recorded as
-           dismissed so a refresh (which re-fetches any card with an open
-           Kasper tweak) doesn't drag it back. It returns only if the SMM
-           sends a component back to Kasper Approval. See
-           _kasperKeepAfterDismiss / _kasperState.dismissed. */
+    /* "Finish reviewing" — Kasper's explicit "I'm done with this card" exit.
+       The button is disabled until every component has an explicit decision
+       (approve or request a change); a comment does NOT count, so a card he
+       has only commented on can't be finished and stays in his queue. There is
+       NO implicit approval and NO status write here:
+         • No unresolved tweaks → he approved everything → logged to Approved.
+         • Has unresolved tweaks → handed off to the SMM, recorded as dismissed
+           (+ last-seen stamp) so a refresh doesn't drag it back. It returns
+           only when the SMM re-routes a component to Kasper Approval or replies
+           in the thread. See _kasperKeepAfterDismiss / _kasperState.dismissed. */
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
@@ -20622,6 +20886,9 @@
     window._kasperApproveAfterTweaksComp = _kasperApproveAfterTweaksComp;
     window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
     window._kasperDismiss = _kasperDismiss;
+    window._kasperMarkRepliesRead = _kasperMarkRepliesRead;
+    window._kasperRepliesReply = _kasperRepliesReply;
+    window._kasperRepliesDraftInput = _kasperRepliesDraftInput;
     window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;
     window._kasperCloseLightbox = _kasperCloseLightbox;

@@ -2638,6 +2638,7 @@
         .cal-review-comment-empty { font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 6px 0; }
         /* Resolved comments — strike-through body + tiny "Resolved" pill so
            the client can tell at a glance which tweaks were applied. */
+        .cal-review-comment.is-reply { margin-left: 22px; }
         .cal-review-comment.is-resolved { opacity: 0.62; }
         .cal-review-comment.is-resolved .cal-review-comment-body { text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: rgba(0,0,0,0.4); }
         .cal-review-resolved-pill { display: inline-flex; align-items: center; gap: 3px;
@@ -2795,10 +2796,10 @@
         .cal-cm-comp-badge.cal-cm-comp-video   { background: #06b6d4; }
         .cal-cm-comp-badge.cal-cm-comp-graphic { background: #d946ef; }
         .cal-cm-comp-badge.cal-cm-comp-caption { background: #f59e0b; }
-        .cal-cm-comp-dot { display: inline-block; width: 7px; height: 7px; border-radius: 99px; flex-shrink: 0; }
-        .cal-cm-comp-dot.cal-cm-comp-video   { background: #06b6d4; }
-        .cal-cm-comp-dot.cal-cm-comp-graphic { background: #d946ef; }
-        .cal-cm-comp-dot.cal-cm-comp-caption { background: #f59e0b; }
+        .cal-cm-comp-label { margin-left: auto; flex-shrink: 0; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+        .cal-cm-comp-label.cal-cm-comp-video   { color: #0891b2; }
+        .cal-cm-comp-label.cal-cm-comp-graphic { color: #c026d3; }
+        .cal-cm-comp-label.cal-cm-comp-caption { color: #d97706; }
         .cal-cm-author { font-weight: 800; color: var(--text-primary); font-size: 0.86rem; }
         .cal-cm-row.is-reply .cal-cm-author { font-size: 0.8rem; }
         .cal-cm-time { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
@@ -12085,7 +12086,9 @@
             const safe = (window.CSS && CSS.escape) ? CSS.escape(post.id) : post.id;
             const card = document.querySelector('.cal-card[data-pid="' + safe + '"]');
             if (!card) return;
-            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'center' });
+            // Centre horizontally in the strip but never yank the page
+            // vertically (block:center scrolled the whole page down on open).
+            card.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
             if (persistent) {
                 _calClearFocusHighlight();
                 card.classList.add('cal-card-focused');
@@ -15511,7 +15514,7 @@
         // emphasises that the request was received and invites follow-ups.
         const placeholder = inTweaks
             ? 'The team is working on it. Anything else to add?'
-            : 'What needs to change?';
+            : 'Add a note or request a change…';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
@@ -15522,7 +15525,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill" title="Marked done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
@@ -15579,7 +15582,10 @@
             ${approveControl}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_calReviewOnDraftInput(this,'${escId}','${escComp}')" ${canActClient ? '' : 'readonly'}>${_calEsc(draft)}</textarea>
-                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewComment('${escId}','${escComp}')" title="Leave a comment or question — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_calReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
             <div class="cal-review-thread">${threadHtml}</div>
@@ -15690,8 +15696,9 @@
         if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
         if (!panel) return;
-        const tweakBtn = panel.querySelector('.cal-review-tweak-btn');
-        if (tweakBtn) tweakBtn.disabled = !nowHasDraft || !!_calReviewState.saving[key];
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-comment-btn').forEach(b => {
+            b.disabled = !nowHasDraft || !!_calReviewState.saving[key];
+        });
         // Disable every approve control (the plain button, or both segments of
         // the SMM split button) while a tweak is being drafted.
         panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => {
@@ -15770,6 +15777,49 @@
         });
     }
 
+    /* Leave a plain comment from a review panel — a conversation message that
+       does NOT change the component's status and does NOT ping the editor.
+       Mirrors _calReviewRequestTweak but without the Tweaks-Needed flip / Linear
+       push. Client comments are client-visible; SMM comments default to internal
+       (team-only) since the panel has no audience toggle. */
+    function _calReviewComment(pid, comp) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        const body = String(_calReviewState.drafts[key] || '').trim();
+        if (!body || _calReviewState.saving[key]) return;
+        const role = _calCommentRole();
+        const list = _calCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: _calCurrentAuthor(),
+            role: role,
+            is_tweak: false,
+            audience: (role === 'client') ? 'client' : 'internal',
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false, done_at: '', done_by: '',
+        });
+        _calSetCommentsFor(post, comp, list);
+        post.updated_at = _now;                 // no status change — it's a comment
+        _calReviewState.drafts[key] = '';
+        _calReviewState.saving[key] = true;
+        _calReviewState.errors[key] = '';
+        _calReviewRepaintCard(pid);
+        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, {
+            [comp + '_tweaks']: _calStringifyComments(list),
+        });
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            _calReviewState.saving[key] = false;
+        }).catch(e => {
+            _calReviewState.saving[key] = false;
+            _calReviewState.errors[key] = (e && e.message) || 'Save failed';
+            _calReviewRepaintCard(pid);
+        });
+    }
     function _calReviewRequestTweak(pid, comp) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -16314,8 +16364,9 @@
             const author  = c.author || (c.role === 'client' ? 'Client' : 'SMM');
             const initial = _calAvatarInitial(author, c.role);
             const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
-            // Which deliverable, shown as a small colour dot (tooltip names it).
-            const compDot = (!isReply && comp) ? `<span class="cal-cm-comp-dot cal-cm-comp-${comp}" title="${_calEsc(COMP_LABELS[comp])}"></span>` : '';
+            // Which deliverable — named, pushed to the top-right of the row to
+            // use the empty space there instead of a cryptic colour dot.
+            const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_calEsc(COMP_LABELS[comp])}</span>` : '';
             // Internal threads get a bare lock icon — no word. No lock = the
             // client can see it.
             const lock = (!isReply && !_isClientLink && _calMsgAudience(c) === 'internal')
@@ -16332,9 +16383,9 @@
                         <span class="cal-cm-author">${_calEsc(author)}</span>
                         ${typeTag}
                         ${lock}
-                        ${compDot}
                         <span class="cal-cm-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
                         ${doneTag}
+                        ${compLabel}
                     </div>
                     <div class="cal-cm-row-body">${_calEsc(c.body || '')}</div>
                 </div>
@@ -18976,7 +19027,7 @@
             const typeTag = (!m.parent_id && _calMsgIsTweak(m))
                 ? `<span class="cal-cm-type-tag is-tweak">Tweak</span>`
                 : '';
-            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isNew ? ' is-new' : ''}">
+            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${m.parent_id ? ' is-reply' : ''}${isNew ? ' is-new' : ''}">
                 <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
                 <div class="cal-review-comment-body">${_calEsc(m.body || '')}</div>
             </div>`;
@@ -19019,13 +19070,24 @@
         if (!item) return;
         const body = String(item._replyDraft || '').trim();
         if (!body) return;
-        // Continue the conversation as an internal comment on whichever
-        // component carries the latest internal thread (keeps it together).
+        // Continue the conversation on whichever component carries the latest
+        // internal thread, and attach it AS A REPLY under that thread's root so
+        // it stays threaded instead of starting a fresh comment.
         const comp = _kasperLatestInternalComp(item.post) || 'video';
         const list = _calCommentsFor(item.post, comp).slice();
+        const byId = new Map();
+        for (const m of list) if (m && m.id) byId.set(m.id, m);
+        let parentRootId = null, latestT = '';
+        for (const m of list) {
+            if (!m || m.deleted) continue;
+            const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+            if (_calMsgAudience(root) !== 'internal') continue;
+            const t = String(m.updated_at || m.created_at || '');
+            if (t > latestT) { latestT = t; parentRootId = root.id; }
+        }
         const now = new Date().toISOString();
         list.push({
-            id: _calMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper',
+            id: _calMintCommentId(), parent_id: parentRootId, author: 'Kasper', role: 'kasper',
             is_tweak: false, audience: 'internal', body: body,
             created_at: now, updated_at: now, done: false, done_at: '', done_by: '',
         });
@@ -19771,7 +19833,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
@@ -19843,7 +19905,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>

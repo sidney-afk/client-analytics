@@ -2932,6 +2932,8 @@
         .kasper-replies-open:hover { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); }
         .kasper-replies-open svg { width: 13px; height: 13px; }
         .kasper-replies-thread { display: flex; flex-direction: column; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border); }
+        .kasper-replies-showall { align-self: center; background: none; border: 0; color: var(--text-muted); font-family: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
+        .kasper-replies-showall:hover { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); }
         .kasper-replies-compose { margin-top: 10px; }
         /* New (unseen) message highlight in a thread. */
         .cal-review-comment.is-new { background: rgba(234,88,12,0.07); border-left-color: #ea580c !important; border-radius: 0 6px 6px 0; padding-right: 8px; }
@@ -16551,7 +16553,13 @@
     function _calBeginReply(rootId) {
         _calCaptureModalDrafts();
         _calReplyTarget = rootId || null;
+        // Hitting Reply re-renders the feed, which would otherwise reset its
+        // scroll to the top. Keep the reader exactly where they were.
+        const feed = document.getElementById('calCommentsFeed');
+        const prevScroll = feed ? feed.scrollTop : null;
         _calRenderCommentsModal();
+        const feed2 = document.getElementById('calCommentsFeed');
+        if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
     }
     function _calSubmitComposer() {
         const pid = _calOpenCommentsPid;
@@ -19006,32 +19014,46 @@
         const pid = p.id;
         const thumb = _calDeriveThumb(p);
         const seen = _kasperGetSeenAt(pid);
-        // Internal conversation across all components, chronological.
-        const msgs = [];
+        // Group internal messages into threads (root + replies).
+        const threads = [];
         for (const c of CAL_COMPONENTS) {
             const list = _calCommentsFor(p, c);
             if (!Array.isArray(list)) continue;
-            const byId = new Map();
-            for (const m of list) if (m && m.id) byId.set(m.id, m);
             for (const m of list) {
-                if (!m || m.deleted) continue;
-                const r = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
-                if (_calMsgAudience(r) !== 'internal') continue;
-                msgs.push(m);
+                if (!m || m.deleted || m.parent_id) continue;           // roots only
+                if (_calMsgAudience(m) !== 'internal') continue;        // internal threads only
+                const replies = list.filter(r => r && !r.deleted && r.parent_id === m.id)
+                    .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+                threads.push({ root: m, replies, comp: c });
             }
         }
-        msgs.sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
-        const threadHtml = msgs.map(m => {
+        threads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        // A thread is "unread" if it carries a non-Kasper message newer than the
+        // last time he caught up. By default only those show; his own threads
+        // with no new reply are hidden behind a "Show all" toggle.
+        const isUnreadThread = (t) => [t.root, ...t.replies].some(m =>
+            m && m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen);
+        const showAll = !!item._showAllReplies;
+        const unreadThreads = threads.filter(isUnreadThread);
+        const shown = showAll ? threads : unreadThreads;
+        const hiddenCount = threads.length - unreadThreads.length;
+        const renderMsg = (m, isReply) => {
             const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
             const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
-            const typeTag = (!m.parent_id && _calMsgIsTweak(m))
+            const typeTag = (!isReply && _calMsgIsTweak(m))
                 ? `<span class="cal-cm-type-tag is-tweak">Tweak</span>`
                 : '';
-            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${m.parent_id ? ' is-reply' : ''}${isNew ? ' is-new' : ''}">
+            return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isReply ? ' is-reply' : ''}${isNew ? ' is-new' : ''}">
                 <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
                 <div class="cal-review-comment-body">${_calEsc(m.body || '')}</div>
             </div>`;
-        }).join('');
+        };
+        const toggleHtml = showAll
+            ? `<button type="button" class="kasper-replies-showall" onclick="_kasperRepliesToggleAll('${_calEscAttr(pid)}')">Show only new</button>`
+            : (hiddenCount ? `<button type="button" class="kasper-replies-showall" onclick="_kasperRepliesToggleAll('${_calEscAttr(pid)}')">Show all messages</button>` : '');
+        const threadHtml = toggleHtml + shown.map(t =>
+            renderMsg(t.root, false) + t.replies.map(r => renderMsg(r, true)).join('')
+        ).join('');
         const draft = item._replyDraft || '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
@@ -19051,6 +19073,12 @@
                 <button type="button" class="cal-review-tweak-btn" ${draft.trim() ? '' : 'disabled'} onclick="_kasperRepliesReply('${_calEscAttr(pid)}')">${sendIco}Reply</button>
             </div>
         </div>`;
+    }
+    function _kasperRepliesToggleAll(pid) {
+        const item = (_kasperState.replies || []).find(x => x.post.id === pid);
+        if (!item) return;
+        item._showAllReplies = !item._showAllReplies;
+        _kasperRenderReplies();
     }
     function _kasperRepliesDraftInput(ta, pid) {
         const item = (_kasperState.replies || []).find(x => x.post.id === pid);
@@ -21011,6 +21039,7 @@
     window._kasperDismiss = _kasperDismiss;
     window._kasperMarkRepliesRead = _kasperMarkRepliesRead;
     window._kasperRepliesReply = _kasperRepliesReply;
+    window._kasperRepliesToggleAll = _kasperRepliesToggleAll;
     window._kasperRepliesDraftInput = _kasperRepliesDraftInput;
     window._kasperOpenSlack = _kasperOpenSlack;
     window._kasperOpenLightbox = _kasperOpenLightbox;

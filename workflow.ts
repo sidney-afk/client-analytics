@@ -174,7 +174,9 @@ if (videoUrl && videoUrl !== '#') {
   });
 }
 
-const topVideos = data.top_videos || [];
+const topVideos = (data.top_videos || [])
+  .slice()
+  .sort((a, b) => Number(b.outlier_score || 0) - Number(a.outlier_score || 0));
 if (topVideos.length > 0) {
   blocks.push({ type: 'divider' });
   blocks.push({

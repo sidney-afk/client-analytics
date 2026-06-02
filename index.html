@@ -3229,9 +3229,11 @@
         /* "Approved after tweaks" chip on the Kasper queue card (green sibling
            of the orange tweaks chip). */
         .kcard-aat-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
-        /* Card-level badge to the right of the Tweaks pill (organizer/calendar). */
-        .cal-aat-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
-        .cal-aat-badge svg { width: 10px; height: 10px; }
+        /* Card-level badge to the right of the Tweaks pill (organizer/calendar).
+           Two-line layout: check icon vertically centred, label stacked. */
+        .cal-aat-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 0.74rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 5px 11px; border-radius: 10px; line-height: 1.15; }
+        .cal-aat-badge svg { width: 13px; height: 13px; flex-shrink: 0; }
+        .cal-aat-badge-txt { display: block; }
         .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .kcard-watch-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; text-decoration: none; }
         .kcard-watch-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
@@ -15885,7 +15887,7 @@
     function _calAatBadgeHtml(post) {
         if (!post || !CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(post, c))) return '';
         const ico = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
-        return `<span class="cal-aat-badge" title="Approved after tweaks — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}Approved after tweaks</span>`;
+        return `<span class="cal-aat-badge" title="Approved after tweaks — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}<span class="cal-aat-badge-txt">Approved<br>after tweaks</span></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);

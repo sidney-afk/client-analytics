@@ -2628,6 +2628,11 @@
         .cal-review-panel[data-comp="graphic"] .cal-review-comment { border-left-color: rgba(217,70,239,0.55); }
         .cal-review-panel[data-comp="caption"] .cal-review-comment { border-left-color: rgba(245,158,11,0.55); }
         .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        /* Chat-style author tint so Casper can scan who said what at a glance —
+           his own messages vs the SMM's reply vs the client. */
+        .cal-review-comment.cal-cm-kasper .cal-review-comment-head strong { color: #7c3aed; }
+        .cal-review-comment.cal-cm-smm    .cal-review-comment-head strong { color: #0891b2; }
+        .cal-review-comment.cal-cm-client .cal-review-comment-head strong { color: #16a34a; }
         .cal-review-comment-time { font-weight: 500; }
         .cal-review-comment-body { font-size: 0.82rem; color: var(--text-primary); white-space: pre-wrap; line-height: 1.45; }
         .cal-review-comment-empty { font-size: 0.76rem; color: var(--text-muted); font-style: italic; padding: 6px 0; }
@@ -15358,7 +15363,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill" title="Marked done${c.done_by ? ' by ' + _calEsc(c.done_by) : ''}${c.done_at ? ' · ' + _calEsc(_calFmtCommentTime(c.done_at)) : ''}">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
@@ -19262,7 +19267,11 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden);
+        // Linear chat: render the thread in time order (the comment merge can
+        // reorder the stored array) so an SMM reply always lands beneath the
+        // message it answers instead of jumping around.
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         const showApprove = !inTweaks && !isApproved;
@@ -19280,7 +19289,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
@@ -19328,7 +19337,11 @@
         const draft = (item._drafts && item._drafts[comp]) || '';
         const saving = !!(item._saving && item._saving[comp]);
         const err = (item._errors && item._errors[comp]) || '';
-        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden);
+        // Linear chat: render the thread in time order (the comment merge can
+        // reorder the stored array) so an SMM reply always lands beneath the
+        // message it answers instead of jumping around.
+        const comments = _calCommentsFor(p, comp).filter(c => c && !c.deleted && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
         const hasDraft = !!draft.trim();
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         // Approve hides once Kasper has already sent the work back (TN) or
@@ -19348,7 +19361,7 @@
                 const resolvedBadge = isResolved
                     ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
                     : '';
-                return `<div class="cal-review-comment${isResolved ? ' is-resolved' : ''}">
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${isResolved ? ' is-resolved' : ''}">
                     <div class="cal-review-comment-head">
                         <strong>${_calEsc(author)}</strong>
                         <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>

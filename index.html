@@ -2567,6 +2567,10 @@
         .cal-review-firstpass { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px;
             background: #f3e8ff; color: #7c3aed; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
         .cal-review-firstpass::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+        /* "Approved after tweaks" pill in the SMM review panel head. */
+        .cal-review-aat-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px;
+            background: #dcfce7; color: #166534; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+        .cal-review-aat-pill svg { width: 9px; height: 9px; }
         /* Compose block — textarea full-width, button below right-aligned.
            No more textarea+button on the same line awkwardly fighting for
            space. */
@@ -2584,6 +2588,18 @@
         .cal-review-tweak-btn:hover:not(:disabled) { background: var(--text-primary); color: var(--white); }
         .cal-review-tweak-btn:disabled { opacity: 0.45; cursor: default; }
         .cal-review-tweak-btn svg { width: 12px; height: 12px; }
+        /* Row holding the two tweak actions (Approve after tweaks + Send). */
+        .cal-review-tweak-actions { align-self: flex-end; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        /* "Approve after tweaks" — green sibling of the Send button. Sends the
+           tweak AND pre-clears the component for the client. */
+        .cal-review-aat-btn { display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 13px; background: var(--white);
+            border: 1px solid #16a34a; color: #166534;
+            border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .cal-review-aat-btn:hover:not(:disabled) { background: #16a34a; color: var(--white); }
+        .cal-review-aat-btn:disabled { opacity: 0.45; cursor: default; }
+        .cal-review-aat-btn svg { width: 12px; height: 12px; }
         .cal-review-panel-err { font-size: 0.76rem; color: var(--dn); background: var(--dn-bg); padding: 6px 10px; border-radius: 6px; }
         .cal-review-thread { padding-top: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
         /* Quote-style comment: left rule tinted to the component colour. */
@@ -3210,6 +3226,12 @@
         .kcard-slack-btn.is-stub { opacity: 0.5; }
         .kcard-slack-btn.is-stub:hover { border-color: var(--border); background: rgba(0,0,0,0.04); color: var(--text-muted); }
         .kcard-tweaks-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #9a3412; background: #ffedd5; padding: 2px 8px; border-radius: 99px; }
+        /* "Approved after tweaks" chip on the Kasper queue card (green sibling
+           of the orange tweaks chip). */
+        .kcard-aat-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+        /* Card-level badge to the right of the Tweaks pill (organizer/calendar). */
+        .cal-aat-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.68rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+        .cal-aat-badge svg { width: 10px; height: 10px; }
         .kcard-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
         .kcard-watch-btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; background: var(--text-primary); color: var(--white); border: none; border-radius: 10px; font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; transition: all 0.15s; text-decoration: none; }
         .kcard-watch-btn:hover { background: #000; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.15); }
@@ -13562,7 +13584,7 @@
         'order_index', 'scheduled_date',
         'linear_issue_id', 'graphic_linear_issue_id',
         'client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
-        'kasper_approved_at', 'posted_at',
+        'kasper_approved_at', 'posted_at', 'kasper_approved_after_tweaks',
     ];
 
     async function _calFlushCardSave(pid) {
@@ -14892,6 +14914,42 @@
         return csv;
     }
 
+    // "Approved after tweaks" — Kasper's per-component flag, stored as a CSV of
+    // components on the cross-device `kasper_approved_after_tweaks` column (same
+    // shape as kasper_seen). Set when Kasper requests a tweak he's pre-cleared
+    // for the client: the editor still routes back to For SMM Approval so the
+    // SMM can verify the edit was applied, and this flag is what tells her the
+    // content is already cleared by Kasper (so she can send straight to client
+    // without a re-review). Deliberately NOT a status — status gets overwritten
+    // as the post moves down the pipeline, so it could never carry this history.
+    function _calRecordApprovedAfterTweaks(post, comp) {
+        const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        set.add(comp);
+        const csv = CAL_COMPONENTS.filter(c => set.has(c)).join(',');
+        post.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    // Drop the flag for a component (e.g. Kasper later asks for a normal
+    // re-review tweak on the same component, superseding the pre-clearance).
+    function _calClearApprovedAfterTweaks(post, comp) {
+        const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return post.kasper_approved_after_tweaks || '';
+        set.delete(comp);
+        const csv = CAL_COMPONENTS.filter(c => set.has(c)).join(',');
+        post.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    // Should the "Approved after tweaks" badge render for this component? The
+    // flag stays in the sheet forever as history, but the badge only shows
+    // while the work is still in flight — once the component is Approved /
+    // Scheduled / Posted the clearance has done its job, so the badge hides.
+    function _calShowApprovedAfterTweaks(post, comp) {
+        const set = new Set(String((post && post.kasper_approved_after_tweaks) || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return false;
+        const cs = _calNormStatus((post && post[comp + '_status']) || 'In Progress');
+        return cs !== 'Approved' && cs !== 'Scheduled' && cs !== 'Posted';
+    }
+
     // Has THIS component already been through Kasper? Drives the SMM Review
     // tab's smart approve default (brand-new → Kasper, already-seen → client)
     // and the "First review" flag. Checks the persistent ledger first, then
@@ -15209,6 +15267,12 @@
         const firstReviewBadge = (_reviewMode === 'smm' && showApprove && !_seenByKasper)
             ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper for approval yet">First review</span>`
             : '';
+        // Tells the SMM this component was pre-cleared by Kasper when he asked
+        // for the tweak — verify the edit was applied, then send to the client
+        // (no Kasper re-review needed). SMM surface only.
+        const aatBadge = (_reviewMode === 'smm' && _calShowApprovedAfterTweaks(p, comp))
+            ? `<span class="cal-review-aat-pill" title="Approved after tweaks — Kasper pre-cleared this for the client.">${checkIco}Approved after tweaks</span>`
+            : '';
         let approveControl = '';
         if (showApprove) {
             if (_reviewMode === 'smm') {
@@ -15228,6 +15292,7 @@
             <div class="cal-review-panel-head">
                 <span class="cal-review-panel-title">${_calEsc(COMP_LABELS[comp])}</span>
                 ${firstReviewBadge}
+                ${aatBadge}
                 <div class="cal-review-panel-head-right">${statusPill}${linkBadge}</div>
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
@@ -15785,12 +15850,21 @@
         return role === 'client' ? 'C' : 'S';
     }
 
+    // "Approved after tweaks" badge — rendered to the right of the Tweaks pill
+    // on a card. Shows when ANY component is currently pre-cleared by Kasper and
+    // still in flight (see _calShowApprovedAfterTweaks; hidden once Approved/
+    // Scheduled/Posted, though the flag stays in the sheet as history).
+    function _calAatBadgeHtml(post) {
+        if (!post || !CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(post, c))) return '';
+        const ico = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        return `<span class="cal-aat-badge" title="Approved after tweaks — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client.">${ico}Approved after tweaks</span>`;
+    }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
         const cls  = open > 0 ? ' has-open' : '';
         const tip  = open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Tweaks';
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Tweaks</span><span class="cal-comments-count">${open}</span></button>`;
+        return `<button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Tweaks</span><span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -18972,6 +19046,9 @@
         const tweaksChip = openTweaks > 0
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';
+        const aatChip = CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(p, c))
+            ? `<span class="kcard-aat-chip" title="Approved after tweaks — pre-cleared for the client"><svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>Approved after tweaks</span>`
+            : '';
         const dateHtml = dateNice
             ? `<span class="kcard-date"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg>${_calEsc(dateNice)}</span>`
             : `<span class="kcard-date is-empty">No date</span>`;
@@ -18985,6 +19062,7 @@
                         <span class="kcard-dot">·</span>
                         ${dateHtml}
                         ${tweaksChip}
+                        ${aatChip}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>
@@ -19103,11 +19181,13 @@
                 </div>
                 ${showApprove ? `<div class="cal-review-approve-split">
                     <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
-                    <button type="button" class="cal-review-approve-alt" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','smm')" title="Approve &amp; send back to the SMM instead">SMM</button>
                 </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                    <div class="cal-review-tweak-actions">
+                        <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                        <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                    </div>
                 </div>
                 ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
                 <div class="cal-review-thread">${threadHtml}</div>
@@ -19168,11 +19248,13 @@
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<div class="cal-review-approve-split">
                 <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
-                <button type="button" class="cal-review-approve-alt" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','smm')" title="Approve &amp; send back to the SMM instead">SMM</button>
             </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
-                <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                </div>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
             <div class="cal-review-thread">${threadHtml}</div>
@@ -19280,8 +19362,8 @@
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
         if (!panel) return;
         panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = saving || nowHasDraft; });
-        const submitBtn = panel.querySelector('.cal-review-tweak-btn');
-        if (submitBtn) submitBtn.disabled = saving || !nowHasDraft;
+        // Both tweak actions (Send and Approve after tweaks) require a draft.
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
     }
 
     async function _kasperApproveComp(pid, comp, dest) {
@@ -19300,14 +19382,14 @@
             kasper_approved_at: item.post.kasper_approved_at,
             kasper_seen: item.post.kasper_seen,
         };
-        // Kasper picks where the component goes next: forward to the client
-        // (default) or back to the SMM. It's been through Kasper either way, so
-        // record kasper_seen (cross-device); only a client hand-off stamps the
-        // kasper_approved_at sign-off.
+        // Kasper approval always forwards the component to the client now (the
+        // old "send back to SMM" route was removed — that case is covered by
+        // "Approve after tweaks"). Record kasper_seen (cross-device) and stamp
+        // the kasper_approved_at sign-off.
         _calRecordKasperSeenOnPost(item.post, comp);
-        item.post[subKey] = dest === 'smm' ? 'For SMM Approval' : 'Client Approval';
+        item.post[subKey] = 'Client Approval';
         item.post.status = computeOverallStatus(item.post);
-        if (dest !== 'smm') item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
+        item.post.kasper_approved_at = item.post.kasper_approved_at || new Date().toISOString();
         item._saving[comp] = true;
         item._errors[comp] = null;
         _kasperRepaintCard(pid);
@@ -19338,7 +19420,14 @@
         }
     }
 
-    async function _kasperRequestTweakComp(pid, comp) {
+    // Send the tweak straight back to the client after the editor applies it,
+    // skipping a Kasper re-review. Same flow as a normal tweak request, plus
+    // the persistent "Approved after tweaks" flag.
+    async function _kasperApproveAfterTweaksComp(pid, comp) {
+        return _kasperRequestTweakComp(pid, comp, true);
+    }
+
+    async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
         if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
@@ -19365,6 +19454,7 @@
             client_graphic_approved_at: item.post.client_graphic_approved_at,
             client_caption_approved_at: item.post.client_caption_approved_at,
             kasper_approved_at:         item.post.kasper_approved_at,
+            kasper_approved_after_tweaks: item.post.kasper_approved_after_tweaks,
         };
         const list = _calCommentsFor(item.post, comp).slice();
         const _now = new Date().toISOString();
@@ -19384,6 +19474,12 @@
         _calSetCommentsFor(item.post, comp, list);
         item.post[subKey] = 'Tweaks Needed';
         item.post.status = computeOverallStatus(item.post);
+        // "Approve after tweaks" pre-clears this component for the client: the
+        // editor applies the fix and routes back to For SMM Approval, where the
+        // badge tells the SMM it's already cleared by Kasper. A plain "Send"
+        // (re-review) supersedes any prior pre-clearance on this component.
+        if (approveAfterTweaks) _calRecordApprovedAfterTweaks(item.post, comp);
+        else _calClearApprovedAfterTweaks(item.post, comp);
         // Kasper just moved a sub to TN — any prior client_<comp>_approved_at
         // and possibly kasper_approved_at are now stale. Clear them so the
         // sheet row doesn't read "approved at <date>" on a card now in
@@ -20198,6 +20294,7 @@
     window._kasperToggleCard = _kasperToggleCard;
     window._kasperApproveComp = _kasperApproveComp;
     window._kasperRequestTweakComp = _kasperRequestTweakComp;
+    window._kasperApproveAfterTweaksComp = _kasperApproveAfterTweaksComp;
     window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
     window._kasperDismiss = _kasperDismiss;
     window._kasperOpenSlack = _kasperOpenSlack;

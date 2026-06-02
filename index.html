@@ -2737,6 +2737,11 @@
         .cal-comments-btn:hover svg { opacity: 1; }
         .cal-comments-btn .cal-comments-label { letter-spacing: 0; }
         .cal-comments-btn .cal-comments-count { display: none; }
+        /* Unread-replies dot — a new message the viewer hasn't opened yet. */
+        .cal-comments-dot { display: inline-block; width: 7px; height: 7px; border-radius: 99px;
+            background: #ea580c; flex-shrink: 0; }
+        .cal-comments-btn.has-unread { color: #c2410c; font-weight: 600; }
+        .cal-comments-btn.has-unread svg { opacity: 1; color: #c2410c; }
         .cal-comments-btn.has-open { color: #c2410c; font-weight: 600; }
         .cal-comments-btn.has-open svg { opacity: 1; color: #c2410c; }
         .cal-comments-btn.has-open:hover { background: #fff5e6; }
@@ -15021,6 +15026,42 @@
         m[pid] = ts || new Date().toISOString();
         try { localStorage.setItem(KASPER_SEEN_AT_KEY, JSON.stringify(m)); } catch {}
     }
+    /* Per-card "I last opened this card's Notes" timestamp, for the unread dot
+       on the Notes button (SMM + client surfaces). Local/per-device — one map
+       per browser, which is fine since a browser is a single role (SMM, or
+       client via ?c). Opening the Notes modal stamps it to now, clearing the
+       dot. A card is "unread" when a message the viewer can see — and didn't
+       write themselves — is newer than that stamp. */
+    const NOTES_SEEN_KEY = 'syncview_notes_seen_v1';
+    let _notesSeenMap = null;
+    function _notesSeenLoad() {
+        if (_notesSeenMap) return _notesSeenMap;
+        try { _notesSeenMap = JSON.parse(localStorage.getItem(NOTES_SEEN_KEY) || '{}') || {}; }
+        catch { _notesSeenMap = {}; }
+        return _notesSeenMap;
+    }
+    function _notesGetSeen(pid) { return _notesSeenLoad()[pid] || ''; }
+    function _notesMarkSeen(pid, ts) {
+        if (!pid) return;
+        const m = _notesSeenLoad();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(NOTES_SEEN_KEY, JSON.stringify(m)); } catch {}
+    }
+    function _calHasUnreadNotes(post) {
+        if (!post) return false;
+        const myRole = _calCommentRole();           // 'smm' or 'client'
+        const seen = _notesGetSeen(post.id);
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsForView(post, c); // respects client visibility
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue; // skip my own
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
     // Record a component as Kasper-seen on the post's cross-device `kasper_seen`
     // column (a CSV of components), unioning with whatever's already there and
     // the local cache. Returns the new CSV so the caller can queue it for save.
@@ -16080,13 +16121,15 @@
     }
     function _calCommentsBtnHtml(post, pid) {
         const open = _calOpenCommentCount(post);
-        const cls  = open > 0 ? ' has-open' : '';
-        const tip  = open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Tweaks';
+        const unread = _calHasUnreadNotes(post);
+        const cls  = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
+        const tip  = unread ? 'New replies — open Notes'
+                   : (open > 0 ? `${open} open tweak${open === 1 ? '' : 's'}` : 'Notes');
         const ico  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
         // Tweaks pill + "Approved after tweaks" badge are kept in one left-
         // aligned group so the badge sits right next to the pill (the footer is
         // space-between, which would otherwise fling the badge to the far right).
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span><span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn${cls}" data-comments-btn="${pid}" onclick="openCalComments('${pid}')" title="${_calEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_calAatBadgeHtml(post)}</span>`;
     }
     function _calRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -16107,6 +16150,7 @@
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
         _calRootDraft = '';
         _calComposeAudience = 'internal';   // safe default each open
+        _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         const ovl = document.getElementById('calCommentsOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -16125,8 +16169,12 @@
         const ovl = document.getElementById('calCommentsOverlay');
         if (ovl) ovl.classList.remove('open');
         document.body.classList.remove('cal-modal-open');
+        const pid = _calOpenCommentsPid;
         _calOpenCommentsPid = null;
         _calReplyTarget = null;
+        // Caught up while it was open — re-stamp seen and refresh the button so
+        // the unread dot clears immediately.
+        if (pid) { _notesMarkSeen(pid); _calRefreshCommentsBtn(pid); }
     }
     function _calCaptureModalDrafts() {
         const root = document.getElementById('calCommentsModal');

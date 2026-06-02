@@ -5999,7 +5999,7 @@
     const TEMPLATE_FIELDS = [
         'filming_plans_link',
         'reels_subtitle_font','reels_subtitle_main_color','reels_subtitle_highlight_color',
-        'reels_reference_link','reels_preferences',
+        'reels_reference_link','reels_preferences','reels_editor_folder_link',
         'thumbnails_title_font','thumbnails_title_color','thumbnails_highlight_color',
         'thumbnails_photos_link',
     ];
@@ -6773,6 +6773,33 @@
                 </div>`;
             })();
 
+        // Editor folder block (Reels only) — rendered at the BOTTOM, just after filming plans.
+        // Lets the team paste a Google Drive folder link for the editor.
+        let editorFolder = '';
+        if (_templatesActiveTab === 'reels') {
+            editorFolder = isEdit
+                ? `<div class="tpl-section">
+                    <div class="tpl-section-title">Editor folder</div>
+                    ${_tplFieldLink(name, 'reels_editor_folder_link', 'Link to editor folder (Google Drive)', 'https://drive.google.com/…')}
+                  </div>`
+                : (() => {
+                    const v = _tplGet(name, 'reels_editor_folder_link');
+                    const isUrl = /^https?:\/\//i.test(v);
+                    let host = ''; if (isUrl) { try { host = new URL(v).hostname.replace(/^www\./,''); } catch {} }
+                    if (isUrl) {
+                        return `<a class="tpl-filming-card" href="${_tplEsc(v)}" target="_blank" rel="noopener">
+                            <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                            <span class="tpl-filming-text"><span class="tpl-filming-title">Editor folder</span><span class="tpl-filming-host">${_tplEsc(host || 'Open folder')}</span></span>
+                            <svg class="tpl-filming-arrow" width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>`;
+                    }
+                    return `<div class="tpl-filming-card empty">
+                        <span class="tpl-filming-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h3.2a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                        <span class="tpl-filming-text"><span class="tpl-filming-title">Editor folder</span><span class="tpl-filming-host">Not set</span></span>
+                    </div>`;
+                })();
+        }
+
         const editToggle = isEdit
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
             : `<button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button>`;
@@ -6789,6 +6816,7 @@
             </div>
             ${reels}${thumbs}
             <div class="tpl-filming-wrap">${filmingPlans}</div>
+            ${editorFolder ? `<div class="tpl-filming-wrap">${editorFolder}</div>` : ''}
         </div>`;
     }
 

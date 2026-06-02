@@ -2597,7 +2597,18 @@
         .cal-review-tweak-btn:hover:not(:disabled) { background: var(--text-primary); color: var(--white); }
         .cal-review-tweak-btn:disabled { opacity: 0.45; cursor: default; }
         .cal-review-tweak-btn svg { width: 12px; height: 12px; }
-        /* Row holding the two tweak actions (Approve after tweaks + Send). */
+        /* "Comment" — neutral sibling of Request change. A plain internal note
+           that doesn't change status or ping the editor, so it's styled quietly
+           (muted, no heavy border) to sit below the change-request actions. */
+        .cal-review-comment-btn { align-self: flex-end; display: inline-flex; align-items: center; gap: 6px;
+            padding: 7px 13px; background: var(--white);
+            border: 1px solid var(--border, #e2e2e2); color: var(--text-secondary, #6b6b6b);
+            border-radius: 7px; font-family: inherit; font-size: 0.8rem; font-weight: 600;
+            cursor: pointer; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+        .cal-review-comment-btn:hover:not(:disabled) { background: var(--bg-muted, #f4f4f5); color: var(--text-primary); border-color: var(--text-secondary, #9b9b9b); }
+        .cal-review-comment-btn:disabled { opacity: 0.45; cursor: default; }
+        .cal-review-comment-btn svg { width: 12px; height: 12px; }
+        /* Row holding the comment + tweak actions (Comment · Approve after tweaks · Request change). */
         .cal-review-tweak-actions { align-self: flex-end; display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
         /* "Approve after tweaks" — green sibling of the Send button. Sends the
            tweak AND pre-clears the component for the client. */
@@ -9320,12 +9331,32 @@
         if (Array.isArray(post.video_comments)) return post.video_comments;
         return Array.isArray(post.comments) ? post.comments : [];
     }
-    /* Render-side wrapper: same data as _calCommentsFor, but in the
-       client-link view we filter out role='kasper' comments (and any
-       replies to them) so the client never sees internal Kasper review
-       chatter. Save/update code paths keep using _calCommentsFor with
-       the full list — we never *drop* Kasper comments from the row,
-       just hide them from this one audience. */
+    /* Per-message audience + type, with back-compat defaults so legacy rows
+       (which carry neither field) behave exactly as they did before:
+         · audience — who may see the thread. Kasper-authored messages default
+           to 'internal' (SMM + Kasper only); everything else defaults to
+           'client'. A thread's audience is set on its ROOT message; replies
+           inherit it (see _calCommentsForView).
+         · is_tweak — whether the message is a change-request that flips the
+           component to Tweaks Needed and pings the editor. Every legacy
+           message was a tweak, so absent the field we treat it as true. */
+    function _calMsgAudience(c) {
+        if (!c) return 'client';
+        if (c.audience === 'internal' || c.audience === 'client') return c.audience;
+        return c.role === 'kasper' ? 'internal' : 'client';
+    }
+    function _calMsgIsTweak(c) {
+        if (!c) return false;
+        if (typeof c.is_tweak === 'boolean') return c.is_tweak;
+        return true;
+    }
+    /* Render-side wrapper: same data as _calCommentsFor, but the client-link
+       view only ever sees threads addressed to the client. A thread's audience
+       lives on its ROOT message and replies inherit it. We also hard-hide
+       anything Kasper authored, belt-and-braces, so the client can never see
+       internal review chatter even on a mis-tagged thread. Save/update paths
+       keep using _calCommentsFor (unfiltered) — we hide from this one
+       audience, we never *drop* messages from the row. */
     function _calCommentsForView(post, comp) {
         let list = _calCommentsFor(post, comp);
         if (!Array.isArray(list)) return [];
@@ -9338,15 +9369,18 @@
         // _calCommentsFor (unfiltered) so these are never written away.
         list = list.filter(c => c && !c.deleted && !c.hidden);
         if (!_isClientLink) return list;
-        const kasperIds = new Set();
-        for (const c of list) {
-            if (c && c.role === 'kasper' && c.id) kasperIds.add(c.id);
-        }
+        // Resolve each message's thread-root so a reply inherits the root's
+        // audience (replies point straight at the root via parent_id).
+        const byId = new Map();
+        for (const c of list) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => {
+            const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+            return _calMsgAudience(root);
+        };
         return list.filter(c => {
             if (!c) return false;
-            if (c.role === 'kasper') return false;
-            if (c.parent_id && kasperIds.has(c.parent_id)) return false;
-            return true;
+            if (c.role === 'kasper') return false;   // never expose Kasper authorship
+            return rootAudience(c) === 'client';      // only client-addressed threads
         });
     }
     function _calSetCommentsFor(post, comp, arr) {
@@ -19233,7 +19267,7 @@
         const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
         const showApprove = !inTweaks && !isApproved;
         const tweakEnabled = !saving && hasDraft;
-        const placeholder = inTweaks ? 'Anything else to add?' : 'What needs to change?';
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Add a note or request a change…';
         const stateLabel = inTweaks ? 'Changes requested' : '';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
@@ -19269,8 +19303,9 @@
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                     <div class="cal-review-tweak-actions">
+                        <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                         <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
-                        <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                        <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
                     </div>
                 </div>
                 ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
@@ -19301,7 +19336,7 @@
         // relevant from there.
         const showApprove = !inTweaks && !isApproved;
         const tweakEnabled = !saving && hasDraft;
-        const placeholder = inTweaks ? 'Anything else to add?' : 'What needs to change?';
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Add a note or request a change…';
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
@@ -19336,8 +19371,9 @@
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
                     <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
-                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Send</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_kasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
                 </div>
             </div>
             ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
@@ -19446,8 +19482,8 @@
         const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
         if (!panel) return;
         panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = saving || nowHasDraft; });
-        // Both tweak actions (Send and Approve after tweaks) require a draft.
-        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
+        // Comment + both tweak actions (Request change, Approve after tweaks) require a draft.
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
     }
 
     async function _kasperApproveComp(pid, comp, dest) {
@@ -19511,6 +19547,65 @@
         return _kasperRequestTweakComp(pid, comp, true);
     }
 
+    // Kasper leaves a plain comment / question. It lands in the thread as an
+    // internal (team-only) note — unlike "Request change" it does NOT flip the
+    // component to Tweaks Needed and does NOT ping the editor on Linear, so the
+    // card stays exactly where it is (still awaiting his approval). The client
+    // never sees it (role:'kasper' + audience:'internal').
+    async function _kasperAddCommentComp(pid, comp) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        if (!item._errors) item._errors = { video: null, graphic: null, caption: null };
+        if (!item._drafts) item._drafts = { video: '', graphic: '', caption: '' };
+        if (!item._touchedComps) item._touchedComps = new Set();
+        const body = String(item._drafts[comp] || '').trim();
+        if (!body || item._saving[comp]) return;
+        _kasperInvalidateInFlightLoad();
+        const prev = {
+            updated_at: item.post.updated_at,
+            video_comments:   item.post.video_comments,
+            graphic_comments: item.post.graphic_comments,
+            caption_comments: item.post.caption_comments,
+        };
+        const list = _calCommentsFor(item.post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _calMintCommentId(),
+            parent_id: null,
+            author: 'Kasper',
+            role: 'kasper',
+            is_tweak: false,
+            audience: 'internal',
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false,
+            done_at: '',
+            done_by: '',
+        });
+        _calSetCommentsFor(item.post, comp, list);
+        // No status change and no approval clearing — a comment isn't a tweak.
+        item.post.updated_at = _now;
+        item._touchedComps.add(comp);   // keep the card pinned in his queue
+        item._drafts[comp] = '';
+        item._saving[comp] = true;
+        item._errors[comp] = null;
+        _kasperRepaintCard(pid);
+        try {
+            await _kasperPersistPost(item);
+            // Deliberately NO _calPostLinearComment — plain notes don't ping the editor.
+            item._saving[comp] = false;
+            _kasperPersistCache();
+            _kasperRepaintCard(pid);
+        } catch (e) {
+            Object.assign(item.post, prev);
+            item._saving[comp] = false;
+            item._errors[comp] = e && e.message ? e.message : 'Save failed';
+            _kasperRepaintCard(pid);
+        }
+    }
+
     async function _kasperRequestTweakComp(pid, comp, approveAfterTweaks) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
@@ -19547,6 +19642,8 @@
             parent_id: null,
             author: 'Kasper',
             role: 'kasper',
+            is_tweak: true,
+            audience: 'internal',
             body: body,
             created_at: _now,
             updated_at: _now,
@@ -20378,6 +20475,7 @@
     window._kasperToggleCard = _kasperToggleCard;
     window._kasperApproveComp = _kasperApproveComp;
     window._kasperRequestTweakComp = _kasperRequestTweakComp;
+    window._kasperAddCommentComp = _kasperAddCommentComp;
     window._kasperApproveAfterTweaksComp = _kasperApproveAfterTweaksComp;
     window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
     window._kasperDismiss = _kasperDismiss;

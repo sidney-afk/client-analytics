@@ -13113,9 +13113,11 @@
     function _calOnLinkInput(input) {
         _calOnFieldInput(input);
         _calLivePreviewThumb(input.dataset.pid);
+        _calRefreshMediaWarning(input.dataset.pid);
     }
     function _calOnLinkBlur(input) {
         _calOnFieldBlur(input);
+        _calRefreshMediaWarning(input.dataset.pid);
         const field = input.closest('.cal-link-field');
         if (!field) return;
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder);
@@ -13696,6 +13698,31 @@
         } else {
             if (thumbDiv.querySelector('img')) thumbDiv.innerHTML = _calThumbIconHtml();
         }
+    }
+    /* Re-evaluate the "no media linked" warning overlay for a card from what's
+       currently typed in its URL fields, so the banner clears the instant a
+       video / thumbnail URL is pasted instead of lingering until a refresh.
+       Reads the live input values (the debounced save hasn't written back to
+       calState.posts yet) and merges them over the post's saved state — only
+       the media URLs change here, the approval sub-statuses come from the post. */
+    function _calRefreshMediaWarning(pid) {
+        if (_isClientLink) return;   // overlay is SMM-only — never shown in the client view
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        const p = (calState.posts || []).find(x => x.id === pid);
+        if (!p) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        const view = Object.assign({}, p, {
+            thumbnail_url: thumbInput ? thumbInput.value : p.thumbnail_url,
+            asset_url:     assetInput ? assetInput.value : p.asset_url,
+        });
+        const existing = thumbDiv.querySelector('.cal-smm-warn-overlay');
+        if (existing) existing.remove();
+        const html = _calSmmWarnOverlayHtml(view);
+        if (html) thumbDiv.insertAdjacentHTML('beforeend', html);
     }
 
     function _calOnFieldInput(el) {

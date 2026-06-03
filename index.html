@@ -15223,11 +15223,15 @@
     // dot on the month + week pills.
     function _calSmmMediaGap(p) {
         if (!p) return null;
-        const awaiting = _calNormStatus(p.status || '') === 'For SMM Approval'
-            || CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'For SMM Approval');
-        if (!awaiting) return null;
-        const video = !String(p.asset_url || '').trim();
-        const thumb = !String(p.thumbnail_url || '').trim();
+        // A component is flagged once its sub-status moves past In Progress —
+        // i.e. it's been sent for any kind of approval (For SMM Approval,
+        // Kasper Approval, Client Approval, …) or beyond. At that point the
+        // matching media URL must already be linked, so warn while it's empty.
+        // The video sub-status governs the video URL; the thumbnail (graphic)
+        // sub-status governs the thumbnail URL — each is independent.
+        const beyondProgress = s => _calNormStatus(s || '') !== 'In Progress';
+        const video = beyondProgress(p.video_status)   && !String(p.asset_url || '').trim();
+        const thumb = beyondProgress(p.graphic_status) && !String(p.thumbnail_url || '').trim();
         if (!video && !thumb) return null;
         return { video, thumb };
     }
@@ -15238,17 +15242,17 @@
         if (gap.video && gap.thumb) return {
             strong: 'No media linked.',
             rest: 'Add a video and a thumbnail URL before this can go for approval.',
-            title: 'Awaiting SMM approval but neither the video nor the thumbnail is linked yet — add the URLs before this can be reviewed.'
+            title: 'Sent for approval but neither the video nor the thumbnail is linked yet — add the URLs before this can be reviewed.'
         };
         if (gap.video) return {
             strong: 'No video linked.',
             rest: 'Add the video URL before this can go for approval.',
-            title: "Awaiting SMM approval but the video isn't linked yet — add the video URL before this can be reviewed."
+            title: "Sent for approval but the video isn't linked yet — add the video URL before this can be reviewed."
         };
         return {
             strong: 'No thumbnail linked.',
             rest: 'Add the thumbnail URL before this can go for approval.',
-            title: "Awaiting SMM approval but the thumbnail isn't linked yet — add the thumbnail URL before this can be reviewed."
+            title: "Sent for approval but the thumbnail isn't linked yet — add the thumbnail URL before this can be reviewed."
         };
     }
     function _calSmmWarnIconSvg() {
@@ -15271,7 +15275,7 @@
     }
     function _calSmmWarnDotHtml(p) {
         const parts = _calSmmWarnParts(_calSmmMediaGap(p));
-        const title = parts ? parts.title : 'Awaiting SMM approval but no media linked yet.';
+        const title = parts ? parts.title : 'Sent for approval but no media linked yet.';
         return `<span class="cal-smm-warn-dot" title="${_calEscAttr(title)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>`;
     }
 

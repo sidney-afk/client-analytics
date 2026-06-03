@@ -7316,6 +7316,15 @@
         t = t.replace(/[^a-z0-9&]+/g, '');
         return t;
     }
+    // INVARIANT: every name here must have a matching Calendar_<slug> tab
+    // (slug = wlNormalizeClient(name)) on the SyncView Calendar Sheet, or that
+    // client's content calendar silently breaks — calendar-get returns an empty
+    // 200 (the Sheets read throws on the missing tab) and calendar-upsert-post
+    // can't append, so cards appear to "save" optimistically then vanish on the
+    // next load. Adding a client here is NOT enough: provision its tab by running
+    // the "SyncView Calendar — Provision Missing Tabs" n8n workflow (idempotent —
+    // creates only missing tabs, never touches existing ones). This gap is what
+    // left Kasper Hytonen with no tab after he was added to the allowlist.
     const WL_CLIENT_NAMES = [
         'Baya Voce',
         'Jessica Winterstern',

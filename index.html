@@ -3259,6 +3259,47 @@
             .ked-vid { grid-template-columns: 140px 1fr; }
         }
 
+        /* Filming Plans sub-tab */
+        .kfilm-summary { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+        .kfilm-pill { font-size: 0.74rem; font-weight: 700; padding: 4px 11px; border-radius: 99px; }
+        .kfilm-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+        .kfilm-red.kfilm-dot   { background: #dc2626; }
+        .kfilm-amber.kfilm-dot { background: #d97706; }
+        .kfilm-green.kfilm-dot { background: #16a34a; }
+        .kfilm-pill.kfilm-red   { background: #fef2f2; color: #b91c1c; }
+        .kfilm-pill.kfilm-amber { background: #fffbeb; color: #b45309; }
+        .kfilm-pill.kfilm-green { background: #f0fdf4; color: #15803d; }
+        .kfilm-list { display: flex; flex-direction: column; gap: 8px; }
+        .kfilm-row { background: var(--white); border: 1px solid var(--border); border-left-width: 3px; border-radius: 12px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
+        .kfilm-row:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .kfilm-row.kfilm-red   { border-left-color: #dc2626; }
+        .kfilm-row.kfilm-amber { border-left-color: #d97706; }
+        .kfilm-row.kfilm-green { border-left-color: #16a34a; }
+        .kfilm-main { display: grid; grid-template-columns: auto minmax(140px, 1.1fr) minmax(150px, 1fr) minmax(160px, 1.4fr) auto; align-items: center; gap: 14px; padding: 13px 16px; }
+        .kfilm-name { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
+        .kfilm-runway { font-size: 0.8rem; color: var(--text-secondary); }
+        .kfilm-runway strong { color: var(--text-primary); font-weight: 700; }
+        .kfilm-reason { font-size: 0.78rem; color: var(--text-secondary); }
+        .kfilm-row.kfilm-red .kfilm-reason   { color: #b91c1c; font-weight: 600; }
+        .kfilm-row.kfilm-amber .kfilm-reason { color: #b45309; font-weight: 600; }
+        .kfilm-actions { display: inline-flex; align-items: center; gap: 12px; justify-self: end; }
+        .kfilm-open { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); text-decoration: none; white-space: nowrap; padding: 5px 11px; border: 1px solid var(--border); border-radius: 7px; }
+        .kfilm-open:hover { border-color: #aaa; }
+        .kfilm-nodoc { font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; }
+        .kfilm-caret { color: var(--text-muted); font-size: 0.8rem; width: 12px; text-align: center; }
+        .kfilm-muted, .kfilm-row .kfilm-muted { color: var(--text-muted); }
+        .kfilm-strip { padding: 4px 16px 15px 33px; border-top: 1px solid var(--border-light); margin-top: 2px; }
+        .kfilm-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 11px; }
+        .kfilm-cell { min-width: 46px; text-align: center; font-size: 0.74rem; font-weight: 600; padding: 6px 8px; border-radius: 7px; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border-light); }
+        .kfilm-cell a { color: inherit; text-decoration: none; display: block; }
+        .kfilm-cell--on { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
+        .kfilm-note { font-size: 0.76rem; color: var(--text-secondary); margin-top: 9px; }
+        @media (max-width: 760px) {
+            .kfilm-main { grid-template-columns: auto 1fr; grid-auto-rows: auto; row-gap: 6px; }
+            .kfilm-actions { grid-column: 1 / -1; justify-self: start; }
+            .kfilm-reason, .kfilm-runway { grid-column: 1 / -1; }
+        }
+
         /* Kasper lightbox (reuses calendar's overlay pattern, scoped under .kasper-wrap) */
         .kasper-lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.86); z-index: 9000; display: none; align-items: center; justify-content: center; padding: 40px; cursor: zoom-out; }
         .kasper-lightbox.open { display: flex; }
@@ -3559,6 +3600,16 @@
     const MR_BRIEFS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Market%20Research%20Briefs`;
     const CONTENT_SUMMARIES_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ContentSummaries`;
     const BRIEF_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/generate-brief';
+    // Filming Plans (Kasper tab). The sheet tab holds one row per client:
+    //   client_name | doc_url | notes | plan_months(optional)
+    // plan_months is an optional manual list like "2026-04,2026-05" used when the
+    // tabs webhook below isn't configured yet.
+    const FILMING_PLANS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=FilmingPlans`;
+    // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
+    // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. Leave
+    // '' until that backend exists — the view degrades to runway-only signalling
+    // (plus any manual plan_months) when it's blank.
+    const FILMING_PLAN_TABS_URL = '';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
     let followersPlat = 'ig', followersMode = 'total', viewsPlat = 'all', currentClientHistory = [];
@@ -18852,7 +18903,8 @@
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
         { key: 'replies', label: 'Replies',        icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
-        { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' }
+        { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
+        { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' }
     ];
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
     // Optional override — if your workspace's primary domain is known, set it here.
@@ -18887,6 +18939,11 @@
         editorsExpanded: {},  // editorKey -> true (expanded video list visible)
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
+        filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,runwayDate,daysLeft,status,reason}], loadedAt }
+        filmingLoading: false,
+        filmingError: null,
+        filmingLoadedAt: 0,
+        filmingExpanded: {},  // clientName -> true (month strip visible)
     };
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
@@ -18899,6 +18956,11 @@
     // into a new "last week").
     const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v1';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
+    const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v1';
+    const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — runway/coverage drift slowly
+    // "Both combined" alert thresholds, in days of content runway left.
+    const FILMING_RED_DAYS = 10;
+    const FILMING_AMBER_DAYS = 21;
     try {
         const _kSavedSub = localStorage.getItem(KASPER_SUBTAB_KEY);
         if (_kSavedSub && KASPER_SUBTABS.some(t => t.key === _kSavedSub)) _kasperState.tab = _kSavedSub;
@@ -19082,6 +19144,354 @@
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
+        if (_kasperState.tab === 'filming') return _kasperRenderFilming();
+    }
+
+    /* ── Filming Plans ─────────────────────────────────────────────
+       One row per client. Tells Kasper who is about to run out of content
+       and has no plan for the upcoming month ("both combined" alert):
+         • runway  = days until the client's latest scheduled calendar post
+         • coverage = does a plan exist for the month after runway ends?
+       Plan months come from the Docs-tabs webhook when configured, else from
+       an optional manual `plan_months` column. Source of links: FilmingPlans
+       sheet tab (client_name | doc_url | notes | plan_months). */
+    function _filmsTodayISO() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    function _filmsMonthKey(iso) { return String(iso || '').slice(0, 7); }       // 'YYYY-MM'
+    function _filmsAddMonth(key, n) {
+        const [y, m] = key.split('-').map(Number);
+        const d = new Date(y, (m - 1) + n, 1);
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    function _filmsDaysUntil(iso) {
+        if (!iso) return null;
+        const a = new Date(_filmsTodayISO() + 'T00:00:00');
+        const b = new Date(iso + 'T00:00:00');
+        if (isNaN(b)) return null;
+        return Math.round((b - a) / 86400000);
+    }
+    function _filmsMonthShort(key) {
+        const [y, m] = key.split('-').map(Number);
+        if (!m) return key;
+        return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'short' });
+    }
+    function _filmsMonthLong(key) {
+        const [y, m] = key.split('-').map(Number);
+        if (!m) return key;
+        return new Date(y, m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+    }
+    function _filmsDatePretty(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso + 'T00:00:00');
+        if (isNaN(d)) return iso;
+        return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+    }
+    function _filmsDocId(url) {
+        const m = String(url || '').match(/\/d\/([A-Za-z0-9_-]+)/);
+        return m ? m[1] : '';
+    }
+    // Best-effort 'YYYY-MM' from a Doc tab/section title like "July 2026",
+    // "Jul '26", "2026-07", "07/2026", or a bare "July" (assume current year).
+    function _filmsParseMonth(title) {
+        const t = String(title || '').toLowerCase();
+        const names = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+        let y = null, mo = null;
+        let m = t.match(/(20\d{2})[-\/.](\d{1,2})/);
+        if (m) { y = +m[1]; mo = +m[2]; }
+        if (mo == null) { m = t.match(/\b(\d{1,2})[-\/.](20\d{2})\b/); if (m) { mo = +m[1]; y = +m[2]; } }
+        if (mo == null) {
+            for (const k in names) { if (t.includes(k)) { mo = names[k]; break; } }
+            let ym = t.match(/(20\d{2})/);
+            if (ym) y = +ym[1];
+            else { ym = t.match(/'(\d{2})\b/); if (ym) y = 2000 + +ym[2]; }
+        }
+        if (!mo || mo < 1 || mo > 12) return null;
+        if (!y) y = new Date().getFullYear();
+        return `${y}-${String(mo).padStart(2,'0')}`;
+    }
+
+    // Limited-concurrency runner so we don't fire 24 calendar fetches at once.
+    async function _filmsMapLimit(items, limit, fn) {
+        const out = new Array(items.length);
+        let idx = 0;
+        async function worker() {
+            while (idx < items.length) {
+                const i = idx++;
+                try { out[i] = await fn(items[i], i); }
+                catch (e) { out[i] = null; }
+            }
+        }
+        await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+        return out;
+    }
+
+    // Latest scheduled_date across a client's live (non-archived) calendar posts.
+    async function _filmsFetchRunway(slug) {
+        try {
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+            if (!resp.ok) return null;
+            const json = await resp.json();
+            if (!json || !json.ok || !Array.isArray(json.posts)) return null;
+            let latest = '';
+            for (const p of json.posts) {
+                if ((p.status || '').toLowerCase() === 'archived') continue;
+                const d = _calCoerceDate(p.scheduled_date);
+                if (d && d > latest) latest = d;
+            }
+            return latest || null;
+        } catch (e) { return null; }
+    }
+
+    // Plan months for one doc via the optional Docs-tabs webhook.
+    async function _filmsFetchTabMonths(docId) {
+        if (!FILMING_PLAN_TABS_URL || !docId) return null;
+        try {
+            const resp = await fetch(FILMING_PLAN_TABS_URL + '?doc=' + encodeURIComponent(docId) + '&_t=' + Date.now());
+            if (!resp.ok) return null;
+            const json = await resp.json();
+            const tabs = json && (json.tabs || json.data) ;
+            if (!Array.isArray(tabs)) return null;
+            const months = [];
+            for (const tb of tabs) {
+                const mk = _filmsParseMonth(tb && (tb.title || tb.name));
+                if (mk) months.push(mk);
+            }
+            return months;
+        } catch (e) { return null; }
+    }
+
+    function _filmsClassify(row) {
+        // No content scheduled at all → almost certainly needs attention.
+        if (!row.runwayDate) {
+            if (!row.docUrl) return { status: 'red', reason: 'No filming Doc linked & no scheduled content' };
+            return { status: 'red', reason: 'No scheduled content on the calendar' };
+        }
+        const days = row.daysLeft;
+        const neededMonth = _filmsAddMonth(_filmsMonthKey(row.runwayDate), 1); // month after content runs out
+        const covered = row.months && Array.from(row.months).some(mk => mk >= neededMonth);
+        if (covered) return { status: 'green', reason: `Plan ready for ${_filmsMonthShort(neededMonth)}` };
+        // Not covered → urgency is driven by runway (the "both combined" rule).
+        const noData = !FILMING_PLAN_TABS_URL && (!row.months || row.months.size === 0);
+        const tail = noData ? ' · coverage unknown' : '';
+        if (days <= FILMING_RED_DAYS)  return { status: 'red',   reason: `${days}d of content left, no ${_filmsMonthShort(neededMonth)} plan${tail}` };
+        if (days <= FILMING_AMBER_DAYS) return { status: 'amber', reason: `${days}d left, ${_filmsMonthShort(neededMonth)} plan not started${tail}` };
+        return { status: 'green', reason: `${days}d of runway` + (row.docUrl ? '' : ' · no Doc linked') };
+    }
+
+    const _FILMS_RANK = { red: 0, amber: 1, green: 2 };
+
+    function _filmsParseSheet(csvText) {
+        const rows = parseCSV(csvText);
+        const out = [];
+        for (const r of rows) {
+            const client = (r.client_name || r.client || '').trim();
+            if (!client) continue;
+            const docUrl = (r.doc_url || r.url || '').trim();
+            const months = new Set();
+            const manual = (r.plan_months || '').trim();
+            if (manual) manual.split(/[,;|]/).forEach(s => { const mk = _filmsParseMonth(s) || (/^20\d{2}-\d{2}$/.test(s.trim()) ? s.trim() : null); if (mk) months.add(mk); });
+            out.push({
+                client, docUrl,
+                docId: _filmsDocId(docUrl),
+                notes: (r.notes || '').trim(),
+                slug: calClientSlug(client),
+                months,                 // may be augmented by the tabs webhook
+                runwayDate: null,
+                daysLeft: null,
+                status: 'amber',
+                reason: '',
+            });
+        }
+        return out;
+    }
+
+    function _filmsLoadCache() {
+        try {
+            const raw = localStorage.getItem(KASPER_FILMING_CACHE_KEY);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || !parsed.fetchedAt || Date.now() - parsed.fetchedAt > KASPER_FILMING_CACHE_MAX_AGE_MS) return null;
+            (parsed.rows || []).forEach(r => { r.months = new Set(r.months || []); });
+            return parsed.rows || null;
+        } catch (e) { return null; }
+    }
+    function _filmsSaveCache(rows) {
+        try {
+            const slim = rows.map(r => Object.assign({}, r, { months: Array.from(r.months || []) }));
+            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now() }));
+        } catch (e) {}
+    }
+
+    async function _kasperRenderFilming() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        root.innerHTML = `
+            <div class="kasper-toolbar">
+                <div class="ked-meta-week" id="kfilmTitle">Filming Plans</div>
+                <div class="ked-toolbar-actions">
+                    <button type="button" class="ked-info-btn" id="kfilmInfoBtn" onclick="_filmsToggleInfo()" aria-label="About this view" title="About this view">
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><path d="M7 9.7V6.4M7 4.5v.05"/></svg>
+                    </button>
+                    <button type="button" class="kasper-refresh-btn" id="kfilmRefresh" onclick="_kasperLoadFilming(true)">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8a6 6 0 0 1 10.5-4M14 8a6 6 0 0 1-10.5 4"/><path d="M12.5 1.5V4h-2.5M3.5 14.5V12H6"/></svg>
+                        Refresh
+                    </button>
+                </div>
+            </div>
+            <div class="ked-info-panel" id="kfilmInfoPanel" hidden>
+                <p><strong>What this is.</strong> One row per client, sorted by who needs a new filming plan soonest.</p>
+                <p><strong>The dot.</strong>
+                    <span class="kfilm-dot kfilm-red"></span> needs a plan now —
+                    <span class="kfilm-dot kfilm-amber"></span> start one soon —
+                    <span class="kfilm-dot kfilm-green"></span> covered.</p>
+                <p><strong>Content runway</strong> is the date of the last scheduled post on that client's content calendar — i.e. when we run out of content.</p>
+                <p><strong>The alert</strong> only goes red/amber when content is running low <em>and</em> there's no filming plan for the upcoming month. Click a client to see which months already have a plan, and open the Doc.</p>
+                <p class="ked-info-note">Plan links live in the <strong>FilmingPlans</strong> sheet tab. Month coverage is read from each Doc's tabs when the tabs webhook is configured; otherwise from an optional <code>plan_months</code> column.</p>
+            </div>
+            <div id="kfilmBody"><div class="kasper-loading"><div class="spinner"></div>Loading filming plans…</div></div>`;
+        const fresh = _kasperState.filmingData && (Date.now() - _kasperState.filmingLoadedAt < KASPER_FILMING_CACHE_MAX_AGE_MS);
+        if (fresh) { _filmsPaint(); return; }
+        await _kasperLoadFilming(false);
+    }
+
+    function _filmsToggleInfo() {
+        const panel = document.getElementById('kfilmInfoPanel');
+        if (panel) panel.hidden = !panel.hidden;
+    }
+    function _filmsToggleClient(idx) {
+        const rows = _kasperState.filmingData && _kasperState.filmingData.rows;
+        if (!rows || !rows[idx]) return;
+        const client = rows[idx].client;
+        _kasperState.filmingExpanded[client] = !_kasperState.filmingExpanded[client];
+        _filmsPaint();
+    }
+
+    async function _kasperLoadFilming(forceRefresh) {
+        const body = document.getElementById('kfilmBody');
+        const btn  = document.getElementById('kfilmRefresh');
+
+        if (!forceRefresh) {
+            const cached = _filmsLoadCache();
+            if (cached) {
+                _kasperState.filmingData = { rows: cached };
+                _kasperState.filmingLoadedAt = Date.now();
+                _filmsPaint();
+                return;
+            }
+        }
+
+        if (btn) { btn.disabled = true; btn.classList.add('spinning'); }
+        if (body && (forceRefresh || !_kasperState.filmingData)) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>${forceRefresh ? 'Refreshing' : 'Loading filming plans'}…</div>`;
+        _kasperState.filmingLoading = true;
+        _kasperState.filmingError = null;
+        try {
+            const resp = await fetch(FILMING_PLANS_URL + '&_t=' + Date.now());
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const text = await resp.text();
+            const rows = _filmsParseSheet(text);
+            if (!rows.length) {
+                _kasperState.filmingData = { rows: [] };
+                _kasperState.filmingLoadedAt = Date.now();
+                _filmsPaint();
+                return;
+            }
+            // Runway (per client) + optional Doc-tab months (per doc), bounded concurrency.
+            await _filmsMapLimit(rows, 5, async (row) => {
+                const [runway, tabMonths] = await Promise.all([
+                    _filmsFetchRunway(row.slug),
+                    _filmsFetchTabMonths(row.docId),
+                ]);
+                row.runwayDate = runway;
+                row.daysLeft = runway ? _filmsDaysUntil(runway) : null;
+                if (Array.isArray(tabMonths)) tabMonths.forEach(mk => row.months.add(mk));
+                const cls = _filmsClassify(row);
+                row.status = cls.status;
+                row.reason = cls.reason;
+            });
+            rows.sort((a, b) => (_FILMS_RANK[a.status] - _FILMS_RANK[b.status])
+                || ((a.daysLeft == null ? 1e9 : a.daysLeft) - (b.daysLeft == null ? 1e9 : b.daysLeft))
+                || a.client.localeCompare(b.client));
+            _kasperState.filmingData = { rows };
+            _kasperState.filmingLoadedAt = Date.now();
+            _filmsSaveCache(rows);
+            _filmsPaint();
+        } catch (e) {
+            _kasperState.filmingError = e && e.message ? e.message : String(e);
+            const b = document.getElementById('kfilmBody');
+            if (b) b.innerHTML = `<div class="kasper-empty">
+                <div class="kasper-empty-title">Couldn't load filming plans</div>
+                <div class="kasper-empty-sub">${_calEsc(_kasperState.filmingError)}</div>
+                <div class="kasper-empty-sub" style="margin-top:8px;">Make sure a <strong>FilmingPlans</strong> tab exists in the sheet with a <code>client_name</code> and <code>doc_url</code> column.</div>
+            </div>`;
+        } finally {
+            _kasperState.filmingLoading = false;
+            if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+        }
+    }
+
+    function _filmsPaint() {
+        const data = _kasperState.filmingData;
+        const body = document.getElementById('kfilmBody');
+        if (!body || !data) return;
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+        if (!rows.length) {
+            body.innerHTML = `<div class="ked-empty-msg">
+                No filming plans yet. Add a <strong>FilmingPlans</strong> tab to the sheet with columns
+                <code>client_name</code> and <code>doc_url</code>, paste each client's master plan Doc, and hit Refresh.
+            </div>`;
+            return;
+        }
+        // Month columns for the overview grid: last 4 + this month + next.
+        const thisMonth = _filmsMonthKey(_filmsTodayISO());
+        const gridMonths = [];
+        for (let i = -4; i <= 1; i++) gridMonths.push(_filmsAddMonth(thisMonth, i));
+
+        const counts = rows.reduce((a, r) => { a[r.status] = (a[r.status] || 0) + 1; return a; }, {});
+        const summary = `<div class="kfilm-summary">
+            <span class="kfilm-pill kfilm-red">${counts.red || 0} need a plan</span>
+            <span class="kfilm-pill kfilm-amber">${counts.amber || 0} soon</span>
+            <span class="kfilm-pill kfilm-green">${counts.green || 0} covered</span>
+        </div>`;
+
+        const list = rows.map((r, i) => {
+            const expanded = !!_kasperState.filmingExpanded[r.client];
+            const open = r.docUrl
+                ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
+                : `<span class="kfilm-nodoc">No Doc linked</span>`;
+            const runwayTxt = r.runwayDate
+                ? `Content until <strong>${_filmsDatePretty(r.runwayDate)}</strong>${r.daysLeft != null ? ` · ${r.daysLeft}d left` : ''}`
+                : `<span class="kfilm-muted">No scheduled content</span>`;
+            let strip = '';
+            if (expanded) {
+                const cells = gridMonths.map(mk => {
+                    const has = r.months && r.months.has(mk);
+                    const cls = has ? 'kfilm-cell kfilm-cell--on' : 'kfilm-cell';
+                    const inner = has && r.docUrl
+                        ? `<a href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" title="${_calEscAttr(_filmsMonthLong(mk))}">${_filmsMonthShort(mk)}</a>`
+                        : `<span title="${_calEscAttr(_filmsMonthLong(mk))}">${_filmsMonthShort(mk)}</span>`;
+                    return `<div class="${cls}">${inner}</div>`;
+                }).join('');
+                const note = r.notes ? `<div class="kfilm-note">${_calEsc(r.notes)}</div>` : '';
+                const cov = (r.months && r.months.size)
+                    ? ''
+                    : `<div class="kfilm-note">No month data yet — ${FILMING_PLAN_TABS_URL ? 'the Doc has no recognisable monthly tabs' : 'connect the tabs webhook or add a plan_months column to see coverage'}.</div>`;
+                strip = `<div class="kfilm-strip"><div class="kfilm-grid">${cells}</div>${note}${cov}</div>`;
+            }
+            return `<div class="kfilm-row kfilm-${r.status}${expanded ? ' open' : ''}" onclick="_filmsToggleClient(${i})">
+                <div class="kfilm-main">
+                    <span class="kfilm-dot kfilm-${r.status}"></span>
+                    <div class="kfilm-name">${_calEsc(r.client)}</div>
+                    <div class="kfilm-runway">${runwayTxt}</div>
+                    <div class="kfilm-reason">${_calEsc(r.reason)}</div>
+                    <div class="kfilm-actions">${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
+                </div>
+                ${strip}
+            </div>`;
+        }).join('');
+
+        body.innerHTML = summary + `<div class="kfilm-list">${list}</div>`;
     }
 
     /* ── Replies ───────────────────────────────────────────────────

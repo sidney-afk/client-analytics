@@ -3606,10 +3606,11 @@
     // tabs webhook below isn't configured yet.
     const FILMING_PLANS_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=FilmingPlans`;
     // Optional n8n endpoint that, given ?doc=<docId>, returns the Google Doc's
-    // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. Leave
-    // '' until that backend exists — the view degrades to runway-only signalling
-    // (plus any manual plan_months) when it's blank.
-    const FILMING_PLAN_TABS_URL = '';
+    // tabs as { ok:true, tabs:[{ tabId, title, url }] } via the Docs API. The
+    // "Filming Plan Tabs" workflow (n8n id 5S4JyVVR2CpHEv9b) serves this; until
+    // it's activated the view degrades to runway-only signalling (plus any
+    // manual plan_months) — failed calls are caught and treated as no coverage.
+    const FILMING_PLAN_TABS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/filming-plan-tabs';
 
     let allData = [], clientMap = {}, topVideos = [], growthChart = null, viewsChart = null;
     let followersPlat = 'ig', followersMode = 'total', viewsPlat = 'all', currentClientHistory = [];

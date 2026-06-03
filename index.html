@@ -3409,14 +3409,14 @@
 
 <!-- Resolve-tweaks destination chooser. Shown when the SMM marks the last open
      change-request on a component done: she picks whether the cleared work goes
-     to Casper (internal) or straight to the client for approval. -->
+     to Kasper (internal) or straight to the client for approval. -->
 <div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
     <div class="confirm-box">
         <div class="confirm-box-title">Tweaks resolved — where to next?</div>
         <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
         <div class="confirm-box-actions">
             <button class="brief-action-btn" type="button" onclick="_calDismissResolveDest()">Cancel</button>
-            <button class="brief-action-btn" type="button" id="resolveDestKasper">Casper approval</button>
+            <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
             <button class="brief-action-btn primary" type="button" id="resolveDestClient">Client approval</button>
         </div>
     </div>
@@ -16863,11 +16863,11 @@
 
     /* Resolve-tweaks destination chooser. When the SMM closes the last open
        change-request on a component, the cleared work no longer auto-routes to
-       the client — she picks Casper (internal re-review) or the client. The
-       recommended route mirrors the SMM Review tab's smart default: if Casper
+       the client — she picks Kasper (internal re-review) or the client. The
+       recommended route mirrors the SMM Review tab's smart default: if Kasper
        has already cleared this (his "approve after tweaks" pre-clearance) or
        has seen it before, default to the client; a component that's never been
-       to Casper defaults to Casper. */
+       to Kasper defaults to Kasper. */
     let _calResolveDestCb = null;
     function _calResolveDestRecommend(post, comp) {
         if (!post) return 'client';
@@ -16883,13 +16883,13 @@
         const cBtn = document.getElementById('resolveDestClient');
         if (!overlay || !kBtn || !cBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client'); return; }
         const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
-        const toCasper = opts.recommend === 'kasper';
+        const toKasper = opts.recommend === 'kasper';
         if (msg) msg.textContent = 'All change requests on the ' + compLabel + ' are resolved. '
-            + (toCasper ? 'Send it to Casper for approval — or straight to the client.'
-                        : 'Send it to the client for approval — or back to Casper first.');
+            + (toKasper ? 'Send it to Kasper for approval — or straight to the client.'
+                        : 'Send it to the client for approval — or back to Kasper first.');
         // The recommended route is the primary (filled) button.
-        kBtn.classList.toggle('primary', toCasper);
-        cBtn.classList.toggle('primary', !toCasper);
+        kBtn.classList.toggle('primary', toKasper);
+        cBtn.classList.toggle('primary', !toKasper);
         _calResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
         kBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('kasper'); };
         cBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('client'); };
@@ -16947,7 +16947,7 @@
         post.status = computeOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
-        // Routing to Casper marks the cross-device kasper_seen flag (same as the
+        // Routing to Kasper marks the cross-device kasper_seen flag (same as the
         // SMM Review tab's "Approve → Kasper") so every device stops treating
         // this component as brand-new.
         if (next === 'Kasper Approval') {

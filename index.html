@@ -2631,7 +2631,7 @@
         .cal-review-panel[data-comp="graphic"] .cal-review-comment { border-left-color: rgba(217,70,239,0.55); }
         .cal-review-panel[data-comp="caption"] .cal-review-comment { border-left-color: rgba(245,158,11,0.55); }
         .cal-review-comment-head { font-size: 0.74rem; color: var(--text-muted); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        /* Chat-style author tint so Casper can scan who said what at a glance —
+        /* Chat-style author tint so Kasper can scan who said what at a glance —
            his own messages vs the SMM's reply vs the client. */
         .cal-review-comment.cal-cm-kasper .cal-review-comment-head strong { color: #7c3aed; }
         .cal-review-comment.cal-cm-smm    .cal-review-comment-head strong { color: #0891b2; }
@@ -7292,7 +7292,7 @@
 
     // Status classification — user rule:
     //   Workload only shows work the editor still owns. Anything parked on
-    //   someone else (Tweaks Applied, awaiting SMM/Casper/Client approval,
+    //   someone else (Tweaks Applied, awaiting SMM/Kasper/Client approval,
     //   Approved, Posted) is hidden, along with completed/canceled/triage
     //   workflow types. Everything else (To Do, In Progress, Tweaks Needed,
     //   plus any active status not explicitly parked) is shown.
@@ -16217,7 +16217,7 @@
     const _calReplyDrafts = Object.create(null);
     let _calRootDraft = '';
     /* Audience for the NEXT new root note an SMM sends from the Notes modal:
-       'internal' (team-only — you + Casper, hidden from the client) or 'client'
+       'internal' (team-only — you + Kasper, hidden from the client) or 'client'
        (shared with the client). Defaults to 'internal' so nothing reaches the
        client unless it's deliberately shared. Resets each time the modal opens.
        Replies don't use this — they inherit their thread root's audience. */
@@ -16257,7 +16257,7 @@
        changes who you're writing to. */
     function _calComposePlaceholder(role) {
         if (role === 'client') return 'Message your Synchro Social team…';
-        return _calComposeAudience === 'client' ? 'Message to the client…' : 'Message to Casper / the team…';
+        return _calComposeAudience === 'client' ? 'Message to the client…' : 'Message to Kasper / the team…';
     }
 
     function _calStringifyComments(arr) {
@@ -16714,7 +16714,7 @@
             ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note">
                 <span class="cal-cm-audience-cap">Who sees this?</span>
                 <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only — you and Casper. The client never sees it.">${lockIco}Casper / team</button>
+                    <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_calSetComposeAudience('internal')" title="Team only — you and Kasper. The client never sees it.">${lockIco}Kasper / team</button>
                     <button type="button" class="cal-cm-aud-btn${_calComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_calSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
                 </div>
             </div>`
@@ -19028,7 +19028,7 @@
        Hidden top-level nav unlocked by visiting ?Kasper=1.
        Sub-tabs live inside; the first is "Review Session" — a queue
        of every calendar card across all clients currently sitting on
-       "Kasper Approval". Casper watches the video, then either:
+       "Kasper Approval". Kasper watches the video, then either:
          • Approve  → status flips to "Client Approval"
          • Tweak    → leaves a comment and status flips to "Tweaks Needed"
        Comments piggyback on the existing tweaks JSON column the
@@ -19980,7 +19980,7 @@
     async function _kasperFetchAllRelevantPosts(forceRefresh) {
         // Fetch every allowed client's calendar and split the result into the
         // live review queue ("Kasper Approval") and a history slice (anything
-        // Casper has previously approved, identified by either an explicit
+        // Kasper has previously approved, identified by either an explicit
         // kasper_approved_at timestamp on the row or — fallback for sheets
         // without that column yet — a status that comes after Kasper Approval
         // in the lifecycle). Throttled to KASPER_CAL_CONCURRENCY in-flight to

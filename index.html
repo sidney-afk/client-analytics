@@ -17503,9 +17503,16 @@
                 || hashRaw.startsWith('calendar/')
                 || hashRaw.startsWith('templates/');
             const fallbackFast = !hashRaw && !stateClient && FAST_TABS.includes(stateNav || savedNav);
+            // Kasper has no analytics dependency — every sub-tab fetches its own
+            // data over webhooks. So a refresh straight onto Kasper (when the tab
+            // is already unlocked for this session) should mount immediately
+            // instead of flashing the analytics tab + "Loading analytics…" first.
+            const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
+            const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
+                && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for the token)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -17519,6 +17526,7 @@
             const _landingIsCalendar = isClientCalendarLink
                 || hashRaw === 'calendar' || hashRaw.startsWith('calendar/');
             if (_landingIsCalendar) _setBootLoadingText('Loading content calendar…');
+            else if (_kasperHashLanding) _setBootLoadingText('Loading Kasper…');
 
             if (isClientCalendarLink) {
                 fetchExtras().then(_applyAllDataDependentChrome, err => {
@@ -17635,6 +17643,13 @@
                             navTo('templates', false);
                         }
                     });
+                } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
+                    // Already unlocked for this session (gated by _kasperHashLanding).
+                    if (hashRaw.startsWith('kasper/')) {
+                        const sub = hashRaw.slice('kasper/'.length);
+                        if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
+                    }
+                    navTo('kasper', false);
                 } else if (hashIsFastTab) {
                     navTo(hashRaw, false);
                 } else {

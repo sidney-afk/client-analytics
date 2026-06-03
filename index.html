@@ -3407,6 +3407,21 @@
     </div>
 </div>
 
+<!-- Resolve-tweaks destination chooser. Shown when the SMM marks the last open
+     change-request on a component done: she picks whether the cleared work goes
+     to Casper (internal) or straight to the client for approval. -->
+<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
+    <div class="confirm-box">
+        <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+        <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
+        <div class="confirm-box-actions">
+            <button class="brief-action-btn" type="button" onclick="_calDismissResolveDest()">Cancel</button>
+            <button class="brief-action-btn" type="button" id="resolveDestKasper">Casper approval</button>
+            <button class="brief-action-btn primary" type="button" id="resolveDestClient">Client approval</button>
+        </div>
+    </div>
+</div>
+
 <!-- Password gate -->
 <div id="passwordOverlay" style="display:none;position:fixed;inset:0;background:var(--bg,#f5f5f3);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:0;">
     <div style="display:flex;flex-direction:column;align-items:center;gap:24px;width:100%;max-width:340px;padding:0 24px;">
@@ -16775,7 +16790,7 @@
             // Only open change-requests gate the advance — a lingering plain
             // comment must not hold the component back (it's just discussion).
             const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
-            if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
+            if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
         }
         _calFlushCardSave(pid);
         _calRefreshCommentsBtn(pid);
@@ -16836,7 +16851,7 @@
             // component flips that component to Client Approval.
             if (wasOpenRoot && _calCommentRole() === 'smm') {
                 const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
-                if (stillOpenForComp === 0) _calApplyAutoStatus(pid, 'smm_resolved_last', comp);
+                if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
             }
             _calFlushCardSave(pid);
             _calRefreshCommentsBtn(pid);
@@ -16846,10 +16861,73 @@
         }, 'Delete');
     }
 
+    /* Resolve-tweaks destination chooser. When the SMM closes the last open
+       change-request on a component, the cleared work no longer auto-routes to
+       the client — she picks Casper (internal re-review) or the client. The
+       recommended route mirrors the SMM Review tab's smart default: if Casper
+       has already cleared this (his "approve after tweaks" pre-clearance) or
+       has seen it before, default to the client; a component that's never been
+       to Casper defaults to Casper. */
+    let _calResolveDestCb = null;
+    function _calResolveDestRecommend(post, comp) {
+        if (!post) return 'client';
+        if (_calShowApprovedAfterTweaks(post, comp)) return 'client';
+        if (_calHasBeenToKasper(post, comp)) return 'client';
+        return 'kasper';
+    }
+    function _calShowResolveDest(opts) {
+        opts = opts || {};
+        const overlay = document.getElementById('resolveDestOverlay');
+        const msg = document.getElementById('resolveDestMsg');
+        const kBtn = document.getElementById('resolveDestKasper');
+        const cBtn = document.getElementById('resolveDestClient');
+        if (!overlay || !kBtn || !cBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client'); return; }
+        const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        const toCasper = opts.recommend === 'kasper';
+        if (msg) msg.textContent = 'All change requests on the ' + compLabel + ' are resolved. '
+            + (toCasper ? 'Send it to Casper for approval — or straight to the client.'
+                        : 'Send it to the client for approval — or back to Casper first.');
+        // The recommended route is the primary (filled) button.
+        kBtn.classList.toggle('primary', toCasper);
+        cBtn.classList.toggle('primary', !toCasper);
+        _calResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
+        kBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('kasper'); };
+        cBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('client'); };
+        overlay.classList.add('active');
+    }
+    function _calDismissResolveDest() {
+        const overlay = document.getElementById('resolveDestOverlay');
+        if (overlay) overlay.classList.remove('active');
+        _calResolveDestCb = null;
+    }
+    /* Called when the SMM clears the last open change-request on a component
+       (via mark-done or delete). Opens the destination chooser, then applies
+       the chosen sub-status and persists it (the flush also pushes the new
+       status to the linked Linear issue). Cancelling leaves the status
+       untouched — recoverable by reopening the thread. */
+    function _calResolveLastTweak(pid, comp) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _calShowResolveDest({
+            comp: comp,
+            recommend: _calResolveDestRecommend(post, comp),
+            onChoose: (destPick) => {
+                if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
+                    _calFlushCardSave(pid);
+                    _calRefreshCommentsBtn(pid);
+                    _calUpdateCardStatusDisplay(pid);
+                    _calRenderCommentsModal();
+                }
+            }
+        });
+    }
+
     /* Auto-status transitions driven by tweak activity. Returns true if a
        change was applied. Skips terminal states (Scheduled / Posted) so
-       live content isn't accidentally bounced backward. */
-    function _calApplyAutoStatus(pid, trigger, comp) {
+       live content isn't accidentally bounced backward. For 'smm_resolved_last'
+       the destination is the SMM's explicit pick ('client' | 'kasper') from the
+       resolve chooser — there is no silent default. */
+    function _calApplyAutoStatus(pid, trigger, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return false;
         if (post.status === 'Posted' || post.status === 'Scheduled') return false;
@@ -16858,8 +16936,9 @@
         let next = null;
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
             next = 'Tweaks Needed';
-        } else if (trigger === 'smm_resolved_last' && post[subKey] !== 'Client Approval') {
-            next = 'Client Approval';
+        } else if (trigger === 'smm_resolved_last') {
+            const target = (dest === 'kasper') ? 'Kasper Approval' : 'Client Approval';
+            if (post[subKey] !== target) next = target;
         }
         if (!next) return false;
         // Only the component the comment belongs to flips status. Overall
@@ -16868,6 +16947,13 @@
         post.status = computeOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        // Routing to Casper marks the cross-device kasper_seen flag (same as the
+        // SMM Review tab's "Approve → Kasper") so every device stops treating
+        // this component as brand-new.
+        if (next === 'Kasper Approval') {
+            const csv = _calRecordKasperSeenOnPost(post, which);
+            if (csv != null) _calPendingEdits[pid].kasper_seen = csv;
+        }
         _calClearStaleApprovals(post, _calPendingEdits[pid]);
         _calMarkLocalStatus(pid, which);
         return true;

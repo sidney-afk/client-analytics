@@ -1645,6 +1645,9 @@
         .cal-import-map-row.is-off label .req { color: var(--text-muted); text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.25); }
         .cal-import-skip-chk { width: 16px; height: 16px; margin: 0; cursor: pointer; accent-color: var(--text-primary); }
         .cal-import-info { font-size: 0.76rem; color: var(--text-secondary); background: var(--bg); border-radius: 8px; padding: 9px 12px; margin-bottom: 14px; line-height: 1.5; }
+        .cal-import-flip-note { color: var(--text-secondary); }
+        .cal-import-flip { font: inherit; font-size: 0.76rem; color: var(--text-primary); font-weight: 600; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+        .cal-import-flip:hover { opacity: 0.8; }
         .cal-import-err { font-size: 0.78rem; color: var(--dn); background: var(--dn-bg); border-radius: 8px; padding: 9px 12px; margin-top: 12px; }
         .cal-import-progress { font-size: 0.82rem; color: var(--text-secondary); text-align: center; padding: 20px; }
         .cal-import-pick-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 4px 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
@@ -10358,6 +10361,10 @@
         { key: 'tweaks',         label: 'Tweaks / notes',    req: false, aliases: ['tweaks','client tweaks','notes','feedback','revisions','changes','comments'] },
     ];
     let _calImportRows = null, _calImportHeaders = null, _calXlsxPromise = null, _calImportLayout = 'rows';
+    /* Raw rows-of-cells for the chosen sheet + any layout the user forced by
+       hand, so the "read one per row/column" toggle can re-parse without
+       re-reading the workbook. */
+    let _calImportAoa = null, _calImportForcedLayout = null;
     /* Map step output → passed forward to the select step → finally to run.
        Kept on the module so Back from select rebuilds the map step without
        losing what the user picked. */
@@ -10413,6 +10420,7 @@
         _calImportRows = null; _calImportHeaders = null;
         _calImportMap = null; _calImportSelectedIdx = null;
         _calImportWorkbook = null; _calImportSheetName = null;
+        _calImportAoa = null; _calImportForcedLayout = null;
         const ovl = document.getElementById('calImportOverlay');
         if (!ovl) return;
         ovl.classList.add('open');
@@ -11399,7 +11407,9 @@
             if (!ws) throw new Error('That sheet is empty.');
             const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true, blankrows: false });
             if (!aoa.length) throw new Error('That sheet looks empty.');
+            _calImportForcedLayout = null;   // fresh sheet → trust auto-detect again
             const parsed = _calDetectSheetLayout(aoa);
+            _calImportAoa = aoa;
             _calImportSheetName = name;
             _calImportRows = parsed.rows;
             _calImportHeaders = parsed.headers;
@@ -11407,6 +11417,27 @@
             _calRenderImportMap();
         } catch (e) {
             if (errBox) errBox.innerHTML = `<div class="cal-import-err">${_calEsc(e.message || 'Could not read that sheet')}</div>`;
+        }
+    }
+
+    /* Escape hatch for when auto-detect guesses the orientation wrong:
+       re-parse the same sheet reading posts the other way (one per row ⇄ one
+       per column) and rebuild the match step. The current mapping is only
+       replaced once the forced re-parse succeeds, so a layout that yields no
+       posts leaves the user where they were with an explanation. */
+    function _calFlipImportLayout() {
+        if (!_calImportAoa) return;
+        const next = _calImportLayout === 'columns' ? 'rows' : 'columns';
+        const errBox = document.getElementById('calImportErr');
+        try {
+            const parsed = _calDetectSheetLayout(_calImportAoa, next);
+            _calImportForcedLayout = next;
+            _calImportRows = parsed.rows;
+            _calImportHeaders = parsed.headers;
+            _calImportLayout = parsed.transposed ? 'columns' : 'rows';
+            _calRenderImportMap();
+        } catch (e) {
+            if (errBox) errBox.innerHTML = `<div class="cal-import-err">Reading one per ${next === 'columns' ? 'column' : 'row'} didn't work — ${_calEsc(e.message || 'no posts found that way')}.</div>`;
         }
     }
 
@@ -11457,38 +11488,64 @@
        names down the first column and one post per column. We score both
        the best-filled row and the best-filled column against the known
        calendar field names, and whichever matches more wins. */
-    function _calDetectSheetLayout(aoa) {
+    function _calDetectSheetLayout(aoa, forced) {
         const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const aliasSet = new Set();
+        // Map every alias → the field it belongs to, so a candidate line is
+        // scored by how many DISTINCT fields it matches, not raw cells. This
+        // stops a data line from masquerading as a header just because one
+        // value repeats — e.g. a row full of "Scheduled" statuses would
+        // otherwise rack up hits against the *date* alias "scheduled".
+        const aliasKey = new Map();
         CAL_IMPORT_FIELDS.forEach(f => {
-            f.aliases.forEach(a => aliasSet.add(norm(a)));
-            aliasSet.add(norm(f.label)); aliasSet.add(norm(f.key));
+            [...f.aliases, f.label, f.key].forEach(a => { const n = norm(a); if (n) aliasKey.set(n, f.key); });
         });
-        const aliasHits = cells => cells.reduce((n, c) => n + (aliasSet.has(norm(c)) ? 1 : 0), 0);
+        const distinctHits = cells => {
+            const keys = new Set();
+            cells.forEach(c => { const k = aliasKey.get(norm(c)); if (k) keys.add(k); });
+            return keys.size;
+        };
         const filled = cells => cells.filter(c => String(c).trim() !== '').length;
+        // How "header-like" a line looks: real label lines are all-distinct
+        // (Date, Status, Caption…); data value lines repeat themselves.
+        const uniqRatio = cells => {
+            const v = cells.map(c => String(c).trim()).filter(Boolean);
+            return v.length ? new Set(v).size / v.length : 0;
+        };
 
         const nRows = aoa.length;
         const nCols = aoa.reduce((m, r) => Math.max(m, r.length), 0);
         const cols = [];
         for (let c = 0; c < nCols; c++) cols.push(aoa.map(r => r[c] ?? ''));
 
-        // Score each candidate header line by how many cells match known
-        // field names first, then by how full it is — so the real header
-        // line wins even when a data line is just as long.
-        let rIdx = 0, rScore = -1;
-        for (let i = 0; i < Math.min(nRows, 15); i++) {
-            const sc = aliasHits(aoa[i]) * 1000 + filled(aoa[i]);
-            if (sc > rScore) { rScore = sc; rIdx = i; }
-        }
-        let cIdx = 0, cScore = -1;
-        for (let i = 0; i < Math.min(nCols, 15); i++) {
-            const sc = aliasHits(cols[i]) * 1000 + filled(cols[i]);
-            if (sc > cScore) { cScore = sc; cIdx = i; }
-        }
+        // Score each candidate header line by how many distinct fields it
+        // matches first, then by how full it is — so the real header line
+        // wins even when a data line is just as long.
+        const bestLine = (lines, cap) => {
+            let idx = 0, score = -1;
+            for (let i = 0; i < Math.min(lines.length, cap); i++) {
+                const sc = distinctHits(lines[i]) * 1000 + filled(lines[i]);
+                if (sc > score) { score = sc; idx = i; }
+            }
+            return idx;
+        };
+        const rIdx = bestLine(aoa, 15);
+        const cIdx = bestLine(cols, 15);
 
-        const rowHits = aliasHits(aoa[rIdx] || []);
-        const colHits = aliasHits(cols[cIdx] || []);
-        const transposed = colHits > rowHits;   // ties → row-oriented (the common case)
+        const rowHits = distinctHits(aoa[rIdx] || []);
+        const colHits = distinctHits(cols[cIdx] || []);
+        let transposed;
+        if (forced === 'columns') transposed = true;
+        else if (forced === 'rows') transposed = false;
+        else if (colHits !== rowHits) transposed = colHits > rowHits;
+        else {
+            // Tie on field matches (common with off-template label words):
+            // labels almost always live in the leading row/column, and read
+            // more header-like than a data line. Default to rows otherwise.
+            const leadCol = cIdx === 0, leadRow = rIdx === 0;
+            if (leadCol && !leadRow) transposed = true;
+            else if (leadRow && !leadCol) transposed = false;
+            else transposed = uniqRatio(cols[cIdx] || []) > uniqRatio(aoa[rIdx] || []);
+        }
 
         const buildHeaders = (line) => {
             const names = [], idx = [];
@@ -11562,7 +11619,7 @@
                 <p>Matches were guessed from your column names — adjust anything that's off. Only <strong>Post name</strong> is required (red *); everything else can be left as <em>— none —</em> or unchecked to skip. Posts import into <strong>${_calEsc(calState.client)}</strong>'s calendar.</p>
             </div>
             <div class="cal-import-body">
-                <div class="cal-import-info">${_calImportRows.length} post${_calImportRows.length!==1?'s':''} found${_calImportSheetName ? ` in sheet <strong>${_calEsc(_calImportSheetName)}</strong>` : ''} — read ${_calImportLayout === 'columns' ? 'one per column (field names down the side)' : 'one per row (field names across the top)'}. Posts with an empty name are skipped.</div>
+                <div class="cal-import-info">${_calImportRows.length} post${_calImportRows.length!==1?'s':''} found${_calImportSheetName ? ` in sheet <strong>${_calEsc(_calImportSheetName)}</strong>` : ''} — read ${_calImportLayout === 'columns' ? 'one per column (field names down the side)' : 'one per row (field names across the top)'}. Posts with an empty name are skipped.<br><span class="cal-import-flip-note">Wrong — these options look like cell values?</span> <button type="button" class="cal-import-flip" onclick="_calFlipImportLayout()">Read one per ${_calImportLayout === 'columns' ? 'row' : 'column'} instead</button></div>
                 ${rowsHtml}
                 <div id="calImportErr"></div>
             </div>

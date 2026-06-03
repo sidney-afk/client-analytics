@@ -19331,6 +19331,10 @@
             if (!raw) return null;
             const parsed = JSON.parse(raw);
             if (!parsed || !parsed.fetchedAt || Date.now() - parsed.fetchedAt > KASPER_FILMING_CACHE_MAX_AGE_MS) return null;
+            // Invalidate caches written under a different tabs-webhook config, so
+            // turning the webhook on (URL '' → real) doesn't keep serving rows
+            // that were computed with no month coverage.
+            if (parsed.tabsUrl !== FILMING_PLAN_TABS_URL) return null;
             (parsed.rows || []).forEach(r => { r.months = new Set(r.months || []); });
             return parsed.rows || null;
         } catch (e) { return null; }
@@ -19338,7 +19342,7 @@
     function _filmsSaveCache(rows) {
         try {
             const slim = rows.map(r => Object.assign({}, r, { months: Array.from(r.months || []) }));
-            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now() }));
+            localStorage.setItem(KASPER_FILMING_CACHE_KEY, JSON.stringify({ rows: slim, fetchedAt: Date.now(), tabsUrl: FILMING_PLAN_TABS_URL }));
         } catch (e) {}
     }
 

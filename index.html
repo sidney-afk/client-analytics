@@ -3285,6 +3285,8 @@
         .kfilm-actions { display: inline-flex; align-items: center; gap: 12px; justify-self: end; }
         .kfilm-open { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); text-decoration: none; white-space: nowrap; padding: 5px 11px; border: 1px solid var(--border); border-radius: 7px; }
         .kfilm-open:hover { border-color: #aaa; }
+        .kfilm-cal { font-weight: 600; color: var(--text-secondary); }
+        .kfilm-cal:hover { color: var(--text-primary); }
         .kfilm-nodoc { font-size: 0.74rem; color: var(--text-muted); white-space: nowrap; }
         .kfilm-caret { color: var(--text-muted); font-size: 0.8rem; width: 12px; text-align: center; }
         .kfilm-muted, .kfilm-row .kfilm-muted { color: var(--text-muted); }
@@ -19461,6 +19463,8 @@
             const open = r.docUrl
                 ? `<a class="kfilm-open" href="${_calEscAttr(r.docUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Open Doc ↗</a>`
                 : `<span class="kfilm-nodoc">No Doc linked</span>`;
+            const calUrl = `${location.pathname}#calendar/${encodeURIComponent(r.slug)}`;
+            const calBtn = `<a class="kfilm-open kfilm-cal" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">Calendar ↗</a>`;
             const runwayTxt = r.runwayDate
                 ? `Content until <strong>${_filmsDatePretty(r.runwayDate)}</strong>${r.daysLeft != null ? ` · ${r.daysLeft}d left` : ''}`
                 : `<span class="kfilm-muted">No scheduled content</span>`;
@@ -19486,7 +19490,7 @@
                     <div class="kfilm-name">${_calEsc(r.client)}</div>
                     <div class="kfilm-runway">${runwayTxt}</div>
                     <div class="kfilm-reason">${_calEsc(r.reason)}</div>
-                    <div class="kfilm-actions">${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
+                    <div class="kfilm-actions">${calBtn}${open}<span class="kfilm-caret">${expanded ? '▾' : '▸'}</span></div>
                 </div>
                 ${strip}
             </div>`;

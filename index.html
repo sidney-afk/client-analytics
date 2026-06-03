@@ -5750,6 +5750,25 @@
     function switchPeriod(clientName,platform,period,containerId){activePeriods[getPeriodKey(clientName,platform)]=period;const container=document.getElementById(containerId);if(!container)return;const newHtml=buildTopVideosSection(clientName,platform,containerId);const temp=document.createElement('div');temp.innerHTML=newHtml;if(temp.firstElementChild)container.replaceWith(temp.firstElementChild);}
 
     function renderClient(name,history,clientOnly){
+        // Calendar-only clients (calendar/workload allowlist, no analytics
+        // history) reach here via a ?c=…&v=calendar share link. The analytics
+        // render below assumes at least one history row, so return the calendar
+        // shell up-front for the calendar tab and skip analytics entirely. For
+        // clients that DO have analytics this is the same shell the bottom of
+        // this function would return — just without the now-unneeded work.
+        if((clientViewTab[name]||'analytics')==='calendar'){
+            const _enc=encodeURIComponent(name);
+            const _hasBriefData=getClientBriefs(name).length>0||getClientMRBriefs(name).length>0||briefPollingState[name+'__comp']?.loading||briefPollingState[name+'__mr']?.loading;
+            const _showBriefTab=!clientOnly||_hasBriefData;
+            return`<div class="client-view cal-tab-view">
+                <div class="view-tab-toggle">
+                    <button class="view-tab-btn" onclick="setClientViewTab('${_enc}','analytics')">Analytics</button>
+                    <button class="view-tab-btn active" onclick="setClientViewTab('${_enc}','calendar')">Content Calendar</button>
+                    ${_showBriefTab?`<button class="view-tab-btn" onclick="setClientViewTab('${_enc}','brief')">Brief</button>`:''}
+                </div>
+                <div class="cal-view cal-embedded" id="calView">${_calLoaderHtml()}</div>
+            </div>`;
+        }
         const today=history[history.length-1],prev=history.length>=2?history[history.length-2]:null;
         const weekRow=getWeekRow(history);
         const monthRow=getMonthRow(history);
@@ -6015,7 +6034,10 @@
         const _pr=document.getElementById('pinsArea');
         if(_pr)_pr.style.display='none';
         const hist=clientHistory(sel);
-        if(!hist.length){content.innerHTML=`<div class="error-state">No data for "${sel}"</div>`;return;}
+        // A calendar-only client (no analytics history) can still be opened on
+        // its Content Calendar tab via a share link — only bail to "No data"
+        // when the tab actually needs analytics.
+        if(!hist.length&&(clientViewTab[sel]||'analytics')!=='calendar'){content.innerHTML=`<div class="error-state">No data for "${sel}"</div>`;return;}
         content.innerHTML=renderClient(sel,hist,clientOnly);
         const tab=clientViewTab[sel]||'analytics';
         if(tab==='analytics')setTimeout(()=>{renderChart(hist);renderViewsChart(hist);},0);
@@ -17585,8 +17607,16 @@
                 _applyAllDataDependentChrome();
                 const clientNames = [...new Set(allData.map(r => r.client_name))];
                 const clientFromQuery = decodeURIComponent(qp.get('c'));
-                if (clientNames.includes(clientFromQuery)) {
-                    const expectedToken = String(clientMap[clientFromQuery]?.client_review_token || '').trim();
+                // A ?c=…&v=calendar link resolves against the analytics client
+                // list OR the calendar/workload allowlist (WL_CLIENT_NAMES), so a
+                // calendar-only client with no analytics row (e.g. Sidney Laruel)
+                // still opens its content calendar instead of falling through to
+                // the home dashboard.
+                const _calLinkClient = clientNames.includes(clientFromQuery)
+                    ? clientFromQuery
+                    : (wlIsAllowedClient(clientFromQuery) ? wlCanonicalClient(clientFromQuery) : null);
+                if (_calLinkClient) {
+                    const expectedToken = String(clientMap[_calLinkClient]?.client_review_token || '').trim();
                     const tParam = String(qp.get('t') || '').trim();
                     if (expectedToken && tParam !== expectedToken) {
                         document.querySelector('header.header').style.display = 'none';
@@ -17604,8 +17634,8 @@
                     document.getElementById('pageSub').style.display = 'none';
                     document.getElementById('pageTitle').textContent = 'Your Analytics';
                     document.querySelector('header.header').style.display = 'none';
-                    clientViewTab[clientFromQuery] = 'calendar';
-                    render(clientFromQuery, true);
+                    clientViewTab[_calLinkClient] = 'calendar';
+                    render(_calLinkClient, true);
                     return;
                 }
                 // Unknown client — fall through to the regular await-everything

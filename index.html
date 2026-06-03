@@ -12119,7 +12119,21 @@
                 if (background) {
                     if (!dataChanged) {
                         /* no-op — current strip is already correct */
-                    } else if (_calIsCalBusy()) {
+                    } else if (opts.background && _calIsCalBusy()) {
+                        // Only a PASSIVE refresh (focus/visibility return, the
+                        // sole caller that passes {background:true}) may defer
+                        // its repaint to avoid yanking a caret mid-edit. A
+                        // DELIBERATE load (client-tab switch, mount, view change,
+                        // "Done" in an import modal) becomes "background" merely
+                        // because cache-priming populated the strip — it must
+                        // still paint the freshly-fetched data immediately.
+                        // Deferring it was the bug behind "I edit a card, switch
+                        // client, come back and it looks like nothing saved": the
+                        // stale pre-edit card primed from cache kept showing
+                        // while the repaint sat deferred forever, because any
+                        // queued edit in _calPendingEdits keeps _calIsCalBusy()
+                        // true. A full page refresh "fixed" it only because it
+                        // resets that in-memory map.
                         _calPendingBackgroundRender = true;
                         _calSchedulePendingRender();
                     } else {

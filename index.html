@@ -2336,6 +2336,21 @@
         .cal-fld-substatus-trigger.cal-fld-status-tweaks-needed     { background: #fdba74; color: #7c2d12; }
         .cal-fld-substatus-trigger.cal-fld-status-scheduled         { background: #ede9fe; color: #5b21b6; }
         .cal-fld-substatus-trigger.cal-fld-status-posted            { background: #064e3b; color: #ecfdf5; }
+        /* URGENT ping button — only rendered on the Video pill when it sits at
+           Tweaks Needed and has a linked Linear sub-issue. The pill goes from a
+           full-width block to a flex row so the status shrinks and the red
+           URGENT action docks on the right, the two reading as one segmented
+           pill. Clicking posts to #video-editing via the SyncView Bot. */
+        .cal-fld-substatus-wrap.has-urgent { display: flex; align-items: stretch; }
+        .cal-fld-substatus-wrap.has-urgent .cal-fld-substatus-trigger { flex: 1 1 auto; width: auto; border-radius: 7px 0 0 7px; }
+        .cal-urgent-btn { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px;
+            padding: 5px 9px; border: 0; border-radius: 0 7px 7px 0; cursor: pointer;
+            background: #dc2626; color: #fff; font-family: inherit; font-size: 0.58rem; font-weight: 800;
+            letter-spacing: 0.05em; text-transform: uppercase; transition: background 0.12s; }
+        .cal-urgent-btn:hover { background: #b91c1c; }
+        .cal-urgent-btn:disabled { background: #9ca3af; cursor: default; }
+        .cal-urgent-btn.is-sent { background: #166534; }
+        .cal-urgent-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
         /* Second Linear slot (graphics) in the title row — purple ONLY when
            linked, so an unlinked graphic slot falls back to the neutral
            gray (default) or warn-orange (cal-linear-btn-warn) the same way
@@ -9356,6 +9371,12 @@
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
+       sub-issue's Linear URL + client name; the send-urgent-slack workflow
+       validates the URL, resolves the editor from Linear, maps them to a Slack
+       user via the Video Editors sheet tab, and posts to #video-editing as the
+       SyncView Bot. The editor/mention is never trusted from the client. */
+    const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
     /* Default Caption Writer prompt — kept in sync with the same string
        baked into the SyncView Calendar — Generate Caption workflow. When
        a client's CaptionPrompts row is empty, both the front-end modal
@@ -10724,6 +10745,52 @@
                 _linearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e));
             }
         })();
+    }
+    /* "URGENT TWEAKS NEEDED" ping for a video in tweaks. Sends only the video
+       sub-issue's Linear URL + client name to send-urgent-slack; the workflow
+       resolves the editor and posts to #video-editing as the SyncView Bot. A
+       disclaimer gates the send, and the button latches to "Sent" for the rest
+       of the session so a card can't be spam-pinged on re-render. */
+    function _calSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') {
+            showNotify('Already sent', 'An urgent ping for this video was already sent in this session.');
+            return;
+        }
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const issue = String(post.linear_issue_id || '').trim();
+        if (!issue) {
+            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+            return;
+        }
+        const client = String(calState.client || '').trim();
+        showConfirm(
+            'Send urgent tweak ping?',
+            'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
+            () => {
+                if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+                (async () => {
+                    try {
+                        const resp = await fetch(URGENT_SLACK_URL, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ issue, client, name: String(post.name || '') })
+                        });
+                        let j = null;
+                        try { j = await resp.json(); } catch {}
+                        if (!resp.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('http ' + (resp && resp.status)));
+                        if (btn) { btn.disabled = true; btn.textContent = 'Sent'; btn.dataset.urgentSent = '1'; btn.classList.add('is-sent'); }
+                        const who = (j && j.editor) ? (' — pinged ' + j.editor) : '';
+                        showNotify('Urgent ping sent', 'Posted to #video-editing' + who + '.');
+                    } catch (e) {
+                        if (btn) { btn.disabled = false; btn.textContent = 'URGENT'; }
+                        showNotify('Could not send', 'The urgent ping failed to send. Try again, or post in #video-editing manually.');
+                    }
+                })();
+            },
+            'Send urgent ping'
+        );
     }
     // Drain any failed pushes from a previous session, and retry on focus.
     try {
@@ -13442,13 +13509,20 @@
             // a genuine "not set yet" and should read In Progress.
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             const slug = _calStatusSlug(cs);
-            const lock = (c !== 'caption' && !String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim()) ? ' is-locked' : '';
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+            const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
+            const lock = (c !== 'caption' && !link) ? ' is-locked' : '';
+            // URGENT ping — Video only, and only once it's actually in Tweaks
+            // Needed with a Linear sub-issue we can resolve the editor from.
+            const showUrgent = c === 'video' && cs === 'Tweaks Needed' && !!link;
+            const urgentBtn = showUrgent
+                ? `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_calSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`
+                : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_calEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
                 <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_calStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_calEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_calEsc(_calStatusLabel(cs))}</span>
-                </button>
+                </button>${urgentBtn}
             </div>`;
         }).join('');
         // "Set all to..." pill — chain-link icon signals the three components

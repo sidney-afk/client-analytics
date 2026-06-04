@@ -13048,14 +13048,31 @@
         _calRenderBody();
     }
 
+    /* Append a cache-busting token so a thumbnail re-fetches when the post's
+       link changes. Without it, swapping the thumbnail to a new Google Drive
+       link (or replacing the file behind an unchanged Drive link) leaves the
+       browser / Drive CDN serving the previously-cached image even after a
+       page refresh — the URL the browser keys its cache on is unchanged. The
+       token is the post's updated_at, which is bumped on every save (see
+       _calFlushCardSave) and persisted to the sheet, so the busted URL
+       survives a reload. Objects without updated_at (live-preview probes) get
+       the bare URL — the raw link change already forces a fresh fetch there. */
+    function _calCacheBustThumb(url, p) {
+        const tok = p && p.updated_at;
+        if (!url || !tok) return url;
+        return url + (url.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
+    }
     function _calDeriveThumb(p) {
         const u = String(p.thumbnail_url || p.asset_url || '').trim();
         if (!u) return '';
+        // YouTube thumbnails are immutable per video id, so a link change already
+        // yields a different URL — no cache-bust needed (and busting would refetch
+        // an identical image on every unrelated save).
         let m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
         if (m) return `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg`;
         m = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([A-Za-z0-9_-]+)/);
-        if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w320`;
-        if (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u)) return u;
+        if (m) return _calCacheBustThumb(`https://drive.google.com/thumbnail?id=${m[1]}&sz=w320`, p);
+        if (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u)) return _calCacheBustThumb(u, p);
         return '';
     }
     function _calClientFirstName() {
@@ -13858,7 +13875,12 @@
         if (!card) return;
         const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
         const assetInput = card.querySelector('[data-fld="asset_url"]');
-        const preview = { thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '' };
+        // Carry the saved post's updated_at so the derived src matches the
+        // rendered img's cache-busted src when the link is unchanged — keeps
+        // the early-return below working and avoids a needless refetch on the
+        // first keystroke in either URL field.
+        const saved = (calState.posts || []).find(x => x.id === pid);
+        const preview = { thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '', updated_at: saved ? saved.updated_at : '' };
         const info = _calDeriveThumbInfo(preview);
         const thumbDiv = card.querySelector('.cal-card-thumb');
         if (!thumbDiv) return;

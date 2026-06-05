@@ -14949,7 +14949,28 @@
             // jump renumbered May posts ahead of June). Sorting the slots and
             // reassigning by DOM order keeps the visible subset shuffled in
             // place without disturbing hidden posts' relative position.
-            const slots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            //
+            // The recycled slots MUST be strictly increasing and unique. The
+            // sheet (and the GET workflow) sort purely by order_index with no
+            // tiebreaker, so any two cards sharing a value fall back to
+            // sheet-row order on reload — which a drag never changes, so the
+            // dropped card silently snaps back even though the write "saved".
+            // Duplicate order_index can already exist in the data (a stale
+            // cache or two batched appends computing the same max+1), and the
+            // raw recycle faithfully re-emits the duplicate, perpetuating it.
+            // Anchor at the lowest occupied slot, then bump any tie up by one
+            // so every visible card lands on a distinct position. This heals
+            // duplicates on the next drag while only nudging upward (the min
+            // is preserved, so the visible block won't leapfrog hidden posts
+            // sitting below it).
+            const rawSlots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            const slots = [];
+            let prevSlot = -Infinity;
+            for (const v of rawSlots) {
+                const s = v > prevSlot ? v : prevSlot + 1;
+                slots.push(s);
+                prevSlot = s;
+            }
             const items = ids.map((id, i) => ({ id, order_index: slots[i] }));
             // Snapshot the prior order so a webhook failure can revert.
             // Without this, a dropped card sits at its new position locally

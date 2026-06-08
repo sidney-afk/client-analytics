@@ -13192,6 +13192,28 @@
     function _calNextBlankId() { _calBlankSeq++; return '__blank__' + _calBlankSeq; }
     function _calIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__blank__'); }
 
+    /* Overlays that share the .cal-card-thumb box with the thumbnail media:
+       the platforms strip, the colour tag (+ its open picker), the
+       Linear-link warning and the SMM media-gap banner. They're absolutely
+       positioned SIBLINGS of the <img>, not part of it. */
+    const CAL_THUMB_OVERLAY_SEL = '.cal-card-platforms, .cal-card-color-tag, .cal-card-color-picker, .cal-thumb-linear-warn, .cal-smm-warn';
+    /* Swap ONLY the thumbnail media (img / fallback / load-error notice),
+       leaving the overlays above untouched. The thumb's src carries a
+       cache-bust token derived from updated_at (see _calCacheBustThumb), and
+       updated_at is bumped on every save — so the in-place thumb refreshers
+       fire on EVERY save, not just real link changes. Replacing the thumb's
+       whole innerHTML there tore a just-toggled platform icon or colour tag
+       out of the DOM until the next full re-render, which is exactly the
+       "I set platforms, they saved, then vanished until I refreshed" bug.
+       Detach the overlays, replace the media, re-attach them so their live
+       state (selected icons, an open colour picker) survives intact. */
+    function _calSetThumbMedia(thumbDiv, mediaHtml) {
+        if (!thumbDiv) return;
+        const overlays = Array.from(thumbDiv.children).filter(el => el.matches(CAL_THUMB_OVERLAY_SEL));
+        thumbDiv.innerHTML = mediaHtml;
+        overlays.forEach(el => thumbDiv.appendChild(el));
+    }
+
     function _calThumbIconHtml() {
         return `<div class="cal-card-thumb-fallback"><svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg></div>`;
     }
@@ -13224,7 +13246,7 @@
     function _calOnThumbImgError(img) {
         const parent = img.parentElement;
         if (!parent) return;
-        parent.innerHTML = img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml();
+        _calSetThumbMedia(parent, img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml());
     }
     function _calZoomHintHtml() {
         return `<span class="cal-thumb-zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></span>`;
@@ -13962,9 +13984,9 @@
         if (info.url) {
             const existing = thumbDiv.querySelector('img');
             if (existing && existing.getAttribute('src') === info.url) return;
-            thumbDiv.innerHTML = _calThumbImgTag(info, '_calOnThumbImgError');
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
         } else {
-            if (thumbDiv.querySelector('img')) thumbDiv.innerHTML = _calThumbIconHtml();
+            if (thumbDiv.querySelector('img')) _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
         }
     }
     /* Re-evaluate the "no media linked" warning overlay for a card from what's
@@ -14331,9 +14353,9 @@
         const existing = thumbDiv.querySelector('img');
         if (info.url) {
             if (existing && existing.getAttribute('src') === info.url) return;
-            thumbDiv.innerHTML = _calThumbImgTag(info, '_calOnThumbImgError');
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
         } else if (existing) {
-            thumbDiv.innerHTML = _calThumbIconHtml();
+            _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
         }
     }
 

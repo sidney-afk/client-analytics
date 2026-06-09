@@ -9637,7 +9637,7 @@
     function _smApprResend(id){ _smApprApply(id, 'client'); _smFlash('Re-sent to the client'); }
     function _smApprApprove(id){ _smApprApply(id, 'approved', 'client'); _smFlash('Approved — thank you!'); }
     function _smApprUnapprove(id){ _smApprApply(id, 'client'); _smFlash('Approval undone'); }
-    function _smApprClientChanges(id){ _smApprApply(id, 'changes'); openSmComments(id); }
+    function _smApprClientChanges(id){ _smChangeReqPending = id; openSmComments(id); }
     function _smDriveImg(input){
         if(!input) return '';
         input = input.trim();
@@ -10100,7 +10100,7 @@
     }
 
     /* ---- comments ---- */
-    let _smOpenCommentsId = null, _smReplyTarget = null, _smComposeAudience = 'client', _smRootDraft = '';
+    let _smOpenCommentsId = null, _smReplyTarget = null, _smComposeAudience = 'client', _smRootDraft = '', _smChangeReqPending = null;
     const _smReplyDrafts = {};
     function _smCommentsBtnHtml(s, id, open, unread){
         const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
@@ -10126,7 +10126,7 @@
         _smCaptureDraft();
         const ovl = document.getElementById('smCommentsOverlay'); if(ovl) ovl.classList.remove('open');
         document.body.classList.remove('sm-modal-open');
-        const id = _smOpenCommentsId; _smOpenCommentsId = null; _smReplyTarget = null;
+        const id = _smOpenCommentsId; _smOpenCommentsId = null; _smReplyTarget = null; _smChangeReqPending = null;
         if(id){ _smMarkSeen(id); _smRefreshCommentsBtn(id); }
     }
     function _smCaptureDraft(){ const ta = document.getElementById('smCmComposer'); if(!ta) return; if(_smReplyTarget) _smReplyDrafts[_smReplyTarget] = ta.value; else _smRootDraft = ta.value; }
@@ -10169,7 +10169,7 @@
             <div class="sm-cm-composer">
                 ${replyCtx}${audience}
                 <div class="sm-cm-composer-row">
-                    <textarea id="smCmComposer" rows="1" placeholder="${_smClientSurface() ? 'Add a note or request a change…' : 'Write a note…'}" oninput="_smComposerInput(this)" onkeydown="_smComposerKey(event)">${_smEsc(draft)}</textarea>
+                    <textarea id="smCmComposer" rows="1" placeholder="${_smChangeReqPending === id ? 'Describe the change, then hit Send…' : (_smClientSurface() ? 'Add a note or request a change…' : 'Write a note…')}" oninput="_smComposerInput(this)" onkeydown="_smComposerKey(event)">${_smEsc(draft)}</textarea>
                     <button class="sm-cm-send" id="smCmSend" onclick="_smSubmitComposer()"${draft.trim() ? '' : ' disabled'}>Send</button>
                 </div>
             </div>`;
@@ -10184,10 +10184,20 @@
         const body = (_smReplyTarget ? (_smReplyDrafts[_smReplyTarget] || '') : (_smRootDraft || '')).trim();
         if(!body) return;
         const parentId = _smReplyTarget;
+        // A "Request a change" only takes effect once the client actually sends
+        // a note — flip the card to "changes" here, not when the button was first
+        // clicked. The flush inside _smAppendComment then persists both at once.
+        let flippedToChanges = false;
+        if(_smChangeReqPending === id && _smClientSurface()){
+            const s = _smFind(id);
+            if(s && _smApprNorm(s.approval) === 'client'){ s.approval = 'changes'; flippedToChanges = true; }
+            _smChangeReqPending = null;
+        }
         _smAppendComment(id, parentId, body);
         if(parentId) delete _smReplyDrafts[parentId]; else _smRootDraft = '';
         _smReplyTarget = null;
         _smRenderCommentsModal();
+        if(flippedToChanges) _smRenderBody();
         setTimeout(() => { const f = document.getElementById('smCmFeed'); if(f) f.scrollTop = f.scrollHeight; }, 0);
     }
     function _smAppendComment(id, parentId, body){
@@ -18796,6 +18806,7 @@
             const stateClient = history.state && history.state.client;
             const hashIsFastTab = FAST_TABS.includes(hashRaw)
                 || hashRaw.startsWith('calendar/')
+                || hashRaw.startsWith('samples/')
                 || hashRaw.startsWith('templates/');
             const fallbackFast = !hashRaw && !stateClient && FAST_TABS.includes(stateNav || savedNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own

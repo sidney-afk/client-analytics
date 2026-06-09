@@ -16378,14 +16378,7 @@
        Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };
     const COMP_PILL_COLORS = { video: '#06b6d4', graphic: '#d946ef', caption: '#f59e0b' };
-    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null),
-        // Cards the SMM reviewer has explicitly discarded from their queue.
-        // Persisted so a dismissed card stays gone across re-renders and
-        // reloads rather than popping back the next time the list paints.
-        dismissed: (() => { try { return new Set(JSON.parse(localStorage.getItem('syncview_calReviewDismissed_v1') || '[]')); } catch { return new Set(); } })() };
-    function _calReviewPersistDismissed() {
-        try { localStorage.setItem('syncview_calReviewDismissed_v1', JSON.stringify([..._calReviewState.dismissed])); } catch {}
-    }
+    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────
        The same review machinery powers two surfaces: the client-link
@@ -16678,7 +16671,6 @@
     function _calApprovalBadgeCount(mode) {
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         return (calState.posts || []).reduce((n, p) => {
-            if (mode === 'smm' && _calReviewState.dismissed.has(p.id)) return n;
             if (mode === 'smm' && !_calHasMedia(p)) return n;
             const awaiting = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
             return n + (awaiting ? 1 : 0);
@@ -16711,7 +16703,6 @@
             // something to look at — a post with no video and no thumbnail
             // isn't ready for sign-off, so it stays hidden until media lands.
             if (mode === 'smm') {
-                if (_calReviewState.dismissed.has(p.id)) return false;
                 if (!_calHasMedia(p)) return false;
                 return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'smm'));
             }
@@ -16785,10 +16776,6 @@
     function _calReviewCardHtml(p) {
         const pid = p.id;
         const escId = _calEscAttr(pid);
-        // The SMM reviewer can discard a card straight out of their queue; the
-        // client-facing approval list has no such button (clients shouldn't be
-        // able to make a post they owe an approval on quietly vanish).
-        const canDismiss = _calReviewMode() === 'smm';
         const expanded = _calReviewState.expanded.has(pid);
         const info = _calDeriveThumbInfo(p);
         const thumbHtml = info.url
@@ -16818,7 +16805,6 @@
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
-                    ${canDismiss ? `<button class="kcard-close-btn" type="button" onclick="_calReviewDismissCard('${escId}')" title="Discard — remove this from your review" aria-label="Discard from review"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button>` : ''}
                 </div>
             </div>
             ${body}
@@ -17086,16 +17072,6 @@
         el.addEventListener('transitionend', onEnd, { once: true });
         // Safety net in case transitionend doesn't fire.
         setTimeout(onEnd, 280);
-    }
-
-    /* SMM reviewer discarding a card from their queue. Records the post id so
-       it stays out of the list (and badge) across re-renders/reloads, then
-       reuses the same collapse-and-fade removal the auto-drop path uses so it
-       reads as a deliberate dismissal. */
-    function _calReviewDismissCard(pid) {
-        _calReviewState.dismissed.add(pid);
-        _calReviewPersistDismissed();
-        _calReviewRemoveCard(pid);
     }
 
     function _calReviewOnDraftInput(ta, pid, comp) {
@@ -21676,6 +21652,11 @@
             ? 'Finish reviewing — remove this card from your queue. Approved components go to the client; change requests go to the SMM; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
             : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish. (A comment is just a question; it doesn\'t count as a decision.)';
         const doneBtn = `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
+        // Quick discard — drop the card out of Kasper's queue without approving
+        // or rejecting. Sends every component currently at Kasper Approval back
+        // to In Progress (persisted), so a refresh won't drag it back; it only
+        // returns if the SMM later re-routes a component to Kasper Approval.
+        const discardBtn = `<button type="button" class="kcard-close-btn" onclick="event.stopPropagation();_kasperDiscard('${_calEscAttr(pid)}')" title="Discard — remove this from your review. Sends it back to In Progress; it returns only if the SMM sends it to you again." aria-label="Discard from review"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -21707,6 +21688,7 @@
                     ${doneBtn}
                     ${watchBtn}
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    ${discardBtn}
                 </div>
             </div>
             ${expandedHtml}
@@ -22258,6 +22240,58 @@
             _kasperState.dismissed[pid] = true;
             _kasperPersistCache();
             _kasperRemoveItem(pid);
+        }
+    }
+
+    /* Quick discard — Kasper drops a card out of his queue without making a
+       per-component decision. Every component still sitting at Kasper Approval
+       is sent back to In Progress and persisted, which removes the card from
+       the queue and keeps it gone across refreshes; it only returns if the SMM
+       later re-routes a component to Kasper Approval (or replies in a thread he
+       left open). A dismissal is also recorded so a card whose only outstanding
+       work is an unresolved Kasper tweak — i.e. nothing at Kasper Approval to
+       reset — still leaves his view rather than bouncing back on the next fetch. */
+    async function _kasperDiscard(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item || item._discarding) return;
+        _kasperInvalidateInFlightLoad();
+        const post = item.post;
+        const prev = {
+            video_status: post.video_status,
+            graphic_status: post.graphic_status,
+            caption_status: post.caption_status,
+            status: post.status,
+            updated_at: post.updated_at,
+        };
+        let changedAny = false;
+        for (const c of CAL_COMPONENTS) {
+            if (_calNormStatus(post[c + '_status'] || '') === 'Kasper Approval') {
+                post[c + '_status'] = 'In Progress';
+                changedAny = true;
+            }
+        }
+        post.status = computeOverallStatus(post);
+        _kasperMarkSeenAt(pid, _calLatestMsgAt(post));
+        if (!_kasperState.dismissed || typeof _kasperState.dismissed !== 'object') _kasperState.dismissed = {};
+        _kasperState.dismissed[pid] = true;
+        item._discarding = true;
+        // Drop it from view straight away; the status write runs in the
+        // background. If nothing was at Kasper Approval there's no status change
+        // to persist — the recorded dismissal alone keeps it out.
+        _kasperRemoveItem(pid);
+        if (!changedAny) { _kasperPersistCache(); return; }
+        try {
+            await _kasperPersistPost(item);
+            _kasperPersistCache();
+        } catch (e) {
+            // Save failed — roll the statuses back and clear the dismissal so a
+            // reload restores the card rather than silently losing it.
+            Object.assign(post, prev);
+            item._discarding = false;
+            delete _kasperState.dismissed[pid];
+            _kasperPersistCache();
+            showNotify('Couldn\'t discard', (e && e.message) || 'The card couldn\'t be removed — please try again.');
+            _kasperLoadReview(true);
         }
     }
 

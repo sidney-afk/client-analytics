@@ -3494,6 +3494,13 @@
         .sm-seg-btn.active { background:var(--white); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1); }
         .sm-seg-btn .sm-seg-badge { font-size:0.6rem; font-weight:800; background:var(--border); color:var(--text-secondary); padding:2px 6px; border-radius:99px; letter-spacing:0.02em; }
         .sm-seg-btn.active .sm-seg-badge { background:#111110; color:#fff; }
+        /* Client view: a larger, centered Reels/Thumbnails switch so it reads as the obvious thing to click. */
+        .sm-seg-lg { padding:4px; gap:4px; border-radius:11px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+        .sm-seg-lg .sm-seg-btn { padding:11px 24px; font-size:0.95rem; border-radius:8px; }
+        .sm-seg-lg .sm-seg-btn .sm-seg-badge { font-size:0.62rem; }
+        .sm-toolbar-client { flex-direction:column; align-items:center; gap:14px; text-align:center; }
+        .sm-toolbar-client .sm-toolbar-left { flex:none; }
+        .sm-toolbar-client .sm-embed-title { align-items:center; }
 
         .sm-share-btn { display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:8px; border:none; background:#111110; color:#fff; font-family:inherit; font-size:0.78rem; font-weight:700; cursor:pointer; transition:opacity 0.15s; }
         .sm-share-btn:hover { opacity:0.9; }
@@ -9785,18 +9792,15 @@
         const leftHtml = clientLink
             ? `<div class="sm-embed-title"><strong>${_smEsc(smState.client || '')}</strong><span>Content samples</span></div>`
             : `<div class="sm-tabs" id="smTabs"></div>`;
-        const kindToggle = `<div class="sm-seg" role="tablist">${SM_KINDS.map(k =>
+        const kindToggle = `<div class="sm-seg${clientLink ? ' sm-seg-lg' : ''}" role="tablist">${SM_KINDS.map(k =>
             `<button type="button" class="sm-seg-btn${smState.kind === k ? ' active' : ''}" onclick="setSmKind('${k}')">${SM_KIND_META[k].label}<span class="sm-seg-badge">${SM_KIND_META[k].badge}</span></button>`
         ).join('')}</div>`;
-        const modeToggle = clientLink ? '' : `<div class="sm-seg">
-                <button type="button" class="sm-seg-btn${smState.mode === 'editor' ? ' active' : ''}" onclick="setSmMode('editor')">Editor</button>
-                <button type="button" class="sm-seg-btn${smState.mode === 'client' ? ' active' : ''}" onclick="setSmMode('client')">Client view</button>
-            </div>`;
         const shareBtn = (!clientLink && smState.client) ? `<button class="sm-share-btn" id="smShareBtn" type="button" onclick="smCopyShareLink()" title="Copy a client-facing link to these samples"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Copy client link</button>` : '';
+        const toolbarRight = clientLink ? kindToggle : `<div class="sm-toolbar-right">${kindToggle}${shareBtn}</div>`;
         view.innerHTML = `
-            <div class="sm-toolbar">
+            <div class="sm-toolbar${clientLink ? ' sm-toolbar-client' : ''}">
                 <div class="sm-toolbar-left">${leftHtml}</div>
-                <div class="sm-toolbar-right">${kindToggle}${modeToggle}${shareBtn}</div>
+                ${toolbarRight}
             </div>
             <div class="sm-body" id="smBody">${_smLoaderHtml()}</div>
             <div class="sm-comments-overlay" id="smCommentsOverlay" onclick="if(event.target===this)closeSmComments()">
@@ -9908,9 +9912,7 @@
         const addBtn = surface ? '' : (items.length
             ? `<button class="sm-card-add" type="button" onclick="addSampleCard()" title="Add a ${meta.single}">${plus}</button>`
             : `<button class="sm-card-add is-hero" type="button" onclick="addSampleCard()">${plus}<span>Add the first ${meta.single}</span></button>`);
-        const intro = (surface && items.length)
-            ? `<div class="sm-client-intro">These are the ${meta.label.toLowerCase()} we've put together for <strong>${_smEsc(smState.client)}</strong>. Open <strong>Notes</strong> on any card to leave feedback or ask for a change — we'll see it right away.</div>`
-            : '';
+        const intro = '';
         const offline = smState.error === 'offline'
             ? `<div class="sm-client-intro" style="border-color:#f4c2d5;color:#a81950;background:#fdf0f5;">Couldn't reach the server — anything you change is saved on this device and will sync once it's back.</div>`
             : '';

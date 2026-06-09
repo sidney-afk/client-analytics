@@ -3551,6 +3551,26 @@
         .sm-video-play svg { width:24px; height:24px; margin-left:3px; }
         .sm-video-cta { font-size:0.85rem; font-weight:700; letter-spacing:-0.01em; }
         .sm-video-host { font-size:0.6rem; letter-spacing:0.06em; text-transform:uppercase; color:rgba(255,255,255,0.42); }
+        /* Approval bar (Kasper → Client) */
+        .sm-appr { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:10px; padding-top:11px; border-top:1px solid var(--border-light); }
+        .sm-appr-pill { display:inline-flex; align-items:center; gap:5px; font-size:0.66rem; font-weight:800; letter-spacing:0.02em; text-transform:uppercase; padding:3px 9px; border-radius:99px; white-space:nowrap; }
+        .sm-appr-pill::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; flex:none; }
+        .sm-appr-pill.is-draft    { background:#f1f0ee; color:#8a8780; }
+        .sm-appr-pill.is-kasper   { background:#fef3c7; color:#92681e; }
+        .sm-appr-pill.is-client   { background:#dbeafe; color:#1d4ed8; }
+        .sm-appr-pill.is-approved { background:#dcfce7; color:#166534; }
+        .sm-appr-pill.is-changes  { background:#fee2e2; color:#b91c1c; }
+        .sm-appr-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+        .sm-appr-note { font-size:0.72rem; color:var(--text-muted); }
+        .sm-appr-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:9px; border:1px solid var(--border); background:var(--white);
+            font-family:inherit; font-size:0.76rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+        .sm-appr-btn:hover { border-color:#aaa; color:var(--text-primary); }
+        .sm-appr-btn.primary { background:#16a34a; border-color:#16a34a; color:#fff; }
+        .sm-appr-btn.primary:hover { background:#15803d; border-color:#15803d; }
+        .sm-appr-link { background:none; border:none; padding:4px 2px; font-family:inherit; font-size:0.72rem; font-weight:600; color:var(--text-muted); cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
+        .sm-appr-link:hover { color:var(--text-secondary); }
+        .sm-appr-summary { font-size:0.7rem; font-weight:700; color:var(--text-muted); white-space:nowrap; }
+        .sm-head-right { display:flex; align-items:center; gap:10px; }
         .sm-frame .sm-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:rgba(255,255,255,0.45); font-size:0.78rem; padding:14px; text-align:center; }
         .sm-frame .sm-empty .sm-ratio { font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.26); }
         .sm-frame .sm-empty svg { width:26px; height:26px; opacity:0.5; }
@@ -9531,6 +9551,86 @@
     }
     function _smLinkHost(url){ try { return new URL(String(url).trim()).hostname.replace(/^www\./,''); } catch(e){ return ''; } }
     function _smIsFrameIo(url){ return /(?:^|\.)(?:frame\.io|f\.io)$/i.test(_smLinkHost(url)); }
+
+    /* ---- Approval (Kasper → Client) ----------------------------------------
+       A tracked two-step gate stored per sample in the `approval` column:
+       draft → kasper → client → approved, plus a `changes` state when the
+       client asks for a change. The editor surface drives the draft/kasper
+       steps; the client share link only ever sees client/approved/changes
+       cards and drives the final approval. Stamps kasper_/client_approved_at|by. */
+    const SM_APPR_META = {
+        draft:    { label:'Draft',             cls:'is-draft'    },
+        kasper:   { label:'Kasper review',     cls:'is-kasper'   },
+        client:   { label:'Client review',     cls:'is-client'   },
+        approved: { label:'Approved',          cls:'is-approved' },
+        changes:  { label:'Changes requested', cls:'is-changes'  }
+    };
+    const SM_CLIENT_VISIBLE_APPR = new Set(['client','approved','changes']);
+    function _smApprNorm(v){
+        v = String(v == null ? '' : v).trim().toLowerCase().replace(/[\s-]+/g,'_');
+        if(v === 'kasper' || v === 'kasper_review') return 'kasper';
+        if(v === 'client' || v === 'client_review') return 'client';
+        if(v === 'approved') return 'approved';
+        if(v === 'changes' || v === 'change' || v === 'changes_requested') return 'changes';
+        return 'draft';
+    }
+    function _smApprFmt(t){ if(!t) return ''; try { return new Date(t).toLocaleDateString([], { month:'short', day:'numeric' }); } catch(e){ return ''; } }
+    function _smApprPill(s, surface){
+        const st = _smApprNorm(s.approval);
+        const meta = SM_APPR_META[st];
+        let label = meta.label;
+        if(surface){ if(st === 'client') label = 'Awaiting your approval'; else if(st === 'approved') label = 'Approved'; else if(st === 'changes') label = 'Change requested'; }
+        return `<span class="sm-appr-pill ${meta.cls}">${_smEsc(label)}</span>`;
+    }
+    function _smApprovalSummary(items, surface){
+        if(!items.length) return '';
+        if(surface){
+            const appr = items.filter(s => _smApprNorm(s.approval) === 'approved').length;
+            return `<span class="sm-appr-summary">${appr === items.length ? 'All approved' : ('Approved ' + appr + ' of ' + items.length)}</span>`;
+        }
+        const c = { draft:0, kasper:0, client:0, approved:0, changes:0 };
+        items.forEach(s => { c[_smApprNorm(s.approval)]++; });
+        const parts = [];
+        if(c.approved) parts.push(c.approved + ' approved');
+        if(c.changes)  parts.push(c.changes + ' to fix');
+        if(c.client)   parts.push(c.client + ' with client');
+        if(c.kasper)   parts.push(c.kasper + ' for Kasper');
+        if(c.draft)    parts.push(c.draft + ' draft');
+        return parts.length ? `<span class="sm-appr-summary">${parts.join(' · ')}</span>` : '';
+    }
+    function _smApprovalHtml(s, id, surface){
+        const st = _smApprNorm(s.approval);
+        let actions = '';
+        if(surface){
+            if(st === 'client') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprApprove('${id}')">Approve</button><button class="sm-appr-btn" type="button" onclick="_smApprClientChanges('${id}')">Request a change</button>`;
+            else if(st === 'approved') actions = `<span class="sm-appr-note">You approved this${s.client_approved_at ? ' · ' + _smEsc(_smApprFmt(s.client_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprUnapprove('${id}')">Undo</button>`;
+            else if(st === 'changes') actions = `<span class="sm-appr-note">Change requested — we're on it.</span><button class="sm-appr-btn primary" type="button" onclick="_smApprApprove('${id}')">Approve anyway</button>`;
+        } else {
+            if(st === 'draft') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprSend('${id}')">Send for Kasper review</button>`;
+            else if(st === 'kasper') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprKasper('${id}')">Approve &amp; send to client</button><button class="sm-appr-link" type="button" onclick="_smApprReject('${id}')">Send back</button>`;
+            else if(st === 'client') actions = `<span class="sm-appr-note">Awaiting client${s.kasper_approved_at ? ' · Kasper OK ' + _smEsc(_smApprFmt(s.kasper_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Back to draft</button>`;
+            else if(st === 'approved') actions = `<span class="sm-appr-note">Approved by client${s.client_approved_at ? ' · ' + _smEsc(_smApprFmt(s.client_approved_at)) : ''}</span><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Reopen</button>`;
+            else if(st === 'changes') actions = `<button class="sm-appr-btn primary" type="button" onclick="_smApprResend('${id}')">Re-send to client</button><button class="sm-appr-link" type="button" onclick="_smApprRevert('${id}')">Back to draft</button>`;
+        }
+        return `<div class="sm-appr">${_smApprPill(s, surface)}<div class="sm-appr-actions">${actions}</div></div>`;
+    }
+    function _smApprApply(id, next, stamp){
+        const s = _smFind(id); if(!s) return;
+        s.approval = next;
+        const now = new Date().toISOString();
+        if(stamp === 'kasper'){ s.kasper_approved_at = now; s.kasper_approved_by = _smCurrentAuthor(); }
+        if(stamp === 'client'){ s.client_approved_at = now; s.client_approved_by = _smCurrentAuthor(); }
+        _smRenderBody();
+        _smFlushCardSave(id);
+    }
+    function _smApprSend(id){ _smApprApply(id, 'kasper'); _smFlash('Sent for Kasper review'); }
+    function _smApprKasper(id){ _smApprApply(id, 'client', 'kasper'); _smFlash('Approved — sent to the client'); }
+    function _smApprReject(id){ _smApprApply(id, 'draft'); _smFlash('Sent back to draft'); }
+    function _smApprRevert(id){ _smApprApply(id, 'draft'); _smFlash('Moved back to draft'); }
+    function _smApprResend(id){ _smApprApply(id, 'client'); _smFlash('Re-sent to the client'); }
+    function _smApprApprove(id){ _smApprApply(id, 'approved', 'client'); _smFlash('Approved — thank you!'); }
+    function _smApprUnapprove(id){ _smApprApply(id, 'client'); _smFlash('Approval undone'); }
+    function _smApprClientChanges(id){ _smApprApply(id, 'changes'); openSmComments(id); }
     function _smDriveImg(input){
         if(!input) return '';
         input = input.trim();
@@ -9574,6 +9674,11 @@
             creative_direction: row.creative_direction || row.rationale || '',
             comments: comments,
             status: row.status || 'Active',
+            approval: _smApprNorm(row.approval),
+            kasper_approved_at: row.kasper_approved_at || '',
+            kasper_approved_by: row.kasper_approved_by || '',
+            client_approved_at: row.client_approved_at || '',
+            client_approved_by: row.client_approved_by || '',
             created_at: row.created_at || '',
             updated_at: row.updated_at || ''
         };
@@ -9785,12 +9890,14 @@
         if(smState.loading && !smState.samples.length){ body.innerHTML = _smLoaderHtml(); return; }
         const meta = SM_KIND_META[smState.kind];
         const surface = _smClientSurface();
-        const items = smState.samples.filter(s => s.kind === smState.kind).sort((a,b) => a.order_index - b.order_index);
+        let items = smState.samples.filter(s => s.kind === smState.kind);
+        if(surface) items = items.filter(s => SM_CLIENT_VISIBLE_APPR.has(_smApprNorm(s.approval)));
+        items = items.sort((a,b) => a.order_index - b.order_index);
         const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
         const addBtn = surface ? '' : (items.length
             ? `<button class="sm-card-add" type="button" onclick="addSampleCard()" title="Add a ${meta.single}">${plus}</button>`
             : `<button class="sm-card-add is-hero" type="button" onclick="addSampleCard()">${plus}<span>Add the first ${meta.single}</span></button>`);
-        const intro = surface
+        const intro = (surface && items.length)
             ? `<div class="sm-client-intro">These are the ${meta.label.toLowerCase()} we've put together for <strong>${_smEsc(smState.client)}</strong>. Open <strong>Notes</strong> on any card to leave feedback or ask for a change — we'll see it right away.</div>`
             : '';
         const offline = smState.error === 'offline'
@@ -9808,7 +9915,7 @@
                     <div class="sm-section-title">${_smEsc(meta.title)}</div>
                     <div class="sm-section-sub">${_smEsc(meta.sub)}</div>
                 </div>
-                <span class="sm-pill">9 : 16 · Vertical</span>
+                <div class="sm-head-right">${_smApprovalSummary(items, surface)}<span class="sm-pill">9 : 16 · Vertical</span></div>
             </div>
             ${intro}${offline}${main}`;
         if(!surface) _smWireDrag();
@@ -9851,6 +9958,7 @@
                     ${_smCommentsBtnHtml(s, id, open, unread)}
                     <span class="sm-card-saving" data-saving="${id}" hidden></span>
                 </div>
+                ${_smApprovalHtml(s, id, ro)}
             </div>
         </div>`;
     }
@@ -9906,7 +10014,7 @@
         const sameKind = smState.samples.filter(s => s.kind === kind).length;
         const maxOrder = smState.samples.reduce((m,s) => Math.max(m, Number(s.order_index || 0)), 0);
         const now = new Date().toISOString();
-        const blank = { id: _smMintId('s'), kind, order_index: maxOrder + 1, label: (kind === 'reel' ? 'Reel ' : 'Thumbnail ') + (sameKind + 1), media_url: '', creative_direction: '', comments: [], status: 'Active', created_at: now, updated_at: now };
+        const blank = { id: _smMintId('s'), kind, order_index: maxOrder + 1, label: (kind === 'reel' ? 'Reel ' : 'Thumbnail ') + (sameKind + 1), media_url: '', creative_direction: '', comments: [], status: 'Active', approval: 'draft', kasper_approved_at: '', kasper_approved_by: '', client_approved_at: '', client_approved_by: '', created_at: now, updated_at: now };
         smState.samples.push(blank);
         _smRenderBody();
         setTimeout(() => {
@@ -9974,7 +10082,7 @@
         s.updated_at = new Date().toISOString();
         _smCacheWrite(smClientSlug(client), smState.samples);
         _smSetSaving(id, 'saving');
-        const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, comments: _smStringify(s.comments), status: s.status || 'Active', created_at: s.created_at, updated_at: s.updated_at };
+        const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, comments: _smStringify(s.comments), status: s.status || 'Active', approval: _smApprNorm(s.approval), kasper_approved_at: s.kasper_approved_at || '', kasper_approved_by: s.kasper_approved_by || '', client_approved_at: s.client_approved_at || '', client_approved_by: s.client_approved_by || '', created_at: s.created_at, updated_at: s.updated_at };
         try {
             const resp = await fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: wire }) });
             if(!resp.ok) throw new Error('HTTP ' + resp.status);

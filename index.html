@@ -13396,6 +13396,15 @@
     function _calOnLinkBlur(input) {
         _calOnFieldBlur(input);
         _calRefreshMediaWarning(input.dataset.pid);
+        // A thumbnail/asset link edit must show the new image immediately —
+        // including when the link TEXT is unchanged but the file behind it was
+        // swapped (replacing a Google Drive file keeps the same share link).
+        // Force a fresh fetch so the preview can't keep painting the cached old
+        // image, which is what used to force a manual browser-cache clear. This
+        // only reloads the <img> in place — the page itself does not refresh.
+        if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') {
+            _calForceThumbRefresh(input.dataset.pid);
+        }
         const field = input.closest('.cal-link-field');
         if (!field) return;
         field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder);
@@ -14356,6 +14365,47 @@
             _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
         } else if (existing) {
             _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
+        }
+    }
+
+    /* Force this card's thumbnail <img> to re-fetch right now — even when the
+       link TEXT didn't change (e.g. the file behind an unchanged Google Drive
+       share link was replaced). A one-shot uniquifier on the URL guarantees a
+       cache miss, so the browser / Drive CDN can't keep serving the previously
+       loaded image (the stale preview that used to need a manual cache clear).
+       This is a pure in-place <img> swap — only the thumbnail reloads, the page
+       does not. Reads the live URL-field values so a just-typed link is honored
+       before the debounced save writes it back to calState. Cross-reload
+       freshness is carried separately by the updated_at-based _cb token, which
+       the save advances and persists to the sheet. */
+    function _calForceThumbRefresh(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const thumbDiv = card.querySelector('.cal-card-thumb');
+        if (!thumbDiv) return;
+        const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
+        const assetInput = card.querySelector('[data-fld="asset_url"]');
+        const saved = (calState.posts || []).find(x => x.id === pid);
+        const info = _calDeriveThumbInfo({
+            thumbnail_url: thumbInput ? thumbInput.value : (saved ? saved.thumbnail_url : ''),
+            asset_url:     assetInput ? assetInput.value : (saved ? saved.asset_url : ''),
+            updated_at:    saved ? saved.updated_at : ''
+        });
+        if (!info.url) {
+            if (thumbDiv.querySelector('img')) _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
+            return;
+        }
+        const fresh = info.url + (info.url.includes('?') ? '&' : '?') + '_r=' + Date.now();
+        const existing = thumbDiv.querySelector('img');
+        if (existing) {
+            // Keep the drive flag in sync with the new link so the load-error
+            // fallback (_calOnThumbImgError) stays correct if the link type
+            // changed (e.g. a Drive link swapped for a direct image URL).
+            if (info.isDrive) existing.setAttribute('data-drive', '1');
+            else existing.removeAttribute('data-drive');
+            existing.setAttribute('src', fresh);
+        } else {
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag({ url: fresh, isDrive: info.isDrive }, '_calOnThumbImgError'));
         }
     }
 

@@ -3540,6 +3540,17 @@
 
         .sm-frame { width:100%; aspect-ratio:9/16; max-height:62vh; background:#0e0d0c; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
         .sm-frame iframe, .sm-frame img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; border:none; display:block; }
+        .sm-frame video { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; background:#000; border:none; display:block; }
+        /* Click-to-open poster for links that can't be embedded (e.g. Frame.io). */
+        .sm-video-poster { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; text-decoration:none;
+            background:radial-gradient(120% 120% at 50% 34%, #262220 0%, #0e0d0c 72%); color:#fff; transition:background 0.18s; }
+        .sm-video-poster:hover { background:radial-gradient(120% 120% at 50% 34%, #322d2a 0%, #100f0e 72%); }
+        .sm-video-play { width:58px; height:58px; border-radius:50%; background:rgba(255,255,255,0.12); border:1.5px solid rgba(255,255,255,0.55);
+            display:flex; align-items:center; justify-content:center; transition:transform 0.18s, background 0.18s; }
+        .sm-video-poster:hover .sm-video-play { transform:scale(1.07); background:rgba(255,255,255,0.2); }
+        .sm-video-play svg { width:24px; height:24px; margin-left:3px; }
+        .sm-video-cta { font-size:0.85rem; font-weight:700; letter-spacing:-0.01em; }
+        .sm-video-host { font-size:0.6rem; letter-spacing:0.06em; text-transform:uppercase; color:rgba(255,255,255,0.42); }
         .sm-frame .sm-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:rgba(255,255,255,0.45); font-size:0.78rem; padding:14px; text-align:center; }
         .sm-frame .sm-empty .sm-ratio { font-size:0.6rem; letter-spacing:0.1em; text-transform:uppercase; color:rgba(255,255,255,0.26); }
         .sm-frame .sm-empty svg { width:26px; height:26px; opacity:0.5; }
@@ -9496,17 +9507,30 @@
     function _smCurrentAuthor(){ return _isClientLink ? (smState.client || _smLinkClient || 'Client') : 'Synchro Social'; }
     function _smFlash(msg, isErr){ const f = document.getElementById('smFlash'); if(!f) return; f.textContent = msg; f.classList.toggle('error', !!isErr); f.classList.add('show'); clearTimeout(_smFlash._t); _smFlash._t = setTimeout(() => f.classList.remove('show'), 2000); }
 
-    /* ---- Frame.io embed + Google Drive image helpers (ported from the prototype) ---- */
-    function _smFrameEmbed(url){
-        if(!url) return '';
+    /* ---- Video embed (provider-aware) + Google Drive image helpers ----
+       Frame.io has no public iframe player: player.frame.io doesn't resolve and
+       f.io sends X-Frame-Options: SAMEORIGIN, so Frame.io links simply can't be
+       embedded — they fall through to a click-to-open poster (new tab). Providers
+       that DO allow embedding (YouTube, Vimeo, Loom, Google Drive, direct video
+       files) play inline. Returns { kind:'iframe'|'video', src } or null. */
+    function _smVideoEmbed(url){
+        if(!url) return null;
         url = url.trim();
-        if(/player\.frame\.io\/embed\//i.test(url)) return url;
-        let m = url.match(/(?:f\.io|app\.frame\.io\/reviews)\/([a-zA-Z0-9_-]+)/i);
-        if(m) return 'https://player.frame.io/embed/' + m[1] + '?autoplay=0&loop=0';
-        m = url.match(/on\.frame\.io\/p\/([a-zA-Z0-9_-]+)/i);
-        if(m) return 'https://player.frame.io/embed/' + m[1] + '?autoplay=0&loop=0';
-        return url;
+        let m;
+        if((m = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([a-zA-Z0-9_-]{6,})/i)))
+            return { kind:'iframe', src:'https://www.youtube.com/embed/' + m[1] };
+        if((m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/i)))
+            return { kind:'iframe', src:'https://player.vimeo.com/video/' + m[1] };
+        if((m = url.match(/loom\.com\/(?:share|embed)\/([a-zA-Z0-9]+)/i)))
+            return { kind:'iframe', src:'https://www.loom.com/embed/' + m[1] };
+        if((m = url.match(/drive\.google\.com\/file\/d\/([-\w]{20,})/i)))
+            return { kind:'iframe', src:'https://drive.google.com/file/d/' + m[1] + '/preview' };
+        if(/\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url))
+            return { kind:'video', src:url };
+        return null;   // Frame.io & anything else → open in a new tab
     }
+    function _smLinkHost(url){ try { return new URL(String(url).trim()).hostname.replace(/^www\./,''); } catch(e){ return ''; } }
+    function _smIsFrameIo(url){ return /(?:^|\.)(?:frame\.io|f\.io)$/i.test(_smLinkHost(url)); }
     function _smDriveImg(input){
         if(!input) return '';
         input = input.trim();
@@ -9565,7 +9589,7 @@
     }
     function _smRoots(list){ return list.filter(c => !c.parent_id).sort((a,b) => String(a.created_at).localeCompare(String(b.created_at))); }
     function _smReplies(list, rootId){ return list.filter(c => c.parent_id === rootId).sort((a,b) => String(a.created_at).localeCompare(String(b.created_at))); }
-    function _smOpenCount(s){ return _smRoots(_smVisibleComments(s)).filter(r => !r.done).length; }
+    function _smOpenCount(s){ return _smRoots(_smVisibleComments(s)).length; }
     function _smLastCommentAt(s){ let m = ''; _smVisibleComments(s).forEach(c => { if((c.created_at || '') > m) m = c.created_at || ''; }); return m; }
     function _smHasUnread(s){
         const list = _smVisibleComments(s); if(!list.length) return false;
@@ -9839,9 +9863,21 @@
             return `<div class="sm-empty">${ico}<div>${isReel ? 'No video yet' : 'No thumbnail yet'}</div><div class="sm-ratio">9 : 16</div></div>`;
         }
         if(isReel){
-            const src = _smFrameEmbed(s.media_url);
-            const open = `<a class="sm-open-btn" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>Open in Frame.io</a>`;
-            return `<iframe src="${_smEscAttr(src)}" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" referrerpolicy="no-referrer-when-downgrade" title="${_smEscAttr(s.label || 'Reel')}"></iframe>${open}`;
+            const embed = _smVideoEmbed(s.media_url);
+            const openLabel = _smIsFrameIo(s.media_url) ? 'Open in Frame.io' : 'Open video';
+            const linkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
+            const open = `<a class="sm-open-btn" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${linkIco}${openLabel}</a>`;
+            if(embed && embed.kind === 'iframe')
+                return `<iframe src="${_smEscAttr(embed.src)}" allow="autoplay; fullscreen; picture-in-picture; clipboard-write" referrerpolicy="no-referrer-when-downgrade" title="${_smEscAttr(s.label || 'Reel')}"></iframe>${open}`;
+            if(embed && embed.kind === 'video')
+                return `<video src="${_smEscAttr(embed.src)}" controls playsinline preload="metadata"></video>${open}`;
+            // No embeddable player (Frame.io & co.) → click-to-open poster, new tab.
+            const host = _smLinkHost(s.media_url);
+            return `<a class="sm-video-poster" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener" title="${_smEscAttr(openLabel)}">
+                <span class="sm-video-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></span>
+                <span class="sm-video-cta">${_smEsc(openLabel)}</span>
+                ${host ? `<span class="sm-video-host">${_smEsc(host)} · opens in a new tab</span>` : ''}
+            </a>`;
         }
         const src = _smDriveImg(s.media_url);
         const open = `<a class="sm-open-btn" href="${_smEscAttr(s.media_url)}" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>Open</a>`;
@@ -9881,13 +9917,14 @@
     }
     function _smDeleteCard(id){
         const s = _smFind(id); if(!s) return;
-        if(!confirm('Delete this sample? It will be removed for the client too.')) return;
-        smState.samples = smState.samples.filter(x => x.id !== id);
-        if(smState.client) _smCacheWrite(smClientSlug(smState.client), smState.samples);
-        _smRenderBody();
-        const client = smState.client;
-        if(client) fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: { id, status: 'Archived', updated_at: new Date().toISOString() } }) }).catch(() => {});
-        _smFlash('Sample deleted');
+        showConfirm('Delete this sample?', 'It will be removed for the client too. This can\'t be undone.', () => {
+            smState.samples = smState.samples.filter(x => x.id !== id);
+            if(smState.client) _smCacheWrite(smClientSlug(smState.client), smState.samples);
+            _smRenderBody();
+            const client = smState.client;
+            if(client) fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: { id, status: 'Archived', updated_at: new Date().toISOString() } }) }).catch(() => {});
+            _smFlash('Sample deleted');
+        }, 'Delete');
     }
     function _smWireDrag(){
         const strip = document.getElementById('smStrip'); if(!strip) return;
@@ -9946,7 +9983,7 @@
     }
 
     /* ---- comments ---- */
-    let _smOpenCommentsId = null, _smReplyTarget = null, _smShowResolved = false, _smComposeAudience = 'client', _smRootDraft = '';
+    let _smOpenCommentsId = null, _smReplyTarget = null, _smComposeAudience = 'client', _smRootDraft = '';
     const _smReplyDrafts = {};
     function _smCommentsBtnHtml(s, id, open, unread){
         const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
@@ -9961,7 +9998,7 @@
     function openSmComments(id){
         const s = _smFind(id); if(!s) return;
         _smOpenCommentsId = id; _smReplyTarget = null; _smRootDraft = ''; for(const k in _smReplyDrafts) delete _smReplyDrafts[k];
-        _smShowResolved = false; _smComposeAudience = 'client';
+        _smComposeAudience = 'client';
         _smMarkSeen(id);
         const ovl = document.getElementById('smCommentsOverlay'); if(!ovl) return;
         ovl.classList.add('open'); document.body.classList.add('sm-modal-open');
@@ -9982,39 +10019,34 @@
         const s = _smFind(id); if(!s){ closeSmComments(); return; }
         const list = _smVisibleComments(s);
         const roots = _smRoots(list);
-        const resolvedCount = roots.filter(r => r.done).length;
-        const visibleRoots = _smShowResolved ? roots : roots.filter(r => !r.done);
         const meRole = _smCommentRole();
         const fmt = t => { if(!t) return ''; try { return new Date(t).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch(e){ return ''; } };
         const row = (c, isReply) => {
             const author = c.author || (c.role === 'client' ? 'Client' : 'Synchro Social');
             const internalTag = (!isReply && c.audience === 'internal' && !_smClientSurface()) ? `<span class="sm-cm-role" style="background:#fef3c7;color:#92400e;">Internal</span>` : '';
-            const doneTag = (!isReply && c.done) ? `<span class="sm-cm-done-tag">Resolved</span>` : '';
             const canDelete = !_smClientSurface() || c.role === meRole;
             const acts = [];
             if(!isReply) acts.push(`<button class="sm-cm-action" onclick="_smBeginReply('${_smEscAttr(c.id)}')">Reply</button>`);
-            if(!isReply) acts.push(`<button class="sm-cm-action resolve" onclick="_smToggleDone('${_smEscAttr(c.id)}')">${c.done ? 'Reopen' : 'Resolve'}</button>`);
             if(canDelete) acts.push(`<button class="sm-cm-action del" onclick="_smDeleteComment('${_smEscAttr(c.id)}')">Delete</button>`);
             return `<div class="sm-cm-row ${c.role === 'client' ? 'is-client' : 'is-smm'}${isReply ? ' is-reply' : ''}">
                 <div class="sm-cm-avatar">${_smEsc((author.trim()[0] || '?').toUpperCase())}</div>
                 <div class="sm-cm-bubble">
-                    <div class="sm-cm-meta"><span class="sm-cm-author">${_smEsc(author)}</span><span class="sm-cm-role">${c.role === 'client' ? 'Client' : 'SMM'}</span>${internalTag}${doneTag}<span class="sm-cm-time">${_smEsc(fmt(c.created_at))}</span></div>
+                    <div class="sm-cm-meta"><span class="sm-cm-author">${_smEsc(author)}</span><span class="sm-cm-role">${c.role === 'client' ? 'Client' : 'SMM'}</span>${internalTag}<span class="sm-cm-time">${_smEsc(fmt(c.created_at))}</span></div>
                     <div class="sm-cm-text">${_smEsc(c.body)}</div>
                     <div class="sm-cm-actions">${acts.join('')}</div>
                 </div>
             </div>`;
         };
-        const feed = visibleRoots.length
-            ? visibleRoots.map(r => `<div class="sm-cm-thread${r.done ? ' is-resolved' : ''}">${row(r, false)}${_smReplies(list, r.id).map(rep => row(rep, true)).join('')}</div>`).join('')
+        const feed = roots.length
+            ? roots.map(r => `<div class="sm-cm-thread">${row(r, false)}${_smReplies(list, r.id).map(rep => row(rep, true)).join('')}</div>`).join('')
             : `<div class="sm-cm-empty">${_smClientSurface() ? 'No notes yet — add the first one below.' : 'No notes yet. Leave a note for the client, or keep an internal one.'}</div>`;
-        const histBtn = resolvedCount ? `<button class="sm-cm-hist${_smShowResolved ? ' active' : ''}" onclick="_smToggleHistory()">${_smShowResolved ? 'Hide resolved' : 'Resolved (' + resolvedCount + ')'}</button>` : '';
         const replyCtx = _smReplyTarget ? (() => { const r = list.find(c => c.id === _smReplyTarget); return `<div class="sm-cm-reply-ctx"><span>Replying to ${_smEsc((r && r.author) || 'comment')}</span><button onclick="_smBeginReply(null)">Cancel</button></div>`; })() : '';
         const audience = (!_smClientSurface() && !_smReplyTarget) ? `<div class="sm-cm-audience"><button class="sm-cm-aud-btn${_smComposeAudience === 'client' ? ' active' : ''}" onclick="_smSetAudience('client')">Visible to client</button><button class="sm-cm-aud-btn${_smComposeAudience === 'internal' ? ' active' : ''}" onclick="_smSetAudience('internal')">Internal note</button></div>` : '';
         const draft = _smReplyTarget ? (_smReplyDrafts[_smReplyTarget] || '') : (_smRootDraft || '');
         modal.innerHTML = `
             <div class="sm-cm-head">
                 <div class="sm-cm-title">Notes<span>${_smEsc(s.label || (s.kind === 'reel' ? 'Reel' : 'Thumbnail'))}</span></div>
-                <div class="sm-cm-head-actions">${histBtn}<button class="sm-cm-close" onclick="closeSmComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button></div>
+                <div class="sm-cm-head-actions"><button class="sm-cm-close" onclick="closeSmComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button></div>
             </div>
             <div class="sm-cm-feed" id="smCmFeed">${feed}</div>
             <div class="sm-cm-composer">
@@ -10029,7 +10061,6 @@
     function _smComposerKey(e){ if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); _smSubmitComposer(); } else if(e.key === 'Escape' && _smReplyTarget){ e.preventDefault(); _smBeginReply(null); } }
     function _smBeginReply(rootId){ _smCaptureDraft(); _smReplyTarget = rootId || null; const f = document.getElementById('smCmFeed'); const sc = f ? f.scrollTop : null; _smRenderCommentsModal(); const f2 = document.getElementById('smCmFeed'); if(f2 && sc != null) f2.scrollTop = sc; const ta = document.getElementById('smCmComposer'); if(ta) ta.focus(); }
     function _smSetAudience(a){ _smComposeAudience = a; _smCaptureDraft(); _smRenderCommentsModal(); const ta = document.getElementById('smCmComposer'); if(ta) ta.focus(); }
-    function _smToggleHistory(){ _smShowResolved = !_smShowResolved; _smCaptureDraft(); _smRenderCommentsModal(); }
     function _smSubmitComposer(){
         const id = _smOpenCommentsId; if(!id) return;
         _smCaptureDraft();
@@ -10046,7 +10077,7 @@
         const s = _smFind(id); if(!s) return;
         const now = new Date().toISOString();
         const role = _smCommentRole();
-        const msg = { id: _smMintId('c'), parent_id: parentId || null, author: _smCurrentAuthor(), role, body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' };
+        const msg = { id: _smMintId('c'), parent_id: parentId || null, author: _smCurrentAuthor(), role, body, created_at: now, updated_at: now };
         if(!parentId) msg.audience = role === 'client' ? 'client' : _smComposeAudience;
         s.comments = Array.isArray(s.comments) ? s.comments.slice() : [];
         s.comments.push(msg);
@@ -10054,21 +10085,13 @@
         _smMarkSeen(id);
         _smRefreshCommentsBtn(id);
     }
-    function _smToggleDone(rootId){
-        const id = _smOpenCommentsId; const s = _smFind(id); if(!s) return;
-        const root = (s.comments || []).find(c => c.id === rootId && !c.parent_id); if(!root) return;
-        const now = new Date().toISOString();
-        if(root.done){ root.done = false; root.done_at = ''; root.done_by = ''; }
-        else { root.done = true; root.done_at = now; root.done_by = _smCurrentAuthor(); }
-        root.updated_at = now;
-        _smFlushCardSave(id); _smRenderCommentsModal(); _smRefreshCommentsBtn(id);
-    }
     function _smDeleteComment(cid){
         const id = _smOpenCommentsId; const s = _smFind(id); if(!s) return;
-        if(!confirm('Delete this note?')) return;
-        const now = new Date().toISOString();
-        (s.comments || []).forEach(c => { if(c.id === cid || c.parent_id === cid){ c.deleted = true; c.updated_at = now; } });
-        _smFlushCardSave(id); _smRenderCommentsModal(); _smRefreshCommentsBtn(id);
+        showConfirm('Delete this note?', 'This can\'t be undone.', () => {
+            const now = new Date().toISOString();
+            (s.comments || []).forEach(c => { if(c.id === cid || c.parent_id === cid){ c.deleted = true; c.updated_at = now; } });
+            _smFlushCardSave(id); _smRenderCommentsModal(); _smRefreshCommentsBtn(id);
+        }, 'Delete');
     }
 
     /* ---- toggles + share ---- */

@@ -3402,6 +3402,9 @@
         .kcard-open-sheet { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-secondary); transition: all 0.15s; }
         .kcard-open-sheet:hover { color: var(--text-primary); border-color: #aaa; background: var(--bg); }
         .kcard-open-sheet svg { width: 14px; height: 14px; }
+        .kcard-close-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: transparent; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text-muted); transition: all 0.15s; }
+        .kcard-close-btn:hover { color: #c0392b; border-color: #e2b6b1; background: #fdf3f2; }
+        .kcard-close-btn svg { width: 13px; height: 13px; }
         .kcard-expand-btn svg { width: 12px; height: 12px; transition: transform 0.2s; }
         .kcard.expanded .kcard-expand-btn svg { transform: rotate(180deg); }
         .kcard-body { border-top: 1px solid var(--border-light); padding: 18px 20px 20px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; background: #fafaf8; }
@@ -16375,7 +16378,14 @@
        Approval, and posts with no media are hidden). */
     const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };
     const COMP_PILL_COLORS = { video: '#06b6d4', graphic: '#d946ef', caption: '#f59e0b' };
-    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null),
+        // Cards the SMM reviewer has explicitly discarded from their queue.
+        // Persisted so a dismissed card stays gone across re-renders and
+        // reloads rather than popping back the next time the list paints.
+        dismissed: (() => { try { return new Set(JSON.parse(localStorage.getItem('syncview_calReviewDismissed_v1') || '[]')); } catch { return new Set(); } })() };
+    function _calReviewPersistDismissed() {
+        try { localStorage.setItem('syncview_calReviewDismissed_v1', JSON.stringify([..._calReviewState.dismissed])); } catch {}
+    }
 
     /* ── Review audience (client vs SMM) ──────────────────────────────
        The same review machinery powers two surfaces: the client-link
@@ -16668,6 +16678,7 @@
     function _calApprovalBadgeCount(mode) {
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         return (calState.posts || []).reduce((n, p) => {
+            if (mode === 'smm' && _calReviewState.dismissed.has(p.id)) return n;
             if (mode === 'smm' && !_calHasMedia(p)) return n;
             const awaiting = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
             return n + (awaiting ? 1 : 0);
@@ -16700,6 +16711,7 @@
             // something to look at — a post with no video and no thumbnail
             // isn't ready for sign-off, so it stays hidden until media lands.
             if (mode === 'smm') {
+                if (_calReviewState.dismissed.has(p.id)) return false;
                 if (!_calHasMedia(p)) return false;
                 return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'smm'));
             }
@@ -16773,6 +16785,10 @@
     function _calReviewCardHtml(p) {
         const pid = p.id;
         const escId = _calEscAttr(pid);
+        // The SMM reviewer can discard a card straight out of their queue; the
+        // client-facing approval list has no such button (clients shouldn't be
+        // able to make a post they owe an approval on quietly vanish).
+        const canDismiss = _calReviewMode() === 'smm';
         const expanded = _calReviewState.expanded.has(pid);
         const info = _calDeriveThumbInfo(p);
         const thumbHtml = info.url
@@ -16802,6 +16818,7 @@
                 <div class="kcard-actions" onclick="event.stopPropagation();">
                     <button class="kcard-open-sheet" type="button" onclick="_calReviewOpenInSheet('${escId}')" title="Open this card in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
                     <button class="kcard-expand-btn" type="button" onclick="_calReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    ${canDismiss ? `<button class="kcard-close-btn" type="button" onclick="_calReviewDismissCard('${escId}')" title="Discard — remove this from your review" aria-label="Discard from review"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg></button>` : ''}
                 </div>
             </div>
             ${body}
@@ -17069,6 +17086,16 @@
         el.addEventListener('transitionend', onEnd, { once: true });
         // Safety net in case transitionend doesn't fire.
         setTimeout(onEnd, 280);
+    }
+
+    /* SMM reviewer discarding a card from their queue. Records the post id so
+       it stays out of the list (and badge) across re-renders/reloads, then
+       reuses the same collapse-and-fade removal the auto-drop path uses so it
+       reads as a deliberate dismissal. */
+    function _calReviewDismissCard(pid) {
+        _calReviewState.dismissed.add(pid);
+        _calReviewPersistDismissed();
+        _calReviewRemoveCard(pid);
     }
 
     function _calReviewOnDraftInput(ta, pid, comp) {

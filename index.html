@@ -9873,7 +9873,10 @@
         try {
             const base = location.pathname + location.search.replace(/#.*$/, '');
             const hash = smState.client ? ('#samples/' + smClientSlug(smState.client)) : '#samples';
-            history.replaceState({ nav: 'samples', client: smState.client || null }, '', base + hash);
+            // Keep client out of history.state: the #samples/<slug> hash already
+            // carries it for the boot router, and a non-null state.client forces
+            // the boot onto the slow (analytics-awaiting) path — the refresh flash.
+            history.replaceState({ nav: 'samples', client: null }, '', base + hash);
         } catch(e){}
     }
     function onSmClientChange(name){

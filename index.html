@@ -2974,7 +2974,7 @@
         .kasper-list { display: flex; flex-direction: column; gap: 12px; }
 
         /* Card */
-        .kcard { background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow 0.18s, border-color 0.18s; }
+        .kcard { position: relative; background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: box-shadow 0.18s, border-color 0.18s; }
         .kcard:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.07); border-color: #d4d4cf; }
         .kcard.expanded { box-shadow: 0 6px 24px rgba(0,0,0,0.09); border-color: #c9c9c4; }
 
@@ -3404,6 +3404,13 @@
         .kcard-open-sheet svg { width: 14px; height: 14px; }
         .kcard-expand-btn svg { width: 12px; height: 12px; transition: transform 0.2s; }
         .kcard.expanded .kcard-expand-btn svg { transform: rotate(180deg); }
+        /* Close (X) — top-right corner of each Kasper review card. Hides the
+           card from the queue until the SMM re-routes it back to Kasper. Kept
+           subtle so it doesn't compete with the in-strip actions, firming up
+           on hover. */
+        .kcard-close-btn { position: absolute; top: 7px; right: 7px; z-index: 3; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; background: transparent; border: none; border-radius: 6px; cursor: pointer; color: var(--text-muted); opacity: 0.55; transition: opacity 0.15s, color 0.15s, background 0.15s; }
+        .kcard-close-btn:hover { opacity: 1; color: var(--text-primary); background: var(--bg); }
+        .kcard-close-btn svg { width: 12px; height: 12px; }
         .kcard-body { border-top: 1px solid var(--border-light); padding: 18px 20px 20px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 22px; background: #fafaf8; }
         @media (max-width: 820px) { .kcard-body { grid-template-columns: 1fr; } .kcard-strip { grid-template-columns: 80px 1fr; gap: 12px; } .kcard-actions { grid-column: 1 / -1; justify-content: flex-end; padding-top: 6px; } .kcard-thumb { width: 80px; height: 80px; } }
         .kcard-col-left, .kcard-col-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
@@ -20319,6 +20326,14 @@
                               // across refreshes until the SMM either resolves the tweak
                               // (card leaves naturally) or sends a component back to
                               // Kasper Approval (un-dismissed — see _kasperKeepAfterDismiss).
+        closed: {},           // pid -> true: cards Kasper explicitly closed via the X on
+                              // the card (top-right). Unlike "Done reviewing", this needs
+                              // no decision — it just hides the card. It stays hidden across
+                              // refreshes (even while the component is still at Kasper
+                              // Approval) and only comes back when the card leaves Kasper's
+                              // queue entirely and is later re-routed back to Kasper Approval
+                              // — i.e. a genuine change of status. Pruned on every load for
+                              // any id no longer in the fetched queue (see _kasperLoadReview).
         // Approved history and the Kasper-already-tweaked section both
         // default to collapsed — they're "what I've already done" buckets
         // that shouldn't visually compete with the live review queue.
@@ -20490,6 +20505,7 @@
             _kasperState.items = items;
             _kasperState.history = Array.isArray(parsed.history) ? parsed.history : [];
             _kasperState.dismissed = (parsed.dismissed && typeof parsed.dismissed === 'object') ? parsed.dismissed : {};
+            _kasperState.closed = (parsed.closed && typeof parsed.closed === 'object') ? parsed.closed : {};
             _kasperState.smmByClient = parsed.smmByClient
                 ? new Map(parsed.smmByClient)
                 : new Map();
@@ -20521,6 +20537,7 @@
                 })),
                 history: _kasperState.history,
                 dismissed: _kasperState.dismissed || {},
+                closed: _kasperState.closed || {},
                 smmByClient: _kasperState.smmByClient ? [..._kasperState.smmByClient.entries()] : [],
             };
             localStorage.setItem(KASPER_CACHE_KEY, JSON.stringify(payload));
@@ -21104,11 +21121,21 @@
             // purview (tweak resolved / status moved on) so the set can't
             // grow without bound — those ids are simply absent from the fetch.
             if (!_kasperState.dismissed || typeof _kasperState.dismissed !== 'object') _kasperState.dismissed = {};
+            if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
             const _fetchedIds = new Set(fetched.queue.map(it => it.post.id));
             for (const id of Object.keys(_kasperState.dismissed)) {
                 if (!_fetchedIds.has(id)) delete _kasperState.dismissed[id];
             }
-            const items = fetched.queue.filter(it => _kasperKeepAfterDismiss(it.post));
+            // Explicit X-closed cards: keep them hidden while they're still in
+            // the fetched queue (the component is sitting at Kasper Approval and
+            // nothing changed), but drop the "closed" flag the moment the card
+            // falls out of the queue — the SMM moved it past/back from Kasper.
+            // When it later returns to Kasper Approval it's a fresh ask, so it
+            // reappears. This is the "change of status" rule the user asked for.
+            for (const id of Object.keys(_kasperState.closed)) {
+                if (!_fetchedIds.has(id)) delete _kasperState.closed[id];
+            }
+            const items = fetched.queue.filter(it => _kasperKeepAfterDismiss(it.post) && !_kasperState.closed[it.post.id]);
             // Decorate posts with SMM info.
             for (const it of items) {
                 const slug = wlNormalizeClient(it.client);
@@ -21662,6 +21689,7 @@
             : `<span class="kcard-date is-empty">No date</span>`;
         const expandedHtml = item._expanded ? _kasperRenderExpanded(item) : '';
         return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_kasperClose('${_calEscAttr(pid)}')" title="Hide this card. It stays hidden until the SMM sends it back to Kasper Approval." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
                 <div class="kcard-thumb${hasThumbUrl ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
                 <div class="kcard-main">
@@ -22232,6 +22260,23 @@
             _kasperPersistCache();
             _kasperRemoveItem(pid);
         }
+    }
+
+    /* Explicit close (the X on a card, top-right). No decision required and no
+       status is written — it simply hides the card from Kasper's queue and
+       remembers that across refreshes. The card stays gone even on reload while
+       its component is still parked at Kasper Approval; it only comes back once
+       the card leaves Kasper's queue (the SMM moved it on / back to In Progress)
+       and is later re-routed to Kasper Approval again — a genuine change of
+       status. See the prune step in _kasperLoadReview and _kasperState.closed. */
+    function _kasperClose(pid) {
+        const item = _kasperState.items.find(x => x.post.id === pid);
+        if (!item) return;
+        _kasperInvalidateInFlightLoad();
+        if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
+        _kasperState.closed[pid] = true;
+        _kasperPersistCache();
+        _kasperRemoveItem(pid);
     }
 
     function _kasperRemoveItem(pid) {
@@ -22951,6 +22996,7 @@
     window._kasperApproveAfterTweaksComp = _kasperApproveAfterTweaksComp;
     window._kasperOnPanelDraftInput = _kasperOnPanelDraftInput;
     window._kasperDismiss = _kasperDismiss;
+    window._kasperClose = _kasperClose;
     window._kasperMarkRepliesRead = _kasperMarkRepliesRead;
     window._kasperRepliesReply = _kasperRepliesReply;
     window._kasperRepliesToggleAll = _kasperRepliesToggleAll;

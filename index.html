@@ -9727,6 +9727,7 @@
         smState.focusCard = (_smFocusRequest && _smFocusRequest.cardId) ? _smFocusRequest.cardId : null;
         _smFocusRequest = null;
         smState.samples = []; smState.error = null; smState.loading = false;
+        _smSyncUrl();
         _smRenderShell();
         if(smState.client) loadSamples(); else _smRenderBody();
     }
@@ -9826,6 +9827,7 @@
             _smFlushAllPending();
             const next = pins[0] || null;
             smState.client = next; smState.samples = []; _smSavePrefs();
+            _smSyncUrl();
             _smRenderShell();
             if(next) loadSamples(); else _smRenderBody();
         } else { _smRenderTabs(); }
@@ -9862,10 +9864,19 @@
         const panel = document.getElementById('smTabSearch'); if(panel) panel.hidden = true;
         onSmClientChange(canon);
     }
+    function _smSyncUrl(){
+        if(_isClientLink) return;   // client share links own their URL (?c=…&t=…)
+        try {
+            const base = location.pathname + location.search.replace(/#.*$/, '');
+            const hash = smState.client ? ('#samples/' + smClientSlug(smState.client)) : '#samples';
+            history.replaceState({ nav: 'samples', client: smState.client || null }, '', base + hash);
+        } catch(e){}
+    }
     function onSmClientChange(name){
         _smFlushAllPending();
         smState.client = name; smState.samples = []; smState.error = null; smState.focusCard = null;
         _smSavePrefs();
+        _smSyncUrl();
         _smRenderShell();
         loadSamples();
     }
@@ -9911,11 +9922,7 @@
         }
         body.innerHTML = `
             <div class="sm-section-head">
-                <div>
-                    <div class="sm-section-title">${_smEsc(meta.title)}</div>
-                    <div class="sm-section-sub">${_smEsc(meta.sub)}</div>
-                </div>
-                <div class="sm-head-right">${_smApprovalSummary(items, surface)}<span class="sm-pill">9 : 16 · Vertical</span></div>
+                <div class="sm-section-title">${_smEsc(meta.title)}</div>
             </div>
             ${intro}${offline}${main}`;
         if(!surface) _smWireDrag();

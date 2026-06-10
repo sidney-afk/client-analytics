@@ -6,8 +6,15 @@
     <meta name="referrer" content="no-referrer">
     <title>SyncView</title>
     <link rel="icon" type="image/png" href="syncview-favicon.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://docs.google.com">
+    <link rel="preconnect" href="https://synchrosocial.app.n8n.cloud">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- defer: charts only render after analytics data arrives, so Chart.js
+         must not block first paint. renderChart/renderViewsChart retry briefly
+         if data somehow beats this script (see _chartReady). -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
     <style>
         :root {
             --white:  #ffffff; --bg: #f4f4f2; --border: #e4e4e0; --border-light: #ededea;
@@ -3745,40 +3752,40 @@
 </div>
 
 <header class="header" style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;">
-    <a class="logo" href="./" onclick="event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
+    <a class="logo" href="./" onclick="if(_modClick(event))return;event.preventDefault();goHome();" style="cursor:pointer;text-decoration:none;color:inherit;" title="Back to overview">
         <img src="syncview-favicon.png" alt="SyncView">
         <span class="logo-text">SyncView</span>
     </a>
     <div class="header-nav" id="headerNav">
-        <a class="header-nav-btn active" id="navHome" href="#" onclick="event.preventDefault();navTo('home')">
+        <a class="header-nav-btn active" id="navHome" href="#" onclick="if(_modClick(event))return;event.preventDefault();navTo('home')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8.5L8 2.5L14 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 7V13.5H12V7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Analytics
         </a>
-        <a class="header-nav-btn" id="navLinear" href="#linear" onclick="event.preventDefault();navTo('linear')">
+        <a class="header-nav-btn" id="navLinear" href="#linear" onclick="if(_modClick(event))return;event.preventDefault();navTo('linear')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 14L14 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M2 9L9 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M7 14L14 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Linear
         </a>
-        <a class="header-nav-btn" id="navTemplates" href="#templates" onclick="event.preventDefault();navTo('templates')">
+        <a class="header-nav-btn" id="navTemplates" href="#templates" onclick="if(_modClick(event))return;event.preventDefault();navTo('templates')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="2.25" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="2.25" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/><rect x="8.75" y="8.75" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.5"/></svg>
             Templates
         </a>
-        <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="event.preventDefault();navTo('workload')">
+        <a class="header-nav-btn" id="navWorkload" href="#workload" onclick="if(_modClick(event))return;event.preventDefault();navTo('workload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><rect x="4.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="7" y="8" width="2" height="2" rx="0.3" fill="currentColor"/><rect x="9.5" y="8" width="2" height="2" rx="0.3" fill="currentColor"/></svg>
             Workload
         </a>
-        <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="event.preventDefault();navTo('calendar')">
+        <a class="header-nav-btn" id="navCalendar" href="#calendar" onclick="if(_modClick(event))return;event.preventDefault();navTo('calendar')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M10.5 1.5V4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Calendar
         </a>
-        <a class="header-nav-btn" id="navSamples" href="#samples" onclick="event.preventDefault();navTo('samples')">
+        <a class="header-nav-btn" id="navSamples" href="#samples" onclick="if(_modClick(event))return;event.preventDefault();navTo('samples')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
             Samples
         </a>
-        <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="event.preventDefault();navTo('tiktok-upload')">
+        <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             TikTok Upload
         </a>
-        <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="event.preventDefault();navTo('kasper')">
+        <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
         </a>
@@ -4451,10 +4458,77 @@
        two and the analytics-heavy fetches (top videos, briefs, MR briefs,
        content summaries) load in the background. */
     let _fetchExtrasPromise = null;
-    async function fetchEssentials(){
-        const [mr,cr]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL)]);
-        allData=parseCSV(await mr.text());
-        parseCSV(await cr.text()).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
+
+    /* ── Analytics snapshot cache (stale-while-revalidate) ────────────────
+       The six analytics CSVs change once a day (the morning scrape), yet
+       every page load waited on all of them before painting the dashboard.
+       We cache the RAW CSV texts and replay them through the exact same
+       parsers on the next load — instant paint from yesterday's snapshot —
+       while fetchAll() revalidates in the background. If the fresh texts
+       differ, the analytics view re-renders once (scroll preserved, and
+       never while the user is typing). Client share links (?c=…) always
+       await fresh data: their token gate must not run on a stale sheet. */
+    const ANALYTICS_CACHE_KEY = 'syncview_analyticsCache_v1';
+    const ANALYTICS_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    let _analyticsAppliedFp = { ess: '', ext: '' };   // fingerprint of last-applied texts
+    function _analyticsFp(parts){
+        let h = 5381;
+        for (const s of parts) { const t = String(s || ''); for (let i = 0; i < t.length; i++) h = ((h << 5) + h + t.charCodeAt(i)) | 0; h = ((h << 5) + h + 31) | 0; }
+        return String(h);
+    }
+    function _analyticsCacheWrite(partial){
+        try{
+            let cur = {};
+            try { cur = JSON.parse(localStorage.getItem(ANALYTICS_CACHE_KEY) || '{}') || {}; } catch (e) { cur = {}; }
+            Object.assign(cur, partial, { at: Date.now() });
+            localStorage.setItem(ANALYTICS_CACHE_KEY, JSON.stringify(cur));
+        }catch(e){
+            // Quota or private mode — drop the cache rather than half-write it.
+            try { localStorage.removeItem(ANALYTICS_CACHE_KEY); } catch (e2) {}
+            console.warn('[SyncView] analytics cache write skipped:', e && e.message);
+        }
+    }
+    function _analyticsHydrateFromCache(){
+        try{
+            const raw = localStorage.getItem(ANALYTICS_CACHE_KEY);
+            if (!raw) return false;
+            const c = JSON.parse(raw);
+            if (!c || !c.at || (Date.now() - c.at) > ANALYTICS_CACHE_TTL_MS) return false;
+            // Only paint from a COMPLETE snapshot — a half-written cache would
+            // render an overview with no top videos / briefs.
+            if (!c.metrics || !c.clients || !c.topvids || !c.briefs || !c.mrbriefs) return false;
+            _applyEssentialTexts(c.metrics, c.clients);
+            _applyExtraTexts(c.topvids, c.briefs, c.mrbriefs, c.summaries || null);
+            console.log('[SyncView] painted from analytics snapshot cache (' + Math.round((Date.now() - c.at) / 60000) + ' min old)');
+            return true;
+        }catch(e){ console.warn('[SyncView] analytics cache hydrate failed:', e); return false; }
+    }
+    /* Re-render whatever analytics view is on screen after fresh sheet data
+       replaced a cached paint. Gentle by design: skipped while the user is
+       typing (the next navigation shows fresh data anyway), only touches the
+       analytics tab, and restores the scroll position. */
+    function _analyticsRefreshCurrentView(){
+        try{
+            const ae = document.activeElement;
+            if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+            if (currentNav !== 'home') return;
+            const sc = window.scrollY;
+            const c = history.state && history.state.client;
+            if (c && allData.some(r => r.client_name === c)) render(c, false);
+            else if (!c) navTo('home', false);
+            else return;
+            window.scrollTo({ top: sc, behavior: 'instant' });
+            console.log('[SyncView] analytics view refreshed with fresh sheet data');
+        }catch(e){ console.warn('[SyncView] analytics refresh-render failed:', e); }
+    }
+
+    function _applyEssentialTexts(metricsText, clientsText){
+        allData=parseCSV(metricsText);
+        // Rebuild (don't accumulate): a cached paint may be replaced by fresh
+        // data in the same session, and a client deleted from the sheet must
+        // not linger from the snapshot.
+        Object.keys(clientMap).forEach(k=>{delete clientMap[k];});
+        parseCSV(clientsText).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{
@@ -4463,6 +4537,43 @@
                 console.log('[SyncView] Added placeholder for new client:',name);
             }
         });
+        _analyticsAppliedFp.ess = _analyticsFp([metricsText, clientsText]);
+    }
+    function _applyExtraTexts(topvidsText, briefsText, mrbText, csText){
+        const rawVideos=parseCSV(topvidsText);
+        if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
+        topVideos=rawVideos.map(normalizeVideoRow);
+        briefs=parseCSV(briefsText);
+        console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
+        mrBriefs=parseCSV(mrbText);
+        console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
+        if(mrBriefs.length>0){
+            console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
+        }
+        if(csText!=null){
+            try{
+                const csRows=parseCSV(csText);
+                const latest={};
+                for(const r of csRows){
+                    if(!r.client_name||!r.bullets)continue;
+                    if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
+                }
+                for(const[name,r]of Object.entries(latest)){
+                    if(!contentSummaryState[name]?.data){
+                        contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
+                    }
+                }
+                console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
+            }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
+        }
+        _analyticsAppliedFp.ext = _analyticsFp([topvidsText, briefsText, mrbText, csText || '']);
+    }
+
+    async function fetchEssentials(){
+        const [mr,cr]=await Promise.all([fetch(METRICS_URL),fetch(CLIENTS_URL)]);
+        const metricsText=await mr.text(), clientsText=await cr.text();
+        _applyEssentialTexts(metricsText, clientsText);
+        _analyticsCacheWrite({ metrics: metricsText, clients: clientsText });
     }
     async function fetchExtras(){
         if (_fetchExtrasPromise) return _fetchExtrasPromise;
@@ -4473,34 +4584,12 @@
                 fetch(MR_BRIEFS_URL+'&_t='+Date.now()),
                 fetch(CONTENT_SUMMARIES_URL+'&_t='+Date.now()).catch(()=>null),
             ]);
-            const rawVideos=parseCSV(await tr.text());
-            if(rawVideos.length>0)console.log('[SyncView] TopVideos cols:',Object.keys(rawVideos[0]));
-            topVideos=rawVideos.map(normalizeVideoRow);
-            briefs=parseCSV(await br.text());
+            const topvidsText=await tr.text();
+            const briefsText=await br.text();
             const mrbText=await mrb.text();
-            console.log('[SyncView] MR briefs CSV length:',mrbText.length,'chars');
-            mrBriefs=parseCSV(mrbText);
-            console.log('[SyncView] Loaded',briefs.length,'briefs,',mrBriefs.length,'MR briefs');
-            if(mrBriefs.length>0){
-                console.log('[SyncView] MR brief cols:',Object.keys(mrBriefs[0]));
-                mrBriefs.forEach((b,i)=>console.log('[SyncView] MR brief',i,':',b.id,'raw_json:',b.raw_json?.length||0,'raw_json_2:',b.raw_json_2?.length||0));
-            }
-            if(cs){
-                try{
-                    const csRows=parseCSV(await cs.text());
-                    const latest={};
-                    for(const r of csRows){
-                        if(!r.client_name||!r.bullets)continue;
-                        if(!latest[r.client_name]||(r.date||'')>(latest[r.client_name].date||''))latest[r.client_name]=r;
-                    }
-                    for(const[name,r]of Object.entries(latest)){
-                        if(!contentSummaryState[name]?.data){
-                            contentSummaryState[name]={loading:false,data:{bullets:r.bullets,date:r.date||''},error:null};
-                        }
-                    }
-                    console.log('[SyncView] Loaded content summaries for',Object.keys(latest).length,'clients');
-                }catch(e){console.warn('[SyncView] ContentSummaries load error:',e);}
-            }
+            const csText=cs?await cs.text():null;
+            _applyExtraTexts(topvidsText, briefsText, mrbText, csText);
+            _analyticsCacheWrite({ topvids: topvidsText, briefs: briefsText, mrbriefs: mrbText, summaries: csText || '' });
         })();
         return _fetchExtrasPromise;
     }
@@ -5818,7 +5907,7 @@
             const _cttSocI=hasTT?_cmkSocI(cardTtH?`https://tiktok.com/@${cardTtH}`:null,_cttSvg,'TikTok'):'';
             const _cytSocI=hasYT?_cmkSocI(cardYtId?`https://youtube.com/channel/${cardYtId}`:null,_cytSvg,'YouTube'):'';
             const _cSocIcons=_cigSocI||_cttSocI||_cytSocI?`<span style="display:inline-flex;align-items:center;gap:4px;">${_cigSocI}${_cttSocI}${_cytSocI}</span>`:'';
-            return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a><button class="card-eye-btn" onclick="selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>${_cSocIcons}</div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
+            return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="if(_modClick(event))return;event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a><button class="card-eye-btn" onclick="selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>${_cSocIcons}</div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
         }).join('')}</div>`;
     }
 
@@ -6216,7 +6305,7 @@
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
-            const eyeIcon=`<a class="client-view-btn" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}" style="text-decoration:none;color:inherit;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></a>`;
+            const eyeIcon=`<a class="client-view-btn" href="#${encodeURIComponent(r.client_name)}" onclick="if(_modClick(event))return;event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}" style="text-decoration:none;color:inherit;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></a>`;
             const isAgeRestricted=r.client_name.toLowerCase()==='john wineland';
             const igRestrictedCell=`<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
             const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> No ${label}</span></td>`;
@@ -6242,7 +6331,7 @@
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:_isPending?`${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             const _dateCell=_isPending?`<td style="font-size:0.68rem"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;">Pending</span></td>`:`<td style="font-size:0.76rem">${fmtDate(r.date)}</td>`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="if(_modClick(event))return;event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 
@@ -6253,7 +6342,18 @@
     const _mkYAxis=(show)=>({type:'linear',display:show,position:'left',grid:show?{color:'rgba(0,0,0,0.045)',drawTicks:false}:{display:false},border:{display:false},ticks:{color:'#bbb',font:{size:11},padding:10,callback:v=>fmt(v)||v}});
     function _mkGrad(c2d,h,r,g,b){const gr=c2d.createLinearGradient(0,0,0,h);gr.addColorStop(0,`rgba(${r},${g},${b},0.2)`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);return gr;}
     const _platCfg={ig:{label:'Instagram',key:'ig_followers',color:'#E1306C',r:225,g:48,b:108},tt:{label:'TikTok',key:'tiktok_followers',color:'#2EC4B6',r:46,g:196,b:182},yt:{label:'YouTube',key:'yt_subscribers',color:'#FF4444',r:255,g:68,b:68}};
+    /* Chart.js loads with `defer` so it can't block first paint. In the rare
+       case a render fires before the CDN script has executed (or the CDN is
+       down), retry briefly instead of throwing — the rest of the client view
+       must still paint. */
+    let _chartLoadTries = 0;
+    function _chartReady(retryFn){
+        if (typeof Chart !== 'undefined') { _chartLoadTries = 0; return true; }
+        if (_chartLoadTries++ < 40) setTimeout(retryFn, 150);
+        return false;
+    }
     function renderChart(history){
+        if(!_chartReady(()=>renderChart(history)))return;
         currentClientHistory=history;
         const ctx=document.getElementById('growthChart');if(!ctx)return;
         if(growthChart){growthChart.destroy();growthChart=null;}
@@ -6285,6 +6385,7 @@
         renderChart(currentClientHistory);
     }
     function renderViewsChart(history){
+        if(!_chartReady(()=>renderViewsChart(history)))return;
         const ctx=document.getElementById('viewsChart');if(!ctx)return;
         if(viewsChart){viewsChart.destroy();viewsChart=null;}
         const c2d=ctx.getContext('2d'),h=240;
@@ -10254,6 +10355,11 @@
         else window.prompt('Copy this link:', url);
     }
 
+    /* True for ctrl/cmd/shift/alt-clicks (and non-primary buttons): the user
+       wants the browser's own link behaviour — open in new tab/window — so
+       inline nav handlers must NOT preventDefault. The hrefs are real hash
+       routes that init() restores in the new tab. */
+    function _modClick(e) { return !!(e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button && e.button !== 0))); }
     function navTo(page, push = true) {
         if (page === 'brief') page = 'home';
         currentNav = page;
@@ -19070,7 +19176,20 @@
                 return;
             }
 
-            await dataPromise;
+            // Stale-while-revalidate: paint the dashboard instantly from the
+            // last session's snapshot and let fetchAll() refresh behind it.
+            // Client share links (?c=…) always await fresh data — their token
+            // gate must check the live sheet, not yesterday's copy.
+            let _paintedFromCache = false;
+            if (!qp.get('c')) _paintedFromCache = _analyticsHydrateFromCache();
+            if (_paintedFromCache) {
+                const _fpAtPaint = _analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext;
+                dataPromise.then(() => {
+                    if (_analyticsAppliedFp.ess + '|' + _analyticsAppliedFp.ext !== _fpAtPaint) _analyticsRefreshCurrentView();
+                }, err => console.warn('[SyncView] background analytics revalidate failed:', err));
+            } else {
+                await dataPromise;
+            }
             _resumePendingBriefPolling();
             // Content summaries now generate lazily — only when the user opens a specific client's profile.
             // See buildContentSummarySection for the per-profile auto-trigger.

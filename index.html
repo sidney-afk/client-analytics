@@ -11028,6 +11028,10 @@
 
     function calClientSlug(name) { return wlNormalizeClient(name); }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
+       It is NOT enough for a string argument inside an inline handler —
+       onclick="fn('${_calEscAttr(v)}')" still breaks on apostrophes. Use
+       _jsAttrArg below for handler arguments. */
     function _calEscAttr(s) { return _calEsc(s).replace(/'/g,'&#39;'); }
     /* String argument for an inline-handler attribute: onclick="fn(${_jsAttrArg(v)})".
        Must be JSON-escaped FIRST (JS string literal) and entity-escaped SECOND
@@ -18220,7 +18224,7 @@
             recommend: _calResolveDestRecommend(post, comp),
             onChoose: (destPick) => {
                 if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
-                    _calFlushCardSave(pid);
+                    _calWatchNoteSave(pid);
                     _calRefreshCommentsBtn(pid);
                     _calUpdateCardStatusDisplay(pid);
                     _calRenderCommentsModal();
@@ -20125,7 +20129,7 @@
         try {
             // Timeout so a hung request can't stall the poll chain forever —
             // the next poll is only armed in the .finally() of this fetch.
-            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: AbortSignal.timeout(20000) });
+            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);

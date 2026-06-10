@@ -5261,7 +5261,7 @@
             <div class="brief-loading-title">Generating ${label} brief…</div>
             <div class="brief-loading-sub">${type==='mr'?'Scraping top reels, transcribing with Whisper AI, and analysing with Claude. This usually takes 30–45 minutes.':'Scraping competitor reels, transcribing with Whisper AI, and analysing with Claude. This usually takes about 15 minutes.'}</div>
             <div class="brief-loading-poll" id="briefPollMsg_${enc}">Checking every 30s · ${elapsed} min elapsed</div>
-            <button onclick="stopBriefPolling('${name}','${type}');briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};if(mrKeywordState['${name}'])mrKeywordState['${name}'].submitted=false;if(compAccountState['${name}'])compAccountState['${name}'].submitted=false;refreshBriefView('${name}')" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
+            <button onclick="stopBriefPolling(${_jsAttrArg(name)},'${type}');briefPollingState[${_jsAttrArg(key)}]={loading:false};delete pendingBriefs[${_jsAttrArg(key)}];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};if(mrKeywordState[${_jsAttrArg(name)}])mrKeywordState[${_jsAttrArg(name)}].submitted=false;if(compAccountState[${_jsAttrArg(name)}])compAccountState[${_jsAttrArg(name)}].submitted=false;refreshBriefView(${_jsAttrArg(name)})" style="margin-top:8px;background:none;border:none;font-family:'Plus Jakarta Sans',sans-serif;font-size:0.74rem;font-weight:600;color:var(--text-muted);cursor:pointer;text-decoration:underline;">Cancel</button>
         </div>`;
     }
 
@@ -5272,7 +5272,7 @@
             <div class="brief-prompt-icon" style="font-size:1.4rem;"></div>
             <div class="brief-prompt-title" style="color:var(--text-primary);">${label} brief generation failed</div>
             <div class="brief-prompt-sub">${msg||'Something went wrong. Please try again.'}</div>
-            <button class="brief-gen-btn-lg" onclick="briefPollingState['${key}']={loading:false};delete pendingBriefs['${key}'];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView('${name}')">
+            <button class="brief-gen-btn-lg" onclick="briefPollingState[${_jsAttrArg(key)}]={loading:false};delete pendingBriefs[${_jsAttrArg(key)}];try{localStorage.setItem('syncview_pendingBriefs_v1',JSON.stringify(pendingBriefs));}catch{};refreshBriefView(${_jsAttrArg(name)})">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M1 8h14M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 Try Again
             </button>
@@ -5818,7 +5818,7 @@
             const _cttSocI=hasTT?_cmkSocI(cardTtH?`https://tiktok.com/@${cardTtH}`:null,_cttSvg,'TikTok'):'';
             const _cytSocI=hasYT?_cmkSocI(cardYtId?`https://youtube.com/channel/${cardYtId}`:null,_cytSvg,'YouTube'):'';
             const _cSocIcons=_cigSocI||_cttSocI||_cytSocI?`<span style="display:inline-flex;align-items:center;gap:4px;">${_cigSocI}${_cttSocI}${_cytSocI}</span>`:'';
-            return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a><button class="card-eye-btn" onclick="selectClient('${r.client_name}')" title="View ${r.client_name}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>${_cSocIcons}</div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
+            return `<div class="client-card"><div class="card-head"><div style="display:flex;align-items:center;gap:6px;">${rankBadge}<a class="card-client-name card-client-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a><button class="card-eye-btn" onclick="selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></button>${_cSocIcons}</div><span class="card-date">${fmtDate(r.date)}</span></div><div class="card-platforms">${pl}</div></div>`;
         }).join('')}</div>`;
     }
 
@@ -6037,7 +6037,7 @@
         if(!wv.length&&!mv.length)return'';
         const showShares=platform.toLowerCase()==='tiktok',isIG=platform.toLowerCase()==='instagram';
         let cardsHtml=videos.length?`<div class="video-cards-scroll">${videos.map((v,i)=>buildVideoCard(v,showShares,isIG,i+1)).join('')}</div>`:`<div class="top-videos-empty">No top videos for this period yet</div>`;
-        return`<div class="top-videos-section" id="${containerId}"><div class="top-videos-head"><div style="display:flex;align-items:center;gap:10px;"><span class="top-videos-title">Top Performing</span><div class="period-toggle"><button class="period-btn ${weekActive}" onclick="switchPeriod('${clientName}','${platform}','week','${containerId}')">Week</button><button class="period-btn ${monthActive}" onclick="switchPeriod('${clientName}','${platform}','month','${containerId}')">Month</button></div></div><div class="top-videos-subnote" style="margin-top:6px;font-size:0.65rem;color:rgba(255,255,255,0.6);font-weight:500;letter-spacing:0.02em;">Lifetime views per video — not the views gained this period</div></div>${cardsHtml}</div>`;
+        return`<div class="top-videos-section" id="${containerId}"><div class="top-videos-head"><div style="display:flex;align-items:center;gap:10px;"><span class="top-videos-title">Top Performing</span><div class="period-toggle"><button class="period-btn ${weekActive}" onclick="switchPeriod(${_jsAttrArg(clientName)},'${platform}','week',${_jsAttrArg(containerId)})">Week</button><button class="period-btn ${monthActive}" onclick="switchPeriod(${_jsAttrArg(clientName)},'${platform}','month',${_jsAttrArg(containerId)})">Month</button></div></div><div class="top-videos-subnote" style="margin-top:6px;font-size:0.65rem;color:rgba(255,255,255,0.6);font-weight:500;letter-spacing:0.02em;">Lifetime views per video — not the views gained this period</div></div>${cardsHtml}</div>`;
     }
 
     function truncateCaption(caption){if(!caption)return'';const sentences=caption.match(/[^.!?]+[.!?]+/g)||[caption];let result='';for(let i=0;i<Math.min(2,sentences.length);i++){if((result+sentences[i]).length>130&&result.length>0)break;result+=sentences[i];}return result.trim()||caption.substring(0,120);}
@@ -6092,7 +6092,7 @@
         const platToggle=[hasIG?mkPlatBtn('ig','#E1306C','Instagram'):'',hasTT?mkPlatBtn('tt','#2EC4B6','TikTok'):'',hasYT?mkPlatBtn('yt','#FF4444','YouTube'):''].filter(Boolean).join('');
         const shareBtnHtml=!clientOnly?`<button class="share-btn" id="shareBtn" onclick="copyShareLink('${encodeURIComponent(name)}')"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`:'';
         const hasSlackChannel=!!(clientMap[name]?.slack_channel_id);
-        const slackBtnHtml=(!clientOnly&&hasSlackChannel)?`<button class="share-btn slack-update-btn" data-slack-btn="${name}" onclick="sendWeeklySlackUpdate('${name.replace(/'/g,"\\'")}')" title="Send this week's top reel to client's Slack channel" style="margin-left:6px;">${_slackBtnContent}</button>`:'';
+        const slackBtnHtml=(!clientOnly&&hasSlackChannel)?`<button class="share-btn slack-update-btn" data-slack-btn="${_calEscAttr(name)}" onclick="sendWeeklySlackUpdate(${_jsAttrArg(name)})" title="Send this week's top reel to client's Slack channel" style="margin-left:6px;">${_slackBtnContent}</button>`:'';
         const igTopVids=buildTopVideosSection(name,'instagram',`tv-ig-${name.replace(/\s+/g,'_')}`);
         const ttTopVids=buildTopVideosSection(name,'tiktok',`tv-tt-${name.replace(/\s+/g,'_')}`);
         const ytTopVids=buildTopVideosSection(name,'youtube',`tv-yt-${name.replace(/\s+/g,'_')}`);
@@ -6106,7 +6106,7 @@
         const ytSection=hasYT?`<div class="platform-section yt"><div class="platform-section-header"><span class="platform-name"><span class="platform-pill"></span>YouTube</span>${handleLink(ytUrl(ytId),ytId?'Open Channel ↗':'')}</div><div class="metrics-row"${ytRowStyle}>${mBlock('Total Subscribers',today,prev,'yt_subscribers')}${ytViewBlocks}</div>${ytTopVids}</div>`:'';
 
         const _clientDesc=clientMap[name]?.content_description||'';
-        const _infoIcon=_clientDesc?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal('${name.replace(/'/g,"\\'")}')">i</button>`:'';
+        const _infoIcon=_clientDesc?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';
         const analyticsContent=`
             <div class="detail-hero">
                 <div>
@@ -6164,7 +6164,7 @@
             const briefMeta=getBriefMetaLine(name);
             return`<div class="client-view">
                 ${toggleHtml}
-                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal('${name.replace(/'/g,"\\'")}')">i</button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
+                <div class="detail-hero" style="margin-bottom:16px;"><div><div class="detail-name" style="display:flex;align-items:center;">${name}${(()=>{const _d=clientMap[name]?.content_description||'';return _d?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';})()}</div>${briefMeta?`<div class="detail-meta">${briefMeta}</div>`:''}</div></div>
                 <div id="briefViewContainer">${renderBriefContent(name)}</div>
             </div>`;
         }
@@ -6173,7 +6173,7 @@
     }
 
     async function sendWeeklySlackUpdate(clientName){
-        const btn=document.querySelector(`[data-slack-btn="${clientName}"]`);
+        const btn=document.querySelector(`[data-slack-btn="${CSS.escape(clientName)}"]`);
         if(btn){btn.disabled=true;btn.textContent='Sending...';}
         try{
             const info=clientMap[clientName]||{};
@@ -6216,7 +6216,7 @@
         </tr></thead>`;
       })()}<tbody>${rows.map((r,idx)=>{
             const p=prevMap[r.client_name]||null,dp=deltaMap[r.client_name]||null,topCls=idx<3?`top-rank top-${idx+1}`:'',badge=idx<3?`<span class="top-rank-badge">${idx+1}</span>`:'';
-            const eyeIcon=`<a class="client-view-btn" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')" title="View ${r.client_name}" style="text-decoration:none;color:inherit;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></a>`;
+            const eyeIcon=`<a class="client-view-btn" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})" title="View ${_calEscAttr(r.client_name)}" style="text-decoration:none;color:inherit;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3C3 3 1 8 1 8s2 5 7 5 7-5 7-5-2-5-7-5z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg></a>`;
             const isAgeRestricted=r.client_name.toLowerCase()==='john wineland';
             const igRestrictedCell=`<td class="col-ig" style="text-align:center;" title="Instagram age-restricted — not scraped"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 2L14 14" stroke="#d4b0bc" stroke-width="1.5" stroke-linecap="round"/><path d="M6.5 3.5A6.8 6.8 0 0 1 8 3c5 0 7 5 7 5a12 12 0 0 1-2.1 2.9" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M9.88 9.88A3 3 0 0 1 5.12 5.12" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M1 8s2-5 7-5" stroke="#d4b0bc" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></td>`;
             const noPlat=(cls,label)=>`<td class="${cls}" style="text-align:center;"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;opacity:0.7;"><svg width="10" height="10" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1.3"/><line x1="3" y1="3" x2="9" y2="9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg> No ${label}</span></td>`;
@@ -6242,7 +6242,7 @@
             const ttCols=hasTTrow?`${nc(r.tiktok_followers,'col-tt main-metric')}${gainCell(r,dp,'tiktok_followers','col-tt')}${ncViewsDelta(r.tiktok_plays_this_month,mp?mp.tiktok_plays_this_month:null,'col-tt')}${ttViewDeltaCell}`:_isPending?`${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`:`${noPlat('col-tt','TikTok')}${noCell('col-tt')}${noCell('col-tt')}${noCell('col-tt')}`;
             const ytCols=hasYTrow?`${nc(r.yt_subscribers,'col-yt main-metric')}${gainCell(r,dp,'yt_subscribers','col-yt')}${nc(r.yt_total_views,'col-yt')}${gainCell(r,dp,'yt_total_views','col-yt')}`:_isPending?`${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`:`${noPlat('col-yt','YouTube')}${noCell('col-yt')}${noCell('col-yt')}${noCell('col-yt')}`;
             const _dateCell=_isPending?`<td style="font-size:0.68rem"><span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg);border-radius:5px;padding:2px 8px;font-size:0.61rem;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;">Pending</span></td>`:`<td style="font-size:0.76rem">${fmtDate(r.date)}</td>`;
-            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient('${r.client_name}')">${r.client_name}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
+            return`<tr class="${topCls}"><td><div class="cell-inner">${badge}${eyeIcon}<a class="client-name-link" href="#${encodeURIComponent(r.client_name)}" onclick="event.preventDefault();selectClient(${_jsAttrArg(r.client_name)})">${_calEsc(r.client_name)}</a>${_socIcons}</div></td>${_dateCell}${igCols}${ttCols}${ytCols}</tr>`;
         }).join('')}</tbody></table></div>`;
     }
 
@@ -6410,7 +6410,7 @@
     function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const q2=q.trim().toLowerCase();if(!q2){ghost.innerHTML='';return;}const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const first=[...starts,...contains][0];if(!first){ghost.innerHTML='';return;}if(first.toLowerCase().startsWith(q2)){const typed=first.slice(0,q.length);const rest=first.slice(q.length);ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;}else{ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;}}
     function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
     function highlightMatch(name,q){if(!q)return name;const idx=name.toLowerCase().indexOf(q.toLowerCase());if(idx<0)return name;return name.slice(0,idx)+`<span class="s-match">`+name.slice(idx,idx+q.length)+`</span>`+name.slice(idx+q.length);}
-    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">↩</span><span>${name}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo('${name}')"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
+    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">↩</span><span>${_calEsc(name)}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
     function searchGoTo(name){addRecent(name);const box=document.getElementById('searchBox');const inp=document.getElementById('searchInput');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(inp){inp.value='';inp.blur();}if(ghost)ghost.innerHTML='';selectClient(name);}
 
     const PINS_KEY='syncview_pinned_clients';
@@ -6729,7 +6729,7 @@
             const titleSafe = /^#[0-9a-fA-F]{6}$/.test(s.title) ? s.title : '#000000';
             const hlSafe = /^#[0-9a-fA-F]{6}$/.test(s.highlight) ? s.highlight : '#000000';
             const removeBtn = sets.length > 1
-                ? `<button class="tpl-set-remove" onclick="_tplRemoveColorSet('${_tplEscAttr(name)}', ${i})" title="Remove this set"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>`
+                ? `<button class="tpl-set-remove" onclick="_tplRemoveColorSet(${_jsAttrArg(name)}, ${i})" title="Remove this set"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>`
                 : '';
             return `<div class="tpl-color-set-row" data-tpl-set-index="${i}">
                 <div class="tpl-set-num">${i + 1}</div>
@@ -6754,7 +6754,7 @@
         }).join('');
         const canAddMore = sets.length < TPL_MAX_COLOR_SETS;
         const addBtn = canAddMore
-            ? `<button class="tpl-set-add" onclick="_tplAddColorSet('${_tplEscAttr(name)}')"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="6" y1="2.5" x2="6" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Add color set</button>`
+            ? `<button class="tpl-set-add" onclick="_tplAddColorSet(${_jsAttrArg(name)})"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="6" y1="2.5" x2="6" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Add color set</button>`
             : `<div class="tpl-set-add-max">Max ${TPL_MAX_COLOR_SETS} sets</div>`;
         return `<div class="tpl-color-sets-edit" data-tpl-color-sets data-tpl-client="${_tplEsc(name)}">
             ${items}
@@ -7039,11 +7039,11 @@
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             if (!recent.length) { el.innerHTML = ''; return; }
-            el.innerHTML = `<div class="search-section-label">Recent</div>` + recent.map(name => `<div class="search-suggestion" onclick="_tplGoTo('${_tplEscAttr(name)}')"><span class="s-icon">↩</span><span>${_tplEsc(name)}</span></div>`).join('');
+            el.innerHTML = `<div class="search-section-label">Recent</div>` + recent.map(name => `<div class="search-suggestion" onclick="_tplGoTo(${_jsAttrArg(name)})"><span class="s-icon">↩</span><span>${_tplEsc(name)}</span></div>`).join('');
         } else {
             const matches = _tplMatches(q2);
             if (!matches.length) { el.innerHTML = `<div class="search-empty">No clients found</div>`; }
-            else { el.innerHTML = matches.slice(0, 6).map(name => `<div class="search-suggestion" onclick="_tplGoTo('${_tplEscAttr(name)}')"><span class="s-icon">👤</span><span>${_tplHighlight(name, q.trim())}</span></div>`).join(''); }
+            else { el.innerHTML = matches.slice(0, 6).map(name => `<div class="search-suggestion" onclick="_tplGoTo(${_jsAttrArg(name)})"><span class="s-icon">👤</span><span>${_tplHighlight(name, q.trim())}</span></div>`).join(''); }
         }
     }
     function _tplGoTo(name) {
@@ -7406,6 +7406,7 @@
         linearProjectsLoading = true;
         try {
             const resp = await fetch(LINEAR_PROJECTS_WEBHOOK, { method: 'POST' });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const data = await resp.json();
             const raw = Array.isArray(data) ? data : (data.projects || []);
             linearProjects = [...new Set(raw)];
@@ -9116,7 +9117,7 @@
                 ? `<span class="workload-popover-item-client">${wlEscape(s.clientName)}</span>`
                 : '';
             const calBtn = s.clientName
-                ? `<button type="button" class="workload-popover-item-cal" title="Open in the content calendar" onclick="wlOpenInContentCalendar('${wlEscape(s.clientName)}','${wlEscape(s.identifier || '')}')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
+                ? `<button type="button" class="workload-popover-item-cal" title="Open in the content calendar" onclick="wlOpenInContentCalendar(${_jsAttrArg(s.clientName)},${_jsAttrArg(s.identifier || '')})"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
                 : '';
             return `<div class="workload-popover-item">
                 <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
@@ -9433,7 +9434,7 @@
         const q2 = q.trim().toLowerCase();
         if (!q2) {
             el.innerHTML = linearProjects.slice(0, 8).map(name =>
-                `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span>${name}</span></div>`
+                `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)})"><span>${wlEscape(name)}</span></div>`
             ).join('');
             return;
         }
@@ -9442,7 +9443,7 @@
         const matches = [...starts, ...contains];
         if (!matches.length) { el.innerHTML = '<div class="linear-search-empty">No projects found</div>'; return; }
         el.innerHTML = matches.slice(0, 6).map(name =>
-            `<div class="linear-search-suggestion" onclick="selectLinearProject('${name.replace(/'/g, "\\'")}')"><span>${highlightMatch(name, q.trim())}</span></div>`
+            `<div class="linear-search-suggestion" onclick="selectLinearProject(${_jsAttrArg(name)})"><span>${highlightMatch(name, q.trim())}</span></div>`
         ).join('');
     }
 
@@ -9824,7 +9825,7 @@
         const active = smState.client;
         const tabHtml = pins.map(name => {
             const isA = name === active;
-            return `<button type="button" class="sm-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSmTabClick('${_smEscAttr(name)}')"><span class="sm-tab-dot"></span><span>${_smEsc(name)}</span><span class="sm-tab-x" onclick="event.stopPropagation();onSmTabRemove('${_smEscAttr(name)}')" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span></button>`;
+            return `<button type="button" class="sm-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSmTabClick(${_jsAttrArg(name)})"><span class="sm-tab-dot"></span><span>${_smEsc(name)}</span><span class="sm-tab-x" onclick="event.stopPropagation();onSmTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span></button>`;
         }).join('');
         const plus = `<svg viewBox="0 0 16 16" fill="none"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
         el.innerHTML = `${tabHtml}<div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
@@ -9860,7 +9861,7 @@
         if(q) names = names.filter(n => n.toLowerCase().includes(q));
         names = names.sort().slice(0, 40);
         box.innerHTML = names.length
-            ? names.map((n,i) => `<button type="button" class="sm-tab-result${i === 0 ? ' active' : ''}" onclick="onSmPickClient('${_smEscAttr(n)}')">${_smEsc(n)}</button>`).join('')
+            ? names.map((n,i) => `<button type="button" class="sm-tab-result${i === 0 ? ' active' : ''}" onclick="onSmPickClient(${_jsAttrArg(n)})">${_smEsc(n)}</button>`).join('')
             : `<div class="sm-tab-empty">No clients found</div>`;
     }
     function _smSearchKey(e){
@@ -11027,7 +11028,17 @@
 
     function calClientSlug(name) { return wlNormalizeClient(name); }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
+       It is NOT enough for a string argument inside an inline handler —
+       onclick="fn('${_calEscAttr(v)}')" still breaks on apostrophes. Use
+       _jsAttrArg below for handler arguments. */
     function _calEscAttr(s) { return _calEsc(s).replace(/'/g,'&#39;'); }
+    /* String argument for an inline-handler attribute: onclick="fn(${_jsAttrArg(v)})".
+       Must be JSON-escaped FIRST (JS string literal) and entity-escaped SECOND
+       (attribute value) — the browser decodes entities before the JS engine
+       parses the handler, so wrapping a value in '…' + _calEscAttr alone still
+       breaks on apostrophes (&#39; decodes right back into a quote). */
+    function _jsAttrArg(v) { return _calEscAttr(JSON.stringify(String(v == null ? '' : v))); }
     function _calIsoFmt(y, m, d) { return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`; }
     function _calIsoOf(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, x.getDate()); }
     function _calIsoFirstOfMonth(d) { const x = (d instanceof Date) ? d : new Date(d); return _calIsoFmt(x.getFullYear(), x.getMonth() + 1, 1); }
@@ -13576,9 +13587,9 @@
         const active = calState.client;
         const tabHtml = pins.map(name => {
             const isActive = name === active;
-            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick('${_calEscAttr(name)}')">
+            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" data-cal-tab="${_calEscAttr(name)}" onclick="onCalTabClick(${_jsAttrArg(name)})">
                 <span class="cal-tab-name">${_calEsc(name)}</span>
-                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove('${_calEscAttr(name)}')" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onCalTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
             </button>`;
         }).join('');
         const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
@@ -15140,6 +15151,9 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: String(post._baseAt || '') })
             });
+            // A non-2xx (n8n down, 500 HTML page) would otherwise surface as a
+            // cryptic JSON-parse error in the card's save chip.
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
             const saved = json.post || post;
@@ -17858,16 +17872,16 @@
         // Replies share the parent thread's "done" state — only the root gets
         // the resolve toggle, and only the SMM ever sees that toggle.
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply('${rootId}')" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_calBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
         // Resolve toggle is only meaningful on a change-request (tweak). A plain
         // comment is a conversation, not a task, so it gets no "Mark done".
         const doneBtn  = (!isReply && _calCanResolveComment() && _calMsgIsTweak(c))
             ? (c.done
-                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Reopen">${undoIco}<span>Reopen</span></button>`
-                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone('${c.id}')" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
+                ? `<button class="cal-cm-action is-done-on" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>`
+                : `<button class="cal-cm-action" type="button" onclick="_calToggleCommentDone(${_jsAttrArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`)
             : '';
         const delBtn = _calCanDeleteComment(c)
-            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment('${c.id}')" title="Delete">${trashIco}<span>Delete</span></button>`
+            ? `<button class="cal-cm-action is-danger" type="button" onclick="_calDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
             : '';
         if (!replyBtn && !doneBtn && !delBtn) return '';
         return `<div class="cal-cm-actions">${replyBtn}${doneBtn}${delBtn}</div>`;
@@ -17982,6 +17996,20 @@
             if (feed) feed.scrollTop = feed.scrollHeight;
         }, 0);
     }
+    /* Flush a comment-carrying save and, if it failed while the Notes modal is
+       still open on that card, tell the user. The card's "Save failed" chip is
+       the normal failure surface, but the open modal covers it — without this
+       the user closes the modal believing the note was sent. The note itself
+       isn't lost: it lives in calState and rides along with the next save of
+       this card (retry chip / any edit). */
+    function _calWatchNoteSave(pid) {
+        Promise.resolve(_calFlushCardSave(pid)).then(() => {
+            const p = calState.posts.find(x => x.id === pid);
+            if (p && p._saveError && _calOpenCommentsPid === pid) {
+                showNotify('Note not saved yet', 'Saving to the sheet failed (' + p._saveError + '). Your note is still here and will be sent with the next save of this card — edit any field or use the Save-failed chip to retry. Don\'t refresh the page before it saves.');
+            }
+        });
+    }
     function _calAppendComment(pid, parentId, body) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -18025,7 +18053,7 @@
         // Only a client's explicit change-REQUEST root flips status — a plain
         // comment or any reply leaves the status untouched.
         if (isRoot && role === 'client' && msg.is_tweak) _calApplyAutoStatus(pid, 'client_added', comp);
-        _calFlushCardSave(pid);
+        _calWatchNoteSave(pid);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
     }
@@ -18075,7 +18103,7 @@
             const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
             if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
         }
-        _calFlushCardSave(pid);
+        _calWatchNoteSave(pid);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
         _calCaptureModalDrafts();
@@ -18136,7 +18164,7 @@
                 const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
                 if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
             }
-            _calFlushCardSave(pid);
+            _calWatchNoteSave(pid);
             _calRefreshCommentsBtn(pid);
             _calUpdateCardStatusDisplay(pid);
             _calCaptureModalDrafts();
@@ -18196,7 +18224,7 @@
             recommend: _calResolveDestRecommend(post, comp),
             onChoose: (destPick) => {
                 if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
-                    _calFlushCardSave(pid);
+                    _calWatchNoteSave(pid);
                     _calRefreshCommentsBtn(pid);
                     _calUpdateCardStatusDisplay(pid);
                     _calRenderCommentsModal();
@@ -18589,7 +18617,10 @@
         // so we don't block the navigation back to the Linear list.
         // The helper is mode-aware (wantVideo/wantGraphic) so graphic-only
         // submissions still get calendar rows linked to the GRA sub-issues.
-        _writeLinearVideoCardsToCalendar(client, videos, title, { mode }).catch(e => console.warn('[SyncView] Background calendar write failed:', e));
+        _writeLinearVideoCardsToCalendar(client, videos, title, { mode }).catch(e => {
+            console.warn('[SyncView] Background calendar write failed:', e);
+            showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. Open the calendar and use "Import from Linear" with the parent link to backfill them.');
+        });
 
         localStorage.removeItem(LINEAR_FORM_KEY);
         localStorage.removeItem(LAST_LINK_KEY);
@@ -20043,6 +20074,7 @@
                 showNotify('Upload queued', scheduledAtWall ? `Scheduled for ${_tkFormatScheduledLong(scheduledAtWall, tkState.schedule.tz)}.` : 'The video is uploading to TikTok now.');
                 Promise.resolve(_tkFetchQueue()).finally(_tkScheduleNextPoll);   // pick up the server-side row + (re)start polling
             } else {
+                tkState.progress = 0;
                 tkState.error = _tkExplainError(xhr);
                 _tkRenderForm();
             }
@@ -20050,6 +20082,7 @@
         xhr.onerror = () => {
             _tkActiveXhr = null;
             tkState.submitting = false;
+            tkState.progress = 0;
             tkState.error = 'Network error — the upload could not reach n8n. Try again.';
             _tkRenderForm();
         };
@@ -20094,7 +20127,9 @@
 
     async function _tkFetchQueue() {
         try {
-            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET' });
+            // Timeout so a hung request can't stall the poll chain forever —
+            // the next poll is only armed in the .finally() of this fetch.
+            const r = await fetch(TIKTOK_UPLOADS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
             if (!r.ok) throw new Error('HTTP ' + r.status);
             const json = await r.json();
             const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
@@ -22560,7 +22595,7 @@
         const dayFilter = _kasperState.editorsDayFilter[key] || null;
         const days = showWeekend ? weekDates : weekDates.slice(0, 5);
         const avatarHtml = ed.avatarUrl
-            ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback('${(ed.name || '').replace(/'/g, "\\'")}'))">`
+            ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback(${_jsAttrArg(ed.name || '')}))">`
             : _calEsc(_kedInitials(ed.name));
         const bars = days.map(d => {
             const cell = (ed.perDay || {})[d.key] || { count: 0 };
@@ -22597,7 +22632,7 @@
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
-            <div class="ked-row-head" onclick="_kasperToggleEditor('${_calEscAttr(key)}')">
+            <div class="ked-row-head" onclick="_kasperToggleEditor(${_jsAttrArg(key)})">
                 <div class="ked-avatar">${avatarHtml}</div>
                 <div class="ked-id">
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
@@ -22815,7 +22850,7 @@
         const toolbarHtml = sortedClients.length > 1 ? `
             <div class="ked-vid-toolbar">
                 <span class="ked-vid-toolbar-meta">${sortedClients.length} client${sortedClients.length === 1 ? '' : 's'}${dayFilter ? ' · ' + _kedDayLong((days || []).find(d => d.key === dayFilter)?.label || '') : ''}</span>
-                <button type="button" class="ked-vid-toolbar-btn" onclick="_kasperToggleAllClients('${_calEscAttr(editorKey)}')">
+                <button type="button" class="ked-vid-toolbar-btn" onclick="_kasperToggleAllClients(${_jsAttrArg(editorKey)})">
                     <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         ${allExpanded
                             ? '<path d="M2 7l4-3 4 3"/><path d="M2 10l4-3 4 3"/>'
@@ -22843,7 +22878,7 @@
                 ? `<div class="ked-vid-group-body">${vids.map(v => _kedVideoCard(v, weekStartMs, weekEndMs, dayFilter)).join('')}</div>`
                 : '';
             return `<div class="ked-vid-group${expanded ? ' is-expanded' : ''}">
-                <button type="button" class="${headCls}" onclick="_kasperToggleClient('${_calEscAttr(editorKey)}','${_calEscAttr(c)}')">
+                <button type="button" class="${headCls}" onclick="_kasperToggleClient(${_jsAttrArg(editorKey)},${_jsAttrArg(c)})">
                     <svg class="ked-group-chev" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5l4 3.5-4 3.5"/></svg>
                     <span class="ked-group-name">${_calEsc(c)}</span>
                     <span class="ked-vid-group-count">${vids.length}</span>

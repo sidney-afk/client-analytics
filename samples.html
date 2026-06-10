@@ -482,6 +482,7 @@ function buildMedia(item, isReel){
     img.alt = item.label;
     img.loading = 'lazy';
     img.onerror = function(){
+      if(!img.parentNode) return; // card was removed while the image loaded
       img.style.display='none';
       var empty = document.createElement('div');
       empty.className = 'empty';

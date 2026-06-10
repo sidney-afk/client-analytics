@@ -10537,6 +10537,10 @@
     const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    // Batched reorder: same contract, but the workflow writes every
+    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
+    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
+    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
     // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
     // (2 Google API calls server-side). The FE falls back to per-client
     // CALENDAR_GET_URL calls whenever this endpoint fails.
@@ -16377,11 +16381,23 @@
         _calReorderInFlight = true;
         _setCalStatus('saving');
         try {
-            const resp = await fetch(CALENDAR_REORDER_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            const json = await resp.json();
+            // Batched endpoint first (one atomic write); original per-row
+            // endpoint as fallback so a batch outage never blocks reorders.
+            let json = null;
+            try {
+                const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json();
+            } catch (e) { json = null; }
+            if (!json || !json.ok) {
+                const resp = await fetch(CALENDAR_REORDER_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json();
+            }
             if (!json.ok) throw new Error('reorder failed');
             _setCalStatus('saved');
             // Offer Undo only for the latest completed drag — a coalesced

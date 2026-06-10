@@ -3708,6 +3708,28 @@
             .sm-toolbar { gap:10px; }
             .sm-toolbar-right { width:100%; justify-content:flex-start; }
         }
+        /* ── Mobile / touch polish ──────────────────────────────────────
+           Clients review on phones: the chrome must fit a narrow screen and
+           every hover-revealed control needs a touch equivalent. */
+        @media (max-width: 760px) {
+            .header { padding: 0 14px; gap: 10px; }
+            .header-meta { display: none; }
+            .header-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; }
+            .header-nav::-webkit-scrollbar { display: none; }
+            .header-nav-btn { flex-shrink: 0; }
+            .main { padding: 18px 14px 80px; }
+            .search-bar-pill { width: calc(100vw - 48px); }
+            /* Full-screen notes modal; dvh tracks the on-screen keyboard so
+               the composer stays visible while typing (falls back to the
+               base 86vh on browsers without dvh support). */
+            .cal-comments-modal { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+        }
+        @media (hover: none) {
+            .cal-cm-row { flex-wrap: wrap; }
+            .cal-cm-actions { position: static; opacity: 1; pointer-events: auto; flex-basis: 100%; width: max-content; margin: 2px 0 0 43px; box-shadow: none; }
+            .cal-cm-action { padding: 7px 10px; }
+            .pin-pill .pin-remove { width: 20px; height: 20px; }
+        }
     </style>
 </head>
 <body>

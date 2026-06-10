@@ -3460,6 +3460,11 @@
         .sv-toast-msg { line-height: 1.35; }
         .sv-toast-action { background: rgba(255,255,255,0.16); border: none; color: #fff; font-family: inherit; font-size: 0.8rem; font-weight: 800; border-radius: 8px; padding: 6px 13px; cursor: pointer; flex-shrink: 0; transition: background 0.13s; }
         .sv-toast-action:hover { background: rgba(255,255,255,0.28); }
+        /* Kasper queue: which components still need his decision (collapsed card) */
+        .kcard-comp-pills { display: inline-flex; gap: 4px; align-items: center; }
+        .kcard-comp-pill { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; border-radius: 99px; padding: 1px 8px; line-height: 1.5; }
+        /* Replies inbox: who the new messages are from */
+        .kasper-replies-newfrom { margin-left: 8px; font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 99px; padding: 1px 8px; }
         .kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 6px; border-top: 1px solid var(--border-light); margin-top: 4px; }
         .kcard-open-cal-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; background: transparent; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; }
         .kcard-open-cal-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--white); }
@@ -18356,6 +18361,14 @@
         if (_calHasBeenToKasper(post, comp)) return 'client';
         return 'kasper';
     }
+    /* Why the chooser recommends Kasper or the client — shown in the dialog so
+       the SMM isn't second-guessing the default. Mirrors the recommend logic. */
+    function _calResolveDestReason(post, comp) {
+        if (!post) return '';
+        if (_calShowApprovedAfterTweaks(post, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_calHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
     function _calShowResolveDest(opts) {
         opts = opts || {};
         const overlay = document.getElementById('resolveDestOverlay');
@@ -18367,7 +18380,8 @@
         const toKasper = opts.recommend === 'kasper';
         if (msg) msg.textContent = 'All change requests on the ' + compLabel + ' are resolved. '
             + (toKasper ? 'Send it to Kasper for approval — or straight to the client.'
-                        : 'Send it to the client for approval — or back to Kasper first.');
+                        : 'Send it to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
         // The recommended route is the primary (filled) button.
         kBtn.classList.toggle('primary', toKasper);
         cBtn.classList.toggle('primary', !toKasper);
@@ -18392,6 +18406,7 @@
         _calShowResolveDest({
             comp: comp,
             recommend: _calResolveDestRecommend(post, comp),
+            reason: _calResolveDestReason(post, comp),
             onChoose: (destPick) => {
                 if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
                     _calWatchNoteSave(pid);
@@ -21210,7 +21225,15 @@
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
                 <div class="kasper-replies-meta">
-                    <div class="kasper-replies-client">${_calEsc(item.client)}</div>
+                    <div class="kasper-replies-client">${_calEsc(item.client)}${(() => {
+                        const roles = new Set();
+                        unreadThreads.forEach(t => [t.root, ...t.replies].forEach(m => {
+                            if (m && m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen) roles.add(m.role === 'client' ? 'client' : 'team');
+                        }));
+                        if (!roles.size) return '';
+                        const who = [...roles].map(r => r === 'client' ? 'Client' : 'Team').join(' & ');
+                        return `<span class="kasper-replies-newfrom">New from ${_calEsc(who)}</span>`;
+                    })()}</div>
                     <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
                 </div>
                 <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
@@ -21918,6 +21941,7 @@
                         ${tweaksChip}
                         ${aatChip}
                         ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New reply</span>' : ''}
+                        ${undecidedComps.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecidedComps.map(c => `<span class="kcard-comp-pill">${_calEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>

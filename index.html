@@ -1902,6 +1902,11 @@
             background: rgba(255,255,255,0.92); box-shadow: 0 1px 5px rgba(0,0,0,0.22); color: var(--text-muted);
             display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0; transition: opacity 0.15s; }
         .cal-card:hover .cal-card-grip { opacity: 1; }
+        /* Keep a faint grip visible so reordering is discoverable without a
+           hover hunt — and fully visible on touch screens (no hover there). */
+        .cal-strip .cal-card .cal-card-grip { opacity: 0.4; }
+        .cal-strip .cal-card:hover .cal-card-grip { opacity: 1; }
+        @media (hover: none) { .cal-strip .cal-card .cal-card-grip { opacity: 0.85; } }
         .cal-card-grip:active { cursor: grabbing; }
         .cal-card-grip svg { width: 13px; height: 13px; display: block; }
         /* Per-card link copy button — sits to the right of the drag grip */
@@ -3454,6 +3459,17 @@
         .kcard-approve-btn:hover:not(:disabled) { background: #15803d; transform: translateY(-1px); box-shadow: 0 3px 10px rgba(22,163,74,0.35); }
         .kcard-approve-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .kcard-approve-btn svg { width: 14px; height: 14px; }
+        /* Toast (Undo + confirmations) */
+        .sv-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--text-primary); color: #fff; border-radius: 12px; padding: 11px 16px; display: flex; align-items: center; gap: 14px; font-size: 0.84rem; font-weight: 600; box-shadow: 0 10px 32px rgba(0,0,0,0.28); z-index: 3000; opacity: 0; transition: opacity 0.18s ease, transform 0.18s ease; max-width: min(92vw, 480px); }
+        .sv-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .sv-toast-msg { line-height: 1.35; }
+        .sv-toast-action { background: rgba(255,255,255,0.16); border: none; color: #fff; font-family: inherit; font-size: 0.8rem; font-weight: 800; border-radius: 8px; padding: 6px 13px; cursor: pointer; flex-shrink: 0; transition: background 0.13s; }
+        .sv-toast-action:hover { background: rgba(255,255,255,0.28); }
+        /* Kasper queue: which components still need his decision (collapsed card) */
+        .kcard-comp-pills { display: inline-flex; gap: 4px; align-items: center; }
+        .kcard-comp-pill { font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; border-radius: 99px; padding: 1px 8px; line-height: 1.5; }
+        /* Replies inbox: who the new messages are from */
+        .kasper-replies-newfrom { margin-left: 8px; font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; background: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; border-radius: 99px; padding: 1px 8px; }
         .kcard-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 6px; border-top: 1px solid var(--border-light); margin-top: 4px; }
         .kcard-open-cal-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; background: transparent; border: 1px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; text-decoration: none; }
         .kcard-open-cal-btn:hover { color: var(--text-primary); border-color: #aaa; background: var(--white); }
@@ -3692,6 +3708,28 @@
             .sm-toolbar { gap:10px; }
             .sm-toolbar-right { width:100%; justify-content:flex-start; }
         }
+        /* ── Mobile / touch polish ──────────────────────────────────────
+           Clients review on phones: the chrome must fit a narrow screen and
+           every hover-revealed control needs a touch equivalent. */
+        @media (max-width: 760px) {
+            .header { padding: 0 14px; gap: 10px; }
+            .header-meta { display: none; }
+            .header-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; }
+            .header-nav::-webkit-scrollbar { display: none; }
+            .header-nav-btn { flex-shrink: 0; }
+            .main { padding: 18px 14px 80px; }
+            .search-bar-pill { width: calc(100vw - 48px); }
+            /* Full-screen notes modal; dvh tracks the on-screen keyboard so
+               the composer stays visible while typing (falls back to the
+               base 86vh on browsers without dvh support). */
+            .cal-comments-modal { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }
+        }
+        @media (hover: none) {
+            .cal-cm-row { flex-wrap: wrap; }
+            .cal-cm-actions { position: static; opacity: 1; pointer-events: auto; flex-basis: 100%; width: max-content; margin: 2px 0 0 43px; box-shadow: none; }
+            .cal-cm-action { padding: 7px 10px; }
+            .pin-pill .pin-remove { width: 20px; height: 20px; }
+        }
     </style>
 </head>
 <body>
@@ -3867,6 +3905,40 @@
         yesBtn.textContent = 'OK';
         yesBtn.onclick = dismissConfirm;
         document.getElementById('confirmOverlay').classList.add('active');
+    }
+
+    /* Bottom-center toast with optional action (used for Undo + confirmations).
+       Single instance — a new toast replaces the previous one. DOM-built, so
+       message text needs no escaping. */
+    let _toastEl = null, _toastTimer = null;
+    function hideToast() {
+        if (_toastTimer) { clearTimeout(_toastTimer); _toastTimer = null; }
+        const el = _toastEl; _toastEl = null;
+        if (!el) return;
+        el.classList.remove('show');
+        setTimeout(() => { try { el.remove(); } catch (e) {} }, 220);
+    }
+    function showToast(msg, opts) {
+        opts = opts || {};
+        hideToast();
+        const el = document.createElement('div');
+        el.className = 'sv-toast';
+        const txt = document.createElement('span');
+        txt.className = 'sv-toast-msg';
+        txt.textContent = msg;
+        el.appendChild(txt);
+        if (opts.actionLabel && typeof opts.onAction === 'function') {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sv-toast-action';
+            btn.textContent = opts.actionLabel;
+            btn.onclick = () => { hideToast(); try { opts.onAction(); } catch (e) { console.warn('[SyncView] toast action failed:', e); } };
+            el.appendChild(btn);
+        }
+        document.body.appendChild(el);
+        _toastEl = el;
+        requestAnimationFrame(() => { if (el === _toastEl) el.classList.add('show'); });
+        _toastTimer = setTimeout(hideToast, opts.duration || (opts.actionLabel ? 6000 : 3200));
     }
 
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
@@ -10465,6 +10537,14 @@
     const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    // Batched reorder: same contract, but the workflow writes every
+    // order_index in ONE values:batchUpdate (3 fixed API calls instead of
+    // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
+    const CALENDAR_REORDER_BATCH_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder-batch';
+    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
+    // (2 Google API calls server-side). The FE falls back to per-client
+    // CALENDAR_GET_URL calls whenever this endpoint fails.
+    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
@@ -14260,7 +14340,16 @@
     }
     // "Client Approval" is stored verbatim but shown with the client's name.
     function _calStatusLabel(s) {
-        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : (s || 'In Progress');
+        s = s || 'In Progress';
+        // Clients never see internal routing vocabulary — the underlying
+        // status VALUES are untouched (writes stay raw); this is display-only.
+        if (_isClientLink) {
+            if (s === 'Kasper Approval') return 'In team review';
+            if (s === 'Tweaks Needed') return 'Changes in progress';
+            if (s === 'Client Approval') return 'Ready for your review';
+            return s;
+        }
+        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : s;
     }
     function _calStatusChip(p) {
         const s = p.status || 'In Progress';
@@ -16265,6 +16354,20 @@
     }
     let _calReorderInFlight = false;
     let _calReorderPending  = null;   // latest {items, prevOrder} requested mid-flight
+    /* Undo for the last drag-reorder: restore the order captured just before
+       the drag and persist it through the same serialized reorder funnel.
+       Skipped if the user has switched client tabs — the snapshot belongs to
+       the other tab. */
+    function _calUndoReorder(prevOrder, slug) {
+        if (calClientSlug(calState.client) !== slug) return;
+        const snapshot = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
+        calState.posts.forEach(p => { if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id); });
+        try { _calCacheWrite(slug, calState.posts); } catch (e) {}
+        try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
+        const items = [...prevOrder].map(([id, order_index]) => ({ id, order_index }));
+        persistCalReorder(items, snapshot, slug);
+    }
+
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
         // could resolve to a different client if the user switched tabs while a
@@ -16278,13 +16381,30 @@
         _calReorderInFlight = true;
         _setCalStatus('saving');
         try {
-            const resp = await fetch(CALENDAR_REORDER_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: slug, items })
-            });
-            const json = await resp.json();
+            // Batched endpoint first (one atomic write); original per-row
+            // endpoint as fallback so a batch outage never blocks reorders.
+            let json = null;
+            try {
+                const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json();
+            } catch (e) { json = null; }
+            if (!json || !json.ok) {
+                const resp = await fetch(CALENDAR_REORDER_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: slug, items })
+                });
+                json = await resp.json();
+            }
             if (!json.ok) throw new Error('reorder failed');
             _setCalStatus('saved');
+            // Offer Undo only for the latest completed drag — a coalesced
+            // follow-up drag queued behind this write shows its own toast.
+            if (prevOrder && prevOrder.size && !_calReorderPending) {
+                showToast('New order saved', { actionLabel: 'Undo', onAction: () => _calUndoReorder(prevOrder, slug) });
+            }
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
             _setCalStatus('error', e.message || 'reorder failed');
@@ -17396,6 +17516,11 @@
             const linUrl = _calLinearUrlFor(post, comp);
             if (linUrl) _calPostLinearComment(linUrl, body, newComment.author);
             _calReviewState.saving[key] = false;
+            // The client gets explicit reassurance their request reached the
+            // team — the status pill change alone reads as ambiguous.
+            if (_calCommentRole() === 'client' && !post._saveError) {
+                showToast('Change request sent — the team has been notified');
+            }
         }).catch(e => {
             Object.assign(post, prev);
             _calReviewState.saving[key] = false;
@@ -17819,7 +17944,11 @@
         _calOpenCommentsPid = pid;
         _calReplyTarget = null;
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
+        // A half-written note survives an accidental close (Esc, mis-click on
+        // the backdrop): the draft is kept per card for the tab's lifetime
+        // and cleared on send.
         _calRootDraft = '';
+        try { _calRootDraft = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; } catch (e) {}
         _calComposeAudience = 'internal';   // safe default each open
         _calComposeIsTweak = false;         // default to a plain comment
         _calShowResolved = false;           // start on the live feed, not history
@@ -18059,7 +18188,13 @@
     function _calOnComposerInput(ta) {
         _calAutosizeComposer(ta);
         if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = ta.value;
-        else _calRootDraft = ta.value;
+        else {
+            _calRootDraft = ta.value;
+            try {
+                if (ta.value) sessionStorage.setItem('sv_noteDraft_' + _calOpenCommentsPid, ta.value);
+                else sessionStorage.removeItem('sv_noteDraft_' + _calOpenCommentsPid);
+            } catch (e) {}
+        }
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
@@ -18094,7 +18229,10 @@
         const parentId = _calReplyTarget;
         _calAppendComment(pid, parentId, body);
         if (parentId) delete _calReplyDrafts[parentId];
-        else _calRootDraft = '';
+        else {
+            _calRootDraft = '';
+            try { sessionStorage.removeItem('sv_noteDraft_' + pid); } catch (e) {}
+        }
         _calReplyTarget = null;
         _calRenderCommentsModal();
         setTimeout(() => {
@@ -18292,6 +18430,14 @@
         if (_calHasBeenToKasper(post, comp)) return 'client';
         return 'kasper';
     }
+    /* Why the chooser recommends Kasper or the client — shown in the dialog so
+       the SMM isn't second-guessing the default. Mirrors the recommend logic. */
+    function _calResolveDestReason(post, comp) {
+        if (!post) return '';
+        if (_calShowApprovedAfterTweaks(post, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_calHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
     function _calShowResolveDest(opts) {
         opts = opts || {};
         const overlay = document.getElementById('resolveDestOverlay');
@@ -18303,7 +18449,8 @@
         const toKasper = opts.recommend === 'kasper';
         if (msg) msg.textContent = 'All change requests on the ' + compLabel + ' are resolved. '
             + (toKasper ? 'Send it to Kasper for approval — or straight to the client.'
-                        : 'Send it to the client for approval — or back to Kasper first.');
+                        : 'Send it to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
         // The recommended route is the primary (filled) button.
         kBtn.classList.toggle('primary', toKasper);
         cBtn.classList.toggle('primary', !toKasper);
@@ -18328,6 +18475,7 @@
         _calShowResolveDest({
             comp: comp,
             recommend: _calResolveDestRecommend(post, comp),
+            reason: _calResolveDestReason(post, comp),
             onChoose: (destPick) => {
                 if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
                     _calWatchNoteSave(pid);
@@ -21146,7 +21294,15 @@
             <div class="kasper-replies-head">
                 ${thumb ? `<img class="kasper-replies-thumb" src="${_calEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : ''}
                 <div class="kasper-replies-meta">
-                    <div class="kasper-replies-client">${_calEsc(item.client)}</div>
+                    <div class="kasper-replies-client">${_calEsc(item.client)}${(() => {
+                        const roles = new Set();
+                        unreadThreads.forEach(t => [t.root, ...t.replies].forEach(m => {
+                            if (m && m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen) roles.add(m.role === 'client' ? 'client' : 'team');
+                        }));
+                        if (!roles.size) return '';
+                        const who = [...roles].map(r => r === 'client' ? 'Client' : 'Team').join(' & ');
+                        return `<span class="kasper-replies-newfrom">New from ${_calEsc(who)}</span>`;
+                    })()}</div>
                     <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
                 </div>
                 <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
@@ -21504,8 +21660,56 @@
             if (!json || !json.ok) return { queue: [], history: [], replies: [] };
             return extract(client, json);
         };
-        const pending = WL_CLIENT_NAMES.slice();
+        // Fast path: ONE batched webhook call covers every client needing a
+        // network read (two Google API calls server-side) instead of a
+        // calendar-get round trip per client. The 5-min cache is honoured
+        // exactly as before, and any batch failure falls back to the
+        // per-client fan-out below — the batch is purely an upgrade.
         const settled = [];
+        let remaining = WL_CLIENT_NAMES.slice();
+        if (!forceRefresh) {
+            remaining = [];
+            for (const client of WL_CLIENT_NAMES) {
+                const cached = _kasperCalCacheRead(wlNormalizeClient(client));
+                if (cached && cached.ok) settled.push({ status: 'fulfilled', value: extract(client, cached) });
+                else remaining.push(client);
+            }
+        }
+        if (remaining.length) {
+            try {
+                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
+                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+                const resp = await fetch(KASPER_QUEUE_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
+                    signal: ctrl ? ctrl.signal : undefined,
+                });
+                if (timer) clearTimeout(timer);
+                const json = await resp.json();
+                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
+                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
+                const covered = [];
+                for (const [client, slug] of slugByClient) {
+                    const entry = json.clients[slug];
+                    // A slug in `missing` has no Calendar tab — same outcome
+                    // as the fan-out's empty read, so treat it as covered.
+                    const shaped = (entry && Array.isArray(entry.posts))
+                        ? { ok: true, posts: entry.posts }
+                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
+                    if (!shaped) continue;
+                    _kasperCalCacheWrite(slug, shaped);
+                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    covered.push(client);
+                }
+                remaining = remaining.filter(c => !covered.includes(c));
+            } catch (e) {
+                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+            }
+        }
+        // Per-client fan-out for whatever the batch didn't cover
+        // (everything, when the batch endpoint is down).
+        const pending = remaining;
         const worker = async () => {
             while (pending.length) {
                 const client = pending.shift();
@@ -21513,8 +21717,8 @@
                 catch (reason) { settled.push({ status: 'rejected', reason }); }
             }
         };
-        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, WL_CLIENT_NAMES.length);
-        await Promise.all(Array.from({ length: workerCount }, worker));
+        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
+        if (workerCount > 0) await Promise.all(Array.from({ length: workerCount }, worker));
         const queueOut = [];
         const historyOut = [];
         const repliesOut = [];
@@ -21854,6 +22058,7 @@
                         ${tweaksChip}
                         ${aatChip}
                         ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New reply</span>' : ''}
+                        ${undecidedComps.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecidedComps.map(c => `<span class="kcard-comp-pill">${_calEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>
                     <div class="kcard-meta-row">${smmHtml}</div>
@@ -21975,7 +22180,7 @@
                     ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
                 </div>
                 ${showApprove ? `<div class="cal-review-approve-split">
-                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
+                    <button type="button" class="cal-review-approve-btn cal-review-approve-main kasper-hero-approve" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
                 </div>` : ''}
                 <div class="cal-review-panel-compose">
                     <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
@@ -22047,7 +22252,7 @@
             </div>
             <div class="cal-review-panel-preview">${previewHtml}</div>
             ${showApprove ? `<div class="cal-review-approve-split">
-                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">Client</span></button>
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_kasperApproveComp('${escId}','${escComp}','client')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
             </div>` : ''}
             <div class="cal-review-panel-compose">
                 <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_kasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
@@ -22204,20 +22409,62 @@
             // explicitly dismisses via Done reviewing).
             const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
             const stillHasTweaks = _calPostHasUnresolvedKasperTweak(item.post);
+            const _undoCtx = { item: item, comp: comp, prev: prev, entry: null, idx: -1, at: Date.now() };
             if (!stillKasper && !stillHasTweaks) {
                 const stamp = item.post.kasper_approved_at || new Date().toISOString();
                 const entry = _kasperHistoryEntryFromPost(item.post, item.client, item.slug, stamp);
+                _undoCtx.entry = entry;
+                _undoCtx.idx = _kasperState.items.findIndex(x => x.post.id === pid);
                 _kasperRecordHistory(entry);
                 _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
                 _kasperRemoveItem(pid);
             } else {
                 _kasperRepaintCard(pid);
             }
+            showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _kasperUndoApprove(pid, _undoCtx) });
         } catch (e) {
             Object.assign(item.post, prev);
             item._saving[comp] = false;
             item._errors[comp] = e && e.message ? e.message : 'Save failed';
             _kasperRepaintCard(pid);
+        }
+    }
+
+    /* Compensating write for an accidental Approve: restore the snapshot the
+       approve took, re-sync the sheet (and Linear, via the same persist path),
+       and put the card back in the queue if the approve had completed it.
+       If the approve's removal animation is still in flight (240ms), defer —
+       its timeout filter would silently drop the just-restored card. */
+    async function _kasperUndoApprove(pid, ctx) {
+        const item = ctx && ctx.item;
+        if (!item) return;
+        if (Date.now() - (ctx.at || 0) < 320) { setTimeout(() => _kasperUndoApprove(pid, ctx), 350); return; }
+        if (item._saving && item._saving[ctx.comp]) return;
+        _kasperInvalidateInFlightLoad();
+        Object.assign(item.post, ctx.prev);
+        if (item._touchedComps) item._touchedComps.delete(ctx.comp);
+        if (ctx.entry) {
+            _kasperState.history = (_kasperState.history || []).filter(e => e && e.id !== ctx.entry.id);
+            _kasperSaveHistoryLog(_kasperLoadHistoryLog().filter(e => e && e.id !== ctx.entry.id));
+        }
+        if (!_kasperState.items.some(x => x.post.id === pid)) {
+            const at = (ctx.idx >= 0 && ctx.idx <= _kasperState.items.length) ? ctx.idx : 0;
+            _kasperState.items.splice(at, 0, item);
+        }
+        if (!item._saving) item._saving = { video: false, graphic: false, caption: false };
+        item._saving[ctx.comp] = true;
+        _kasperPersistCache();
+        _kasperPaintReview();
+        try {
+            await _kasperPersistPost(item);
+            item._saving[ctx.comp] = false;
+            _kasperPersistCache();
+            _kasperRepaintCard(pid);
+            showToast('Approval undone');
+        } catch (e) {
+            item._saving[ctx.comp] = false;
+            _kasperRepaintCard(pid);
+            showNotify('Undo failed', 'Could not write the revert to the sheet (' + ((e && e.message) || 'error') + '). Refresh the queue and check the card before retrying.');
         }
     }
 

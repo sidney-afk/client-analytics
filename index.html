@@ -10537,6 +10537,10 @@
     const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    // Batched Kasper-queue read: every Calendar_<slug> tab in one POST
+    // (2 Google API calls server-side). The FE falls back to per-client
+    // CALENDAR_GET_URL calls whenever this endpoint fails.
+    const KASPER_QUEUE_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/kasper-queue';
     const LINEAR_SUBISSUES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-subissues';
     const LINEAR_SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
     const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
@@ -21640,8 +21644,56 @@
             if (!json || !json.ok) return { queue: [], history: [], replies: [] };
             return extract(client, json);
         };
-        const pending = WL_CLIENT_NAMES.slice();
+        // Fast path: ONE batched webhook call covers every client needing a
+        // network read (two Google API calls server-side) instead of a
+        // calendar-get round trip per client. The 5-min cache is honoured
+        // exactly as before, and any batch failure falls back to the
+        // per-client fan-out below — the batch is purely an upgrade.
         const settled = [];
+        let remaining = WL_CLIENT_NAMES.slice();
+        if (!forceRefresh) {
+            remaining = [];
+            for (const client of WL_CLIENT_NAMES) {
+                const cached = _kasperCalCacheRead(wlNormalizeClient(client));
+                if (cached && cached.ok) settled.push({ status: 'fulfilled', value: extract(client, cached) });
+                else remaining.push(client);
+            }
+        }
+        if (remaining.length) {
+            try {
+                const slugByClient = new Map(remaining.map(c => [c, wlNormalizeClient(c)]));
+                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+                const resp = await fetch(KASPER_QUEUE_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slugs: [...slugByClient.values()] }),
+                    signal: ctrl ? ctrl.signal : undefined,
+                });
+                if (timer) clearTimeout(timer);
+                const json = await resp.json();
+                if (!resp.ok || !json || !json.ok || !json.clients) throw new Error('kasper-queue not ok');
+                const missing = new Set(Array.isArray(json.missing) ? json.missing : []);
+                const covered = [];
+                for (const [client, slug] of slugByClient) {
+                    const entry = json.clients[slug];
+                    // A slug in `missing` has no Calendar tab — same outcome
+                    // as the fan-out's empty read, so treat it as covered.
+                    const shaped = (entry && Array.isArray(entry.posts))
+                        ? { ok: true, posts: entry.posts }
+                        : (missing.has(slug) ? { ok: true, posts: [] } : null);
+                    if (!shaped) continue;
+                    _kasperCalCacheWrite(slug, shaped);
+                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    covered.push(client);
+                }
+                remaining = remaining.filter(c => !covered.includes(c));
+            } catch (e) {
+                console.warn('[Kasper] batch queue fetch failed — falling back to per-client loads', e);
+            }
+        }
+        // Per-client fan-out for whatever the batch didn't cover
+        // (everything, when the batch endpoint is down).
+        const pending = remaining;
         const worker = async () => {
             while (pending.length) {
                 const client = pending.shift();
@@ -21649,8 +21701,8 @@
                 catch (reason) { settled.push({ status: 'rejected', reason }); }
             }
         };
-        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, WL_CLIENT_NAMES.length);
-        await Promise.all(Array.from({ length: workerCount }, worker));
+        const workerCount = Math.min(KASPER_CAL_CONCURRENCY, pending.length);
+        if (workerCount > 0) await Promise.all(Array.from({ length: workerCount }, worker));
         const queueOut = [];
         const historyOut = [];
         const repliesOut = [];

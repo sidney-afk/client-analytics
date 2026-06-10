@@ -1902,6 +1902,11 @@
             background: rgba(255,255,255,0.92); box-shadow: 0 1px 5px rgba(0,0,0,0.22); color: var(--text-muted);
             display: inline-flex; align-items: center; justify-content: center; cursor: grab; opacity: 0; transition: opacity 0.15s; }
         .cal-card:hover .cal-card-grip { opacity: 1; }
+        /* Keep a faint grip visible so reordering is discoverable without a
+           hover hunt — and fully visible on touch screens (no hover there). */
+        .cal-strip .cal-card .cal-card-grip { opacity: 0.4; }
+        .cal-strip .cal-card:hover .cal-card-grip { opacity: 1; }
+        @media (hover: none) { .cal-strip .cal-card .cal-card-grip { opacity: 0.85; } }
         .cal-card-grip:active { cursor: grabbing; }
         .cal-card-grip svg { width: 13px; height: 13px; display: block; }
         /* Per-card link copy button — sits to the right of the drag grip */
@@ -14305,7 +14310,16 @@
     }
     // "Client Approval" is stored verbatim but shown with the client's name.
     function _calStatusLabel(s) {
-        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : (s || 'In Progress');
+        s = s || 'In Progress';
+        // Clients never see internal routing vocabulary — the underlying
+        // status VALUES are untouched (writes stay raw); this is display-only.
+        if (_isClientLink) {
+            if (s === 'Kasper Approval') return 'In team review';
+            if (s === 'Tweaks Needed') return 'Changes in progress';
+            if (s === 'Client Approval') return 'Ready for your review';
+            return s;
+        }
+        return s === 'Client Approval' ? `${_calClientFirstName()} Approval` : s;
     }
     function _calStatusChip(p) {
         const s = p.status || 'In Progress';
@@ -17888,7 +17902,11 @@
         _calOpenCommentsPid = pid;
         _calReplyTarget = null;
         for (const k of Object.keys(_calReplyDrafts)) delete _calReplyDrafts[k];
+        // A half-written note survives an accidental close (Esc, mis-click on
+        // the backdrop): the draft is kept per card for the tab's lifetime
+        // and cleared on send.
         _calRootDraft = '';
+        try { _calRootDraft = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; } catch (e) {}
         _calComposeAudience = 'internal';   // safe default each open
         _calComposeIsTweak = false;         // default to a plain comment
         _calShowResolved = false;           // start on the live feed, not history
@@ -18128,7 +18146,13 @@
     function _calOnComposerInput(ta) {
         _calAutosizeComposer(ta);
         if (_calReplyTarget) _calReplyDrafts[_calReplyTarget] = ta.value;
-        else _calRootDraft = ta.value;
+        else {
+            _calRootDraft = ta.value;
+            try {
+                if (ta.value) sessionStorage.setItem('sv_noteDraft_' + _calOpenCommentsPid, ta.value);
+                else sessionStorage.removeItem('sv_noteDraft_' + _calOpenCommentsPid);
+            } catch (e) {}
+        }
         const wrap = ta.closest('.cal-cm-composer');
         if (!wrap) return;
         const sendBtn = wrap.querySelector('.cal-cm-send');
@@ -18163,7 +18187,10 @@
         const parentId = _calReplyTarget;
         _calAppendComment(pid, parentId, body);
         if (parentId) delete _calReplyDrafts[parentId];
-        else _calRootDraft = '';
+        else {
+            _calRootDraft = '';
+            try { sessionStorage.removeItem('sv_noteDraft_' + pid); } catch (e) {}
+        }
         _calReplyTarget = null;
         _calRenderCommentsModal();
         setTimeout(() => {

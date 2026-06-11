@@ -1178,8 +1178,11 @@
         /* Tweak-comment preview inside the workload popover — surfaces the
            client / Kasper comment that bounced the sub-issue back, so the
            editor knows what to change without opening Linear. */
-        .wl-tweak-frame-note { display: flex; gap: 7px; align-items: flex-start; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 10px; margin: 0 0 8px; font-size: 0.66rem; font-weight: 600; color: #9a3412; line-height: 1.45; }
-        .wl-tweak-frame-note svg { flex-shrink: 0; margin-top: 1px; }
+        .wl-tweak-frame-note { display: flex; gap: 7px; align-items: center; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; font-size: 0.68rem; font-weight: 600; color: #9a3412; line-height: 1.45; }
+        .wl-tweak-frame-note > svg { flex-shrink: 0; }
+        /* The (i) carries the full explanation in its title tooltip. */
+        .wl-tweak-frame-info { display: inline-flex; align-items: center; color: #b45309; cursor: help; flex-shrink: 0; border-radius: 50%; }
+        .wl-tweak-frame-info:hover { color: #7c2d12; }
         .wl-tweak-comments { display: flex; flex-direction: column; gap: 5px; margin: 0 4px 8px 16px; }
         .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; }
         .wl-tweak-comment { background: #fff7ed; border: 1px solid #fed7aa; border-left: 3px solid #ea580c; border-radius: 8px; padding: 6px 9px; }
@@ -1188,8 +1191,11 @@
         .wl-tweak-comment-time { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; flex: 1; }
         .wl-tweak-comment-link { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); text-decoration: none; flex-shrink: 0; }
         .wl-tweak-comment-link:hover { color: var(--text-primary); text-decoration: underline; }
-        /* Long comments clamp to 6 lines; click the body to expand. */
-        .wl-tweak-comment-body { font-size: 0.72rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; word-break: break-word; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+        /* Comments longer than 6 lines clamp; wlMarkClampedComments adds
+           .is-clamped only when the text genuinely overflows, so short
+           comments don't advertise an expand that does nothing. */
+        .wl-tweak-comment-body { font-size: 0.72rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+        .wl-tweak-comment-body.is-clamped { cursor: pointer; }
         .wl-tweak-comment-body.expanded { display: block; -webkit-line-clamp: unset; }
         .wl-tweak-comment-empty { font-size: 0.66rem; color: #9a3412; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 8px; padding: 6px 9px; line-height: 1.45; }
         .wl-tweak-comment-more { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding-left: 2px; }
@@ -7742,6 +7748,7 @@
         allActiveSubs: [],                         // all non-completed sub-issues for filter options
         subsByParentId: new Map(),
         popoverAnchor: null,                       // currently-open popover's anchor rollup element
+        renderQueued: false,                       // background repaint deferred while a popover is open
         fetchedAt: null,
         loading: false,
         refreshing: false,
@@ -8293,7 +8300,7 @@
             if (!cache) wlState.error = e.message || 'Failed to load issues from Linear.';
         } finally {
             wlState.loading = false;
-            renderWorkloadAll();
+            renderWorkloadAll({ deferWhilePopoverOpen: true });
             // If the user already opened the client-search dropdown while we
             // were fetching, drop the "Loading workload…" row now that data
             // is in. We trigger an `input` event so the existing render
@@ -8330,7 +8337,7 @@
             console.error('[SyncView] Workload silent refresh failed:', e);
         } finally {
             wlSpinnerOff();
-            if (document.querySelector('.workload-view')) renderWorkloadAll();
+            if (document.querySelector('.workload-view')) renderWorkloadAll({ deferWhilePopoverOpen: true });
         }
     }
 
@@ -8821,7 +8828,16 @@
         return sub.url;
     }
 
-    function renderWorkloadAll() {
+    function renderWorkloadAll(opts) {
+        // Background refreshes (the cache→network settle on mount, the
+        // tab-focus silent refetch) must not yank an open popover out from
+        // under the user — editors sit on it reading tweak comments. Queue
+        // the repaint instead; wlClosePopover flushes it on close.
+        if (opts && opts.deferWhilePopoverOpen && wlState.popoverAnchor) {
+            wlState.renderQueued = true;
+            return;
+        }
+        wlState.renderQueued = false;
         // Re-rendering the calendar wipes out the spotlight markers and the
         // popover's anchor element, so close it before painting the new DOM.
         if (wlState.popoverAnchor) wlClosePopover();
@@ -9350,11 +9366,29 @@
                 <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
                 ${c.url ? `<a class="wl-tweak-comment-link" href="${wlEscape(c.url)}" target="_blank" rel="noopener noreferrer">Open in Linear ↗</a>` : ''}
             </div>
-            <div class="wl-tweak-comment-body" title="Click to expand" onclick="this.classList.toggle('expanded')">${wlEscape(c.body || '')}</div>
+            <div class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)">${wlEscape(c.body || '')}</div>
         </div>`).join('') + (more > 0
             ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
             : '');
     }
+    // Expand/collapse is only offered on comments that genuinely overflow
+    // the 6-line clamp — a one-liner has nothing to expand, so it gets no
+    // pointer cursor and no tooltip. Must run AFTER the comments are in the
+    // DOM, since it measures rendered heights.
+    function wlMarkClampedComments(scope) {
+        scope.querySelectorAll('.wl-tweak-comment-body').forEach(el => {
+            if (el.classList.contains('expanded') || el.classList.contains('is-clamped')) return;
+            if (el.scrollHeight > el.clientHeight + 1) {
+                el.classList.add('is-clamped');
+                el.title = 'Click to expand';
+            }
+        });
+    }
+    window.wlToggleTweakComment = function(el) {
+        if (!el.classList.contains('is-clamped')) return;
+        const open = el.classList.toggle('expanded');
+        el.title = open ? 'Click to collapse' : 'Click to expand';
+    };
 
     function wlOpenRollupPopover(rollupEl) {
         const pop = document.getElementById('wlPopover');
@@ -9492,7 +9526,10 @@
         const frameNote = tweakSubs.length
             ? `<div class="wl-tweak-frame-note">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8L15 14H1L8 1.8z"/><path d="M8 6.5v3.5"/><circle cx="8" cy="12" r="0.4" fill="currentColor"/></svg>
-                <span><strong>Always check Frame.io too.</strong> Tweaks left as Frame.io comments can't be shown here — sub-issues aren't linked to Frame. The comments below are the ones sent through SyncView (clients can't comment on Frame.io).</span>
+                <span><strong>Always check Frame.io too.</strong></span>
+                <span class="wl-tweak-frame-info" tabindex="0" title="Tweaks left as Frame.io comments can't be shown here — sub-issues aren't linked to Frame. The comments below are the ones sent through SyncView (clients can't comment on Frame.io).">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M8 7.2v4"/><circle cx="8" cy="4.8" r="0.5" fill="currentColor"/></svg>
+                </span>
             </div>`
             : '';
 
@@ -9507,6 +9544,7 @@
                     const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
                     if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
                 }
+                wlMarkClampedComments(pop);
             }).catch(() => {
                 if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
                 pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
@@ -9638,6 +9676,11 @@
         pop.setAttribute('aria-hidden', 'true');
         wlState.popoverAnchor = null;
         wlClearSpotlight();
+        // Paint any data refresh that was deferred while the popover was open.
+        if (wlState.renderQueued) {
+            wlState.renderQueued = false;
+            renderWorkloadAll();
+        }
     }
 
     // ── Content Revision Email modal ─────────────────────────────────────

@@ -1,5 +1,38 @@
 # Voiceover script — Client tutorial video
 
+## Recommended workflow (Eleven v3, one take)
+
+Eleven v3 cannot hit precise timestamps (no `<break time>` support — only
+`[short pause]` / `[long pause]` tags and punctuation), so don't try to match
+the video's timing when recording. Instead:
+
+1. Paste the tagged script below into ElevenLabs as ONE generation with your
+   cloned voice (v3 keeps pacing more natural in a single take).
+2. Hand the MP3 back — the video gets retimed to the narration (the line
+   starts are detected with silence detection and the scene durations in
+   `src/timeline.ts` are stretched to match), then re-rendered.
+
+```
+[warmly] Hey! Here's how to send us your footage and get your videos into production — it takes less than two minutes. [long pause]
+Before you upload, organize your Google Drive like this. [short pause]
+Make one folder for each script you film. [long pause]
+Inside it, three folders: Main Camera, Side Camera, and Audio… one clip in each. [long pause]
+Didn't record a side cam, or separate audio? Just leave that folder out. [long pause]
+And keep the folder names EXACTLY like this, so our editors find everything instantly. [long pause]
+Then, open your SyncView submission link. [short pause]
+Start typing your name in Client, and pick it from the list. [short pause] The title fills in by itself. [long pause]
+Filming Plans is handled automatically — you can skip right past it. [long pause]
+Paste the link to your main Drive folder into General Drive. [long pause]
+Now, for each video: paste the Main camera, Side camera, and Audio links from its script folder. [long pause]
+Quick tip — hold Shift and click, to re-paste the last link you copied. [long pause]
+Filmed more than one script? Click Add Video, and repeat. [long pause]
+When everything is in… hit Create Linears. [long pause]
+[cheerfully] And that's it! Your videos are in our production queue. [long pause]
+So: organize your Drive, pick your name, paste your links, and hit Create Linears. We take it from there. [short pause] Questions? Just message us — happy to help.
+```
+
+## Manual alternative (sync audio to the current video)
+
 Generate this with your ElevenLabs cloned voice, then:
 
 1. Export the narration as a single MP3 timed to the cues below (easiest:

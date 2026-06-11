@@ -12634,6 +12634,18 @@
         if (!idents.size) return;
         let issues;
         try { ({ issues } = await loadLinearIssues(false)); } catch { return; }
+        // If any linked identifier isn't in the cached feed, the cache is
+        // probably stale — the issue was Approved/Posted (and so excluded)
+        // when last fetched, or it was created after. Force one refresh so
+        // the banner reads current meta. The miss check is cheap; the
+        // refetch only happens when at least one card actually needs it.
+        const cachedIdents = new Set();
+        for (const i of issues || []) cachedIdents.add(String(i.identifier || '').toUpperCase());
+        let missing = false;
+        for (const id of idents) { if (!cachedIdents.has(id)) { missing = true; break; } }
+        if (missing) {
+            try { ({ issues } = await loadLinearIssues(true)); } catch {}
+        }
         let changed = false;
         for (const i of issues || []) {
             const ident = String(i.identifier || '').toUpperCase();

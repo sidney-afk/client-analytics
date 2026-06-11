@@ -2210,19 +2210,38 @@
 
         /* Alt caption — optional second platform-specific caption on a card.
            Rides inside the same caption component (one caption_status, one
-           tweaks thread, one client approval); only the text differs. */
-        .cal-altcap-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; background: none; border: 1px dashed var(--border); color: var(--text-muted); font-family: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; transition: color 0.12s, border-color 0.12s; }
+           tweaks thread, one client approval); only the text differs.
+           Rendered as browser-style tabs sitting on top of the caption box,
+           so a second caption never makes the card taller. */
+        .cal-capblock { display: flex; flex-direction: column; }
+        .cal-capblock .cal-cap-wrap.captab-off { display: none; }
+        .cal-cap-tabs { display: flex; align-items: center; gap: 2px; padding: 0 4px; }
+        .cal-cap-tab { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 5px;
+            border: 0; border-radius: 8px 8px 0 0; background: transparent; color: var(--text-muted);
+            font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; cursor: pointer;
+            transition: background 0.1s, color 0.1s; }
+        .cal-cap-tab:hover { color: var(--text-primary); }
+        .cal-cap-tab.is-active { background: #f3f3f1; color: var(--text-primary); }
+        .cal-capblock:focus-within .cal-cap-tab.is-active { background: #fff; }
+        .cal-cap-tab-chev { display: inline-flex; }
+        .cal-cap-tab-chev svg { width: 8px; height: 8px; opacity: 0.6; }
+        .cal-cap-tab-x { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+            margin-right: -4px; border-radius: 4px; opacity: 0.5; transition: opacity 0.1s, background 0.1s; }
+        .cal-cap-tab-x:hover { opacity: 1; background: rgba(0,0,0,0.08); }
+        .cal-cap-tab-x svg { width: 7px; height: 7px; }
+        .cal-altcap-add { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; margin: 0 0 3px;
+            border-radius: 99px; background: none; border: 1px dashed var(--border); color: var(--text-muted);
+            font-family: inherit; font-size: 0.64rem; font-weight: 700; cursor: pointer; transition: color 0.12s, border-color 0.12s; }
         .cal-altcap-add:hover { color: var(--text-primary); border-color: #999; }
-        .cal-altcap-add svg { width: 10px; height: 10px; }
-        .cal-altcap-wrap { display: flex; flex-direction: column; gap: 3px; }
-        .cal-altcap-head { display: flex; align-items: center; gap: 6px; }
-        .cal-altcap-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
-        .cal-altcap-platform { font-family: inherit; font-size: 0.66rem; font-weight: 700; color: var(--text-secondary); background: #f3f3f1; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; outline: 0; cursor: pointer; }
-        .cal-altcap-platform:focus { background: #fff; border-color: var(--text-primary); }
-        .cal-altcap-platform:disabled { cursor: default; opacity: 0.7; }
-        .cal-altcap-del { margin-left: auto; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 5px; color: var(--text-muted); cursor: pointer; }
-        .cal-altcap-del:hover { color: #b91c1c; background: rgba(185,28,28,0.08); }
-        .cal-altcap-del svg { width: 9px; height: 9px; }
+        .cal-altcap-add svg { width: 9px; height: 9px; }
+        /* Platform picker — same portal menu chrome as the status dropdowns
+           (cal-fld-status-menu), but rows carry the platform icon dot instead
+           of the coloured status fill. */
+        .cal-cap-tab-menu-head { padding: 7px 11px 3px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
+        .cal-fld-status-item.cal-cap-tab-menu-item { gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.74rem; font-weight: 700; color: var(--text-primary); background: transparent; }
+        .cal-fld-status-item.cal-cap-tab-menu-item:hover { background: #f3f3f1; filter: none; }
+        .cal-cap-tab-menu-ico { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+        .cal-cap-tab-menu-ico svg { width: 11px; height: 11px; }
 
         /* Dual-caption preview on the review surfaces — small platform tag
            above each caption block. */
@@ -10860,75 +10879,200 @@
        rewrite) stored in caption_alt / caption_alt_platform. It is NOT a
        fourth component: it shares the caption sub-status, tweaks thread and
        client approval, so the approval flow is untouched — both captions
-       are reviewed and approved together. */
+       are reviewed and approved together. On the card it renders as two
+       browser-style tabs above a single caption box (no extra height). */
+    const _calCapTabState = new Map();     // pid -> 'main' | 'alt' (session-local active tab)
+    const _calAltCapDraftPlat = new Map(); // pid -> platform picked for an alt tab whose text hasn't been saved yet
     function _calAltCapLabel(post) {
         const key = String((post && post.caption_alt_platform) || '').trim().toLowerCase();
         const p = CAL_PLATFORM_BY_KEY[key];
         return p ? p.label : 'Alt';
     }
-    function _calAltCapHtml(pid, p, editableText, isBlank) {
+    function _calAltCapPlatKey(pid, post) {
+        return String((post && post.caption_alt_platform) || '').trim().toLowerCase()
+            || _calAltCapDraftPlat.get(pid) || 'linkedin';
+    }
+    function _calCapBlockHtml(pid, p, editableText, isBlank) {
+        // `pid` arrives attr-escaped from _calCardHtml (same convention as
+        // every other inline handler on the card).
         const alt = String(p.caption_alt || '');
-        const hasAlt = !!alt.trim();
-        // Clients never add an alt caption; they only see (and in collab
-        // mode edit) one the SMM created. Blank cards stay minimal too.
-        if (!hasAlt && (_isClientLink || isBlank)) return '';
-        const escPid = _calEscAttr(pid);
-        const platKey = String(p.caption_alt_platform || '').trim().toLowerCase() || 'linkedin';
-        const options = CAL_PLATFORMS.map(pl => `<option value="${pl.key}"${pl.key === platKey ? ' selected' : ''}>${_calEsc(pl.label)}</option>`).join('');
-        const addBtn = _isClientLink ? '' : `<button type="button" class="cal-altcap-add" data-altcap-add="${escPid}"${hasAlt ? ' hidden' : ''} onclick="_calAltCapReveal('${escPid}')" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>`;
-        const delBtn = _isClientLink ? '' : `<button type="button" class="cal-altcap-del" onclick="_calAltCapRemove('${escPid}')" title="Remove the alt caption"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`;
-        return `${addBtn}<div class="cal-altcap-wrap" data-altcap-wrap="${escPid}"${hasAlt ? '' : ' hidden'}>
-            <div class="cal-altcap-head">
-                <span class="cal-altcap-label">Alt caption</span>
-                <select class="cal-altcap-platform" data-pid="${escPid}" data-fld="caption_alt_platform" onchange="_calOnFieldBlur(this)"${!editableText ? ' disabled' : ''}>${options}</select>
-                ${delBtn}
-            </div>
-            <div class="cal-cap-wrap">
-                <textarea class="cal-fld-cap" rows="3" data-pid="${escPid}" data-fld="caption_alt" placeholder="Caption for this platform" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
-                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
-            </div>
-        </div>`;
-    }
-    /* Typing in the alt caption also persists the platform picker's current
-       value, so the label always travels with the text even if the SMM never
-       touched the (defaulted) dropdown. */
-    function _calOnAltCapInput(ta) {
-        const pid = ta.dataset.pid;
-        const wrap = ta.closest('.cal-altcap-wrap');
-        const sel = wrap ? wrap.querySelector('select[data-fld="caption_alt_platform"]') : null;
-        if (sel && pid) {
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            _calPendingEdits[pid].caption_alt_platform = sel.value;
+        if (String(p.caption_alt_platform || '').trim()) _calAltCapDraftPlat.delete(pid);
+        const hasAlt = !!alt.trim() || _calAltCapDraftPlat.has(pid);
+        const canEdit = !_isClientLink && !isBlank;
+        let active = _calCapTabState.get(pid) || 'main';
+        if (active === 'alt' && !hasAlt) active = 'main';
+        const platKey = _calAltCapPlatKey(pid, p);
+        const platLabel = (CAL_PLATFORM_BY_KEY[platKey] || {}).label || 'Alt';
+        const chevIco = `<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.5L5 6.5l3-3"/></svg>`;
+        const xIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>`;
+        const capToggle = `<button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>`;
+        let tabsHtml = '';
+        if (hasAlt) {
+            tabsHtml = `<div class="cal-cap-tabs">
+                <button type="button" class="cal-cap-tab${active === 'main' ? ' is-active' : ''}" data-captab="main" onclick="_calCapTabSwitch('${pid}','main')">Caption</button>
+                <button type="button" class="cal-cap-tab${active === 'alt' ? ' is-active' : ''}" data-captab="alt" onclick="_calCapAltTabClick(event,'${pid}',this)" title="${canEdit ? _calEscAttr(platLabel) + ' caption — click while active to change the platform' : _calEscAttr(platLabel) + ' caption'}">${_calEsc(platLabel)}${canEdit ? `<span class="cal-cap-tab-chev">${chevIco}</span><span class="cal-cap-tab-x" onclick="_calAltCapRemove(event,'${pid}')" title="Remove the ${_calEscAttr(platLabel)} caption">${xIco}</span>` : ''}</button>
+            </div>`;
+        } else if (canEdit) {
+            tabsHtml = `<div class="cal-cap-tabs">
+                <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
+            </div>`;
         }
-        _calOnCaptionInput(ta);
+        const genBtn = canEdit ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : '';
+        return `${tabsHtml}
+            <div class="cal-cap-wrap${active === 'alt' ? ' captab-off' : ''}" data-capwrap="main">
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
+                ${capToggle}
+                ${genBtn}
+            </div>
+            ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt">
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
+                ${capToggle}
+            </div>` : ''}`;
     }
-    function _calAltCapReveal(pid) {
+    /* Rebuilds the caption block in place (tab row + both textareas) after a
+       tab is added / removed / re-platformed. Preserves any typed-but-unsaved
+       text by harvesting the live textarea values before the rebuild. */
+    function _calCapBlockRepaint(pid, focusAlt) {
         const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
-        if (!card) return;
-        const btn = card.querySelector(`[data-altcap-add="${pid}"]`);
-        const wrap = card.querySelector(`[data-altcap-wrap="${pid}"]`);
-        if (btn) btn.hidden = true;
-        if (wrap) {
-            wrap.hidden = false;
-            const ta = wrap.querySelector('textarea');
+        const block = card ? card.querySelector(`[data-capblock="${pid}"]`) : null;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!card || !block || !post) return;
+        const vals = {};
+        block.querySelectorAll('textarea[data-fld]').forEach(t => { vals[t.dataset.fld] = t.value; });
+        const isBlank = _calIsBlankId(pid);
+        const editableText = !_isClientLink || isBlank || _calIsCollabOn();
+        block.innerHTML = _calCapBlockHtml(pid, post, editableText, isBlank);
+        block.querySelectorAll('textarea[data-fld]').forEach(t => {
+            if (vals[t.dataset.fld] != null) t.value = vals[t.dataset.fld];
+            _calRefreshCaption(t, false);
+        });
+        if (focusAlt) {
+            const ta = block.querySelector('[data-capwrap="alt"] textarea');
             if (ta) ta.focus();
         }
     }
-    function _calAltCapRemove(pid) {
-        const post = calState.posts.find(p => p.id === pid);
-        if (post) { post.caption_alt = ''; post.caption_alt_platform = ''; }
-        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-        _calPendingEdits[pid].caption_alt = '';
-        _calPendingEdits[pid].caption_alt_platform = '';
+    function _calCapTabSwitch(pid, which) {
+        _calCapTabState.set(pid, which);
         const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
-        if (card) {
-            const wrap = card.querySelector(`[data-altcap-wrap="${pid}"]`);
-            const btn = card.querySelector(`[data-altcap-add="${pid}"]`);
-            if (wrap) { wrap.hidden = true; const ta = wrap.querySelector('textarea'); if (ta) ta.value = ''; }
-            if (btn) btn.hidden = false;
+        if (!card) return;
+        card.querySelectorAll('.cal-cap-tab[data-captab]').forEach(b => b.classList.toggle('is-active', b.dataset.captab === which));
+        card.querySelectorAll('[data-capwrap]').forEach(w => w.classList.toggle('captab-off', w.dataset.capwrap !== which));
+        const ta = card.querySelector(`[data-capwrap="${which}"] textarea`);
+        if (ta) _calRefreshCaption(ta, false);
+    }
+    /* Alt tab: first click switches to it; clicking it again while active
+       opens the platform picker (SMM only). The ✕ inside the tab removes. */
+    function _calCapAltTabClick(e, pid, btn) {
+        if (e && e.target.closest('.cal-cap-tab-x')) return;
+        const active = _calCapTabState.get(pid) || 'main';
+        if (active !== 'alt') { _calCapTabSwitch(pid, 'alt'); return; }
+        if (_isClientLink) return;
+        _calCapPlatMenu(e, pid, btn, 'change');
+    }
+    function _calCapTabAddMenu(e, pid, btn) { _calCapPlatMenu(e, pid, btn, 'add'); }
+    /* Platform picker — portaled to <body> with the exact positioning and
+       outside-click/scroll/resize close behaviour of the status menus (it
+       rides the same _calOpenStatusMenu slot). */
+    function _calCapPlatMenu(event, pid, triggerEl, mode) {
+        if (event) { event.stopPropagation(); event.preventDefault(); }
+        const menuKey = pid + '|altcap';
+        if (_calOpenStatusMenu && _calOpenStatusMenu.key === menuKey) { _calCloseStatusMenu(); return; }
+        _calCloseStatusMenu();
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post || !triggerEl) return;
+        const current = (mode === 'change') ? _calAltCapPlatKey(pid, post) : '';
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        menu.innerHTML = `<div class="cal-cap-tab-menu-head">${mode === 'change' ? 'Platform for this caption' : 'Add a caption for…'}</div>`
+            + CAL_PLATFORMS.map(pl => `<button type="button" class="cal-fld-status-item cal-cap-tab-menu-item${pl.key === current ? ' active' : ''}" onclick="_calCapPlatPick('${pid}','${pl.key}','${mode}')"><span class="cal-cap-tab-menu-ico" style="background:${pl.color}">${pl.icon}</span>${_calEsc(pl.label)}</button>`).join('');
+        document.body.appendChild(menu);
+        const rect = triggerEl.getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        menu.style.left = left + 'px';
+        const gap = 5;
+        const spaceBelow = window.innerHeight - rect.bottom - 10;
+        const spaceAbove = rect.top - 10;
+        let top;
+        if (menuH <= spaceBelow || spaceBelow >= spaceAbove) {
+            top = Math.min(rect.bottom + gap, window.innerHeight - menuH - 10);
+        } else {
+            top = Math.max(10, rect.top - menuH - gap);
         }
-        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
-        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+        menu.style.top = top + 'px';
+        menu.style.minWidth = '200px';
+        requestAnimationFrame(() => menu.classList.add('open'));
+        _calOpenStatusMenu = { pid, key: menuKey, comp: 'altcap', el: menu, triggerEl };
+    }
+    function _calCapPlatPick(pid, key, mode) {
+        _calCloseStatusMenu();
+        if (!CAL_PLATFORM_BY_KEY[key]) return;
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        if (mode === 'add') {
+            _calAltCapDraftPlat.set(pid, key);
+            _calCapTabState.set(pid, 'alt');
+            _calCapBlockRepaint(pid, true);
+            return;
+        }
+        // Change the platform of an existing alt caption. Persist only if the
+        // alt caption has ever been saved; a draft tab just updates locally.
+        if (String(post.caption_alt || '').trim() || String(post.caption_alt_platform || '').trim()) {
+            post.caption_alt_platform = key;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption_alt_platform = key;
+            if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+            _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+        } else {
+            _calAltCapDraftPlat.set(pid, key);
+        }
+        _calCapBlockRepaint(pid, false);
+    }
+    /* Typing in the alt caption also queues the resolved platform key, so the
+       label always travels with the text even when the tab is still a local
+       draft (platform never explicitly saved). */
+    function _calOnAltCapInput(ta) {
+        const pid = ta.dataset.pid;
+        if (pid) {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption_alt_platform = _calAltCapPlatKey(pid, post);
+        }
+        _calOnCaptionInput(ta);
+    }
+    function _calAltCapRemove(e, pid) {
+        if (e) { e.stopPropagation(); e.preventDefault(); }
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const doRemove = () => {
+            const hadSaved = !!String(post.caption_alt || '').trim() || !!String(post.caption_alt_platform || '').trim();
+            post.caption_alt = '';
+            post.caption_alt_platform = '';
+            _calAltCapDraftPlat.delete(pid);
+            _calCapTabState.set(pid, 'main');
+            if (hadSaved) {
+                if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+                _calPendingEdits[pid].caption_alt = '';
+                _calPendingEdits[pid].caption_alt_platform = '';
+                if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+                _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
+            } else if (_calPendingEdits[pid]) {
+                delete _calPendingEdits[pid].caption_alt;
+                delete _calPendingEdits[pid].caption_alt_platform;
+            }
+            _calCapBlockRepaint(pid, false);
+        };
+        // Only ask when there's text to lose — removing an empty draft tab
+        // shouldn't nag.
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        const liveTa = card ? card.querySelector('[data-capwrap="alt"] textarea') : null;
+        const liveText = (liveTa ? liveTa.value : String(post.caption_alt || '')).trim();
+        if (liveText) showConfirm(`Remove the ${_calAltCapLabel(post)} caption?`, 'Its text will be deleted from this post.', doRemove, 'Remove');
+        else doRemove();
     }
     /* Per-card color tag — for grouping into batches. Four named colors plus
        the empty "no color" state. Persisted as post.color via the upsert. */
@@ -14880,12 +15024,7 @@
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}
                 ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank)}
-                <div class="cal-cap-wrap">
-                    <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
-                    <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
-                    ${(!_isClientLink && !isBlank) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
-                </div>
-                ${_calAltCapHtml(pid, p, editableText, isBlank)}
+                <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, p, editableText, isBlank)}</div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
@@ -15162,6 +15301,9 @@
     }
     function _calRefreshCaption(ta, focused) {
         if (!ta) return;
+        // Not rendered (e.g. the inactive caption tab's textarea) — heights
+        // would compute as 0/NaN. _calCapTabSwitch re-runs this on reveal.
+        if (!ta.getClientRects().length) return;
         const wrap = ta.closest('.cal-cap-wrap');
         const expanded = !!(wrap && wrap.classList.contains('expanded'));
         ta.style.height = 'auto';

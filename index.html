@@ -2041,7 +2041,7 @@
         .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
             display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
             border: 0; cursor: pointer; background: #ea580c; color: #fff; font-family: inherit;
-            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; }
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; text-decoration: none; }
         .cal-thumb-linear-warn:hover { background: #c2410c; }
         .cal-thumb-linear-warn svg { width: 12px; height: 12px; flex-shrink: 0; }
         /* Multi-select mode — pick several posts, then bulk-archive. */
@@ -12575,6 +12575,14 @@
        load from the workload's cached linear-issues feed (so cards linked
        to a parent in an earlier session still show the banner). */
     const _calParentLinks = new Set();
+    /* Sub-issue meta we use to drive the "incomplete sub-issue" banner: a
+       sub-issue should always carry a project (the client), a due date and
+       an assignee (editor). When any are missing, the same orange thumb
+       banner that flags unlinked / parent-linked cards calls it out so the
+       SMM notices before the post slips into the editor's workload.
+       Populated from the workload's cached Linear feed the same way
+       _calParentLinks is, and keyed by identifier (e.g. "VID-123"). */
+    const _calLinearMetaByIdent = new Map();
     function _calIdentFromUrl(url) {
         const m = String(url || '').toUpperCase().match(/([A-Z]+-\d+)/);
         return m ? m[1] : '';
@@ -12582,6 +12590,31 @@
     function _calIsParentLinked(url) {
         const id = _calIdentFromUrl(url);
         return !!id && _calParentLinks.has(id);
+    }
+    /* For a card linked to a real sub-issue (not a parent), return which of
+       project / due date / editor are missing on the Linear side. Returns
+       null if the card has no link, the link points to a parent, the sub-
+       issue meta hasn't been seen yet, or nothing is missing. Video takes
+       precedence over graphic (matches parent-link banner order). */
+    function _calLinearMissingForCard(p) {
+        if (!p) return null;
+        const slots = [
+            { comp: 'video',   url: p.linear_issue_id },
+            { comp: 'graphic', url: p.graphic_linear_issue_id }
+        ];
+        for (const { comp, url } of slots) {
+            const ident = _calIdentFromUrl(url);
+            if (!ident) continue;
+            if (_calParentLinks.has(ident)) continue;
+            const meta = _calLinearMetaByIdent.get(ident);
+            if (!meta) continue;
+            const missing = [];
+            if (!meta.hasProject) missing.push('project');
+            if (!meta.hasDue)     missing.push('due date');
+            if (!meta.hasEditor)  missing.push('editor');
+            if (missing.length) return { comp, url, missing };
+        }
+        return null;
     }
     async function _calRefreshParentLinkFlags() {
         const idents = new Set();
@@ -12600,7 +12633,24 @@
             if (!idents.has(ident)) continue;
             if (!i.isSubIssue) {
                 if (!_calParentLinks.has(ident)) { _calParentLinks.add(ident); changed = true; }
-            } else if (_calParentLinks.delete(ident)) {
+                // A parent never carries the editor / due-date / project
+                // expectations a sub-issue does — clear any stale meta we
+                // had from a previous incarnation of the identifier.
+                if (_calLinearMetaByIdent.delete(ident)) changed = true;
+                continue;
+            }
+            if (_calParentLinks.delete(ident)) changed = true;
+            const next = {
+                hasProject: !!(i.clientName && String(i.clientName).trim()),
+                hasDue:     !!i.dueDate,
+                hasEditor:  !!i.assigneeId
+            };
+            const prev = _calLinearMetaByIdent.get(ident);
+            if (!prev
+                || prev.hasProject !== next.hasProject
+                || prev.hasDue     !== next.hasDue
+                || prev.hasEditor  !== next.hasEditor) {
+                _calLinearMetaByIdent.set(ident, next);
                 changed = true;
             }
         }
@@ -15612,6 +15662,12 @@
             ? (_calIsParentLinked(p.linear_issue_id) ? 'video'
                 : (_calIsParentLinked(p.graphic_linear_issue_id) ? 'graphic' : ''))
             : '';
+        // Linked to a real sub-issue, but the sub-issue itself is missing
+        // project / due date / editor on Linear — same orange thumb banner,
+        // clicks open the Linear issue so the SMM can fill the gap.
+        const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
+            ? _calLinearMissingForCard(p)
+            : null;
         const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
@@ -15654,7 +15710,7 @@
             ${(isBlank || _isClientLink) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : '')}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>

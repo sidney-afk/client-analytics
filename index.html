@@ -12231,19 +12231,61 @@
         if (_linearOutboxRead().length) _linearOutboxFlush();
         window.addEventListener('focus', () => { if (_linearOutboxRead().length) _linearOutboxFlush(); });
     } catch {}
+    /* ── Parent-link detection ───────────────────────────────────────────
+       A card must link the VID/GRA sub-issue, never the parent issue:
+       status pushes, the URGENT ping and the editor Workload all operate
+       on sub-issues only, so "Tweaks Needed" pushed onto a parent is
+       invisible to the editor (this is how Kasper's personal-calendar
+       tweaks went missing from the Workload). Linear identifiers known to
+       be parents are collected here; a card whose link matches gets the
+       same orange thumb banner as an unlinked card, asking for the
+       sub-issue link instead. Populated two ways: instantly when a paste's
+       linear-subissues lookup comes back with children, and on calendar
+       load from the workload's cached linear-issues feed (so cards linked
+       to a parent in an earlier session still show the banner). */
+    const _calParentLinks = new Set();
+    function _calIdentFromUrl(url) {
+        const m = String(url || '').toUpperCase().match(/([A-Z]+-\d+)/);
+        return m ? m[1] : '';
+    }
+    function _calIsParentLinked(url) {
+        const id = _calIdentFromUrl(url);
+        return !!id && _calParentLinks.has(id);
+    }
+    async function _calRefreshParentLinkFlags() {
+        const idents = new Set();
+        for (const p of calState.posts || []) {
+            const v = _calIdentFromUrl(p && p.linear_issue_id);
+            const g = _calIdentFromUrl(p && p.graphic_linear_issue_id);
+            if (v) idents.add(v);
+            if (g) idents.add(g);
+        }
+        if (!idents.size) return;
+        let issues;
+        try { ({ issues } = await loadLinearIssues(false)); } catch { return; }
+        let changed = false;
+        for (const i of issues || []) {
+            const ident = String(i.identifier || '').toUpperCase();
+            if (!idents.has(ident)) continue;
+            if (!i.isSubIssue) {
+                if (!_calParentLinks.has(ident)) { _calParentLinks.add(ident); changed = true; }
+            } else if (_calParentLinks.delete(ident)) {
+                changed = true;
+            }
+        }
+        // Don't yank a caret mid-edit for a banner; the next render shows it.
+        if (changed && !_calIsCalBusy()) _calRenderBody({ preserveScroll: true });
+    }
+
     /* Linear is the source of truth: when a sub-issue is freshly linked to a
        card, pull its current Linear status onto the card. Suppresses the
        calendar→Linear writeback so the issue is not bounced to another state.
 
        If the pasted link is a PARENT issue (the webhook returns sub-issues
-       for it), the SMM gets a disclaimer and nothing else happens: the link
-       is kept exactly as pasted, and no status is adopted from the parent
-       (its rollup state isn't this card's component state). The disclaimer
-       matters because status pushes, the URGENT ping and the editor
-       Workload all operate on sub-issues only — a card left on the parent
-       pushes "Tweaks Needed" onto an issue the Workload never reads, so the
-       editor never sees the revision request. This is exactly how Kasper's
-       personal-calendar tweaks went missing from the Workload. */
+       for it), the link is kept exactly as pasted but the identifier is
+       flagged in _calParentLinks so the card shows the "link the sub-issue"
+       banner. No status is adopted from a parent either — its rollup state
+       isn't this card's component state. */
     async function _calSyncStatusFromLinear(pid, issueUrl, comp) {
         const which = (comp === 'graphic') ? 'graphic' : 'video';
         let mapped;
@@ -12255,16 +12297,14 @@
             const json = await resp.json();
             if (!json.ok || !json.parent) return;
             const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            const ident = String(json.parent.identifier || '').trim().toUpperCase() || _calIdentFromUrl(issueUrl);
             if (subs.length) {
-                const ident = String(json.parent.identifier || '').trim();
-                showNotify('Heads up — that’s a parent issue link',
-                    (ident ? ident + ' is a parent issue with ' : 'This is a parent issue with ')
-                    + subs.length + ' sub-issue' + (subs.length === 1 ? '' : 's')
-                    + '. Cards need the ' + (which === 'graphic' ? 'GRA (graphic)' : 'VID (video)')
-                    + ' sub-issue link — statuses pushed to a parent never reach the editor’s Workload, '
-                    + 'so tweaks on this card would go unseen. Please paste the sub-issue link instead.');
+                if (ident) _calParentLinks.add(ident);
+                _calRenderBody({ preserveScroll: true });
                 return;
             }
+            // A genuine sub-issue — clear any stale parent flag for it.
+            if (ident) _calParentLinks.delete(ident);
             mapped = _calMapLinearStatusStrict(json.parent.status);
         } catch (e) { return; }
         const post = calState.posts.find(p => p.id === pid);
@@ -13748,7 +13788,10 @@
             // while the page was closed; on background polls (focus return,
             // 30 s tick) we already trust the sheet, and a stale Linear read
             // would clobber a fresh client approval. Skip reconcile then.
-            if (!opts.background) _calReconcileLinearStatuses();
+            if (!opts.background) {
+                _calReconcileLinearStatuses();
+                _calRefreshParentLinkFlags();
+            }
             _calApplyFocusRequest();
         }
     }
@@ -14997,6 +15040,12 @@
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        // Linked, but to a parent issue — same orange banner, different ask.
+        // Video takes precedence if both slots are parent-linked.
+        const parentComp = (!ro && !isBlank && !needsLinear)
+            ? (_calIsParentLinked(p.linear_issue_id) ? 'video'
+                : (_calIsParentLinked(p.graphic_linear_issue_id) ? 'graphic' : ''))
+            : '';
         const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
@@ -15039,7 +15088,7 @@
             ${(isBlank || _isClientLink) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : ''}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : '')}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>

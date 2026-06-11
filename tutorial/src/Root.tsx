@@ -2,6 +2,7 @@ import React from 'react';
 import {AbsoluteFill, Audio, Composition, Series, staticFile} from 'remotion';
 import {loadFont} from '@remotion/fonts';
 import {FPS, SCENES, TOTAL_FRAMES} from './timeline';
+import {PLUS_JAKARTA_SANS_WOFF2} from './fontData';
 import {Intro} from './scenes/Intro';
 import {DriveOrg} from './scenes/DriveOrg';
 import {FormDemo} from './scenes/FormDemo';
@@ -12,7 +13,7 @@ import {Outro} from './scenes/Outro';
 const fontFamily = 'Plus Jakarta Sans';
 loadFont({
   family: fontFamily,
-  url: staticFile('fonts/PlusJakartaSans-latin.woff2'),
+  url: PLUS_JAKARTA_SANS_WOFF2,
   format: 'woff2',
   weight: '400 800',
 });

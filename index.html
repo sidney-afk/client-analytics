@@ -1585,6 +1585,14 @@
         .cal-filter-empty-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 6px; }
         .cal-filter-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
         .cal-filter-empty-sub .cal-link { background: none; border: none; padding: 0; color: var(--text-primary); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: inherit; font-family: inherit; }
+        /* Month filter is hiding scheduled cards while others are visible —
+           the "where did my card go?" banner. */
+        .cal-filter-hidden-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+            margin: 0 0 10px; padding: 8px 12px; border: 1px solid #fed7aa; border-radius: 10px;
+            background: #fff7ed; color: #9a3412; font-size: 0.8rem; }
+        .cal-filter-hidden-bar svg { width: 14px; height: 14px; flex-shrink: 0; }
+        .cal-filter-hidden-bar .cal-link { background: none; border: none; padding: 0; color: #9a3412;
+            font-weight: 800; cursor: pointer; text-decoration: underline; font-size: inherit; font-family: inherit; }
         .cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
         .cal-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
         .cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
@@ -15073,6 +15081,23 @@
         // and thinks the calendar is genuinely empty.
         const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all';
         const hiddenByFilter = empty && anyFilterActive && calState.posts.length > 0;
+        // Partial case: SOME cards visible, but the month filter is hiding
+        // dated cards from other months. Undated cards always pass the filter,
+        // so when most of a calendar is unscheduled the one dated card just
+        // silently vanishes and looks deleted ("where did my card go?" —
+        // happened twice in one day). Count only cards this viewer could
+        // otherwise see (status filter included), so the banner never points
+        // at a card the current view couldn't show anyway.
+        const hiddenByMonth = (empty || monthFilter === 'all') ? [] : calState.posts.filter(p =>
+            p.id !== calState.focusPid
+            && !_calPostInMonthFilter(p, monthFilter)
+            && _calPostInStatusFilter(p, statusFilter)
+            && (!_isClientLink || _calIsCollabOn() || _calIsClientReady(p)));
+        const hiddenBar = hiddenByMonth.length
+            ? `<div class="cal-filter-hidden-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${hiddenByMonth.length === 1
+                ? `<strong>“${_calEsc(String(hiddenByMonth[0].name || 'Untitled').trim() || 'Untitled')}”</strong> (${_calEsc(_calFmtDateShort(hiddenByMonth[0].scheduled_date))}) is hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`
+                : `${hiddenByMonth.length} scheduled cards are hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`}</span><button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">Show all months</button></div>`
+            : '';
         // The "current" card is the first one after the last posted one — the
         // next post still to be worked on.
         let lastPostedIdx = -1;
@@ -15117,6 +15142,7 @@
                 </div>`
             : '';
         return `<div class="cal-organizer-wrap">
+            ${hiddenBar}
             <div class="cal-organizer-strip${empty ? ' is-empty' : ''}${calState.selectMode ? ' cal-selecting' : ''}" id="calStrip">
                 ${posts.map((p,i) => _calRenderInlineCard(p, false, i === currentIdx)).join('')}
                 ${addBtn}

@@ -1,0 +1,22 @@
+{
+  "name": "tutorial",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Tutorial out/tutorial.mp4",
+    "still": "remotion still src/index.ts Tutorial"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@remotion/cli": "^4.0.475",
+    "@remotion/fonts": "^4.0.475",
+    "@remotion/google-fonts": "^4.0.475",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "remotion": "^4.0.475"
+  },
+  "private": true
+}

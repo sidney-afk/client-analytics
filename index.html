@@ -10889,14 +10889,25 @@
         return p ? p.label : 'Alt';
     }
     function _calAltCapPlatKey(pid, post) {
-        return String((post && post.caption_alt_platform) || '').trim().toLowerCase()
-            || _calAltCapDraftPlat.get(pid) || 'linkedin';
+        // The saved platform is only authoritative once alt TEXT is saved
+        // with it. A platform column with no text (e.g. residue from the
+        // pre-tabs UI) must not beat the platform the SMM just picked for
+        // a fresh draft tab.
+        const saved = String((post && post.caption_alt_platform) || '').trim().toLowerCase();
+        const hasText = !!String((post && post.caption_alt) || '').trim();
+        if (hasText && saved) return saved;
+        return _calAltCapDraftPlat.get(pid) || saved || 'linkedin';
     }
     function _calCapBlockHtml(pid, p, editableText, isBlank) {
         // `pid` arrives attr-escaped from _calCardHtml (same convention as
         // every other inline handler on the card).
         const alt = String(p.caption_alt || '');
-        if (String(p.caption_alt_platform || '').trim()) _calAltCapDraftPlat.delete(pid);
+        // The draft marker is redundant only once the alt caption TEXT is
+        // saved (the tab then persists from sheet data). A saved platform
+        // with no text — residue from the pre-tabs UI, or text deleted by
+        // hand — must NOT clear it, or the tab would vanish the moment the
+        // SMM creates it on such a card ("click Instagram, nothing happens").
+        if (alt.trim() && String(p.caption_alt_platform || '').trim()) _calAltCapDraftPlat.delete(pid);
         const hasAlt = !!alt.trim() || _calAltCapDraftPlat.has(pid);
         const canEdit = !_isClientLink && !isBlank;
         let active = _calCapTabState.get(pid) || 'main';
@@ -11019,16 +11030,17 @@
             _calCapBlockRepaint(pid, true);
             return;
         }
-        // Change the platform of an existing alt caption. Persist only if the
-        // alt caption has ever been saved; a draft tab just updates locally.
+        // Change the platform of an existing alt caption. The draft map is
+        // always updated too: while the alt text is unsaved the tab label
+        // resolves from the draft, so without this the new pick wouldn't
+        // show. Persist only if the row already carries alt data.
+        _calAltCapDraftPlat.set(pid, key);
         if (String(post.caption_alt || '').trim() || String(post.caption_alt_platform || '').trim()) {
             post.caption_alt_platform = key;
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
             _calPendingEdits[pid].caption_alt_platform = key;
             if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
             _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
-        } else {
-            _calAltCapDraftPlat.set(pid, key);
         }
         _calCapBlockRepaint(pid, false);
     }

@@ -10914,6 +10914,10 @@
         return String(post.linear_issue_id || '').trim();
     }
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
+    /* Per-client month/status filters: { <slug>: { month, status } }. Filters
+       are scoped to the client whose calendar set them — switching tabs must
+       not drag May's filter onto a client you last viewed under All months. */
+    const CAL_FILTERS_KEY = 'syncview_cal_filters_v1';
     const CAL_PINS_KEY  = 'syncview_calendar_pins';
     const CAL_SAVE_DEBOUNCE_MS = 650;
     /* Platforms a post can be marked for. The SMM enables a subset via the
@@ -11651,7 +11655,30 @@
         try {
             const prev = _calLoadPrefs();
             const client = calState.embedded ? prev.client : calState.client;
-            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom, monthFilter: calState.monthFilter, statusFilter: calState.statusFilter }));
+            // month/status filters deliberately NOT here — they're per-client
+            // (CAL_FILTERS_KEY), so switching tabs doesn't carry them over.
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom }));
+        } catch {}
+    }
+    function _calFiltersRead() {
+        try { const m = JSON.parse(localStorage.getItem(CAL_FILTERS_KEY) || '{}'); return (m && typeof m === 'object') ? m : {}; } catch { return {}; }
+    }
+    /* Hydrate calState.monthFilter/statusFilter from the named client's saved
+       entry (defaults: current month / all content when none saved yet). Call
+       on mount and on every client switch, BEFORE rendering the filter pills. */
+    function _calLoadClientFilters(name) {
+        const slug = calClientSlug(name || calState.client);
+        const row = (slug && _calFiltersRead()[slug]) || {};
+        calState.monthFilter  = _calNormMonthFilter(row.month);
+        calState.statusFilter = _calNormStatusFilter(row.status);
+    }
+    function _calSaveClientFilters() {
+        const slug = calClientSlug(calState.client);
+        if (!slug) return;
+        try {
+            const m = _calFiltersRead();
+            m[slug] = { month: calState.monthFilter, status: calState.statusFilter };
+            localStorage.setItem(CAL_FILTERS_KEY, JSON.stringify(m));
         } catch {}
     }
     /* Per-client strip scroll, persisted across browser refreshes. */
@@ -11856,8 +11883,7 @@
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
-        calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
-        calState.statusFilter = _calNormStatusFilter(prefs.statusFilter);
+        _calLoadClientFilters(initial);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -11989,8 +12015,7 @@
         calState.embedded = true;
         calState.view = _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
-        calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
-        calState.statusFilter = _calNormStatusFilter(prefs.statusFilter);
+        _calLoadClientFilters(name);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -14061,7 +14086,7 @@
     }
     function onCalMonthFilterChange(v) {
         calState.monthFilter = _calNormMonthFilter(v === 'all' ? 'all' : v);
-        _calSavePrefs();
+        _calSaveClientFilters();
         const menu = document.getElementById('calMonthFilterMenu');
         const btn  = document.getElementById('calMonthFilterBtn');
         if (menu) menu.classList.remove('open');
@@ -14209,7 +14234,7 @@
     }
     function onCalStatusFilterChange(v) {
         calState.statusFilter = _calNormStatusFilter(v);
-        _calSavePrefs();
+        _calSaveClientFilters();
         const menu = document.getElementById('calStatusFilterMenu');
         const btn  = document.getElementById('calStatusFilterBtn');
         if (menu) menu.classList.remove('open');
@@ -14220,7 +14245,7 @@
     function onCalClearFilters() {
         calState.monthFilter = 'all';
         calState.statusFilter = 'all';
-        _calSavePrefs();
+        _calSaveClientFilters();
         _calRenderBody({ preserveScroll: false });
         _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
         _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
@@ -14419,10 +14444,15 @@
             const next = pins[0] || null;
             calState.client = next;
             calState.posts = [];
+            _calLoadClientFilters();
             _calSavePrefs();
             _calSyncUrlClient();
             _calRenderTabs();
-            if (next) loadCalendarPosts();
+            if (next) {
+                _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
+                _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+                loadCalendarPosts();
+            }
             else _calRenderBody();
         } else {
             _calRenderTabs();
@@ -14465,9 +14495,12 @@
             _calFlushAllPending();
             calState.client = name;
             calState.posts = [];
+            _calLoadClientFilters();
             _calSavePrefs();
             _calSyncUrlClient();
             _calRenderTabs();
+            _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
+            _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
             loadCalendarPosts();
         };
         input.addEventListener('input', () => _calRenderClientSearchResults(input.value.trim()));
@@ -14874,9 +14907,14 @@
         // either leak into the new client's tab or be silently dropped.
         _calFlushAllPending();
         calState.client = name;
+        _calLoadClientFilters();
         _calSavePrefs();
         _calSyncUrlClient();
         calState.posts = [];
+        // The filter pills belong to the toolbar, not the body — re-render
+        // them so they show THIS client's saved month/status filter.
+        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
+        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
         _calRenderBody();
         loadCalendarPosts();
     }

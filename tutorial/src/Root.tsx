@@ -13,6 +13,7 @@ const fontFamily = 'Plus Jakarta Sans';
 loadFont({
   family: fontFamily,
   url: staticFile('fonts/PlusJakartaSans-latin.woff2'),
+  format: 'woff2',
   weight: '400 800',
 });
 

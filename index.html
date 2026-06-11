@@ -1598,6 +1598,7 @@
             background: transparent; border: 0; border-radius: 7px; cursor: pointer; font-family: inherit; font-size: 0.8rem;
             font-weight: 600; color: var(--text-primary); text-align: left; }
         .cal-kebab-item:hover { background: var(--bg); }
+        .cal-kebab-sep { height: 1px; margin: 5px 8px; background: var(--border); }
         .cal-kebab-item svg { width: 15px; height: 15px; color: var(--text-secondary); flex-shrink: 0; }
         .cal-kebab-item.cal-kebab-toggle { gap: 8px; }
         .cal-kebab-item .cal-kebab-label { flex: 1 1 auto; }
@@ -2743,6 +2744,7 @@
         .cal-week-card[data-tweak-comp="graphic"]::after { border-color: transparent #d946ef transparent transparent; }
         .cal-week-card[data-tweak-comp="caption"]::after { border-color: transparent #f59e0b transparent transparent; }
         .cal-unscheduled { margin-top: 16px; padding: 12px 16px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; }
+        .cal-unscheduled.cal-unscheduled-top { margin-top: 0; margin-bottom: 14px; }
         .cal-unscheduled-h { font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
         .cal-unscheduled-list { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -11317,6 +11319,7 @@
         selected: new Set(),
         lastSel: null,
         monthFilter: null,
+        statusFilter: 'all',
         settings: { collab_mode: false },
     };
 
@@ -11379,6 +11382,11 @@
         return { settings, posts, found };
     }
     function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
+    /* Who may drag a pill onto a day to (re)schedule it. The SMM always can;
+       the client can too, but only once Collaborative mode is on — that's the
+       same gate that lets them suggest posts, so reserve content they place /
+       swap stays consistent with everything else they can touch. */
+    function _calCanDragCards() { return !_isClientLink || _calIsCollabOn(); }
     async function _calSaveSettings(patch) {
         if (!calState.client) return false;
         // Pin the destination client at call time, BEFORE the await — otherwise
@@ -11488,6 +11496,19 @@
         if (!d) return true;
         return d === ym;
     }
+    /* Status filter — splits the Sheet tab by whether a post has a date yet.
+       'unscheduled' is Raha's reserve pile (content with no date assigned);
+       'scheduled' is everything sitting on the calendar. */
+    function _calNormStatusFilter(v) {
+        return (v === 'scheduled' || v === 'unscheduled') ? v : 'all';
+    }
+    function _calPostHasDate(p) {
+        return !!String(p && p.scheduled_date || '').slice(0, 10);
+    }
+    function _calPostInStatusFilter(p, s) {
+        if (!s || s === 'all') return true;
+        return s === 'scheduled' ? _calPostHasDate(p) : !_calPostHasDate(p);
+    }
     const _calPendingEdits = Object.create(null);
     const _calSaveTimers   = Object.create(null);
     // Holds a pending Promise while an upsert for this card id is in flight
@@ -11566,7 +11587,7 @@
         try {
             const prev = _calLoadPrefs();
             const client = calState.embedded ? prev.client : calState.client;
-            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom, monthFilter: calState.monthFilter }));
+            localStorage.setItem(CAL_PREFS_KEY, JSON.stringify({ view: calState.view, client, zoom: calState.zoom, monthFilter: calState.monthFilter, statusFilter: calState.statusFilter }));
         } catch {}
     }
     /* Per-client strip scroll, persisted across browser refreshes. */
@@ -11772,6 +11793,7 @@
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
         calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
+        calState.statusFilter = _calNormStatusFilter(prefs.statusFilter);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -11903,6 +11925,7 @@
         calState.view = _calResolveInitialView(prefs.view);
         calState.zoom = _calNormZoom(prefs.zoom);
         calState.monthFilter = _calNormMonthFilter(prefs.monthFilter);
+        calState.statusFilter = _calNormStatusFilter(prefs.statusFilter);
         const today = new Date();
         calState.monthCursor = _calIsoFirstOfMonth(today);
         calState.weekCursor  = _calIsoMondayOf(today);
@@ -11916,15 +11939,13 @@
     function calCopyShareLink() {
         if (!calState.client) return;
         const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(calState.client)}&v=calendar`;
-        navigator.clipboard.writeText(url).then(() => {
-            const btn = document.getElementById('calShareBtn');
-            if (!btn) return;
-            const orig = btn.dataset.orig || btn.innerHTML;
-            btn.dataset.orig = orig;
-            btn.classList.add('copied');
-            btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Link copied`;
-            setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 2200);
-        });
+        // The share action lives in the kebab (More options) menu, which closes
+        // on click — so confirm with a toast rather than swapping a button label
+        // that's no longer on screen.
+        navigator.clipboard.writeText(url).then(
+            () => showToast('Client link copied to clipboard'),
+            () => showToast("Couldn't copy the link")
+        );
     }
 
     /* Per-card deep link. Pattern: #calendar/<clientSlug>/<cardId>.
@@ -13986,9 +14007,82 @@
         if (mid) {
             const wrap = document.createElement('div');
             wrap.innerHTML = _calMonthFilterHtml();
-            const existing = mid.querySelector('.cal-month-filter');
+            const existing = mid.querySelector('.cal-month-filter:not(.cal-status-filter)');
             if (existing && wrap.firstChild) existing.replaceWith(wrap.firstChild);
         }
+    }
+
+    /* Status filter — a sibling of the month pill that splits the Sheet tab
+       into Scheduled vs Unscheduled. Shares the month filter's chrome
+       (.cal-month-filter) so the two pills read as one control group. */
+    function _calStatusFilterLabel(cur) {
+        return { all: 'All content', scheduled: 'Scheduled', unscheduled: 'Unscheduled' }[cur] || 'All content';
+    }
+    function _calStatusFilterHtml() {
+        if (!calState.client || calState.view !== 'organizer') return '';
+        const cur = _calNormStatusFilter(calState.statusFilter);
+        const isFiltered = cur !== 'all';
+        const chev = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const mkItem = (val) => `<button type="button" class="dropdown-item${val === cur ? ' active' : ''}" onclick="onCalStatusFilterChange('${val}')"><span>${_calStatusFilterLabel(val)}</span></button>`;
+        const items = ['all', 'scheduled', 'unscheduled'].map(mkItem).join('');
+        return `<div class="cal-month-filter cal-status-filter" id="calStatusFilterWrap">
+            <button type="button" class="dropdown-trigger${isFiltered ? ' is-filtered' : ''}" id="calStatusFilterBtn" onclick="_calToggleStatusFilter(event)" title="Filter by scheduled or unscheduled content" aria-haspopup="listbox" aria-expanded="false">
+                <span>${_calEsc(_calStatusFilterLabel(cur))}</span>${chev}
+            </button>
+            <div class="dropdown-menu" id="calStatusFilterMenu" role="listbox">${items}</div>
+        </div>`;
+    }
+    function _calToggleStatusFilter(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calStatusFilterMenu');
+        const btn  = document.getElementById('calStatusFilterBtn');
+        if (!menu || !btn) return;
+        if (menu.classList.contains('open')) {
+            menu.classList.remove('open');
+            btn.classList.remove('open');
+            btn.setAttribute('aria-expanded', 'false');
+        } else {
+            menu.classList.add('open');
+            btn.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            const close = (ev) => {
+                const wrap = document.getElementById('calStatusFilterWrap');
+                if (wrap && !wrap.contains(ev.target)) {
+                    menu.classList.remove('open');
+                    btn.classList.remove('open');
+                    btn.setAttribute('aria-expanded', 'false');
+                    document.removeEventListener('click', close);
+                }
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
+    }
+    function _calRefreshFilterPill(sel, html) {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const existing = mid.querySelector(sel);
+        if (!existing) return;
+        const wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        if (wrap.firstChild) existing.replaceWith(wrap.firstChild);
+    }
+    function onCalStatusFilterChange(v) {
+        calState.statusFilter = _calNormStatusFilter(v);
+        _calSavePrefs();
+        const menu = document.getElementById('calStatusFilterMenu');
+        const btn  = document.getElementById('calStatusFilterBtn');
+        if (menu) menu.classList.remove('open');
+        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+    }
+    function onCalClearFilters() {
+        calState.monthFilter = 'all';
+        calState.statusFilter = 'all';
+        _calSavePrefs();
+        _calRenderBody({ preserveScroll: false });
+        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
+        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
     }
 
     function _calRenderShell() {
@@ -13998,13 +14092,12 @@
         const leftHtml = embedded
             ? `<div class="cal-embed-title"><strong>${_calEsc(calState.client || '')}</strong><span>Content calendar</span></div>`
             : `<div class="cal-tabs" id="calTabs"></div>`;
-        const shareBtnHtml = (calState.client && !_isClientLink)
-            ? `<button class="cal-share-btn" id="calShareBtn" type="button" onclick="calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="13" height="13" viewBox="0 0 14 14" fill="none"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Share with client</button>`
-            : '';
         const kebabHtml = (calState.client && !_isClientLink)
             ? `<div class="cal-kebab-wrap">
                     <button class="cal-kebab" type="button" onclick="_calToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
                     <div class="cal-kebab-menu" id="calKebabMenu" hidden>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();calCopyShareLink()" title="Copy a client-facing link to this calendar"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                        <div class="cal-kebab-sep" role="separator"></div>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalImport()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v8M4.5 6L8 9.5 11.5 6M2.5 11v1.5a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V11"/></svg>Import from Excel</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalLinearImport()"><svg viewBox="0 0 100 100" fill="currentColor"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Import from Linear</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
@@ -14031,6 +14124,7 @@
                 <div class="cal-toolbar-left">${leftHtml}</div>
                 <div class="cal-toolbar-mid">
                     ${_calMonthFilterHtml()}
+                    ${_calStatusFilterHtml()}
                     <div class="cal-view-toggle">
                         ${tabViews.map(v => {
                             const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
@@ -14047,7 +14141,6 @@
                 <div class="cal-toolbar-right">
                     <span class="cal-refreshing" id="calRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
                     <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
-                    ${shareBtnHtml}
                     ${selectBtnHtml}
                     ${bulkCapBtnHtml}
                     <span id="calStatusBadge" class="tpl-status-badge"></span>
@@ -14431,7 +14524,7 @@
     }
     function _calOnDocDragOver(e) { if (_calDayDragId != null) _calDragScrollFromY(e.clientY); }
     function _calWireDayDrag(root) {
-        if (_isClientLink) return;   // client-link view — no rescheduling
+        if (!_calCanDragCards()) return;   // client-link view reschedules only in Collaborative mode
         root.querySelectorAll('[data-cal-move]').forEach(el => {
             el.addEventListener('dragstart', (e) => {
                 _calDayDragId = el.getAttribute('data-cal-move');
@@ -14663,22 +14756,28 @@
         }
         const mid = document.querySelector('.cal-toolbar-mid');
         if (mid) {
-            const existing = mid.querySelector('.cal-month-filter');
-            const html = _calMonthFilterHtml();
-            if (existing) {
-                if (html) {
+            // Month and status pills both only exist on the Sheet tab, so they
+            // get added/removed together as the view changes. They sit, in
+            // order, immediately before the view toggle.
+            const syncFilterPill = (sel, html, anchorSel) => {
+                const existing = mid.querySelector(sel);
+                if (existing) {
+                    if (html) {
+                        const wrap = document.createElement('div');
+                        wrap.innerHTML = html;
+                        existing.replaceWith(wrap.firstChild);
+                    } else {
+                        existing.remove();
+                    }
+                } else if (html) {
                     const wrap = document.createElement('div');
                     wrap.innerHTML = html;
-                    existing.replaceWith(wrap.firstChild);
-                } else {
-                    existing.remove();
+                    const anchor = mid.querySelector(anchorSel);
+                    if (wrap.firstChild) mid.insertBefore(wrap.firstChild, anchor);
                 }
-            } else if (html) {
-                const wrap = document.createElement('div');
-                wrap.innerHTML = html;
-                const toggle = mid.querySelector('.cal-view-toggle');
-                if (wrap.firstChild) mid.insertBefore(wrap.firstChild, toggle);
-            }
+            };
+            syncFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml(), '.cal-view-toggle');
+            syncFilterPill('.cal-status-filter', _calStatusFilterHtml(), '.cal-view-toggle');
         }
         _calApplyZoom();
         _calRenderBody();
@@ -14854,17 +14953,20 @@
 
     function renderCalOrganizer() {
         const monthFilter = _calNormMonthFilter(calState.monthFilter);
+        const statusFilter = _calNormStatusFilter(calState.statusFilter);
         const posts = calState.posts.slice()
             // A card opened from the review queue (focusPid) is forced through
-            // both filters so the jump-to-Sheet always lands on it.
+            // every filter so the jump-to-Sheet always lands on it.
             .filter(p => p.id === calState.focusPid || _calPostInMonthFilter(p, monthFilter))
+            .filter(p => p.id === calState.focusPid || _calPostInStatusFilter(p, statusFilter))
             .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
             .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));
         const empty = posts.length === 0;
-        // When the filter is hiding everything but there ARE posts in other
-        // months, surface that — otherwise the user sees the "Add the first
-        // post" hero and thinks the calendar is genuinely empty.
-        const hiddenByFilter = empty && monthFilter !== 'all' && calState.posts.length > 0;
+        // When a filter is hiding everything but there ARE posts behind it,
+        // surface that — otherwise the user sees the "Add the first post" hero
+        // and thinks the calendar is genuinely empty.
+        const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all';
+        const hiddenByFilter = empty && anyFilterActive && calState.posts.length > 0;
         // The "current" card is the first one after the last posted one — the
         // next post still to be worked on.
         let lastPostedIdx = -1;
@@ -14876,9 +14978,18 @@
         // paired so a card a client creates (status: In Progress) doesn't
         // immediately vanish behind the _calIsClientReady filter.
         const canAddCard = !_isClientLink || _calIsCollabOn();
+        const filterEmptyTitle = (() => {
+            const m = monthFilter !== 'all', sc = statusFilter === 'scheduled', un = statusFilter === 'unscheduled';
+            if (m && sc) return `No scheduled posts for ${_calMonthLabel(monthFilter)}`;
+            if (m && un) return 'No unscheduled posts'; // unscheduled posts have no month
+            if (m)       return `No posts scheduled for ${_calMonthLabel(monthFilter)}`;
+            if (sc)      return 'No scheduled posts yet';
+            if (un)      return 'No unscheduled posts';
+            return 'No posts to show';
+        })();
         const addBtn = empty
             ? (hiddenByFilter
-                ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts scheduled for ${_calEsc(_calMonthLabel(monthFilter))}</div><div class="cal-filter-empty-sub">Switch to <button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">All months</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
+                ? `<div class="cal-filter-empty"><div class="cal-filter-empty-title">${_calEsc(filterEmptyTitle)}</div><div class="cal-filter-empty-sub"><button type="button" class="cal-link" onclick="onCalClearFilters()">Clear filters</button> to see ${calState.posts.length} other post${calState.posts.length === 1 ? '' : 's'}.</div></div>`
                 : (canAddCard
                     ? `<button class="cal-card-add cal-card-add-hero" type="button" onclick="addCalBlankCard()" title="Add a card">${plus}<span>${_isClientLink ? 'Suggest a post' : 'Add the first post'}</span></button>`
                     : `<div class="cal-filter-empty"><div class="cal-filter-empty-title">No posts to show yet</div><div class="cal-filter-empty-sub">Finished posts will appear here.</div></div>`))
@@ -16852,10 +16963,9 @@
             : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
         const id = _calEscAttr(p.id);
         const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
-        const drag = _isClientLink
-            ? ''
-            : ` draggable="true" data-cal-move="${id}"`;
-        const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
+        const canDrag = _calCanDragCards();
+        const drag = canDrag ? ` draggable="true" data-cal-move="${id}"` : '';
+        const grip = canDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
         const ribbonComp = _calTweakRibbonComp(p);
         const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
         // Color tag is SMM-internal — never surface the dot on the client view.
@@ -16883,10 +16993,11 @@
             if (!byDate.has(d)) byDate.set(d, []);
             byDate.get(d).push(p);
         }
-        // Client view: no unscheduled tray. The client can't change a post's
-        // date, so the only thing she could do with an unscheduled card is
-        // drag it — and we'd just refuse the drop. Hide the section entirely.
-        const unsched = _isClientLink ? [] : calState.posts.filter(p => !p.scheduled_date);
+        // Reserve content: posts with no date yet. The SMM always sees the tray;
+        // the client sees it too once Collaborative mode is on, so they can pull
+        // a piece onto a day (or swap it in) themselves. Off → no tray, since a
+        // client with no drag rights could only stare at it.
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         const headers = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
         const todayISO = _calIsoOf(new Date());
         return `<div class="cal-month-wrap">
@@ -16896,6 +17007,7 @@
                 <button class="cal-nav-btn" onclick="calMonthShift(1)" title="Next month">›</button>
                 <button class="cal-today-btn" onclick="calMonthToday()">Today</button>
             </div>
+            ${_calUnscheduledTrayHtml(unsched)}
             <div class="cal-month-grid">
                 ${headers.map(h => `<div class="cal-month-head">${h}</div>`).join('')}
                 ${cells.map(iso => {
@@ -16912,12 +17024,17 @@
                     </div>`;
                 }).join('')}
             </div>
-            ${unsched.length ? `<div class="cal-unscheduled">
-                <div class="cal-unscheduled-h">Unscheduled (${unsched.length})</div>
-                <div class="cal-unscheduled-list">
-                    ${unsched.map(p => _calMonthPillHtml(p)).join('')}
-                </div>
-            </div>` : ''}
+        </div>`;
+    }
+    /* Reserve-content tray that rides above the Month and Week grids. Pills are
+       draggable onto any day cell to schedule (or reschedule) them. */
+    function _calUnscheduledTrayHtml(unsched) {
+        if (!unsched || !unsched.length) return '';
+        return `<div class="cal-unscheduled cal-unscheduled-top">
+            <div class="cal-unscheduled-h">Unscheduled (${unsched.length}) · drag onto a day to schedule</div>
+            <div class="cal-unscheduled-list">
+                ${unsched.map(p => _calMonthPillHtml(p)).join('')}
+            </div>
         </div>`;
     }
     function calMonthShift(n) { calState.monthCursor = _calAddMonthsISO(calState.monthCursor, n); _calRenderBody(); }
@@ -16947,6 +17064,9 @@
         const endDate = _calParseIso(_calAddDaysISO(start, 6));
         const rangeLabel = `${startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${endDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
         const todayISO = _calIsoOf(new Date());
+        // Same reserve-content tray as the Month tab: SMM always, client when
+        // Collaborative mode is on. Drag a pill onto a day column to schedule it.
+        const unsched = _calCanDragCards() ? calState.posts.filter(p => !p.scheduled_date) : [];
         return `<div class="cal-week-wrap">
             <div class="cal-month-header">
                 <button class="cal-nav-btn" onclick="calWeekShift(-1)" title="Previous week">‹</button>
@@ -16954,6 +17074,7 @@
                 <button class="cal-nav-btn" onclick="calWeekShift(1)" title="Next week">›</button>
                 <button class="cal-today-btn" onclick="calWeekToday()">Today</button>
             </div>
+            ${_calUnscheduledTrayHtml(unsched)}
             <div class="cal-week-viewport">
             <div class="cal-week-grid">
                 ${days.map((iso) => {
@@ -16973,8 +17094,9 @@
                                     : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 const id = _calEscAttr(p.id);
                                 const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
-                                const drag = _isClientLink ? '' : ` draggable="true" data-cal-move="${id}"`;
-                                const grip = _isClientLink ? '' : `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>`;
+                                const wCanDrag = _calCanDragCards();
+                                const drag = wCanDrag ? ` draggable="true" data-cal-move="${id}"` : '';
+                                const grip = wCanDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
                                 const ribbonComp = _calTweakRibbonComp(p);
                                 const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
                                 // Color tag is SMM-internal — hide on client view.

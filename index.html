@@ -350,6 +350,12 @@
             border-radius: 11px; padding: 3px; gap: 2px;
             margin-bottom: 22px;
         }
+        /* Client intake link (?intake=1): expose only the Linear submission
+           flow — hide the workspace header and the now-backend-driven filming
+           plan field. JS also hides these; these rules keep them hidden if any
+           later code toggles display. */
+        body.intake-mode .header { display: none !important; }
+        body.intake-mode #linearFilmingPlansField { display: none !important; }
         .view-tab-btn {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 7px 20px; border: none; border-radius: 8px;
@@ -10714,6 +10720,9 @@
     function _modClick(e) { return !!(e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || (e.button && e.button !== 0))); }
     function navTo(page, push = true) {
         if (page === 'brief') page = 'home';
+        // Client intake link locks the whole SPA to the Linear submission flow,
+        // so every navigation (back button, restored hash, logo) lands on it.
+        if (document.body.classList.contains('intake-mode')) page = 'linear';
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
@@ -19681,7 +19690,7 @@
                     <label class="linear-label">Title</label>
                     <div class="linear-title-display ${savedClient ? '' : 'empty'}" id="linearTitleDisplay">${titleDisplay}</div>
                 </div>
-                <div class="linear-field">
+                <div class="linear-field" id="linearFilmingPlansField">
                     <label class="linear-label">Filming Plans</label>
                     <input class="linear-input" id="linearFilmingPlans" type="url" placeholder="Filming plans link…" value="${savedFilmingPlans.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
                 </div>
@@ -20486,7 +20495,19 @@
         }
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
-    if(_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+    const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
+    if(_isIntake){document.body.classList.add('intake-mode');}
+    if(_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+        if(_isIntake){
+            // Client intake link (?intake=1): expose ONLY the Linear submission
+            // flow. Bypass the staff password, hide all workspace chrome, and
+            // force the Linear page. navTo() is hard-locked to 'linear' so no
+            // other tab/page is reachable from this link.
+            const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
+            const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
+            localStorage.setItem(NAV_KEY,'linear');
+            history.replaceState({nav:'linear',client:null},'',location.pathname+location.search+'#linear');
+        }
         if(_isClientLink){
             // Client share link: hide all admin chrome immediately, show clean loader.
             // Match the loader copy to the tab the link actually opens — a
@@ -20506,6 +20527,7 @@
             </div>`;
         }
         init();
+        if(_isIntake){ try{ navTo('linear', false); }catch(e){} }
     } else {
         document.getElementById('passwordOverlay').style.display='flex';
         setTimeout(()=>document.getElementById('passwordInput').focus(),50);

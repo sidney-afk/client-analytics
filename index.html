@@ -15082,21 +15082,44 @@
         const anyFilterActive = monthFilter !== 'all' || statusFilter !== 'all';
         const hiddenByFilter = empty && anyFilterActive && calState.posts.length > 0;
         // Partial case: SOME cards visible, but the month filter is hiding
-        // dated cards from other months. Undated cards always pass the filter,
-        // so when most of a calendar is unscheduled the one dated card just
-        // silently vanishes and looks deleted ("where did my card go?" —
-        // happened twice in one day). Count only cards this viewer could
-        // otherwise see (status filter included), so the banner never points
+        // dated cards from other months. Hidden cards are NORMAL on a healthy
+        // calendar (other months legitimately have content), so a blanket
+        // "N cards hidden" banner would show constantly and train people to
+        // ignore it. Only two kinds of hidden card warrant a warning:
+        //   (a) recently edited (last 48h) — someone just worked on it, and it
+        //       vanishing behind the filter reads as "my card was deleted"
+        //       (two SMMs hit exactly this in one day);
+        //   (b) overdue — dated in a month BEFORE the current real month yet
+        //       not Approved / Scheduled / Posted: the date passed without the
+        //       post going out, so the date itself is probably wrong.
+        // Candidates only include cards this viewer could otherwise see
+        // (status filter + client-link visibility), so the banner never points
         // at a card the current view couldn't show anyway.
-        const hiddenByMonth = (empty || monthFilter === 'all') ? [] : calState.posts.filter(p =>
+        const hiddenCands = (empty || monthFilter === 'all') ? [] : calState.posts.filter(p =>
             p.id !== calState.focusPid
             && !_calPostInMonthFilter(p, monthFilter)
             && _calPostInStatusFilter(p, statusFilter)
             && (!_isClientLink || _calIsCollabOn() || _calIsClientReady(p)));
-        const hiddenBar = hiddenByMonth.length
-            ? `<div class="cal-filter-hidden-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${hiddenByMonth.length === 1
-                ? `<strong>“${_calEsc(String(hiddenByMonth[0].name || 'Untitled').trim() || 'Untitled')}”</strong> (${_calEsc(_calFmtDateShort(hiddenByMonth[0].scheduled_date))}) is hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`
-                : `${hiddenByMonth.length} scheduled cards are hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`}</span><button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">Show all months</button></div>`
+        const HIDDEN_RECENT_MS = 48 * 60 * 60 * 1000;
+        const hiddenRecentIds = new Set(hiddenCands.filter(p => {
+            const t = Date.parse(p.updated_at || '');
+            return isFinite(t) && (Date.now() - t) < HIDDEN_RECENT_MS;
+        }).map(p => p.id));
+        const hiddenRecent = hiddenCands.filter(p => hiddenRecentIds.has(p.id));
+        const _hiddenDoneSet = new Set(['approved', 'scheduled', 'posted']);
+        const _nowYm = _calCurrentMonthIso();
+        const hiddenOverdue = hiddenCands.filter(p =>
+            !hiddenRecentIds.has(p.id)
+            && String(p.scheduled_date || '').slice(0, 7) < _nowYm
+            && !_hiddenDoneSet.has(String(p.status || '').trim().toLowerCase()));
+        const _hiddenCardRef = (p) => `<strong>“${_calEsc(String(p.name || 'Untitled').trim() || 'Untitled')}”</strong> (${_calEsc(_calFmtDateShort(p.scheduled_date))})`;
+        const hiddenMsgs = [];
+        if (hiddenRecent.length === 1) hiddenMsgs.push(`${_hiddenCardRef(hiddenRecent[0])} was edited recently but is hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`);
+        else if (hiddenRecent.length > 1) hiddenMsgs.push(`${hiddenRecent.length} recently edited cards are hidden by the ${_calEsc(_calMonthLabel(monthFilter))} filter.`);
+        if (hiddenOverdue.length === 1) hiddenMsgs.push(`${_hiddenCardRef(hiddenOverdue[0])} is unfinished but dated in a past month — its date may be wrong.`);
+        else if (hiddenOverdue.length > 1) hiddenMsgs.push(`${hiddenOverdue.length} unfinished cards are dated in past months — their dates may be wrong.`);
+        const hiddenBar = hiddenMsgs.length
+            ? `<div class="cal-filter-hidden-bar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span>${hiddenMsgs.join(' ')}</span><button type="button" class="cal-link" onclick="onCalMonthFilterChange('all')">Show all months</button></div>`
             : '';
         // The "current" card is the first one after the last posted one — the
         // next post still to be worked on.

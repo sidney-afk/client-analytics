@@ -18481,6 +18481,15 @@
        of Kasper's view even if a stale tweak comment lingers, so
        SMM-driven status progressions can't be silently un-done. */
     function _calCompKasperVisible(post, comp) {
+        // An unlinked thumbnail slot is not reviewable — mirror the SMM card,
+        // which locks the pill until a GRA sub-issue is linked. Without this
+        // gate a junk "Kasper Approval" graphic_status (e.g. written by the
+        // Linear status sync through a since-removed wrong link) drags a
+        // thumbnail panel into Kasper's queue that nobody can act on.
+        // Caption is exempt (it never has a Linear issue) and video keeps its
+        // status-only rule: the video file itself (asset_url) is reviewable
+        // even when the Linear link is missing.
+        if (comp === 'graphic' && !String(post.graphic_linear_issue_id || '').trim()) return false;
         const cs = _calNormStatus(post[comp + '_status'] || '');
         if (cs === 'Kasper Approval') return true;
         if (cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(post, comp)) return true;
@@ -18517,7 +18526,14 @@
        finished into limbo) until he actually decides — typically after the SMM
        answers. This is what keeps "Finish reviewing" honest and order-proof. */
     function _kasperUndecidedComps(post) {
-        return CAL_COMPONENTS.filter(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        // Same unlinked-thumbnail gate as _calCompKasperVisible: a graphic
+        // slot with no GRA sub-issue must not block "Finish reviewing" —
+        // Kasper would be forced to decide on a thumbnail that isn't part of
+        // the card's scope (and that the SMM can't even re-route, since the
+        // pill is locked without a link).
+        return CAL_COMPONENTS.filter(c =>
+            !(c === 'graphic' && !String(post.graphic_linear_issue_id || '').trim())
+            && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
     }
     function _calCommentTotal(post) {
         let n = 0;

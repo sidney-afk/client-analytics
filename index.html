@@ -1585,15 +1585,17 @@
         .cal-filter-empty-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 6px; }
         .cal-filter-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
         .cal-filter-empty-sub .cal-link { background: none; border: none; padding: 0; color: var(--text-primary); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: inherit; font-family: inherit; }
-        /* Orange ⓘ chip next to the month pill: the filter is hiding cards
-           that are anomalous (recently edited, or unfinished in a past
-           month). The hover tooltip carries the detail; clicking jumps to
-           All months. Deliberately a chip and not a banner row — hidden
-           cards in other months are normal, so this must not cost height. */
-        .cal-month-warn { width: 18px; height: 18px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-            border-radius: 50%; border: 1.5px solid #fdba74; background: #fff7ed; color: #9a3412;
-            font-size: 0.68rem; font-weight: 800; font-family: inherit; font-style: italic; cursor: pointer; line-height: 1; padding: 0; }
-        .cal-month-warn:hover { background: #ffedd5; border-color: #fb923c; }
+        /* Orange info icon hanging off the LEFT of the month pill: the filter
+           is hiding cards that are anomalous (recently edited, or unfinished
+           in a past month). The hover tooltip carries the detail; clicking
+           jumps to All months. Absolutely positioned so appearing/vanishing
+           never shifts the dropdown — and an icon, not a banner row, because
+           hidden cards in other months are normal and must not cost height. */
+        .cal-month-warn { position: absolute; left: -25px; top: 50%; transform: translateY(-50%);
+            width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
+            border: none; background: none; padding: 0; color: #ea580c; cursor: pointer; }
+        .cal-month-warn svg { width: 17px; height: 17px; }
+        .cal-month-warn:hover { color: #9a3412; }
         .cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
         .cal-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
         .cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
@@ -14024,6 +14026,7 @@
         ].join('');
         const labelText = _calEsc(_calMonthFilterTriggerLabel(cur, today));
         return `<div class="cal-month-filter" id="calMonthFilterWrap">
+            ${_calMonthWarnChipHtml()}
             <button type="button" class="dropdown-trigger${isFiltered ? ' is-filtered' : ''}" id="calMonthFilterBtn" onclick="_calToggleMonthFilter(event)" title="Filter posts by scheduled month" aria-haspopup="listbox" aria-expanded="false">
                 <span>${labelText}</span>${chev}
             </button>
@@ -14120,30 +14123,34 @@
         else if (overdue.length > 1) msgs.push(`${overdue.length} unfinished cards are dated in past months — their dates may be wrong.`);
         return msgs;
     }
-    /* Keep the ⓘ chip next to the month pill in sync with the data. Called
-       from _calRenderBody so async post loads and edits update it. The chip
-       is a SIBLING of #calMonthFilterWrap (not a child), so the pill-refresh
-       replaceWith() paths can neither orphan nor duplicate it. */
+    function _calMonthWarnSvg() {
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+    }
+    /* The info icon markup — rendered inside #calMonthFilterWrap so the
+       pill-refresh replaceWith() paths recreate it together with the pill;
+       absolutely positioned (left of the pill), so DOM order inside the
+       wrap doesn't matter and it never shifts the dropdown. */
+    function _calMonthWarnChipHtml() {
+        const msgs = _calHiddenMonthWarnings();
+        if (!msgs.length) return '';
+        return `<button type="button" class="cal-month-warn" id="calMonthWarnIcon" title="${_calEscAttr(msgs.join(' '))}" aria-label="Some hidden cards need attention — show all months" onclick="event.stopPropagation();onCalMonthFilterChange('all')">${_calMonthWarnSvg()}</button>`;
+    }
+    /* Keep the info icon in sync with the data between pill refreshes.
+       Called from _calRenderBody so async post loads and edits update it. */
     function _calSyncMonthWarnIcon() {
         const wrap = document.getElementById('calMonthFilterWrap');
         const existing = document.getElementById('calMonthWarnIcon');
         if (!wrap) { if (existing) existing.remove(); return; }
         const msgs = _calHiddenMonthWarnings();
         if (!msgs.length) { if (existing) existing.remove(); return; }
-        const title = msgs.join(' ') + ' Click to show all months.';
+        const title = msgs.join(' ');
         if (existing) {
             if (existing.getAttribute('title') !== title) existing.setAttribute('title', title);
             return;
         }
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.id = 'calMonthWarnIcon';
-        btn.className = 'cal-month-warn';
-        btn.textContent = 'i';
-        btn.title = title;
-        btn.setAttribute('aria-label', 'Some hidden cards need attention — show all months');
-        btn.onclick = () => onCalMonthFilterChange('all');
-        wrap.after(btn);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _calMonthWarnChipHtml();
+        if (tmp.firstChild) wrap.prepend(tmp.firstChild);
     }
 
     /* Status filter — a sibling of the month pill that splits the Sheet tab

@@ -1587,15 +1587,22 @@
         .cal-filter-empty-sub .cal-link { background: none; border: none; padding: 0; color: var(--text-primary); font-weight: 700; cursor: pointer; text-decoration: underline; font-size: inherit; font-family: inherit; }
         /* Orange info icon hanging off the LEFT of the month pill: the filter
            is hiding cards that are anomalous (recently edited, or unfinished
-           in a past month). The hover tooltip carries the detail; clicking
-           jumps to All months. Absolutely positioned so appearing/vanishing
-           never shifts the dropdown — and an icon, not a banner row, because
-           hidden cards in other months are normal and must not cost height. */
+           in a past month). Hover previews the detail popover; clicking pins
+           it open until a click lands elsewhere — it never changes the
+           filter. Absolutely positioned so appearing/vanishing never shifts
+           the dropdown — and an icon, not a banner row, because hidden cards
+           in other months are normal and must not cost height. */
         .cal-month-warn { position: absolute; left: -25px; top: 50%; transform: translateY(-50%);
             width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
             border: none; background: none; padding: 0; color: #ea580c; cursor: pointer; }
         .cal-month-warn svg { width: 17px; height: 17px; }
         .cal-month-warn:hover { color: #9a3412; }
+        .cal-month-warn-pop { display: none; position: absolute; top: calc(100% + 8px); left: -25px; z-index: 60;
+            width: 270px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;
+            padding: 10px 12px; color: #9a3412; font-size: 0.78rem; line-height: 1.5; text-align: left;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.1); }
+        .cal-month-warn-pop > div + div { margin-top: 6px; }
+        .cal-month-warn:hover + .cal-month-warn-pop, .cal-month-warn-pop.is-open { display: block; }
         .cal-refresh-btn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-muted); cursor: pointer; }
         .cal-refresh-btn:hover { color: var(--text-primary); border-color: #aaa; }
         .cal-embed-title { display: flex; align-items: baseline; gap: 9px; }
@@ -14151,31 +14158,56 @@
     function _calMonthWarnSvg() {
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
     }
-    /* The info icon markup — rendered inside #calMonthFilterWrap so the
-       pill-refresh replaceWith() paths recreate it together with the pill;
-       absolutely positioned (left of the pill), so DOM order inside the
-       wrap doesn't matter and it never shifts the dropdown. */
+    /* The info icon + its popover — rendered inside #calMonthFilterWrap so
+       the pill-refresh replaceWith() paths recreate them with the pill; both
+       absolutely positioned (left of / below the pill), so DOM order inside
+       the wrap doesn't matter and they never shift the dropdown. Hover shows
+       the popover via CSS; click pins it open (see _calToggleMonthWarnPop) —
+       it deliberately does NOT touch the filter. */
     function _calMonthWarnChipHtml() {
         const msgs = _calHiddenMonthWarnings();
         if (!msgs.length) return '';
-        return `<button type="button" class="cal-month-warn" id="calMonthWarnIcon" title="${_calEscAttr(msgs.join(' '))}" aria-label="Some hidden cards need attention — show all months" onclick="event.stopPropagation();onCalMonthFilterChange('all')">${_calMonthWarnSvg()}</button>`;
+        return `<button type="button" class="cal-month-warn" id="calMonthWarnIcon" aria-label="Some hidden cards need attention" aria-describedby="calMonthWarnPop" onclick="_calToggleMonthWarnPop(event)">${_calMonthWarnSvg()}</button><div class="cal-month-warn-pop" id="calMonthWarnPop" role="tooltip">${_calMonthWarnPopBody(msgs)}</div>`;
     }
-    /* Keep the info icon in sync with the data between pill refreshes.
-       Called from _calRenderBody so async post loads and edits update it. */
+    function _calMonthWarnPopBody(msgs) {
+        return msgs.map(m => `<div>${_calEsc(m)}</div>`).join('');
+    }
+    /* Click pins the popover open until a click lands anywhere outside it. */
+    function _calToggleMonthWarnPop(e) {
+        if (e) e.stopPropagation();
+        const pop = document.getElementById('calMonthWarnPop');
+        if (!pop) return;
+        const open = pop.classList.toggle('is-open');
+        if (open) {
+            const close = (ev) => {
+                if (ev.target && ev.target.closest && ev.target.closest('#calMonthWarnPop, #calMonthWarnIcon')) return;
+                pop.classList.remove('is-open');
+                document.removeEventListener('click', close);
+            };
+            setTimeout(() => document.addEventListener('click', close), 0);
+        }
+    }
+    /* Keep the info icon + popover in sync with the data between pill
+       refreshes. Called from _calRenderBody so async post loads and edits
+       update them. An OPEN popover only gets its text swapped — never
+       removed mid-read unless the warning itself is gone. */
     function _calSyncMonthWarnIcon() {
         const wrap = document.getElementById('calMonthFilterWrap');
-        const existing = document.getElementById('calMonthWarnIcon');
-        if (!wrap) { if (existing) existing.remove(); return; }
+        const icon = document.getElementById('calMonthWarnIcon');
+        const pop  = document.getElementById('calMonthWarnPop');
+        if (!wrap) { if (icon) icon.remove(); if (pop) pop.remove(); return; }
         const msgs = _calHiddenMonthWarnings();
-        if (!msgs.length) { if (existing) existing.remove(); return; }
-        const title = msgs.join(' ');
-        if (existing) {
-            if (existing.getAttribute('title') !== title) existing.setAttribute('title', title);
+        if (!msgs.length) { if (icon) icon.remove(); if (pop) pop.remove(); return; }
+        if (icon && pop) {
+            const body = _calMonthWarnPopBody(msgs);
+            if (pop.innerHTML !== body) pop.innerHTML = body;
             return;
         }
+        if (icon) icon.remove();
+        if (pop) pop.remove();
         const tmp = document.createElement('div');
         tmp.innerHTML = _calMonthWarnChipHtml();
-        if (tmp.firstChild) wrap.prepend(tmp.firstChild);
+        wrap.prepend(...Array.from(tmp.children));
     }
 
     /* Status filter — a sibling of the month pill that splits the Sheet tab

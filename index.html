@@ -12089,10 +12089,19 @@
     } catch {}
     /* Linear is the source of truth: when a sub-issue is freshly linked to a
        card, pull its current Linear status onto the card. Suppresses the
-       calendar→Linear writeback so the issue is not bounced to another state. */
+       calendar→Linear writeback so the issue is not bounced to another state.
+
+       If the pasted link is a PARENT issue (the webhook returns sub-issues
+       for it), the card is re-pointed at the matching sub-issue instead.
+       Status pushes, the URGENT ping and the editor Workload all operate on
+       sub-issues only — a card left on the parent pushes "Tweaks Needed"
+       onto an issue the Workload never reads (it filters to sub-issues), so
+       the editor never sees the revision request. This is exactly how
+       Kasper's personal-calendar tweaks went missing from the Workload. */
     async function _calSyncStatusFromLinear(pid, issueUrl, comp) {
         const which = (comp === 'graphic') ? 'graphic' : 'video';
         let mapped;
+        let resolvedUrl = '';
         try {
             const resp = await fetch(LINEAR_SUBISSUES_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -12100,25 +12109,52 @@
             });
             const json = await resp.json();
             if (!json.ok || !json.parent) return;
-            mapped = _calMapLinearStatusStrict(json.parent.status);
+            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            if (subs.length) {
+                // Parent link pasted. Resolve to the sub-issue this slot is
+                // for: a lone sub-issue wins outright, otherwise match by
+                // title the same way the bulk-link picker labels them.
+                const want = which === 'graphic' ? /graphic|design/i : /video/i;
+                const titled = subs.filter(s => want.test(String(s.title || '')));
+                const pick = subs.length === 1 ? subs[0] : (titled.length === 1 ? titled[0] : null);
+                if (!pick) {
+                    showNotify('That’s a parent issue', 'This Linear link is a parent with ' + subs.length + ' sub-issues and none is an obvious ' + which + ' match. Paste the ' + (which === 'graphic' ? 'GRA graphic' : 'VID video') + ' sub-issue link itself, or the editor’s workload won’t see this card.');
+                    return;
+                }
+                resolvedUrl = String(pick.url);
+                mapped = _calMapLinearStatusStrict(pick.status);
+            } else {
+                mapped = _calMapLinearStatusStrict(json.parent.status);
+            }
         } catch (e) { return; }
         const post = calState.posts.find(p => p.id === pid);
-        if (!post || !mapped) return;
+        if (!post) return;
+        const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        let relinked = false;
+        if (resolvedUrl && String(post[fld] || '').trim() !== resolvedUrl) {
+            post[fld] = resolvedUrl;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid][fld] = resolvedUrl;
+            relinked = true;
+        }
         const subKey = which + '_status';
         const current = _calNormStatus(post[subKey] || '');
-        if (current === mapped) return;
         // Posted has no Linear equivalent (Linear stays at Approved) — don't
         // bounce a Posted card back to Approved. Scheduled now has a Linear
         // state and flows normally.
-        if (mapped === 'Approved' && current === 'Posted') return;
-        post[subKey] = mapped;
-        post.status = computeOverallStatus(post);
-        _calNoLinearPush.add(pid);
-        _calNoLinearPush.add(pid + '|' + which);
-        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-        _calPendingEdits[pid][subKey] = mapped;
-        _calPendingEdits[pid].status = post.status;
-        _calClearStaleApprovals(post, _calPendingEdits[pid]);
+        const adopt = mapped && current !== mapped
+            && !(mapped === 'Approved' && current === 'Posted');
+        if (!adopt && !relinked) return;
+        if (adopt) {
+            post[subKey] = mapped;
+            post.status = computeOverallStatus(post);
+            _calNoLinearPush.add(pid);
+            _calNoLinearPush.add(pid + '|' + which);
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid][subKey] = mapped;
+            _calPendingEdits[pid].status = post.status;
+            _calClearStaleApprovals(post, _calPendingEdits[pid]);
+        }
         _calFlushCardSave(pid);
         _calRenderBody({ preserveScroll: true });
     }

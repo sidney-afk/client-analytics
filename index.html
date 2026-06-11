@@ -2208,6 +2208,29 @@
         .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: #fff; border-color: var(--text-primary); }
         .cal-fld-tweaks { line-height: 1.5; resize: none; scrollbar-width: thin; }
 
+        /* Alt caption — optional second platform-specific caption on a card.
+           Rides inside the same caption component (one caption_status, one
+           tweaks thread, one client approval); only the text differs. */
+        .cal-altcap-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px; background: none; border: 1px dashed var(--border); color: var(--text-muted); font-family: inherit; font-size: 0.66rem; font-weight: 700; cursor: pointer; transition: color 0.12s, border-color 0.12s; }
+        .cal-altcap-add:hover { color: var(--text-primary); border-color: #999; }
+        .cal-altcap-add svg { width: 10px; height: 10px; }
+        .cal-altcap-wrap { display: flex; flex-direction: column; gap: 3px; }
+        .cal-altcap-head { display: flex; align-items: center; gap: 6px; }
+        .cal-altcap-label { font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
+        .cal-altcap-platform { font-family: inherit; font-size: 0.66rem; font-weight: 700; color: var(--text-secondary); background: #f3f3f1; border: 1px solid transparent; border-radius: 6px; padding: 2px 4px; outline: 0; cursor: pointer; }
+        .cal-altcap-platform:focus { background: #fff; border-color: var(--text-primary); }
+        .cal-altcap-platform:disabled { cursor: default; opacity: 0.7; }
+        .cal-altcap-del { margin-left: auto; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; padding: 0; background: none; border: 0; border-radius: 5px; color: var(--text-muted); cursor: pointer; }
+        .cal-altcap-del:hover { color: #b91c1c; background: rgba(185,28,28,0.08); }
+        .cal-altcap-del svg { width: 9px; height: 9px; }
+
+        /* Dual-caption preview on the review surfaces — small platform tag
+           above each caption block. */
+        .cal-review-preview-captions { width: 100%; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+        .cal-review-caption-tag { align-self: flex-start; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); background: rgba(0,0,0,0.05); border-radius: 99px; padding: 2px 8px; white-space: nowrap; }
+        .kasper-hero-caption-multi { display: flex; flex-direction: column; gap: 6px; }
+        .kasper-hero-caption-multi .cal-review-caption-tag { background: rgba(92,68,38,0.10); color: #5c4426; }
+
         .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; min-height: 0; }
         .cal-card-saving { font-size: 0.64rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
         button.cal-card-saving { background: none; border: 0; padding: 0; margin: 0; font-family: inherit; cursor: pointer; }
@@ -10519,7 +10542,8 @@
        Storage: SyncView Calendar Sheet, one tab per client named Calendar_<slug>
        (slug = wlNormalizeClient, e.g. "Baya Voce" -> "bayavoce").
        Schema: id, order_index, scheduled_date, name, asset_url, thumbnail_url,
-       caption, cta, tweaks, status, linear_issue_id, kasper_approved_at,
+       caption, caption_alt, caption_alt_platform, cta, tweaks, status,
+       linear_issue_id, kasper_approved_at,
        posted_at, updated_at,
        video_status, graphic_status, caption_status,
        graphic_linear_issue_id,
@@ -10831,6 +10855,80 @@
         const raw = String((post && post.platforms) || '').trim();
         if (!raw) return [];
         return raw.split(',').map(s => s.trim().toLowerCase()).filter(k => CAL_PLATFORM_BY_KEY[k]);
+    }
+    /* Alt caption — a second, platform-specific caption (e.g. a LinkedIn
+       rewrite) stored in caption_alt / caption_alt_platform. It is NOT a
+       fourth component: it shares the caption sub-status, tweaks thread and
+       client approval, so the approval flow is untouched — both captions
+       are reviewed and approved together. */
+    function _calAltCapLabel(post) {
+        const key = String((post && post.caption_alt_platform) || '').trim().toLowerCase();
+        const p = CAL_PLATFORM_BY_KEY[key];
+        return p ? p.label : 'Alt';
+    }
+    function _calAltCapHtml(pid, p, editableText, isBlank) {
+        const alt = String(p.caption_alt || '');
+        const hasAlt = !!alt.trim();
+        // Clients never add an alt caption; they only see (and in collab
+        // mode edit) one the SMM created. Blank cards stay minimal too.
+        if (!hasAlt && (_isClientLink || isBlank)) return '';
+        const escPid = _calEscAttr(pid);
+        const platKey = String(p.caption_alt_platform || '').trim().toLowerCase() || 'linkedin';
+        const options = CAL_PLATFORMS.map(pl => `<option value="${pl.key}"${pl.key === platKey ? ' selected' : ''}>${_calEsc(pl.label)}</option>`).join('');
+        const addBtn = _isClientLink ? '' : `<button type="button" class="cal-altcap-add" data-altcap-add="${escPid}"${hasAlt ? ' hidden' : ''} onclick="_calAltCapReveal('${escPid}')" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>`;
+        const delBtn = _isClientLink ? '' : `<button type="button" class="cal-altcap-del" onclick="_calAltCapRemove('${escPid}')" title="Remove the alt caption"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`;
+        return `${addBtn}<div class="cal-altcap-wrap" data-altcap-wrap="${escPid}"${hasAlt ? '' : ' hidden'}>
+            <div class="cal-altcap-head">
+                <span class="cal-altcap-label">Alt caption</span>
+                <select class="cal-altcap-platform" data-pid="${escPid}" data-fld="caption_alt_platform" onchange="_calOnFieldBlur(this)"${!editableText ? ' disabled' : ''}>${options}</select>
+                ${delBtn}
+            </div>
+            <div class="cal-cap-wrap">
+                <textarea class="cal-fld-cap" rows="3" data-pid="${escPid}" data-fld="caption_alt" placeholder="Caption for this platform" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
+                <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
+            </div>
+        </div>`;
+    }
+    /* Typing in the alt caption also persists the platform picker's current
+       value, so the label always travels with the text even if the SMM never
+       touched the (defaulted) dropdown. */
+    function _calOnAltCapInput(ta) {
+        const pid = ta.dataset.pid;
+        const wrap = ta.closest('.cal-altcap-wrap');
+        const sel = wrap ? wrap.querySelector('select[data-fld="caption_alt_platform"]') : null;
+        if (sel && pid) {
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].caption_alt_platform = sel.value;
+        }
+        _calOnCaptionInput(ta);
+    }
+    function _calAltCapReveal(pid) {
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (!card) return;
+        const btn = card.querySelector(`[data-altcap-add="${pid}"]`);
+        const wrap = card.querySelector(`[data-altcap-wrap="${pid}"]`);
+        if (btn) btn.hidden = true;
+        if (wrap) {
+            wrap.hidden = false;
+            const ta = wrap.querySelector('textarea');
+            if (ta) ta.focus();
+        }
+    }
+    function _calAltCapRemove(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (post) { post.caption_alt = ''; post.caption_alt_platform = ''; }
+        if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+        _calPendingEdits[pid].caption_alt = '';
+        _calPendingEdits[pid].caption_alt_platform = '';
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
+        if (card) {
+            const wrap = card.querySelector(`[data-altcap-wrap="${pid}"]`);
+            const btn = card.querySelector(`[data-altcap-add="${pid}"]`);
+            if (wrap) { wrap.hidden = true; const ta = wrap.querySelector('textarea'); if (ta) ta.value = ''; }
+            if (btn) btn.hidden = false;
+        }
+        if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
+        _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
     /* Per-card color tag — for grouping into batches. Four named colors plus
        the empty "no color" state. Persisted as post.color via the upsert. */
@@ -13960,7 +14058,7 @@
         // still Tweaks Needed — the overall stays Tweaks but the pill
         // colour must update).
         const keys = ['id','order_index','scheduled_date','status','name',
-                      'asset_url','thumbnail_url','caption','cta',
+                      'asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','cta',
                       'linear_issue_id','graphic_linear_issue_id',
                       'video_status','graphic_status','caption_status',
                       'updated_at'];
@@ -14787,6 +14885,7 @@
                     <button type="button" class="cal-cap-toggle" tabindex="-1" hidden onclick="_calToggleCaption(this)" title="Expand / collapse"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l5 5 5-5"/></svg></button>
                     ${(!_isClientLink && !isBlank) ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : ''}
                 </div>
+                ${_calAltCapHtml(pid, p, editableText, isBlank)}
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
                 <div class="cal-card-foot">
@@ -17254,8 +17353,17 @@
             return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
         }
         const cap = String(p.caption || '').trim();
-        if (!cap) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
-        return `<div class="cal-review-preview-caption">${_calEsc(cap)}</div>`;
+        const alt = String(p.caption_alt || '').trim();
+        if (!cap && !alt) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
+        if (!alt) return `<div class="cal-review-preview-caption">${_calEsc(cap)}</div>`;
+        // Two captions — both belong to the same caption component, so one
+        // Approve / Request change covers both. Tag each with its platform.
+        return `<div class="cal-review-preview-captions">
+            <span class="cal-review-caption-tag">Main caption</span>
+            <div class="cal-review-preview-caption">${cap ? _calEsc(cap) : '<em>No caption yet.</em>'}</div>
+            <span class="cal-review-caption-tag">${_calEsc(_calAltCapLabel(p))} caption</span>
+            <div class="cal-review-preview-caption">${_calEsc(alt)}</div>
+        </div>`;
     }
 
     function _calWireReviewExpand(/* root */) { /* no-op — handlers are inline */ }
@@ -22122,8 +22230,15 @@
         }
         // caption
         const cap = String(p.caption || '').trim();
-        if (!cap) return `<div class="kasper-hero-caption-card kasper-hero-caption-empty">No caption yet.</div>`;
-        return `<div class="kasper-hero-caption-card">${_calEsc(cap)}</div>`;
+        const alt = String(p.caption_alt || '').trim();
+        if (!cap && !alt) return `<div class="kasper-hero-caption-card kasper-hero-caption-empty">No caption yet.</div>`;
+        if (!alt) return `<div class="kasper-hero-caption-card">${_calEsc(cap)}</div>`;
+        return `<div class="kasper-hero-caption-card kasper-hero-caption-multi">
+            <span class="cal-review-caption-tag">Main caption</span>
+            <div>${cap ? _calEsc(cap) : '<em>No caption yet.</em>'}</div>
+            <span class="cal-review-caption-tag">${_calEsc(_calAltCapLabel(p))} caption</span>
+            <div>${_calEsc(alt)}</div>
+        </div>`;
     }
 
     function _kasperHeroPanel(item, comp) {

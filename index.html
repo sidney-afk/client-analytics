@@ -1506,6 +1506,13 @@
         .cal-zoom button svg { width: 13px; height: 13px; }
         body.cal-modal-open { overflow: hidden; }
         .cal-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; margin: 8px 0 16px; flex-wrap: wrap; }
+        /* Calendar page only: collapse the dead vertical space above and below
+           the toolbar so the board sits higher and the whole view is shorter.
+           Scoped to body.cal-page so the embedded client calendar and every
+           other page keep the original .main gutter. */
+        body.cal-page .main { padding-top: 12px; }
+        body.cal-page .cal-view { padding-top: 0; }
+        body.cal-page .cal-toolbar { margin: 0 0 8px; }
         .cal-toolbar-left, .cal-toolbar-mid, .cal-toolbar-right { display: flex; align-items: center; gap: 10px; }
         .cal-toolbar-left  { flex: 1 1 380px; min-width: 0; }
         .cal-toolbar-mid   { flex: 0 0 auto; }
@@ -10534,6 +10541,11 @@
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
+        // The standalone Calendar page hides the page header (pageTop) and drops
+        // the toolbar straight under the sticky nav, so the global .main top
+        // gutter reads as dead space. Tag the body so we can tighten that band
+        // (and the toolbar margins) for this page only — see body.cal-page CSS.
+        document.body.classList.toggle('cal-page', page === 'calendar');
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.

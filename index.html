@@ -14890,7 +14890,12 @@
         // link, surface a branded click-to-open card instead of the generic "no
         // media" icon (Frame.io exposes no public image URL and blocks embedding,
         // so a real inline preview isn't possible — see _calThumbFrameHtml).
-        const frame = (!url && raw && _calIsFrameLink(raw)) ? _calFrameOpenUrl(raw) : '';
+        // Only the ACTUAL thumbnail field qualifies: unlike the <img> derivation
+        // above, this must never fall back to asset_url, or a card with a
+        // Frame.io VIDEO and no thumbnail shows an "Open thumbnail" card that
+        // opens the video.
+        const thumbRaw = String((p && p.thumbnail_url) || '').trim();
+        const frame = (!url && thumbRaw && _calIsFrameLink(thumbRaw)) ? _calFrameOpenUrl(thumbRaw) : '';
         return { url, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame };
     }
     function _calFrameMarkSvg() {

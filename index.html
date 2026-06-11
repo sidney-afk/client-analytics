@@ -2243,12 +2243,28 @@
         .cal-cap-tab-menu-ico { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
         .cal-cap-tab-menu-ico svg { width: 11px; height: 11px; }
 
-        /* Dual-caption preview on the review surfaces — small platform tag
-           above each caption block. */
-        .cal-review-preview-captions { width: 100%; display: flex; flex-direction: column; gap: 6px; text-align: left; }
-        .cal-review-caption-tag { align-self: flex-start; font-size: 0.6rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); background: rgba(0,0,0,0.05); border-radius: 99px; padding: 2px 8px; white-space: nowrap; }
-        .kasper-hero-caption-multi { display: flex; flex-direction: column; gap: 6px; }
-        .kasper-hero-caption-multi .cal-review-caption-tag { background: rgba(92,68,38,0.10); color: #5c4426; }
+        /* Dual-caption preview on the review surfaces — each caption sits in
+           its own boxed card with an icon header (neutral text icon for the
+           main caption, the platform's coloured icon for the alt), so a
+           client immediately reads them as two separate deliverables. */
+        .cal-review-preview-captions { width: 100%; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+        .cal-review-cap-card { border: 1px solid rgba(17,17,16,0.10); border-radius: 10px; background: var(--white); overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+        .cal-review-cap-head { display: flex; align-items: center; gap: 7px; padding: 7px 11px; background: rgba(17,17,16,0.035); border-bottom: 1px solid rgba(17,17,16,0.07);
+            font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); }
+        .cal-review-cap-ico { width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; flex-shrink: 0; }
+        .cal-review-cap-ico svg { width: 10px; height: 10px; }
+        .cal-review-cap-card .cal-review-preview-caption { padding: 9px 11px; }
+        /* Keep the boxes readable on the amber "changes requested" panel. */
+        .cal-review-panel[data-state="tweaks"] .cal-review-cap-card { background: rgba(255,255,255,0.65); border-color: rgba(124,45,18,0.18); }
+        .cal-review-panel[data-state="tweaks"] .cal-review-cap-head { background: rgba(124,45,18,0.06); border-bottom-color: rgba(124,45,18,0.12); color: #7c2d12; }
+        /* Kasper hero variant — same labelled sections inside the parchment
+           card, separated by a dashed rule. The card itself is pre-wrap (for
+           the single-caption case), so the multi layout must reset it or the
+           template's inter-tag newlines render as giant blank gaps. */
+        .kasper-hero-caption-multi { display: flex; flex-direction: column; gap: 12px; white-space: normal; }
+        .kasper-hero-cap-text { white-space: pre-wrap; }
+        .kasper-hero-cap-sec + .kasper-hero-cap-sec { border-top: 1px dashed rgba(92,68,38,0.28); padding-top: 12px; }
+        .kasper-hero-cap-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(92,68,38,0.75); }
 
         .cal-card-foot { display: flex; align-items: center; justify-content: flex-start; min-height: 0; }
         .cal-card-saving { font-size: 0.64rem; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; text-transform: uppercase; }
@@ -10888,6 +10904,23 @@
         const p = CAL_PLATFORM_BY_KEY[key];
         return p ? p.label : 'Alt';
     }
+    /* Label + icon + colour for one caption section in a review preview.
+       `which` = 'main' | 'alt'. Main gets a neutral text glyph; the alt gets
+       its platform's coloured icon so the two read as clearly different. */
+    function _calCapSecMeta(which, p) {
+        const textIco = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>';
+        if (which !== 'alt') return { label: 'Main caption', ico: textIco, color: '#111110' };
+        const key = String((p && p.caption_alt_platform) || '').trim().toLowerCase();
+        const pl = CAL_PLATFORM_BY_KEY[key];
+        return { label: (pl ? pl.label : 'Alt') + ' caption', ico: pl ? pl.icon : textIco, color: pl ? pl.color : '#111110' };
+    }
+    function _calReviewCapCardHtml(which, p, text) {
+        const m = _calCapSecMeta(which, p);
+        return `<div class="cal-review-cap-card">
+            <div class="cal-review-cap-head"><span class="cal-review-cap-ico" style="background:${m.color}">${m.ico}</span>${_calEsc(m.label)}</div>
+            <div class="cal-review-preview-caption">${text ? _calEsc(text) : '<em>No caption yet.</em>'}</div>
+        </div>`;
+    }
     function _calAltCapPlatKey(pid, post) {
         // The saved platform is only authoritative once alt TEXT is saved
         // with it. A platform column with no text (e.g. residue from the
@@ -17511,12 +17544,11 @@
         if (!cap && !alt) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
         if (!alt) return `<div class="cal-review-preview-caption">${_calEsc(cap)}</div>`;
         // Two captions — both belong to the same caption component, so one
-        // Approve / Request change covers both. Tag each with its platform.
+        // Approve / Request change covers both. Each gets its own boxed,
+        // icon-labelled card so the split is unmissable.
         return `<div class="cal-review-preview-captions">
-            <span class="cal-review-caption-tag">Main caption</span>
-            <div class="cal-review-preview-caption">${cap ? _calEsc(cap) : '<em>No caption yet.</em>'}</div>
-            <span class="cal-review-caption-tag">${_calEsc(_calAltCapLabel(p))} caption</span>
-            <div class="cal-review-preview-caption">${_calEsc(alt)}</div>
+            ${_calReviewCapCardHtml('main', p, cap)}
+            ${_calReviewCapCardHtml('alt', p, alt)}
         </div>`;
     }
 
@@ -22387,12 +22419,11 @@
         const alt = String(p.caption_alt || '').trim();
         if (!cap && !alt) return `<div class="kasper-hero-caption-card kasper-hero-caption-empty">No caption yet.</div>`;
         if (!alt) return `<div class="kasper-hero-caption-card">${_calEsc(cap)}</div>`;
-        return `<div class="kasper-hero-caption-card kasper-hero-caption-multi">
-            <span class="cal-review-caption-tag">Main caption</span>
-            <div>${cap ? _calEsc(cap) : '<em>No caption yet.</em>'}</div>
-            <span class="cal-review-caption-tag">${_calEsc(_calAltCapLabel(p))} caption</span>
-            <div>${_calEsc(alt)}</div>
-        </div>`;
+        const sec = (which, text) => {
+            const m = _calCapSecMeta(which, p);
+            return `<div class="kasper-hero-cap-sec"><div class="kasper-hero-cap-head"><span class="cal-review-cap-ico" style="background:${m.color}">${m.ico}</span>${_calEsc(m.label)}</div><div class="kasper-hero-cap-text">${text ? _calEsc(text) : '<em>No caption yet.</em>'}</div></div>`;
+        };
+        return `<div class="kasper-hero-caption-card kasper-hero-caption-multi">${sec('main', cap)}${sec('alt', alt)}</div>`;
     }
 
     function _kasperHeroPanel(item, comp) {

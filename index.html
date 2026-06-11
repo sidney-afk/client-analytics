@@ -3687,6 +3687,13 @@
         .sm-readonly-direction { font-size:0.84rem; line-height:1.55; color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
         .sm-readonly-direction.is-empty { color:var(--text-muted); font-style:italic; }
 
+        /* Creative-direction client-visibility toggle (editor only) */
+        .sm-dir-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+        .sm-dir-toggle { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:999px; padding:3px 9px; font-family:inherit; font-size:0.6rem; font-weight:700; letter-spacing:0.01em; text-transform:none; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+        .sm-dir-toggle:hover { background:var(--bg); color:var(--text-primary); }
+        .sm-dir-toggle svg { width:12px; height:12px; flex:none; }
+        .sm-dir-toggle.is-hidden { background:#fef3c7; color:#92400e; border-color:transparent; }
+
         .sm-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; padding-top:2px; }
         .sm-comments-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:8px; border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:inherit; font-size:0.74rem; font-weight:700; transition:all 0.13s; position:relative; }
         .sm-comments-btn:hover { border-color:#bbb; color:var(--text-primary); }
@@ -9766,6 +9773,7 @@
     function smClientSlug(name){ return wlNormalizeClient(name); }
     function _smMintId(p){ return p + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
     function _smStringify(arr){ try { return JSON.stringify(Array.isArray(arr) ? arr : []); } catch(e){ return '[]'; } }
+    function _smTruthy(v){ if(v === true) return true; if(v == null || v === false) return false; return /^(1|true|yes|y)$/i.test(String(v).trim()); }
     function _smFind(id){ return smState.samples.find(x => x.id === id); }
     function _smCssId(id){ return (window.CSS && CSS.escape) ? CSS.escape(id) : id; }
     function _smClientSurface(){ return _isClientLink || smState.mode === 'client'; }
@@ -9918,6 +9926,7 @@
             label: row.label || '',
             media_url: row.media_url || '',
             creative_direction: row.creative_direction || row.rationale || '',
+            hide_creative_direction: _smTruthy(row.hide_creative_direction),
             comments: comments,
             status: row.status || 'Active',
             approval: _smApprNorm(row.approval),
@@ -10193,9 +10202,10 @@
                     <button class="sm-media-save" type="button" onclick="_smOnMediaSave(this)">Save</button>
                 </div>
             </div>`;
+        const hideDir = !!s.hide_creative_direction;
         const directionField = ro
-            ? `<div class="sm-field"><div class="sm-field-label">Creative direction</div><div class="sm-readonly-direction${dir ? '' : ' is-empty'}">${dir ? _smEsc(dir) : 'No notes yet'}</div></div>`
-            : `<div class="sm-field"><div class="sm-field-label">Creative direction</div><textarea class="sm-textarea" rows="3" data-id="${id}" placeholder="What's the style / approach for this ${isReel ? 'reel' : 'thumbnail'}?" oninput="_smOnDirInput(this)" onblur="_smOnDirBlur(this)">${_smEsc(dir)}</textarea></div>`;
+            ? (hideDir ? '' : `<div class="sm-field"><div class="sm-field-label">Creative direction</div><div class="sm-readonly-direction${dir ? '' : ' is-empty'}">${dir ? _smEsc(dir) : 'No notes yet'}</div></div>`)
+            : `<div class="sm-field"><div class="sm-field-label sm-dir-head"><span>Creative direction</span><button type="button" class="sm-dir-toggle${hideDir ? ' is-hidden' : ''}" data-id="${id}" onclick="_smToggleDir(this)" title="${hideDir ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it'}">${_smEyeIcon(hideDir)}<span>${hideDir ? 'Hidden from client' : 'Visible to client'}</span></button></div><textarea class="sm-textarea" rows="3" data-id="${id}" placeholder="What's the style / approach for this ${isReel ? 'reel' : 'thumbnail'}?" oninput="_smOnDirInput(this)" onblur="_smOnDirBlur(this)">${_smEsc(dir)}</textarea></div>`;
         return `<div class="sm-card" data-id="${id}"${ro ? '' : ' draggable="true"'}>
             <div class="sm-card-top">
                 ${grip}
@@ -10247,6 +10257,22 @@
     function _smOnLabelBlur(el){ const s = _smFind(el.dataset.id); if(!s) return; const v = el.value.trim(); if(v === s.label) return; s.label = v; _smFlushCardSave(s.id); }
     function _smOnDirInput(el){ const s = _smFind(el.dataset.id); if(!s) return; s.creative_direction = el.value; _smScheduleSave(s.id, 900); }
     function _smOnDirBlur(el){ const s = _smFind(el.dataset.id); if(!s) return; s.creative_direction = el.value; _smFlushCardSave(s.id); }
+    function _smEyeIcon(hidden){
+        return hidden
+            ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>'
+            : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
+    }
+    // Toggle whether the client sees this sample's creative direction. Editor-only.
+    function _smToggleDir(btn){
+        const s = _smFind(btn.dataset.id); if(!s) return;
+        s.hide_creative_direction = !s.hide_creative_direction;
+        const hidden = s.hide_creative_direction;
+        btn.classList.toggle('is-hidden', hidden);
+        btn.title = hidden ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it';
+        btn.innerHTML = _smEyeIcon(hidden) + '<span>' + (hidden ? 'Hidden from client' : 'Visible to client') + '</span>';
+        _smFlash(hidden ? 'Creative direction hidden from client' : 'Creative direction now visible to client');
+        _smFlushCardSave(s.id);
+    }
     function _smOnMediaSave(btn){
         const card = btn.closest('.sm-card'); if(!card) return;
         const s = _smFind(card.dataset.id); if(!s) return;
@@ -10265,7 +10291,7 @@
         const sameKind = smState.samples.filter(s => s.kind === kind).length;
         const maxOrder = smState.samples.reduce((m,s) => Math.max(m, Number(s.order_index || 0)), 0);
         const now = new Date().toISOString();
-        const blank = { id: _smMintId('s'), kind, order_index: maxOrder + 1, label: (kind === 'reel' ? 'Reel ' : 'Thumbnail ') + (sameKind + 1), media_url: '', creative_direction: '', comments: [], status: 'Active', approval: 'draft', kasper_approved_at: '', kasper_approved_by: '', client_approved_at: '', client_approved_by: '', created_at: now, updated_at: now };
+        const blank = { id: _smMintId('s'), kind, order_index: maxOrder + 1, label: (kind === 'reel' ? 'Reel ' : 'Thumbnail ') + (sameKind + 1), media_url: '', creative_direction: '', hide_creative_direction: false, comments: [], status: 'Active', approval: 'draft', kasper_approved_at: '', kasper_approved_by: '', client_approved_at: '', client_approved_by: '', created_at: now, updated_at: now };
         smState.samples.push(blank);
         _smRenderBody();
         setTimeout(() => {
@@ -10333,7 +10359,7 @@
         s.updated_at = new Date().toISOString();
         _smCacheWrite(smClientSlug(client), smState.samples);
         _smSetSaving(id, 'saving');
-        const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, comments: _smStringify(s.comments), status: s.status || 'Active', approval: _smApprNorm(s.approval), kasper_approved_at: s.kasper_approved_at || '', kasper_approved_by: s.kasper_approved_by || '', client_approved_at: s.client_approved_at || '', client_approved_by: s.client_approved_by || '', created_at: s.created_at, updated_at: s.updated_at };
+        const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, hide_creative_direction: s.hide_creative_direction ? 'TRUE' : 'FALSE', comments: _smStringify(s.comments), status: s.status || 'Active', approval: _smApprNorm(s.approval), kasper_approved_at: s.kasper_approved_at || '', kasper_approved_by: s.kasper_approved_by || '', client_approved_at: s.client_approved_at || '', client_approved_by: s.client_approved_by || '', created_at: s.created_at, updated_at: s.updated_at };
         try {
             const resp = await fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: wire }) });
             if(!resp.ok) throw new Error('HTTP ' + resp.status);

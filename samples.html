@@ -82,13 +82,6 @@ textarea:focus, input[type=text]:focus{outline:none; border-color:var(--accent);
 textarea::placeholder, input::placeholder{color:var(--text-muted);}
 textarea[readonly], input[readonly]{cursor:default; background:var(--bg) !important; border-color:var(--border) !important;}
 
-/* rationale visibility toggle */
-.rationale-head{display:flex; align-items:center; justify-content:space-between; gap:8px;}
-.vis-toggle{display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:99px; padding:3px 9px; font-family:var(--font); font-size:0.6rem; font-weight:700; letter-spacing:0.01em; text-transform:none; cursor:pointer; transition:all 0.15s; white-space:nowrap;}
-.vis-toggle:hover{background:var(--bg); color:var(--text-primary);}
-.vis-toggle svg{width:12px; height:12px; flex:none;}
-.vis-toggle.hidden-state{background:var(--accent-soft); color:var(--accent); border-color:transparent;}
-
 .media-row{display:flex; gap:6px;}
 .media-row input{flex:1;}
 .icon-btn{padding:0 10px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:var(--font); font-size:0.72rem; font-weight:600;}
@@ -213,7 +206,7 @@ var CONFIG = {
 
 var state = {
   mode: 'editor',                         // 'editor' | 'viewer'
-  reels: [],                              // [{slot_id, label, media_url, rationale, hide_rationale}]
+  reels: [],                              // [{slot_id, label, media_url, rationale}]
   thumbs: [],
   comments: {}                            // { slot_id: [{comment_id, text, author, created_at}] }
 };
@@ -236,12 +229,6 @@ function flash(msg, isErr){
 function uid(){ return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7); }
 function nowIso(){ return new Date().toISOString(); }
 function escAttr(s){ return String(s||'').replace(/"/g,'&quot;'); }
-
-/* eye icons for the rationale visibility toggle */
-var EYE_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>';
-var EYE_OFF_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
 
 /* ----------- media URL helpers ----------- */
 // Frame.io: convert any share/review/short link to a clean embed URL.
@@ -288,8 +275,7 @@ function defaultSlots(type, n){
       type: type,
       label: (type==='reel' ? 'Reel ' : 'Thumbnail ') + i,
       media_url: '',
-      rationale: '',
-      hide_rationale: false        // when true, hidden from the client view
+      rationale: ''
     });
   }
   return out;
@@ -379,9 +365,6 @@ async function loadAll(){
       if(r.label)      slot.label = r.label;
       if(r.media_url)  slot.media_url = r.media_url;
       if(r.rationale)  slot.rationale = r.rationale;
-      if(r.hide_rationale !== undefined && String(r.hide_rationale).trim() !== ''){
-        slot.hide_rationale = /^(1|true|yes)$/i.test(String(r.hide_rationale).trim());
-      }
       return slot;
     }
     state.reels  = state.reels.map(applyRow);
@@ -447,16 +430,11 @@ function buildCard(item, type){
     '</div>';
   body.appendChild(mediaField);
 
-  // Rationale (creative direction) — with a per-card toggle to hide it from the client.
+  // Rationale
   var rationaleField = document.createElement('div');
   rationaleField.className = 'field';
-  rationaleField.dataset.rationaleField = '1';
-  if(item.hide_rationale) rationaleField.dataset.hidden = '1';
   rationaleField.innerHTML =
-    '<div class="field-label rationale-head">' +
-      '<span>Style &amp; rationale</span>' +
-      '<button class="vis-toggle" data-rationale-toggle data-editor-only type="button"></button>' +
-    '</div>' +
+    '<div class="field-label">Style &amp; rationale</div>' +
     '<textarea data-rationale rows="3" placeholder="Describe the style, tone, and strategy...">' +
       escAttr(item.rationale) +
     '</textarea>';
@@ -520,29 +498,8 @@ function wireCard(card, item, type){
   var mediaInput = $('[data-media]', card);
   var mediaSave  = $('[data-media-save]', card);
   var rationale  = $('[data-rationale]', card);
-  var visToggle  = $('[data-rationale-toggle]', card);
   var newComment = $('[data-new-comment]', card);
   var addBtn     = $('[data-add-comment]', card);
-
-  // Rationale visibility toggle — controls whether the client sees the creative direction.
-  function renderVis(){
-    var hidden = !!item.hide_rationale;
-    var field = $('[data-rationale-field]', card);
-    if(field) field.dataset.hidden = hidden ? '1' : '';
-    visToggle.classList.toggle('hidden-state', hidden);
-    visToggle.innerHTML = (hidden ? EYE_OFF_ICON : EYE_ICON) +
-      '<span>' + (hidden ? 'Hidden from client' : 'Visible to client') + '</span>';
-    visToggle.title = hidden
-      ? 'Hidden from the client — click to show it'
-      : 'Visible to the client — click to hide it';
-    applyModeToCard(card);
-  }
-  renderVis();
-  visToggle.addEventListener('click', async function(){
-    item.hide_rationale = !item.hide_rationale;
-    renderVis();
-    await persistSample(item);
-  });
 
   // Save media URL
   mediaSave.addEventListener('click', async function(){
@@ -635,7 +592,6 @@ async function persistSample(item){
     label: item.label,
     media_url: item.media_url,
     rationale: item.rationale,
-    hide_rationale: !!item.hide_rationale,
     updated_at: nowIso()
   });
   if(res.local){ flash('Saved locally (no webhook configured)'); }
@@ -659,9 +615,6 @@ function applyModeToCard(card){
   // Rationale read-only in viewer mode
   var rt = $('[data-rationale]', card);
   if(rt) rt.readOnly = viewer;
-  // Hide the rationale entirely from the client when the editor has toggled it off.
-  var rf = $('[data-rationale-field]', card);
-  if(rf) rf.style.display = (viewer && rf.dataset.hidden === '1') ? 'none' : '';
   // Edit/delete on comments hidden in viewer mode
   $$('[data-actions]', card).forEach(function(actions){
     actions.style.display = viewer ? 'none' : 'flex';

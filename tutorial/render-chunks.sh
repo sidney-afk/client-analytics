@@ -38,6 +38,11 @@ for ((start = 0; start < TOTAL; start += STEP)); do
   fi
 done
 
-ls out/chunks/chunk-*.mp4 | sort | sed "s/^/file '/; s/$/'/" >out/chunks/list.txt
-npx remotion ffmpeg -y -f concat -safe 0 -i out/chunks/list.txt -c copy out/tutorial.mp4 >/tmp/concat.log 2>&1
-echo "DONE: out/tutorial.mp4"
+# concat entries are resolved relative to the list file's directory
+(cd out/chunks && ls chunk-*.mp4 | sort | sed "s/^/file '/; s/$/'/" >list.txt)
+if npx remotion ffmpeg -y -f concat -safe 0 -i out/chunks/list.txt -c copy out/tutorial.mp4 >/tmp/concat.log 2>&1; then
+  echo "DONE: out/tutorial.mp4"
+else
+  echo "CONCAT FAILED — see /tmp/concat.log"
+  exit 1
+fi

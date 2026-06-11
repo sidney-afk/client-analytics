@@ -11538,6 +11538,27 @@
     const _calFailedNewCards = new Set();
 
     function calClientSlug(name) { return wlNormalizeClient(name); }
+    /* Standalone Content Calendar only: keep the browser URL in step with the
+       client whose calendar is showing, as #calendar/<slug>. The hash router
+       already lands on the right client from this shape (see the
+       'calendar/' branch in the boot router), so copying the URL bar — not
+       just the share button — hands someone the exact client's calendar.
+       replaceState (not push) so flipping between client tabs doesn't pile up
+       back-button history. The embedded calendar inside a client profile owns
+       its own #<clientName> URL, so we never touch it. A live #calendar/<slug>/<cardId>
+       card deep link is left intact when it already points at this client. */
+    function _calSyncUrlClient() {
+        if (calState.embedded || currentNav !== 'calendar') return;
+        const base = location.pathname + location.search.replace(/#.*$/, '');
+        if (!calState.client) {
+            history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar');
+            return;
+        }
+        const slug = calClientSlug(calState.client);
+        const rawHash = location.hash.replace(/^#/, '');
+        if (rawHash.startsWith('calendar/' + slug + '/')) return; // keep the card deep link
+        history.replaceState({ nav: 'calendar', client: null }, '', base + '#calendar/' + slug);
+    }
     function _calEsc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
     /* NOTE: _calEscAttr is for plain attribute VALUES (data-*, title, value).
        It is NOT enough for a string argument inside an inline handler —
@@ -11791,6 +11812,7 @@
         calState.error = null;
         calState.previewId = null;
         _calRenderShell();
+        _calSyncUrlClient();
         if (calState.client) loadCalendarPosts();
         else _calRenderBody();
     }
@@ -14198,6 +14220,7 @@
             calState.client = next;
             calState.posts = [];
             _calSavePrefs();
+            _calSyncUrlClient();
             _calRenderTabs();
             if (next) loadCalendarPosts();
             else _calRenderBody();
@@ -14243,6 +14266,7 @@
             calState.client = name;
             calState.posts = [];
             _calSavePrefs();
+            _calSyncUrlClient();
             _calRenderTabs();
             loadCalendarPosts();
         };
@@ -14650,6 +14674,7 @@
         _calFlushAllPending();
         calState.client = name;
         _calSavePrefs();
+        _calSyncUrlClient();
         calState.posts = [];
         _calRenderBody();
         loadCalendarPosts();

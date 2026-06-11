@@ -1175,6 +1175,24 @@
         .workload-popover-item-client{ font-size: 0.62rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; padding: 1px 6px; background: var(--bg); border-radius: 999px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
         .workload-popover-item-due.past { color: #dc2626; }
+        /* Tweak-comment preview inside the workload popover — surfaces the
+           client / Kasper comment that bounced the sub-issue back, so the
+           editor knows what to change without opening Linear. */
+        .wl-tweak-frame-note { display: flex; gap: 7px; align-items: flex-start; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 7px 10px; margin: 0 0 8px; font-size: 0.66rem; font-weight: 600; color: #9a3412; line-height: 1.45; }
+        .wl-tweak-frame-note svg { flex-shrink: 0; margin-top: 1px; }
+        .wl-tweak-comments { display: flex; flex-direction: column; gap: 5px; margin: 0 4px 8px 16px; }
+        .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; }
+        .wl-tweak-comment { background: #fff7ed; border: 1px solid #fed7aa; border-left: 3px solid #ea580c; border-radius: 8px; padding: 6px 9px; }
+        .wl-tweak-comment-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+        .wl-tweak-comment-author { font-size: 0.66rem; font-weight: 800; color: #9a3412; }
+        .wl-tweak-comment-time { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; flex: 1; }
+        .wl-tweak-comment-link { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); text-decoration: none; flex-shrink: 0; }
+        .wl-tweak-comment-link:hover { color: var(--text-primary); text-decoration: underline; }
+        /* Long comments clamp to 6 lines; click the body to expand. */
+        .wl-tweak-comment-body { font-size: 0.72rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; word-break: break-word; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+        .wl-tweak-comment-body.expanded { display: block; -webkit-line-clamp: unset; }
+        .wl-tweak-comment-empty { font-size: 0.66rem; color: #9a3412; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 8px; padding: 6px 9px; line-height: 1.45; }
+        .wl-tweak-comment-more { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding-left: 2px; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
         .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 9px 16px; margin-bottom: 14px; background: var(--white); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -7690,6 +7708,7 @@
 
     /* ── Workload Calendar ── */
     const LINEAR_ISSUES_WEBHOOK        = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';
+    const LINEAR_TWEAK_COMMENTS_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/linear-tweak-comments';
     const CONTENT_REVISION_WEBHOOK     = 'https://synchrosocial.app.n8n.cloud/webhook/content-ready';
     const LINEAR_ISSUES_CACHE_KEY = 'syncview_linearIssuesCache_v1';
     const LINEAR_ISSUES_TTL_MS    = 5 * 60 * 1000;
@@ -9274,6 +9293,58 @@
     // Fetches the underlying subs for a rollup (either the in-progress list
     // or the planned-for-that-day list), filters by assignee+client, and
     // renders a popover anchored to the clicked rollup.
+    /* ── Tweak-comment preview ──────────────────────────────────────────
+       When a popover lists sub-issues that sit in "Tweak Needed", the
+       comment that bounced them back (client tweak from the review link,
+       Kasper tweak from his queue — both pushed onto the Linear sub-issue
+       by linear-add-comment) is fetched from Linear in one batched call
+       and shown inline, so the editor doesn't have to open Linear.
+       Tweaks left in Frame.io never reach Linear (sub-issues aren't
+       linked to Frame), hence the standing "always check Frame.io" note. */
+    const WL_TWEAK_COMMENTS_TTL_MS = 5 * 60 * 1000;
+    const _wlTweakCommentsCache = new Map(); // linear issue id -> { fetchedAt, comments[] }
+    let _wlTweakCommentsToken = 0;           // invalidates in-flight fills when a newer popover opens
+    async function wlFetchTweakComments(ids) {
+        const now = Date.now();
+        const missing = ids.filter(id => {
+            const hit = _wlTweakCommentsCache.get(id);
+            return !(hit && (now - hit.fetchedAt) < WL_TWEAK_COMMENTS_TTL_MS);
+        });
+        if (missing.length) {
+            const resp = await fetch(LINEAR_TWEAK_COMMENTS_WEBHOOK, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ids: missing })
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            if (!data || data.ok === false) throw new Error((data && data.error) || 'comments fetch failed');
+            const got = data.comments || {};
+            for (const id of missing) {
+                _wlTweakCommentsCache.set(id, { fetchedAt: now, comments: Array.isArray(got[id]) ? got[id] : [] });
+            }
+        }
+        const out = {};
+        for (const id of ids) out[id] = (_wlTweakCommentsCache.get(id) || { comments: [] }).comments;
+        return out;
+    }
+    function wlRenderTweakComments(comments) {
+        if (!comments || !comments.length) {
+            return '<div class="wl-tweak-comment-empty">No comment on the Linear sub-issue — the status was probably changed by hand, or the tweak was left in Frame.io. Check Frame.io / ask the SMM.</div>';
+        }
+        const shown = comments.slice(0, 3);
+        const more = comments.length - shown.length;
+        return shown.map(c => `<div class="wl-tweak-comment">
+            <div class="wl-tweak-comment-head">
+                <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>
+                <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
+                ${c.url ? `<a class="wl-tweak-comment-link" href="${wlEscape(c.url)}" target="_blank" rel="noopener noreferrer">Open in Linear ↗</a>` : ''}
+            </div>
+            <div class="wl-tweak-comment-body" title="Click to expand" onclick="this.classList.toggle('expanded')">${wlEscape(c.body || '')}</div>
+        </div>`).join('') + (more > 0
+            ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
+            : '');
+    }
+
     function wlOpenRollupPopover(rollupEl) {
         const pop = document.getElementById('wlPopover');
         if (!pop) return;
@@ -9386,6 +9457,11 @@
             const calBtn = s.clientName
                 ? `<button type="button" class="workload-popover-item-cal" title="Open in the content calendar" onclick="wlOpenInContentCalendar(${_jsAttrArg(s.clientName)},${_jsAttrArg(s.identifier || '')})"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="12" height="11" rx="2"/><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3"/></svg></button>`
                 : '';
+            // A sub-issue sitting in "Tweak Needed" gets a comment preview
+            // box under its row — filled asynchronously below from Linear.
+            const tweakBox = wlIsTweaksNeeded(s)
+                ? `<div class="wl-tweak-comments" data-wl-comments-for="${wlEscape(s.id)}"><div class="wl-tweak-comments-status">Loading tweak comments…</div></div>`
+                : '';
             return `<div class="workload-popover-item">
                 <a class="workload-popover-item-main" href="${wlEscape(s.url)}" target="_blank" rel="noopener noreferrer">
                     <span class="workload-popover-item-title">${wlEscape(s.title || s.identifier)}</span>
@@ -9393,10 +9469,40 @@
                     <span class="workload-popover-item-due">${wlEscape(dueLabel)}</span>
                 </a>
                 ${calBtn}
-            </div>`;
+            </div>${tweakBox}`;
         }).join('') || '<div class="workload-popover-item" style="color:var(--text-muted);cursor:default;">No upcoming sub-issues.</div>';
 
-        pop.innerHTML = header + items;
+        // Frame.io disclaimer + comment fetch — only when the popover holds
+        // at least one tweaks-needed sub-issue. Comments come from the
+        // batched linear-tweak-comments webhook and are cached for 5 min;
+        // the token guard stops a slow response from painting into a
+        // popover that has since been reopened on another rollup.
+        const tweakSubs = subs.filter(wlIsTweaksNeeded);
+        const frameNote = tweakSubs.length
+            ? `<div class="wl-tweak-frame-note">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8L15 14H1L8 1.8z"/><path d="M8 6.5v3.5"/><circle cx="8" cy="12" r="0.4" fill="currentColor"/></svg>
+                <span><strong>Always check Frame.io too.</strong> Tweaks left as Frame.io comments can't be shown here — sub-issues aren't linked to Frame. The comments below are the ones sent through SyncView (clients can't comment on Frame.io).</span>
+            </div>`
+            : '';
+
+        pop.innerHTML = header + frameNote + items;
+
+        if (tweakSubs.length) {
+            const token = ++_wlTweakCommentsToken;
+            wlFetchTweakComments(tweakSubs.map(s => s.id)).then(byId => {
+                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                for (const s of tweakSubs) {
+                    const sel = (window.CSS && CSS.escape) ? CSS.escape(s.id) : String(s.id).replace(/"/g, '');
+                    const box = pop.querySelector('[data-wl-comments-for="' + sel + '"]');
+                    if (box) box.innerHTML = wlRenderTweakComments(byId[s.id]);
+                }
+            }).catch(() => {
+                if (token !== _wlTweakCommentsToken || !pop.classList.contains('open')) return;
+                pop.querySelectorAll('.wl-tweak-comments').forEach(box => {
+                    box.innerHTML = '<div class="wl-tweak-comments-status">Couldn&rsquo;t load the comments — open the sub-issue in Linear to read them.</div>';
+                });
+            });
+        }
 
         // Position: anchored below the clicked rollup, clamped to viewport.
         const rect = rollupEl.getBoundingClientRect();

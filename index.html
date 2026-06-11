@@ -12233,7 +12233,17 @@
     } catch {}
     /* Linear is the source of truth: when a sub-issue is freshly linked to a
        card, pull its current Linear status onto the card. Suppresses the
-       calendar→Linear writeback so the issue is not bounced to another state. */
+       calendar→Linear writeback so the issue is not bounced to another state.
+
+       If the pasted link is a PARENT issue (the webhook returns sub-issues
+       for it), the SMM gets a disclaimer and nothing else happens: the link
+       is kept exactly as pasted, and no status is adopted from the parent
+       (its rollup state isn't this card's component state). The disclaimer
+       matters because status pushes, the URGENT ping and the editor
+       Workload all operate on sub-issues only — a card left on the parent
+       pushes "Tweaks Needed" onto an issue the Workload never reads, so the
+       editor never sees the revision request. This is exactly how Kasper's
+       personal-calendar tweaks went missing from the Workload. */
     async function _calSyncStatusFromLinear(pid, issueUrl, comp) {
         const which = (comp === 'graphic') ? 'graphic' : 'video';
         let mapped;
@@ -12244,6 +12254,17 @@
             });
             const json = await resp.json();
             if (!json.ok || !json.parent) return;
+            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            if (subs.length) {
+                const ident = String(json.parent.identifier || '').trim();
+                showNotify('Heads up — that’s a parent issue link',
+                    (ident ? ident + ' is a parent issue with ' : 'This is a parent issue with ')
+                    + subs.length + ' sub-issue' + (subs.length === 1 ? '' : 's')
+                    + '. Cards need the ' + (which === 'graphic' ? 'GRA (graphic)' : 'VID (video)')
+                    + ' sub-issue link — statuses pushed to a parent never reach the editor’s Workload, '
+                    + 'so tweaks on this card would go unseen. Please paste the sub-issue link instead.');
+                return;
+            }
             mapped = _calMapLinearStatusStrict(json.parent.status);
         } catch (e) { return; }
         const post = calState.posts.find(p => p.id === pid);

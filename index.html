@@ -2695,6 +2695,34 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.18s, box-shadow 0.18s; }
         .cal-review-preview-thumb-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.16); }
         .cal-review-preview-thumb-btn img { display: block; width: 100%; max-width: 260px; max-height: 220px; object-fit: contain; }
+        /* Branded Frame.io click-to-open card for the expanded review previews
+           (client review panel + Kasper hero/panel). Frame.io share links have
+           no public image and block embedding, so instead of a broken <img>
+           the client/Kasper get a dark poster that opens the thumbnail in
+           Frame.io. Matches the calendar .cal-thumb-frame treatment. */
+        .cal-review-frame { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+            width: 100%; max-width: 260px; min-height: 150px; padding: 22px 16px; border-radius: 10px;
+            text-decoration: none; text-align: center; color: #fff;
+            background: radial-gradient(120% 120% at 50% 32%, #262220 0%, #0e0d0c 74%);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: transform 0.18s, box-shadow 0.18s, background 0.18s; }
+        .cal-review-frame:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.16);
+            background: radial-gradient(120% 120% at 50% 32%, #322d2a 0%, #100f0e 74%); }
+        .cal-review-frame-badge { width: 52px; height: 52px; border-radius: 14px; background: rgba(255,255,255,0.12);
+            border: 1.5px solid rgba(255,255,255,0.5); display: flex; align-items: center; justify-content: center;
+            transition: transform 0.18s, background 0.18s; }
+        .cal-review-frame:hover .cal-review-frame-badge { transform: scale(1.06); background: rgba(255,255,255,0.2); }
+        .cal-review-frame-badge svg { width: 26px; height: 26px; }
+        .cal-review-frame-cta { font-size: 0.84rem; font-weight: 700; letter-spacing: -0.01em; display: inline-flex; align-items: center; gap: 6px; }
+        .cal-review-frame-cta svg { width: 13px; height: 13px; }
+        .cal-review-frame-host { font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.45); }
+        /* Kasper hero variant — fills the same tall 9/16 poster silhouette as
+           the video/graphic posters so the row stays visually consistent. */
+        .cal-review-frame.is-hero { max-width: 380px; aspect-ratio: 9 / 16; max-height: 520px; min-height: 0;
+            border-radius: 14px; gap: 16px; box-shadow: 0 8px 30px rgba(15,23,42,0.18), 0 2px 6px rgba(0,0,0,0.06); }
+        .cal-review-frame.is-hero:hover { box-shadow: 0 18px 50px rgba(15,23,42,0.28), 0 4px 12px rgba(0,0,0,0.08); }
+        .cal-review-frame.is-hero .cal-review-frame-badge { width: 66px; height: 66px; border-radius: 18px; }
+        .cal-review-frame.is-hero .cal-review-frame-badge svg { width: 32px; height: 32px; }
+        .cal-review-frame.is-hero .cal-review-frame-cta { font-size: 0.95rem; }
         /* Video tile — same visual silhouette as the thumbnail tile, image
            blurred, with a centered play button + "Open video" overlay. Keeps
            the three columns' heights matched so the Approve buttons align. */
@@ -15496,6 +15524,23 @@
             <span class="cal-thumb-frame-host">${_calEsc(host)} · opens in a new tab</span>
         </a>`;
     }
+    /* Branded "open in Frame.io" card for the EXPANDED review previews — the
+       client review panel and Kasper's hero/panel previews — where the
+       thumbnail component would otherwise try (and fail) to render a Frame.io
+       share link as a real <img>. Mirrors the calendar thumbnail treatment so
+       both the client and Kasper can click through to open the thumbnail in
+       Frame.io in a new tab. `variant === 'hero'` fills Kasper's tall 9/16
+       poster; otherwise it sizes to the smaller review-panel tile. */
+    function _calReviewFrameHtml(openUrl, variant) {
+        const host = _calLinkHost(openUrl) || 'frame.io';
+        const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
+        const cls = variant === 'hero' ? 'cal-review-frame is-hero' : 'cal-review-frame';
+        return `<a class="${cls}" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open thumbnail in Frame.io">
+            <span class="cal-review-frame-badge">${_calFrameMarkSvg()}</span>
+            <span class="cal-review-frame-cta">${arrow}Open thumbnail</span>
+            <span class="cal-review-frame-host">${_calEsc(host)} · opens in a new tab</span>
+        </a>`;
+    }
     /* The right media for the card thumb stage: a real <img> when an image URL is
        derivable, the Frame.io click-to-open card for Frame.io links, else the
        placeholder icon. */
@@ -18676,12 +18721,19 @@
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+            const imgUrl = _calDeriveThumb(p);
+            // Frame.io share/review links expose no public image and block
+            // embedding, so they can't render as an <img> the way Drive links
+            // can. Surface the same branded click-to-open card used on the
+            // calendar thumbnails so the client can open it in Frame.io.
+            if (!imgUrl && _calIsFrameLink(raw)) {
+                return `<div class="cal-review-preview-thumb">${_calReviewFrameHtml(_calFrameOpenUrl(raw))}</div>`;
+            }
             // Click opens a full-screen lightbox of the thumbnail rather
             // than the Drive sharing URL — the client shouldn't be jumping
             // into Drive just to see a bigger version.
-            const imgUrl = _calDeriveThumb(p) || raw;
             const escPid = _calEscAttr(p.id);
-            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
+            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
         }
         const cap = String(p.caption || '').trim();
         const alt = String(p.caption_alt || '').trim();
@@ -23597,9 +23649,16 @@
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
-            const imgUrl = _calDeriveThumb(p) || raw;
+            const imgUrl = _calDeriveThumb(p);
+            // Frame.io links can't render as a real <img> (no public image,
+            // blocks embedding) and the lightbox can't show them either — give
+            // Kasper the same branded click-to-open card the client and
+            // calendar surfaces use so he can open it in Frame.io.
+            if (!imgUrl && _calIsFrameLink(raw)) {
+                return _calReviewFrameHtml(_calFrameOpenUrl(raw), 'hero');
+            }
             const escPid = _calEscAttr(p.id);
-            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
+            return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
         }
         // caption
         const cap = String(p.caption || '').trim();

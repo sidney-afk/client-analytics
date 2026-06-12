@@ -1,0 +1,92 @@
+{
+  "_backup_note": "Snapshot of SyncView Calendar — Get (KViFEOqSRBNdCJRk) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. Read-only workflow: reads Calendar_<slug> on the SyncView Calendar Sheet, returns {ok, posts[]} sorted by order_index. No secrets in this workflow. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Calendar — Get",
+  "id": "KViFEOqSRBNdCJRk",
+  "activeVersionId": "51dcb7ec-f756-4d06-ac8f-39dbfc7b7b1d",
+  "connections": {
+    "Receive GET": { "main": [[{ "node": "Resolve Sheet Name", "type": "main", "index": 0 }]] },
+    "Resolve Sheet Name": { "main": [[{ "node": "Read Calendar Sheet", "type": "main", "index": 0 }]] },
+    "Read Calendar Sheet": { "main": [[{ "node": "Build Response", "type": "main", "index": 0 }]] },
+    "Build Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "path": "calendar-get",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "0a2b5a55-557f-4794-8e86-ec2772810e4a",
+      "name": "Receive GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "2d98b188-5dc6-4682-aba5-8825e1549719"
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = ($input.first() && $input.first().json && $input.first().json.query) || {};\nconst client = String(q.client || '').trim();\nif (!client) throw new Error('client query param required (e.g. ?client=bayavoce)');\nconst sheetName = 'Calendar_' + client;\nreturn [{ json: { client, sheetName } }];\n"
+      },
+      "id": "bf462da5-ea13-4a2b-a8f9-45748a50de15",
+      "name": "Resolve Sheet Name",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "={{ $json.sheetName }}" },
+        "options": {
+          "outputFormatting": { "values": { "general": "UNFORMATTED_VALUE", "date": "FORMATTED_STRING" } }
+        }
+      },
+      "id": "98ba98b4-6001-4823-9789-3a0a36fe4086",
+      "name": "Read Calendar Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [448, 0],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst posts = items.map(it => it.json || {}).filter(r => r && r.id);\nposts.sort((a,b) => Number(a.order_index||0) - Number(b.order_index||0));\nreturn [{ json: { ok: true, posts } }];\n"
+      },
+      "id": "73566e52-c50d-4bde-bd4c-62f36aaf8c39",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      },
+      "id": "93fc04da-4e08-43dc-9f61-d45f5e8cacb9",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 0]
+    },
+    {
+      "parameters": {
+        "content": "## SyncView Calendar — Get\n\nGET /webhook/calendar-get?client=<slug>\n\nReads the `Calendar_<slug>` tab on the **SyncView Calendar** Sheet (id `1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps`) and returns `{ok, posts:[…]}` sorted by order_index. Powers the Organizer/Month/Week views in index.html.",
+        "height": 200,
+        "width": 1260,
+        "color": 4
+      },
+      "id": "a83ca550-8c95-4de5-b5b9-887359a8febb",
+      "name": "Sticky Note 3c383881",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [368, 208]
+    }
+  ]
+}

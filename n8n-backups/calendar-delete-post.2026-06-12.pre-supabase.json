@@ -1,0 +1,124 @@
+{
+  "_backup_note": "Snapshot of SyncView Calendar — Delete Post (JcekBKUzELgX4HjH) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. WRITES to Calendar_<slug>: soft-delete via status=Archived + updated_at bump, operation=update so unknown ids no-op (no phantom rows). On the Phase 1 dual-write list. No secrets in this workflow. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Calendar — Delete Post",
+  "id": "JcekBKUzELgX4HjH",
+  "activeVersionId": "a269b3ab-2c43-49fb-b9be-599b0afda33f",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Archive Row", "type": "main", "index": 0 }]] },
+    "Build Archive Row": { "main": [[{ "node": "Strip Routing", "type": "main", "index": 0 }]] },
+    "Strip Routing": { "main": [[{ "node": "Archive Calendar Row", "type": "main", "index": 0 }]] },
+    "Archive Calendar Row": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "497489e2-e89e-40ee-80a9-60e6b11e1888",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-delete-post",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "bda5283d-35be-4f4d-99df-1cce0339bb3b"
+    },
+    {
+      "id": "8e4e9d00-b452-43ed-ba7e-247dca3600d6",
+      "name": "Build Archive Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nconst id = String(body.id || '').trim();\nif (!client) throw new Error('client required');\nif (!id) throw new Error('id required');\nconst sheetName = 'Calendar_' + client;\nconst now = new Date().toISOString();\nreturn [{ json: { id, status: 'Archived', updated_at: now, _sheetName: sheetName, _client: client } }];\n"
+      }
+    },
+    {
+      "id": "ac7bbb86-5e88-4ad0-ab79-224c6e22d6d3",
+      "name": "Strip Routing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const j = $input.item.json;\nconst out = {};\nfor (const k of Object.keys(j)) {\n  if (k.charAt(0) === '_') continue;\n  out[k] = j[k];\n}\nreturn { json: out };"
+      }
+    },
+    {
+      "id": "61f8f5ef-62d4-4c49-9ae6-50d678755d19",
+      "name": "Archive Calendar Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [672, 0],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Archive Row\").item.json._sheetName }}" },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": ["id"],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": { "cellFormat": "RAW", "handlingExtraData": "ignoreIt" }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "d3434790-7cd2-4e23-8bd6-d7e7a851e62f",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const row = ($input.first() && $input.first().json) || {};\nreturn [{ json: { ok: true, post: row } }];\n"
+      }
+    },
+    {
+      "id": "c381585f-5b90-4686-83a4-0cfe1faaf9b0",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1120, 0],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "34914a92-e002-4f95-a1d7-8cdcbc0dc904",
+      "name": "Sticky Note ea730cb3",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [560, 64],
+      "parameters": {
+        "content": {
+          "config": {
+            "name": "Sticky Note f2134562",
+            "parameters": {
+              "content": "## SyncView Calendar — Delete Post\n\nPOST /webhook/calendar-delete-post\n\nBody: `{ client: \"<slug>\", id: \"<post id>\" }`\n\nSoft-delete: writes `status=Archived` and bumps `updated_at` on the existing row. Operation is `update` (NOT appendOrUpdate); if id is missing the workflow silently no-ops — no phantom row appended.",
+              "color": 4,
+              "width": 1260,
+              "height": 220
+            }
+          }
+        }
+      }
+    }
+  ]
+}

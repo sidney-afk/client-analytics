@@ -1,0 +1,172 @@
+{
+  "_backup_note": "Snapshot of SyncView Calendar — Reorder (OXd0sUoSJYMspGTF) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. CAUTION — DRAFT AND ACTIVE VERSIONS DIVERGE on this workflow: the nodes below are the DRAFT (versionId 188e6149-e0ee-4c48-9308-513dc2b88240), a batched values:batchUpdate rewrite that was saved but NEVER PUBLISHED. The LIVE published version (activeVersionId 8a591214-b324-4b3e-acef-d888b0343d79) is still the ORIGINAL per-row googleSheets update loop, preserved verbatim in calendar-reorder.2026-06-10.pre-batch.json in this folder. /webhook/calendar-reorder therefore still executes the per-row loop in production. Any edit-and-publish in Phase 1 will ALSO flip live behavior to this batched draft — decide intentionally. WRITES to Calendar_<slug> (order_index + updated_at); on the Phase 1 dual-write list. No inline secrets (draft uses the googleSheetsOAuth2Api credential; active version uses the googleSheets node credential). n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Calendar — Reorder",
+  "id": "OXd0sUoSJYMspGTF",
+  "versionId": "188e6149-e0ee-4c48-9308-513dc2b88240",
+  "activeVersionId": "8a591214-b324-4b3e-acef-d888b0343d79",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Validate & Plan", "type": "main", "index": 0 }]] },
+    "Validate & Plan": { "main": [[{ "node": "Read Header Row", "type": "main", "index": 0 }]] },
+    "Read Header Row": { "main": [[{ "node": "Find Columns", "type": "main", "index": 0 }]] },
+    "Find Columns": { "main": [[{ "node": "Read Id Column", "type": "main", "index": 0 }]] },
+    "Read Id Column": { "main": [[{ "node": "Build BatchUpdate", "type": "main", "index": 0 }]] },
+    "Build BatchUpdate": { "main": [[{ "node": "Anything To Write?", "type": "main", "index": 0 }]] },
+    "Anything To Write?": { "main": [[{ "node": "BatchUpdate Cells", "type": "main", "index": 0 }], [{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "BatchUpdate Cells": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "82d841c8-f24c-497c-ae87-aaf7f8cba294",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-reorder",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "09d43c22-2bf2-4da1-8f05-4d42be594c60"
+    },
+    {
+      "id": "f50ff01f-63be-4870-a56d-2d8d887cb7af",
+      "name": "Validate & Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nif (!client || !/^[A-Za-z0-9&_-]{1,80}$/.test(client)) throw new Error('valid client required');\nconst items = Array.isArray(body.items) ? body.items : [];\nif (items.length === 0) throw new Error('items[] required');\nconst clean = items.map(it => {\n  const id = String(it.id || '').trim();\n  if (!id) throw new Error('every item needs an id');\n  const order_index = Number(it.order_index);\n  if (!Number.isFinite(order_index)) throw new Error('every item needs a numeric order_index');\n  return { id, order_index };\n});\nconst sheetName = 'Calendar_' + client;\nconst base = 'https://sheets.googleapis.com/v4/spreadsheets/1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps';\nreturn [{ json: {\n  sheetName,\n  items: clean,\n  now: new Date().toISOString(),\n  headersUrl: base + '/values/' + encodeURIComponent(\"'\" + sheetName + \"'!1:1\"),\n  base\n} }];\n"
+      }
+    },
+    {
+      "id": "d9b3e60f-9610-4db3-8108-9dfb70d424c8",
+      "name": "Read Header Row",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [440, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.headersUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      }
+    },
+    {
+      "id": "16677bf0-8d88-4cb7-9267-6abe7abafa57",
+      "name": "Find Columns",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const plan = $('Validate & Plan').first().json;\nconst resp = $input.first().json || {};\nconst headers = ((resp.values || [])[0] || []).map(h => String(h || '').trim());\nif (!headers.length) throw new Error('sheet ' + plan.sheetName + ' has no header row');\nconst colA1 = (i) => { let s = ''; i += 1; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; };\nconst idIdx = headers.indexOf('id');\nconst orderIdx = headers.indexOf('order_index');\nconst updatedIdx = headers.indexOf('updated_at');\nif (idIdx < 0) throw new Error('no id column in ' + plan.sheetName);\nif (orderIdx < 0) throw new Error('no order_index column in ' + plan.sheetName);\nconst idCol = colA1(idIdx);\nreturn [{ json: {\n  idColUrl: plan.base + '/values/' + encodeURIComponent(\"'\" + plan.sheetName + \"'!\" + idCol + ':' + idCol),\n  orderCol: colA1(orderIdx),\n  updatedCol: updatedIdx >= 0 ? colA1(updatedIdx) : null\n} }];\n"
+      }
+    },
+    {
+      "id": "e1b1429e-e65b-4aec-b0c2-1862e9955611",
+      "name": "Read Id Column",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [880, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.idColUrl }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      }
+    },
+    {
+      "id": "f0dbf672-b44b-4b77-8344-3893fc01519b",
+      "name": "Build BatchUpdate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const plan = $('Validate & Plan').first().json;\nconst cols = $('Find Columns').first().json;\nconst resp = $input.first().json || {};\nconst colVals = resp.values || [];\nconst rowById = new Map();\nfor (let i = 1; i < colVals.length; i++) {\n  const v = String((colVals[i] || [])[0] || '').trim();\n  if (v && !rowById.has(v)) rowById.set(v, i + 1);\n}\nconst data = [];\nconst skipped = [];\nfor (const it of plan.items) {\n  const row = rowById.get(it.id);\n  if (!row) { skipped.push(it.id); continue; }\n  data.push({ range: \"'\" + plan.sheetName + \"'!\" + cols.orderCol + row, values: [[String(it.order_index)]] });\n  if (cols.updatedCol) data.push({ range: \"'\" + plan.sheetName + \"'!\" + cols.updatedCol + row, values: [[plan.now]] });\n}\nreturn [{ json: {\n  url: plan.base + '/values:batchUpdate',\n  payload: { valueInputOption: 'RAW', data },\n  updated: plan.items.length - skipped.length,\n  skipped,\n  hasWrites: data.length > 0\n} }];\n"
+      }
+    },
+    {
+      "id": "1082410d-6a68-4f2c-aa80-b947543633a5",
+      "name": "Anything To Write?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1320, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "leftValue": "={{ $json.hasWrites }}", "operator": { "type": "boolean", "operation": "true" } }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "bbdb993a-d929-4849-ac55-7fc878db50bc",
+      "name": "BatchUpdate Cells",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1540, -80],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "204a7d31-d159-494d-ae34-fe53083ab300",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1760, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const b = $('Build BatchUpdate').first().json;\nreturn [{ json: { ok: true, updated: b.updated, skipped: b.skipped } }];\n"
+      }
+    },
+    {
+      "id": "c6c8c22a-3497-4784-b127-a2367c285d4c",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1980, 0],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "26914a32-5c04-4e3d-a09f-090807397113",
+      "name": "Sticky Note b90df402",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, -130],
+      "parameters": {
+        "content": "## SyncView Calendar — Reorder (batched)\n\nPOST /webhook/calendar-reorder — body `{ client, items: [{id, order_index}, …] }`.\n\nRewrites all order_index (+ updated_at) cells in ONE values:batchUpdate call (3 fixed Google API calls total: header row → id column → batchUpdate) instead of one Sheets update per row. A 20-card drag went from ~20 sequential API calls to 3.\n\n- Unknown ids are skipped and reported in `skipped` — same phantom-row guard as before (no append, ever).\n- Missing order_index column → error → FE rolls the drag back.\n- Response `{ok, updated, skipped}` is sent AFTER the write completes, so the FE serialized-reorder funnel stays race-free.\n\nPre-change snapshot: repo n8n-backups/calendar-reorder.2026-06-10.pre-batch.json",
+        "color": 4,
+        "width": 2280,
+        "height": 280
+      }
+    }
+  ]
+}

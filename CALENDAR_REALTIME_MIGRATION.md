@@ -83,15 +83,98 @@ one-click rollback. The risky part is the data, not the code.
 - Add a compare-and-swap version check in the upsert workflow so stale
   saves are rejected instead of silently overwriting.
 
+## n8n workflow audit — Phase 1 prep (done 2026-06-12)
+
+n8n MCP access confirmed (47 workflows on synchrosocial.app.n8n.cloud).
+Every workflow below was snapshotted to `n8n-backups/*.2026-06-12.pre-supabase.json`
+before anything gets edited. No live workflow behavior was changed.
+
+### Dual-write list (workflows that WRITE to `Calendar_<slug>` tabs)
+
+Only **five** webhooks touch the sheet directly — these are the Phase 1
+dual-write targets:
+
+| Workflow (id) | Webhook | Sheet write |
+|---|---|---|
+| Calendar — Upsert Post (`pWSqaqVw7dmqhYOA`) | `calendar-upsert-post` | appendOrUpdate matched on `id` (all guards live here) |
+| Calendar — Append Post (`iA54ipMOybicmYBh`) | `calendar-append-post` | append (dup-link guard) — **was missing from the plan above** |
+| Calendar — Delete Post (`JcekBKUzELgX4HjH`) | `calendar-delete-post` | update: `status=Archived` + `updated_at` (soft delete) |
+| Calendar — Reorder (`OXd0sUoSJYMspGTF`) | `calendar-reorder` | per-row update of `order_index`/`updated_at` (see caution below) |
+| Calendar — Reorder batch (`lTtZNLrQLpIZqwAY`) | `calendar-reorder-batch` | one `values:batchUpdate` of `order_index`/`updated_at` |
+
+Plus one inactive utility: Calendar — Provision Missing Tabs
+(`gB17L9M5yYxxk6GT`, manual trigger, inactive) creates `Calendar_<slug>`
+tabs; with one `calendar_posts` table it becomes unnecessary post-migration.
+
+### Finding that simplifies Phase 1: indirect writers funnel through upsert
+
+**Linear Status Sync** (`MJbMZ789B5ExZz9x`) and **Generate Caption**
+(`rNrRCwKPGuau7sLH`) do NOT touch the sheet directly — both call the
+`calendar-get` / `calendar-upsert-post` webhooks over HTTP from code nodes.
+The plan above listed them as separate dual-write targets; they aren't.
+Once `calendar-upsert-post` dual-writes, both inherit it for free, and the
+upsert webhook stays the single choke point for all card-content writes.
+
+### Caution: calendar-reorder has an unpublished draft
+
+Workflow `OXd0sUoSJYMspGTF` has diverged draft vs published versions: the
+draft is a batched `values:batchUpdate` rewrite (saved 2026-06-10, never
+published); the LIVE version is still the original per-row update loop
+(= `n8n-backups/calendar-reorder.2026-06-10.pre-batch.json`). Editing and
+publishing this workflow in Phase 1 will ALSO flip live behavior to the
+batched draft — do that intentionally, or rebuild the Phase 1 change on
+top of the active version.
+
+### Read-only calendar workflows (no dual-write needed; become Supabase reads in Phase 2)
+
+- Calendar — Get (`KViFEOqSRBNdCJRk`): reads one tab, returns `{ok, posts[]}`.
+- Kasper — Queue batch (`TcWOfnKd4Csdnnbv`): reads many tabs via batchGet.
+- Linear Issue Statuses (`GP8CSZDNcy5sGdFr`), Linear Sub-Issues, Linear Set
+  Status, Linear Add Comment, Tweak Comments: Linear-API-only, never touch
+  the sheet.
+- Caption Jobs Status/Update use the n8n `caption_jobs` data table, not the
+  sheet — unaffected by the migration.
+- Weekly Backup (`jlVfbg0Njxf1It7h`) copies the calendar sheet to Drive
+  weekly — keeping the sheet as a mirror keeps this working untouched.
+
+### Security note (confirms finding 5)
+
+The same live Linear API key is hardcoded in plain text in at least two
+code nodes (`linear-status-sync`, `linear-issue-statuses`). Redacted as
+`[REDACTED-LINEAR-KEY]` in the repo snapshots. Recommend rotating it into
+an n8n credential during the migration; Supabase keys must go into n8n
+credentials from day one, never into code nodes or this repo.
+
+### Schema notes for `calendar_posts` (from the live write paths)
+
+- `id` is generated server-side as `p_<ts36>_<rand>` when absent → text PK
+  `(client, id)` works as planned.
+- `updated_at` is already server-set (n8n `new Date().toISOString()`) in
+  upsert/append/delete/reorder → Postgres `now()` is a drop-in upgrade.
+- Column whitelist (ALLOWED in upsert/append) is the authoritative column
+  list; upsert additionally allows `kasper_seen`,
+  `kasper_approved_after_tweaks`, and mirrors `video_tweaks` → legacy
+  `tweaks`.
+- Delete is a soft delete (`status=Archived`) → keep that semantic; no row
+  deletion in Phase 1.
+- The stale-save conflict guard compares ISO strings (`comments_base_at` vs
+  stored `updated_at`) → becomes a real compare-and-swap in Postgres.
+
 ## Open items / first steps for the next session
 
-1. Verify n8n MCP access (it was not authorized in the audit session).
-   List workflows; audit the ones not in `n8n-backups/`: `calendar-get`,
-   `calendar-delete-post`, `calendar-reorder-batch`, the Linear
-   status-sync workflow, `kasper-queue`, `linear-issues`.
-2. Map exactly which workflows write to the calendar sheet → that's the
-   Phase 1 dual-write list.
-3. Snapshot each workflow into `n8n-backups/` before touching it.
-4. Sidney to create the Supabase project (or decide who does) — keys must
-   NOT be committed to this public repo; FE uses the publishable anon key +
-   RLS only.
+1. ~~Verify n8n MCP access~~ done 2026-06-12 — access works, audit above.
+2. ~~Map the dual-write list~~ done — 5 direct writers (see table).
+3. ~~Snapshot each workflow into `n8n-backups/`~~ done
+   (`*.2026-06-12.pre-supabase.json`). Generate Caption already has a
+   same-day snapshot (`generate-caption.2026-06-12.pre-jobs.json`); take a
+   fresh one immediately before its Phase 1 edit if it changes again.
+4. Sidney to create the Supabase project. Needed for Phase 1 (n8n side):
+   - project URL (`https://<ref>.supabase.co`);
+   - **service_role key** — paste it ONLY into an n8n credential (e.g.
+     Header Auth) for the dual-write nodes; never into a code node, never
+     into this public repo;
+   - the **anon (publishable) key** is only needed in Phase 2 for the FE,
+     and may only ship in the repo once RLS policies are enabled.
+5. Then: create `calendar_posts` (PK `(client, id)`, server-set
+   `updated_at`), backfill all `Calendar_*` tabs, add dual-writes to the 5
+   workflows, and stand up the parity check.

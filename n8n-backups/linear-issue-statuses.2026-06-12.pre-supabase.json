@@ -1,0 +1,56 @@
+{
+  "_backup_note": "Snapshot of SyncView Calendar — Linear Issue Statuses (GP8CSZDNcy5sGdFr) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. Read-only: batched Linear GraphQL query returning {ok, statuses:{IDENTIFIER:stateName}} for the calendar's on-load reconcile. Does NOT touch the Google Sheet — not on the dual-write list. Secrets are redacted in this copy: [REDACTED-LINEAR-KEY] is a live Linear API key hardcoded in the 'Fetch Issue Statuses' jsCode (same key as linear-status-sync) — restore the real value from n8n if ever re-importing. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Calendar — Linear Issue Statuses",
+  "id": "GP8CSZDNcy5sGdFr",
+  "activeVersionId": "8ff6954d-6796-4a61-9736-8f11131862fe",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Fetch Issue Statuses", "type": "main", "index": 0 }]] },
+    "Fetch Issue Statuses": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "2001998b-b1e9-4cd2-ab2b-704b5a673f57",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linear-issue-statuses",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "e344f72b-4c9c-4e96-b985-edc6aec3e42e"
+    },
+    {
+      "id": "ade06202-95ea-4857-9ed1-ba5d562a51df",
+      "name": "Fetch Issue Statuses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst issues = Array.isArray(body.issues) ? body.issues : [];\nconst ids = [];\nconst seen = {};\nfor (let i = 0; i < issues.length; i++) {\n  const m = String(issues[i] || '').match(/([A-Za-z]+-\\d+)/);\n  if (m) { const id = m[1].toUpperCase(); if (!seen[id]) { seen[id] = true; ids.push(id); } }\n}\nif (!ids.length) return [{ json: { ok: true, statuses: {} } }];\nconst capped = ids.slice(0, 100);\nconst LINEAR_KEY = '[REDACTED-LINEAR-KEY]';\nconst parts = capped.map((id, i) => 'a' + i + ': issue(id: \"' + id + '\") { identifier state { name } }');\nconst query = '{ ' + parts.join(' ') + ' }';\nlet resp;\ntry {\n  resp = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.linear.app/graphql', headers: { Authorization: LINEAR_KEY, 'Content-Type': 'application/json' }, body: { query }, json: true });\n} catch (e) { return [{ json: { ok: false, error: 'Could not reach the Linear API.' } }]; }\nconst data = (resp && resp.data) || {};\nconst statuses = {};\nfor (let i = 0; i < capped.length; i++) {\n  const issue = data['a' + i];\n  if (issue && issue.identifier) statuses[String(issue.identifier).toUpperCase()] = (issue.state && issue.state.name) || '';\n}\nreturn [{ json: { ok: true, statuses } }];"
+      }
+    },
+    {
+      "id": "7c9e78b0-4c66-4d5a-bab6-f5e613ee542b",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [448, 0],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

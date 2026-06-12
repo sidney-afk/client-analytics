@@ -1,0 +1,153 @@
+{
+  "_backup_note": "Snapshot of SyncView Kasper — Queue (batch) (TcWOfnKd4Csdnnbv) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. Read-only workflow: reads all requested Calendar_<slug> tabs in 2 Google API calls (tab list + values:batchGet) for the Kasper review queue. NOT on the dual-write list; becomes a Supabase read in Phase 2+. Uses the googleSheetsOAuth2Api credential via predefined-credential HTTP nodes — no inline secrets. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Kasper — Queue (batch)",
+  "id": "TcWOfnKd4Csdnnbv",
+  "activeVersionId": "6fd805a3-be1e-4cd7-ab44-906aa635de7c",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Validate Slugs", "type": "main", "index": 0 }]] },
+    "Validate Slugs": { "main": [[{ "node": "List Sheet Tabs", "type": "main", "index": 0 }]] },
+    "List Sheet Tabs": { "main": [[{ "node": "Build BatchGet URL", "type": "main", "index": 0 }]] },
+    "Build BatchGet URL": { "main": [[{ "node": "Any Tabs Found?", "type": "main", "index": 0 }]] },
+    "Any Tabs Found?": { "main": [[{ "node": "BatchGet All Calendars", "type": "main", "index": 0 }], [{ "node": "Shape Empty Response", "type": "main", "index": 0 }]] },
+    "BatchGet All Calendars": { "main": [[{ "node": "Shape Response", "type": "main", "index": 0 }]] },
+    "Shape Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] },
+    "Shape Empty Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "c9b320b9-a62a-4f3e-bcd2-ed20635c21c0",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "kasper-queue",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "fb72e269-9c2e-4dcf-a990-5c3062d1b093"
+    },
+    {
+      "id": "1c7c90ca-2f0b-456a-9f0f-4d016f157b42",
+      "name": "Validate Slugs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const b = ($input.first() && $input.first().json && $input.first().json.body) || {};\nlet slugs = Array.isArray(b.slugs) ? b.slugs : [];\nslugs = slugs.map(s => String(s || '').trim()).filter(s => /^[A-Za-z0-9&_-]{1,80}$/.test(s));\nslugs = [...new Set(slugs)].slice(0, 80);\nif (!slugs.length) throw new Error('slugs[] required in POST body');\nreturn [{ json: { slugs } }];\n"
+      }
+    },
+    {
+      "id": "4c765bbd-c5c7-44b6-b8ee-68136cd7aa44",
+      "name": "List Sheet Tabs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [440, 0],
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps?fields=sheets.properties.title",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api"
+      }
+    },
+    {
+      "id": "c08e849e-d5c5-4235-ab42-5e9dacc7df79",
+      "name": "Build BatchGet URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [660, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const want = $('Validate Slugs').first().json.slugs;\nconst resp = $input.first().json || {};\nconst titles = new Set(((resp.sheets || []).map(s => (s.properties || {}).title)).filter(Boolean));\nconst present = want.filter(s => titles.has('Calendar_' + s));\nconst missing = want.filter(s => !titles.has('Calendar_' + s));\nif (!present.length) return [{ json: { skip: true, present, missing } }];\nconst ranges = present.map(s => 'ranges=' + encodeURIComponent(\"'Calendar_\" + s + \"'\"));\nconst url = 'https://sheets.googleapis.com/v4/spreadsheets/1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps/values:batchGet?' + ranges.join('&') + '&valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=FORMATTED_STRING&majorDimension=ROWS';\nreturn [{ json: { skip: false, url, present, missing } }];\n"
+      }
+    },
+    {
+      "id": "6ae1c073-7e0c-4429-adcb-5cb2d7afd9b1",
+      "name": "Any Tabs Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [880, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "loose" },
+          "conditions": [
+            { "leftValue": "={{ $json.skip }}", "operator": { "type": "boolean", "operation": "false" } }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "84be314a-2185-419f-8f99-5970580ab3fd",
+      "name": "BatchGet All Calendars",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [1100, -80],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "options": { "timeout": 30000 }
+      }
+    },
+    {
+      "id": "dfa46d5a-3e03-4734-8d76-ba6e4fbb0938",
+      "name": "Shape Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1320, -80],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const meta = $('Build BatchGet URL').first().json;\nconst resp = $input.first().json || {};\nconst clients = {};\nfor (const vr of (resp.valueRanges || [])) {\n  const m = String(vr.range || '').match(/^'?Calendar_([^'!]+)'?!/);\n  if (!m) continue;\n  const slug = m[1];\n  const values = vr.values || [];\n  if (!values.length) { clients[slug] = { posts: [] }; continue; }\n  const headers = values[0].map(h => String(h || '').trim());\n  const posts = [];\n  for (let i = 1; i < values.length; i++) {\n    const row = values[i] || [];\n    const obj = {};\n    for (let c = 0; c < headers.length; c++) { if (headers[c]) obj[headers[c]] = row[c] !== undefined ? row[c] : ''; }\n    if (obj.id) posts.push(obj);\n  }\n  posts.sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));\n  clients[slug] = { posts };\n}\nfor (const s of (meta.present || [])) { if (!clients[s]) clients[s] = { posts: [] }; }\nreturn [{ json: { ok: true, clients, missing: meta.missing || [] } }];\n"
+      }
+    },
+    {
+      "id": "363e8746-c515-42dd-9c48-0050019575e0",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1540, 0],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "34e58910-b833-42d9-b7bc-8c31e6ce2a4f",
+      "name": "Shape Empty Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 140],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const meta = $input.first().json || {};\nreturn [{ json: { ok: true, clients: {}, missing: meta.missing || [] } }];\n"
+      }
+    },
+    {
+      "id": "57a30bab-2e6c-48e4-bdc8-ac69f730e2a9",
+      "name": "Sticky Note 9fd0e849",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, -130],
+      "parameters": {
+        "content": "## SyncView Kasper — Queue (batch)\n\nPOST /webhook/kasper-queue with body `{ \"slugs\": [\"bayavoce\", …] }`.\n\nReads every requested `Calendar_<slug>` tab from the SyncView Calendar Sheet in TWO Google API calls (tab list + values:batchGet) instead of one calendar-get call per client, and returns:\n\n`{ ok: true, clients: { \"<slug>\": { posts: […] } }, missing: [\"<slug>\", …] }`\n\n- `posts` per client matches calendar-get exactly: header-keyed rows with a non-empty `id`, sorted by `order_index`, UNFORMATTED_VALUE / FORMATTED_STRING rendering.\n- `missing` lists requested slugs that have no Calendar tab (batchGet would 400 on them, so they are excluded up front).\n\nPowers the Kasper review queue in index.html (which falls back to per-client calendar-get if this endpoint fails).",
+        "color": 4,
+        "width": 1840,
+        "height": 420
+      }
+    }
+  ]
+}

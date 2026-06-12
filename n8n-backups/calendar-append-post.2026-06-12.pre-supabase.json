@@ -1,0 +1,179 @@
+{
+  "_backup_note": "Snapshot of SyncView Calendar — Append Post (iA54ipMOybicmYBh) taken 2026-06-12 during Phase 1 prep of the Sheets→Supabase realtime migration (CALENDAR_REALTIME_MIGRATION.md), before any workflow edits. WRITES to Calendar_<slug>: appends a new row (operation=append) with an ALLOWED-column whitelist, generates id p_<ts36>_<rand> if absent, sets updated_at server-side. Duplicate-link guard: if a non-archived row already owns the incoming linear_issue_id, returns that row (deduped:true) instead of appending a twin. On the Phase 1 dual-write list — this workflow was MISSING from the migration doc's write list. No secrets in this workflow. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "name": "SyncView Calendar — Append Post",
+  "id": "iA54ipMOybicmYBh",
+  "activeVersionId": "96a2e0b6-0804-4994-8640-876c4bc86970",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Row From Post", "type": "main", "index": 0 }]] },
+    "Build Row From Post": { "main": [[{ "node": "Read Link Twins", "type": "main", "index": 0 }]] },
+    "Read Link Twins": { "main": [[{ "node": "Dedupe Guard", "type": "main", "index": 0 }]] },
+    "Dedupe Guard": { "main": [[{ "node": "Is Duplicate", "type": "main", "index": 0 }]] },
+    "Is Duplicate": { "main": [[{ "node": "Wrap Dedupe Response", "type": "main", "index": 0 }], [{ "node": "Strip Routing", "type": "main", "index": 0 }]] },
+    "Wrap Dedupe Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] },
+    "Strip Routing": { "main": [[{ "node": "Append Calendar Row", "type": "main", "index": 0 }]] },
+    "Append Calendar Row": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "4deac56c-b8fa-4a48-ab52-822285890f83",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendar-append-post",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "482d5ae8-5eb4-4358-84b8-6296d1e20dc2"
+    },
+    {
+      "id": "72fe04e2-c1c4-4342-9166-3aac943ca858",
+      "name": "Build Row From Post",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const ALLOWED = [\n  'order_index','scheduled_date','name','asset_url','thumbnail_url',\n  'caption','caption_alt','caption_alt_platform','post_url','cta','tweaks','status','linear_issue_id',\n  'kasper_approved_at','posted_at','platform','platforms','color',\n  'video_status','graphic_status','caption_status',\n  'graphic_linear_issue_id',\n  'video_tweaks','graphic_tweaks','caption_tweaks',\n  'client_video_approved_at','client_graphic_approved_at','client_caption_approved_at'\n];\nconst body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nif (!client) throw new Error('client required');\nconst post = body.post || {};\nlet id = String(post.id || '').trim();\nif (!id) {\n  id = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);\n}\nconst row = { id, updated_at: new Date().toISOString() };\nfor (const k of ALLOWED) {\n  if (Object.prototype.hasOwnProperty.call(post, k)) {\n    const v = post[k];\n    row[k] = v == null ? '' : String(v);\n  }\n}\nreturn [{ json: { ...row, _sheetName: 'Calendar_' + client, _client: client } }];"
+      }
+    },
+    {
+      "id": "cd93a6b4-023c-4eb7-9d5a-5e1fbfb8dd5f",
+      "name": "Read Link Twins",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [430, 210],
+      "parameters": {
+        "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "linear_issue_id",
+              "lookupValue": "={{ String($(\"Build Row From Post\").first().json.linear_issue_id || '').trim() || '__no_link__' }}"
+            }
+          ]
+        },
+        "operation": "read",
+        "options": { "returnAllMatches": "returnAllMatches" },
+        "resource": "sheet",
+        "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Row From Post\").first().json._sheetName }}" }
+      },
+      "notes": "Rows in this tab whose linear_issue_id equals the incoming one (falls back to __no_link__ sentinel when the incoming link is blank, so blank links never match). Feeds the duplicate-link guard.",
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "9de3a459-9389-4a11-a3d8-551c8d4e28ee",
+      "name": "Dedupe Guard",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [620, 120],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Duplicate-link guard: an import double-fire used to append two rows for\n// the same Linear issue. The FE collapses cards sharing a linear_issue_id to\n// one visible card, so archiving one twin leaves the other live and the card\n// 'comes back' on refresh. Make append idempotent on linear_issue_id: if a\n// non-archived row already owns the incoming link, return THAT row instead of\n// appending a second one. Blank-link posts (manual cards) always append.\nconst incoming = $('Build Row From Post').first().json;\nconst twins = $input.all().map(t => (t && t.json) || {});\nconst link = String(incoming.linear_issue_id || '').trim();\nlet dupe = null;\nif (link) {\n  dupe = twins.find(t => t && t.id\n    && String(t.id) !== String(incoming.id)\n    && String(t.status || '').toLowerCase() !== 'archived'\n    && String(t.linear_issue_id || '').trim() === link) || null;\n}\nif (dupe) {\n  return [{ json: Object.assign({}, dupe, { _dupe: true }) }];\n}\nreturn [{ json: Object.assign({}, incoming, { _dupe: false }) }];"
+      }
+    },
+    {
+      "id": "0ca8099a-0e68-4d16-8072-ace30be9e049",
+      "name": "Is Duplicate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [810, 120],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "dupe-flag",
+              "leftValue": "={{ $json._dupe === true }}",
+              "operator": { "operation": "true", "singleValue": true, "type": "boolean" },
+              "rightValue": ""
+            }
+          ],
+          "options": { "caseSensitive": true, "typeValidation": "strict", "version": 2 }
+        },
+        "options": {}
+      },
+      "notes": "True (output 0): a live row already owns this linear_issue_id -> respond with the existing row, no append. False (output 1): normal append path."
+    },
+    {
+      "id": "2408cee7-ce6f-48c9-822d-3c70db195e1c",
+      "name": "Wrap Dedupe Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1010, 230],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const j = ($input.first() && $input.first().json) || {};\nconst out = {};\nfor (const k of Object.keys(j)) { if (k.charAt(0) === '_') continue; out[k] = j[k]; }\nreturn [{ json: { ok: true, deduped: true, post: out } }];"
+      }
+    },
+    {
+      "id": "520365cd-2aa4-4fdb-abc3-0ff0a5cd5a38",
+      "name": "Strip Routing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [448, 0],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "language": "javaScript",
+        "jsCode": "const j = $input.item.json;\nconst out = {};\nfor (const k of Object.keys(j)) {\n  if (k.charAt(0) === '_') continue;\n  out[k] = j[k];\n}\nreturn { json: out };"
+      }
+    },
+    {
+      "id": "cc57cd33-f3c7-47d1-b904-1dc73eb60c59",
+      "name": "Append Calendar Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [672, 0],
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Row From Post\").item.json._sheetName }}" },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": { "cellFormat": "RAW", "handlingExtraData": "insertInNewColumn" }
+      }
+    },
+    {
+      "id": "ac3101e3-30c0-473a-8086-ecfc345d9da8",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const j = ($input.first() && $input.first().json) || {};\nreturn [{ json: { ok: true, post: j } }];"
+      }
+    },
+    {
+      "id": "eedbf809-69d4-460f-90ec-d0275dd3efd7",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1120, 0],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

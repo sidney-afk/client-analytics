@@ -3030,9 +3030,15 @@
         .cal-cap-gen:disabled { opacity: 0.55; cursor: not-allowed; }
         .cal-cap-gen svg { width: 12px; height: 12px; }
         .cal-cap-gen.is-busy { color: var(--text-primary); border-color: var(--text-primary); }
+        .cal-cap-gen.is-busy:disabled { opacity: 1; cursor: default; }
         .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
         .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
         @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
+        /* Per-card cancel for an in-flight generation — opposite corner from
+           the busy pill so neither covers the other. */
+        .cal-cap-gen-x { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s; }
+        .cal-cap-gen-x:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+        .cal-cap-gen-x svg { width: 10px; height: 10px; }
         .cal-cap-err { position: absolute; left: 8px; bottom: 38px; max-width: calc(100% - 16px); padding: 5px 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.35; pointer-events: none; }
 
         .cal-prompt-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 330; align-items: center; justify-content: center; padding: 20px; }
@@ -10925,6 +10931,14 @@
     const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';
     const CAPTION_PROMPTS_GET_URL    = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-get';
     const CAPTION_PROMPTS_SAVE_URL   = 'https://synchrosocial.app.n8n.cloud/webhook/caption-prompts-save';
+    /* Caption-job tracking. The generate-caption workflow upserts a row per
+       run into the caption_jobs n8n data table (status: running/done/error/
+       cancelled, stage: scraping → transcribing → writing → done). The UI
+       polls the status webhook so the button/progress chip mirror the real
+       backend state — surviving refreshes, tab switches and dropped
+       connections — and posts cancel_requested to the update webhook. */
+    const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
+    const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
     /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
        sub-issue's Linear URL + client name; the send-urgent-slack workflow
        validates the URL, resolves the editor from Linear, maps them to a Slack
@@ -10943,10 +10957,25 @@
     let _calCaptionPrompts = {};
     let _calCaptionPromptsLoaded = false;
     let _calCaptionPromptsInFlight = null;
-    /* Per-card guards: prevents double-firing the generator on the same card
-       and tracks the active bulk run so it can be cancelled. */
-    const _calCaptionInFlight = new Set();
-    let _calBulkCaptionRun = null;
+    /* Caption-job engine state — the single source of truth for the Generate
+       button, the floating progress chip and cancel. One job object per card
+       (keyed by post id). Active jobs are mirrored to localStorage so an
+       in-flight generation survives a refresh or tab close: the backend
+       caption_jobs row is authoritative and the poller re-syncs against it.
+       Multiple cards can generate at once (rapid-fire clicks just queue);
+       CAL_CAPJOB_CONCURRENCY caps parallel Apify/Whisper runs. */
+    const CAL_CAPJOB_LS_KEY = 'syncview_captionJobs_v1';
+    const CAL_CAPJOB_CONCURRENCY = 2;
+    const CAL_CAPJOB_POLL_MS = 5000;
+    const CAL_CAPJOB_STALE_MS = 12 * 60 * 1000;      // no backend movement → timed out
+    const CAL_CAPJOB_CONFIRM_MS = 45 * 1000;          // POST failed + row never appeared → unreachable
+    const CAL_CAPJOB_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
+    const _calCaptionJobs = new Map();                // pid → job
+    let _calCapJobBatch = null;                       // floating chip counters
+    let _calCapJobPollTimer = null;
+    let _calCapJobTicker = null;
+    let _calCapJobPollBusy = false;
+    let _calCapJobsRestored = false;
 
     const CAL_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved','Scheduled','Posted'];
     /* Worst → best. Overall card status is the lowest-priority sub-status.
@@ -11278,7 +11307,7 @@
                 <button type="button" class="cal-altcap-add" onclick="_calCapTabAddMenu(event,'${pid}',this)" title="Add a second caption for another platform — reviewed and approved together with the main caption"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v10M3 8h10"/></svg>Alt caption</button>
             </div>`;
         }
-        const genBtn = canEdit ? `<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption('${pid}')"${_calCanGenerateCaption(p) ? '' : ' disabled title="Add a Frame.io video URL first"'}><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>` : '';
+        const genBtn = canEdit ? _calCapGenBtnHtml(p) : '';
         return `${tabsHtml}
             <div class="cal-cap-wrap${active === 'alt' ? ' captab-off' : ''}" data-capwrap="main">
                 <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
@@ -14001,6 +14030,10 @@
         // Edit caption prompt modal. Failure is non-fatal: missing entries
         // fall back to DEFAULT_CAPTION_PROMPT at the use sites.
         _calLoadCaptionPrompts();
+        // Revive caption generations that were in flight when the page was
+        // last refreshed/closed — the backend kept running; the poller
+        // re-syncs the buttons and the progress chip against it.
+        _calCapJobsRestore();
         // Prime the view from the per-client localStorage cache so the strip
         // is never blank while we hit the network. The fetch below is then
         // treated as a background revalidation; on failure we keep the
@@ -15644,6 +15677,9 @@
         _calOnFieldInput(input);
         _calLivePreviewThumb(input.dataset.pid);
         _calRefreshMediaWarning(input.dataset.pid);
+        // Unlock the Generate caption pill the moment a Frame.io URL is pasted
+        // — without this it stays disabled until the debounced save + rerender.
+        if (input.dataset.fld === 'asset_url') _calCapGenBtnRefresh(input.dataset.pid);
     }
     function _calOnLinkBlur(input) {
         _calOnFieldBlur(input);
@@ -16929,20 +16965,80 @@
         if (!/f\.io|frame\.io/i.test(url)) return false;
         return true;
     }
-    function _calSetCaptionBusy(pid, busy, errMsg) {
-        const card = document.querySelector('.cal-card[data-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
-        if (!card) return;
-        const wrap = card.querySelector('.cal-cap-wrap');
-        if (!wrap) return;
-        let btn = wrap.querySelector('.cal-cap-gen');
-        if (btn) {
-            btn.classList.toggle('is-busy', !!busy);
-            btn.disabled = !!busy;
-            btn.innerHTML = busy
-                ? '<span class="cal-cap-gen-spin"></span><span>Generating… (~2 min)</span>'
-                : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span>';
-        if (btn && busy) btn.title = 'Scrapes the Frame.io page, transcribes with Whisper, and writes the caption with Claude — usually 1-3 minutes per video.';
+    /* ============================================================
+       Caption-job engine.
+       A job is created per click, POSTed to the generate-caption
+       workflow with a client-minted jobId, and tracked against the
+       backend caption_jobs row via the status poller. The poller —
+       not the (up to 2-minute) HTTP response — is the source of
+       truth, so progress, completion, errors and cancels all survive
+       refreshes, tab switches and dropped connections. The workflow
+       saves the finished caption to the sheet itself, so a caption
+       can never be lost to a closed browser.
+       ============================================================ */
+    function _calCapEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s); }
+    function _calCapJobActive(j) { return !!j && (j.status === 'queued' || j.status === 'running'); }
+    function _calCapJobsActiveList() { return Array.from(_calCaptionJobs.values()).filter(_calCapJobActive); }
+    const CAL_CAPJOB_STAGE_LABEL = { queued: 'Queued…', scraping: 'Reading video…', transcribing: 'Transcribing…', writing: 'Writing caption…' };
+    const CAL_CAPGEN_BUSY_TIP = 'Reads the Frame.io page, transcribes the audio with Whisper, and writes the caption with Claude — usually 1-3 minutes per video. Progress survives refreshes; the ✕ on the right cancels.';
+    function _calCapJobElapsed(job) {
+        const s = Math.max(0, Math.floor((Date.now() - (job.startedAt || Date.now())) / 1000));
+        return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }
+    function _calCapJobCleanErr(msg) {
+        // n8n's Code-node wrapper appends " [line N]" to thrown messages.
+        let m = String(msg || '').replace(/\s*\[line \d+\]\s*$/, '').trim();
+        if (m.length > 160) m = m.slice(0, 160) + '…';
+        return m;
+    }
+    /* The live URL field / pending edits count for eligibility, not just the
+       saved post — so "paste the link, click Generate" works immediately. */
+    function _calCapLiveAssetUrl(pid, post) {
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        const input = card ? card.querySelector('[data-fld="asset_url"]') : null;
+        if (input && String(input.value || '').trim()) return String(input.value).trim();
+        const pe = _calPendingEdits[pid];
+        if (pe && pe.asset_url != null && String(pe.asset_url).trim()) return String(pe.asset_url).trim();
+        return String((post && post.asset_url) || '').trim();
+    }
+    function _calCapGenBtnHtml(p) {
+        const pid = p.id;
+        const job = _calCaptionJobs.get(pid);
+        if (_calCapJobActive(job)) {
+            const label = job.cancelRequested ? 'Cancelling…' : (CAL_CAPJOB_STAGE_LABEL[job.stage] || 'Generating…');
+            const elapsed = job.status === 'running' && !job.cancelRequested
+                ? ' <span data-capgen-elapsed="' + _calEscAttr(pid) + '">' + _calCapJobElapsed(job) + '</span>' : '';
+            const xBtn = job.cancelRequested ? '' :
+                '<button type="button" class="cal-cap-gen-x" onclick="_calCancelCaptionJob(\'' + pid + '\')" title="Cancel caption generation"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>';
+            return '<button type="button" class="cal-cap-gen is-busy" disabled title="' + _calEscAttr(CAL_CAPGEN_BUSY_TIP) + '"><span class="cal-cap-gen-spin"></span><span>' + label + elapsed + '</span></button>' + xBtn;
         }
+        const url = _calCapLiveAssetUrl(pid, p);
+        const can = !_calIsBlankId(pid) && !!url && /f\.io|frame\.io/i.test(url);
+        return '<button type="button" class="cal-cap-gen" onclick="_calGenerateCaption(\'' + pid + '\')"' + (can ? '' : ' disabled title="Add a Frame.io video URL first"') + '><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg><span>Generate</span></button>';
+    }
+    /* Re-render the Generate pill (and per-card cancel ✕) in place from the
+       current job state, without a full body re-render. */
+    function _calCapGenBtnRefresh(pid) {
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        if (!card) return;
+        const wrap = card.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        if (!wrap) return;
+        const post = (calState.posts || []).find(p => p.id === pid);
+        if (!post) return;
+        const oldX = wrap.querySelector('.cal-cap-gen-x');
+        if (oldX) oldX.remove();
+        const btn = wrap.querySelector('.cal-cap-gen');
+        if (!btn) return;
+        btn.outerHTML = _calCapGenBtnHtml(post);
+    }
+    /* Kept as the one place that paints per-card error chips; the busy state
+       itself now always derives from the jobs map. */
+    function _calSetCaptionBusy(pid, _busy, errMsg) {
+        _calCapGenBtnRefresh(pid);
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        if (!card) return;
+        const wrap = card.querySelector('.cal-cap-wrap[data-capwrap="main"]');
+        if (!wrap) return;
         const old = wrap.querySelector('.cal-cap-err');
         if (old) old.remove();
         if (errMsg) {
@@ -16950,99 +17046,350 @@
             err.className = 'cal-cap-err';
             err.textContent = errMsg;
             wrap.appendChild(err);
-            setTimeout(() => { if (err.parentNode) err.parentNode.removeChild(err); }, 6000);
+            setTimeout(() => { if (err.parentNode) err.parentNode.removeChild(err); }, 10000);
+        }
+    }
+    function _calCapJobBatchTrack() {
+        if (!_calCapJobBatch || _calCapJobBatch.settledAll) {
+            _calCapJobBatch = { total: 0, done: 0, ok: 0, failed: 0, cancelled: 0, settledAll: false };
+        }
+        _calCapJobBatch.total += 1;
+    }
+    function _calCapJobsPersist() {
+        try {
+            const arr = _calCapJobsActiveList().map(j => ({
+                jobId: j.jobId, pid: j.pid, client: j.client, clientName: j.clientName,
+                assetUrl: j.assetUrl, captionPrompt: j.captionPrompt,
+                status: j.status, stage: j.stage, startedAt: j.startedAt,
+                confirmed: !!j.confirmed, posted: !!j.posted, cancelRequested: !!j.cancelRequested
+            }));
+            if (arr.length) localStorage.setItem(CAL_CAPJOB_LS_KEY, JSON.stringify(arr));
+            else localStorage.removeItem(CAL_CAPJOB_LS_KEY);
+        } catch {}
+    }
+    /* Called once on calendar mount: revive jobs that were queued/running when
+       the page was refreshed or closed. Running jobs are NOT re-POSTed — the
+       backend run is still going (or already finished and saved to the sheet);
+       the poller picks the truth up from the caption_jobs row. */
+    function _calCapJobsRestore() {
+        if (_calCapJobsRestored) return;
+        _calCapJobsRestored = true;
+        let arr = null;
+        try { arr = JSON.parse(localStorage.getItem(CAL_CAPJOB_LS_KEY) || 'null'); } catch {}
+        if (!Array.isArray(arr) || !arr.length) return;
+        const now = Date.now();
+        for (const r of arr) {
+            if (!r || !r.jobId || !r.pid || _calCaptionJobs.has(r.pid)) continue;
+            if (!r.startedAt || now - r.startedAt > CAL_CAPJOB_STALE_MS) continue;
+            const job = {
+                jobId: r.jobId, pid: r.pid, client: r.client || '', clientName: r.clientName || r.client || '',
+                assetUrl: r.assetUrl || '', captionPrompt: r.captionPrompt || '',
+                status: r.posted ? 'running' : 'queued',
+                stage: r.posted ? (r.stage || 'scraping') : 'queued',
+                error: '', caption: '', startedAt: r.startedAt, lastMovementAt: now,
+                confirmed: !!r.confirmed, posted: !!r.posted,
+                cancelRequested: !!r.cancelRequested, postFailed: false,
+                resolve: null, promise: null
+            };
+            job.promise = new Promise(res => { job.resolve = res; });
+            _calCaptionJobs.set(job.pid, job);
+            _calCapJobBatchTrack();
+        }
+        if (_calCapJobsActiveList().length) {
+            _calCapJobPump();
+            _calCapJobPollNow();
+            _calUpdateBulkCaptionBar();
         }
     }
     async function _calGenerateCaption(pid, opts) {
         opts = opts || {};
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return { ok: false, error: 'Post not found' };
-        if (_calCaptionInFlight.has(pid)) return { ok: false, error: 'Already generating' };
-        if (!_calCanGenerateCaption(post)) {
-            const url = String(post.asset_url || '').trim();
-            const msg = !url ? 'Add a video URL first' :
-                (!/f\.io|frame\.io/i.test(url) ? 'Frame.io URLs only' : 'Cannot generate for this card');
-            if (!opts.silent) _calSetCaptionBusy(pid, false, msg);
-            return { ok: false, error: msg };
+        if (_calCapJobActive(_calCaptionJobs.get(pid))) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Already generating — use the ✕ to cancel first.');
+            return { ok: false, error: 'Already generating' };
         }
-        if (post.caption && String(post.caption).trim() && !opts.force) {
+        if (_calIsBlankId(pid)) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Type something in the card first so it gets saved.');
+            return { ok: false, error: 'Card not saved yet' };
+        }
+        const assetUrl = _calCapLiveAssetUrl(pid, post);
+        if (!assetUrl) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Add a video URL first');
+            return { ok: false, error: 'Add a video URL first' };
+        }
+        if (!/f\.io|frame\.io/i.test(assetUrl)) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'Frame.io URLs only');
+            return { ok: false, error: 'Frame.io URLs only' };
+        }
+        // A just-pasted URL is queued for saving alongside the generation, so
+        // the sheet ends up consistent even if the user navigates away.
+        if (assetUrl !== String(post.asset_url || '').trim()) {
+            post.asset_url = assetUrl;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].asset_url = assetUrl;
+            _calFlushCardSave(pid);
+        }
+        // The live textarea / pending edit wins over saved state for the
+        // "already has a caption" check — covers text typed seconds ago.
+        const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(pid) + '"]');
+        const ta = card ? card.querySelector('textarea[data-fld="caption"][data-pid="' + _calCapEsc(pid) + '"]') : null;
+        const liveCaption = String(
+            (ta ? ta.value :
+                (_calPendingEdits[pid] && _calPendingEdits[pid].caption != null ? _calPendingEdits[pid].caption : post.caption)) || ''
+        ).trim();
+        if (liveCaption && !opts.force) {
+            if (!opts.silent) _calSetCaptionBusy(pid, null, 'This card already has a caption — clear it first to regenerate.');
             return { ok: false, error: 'Caption already set', skipped: true };
         }
-        // If we're not nested inside a bulk run, push a single-item run
-        // onto the floating progress bar so the SMM gets the same
-        // "Generating captions: 0 / 1" affordance for single-card kicks.
-        // Bulk runs already own the bar.
-        const ownsBar = !_calBulkCaptionRun;
-        if (ownsBar) {
-            _calBulkCaptionRun = { cancelled: false, done: 0, ok: 0, failed: 0, total: 1, single: true };
-            _calUpdateBulkCaptionBar();
+        const clientName = calState.client;
+        const job = {
+            jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+            pid: pid, client: calClientSlug(clientName), clientName: clientName,
+            assetUrl: assetUrl, captionPrompt: _calCaptionPromptFor(clientName),
+            status: 'queued', stage: 'queued', error: '', caption: '',
+            startedAt: Date.now(), lastMovementAt: Date.now(),
+            confirmed: false, posted: false, cancelRequested: false, postFailed: false,
+            resolve: null, promise: null
+        };
+        job.promise = new Promise(res => { job.resolve = res; });
+        _calCaptionJobs.set(pid, job);
+        _calCapJobBatchTrack();
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(pid);
+        _calUpdateBulkCaptionBar();
+        _calCapJobPump();
+        return job.promise;
+    }
+    /* Start queued jobs while there's concurrency headroom. */
+    function _calCapJobPump() {
+        const active = _calCapJobsActiveList();
+        let running = active.filter(j => j.status === 'running').length;
+        for (const j of active) {
+            if (running >= CAL_CAPJOB_CONCURRENCY) break;
+            if (j.status !== 'queued' || j.posted || j.cancelRequested) continue;
+            running += 1;
+            _calCapJobStart(j);
         }
-        _calCaptionInFlight.add(pid);
-        _calSetCaptionBusy(pid, true);
-        const client = calState.client;
-        const captionPrompt = _calCaptionPromptFor(client);
+        _calCapJobsEnsurePolling();
+    }
+    async function _calCapJobStart(job) {
+        job.status = 'running';
+        job.stage = 'scraping';
+        job.posted = true;
+        job.startedAt = Date.now();       // the visible clock starts when the request goes out
+        job.lastMovementAt = Date.now();
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(job.pid);
+        _calUpdateBulkCaptionBar();
+        let json = null;
         try {
+            const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            const killer = ctrl ? setTimeout(() => { try { ctrl.abort(); } catch {} }, CAL_CAPJOB_FETCH_TIMEOUT_MS) : null;
             const resp = await fetch(GENERATE_CAPTION_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    client: calClientSlug(client),
-                    postId: pid,
-                    assetUrl: String(post.asset_url || '').trim(),
-                    captionPrompt: captionPrompt
-                })
+                    client: job.client, postId: job.pid, assetUrl: job.assetUrl,
+                    captionPrompt: job.captionPrompt, jobId: job.jobId
+                }),
+                signal: ctrl ? ctrl.signal : undefined
             });
-            if (!resp.ok) {
-                const txt = await resp.text().catch(() => '');
-                throw new Error('HTTP ' + resp.status + (txt ? ': ' + txt.slice(0, 180) : ''));
-            }
-            const json = await resp.json();
-            if (!json || !json.ok || !json.caption) {
-                throw new Error((json && json.error) || 'Generation returned no caption');
-            }
-            post.caption = String(json.caption).trim();
-            post.updated_at = new Date().toISOString();
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            _calPendingEdits[pid].caption = post.caption;
-            try { _calCacheWrite(calClientSlug(client), calState.posts); } catch {}
-            _calFlushCardSave(pid);
-            _calRenderBody({ preserveScroll: true });
-            if (ownsBar) {
-                _calBulkCaptionRun.done = 1;
-                _calBulkCaptionRun.ok = 1;
-                _calUpdateBulkCaptionBar();
-            }
-            return { ok: true };
+            if (killer) clearTimeout(killer);
+            json = await resp.json().catch(() => null);
+            if (!json) throw new Error('HTTP ' + resp.status);
         } catch (e) {
-            const msg = (e && e.message) ? e.message : 'Generation failed';
-            console.warn('[Calendar] generate caption failed', pid, e);
-            if (!opts.silent) _calSetCaptionBusy(pid, false, msg.length > 90 ? msg.slice(0, 90) + '…' : msg);
-            if (ownsBar) {
-                _calBulkCaptionRun.done = 1;
-                _calBulkCaptionRun.failed = 1;
-                _calUpdateBulkCaptionBar();
-            }
-            return { ok: false, error: msg };
-        } finally {
-            _calCaptionInFlight.delete(pid);
-            const stillExists = calState.posts.find(p => p.id === pid);
-            if (stillExists) _calSetCaptionBusy(pid, false);
-            // No explicit hide here — _calUpdateBulkCaptionBar above
-            // schedules the auto-hide + run slot release when it sees
-            // !inProgress on the run we just completed.
+            // Connection died mid-wait. The run may well still be alive on the
+            // backend — the poller decides from the caption_jobs row; only if
+            // the row never appears does the watchdog fail the job.
+            console.warn('[Calendar] generate-caption request dropped', job.pid, e);
+            job.postFailed = true;
+            _calCapJobPollNow();
+            return;
+        }
+        // Synchronous fast-path. The poller may have settled the job already
+        // from the status row — settling is idempotent.
+        if (json.ok && json.caption) {
+            _calCapJobSettle(job, 'done', { caption: String(json.caption) });
+        } else if (json.cancelled) {
+            _calCapJobSettle(job, 'cancelled', {});
+        } else {
+            _calCapJobSettle(job, 'error', {
+                error: _calCapJobCleanErr(json.error) || 'Generation failed',
+                caption: json.caption ? String(json.caption) : ''
+            });
         }
     }
+    /* Terminal transition — idempotent; first caller wins. Applies the caption
+       to the local card (the sheet copy was already written server-side on
+       'done'; an 'error' that still carries a caption means the generation
+       worked but the sheet save failed, so it goes through the normal
+       client-side save path instead). */
+    function _calCapJobSettle(job, status, data) {
+        if (!job || !_calCapJobActive(job)) return;
+        data = data || {};
+        job.status = status;
+        job.settledAt = Date.now();
+        job.error = data.error || '';
+        if (data.caption) job.caption = String(data.caption).trim();
+        let applied = false;
+        if (job.caption && (status === 'done' || status === 'error')) {
+            const sameClient = calClientSlug(calState.client || '') === job.client;
+            const post = sameClient ? (calState.posts || []).find(p => p.id === job.pid) : null;
+            if (post) {
+                const card = document.querySelector('.cal-card[data-pid="' + _calCapEsc(job.pid) + '"]');
+                const ta = card ? card.querySelector('textarea[data-fld="caption"][data-pid="' + _calCapEsc(job.pid) + '"]') : null;
+                const typed = String((ta ? ta.value : ((_calPendingEdits[job.pid] || {}).caption || '')) || '').trim();
+                // Never clobber text the user typed while the job ran.
+                if (!typed || typed === job.caption) {
+                    post.caption = job.caption;
+                    post.updated_at = new Date().toISOString();
+                    if (status === 'error') {
+                        if (!_calPendingEdits[job.pid]) _calPendingEdits[job.pid] = {};
+                        _calPendingEdits[job.pid].caption = post.caption;
+                        _calFlushCardSave(job.pid);
+                    }
+                    try { _calCacheWrite(job.client, calState.posts); } catch {}
+                    applied = true;
+                }
+            }
+        }
+        if (_calCapJobBatch && !_calCapJobBatch.settledAll) {
+            _calCapJobBatch.done += 1;
+            if (status === 'done') _calCapJobBatch.ok += 1;
+            else if (status === 'cancelled') _calCapJobBatch.cancelled += 1;
+            else _calCapJobBatch.failed += 1;
+        }
+        _calCapJobsPersist();
+        if (applied) _calRenderBody({ preserveScroll: true });
+        if (status === 'error' && job.error) _calSetCaptionBusy(job.pid, null, job.error);
+        else _calCapGenBtnRefresh(job.pid);
+        _calUpdateBulkCaptionBar();
+        if (job.resolve) {
+            job.resolve(status === 'done' ? { ok: true } : { ok: false, error: job.error || status, cancelled: status === 'cancelled' });
+            job.resolve = null;
+        }
+        _calCapJobPump();
+        // Release the slot after a short grace so the map can't leak entries.
+        setTimeout(() => {
+            const cur = _calCaptionJobs.get(job.pid);
+            if (cur === job && !_calCapJobActive(job)) _calCaptionJobs.delete(job.pid);
+        }, 8000);
+    }
+    function _calCapJobsEnsurePolling() {
+        if (!_calCapJobPollTimer) _calCapJobPollTimer = setInterval(_calCapJobsPoll, CAL_CAPJOB_POLL_MS);
+        if (!_calCapJobTicker) _calCapJobTicker = setInterval(_calCapJobsTick, 1000);
+    }
+    function _calCapJobsStopPollingIfIdle() {
+        if (_calCapJobsActiveList().length) return;
+        if (_calCapJobPollTimer) { clearInterval(_calCapJobPollTimer); _calCapJobPollTimer = null; }
+        if (_calCapJobTicker) { clearInterval(_calCapJobTicker); _calCapJobTicker = null; }
+    }
+    function _calCapJobsTick() {
+        for (const job of _calCapJobsActiveList()) {
+            if (job.status !== 'running' || job.cancelRequested) continue;
+            const el = document.querySelector('[data-capgen-elapsed="' + _calCapEsc(job.pid) + '"]');
+            if (el) el.textContent = _calCapJobElapsed(job);
+        }
+        _calCapJobsStopPollingIfIdle();
+    }
+    function _calCapJobPollNow() { _calCapJobsEnsurePolling(); _calCapJobsPoll(); }
+    /* Reconcile every active job against the backend caption_jobs rows. */
+    async function _calCapJobsPoll() {
+        if (_calCapJobPollBusy) return;
+        if (!_calCapJobsActiveList().length) { _calCapJobsStopPollingIfIdle(); return; }
+        _calCapJobPollBusy = true;
+        try {
+            const clients = Array.from(new Set(_calCapJobsActiveList().filter(j => j.posted).map(j => j.client)));
+            const rows = new Map();
+            await Promise.all(clients.map(async (slug) => {
+                try {
+                    const r = await fetch(CAPTION_JOB_STATUS_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                    const j = await r.json();
+                    if (j && j.ok && Array.isArray(j.jobs)) for (const row of j.jobs) rows.set(row.jobId, row);
+                } catch {}
+            }));
+            const now = Date.now();
+            for (const job of _calCapJobsActiveList()) {
+                if (!job.posted) continue;             // still waiting in the client-side queue
+                const row = rows.get(job.jobId);
+                if (row) {
+                    job.confirmed = true;
+                    const upd = Date.parse(row.updated_at || '') || 0;
+                    if (upd) job.lastMovementAt = Math.max(job.lastMovementAt || 0, upd);
+                    if (row.status === 'done') { _calCapJobSettle(job, 'done', { caption: row.caption || '' }); continue; }
+                    if (row.status === 'cancelled') { _calCapJobSettle(job, 'cancelled', {}); continue; }
+                    if (row.status === 'error') { _calCapJobSettle(job, 'error', { error: _calCapJobCleanErr(row.error) || 'Generation failed', caption: row.caption || '' }); continue; }
+                    if (row.stage && row.stage !== job.stage) { job.stage = row.stage; _calCapGenBtnRefresh(job.pid); }
+                }
+                // Watchdogs — every job ends, one way or another.
+                if (!job.confirmed && job.postFailed) {
+                    if (now - job.startedAt > CAL_CAPJOB_CONFIRM_MS) {
+                        _calCapJobSettle(job, 'error', { error: 'Could not reach the caption service — check your connection and try again.' });
+                    }
+                    continue;
+                }
+                if (!job.confirmed && now - job.startedAt > 3 * 60 * 1000) {
+                    _calCapJobSettle(job, 'error', { error: 'The caption service did not pick up the job — try again.' });
+                    continue;
+                }
+                if (now - (job.lastMovementAt || job.startedAt) > CAL_CAPJOB_STALE_MS) {
+                    // Stand the backend down too, so a zombie run can't write a
+                    // caption to the sheet long after the UI gave up.
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    _calCapJobSettle(job, 'error', { error: 'Timed out — the caption generator stopped responding. Try again.' });
+                }
+            }
+            _calCapJobsPersist();
+        } finally {
+            _calCapJobPollBusy = false;
+            _calCapJobsStopPollingIfIdle();
+        }
+    }
+    /* Cancel one card's job. Queued jobs die instantly; running jobs set
+       cancel_requested on the backend row, which the workflow honours at its
+       next checkpoint (always before the caption is saved to the sheet). */
+    function _calCancelCaptionJob(pid) {
+        const job = _calCaptionJobs.get(pid);
+        if (!_calCapJobActive(job)) return;
+        if (job.status === 'queued' && !job.posted) {
+            _calCapJobSettle(job, 'cancelled', {});
+            return;
+        }
+        if (job.cancelRequested) return;
+        job.cancelRequested = true;
+        _calCapJobsPersist();
+        _calCapGenBtnRefresh(pid);
+        _calUpdateBulkCaptionBar();
+        fetch(CAPTION_JOB_UPDATE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId: job.jobId, cancel_requested: true })
+        }).then(r => { if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); })
+          .catch(() => {
+            if (!_calCapJobActive(job)) return;
+            job.cancelRequested = false;
+            _calCapJobsPersist();
+            _calCapGenBtnRefresh(pid);
+            _calSetCaptionBusy(pid, null, 'Could not reach the server to cancel — still generating.');
+          });
+    }
+    document.addEventListener('visibilitychange', () => {
+        // Coming back to the tab → re-sync against the backend immediately
+        // instead of waiting out the poll interval (which background tabs
+        // throttle anyway).
+        if (document.visibilityState === 'visible' && _calCapJobsActiveList().length) _calCapJobPollNow();
+    });
     async function _calBulkGenerateCaptions() {
-        if (_calBulkCaptionRun) return;
         const all = Array.from(calState.selected);
         const eligible = all
             .map(id => calState.posts.find(p => p.id === id))
-            .filter(p => p && _calCanGenerateCaption(p) && !(p.caption && String(p.caption).trim()));
+            .filter(p => p && _calCanGenerateCaption(p) && !(p.caption && String(p.caption).trim()) && !_calCapJobActive(_calCaptionJobs.get(p.id)));
         const skippedExisting = all.length - eligible.length;
         if (!eligible.length) {
             showNotify('Nothing to generate',
                 skippedExisting
-                    ? 'All ' + skippedExisting + ' selected card' + (skippedExisting === 1 ? ' already has' : 's already have') + ' a caption, or are missing a Frame.io video URL.'
+                    ? 'All ' + skippedExisting + ' selected card' + (skippedExisting === 1 ? ' already has' : 's already have') + ' a caption, are already generating, or are missing a Frame.io video URL.'
                     : 'Select cards that have a Frame.io video URL and no caption yet.');
             return;
         }
@@ -17058,78 +17405,70 @@
             document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(b => b.classList.remove('active'));
             _calRenderBody({ preserveScroll: true });
         }
-        const run = { cancelled: false, done: 0, ok: 0, failed: 0, total: eligible.length };
-        _calBulkCaptionRun = run;
-        _calUpdateBulkCaptionBar();
-        for (const post of eligible) {
-            if (run.cancelled) break;
-            // _calGenerateCaption checks _calBulkCaptionRun and won't
-            // re-own the floating bar while we're driving it from here.
-            const res = await _calGenerateCaption(post.id, { force: false });
-            run.done += 1;
-            if (res && res.ok) run.ok += 1; else run.failed += 1;
-            _calUpdateBulkCaptionBar();
-        }
-        // Final update on the bar — _calUpdateBulkCaptionBar will see
-        // !inProgress and schedule the auto-hide. We deliberately don't
-        // null _calBulkCaptionRun here so the bar can render its final
-        // state during the fade; the auto-hide callback releases it.
-        _calUpdateBulkCaptionBar();
-        const summary = run.cancelled
-            ? 'Cancelled after ' + run.done + ' of ' + run.total + '. ' + run.ok + ' generated, ' + run.failed + ' failed.'
-            : run.ok + ' caption' + (run.ok === 1 ? '' : 's') + ' generated' +
-                (run.failed ? ', ' + run.failed + ' failed' : '') +
-                (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
-        showNotify(run.ok ? 'Done' : 'Generation failed', summary);
+        // Every card becomes a job; the engine runs CAL_CAPJOB_CONCURRENCY at
+        // a time and the chip tracks the batch. Each promise settles when its
+        // backend job does (or is cancelled / times out) — never hangs.
+        const results = await Promise.all(eligible.map(p => _calGenerateCaption(p.id)));
+        const ok = results.filter(r => r && r.ok).length;
+        const cancelled = results.filter(r => r && !r.ok && r.cancelled).length;
+        const failed = results.length - ok - cancelled;
+        const summary =
+            ok + ' caption' + (ok === 1 ? '' : 's') + ' generated' +
+            (failed ? ', ' + failed + ' failed' : '') +
+            (cancelled ? ', ' + cancelled + ' cancelled' : '') +
+            (skippedExisting ? '. Skipped ' + skippedExisting + ' card' + (skippedExisting === 1 ? '' : 's') + ' that already had a caption.' : '.');
+        showNotify(ok ? 'Done' : (cancelled === results.length ? 'Cancelled' : 'Generation failed'), summary);
     }
+    /* The chip's Cancel cancels everything in flight — queued jobs die
+       instantly, running ones stop at the workflow's next checkpoint. */
     function _calCancelBulkCaption() {
-        if (_calBulkCaptionRun) _calBulkCaptionRun.cancelled = true;
+        for (const job of _calCapJobsActiveList()) _calCancelCaptionJob(job.pid);
     }
-    /* Single source of truth for the floating bottom-right progress
-       chip. Both single-card and bulk caption generation push state
-       into _calBulkCaptionRun and call this — keeps the affordance
-       consistent: same shape, same wording, same place.
-
-       Cancel button is shown ONLY while a multi-card run is still in
-       progress (it has no effect once the loop is done). On completion
-       the bar auto-dismisses after 2 s so it doesn't linger forever. */
+    /* Single source of truth for the floating bottom-right progress chip,
+       rendered from the jobs map + batch counters. A batch is "every job
+       started since the chip was last idle" — rapid-fire single clicks
+       merge into one accurate X / Y count instead of fighting over the bar.
+       On completion the bar auto-dismisses after 2.5 s. */
     let _calBulkCapAutoHide = null;
     function _calUpdateBulkCaptionBar() {
-        const run = _calBulkCaptionRun;
+        const batch = _calCapJobBatch;
         const bar = _calEnsureBulkCaptionBar();
-        if (!run) { bar.classList.remove('is-active'); return; }
+        if (!batch) { bar.classList.remove('is-active'); return; }
         bar.classList.add('is-active');
-        const inFlight = run.total - run.done;
-        const inProgress = inFlight > 0 && !run.cancelled;
+        const active = _calCapJobsActiveList();
+        const inProgress = active.length > 0;
+        const cancelling = inProgress && active.every(j => j.cancelRequested);
         const spin = '<span class="cal-bulk-cap-spin"></span>';
         let txt;
-        if (run.total === 1) {
+        if (batch.total === 1) {
             txt = inProgress
-                ? (spin + '<span>Generating caption…</span>')
-                : (run.ok ? '<span>✓ Caption generated</span>' : '<span>Generation failed</span>');
+                ? (spin + '<span>' + (cancelling ? 'Cancelling…' : 'Generating caption…') + '</span>')
+                : (batch.ok ? '<span>✓ Caption generated</span>'
+                    : (batch.cancelled ? '<span>Caption cancelled</span>' : '<span>Generation failed</span>'));
         } else {
             txt = (inProgress ? spin : '') +
-                '<span>Generating captions: ' + run.done + ' / ' + run.total +
-                (run.failed ? '  (' + run.failed + ' failed)' : '') + '</span>';
+                '<span>' + (cancelling ? 'Cancelling… ' : '') + 'Generating captions: ' + batch.done + ' / ' + batch.total +
+                (batch.failed ? '  (' + batch.failed + ' failed)' : '') +
+                (batch.cancelled ? '  (' + batch.cancelled + ' cancelled)' : '') + '</span>';
         }
         const span = bar.querySelector('[data-bulk-cap-text]');
         if (span) span.innerHTML = txt;
         const cancelBtn = bar.querySelector('.cal-bulk-cap-cancel');
-        if (cancelBtn) cancelBtn.hidden = run.total === 1 || !inProgress;
+        if (cancelBtn) cancelBtn.hidden = !inProgress || cancelling;
         // Once everything finishes, schedule the auto-hide. Cleared on
         // every update so a fast follow-up run doesn't get dismissed
         // mid-progress.
         if (_calBulkCapAutoHide) { clearTimeout(_calBulkCapAutoHide); _calBulkCapAutoHide = null; }
         if (!inProgress) {
-            const watched = run;
+            batch.settledAll = true;
+            const watched = batch;
             _calBulkCapAutoHide = setTimeout(() => {
                 bar.classList.remove('is-active');
-                // Release the run slot only if a follow-up generation
-                // hasn't already replaced it — otherwise we'd null out
-                // a fresh in-flight bulk by accident.
-                if (_calBulkCaptionRun === watched) _calBulkCaptionRun = null;
+                // Release the batch only if a follow-up generation hasn't
+                // already replaced it.
+                if (_calCapJobBatch === watched) _calCapJobBatch = null;
                 _calBulkCapAutoHide = null;
-            }, 2000);
+            }, 2500);
         }
     }
     function _calEnsureBulkCaptionBar() {

@@ -12459,6 +12459,7 @@
         const s = String(name || '').trim().toLowerCase();
         if (s.includes('tweak')) return 'Tweaks Needed';
         if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
         if (s === 'approved') return 'Approved';
         if (s.includes('smm')) return 'For SMM Approval';
         if (s.includes('kasper')) return 'Kasper Approval';
@@ -12466,7 +12467,7 @@
         return 'In Progress';   // Backlog / Todo / In Progress / anything else
     }
     /* Strict variant — returns null for Linear states that have no calendar
-       equivalent (Posted, Canceled, Done…) so a freshly linked card is left
+       equivalent (Canceled, Done…) so a freshly linked card is left
        untouched instead of being forced to "In Progress". Mirrors the
        Linear→Calendar mapping in the n8n status-sync workflow. */
     function _calMapLinearStatusStrict(name) {
@@ -12474,6 +12475,7 @@
         if (!s) return null;
         if (s.includes('tweak')) return 'Tweaks Needed';
         if (s.includes('scheduled')) return 'Scheduled';
+        if (s === 'posted') return 'Posted';
         if (s === 'approved') return 'Approved';
         if (s.includes('smm')) return 'For SMM Approval';
         if (s.includes('kasper')) return 'Kasper Approval';
@@ -12583,11 +12585,7 @@
     function _calPushStatusToLinear(issueUrl, status) {
         const url = String(issueUrl || '').trim();
         const st  = String(status || '').trim();
-        // Posted has no Linear state — calendar holds it on its own.
-        // Scheduled used to be calendar-only too but the SMM added a
-        // matching Linear state, so it now pushes through normally.
-        const lower = st.toLowerCase();
-        if (!url || !st || lower === 'posted') return;
+        if (!url || !st) return;
         _calLinearPushLatest[url] = st;
         const run = async () => {
             // Superseded by a newer push queued behind us — let that one send.
@@ -12827,10 +12825,9 @@
         const subKey = which + '_status';
         const current = _calNormStatus(post[subKey] || '');
         if (current === mapped) return;
-        // Posted has no Linear equivalent (Linear stays at Approved) — don't
-        // bounce a Posted card back to Approved. Scheduled now has a Linear
-        // state and flows normally.
-        if (mapped === 'Approved' && current === 'Posted') return;
+        // Posted is the terminal state on the calendar — once an SMM marks
+        // a component Posted, no Linear state should knock it back.
+        if (current === 'Posted' && mapped !== 'Posted') return;
         post[subKey] = mapped;
         post.status = computeOverallStatus(post);
         _calNoLinearPush.add(pid);
@@ -12901,7 +12898,7 @@
                 const linState = statuses[vM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.video_status || '') !== mapped
-                    && !(mapped === 'Approved' && post.video_status === 'Posted')) {
+                    && !(post.video_status === 'Posted' && mapped !== 'Posted')) {
                     post.video_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].video_status = mapped;
@@ -12913,7 +12910,7 @@
                 const linState = statuses[gM[1]];
                 const mapped = (linState !== undefined) ? _calMapLinearStatusStrict(linState) : null;
                 if (mapped && _calNormStatus(post.graphic_status || '') !== mapped
-                    && !(mapped === 'Approved' && post.graphic_status === 'Posted')) {
+                    && !(post.graphic_status === 'Posted' && mapped !== 'Posted')) {
                     post.graphic_status = mapped;
                     if (!_calPendingEdits[post.id]) _calPendingEdits[post.id] = {};
                     _calPendingEdits[post.id].graphic_status = mapped;

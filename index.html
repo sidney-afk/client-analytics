@@ -1071,6 +1071,10 @@
         .linear-video-card:hover .linear-video-remove { opacity: 1; }
         .linear-title-display { padding: 10px 14px; border-radius: 10px; border: 1.5px solid var(--border-light); background: var(--bg); font-size: 0.85rem; font-weight: 600; color: var(--text-primary); min-height: 42px; display: flex; align-items: center; }
         .linear-title-display.empty { color: var(--text-muted); font-weight: 400; font-style: italic; }
+        /* Read-only filming-plan display: auto-filled from the FilmingPlans sheet,
+           mirrors the Title field. Long doc URLs wrap rather than overflow. */
+        #linearFilmingPlansDisplay { word-break: break-all; overflow-wrap: anywhere; font-weight: 500; font-size: 0.8rem; line-height: 1.4; }
+        .linear-title-display.warn { color: #b45309; font-weight: 600; font-style: normal; }
         .video-link-hint { font-size: 0.65rem; color: var(--text-muted); opacity: 0.7; white-space: nowrap; position: absolute; bottom: 12px; left: 16px; pointer-events: none; }
         .linear-video-card { position: relative; padding-bottom: 30px; }
         .linear-video-fields { display: flex; flex-direction: column; gap: 8px; }
@@ -9809,6 +9813,7 @@
         updateLinearSearchGhost(q);
         openLinearSearchDropdown();
         updateLinearTitle();
+        updateLinearFilmingPlan();
         saveLinearForm();
     }
 
@@ -9895,6 +9900,77 @@
         if (box) box.classList.remove('open');
         if (ghost) ghost.innerHTML = '';
         updateLinearTitle();
+        updateLinearFilmingPlan();
+        saveLinearForm();
+    }
+
+    // Filming plan is auto-resolved from the FilmingPlans sheet by client name
+    // (same single source of truth the n8n automation uses) and shown read-only,
+    // exactly like the Title field — nobody links a plan by hand.
+    let _linearPlanMap = null;          // normalized client name -> doc_url
+    let _linearPlanMapLoading = false;
+    let _linearResolvedPlanUrl = '';
+
+    function _normLinearName(s) {
+        return String(s || '').toLowerCase()
+            .replace(/\b(dr|mr|mrs|ms|prof)\.?\s+/g, '')
+            .replace(/&/g, 'and')
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function loadLinearPlanMap(force) {
+        if (_linearPlanMap && !force) { updateLinearFilmingPlan(); return; }
+        if (_linearPlanMapLoading) return;
+        _linearPlanMapLoading = true;
+        try {
+            const resp = await fetch(FILMING_PLANS_URL + '&_t=' + Date.now());
+            const text = await resp.text();
+            const map = {};
+            parseCSV(text).forEach(r => {
+                const name = (r.client_name || r.client || '').trim();
+                const url = (r.doc_url || r.url || '').trim();
+                if (name && url) map[_normLinearName(name)] = url;
+            });
+            _linearPlanMap = map;
+        } catch (e) {
+            _linearPlanMap = _linearPlanMap || {};
+        } finally {
+            _linearPlanMapLoading = false;
+            updateLinearFilmingPlan();
+        }
+    }
+
+    function updateLinearFilmingPlan() {
+        const el = document.getElementById('linearFilmingPlansDisplay');
+        if (!el) return;
+        const client = document.getElementById('linearClientSearch')?.value?.trim() || '';
+        if (!client) {
+            _linearResolvedPlanUrl = '';
+            el.textContent = 'Select a client…';
+            el.classList.add('empty'); el.classList.remove('warn');
+            el.removeAttribute('title');
+            saveLinearForm();
+            return;
+        }
+        if (!_linearPlanMap) {
+            el.textContent = 'Loading filming plan…';
+            el.classList.add('empty'); el.classList.remove('warn');
+            loadLinearPlanMap();
+            return;
+        }
+        const url = _linearPlanMap[_normLinearName(client)] || '';
+        _linearResolvedPlanUrl = url;
+        if (url) {
+            el.textContent = url;
+            el.title = url;
+            el.classList.remove('empty', 'warn');
+        } else {
+            el.textContent = '⚠ No filming plan found for this client';
+            el.removeAttribute('title');
+            el.classList.add('warn'); el.classList.remove('empty');
+        }
         saveLinearForm();
     }
 
@@ -9920,7 +9996,7 @@
         const cards = document.querySelectorAll('[id^="videoCard_"]');
         const f = {
             client: document.getElementById('linearClientSearch')?.value || '',
-            filmingPlans: document.getElementById('linearFilmingPlans')?.value || '',
+            filmingPlans: _linearResolvedPlanUrl || '',
             generalDrive: document.getElementById('linearGeneralDrive')?.value || '',
             notes: document.getElementById('linearNotes')?.value || '',
             videos: []
@@ -10766,6 +10842,7 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderLinearView();
             if (!linearProjects.length && !linearProjectsLoading) fetchLinearProjects();
+            loadLinearPlanMap();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'templates') {
             pageTop.style.display = 'none';
@@ -19640,7 +19717,6 @@
     function renderLinearView() {
         const saved = loadLinearForm();
         const savedClient = saved.client || '';
-        const savedFilmingPlans = saved.filmingPlans || '';
         const savedGeneralDrive = saved.generalDrive || '';
 
         // Restore video count from saved data
@@ -19692,7 +19768,7 @@
                 </div>
                 <div class="linear-field" id="linearFilmingPlansField">
                     <label class="linear-label">Filming Plans</label>
-                    <input class="linear-input" id="linearFilmingPlans" type="url" placeholder="Filming plans link…" value="${savedFilmingPlans.replace(/"/g, '&quot;')}" oninput="saveLinearForm()">
+                    <div class="linear-title-display empty" id="linearFilmingPlansDisplay">Select a client…</div>
                 </div>
                 <div class="linear-field">
                     <label class="linear-label">General Drive</label>
@@ -19826,7 +19902,7 @@
         const client = document.getElementById('linearClientSearch')?.value?.trim();
         const title = buildLinearTitle();
         const notes = document.getElementById('linearNotes')?.value?.trim();
-        const filmingPlans = document.getElementById('linearFilmingPlans')?.value?.trim() || '';
+        const filmingPlans = _linearResolvedPlanUrl || '';
         const generalDrive = document.getElementById('linearGeneralDrive')?.value?.trim() || '';
 
         if (!client) { document.getElementById('linearStatus').textContent = 'Please select a client.'; return; }

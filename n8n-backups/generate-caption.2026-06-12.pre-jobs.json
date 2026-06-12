@@ -1,0 +1,166 @@
+{
+  "_note": "Snapshot of the SyncView Calendar — Generate Caption workflow (id rNrRCwKPGuau7sLH) taken 2026-06-12, BEFORE adding caption-job tracking (caption_jobs data table, stage updates, cancel checks, error responses). Secrets are redacted in this copy: restore real values from the n8n credential/workflow if ever re-importing — [REDACTED-APIFY-TOKEN] in 'Run Apify Scraper' url, [REDACTED-ANTHROPIC-KEY] in 'Generate Caption with Claude' jsCode. n8n cloud's own workflow version history is the authoritative rollback path.",
+  "id": "rNrRCwKPGuau7sLH",
+  "name": "SyncView Calendar — Generate Caption",
+  "description": "Generate Caption: Frame.io scrape -> submit Replicate prediction with webhook -> Wait for Replicate callback (max 8 min) -> Claude -> sheet. Replaces 60s wait that timed out on cold-start.",
+  "savedAt": "2026-06-12",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Prepare Apify Input", "type": "main", "index": 0 }]] },
+    "Prepare Apify Input": { "main": [[{ "node": "Run Apify Scraper", "type": "main", "index": 0 }]] },
+    "Run Apify Scraper": { "main": [[{ "node": "Extract Video URL", "type": "main", "index": 0 }]] },
+    "Extract Video URL": { "main": [[{ "node": "Submit Replicate Whisper", "type": "main", "index": 0 }]] },
+    "Submit Replicate Whisper": { "main": [[{ "node": "Wait for Replicate Callback", "type": "main", "index": 0 }]] },
+    "Wait for Replicate Callback": { "main": [[{ "node": "Extract Transcript", "type": "main", "index": 0 }]] },
+    "Extract Transcript": { "main": [[{ "node": "Generate Caption with Claude", "type": "main", "index": 0 }]] },
+    "Generate Caption with Claude": { "main": [[{ "node": "Save Caption to Sheet", "type": "main", "index": 0 }]] },
+    "Save Caption to Sheet": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Generate Caption (Frame.io -> Replicate Whisper -> Claude -> Sheet)\n\nPOST /webhook/generate-caption\nBody: { client, postId, assetUrl, captionPrompt? }\n\nReplicate prediction is submitted with webhook: $execution.resumeUrl. The Wait node pauses until Replicate POSTs back the completed prediction (max 8 min). Replaces the Prefer: wait=60 pattern that timed out on 29 MB videos with cold-start Whisper.",
+        "height": 200,
+        "width": 2316,
+        "color": 5
+      },
+      "id": "0bb44134-079b-4f67-ab95-6476a87a604b",
+      "name": "Sticky Note 55e72652",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [880, 352]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-caption",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "id": "9eb9b597-d946-4642-8d0e-ccd27af3b973",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "f422dc4b-b578-49cf-9bae-1ecabf16188d"
+    },
+    {
+      "parameters": {
+        "_jsCodeNote": "Verbatim original code for this node is preserved unmodified inside the post-change version of the workflow (the 2026-06-12 change only prepends jobId parsing + duplicate-run guard + job-row creation after the validation block, and adds jobId to the returned json). See the live workflow or n8n version history for the exact original string.",
+        "jsCode": "// (original Frame.io scrape-input builder — body parsing, validation, injected fetch/XHR interceptor, pageFunction picking the best assets.frame.io media URL, Apify actorInput assembly; returns { client, postId, assetUrl, captionPrompt, actorInput })"
+      },
+      "id": "a4bc11e2-35ac-42a7-9bfb-14e4d83b1a1e",
+      "name": "Prepare Apify Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~web-scraper/run-sync-get-dataset-items?token=[REDACTED-APIFY-TOKEN]&timeout=240",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.actorInput) }}",
+        "options": { "timeout": 300000 }
+      },
+      "id": "fce93e12-1303-464e-ab1d-b533cb6aff6d",
+      "name": "Run Apify Scraper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [448, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.all().map(i => i.json);\nconst firstItem = results[0];\nif (!firstItem || !firstItem.videoUrl) {\n  const dbg = JSON.stringify(firstItem || {}).slice(0, 800);\n  throw new Error('Could not find a downloadable media URL on the Frame.io page. ' + dbg);\n}\nlet url = String(firstItem.videoUrl).replace(/&amp;/g, '&');\nreturn [{ json: { mediaUrl: url, _scrapeStats: { audioCount: firstItem.audioCount, combinedCount: firstItem.combinedCount, originalCount: firstItem.originalCount, videoOnlyCount: firstItem.videoOnlyCount, totalCount: firstItem.totalCount } } }];"
+      },
+      "id": "f44cda9b-b243-48d2-855a-017cd5fbc983",
+      "name": "Extract Video URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.replicate.com/v1/predictions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ version: '4d50797290df275329f202e48c76360b3f22b08d28c196cbc54600319435f8d2', input: { audio: $json.mediaUrl, model: 'large-v3', transcription: 'plain text' }, webhook: $execution.resumeUrl, webhook_events_filter: ['completed'] }) }}",
+        "options": { "timeout": 60000 }
+      },
+      "id": "9672720a-5895-4f56-822b-c7f9f8d51eb2",
+      "name": "Submit Replicate Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [896, 0]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "limitWaitTime": true,
+        "resumeAmount": 8,
+        "resumeUnit": "minutes",
+        "options": { "noResponseBody": true }
+      },
+      "id": "52c06766-8029-4360-8667-fb10feea6e14",
+      "name": "Wait for Replicate Callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1120, 0],
+      "webhookId": "9db4e0fd-13bc-4b1e-b1d8-17f11e721653"
+    },
+    {
+      "parameters": {
+        "jsCode": "const incoming = $input.first() && $input.first().json;\nif (!incoming) throw new Error('Empty response from Replicate');\n// When the Wait-for-webhook node resumes, the body field carries Replicate's callback payload (the full prediction object). On the rare path where the Wait timed out and just passed the original submit-prediction response through, the payload is at top level instead. Handle both.\nconst pred = (incoming.body && typeof incoming.body === 'object') ? incoming.body : incoming;\nif (pred.status && pred.status !== 'succeeded') {\n  throw new Error('Replicate run ' + pred.status + (pred.error ? ': ' + String(pred.error).slice(0, 240) : ''));\n}\nconst out = pred.output;\nif (out == null) throw new Error('Replicate returned no output (status=' + (pred.status || 'unknown') + ')');\nlet transcript = '';\nif (typeof out === 'string') transcript = out;\nelse if (typeof out.transcription === 'string') transcript = out.transcription;\nelse if (typeof out.text === 'string') transcript = out.text;\nelse if (Array.isArray(out)) transcript = out.map(x => (x && (x.text || x.transcription)) || '').join(' ');\nelse if (typeof out === 'object') transcript = String(out.translation || out.transcription || out.text || '');\ntranscript = transcript.trim();\nif (!transcript) throw new Error('Replicate returned an empty transcript');\nreturn [{ json: { transcript } }];"
+      },
+      "id": "7e6ea913-261e-404f-bed1-e59fc97e67ca",
+      "name": "Extract Transcript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, 0]
+    },
+    {
+      "parameters": {
+        "_jsCodeNote": "Verbatim original preserved unmodified inside the post-change workflow (the change only wraps it with a cancel check up front). Anthropic API key redacted here.",
+        "jsCode": "// (original Claude caption writer — builds the prompt from the per-client captionPrompt or the baked-in DEFAULT_PROMPT, appends the transcript, calls api.anthropic.com/v1/messages with x-api-key [REDACTED-ANTHROPIC-KEY], model claude-sonnet-4-6, returns { ok, client, postId, caption, usedDefaultPrompt })"
+      },
+      "id": "1f96999d-1ad3-4912-9fd0-60086ed1f460",
+      "name": "Generate Caption with Claude",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1568, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Prepare Apify Input').first().json;\nconst caption = ($input.first() && $input.first().json && $input.first().json.caption) || '';\nconst resp = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post',\n  body: { client: ctx.client, post: { id: ctx.postId, caption: caption } },\n  json: true,\n  timeout: 30000\n});\nif (!resp || resp.ok !== true) {\n  throw new Error('calendar-upsert-post returned non-ok: ' + JSON.stringify(resp).slice(0, 300));\n}\nreturn [{ json: { ok: true, client: ctx.client, postId: ctx.postId, caption, savedToSheet: true } }];"
+      },
+      "id": "ab2f209d-0586-4d60-beb7-20c5d617e4d0",
+      "name": "Save Caption to Sheet",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1792, 0]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      },
+      "id": "b8c14619-68b8-41e9-bfde-831c7b0e3025",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [2016, 0]
+    }
+  ]
+}

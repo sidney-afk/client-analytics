@@ -19999,12 +19999,16 @@
     }
 
     /* After the Linear form is submitted, write a calendar card per video.
-       Runs in the background — uses the fast /calendar-append-post endpoint
-       (pure Sheets append, no read-before-write) so each row lands in well
-       under a second and the user's calendar-get refreshes don't get
-       blocked behind a sheet-wide lock. Waits ~8s after submit so Linear
-       has time to create the sub-issues, then matches them by title and
-       writes each card with its Linear URL pre-filled. */
+       Runs in the background. Each card is written via /calendar-upsert-post
+       using a DETERMINISTIC id derived from the Linear sub-issue
+       (p_lin_<identifier>), so re-running the import — a double-fire, a manual
+       re-import, or a retry — updates the same row instead of appending a
+       second one. This is what prevents duplicate rows that share a
+       linear_issue_id: two such rows collapse to a single card in the UI, so
+       archiving one would leave the other behind and the card would reappear
+       on the next refresh. Waits ~15s after submit so Linear has time to
+       create the sub-issues, then matches them by title and writes each card
+       with its Linear URL pre-filled. */
     async function _writeLinearVideoCardsToCalendar(clientName, videos, formTitle, opts) {
         const slug = wlNormalizeClient(clientName);
         if (!slug || !Array.isArray(videos) || !videos.length) return;
@@ -20119,8 +20123,15 @@
             const gSub = wantGraphic
                 ? (graphicSubs.find(s => String(s.title || '').trim() === subTitle) || pickByPosition(graphicSubs, n))
                 : null;
+            // Deterministic, Linear-derived id so a re-import updates the same
+            // row instead of creating a twin (the duplicate-link bug). Keyed
+            // off the video sub-issue when present, else the graphic one;
+            // falls back to a random id only for a fully unlinked card.
+            const linUrl = (vSub && vSub.url) || (gSub && gSub.url) || '';
+            const linMatch = linUrl.match(/\/issue\/([A-Za-z0-9]+-\d+)/);
+            const id = linMatch ? ('p_lin_' + linMatch[1].replace(/[^a-z0-9]+/gi, '').toLowerCase()) : mintId();
             const post = {
-                id: mintId(),
+                id,
                 order_index: baseOrder + n,
                 name: subTitle,
                 scheduled_date: '',
@@ -20142,7 +20153,7 @@
             if (post.linear_issue_id) linkedVideo++;
             if (post.graphic_linear_issue_id) linkedGraphic++;
             try {
-                const resp = await fetch(CALENDAR_APPEND_URL, {
+                const resp = await fetch(CALENDAR_UPSERT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ client: slug, post })

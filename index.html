@@ -16725,10 +16725,27 @@
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
             const saved = json.post || post;
-            _calMigratePostShape(saved);
             const i2 = calState.posts.findIndex(p => p.id === realId);
             if (i2 >= 0) {
+                // Merge the echo onto the full local row BEFORE migrating.
+                // Under v2 the upsert echo (json.post) is a FIELD-LEVEL PATCH
+                // — it carries only the columns this save wrote (e.g. {id,
+                // updated_at, caption_status, status}) and NOT the untouched
+                // sub-statuses. Running _calMigratePostShape on that partial
+                // echo by itself was the status-revert bug: once any one sub is
+                // present, its isLegacyOnly guard is false, so it SEEDS the
+                // absent video_status/graphic_status to 'In Progress', and the
+                // Object.assign below then overlaid those invented values onto
+                // the correct local ones — silently flipping a freshly-set
+                // video/graphic back to "In Progress". (The editing tab's
+                // recent-save guard then preferred that clobbered local copy
+                // over the correct Supabase row on the realtime reload, so the
+                // revert stuck until a hard refresh.) Overlaying the echo's
+                // keys onto the full local row first, then migrating the MERGED
+                // row, means every sub-status is present → nothing is invented,
+                // and a column the echo omits keeps its correct local value.
                 const merged = Object.assign({}, calState.posts[i2], saved);
+                _calMigratePostShape(merged);
                 // Don't let this request's server echo overwrite fields the
                 // user has already changed again (queued for the next flush).
                 // Their newer local value must survive until the re-flush

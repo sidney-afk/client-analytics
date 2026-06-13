@@ -178,3 +178,49 @@ credentials from day one, never into code nodes or this repo.
 5. Then: create `calendar_posts` (PK `(client, id)`, server-set
    `updated_at`), backfill all `Calendar_*` tabs, add dual-writes to the 5
    workflows, and stand up the parity check.
+
+## Phase 1 progress — 2026-06-13
+
+Supabase project created (`uzltbbrjidmjwwfakwve.supabase.co`). n8n
+credential `Supabase - SyncView Calendar` (id `XdBpJ6Xk8PMpZXXT`, type
+`supabaseApi`) holds the service_role key — NOT in this repo.
+
+- ✅ **Table created.** `public.calendar_posts`, PK `(client, id)`, all
+  columns `text` (mirrors the sheet exactly; types can be refined in a
+  later phase). RLS enabled with no policies → only the service_role key
+  (n8n) can read/write; the public/anon role is denied, so the anon key is
+  not yet needed and is safe to leave unused.
+- ✅ **Backfill done + verified.** All allowlisted clients copied via the
+  `kasper-queue` webhook. Parity check: **616 sheet posts = 616 Supabase
+  rows, 15 clients with data, 0 mismatches, 0 errors.** Read-only on
+  Sheets; no live workflow or website change.
+- n8n one-off workflows (manual trigger, inactive — safe to leave or
+  delete):
+  - `aw2b98wxraQTEulJ` — Supabase Backfill (TEST one client)
+  - `yQBGgdbZPqOgn2eE` — Supabase Backfill (ALL clients), re-runnable
+    (clears table then re-inserts; idempotent)
+  - (`qKknR6IIuqUqdGLB` archived — first draft used an HTTP node that
+    couldn't bind the Supabase credential; native Supabase node used
+    instead.)
+
+### Implementation note for the dual-write step (next)
+
+The n8n **HTTP Request node cannot bind a `supabaseApi` credential**
+through the MCP tooling (its credential schema only accepts the generic
+auth types). Use the **native Supabase node** (`n8n-nodes-base.supabase`,
+`resource: row`) for all Supabase writes — it binds the credential
+cleanly. PostgREST array-upsert via HTTP is therefore not available
+through this path; the dual-writes should upsert per-row with the native
+node (or, if batch upsert is needed, create a dedicated Header/Custom-auth
+credential).
+
+### Remaining Phase 1 work (not started — the delicate part)
+
+Add the Supabase write, in parallel with the existing Sheets write, to the
+5 direct writers (`calendar-upsert-post`, `calendar-append-post`,
+`calendar-delete-post`, `calendar-reorder`, `calendar-reorder-batch`).
+Additive only — the Sheets write (what the site reads) stays unchanged, so
+a Supabase-side failure can't break the live calendar. Snapshot each
+workflow into `n8n-backups/` immediately before editing it (fresh
+snapshots already taken 2026-06-12). Remember the `calendar-reorder`
+draft-vs-published divergence flagged above.

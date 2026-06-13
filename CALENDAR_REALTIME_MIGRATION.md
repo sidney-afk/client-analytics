@@ -178,3 +178,86 @@ credentials from day one, never into code nodes or this repo.
 5. Then: create `calendar_posts` (PK `(client, id)`, server-set
    `updated_at`), backfill all `Calendar_*` tabs, add dual-writes to the 5
    workflows, and stand up the parity check.
+
+## Phase 1 progress — 2026-06-13
+
+Supabase project created (`uzltbbrjidmjwwfakwve.supabase.co`). n8n
+credential `Supabase - SyncView Calendar` (id `XdBpJ6Xk8PMpZXXT`, type
+`supabaseApi`) holds the service_role key — NOT in this repo.
+
+- ✅ **Table created.** `public.calendar_posts`, PK `(client, id)`, all
+  columns `text` (mirrors the sheet exactly; types can be refined in a
+  later phase). RLS enabled with no policies → only the service_role key
+  (n8n) can read/write; the public/anon role is denied, so the anon key is
+  not yet needed and is safe to leave unused.
+- ✅ **Backfill done + verified.** All allowlisted clients copied via the
+  `kasper-queue` webhook. Parity check: **616 sheet posts = 616 Supabase
+  rows, 15 clients with data, 0 mismatches, 0 errors.** Read-only on
+  Sheets; no live workflow or website change.
+- n8n one-off workflows (manual trigger, inactive — safe to leave or
+  delete):
+  - `aw2b98wxraQTEulJ` — Supabase Backfill (TEST one client)
+  - `yQBGgdbZPqOgn2eE` — Supabase Backfill (ALL clients), re-runnable
+    (clears table then re-inserts; idempotent)
+  - (`qKknR6IIuqUqdGLB` archived — first draft used an HTTP node that
+    couldn't bind the Supabase credential; native Supabase node used
+    instead.)
+
+### Implementation note for the dual-write step (next)
+
+The n8n **HTTP Request node cannot bind a `supabaseApi` credential**
+through the MCP tooling (its credential schema only accepts the generic
+auth types). Use the **native Supabase node** (`n8n-nodes-base.supabase`,
+`resource: row`) for all Supabase writes — it binds the credential
+cleanly. PostgREST array-upsert via HTTP is therefore not available
+through this path; the dual-writes should upsert per-row with the native
+node (or, if batch upsert is needed, create a dedicated Header/Custom-auth
+credential).
+
+### Remaining Phase 1 work (not started — the delicate part)
+
+Add the Supabase write, in parallel with the existing Sheets write, to the
+5 direct writers (`calendar-upsert-post`, `calendar-append-post`,
+`calendar-delete-post`, `calendar-reorder`, `calendar-reorder-batch`).
+Additive only — the Sheets write (what the site reads) stays unchanged, so
+a Supabase-side failure can't break the live calendar. Snapshot each
+workflow into `n8n-backups/` immediately before editing it (fresh
+snapshots already taken 2026-06-12). Remember the `calendar-reorder`
+draft-vs-published divergence flagged above.
+
+### Dual-write status — 2026-06-13
+
+Pattern used (uniform): after the existing Sheets write, a fan-out
+side-branch mirrors the row into Supabase via the **native Supabase node**
+(credential `Supabase - SyncView Calendar`), set to
+`onError: continueRegularOutput` so a Supabase failure can never fail the
+save or alter the webhook response. The response path is byte-unchanged.
+Tested on `sidneylaruel` (create + update + archive + reorder all verified
+writing to Supabase).
+
+| Workflow | Mirror nodes added | Status |
+|---|---|---|
+| `calendar-upsert-post` (`pWSqaqVw7dmqhYOA`) | Prep Mirror → Row Existed? → Mirror Update / Mirror Create (create-or-update) | **LIVE (published 2026-06-13)** — confirmed: caption edit on the site appeared in Supabase |
+| `calendar-delete-post` (`JcekBKUzELgX4HjH`) | Prep Mirror Del → Mirror Archive (update) | Draft built + tested — **awaiting publish** |
+| `calendar-reorder-batch` (`lTtZNLrQLpIZqwAY`) | Prep Mirror Reorder → Mirror Reorder (update per row) | Draft built + tested — **awaiting publish** |
+| `calendar-append-post` (`iA54ipMOybicmYBh`) | Prep Mirror Append → Mirror Create Append (create) | Draft built — **awaiting publish** (dormant: FE does not call this webhook) |
+| `calendar-reorder` (`OXd0sUoSJYMspGTF`) | — | **NOT TOUCHED** — divergent unpublished batched draft; editing+publishing would also flip live reorder to the batched version. It's only the FE fallback when `reorder-batch` fails. Decide separately: (a) publish batched + add dual-write, or (b) rebuild dual-write on the active per-row version. Until then, a fallback reorder won't mirror (self-heals on next backfill or next `reorder-batch`). |
+
+Note: `publish_workflow` via MCP is approval-gated and could not be
+completed programmatically; workflows are published manually in the n8n UI.
+
+Mirror semantics: upsert = create-or-update (keyed on the Sheets
+`Read Existing Row` result); delete = update `status=Archived`; reorder =
+update `order_index` of existing rows only (no insert, matching the Sheets
+phantom-row guard). All filters use `allFilters` on `(client, id)`.
+
+Test residue: an archived card `p_test_dw_001` ("DUALWRITE TEST") exists on
+`sidneylaruel` in both Sheets (invisible) and Supabase — safe to ignore or
+delete.
+
+### Phase 1 remaining
+- Publish `delete-post`, `reorder-batch`, `append-post` (UI).
+- Decide on `calendar-reorder` fallback (above).
+- Optional: a periodic parity check (sheet vs Supabase) now that writes are
+  mirrored; the `Backfill (ALL clients)` workflow (`yQBGgdbZPqOgn2eE`)
+  doubles as a re-sync + parity report.

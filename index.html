@@ -12928,6 +12928,13 @@
        are skipped so an in-flight Linear push doesn't get clobbered by a
        still-stale read. */
     async function _calReconcileLinearStatuses() {
+        // v2: the backend Linear-status-sync workflow already pushes every
+        // Linear state change into Supabase, which reaches this tab over
+        // realtime. Pulling from Linear AGAIN on each foreground refresh is
+        // therefore redundant — and it's the cause of "I refresh and my
+        // video/graphic status jumps to whatever Linear says". Skip it under
+        // v2; v1 still relies on this pull as its only Linear→calendar path.
+        if (_calV2Ready()) return;
         const linked = calState.posts.filter(p => p && (String(p.linear_issue_id || '').trim() || String(p.graphic_linear_issue_id || '').trim()));
         if (!linked.length) return;
         const urls = [];

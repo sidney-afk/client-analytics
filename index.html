@@ -16695,9 +16695,22 @@
             // base so a concurrent comment from another browser (e.g. the
             // client added a caption tweak while the SMM was acting) survives
             // our whole-cell write instead of being clobbered.
+            //
+            // v2 reads from Supabase, so post._baseAt is SUPABASE's updated_at —
+            // but the upsert's scalar-conflict guard compares it against the
+            // Google SHEET's updated_at. Those two drift (backfill, mirror lag,
+            // the un-mirrored reorder fallback), which made the guard reject
+            // every v2 scalar save as a false "conflict" — status snapped back
+            // (it's in _CAL_ROLLBACK_FIELDS) while caption silently didn't save.
+            // v2 doesn't need that guard: field-level patches mean a save only
+            // touches the field(s) changed, and realtime surfaces a concurrent
+            // edit within ~1s. Send no base → the scalar-conflict check is
+            // skipped; the comment 3-way merge still unions correctly (baseAt
+            // empty keeps both sides' comments).
+            const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: String(post._baseAt || '') })
+                body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend })
             });
             // A non-2xx (n8n down, 500 HTML page) would otherwise surface as a
             // cryptic JSON-parse error in the card's save chip.

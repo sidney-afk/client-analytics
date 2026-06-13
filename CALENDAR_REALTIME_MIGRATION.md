@@ -238,13 +238,15 @@ writing to Supabase).
 | Workflow | Mirror nodes added | Status |
 |---|---|---|
 | `calendar-upsert-post` (`pWSqaqVw7dmqhYOA`) | Prep Mirror → Row Existed? → Mirror Update / Mirror Create (create-or-update) | **LIVE (published 2026-06-13)** — confirmed: caption edit on the site appeared in Supabase |
-| `calendar-delete-post` (`JcekBKUzELgX4HjH`) | Prep Mirror Del → Mirror Archive (update) | Draft built + tested — **awaiting publish** |
-| `calendar-reorder-batch` (`lTtZNLrQLpIZqwAY`) | Prep Mirror Reorder → Mirror Reorder (update per row) | Draft built + tested — **awaiting publish** |
-| `calendar-append-post` (`iA54ipMOybicmYBh`) | Prep Mirror Append → Mirror Create Append (create) | Draft built — **awaiting publish** (dormant: FE does not call this webhook) |
+| `calendar-delete-post` (`JcekBKUzELgX4HjH`) | Prep Mirror Del → Mirror Archive (update) | **LIVE (published 2026-06-13)** — verified via n8n MCP: mirror nodes in the active version, `active:true` |
+| `calendar-reorder-batch` (`lTtZNLrQLpIZqwAY`) | Prep Mirror Reorder → Mirror Reorder (update per row) | **LIVE (published 2026-06-13)** — verified via n8n MCP |
+| `calendar-append-post` (`iA54ipMOybicmYBh`) | Prep Mirror Append → Mirror Create Append (create) | **LIVE (published 2026-06-13)** — verified via n8n MCP (dormant: FE does not call this webhook) |
 | `calendar-reorder` (`OXd0sUoSJYMspGTF`) | — | **NOT TOUCHED** — divergent unpublished batched draft; editing+publishing would also flip live reorder to the batched version. It's only the FE fallback when `reorder-batch` fails. Decide separately: (a) publish batched + add dual-write, or (b) rebuild dual-write on the active per-row version. Until then, a fallback reorder won't mirror (self-heals on next backfill or next `reorder-batch`). |
 
 Note: `publish_workflow` via MCP is approval-gated and could not be
 completed programmatically; workflows are published manually in the n8n UI.
+All three were subsequently published — verified 2026-06-13 via
+`get_workflow_details` (active version carries the mirror nodes).
 
 Mirror semantics: upsert = create-or-update (keyed on the Sheets
 `Read Existing Row` result); delete = update `status=Archived`; reorder =
@@ -256,8 +258,10 @@ Test residue: an archived card `p_test_dw_001` ("DUALWRITE TEST") exists on
 delete.
 
 ### Phase 1 remaining
-- Publish `delete-post`, `reorder-batch`, `append-post` (UI).
-- Decide on `calendar-reorder` fallback (above).
+- ~~Publish `delete-post`, `reorder-batch`, `append-post`~~ **DONE** (verified
+  2026-06-13: all three published & live-mirroring to Supabase).
+- Decide on `calendar-reorder` fallback (above) — still the only FE-reachable
+  write path without a Supabase mirror; only fires when `reorder-batch` fails.
 - Optional: a periodic parity check (sheet vs Supabase) now that writes are
   mirrored; the `Backfill (ALL clients)` workflow (`yQBGgdbZPqOgn2eE`)
   doubles as a re-sync + parity report.
@@ -295,36 +299,52 @@ surfaces a write to every other viewer.
 
 ### To ACTIVATE the realtime read (Sidney — Supabase dashboard)
 
-1. **RLS — let the browser (anon) READ; writes stay denied (n8n service_role only):**
+1. **Run this once in the Supabase SQL editor** (paste-and-run; idempotent).
+   It lets the browser (anon) READ — writes stay denied, only n8n's
+   service_role writes — and streams row changes over realtime:
    ```sql
+   -- READ for the browser (anon); writes stay denied.
+   grant select on public.calendar_posts to anon;
+   drop policy if exists "anon read calendar_posts" on public.calendar_posts;
    create policy "anon read calendar_posts"
      on public.calendar_posts for select to anon using (true);
+
+   -- Stream row changes over realtime (respects the policy above).
+   do $$
+   begin
+     if not exists (
+       select 1 from pg_publication_tables
+       where pubname='supabase_realtime' and schemaname='public' and tablename='calendar_posts'
+     ) then
+       execute 'alter publication supabase_realtime add table public.calendar_posts';
+     end if;
+   end $$;
+   alter table public.calendar_posts replica identity full;
    ```
    `using (true)` = the same exposure as today's open `calendar-get` webhook;
    tighten to per-client in Phase 4 when real auth lands.
-2. **Realtime — broadcast changes (respects the RLS policy above):**
-   ```sql
-   alter publication supabase_realtime add table public.calendar_posts;
-   alter table public.calendar_posts replica identity full;
-   ```
-3. **Anon key — paste the project's anon/publishable key into
+2. **Anon key — paste the project's anon/publishable key into
    `CAL_SUPABASE_ANON_KEY`** (`index.html`, in the "CALENDAR v2 … config" block).
    It's a browser key, safe to commit once the RLS policy in (1) is live (this
    doc's standing guidance). `CAL_SUPABASE_URL` is already set
-   (`uzltbbrjidmjwwfakwve.supabase.co`).
+   (`uzltbbrjidmjwwfakwve.supabase.co`). Find it in the dashboard under
+   Settings → API → Project API keys (`anon`/`public`, or `Publishable`).
 
 Verify in the browser console: `calV2Status()` →
 `{ flag, ready, keySet, subscribed, slug }`.
 
-### Prerequisite still open from Phase 1 (affects v2 parity)
+### Phase 1 dual-write status (verified 2026-06-13 via n8n MCP)
 
-For v1 and v2 to show identical data, Supabase must mirror ALL writes. As of the
-Phase 1 notes only `calendar-upsert-post` is published live; the
-`calendar-delete-post`, `calendar-reorder-batch`, and (`calendar-append-post`)
-dual-write drafts are still **awaiting manual publish** in the n8n UI, and
-`calendar-reorder` (the fallback) is undecided. Until those are published, an
-archive or reorder done through v1 won't reach Supabase until the next backfill —
-so finish the Phase 1 publishes before relying on v2 reads for the test week.
+For v1 and v2 to show identical data, Supabase must mirror ALL writes. Verified
+live-mirroring: `calendar-upsert-post`, `calendar-delete-post`,
+`calendar-reorder-batch`, `calendar-append-post` (the last is dormant — the FE
+never calls it). The **only** FE-reachable write path without a Supabase mirror
+is `calendar-reorder` (`OXd0sUoSJYMspGTF`), the per-row fallback the FE uses only
+when `calendar-reorder-batch` fails — and it also carries a divergent unpublished
+batched draft. A reorder that falls back therefore won't mirror until the next
+`reorder-batch` or backfill. Low priority for the test; fix = rebuild the
+Supabase mirror on the live per-row version (doc option b) without publishing the
+batched draft.
 
 ### Next (Phase 2 cont. → Phase 3)
 - Publish the remaining Phase 1 dual-write workflows (above).

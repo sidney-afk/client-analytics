@@ -261,3 +261,73 @@ delete.
 - Optional: a periodic parity check (sheet vs Supabase) now that writes are
   mirrored; the `Backfill (ALL clients)` workflow (`yQBGgdbZPqOgn2eE`)
   doubles as a re-sync + parity report.
+
+## Phase 2 progress — 2026-06-13 (FE built, dormant; awaiting Supabase activation)
+
+The calendar front-end (`index.html`) now contains the full v2 path, hidden
+behind the `?v2=1` flag (sticky in `localStorage`; `?v2=0` clears it). With the
+flag OFF the site is byte-identical to v1 — no Supabase calls, no extra network
+requests (supabase-js is lazy-loaded only when v2 actually activates). The inline
+script syntax-checks clean. Search `CALENDAR v2` in `index.html`.
+
+Two independent gates:
+
+- **`_calV2Enabled()`** — the flag alone. Turns on **field-level patch writes**:
+  `_calFlushCardSave` sends only the columns an edit touched (`{ id, ...changed }`)
+  instead of the whole card. The upsert workflow's "Build Row From Patch" +
+  Google-Sheets `autoMapInputData` already write only the keys present in the
+  payload (matched on `id`, every other column untouched), so this needs NO
+  backend change and deletes the whole-card clobber bug class. Brand-new rows and
+  forced retries (`_calRetrySave`) still send the full card. **Testable now** with
+  `?v2=1` against the live upsert webhook.
+- **`_calV2Ready()`** — flag AND the anon key set. Switches **reads** to Supabase
+  REST (`/rest/v1/calendar_posts?select=*&client=eq.<slug>`, same `{ok,posts[]}`
+  shape → reuses the entire normalize/dedupe/LWW-merge/render/cache pipeline) and
+  opens a **realtime** Postgres-changes subscription filtered `client=eq.<slug>`.
+  A change coalesces into one debounced background reload from Supabase (cheap, no
+  n8n quota) routed through the existing merge, so a teammate's edit appears with
+  no 90 s wait and no refresh jump. On any Supabase read error it falls back to
+  the n8n `calendar-get` webhook, so v2 can never blank the calendar.
+
+Writes still flow through the n8n upsert webhook (Phase 1 dual-writes them to
+Supabase) — Linear sync / caption automation untouched; the realtime echo is what
+surfaces a write to every other viewer.
+
+### To ACTIVATE the realtime read (Sidney — Supabase dashboard)
+
+1. **RLS — let the browser (anon) READ; writes stay denied (n8n service_role only):**
+   ```sql
+   create policy "anon read calendar_posts"
+     on public.calendar_posts for select to anon using (true);
+   ```
+   `using (true)` = the same exposure as today's open `calendar-get` webhook;
+   tighten to per-client in Phase 4 when real auth lands.
+2. **Realtime — broadcast changes (respects the RLS policy above):**
+   ```sql
+   alter publication supabase_realtime add table public.calendar_posts;
+   alter table public.calendar_posts replica identity full;
+   ```
+3. **Anon key — paste the project's anon/publishable key into
+   `CAL_SUPABASE_ANON_KEY`** (`index.html`, in the "CALENDAR v2 … config" block).
+   It's a browser key, safe to commit once the RLS policy in (1) is live (this
+   doc's standing guidance). `CAL_SUPABASE_URL` is already set
+   (`uzltbbrjidmjwwfakwve.supabase.co`).
+
+Verify in the browser console: `calV2Status()` →
+`{ flag, ready, keySet, subscribed, slug }`.
+
+### Prerequisite still open from Phase 1 (affects v2 parity)
+
+For v1 and v2 to show identical data, Supabase must mirror ALL writes. As of the
+Phase 1 notes only `calendar-upsert-post` is published live; the
+`calendar-delete-post`, `calendar-reorder-batch`, and (`calendar-append-post`)
+dual-write drafts are still **awaiting manual publish** in the n8n UI, and
+`calendar-reorder` (the fallback) is undecided. Until those are published, an
+archive or reorder done through v1 won't reach Supabase until the next backfill —
+so finish the Phase 1 publishes before relying on v2 reads for the test week.
+
+### Next (Phase 2 cont. → Phase 3)
+- Publish the remaining Phase 1 dual-write workflows (above).
+- Activate (steps above); then Sidney + one SMM run real calendars on `?v2=1`
+  for ~a week, watching for any divergence vs v1.
+- Phase 3 = flip v2 to default behind a kill-switch flag once proven.

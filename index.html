@@ -10861,6 +10861,9 @@
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _kasperTeardown();
+        // Phase 2: drop the calendar's Supabase realtime subscription when
+        // leaving the calendar so it isn't held open in the background.
+        if (page !== 'calendar' && typeof _calV2Teardown === 'function') _calV2Teardown();
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
         if (page !== 'samples') document.body.classList.remove('sm-modal-open');
@@ -10974,6 +10977,30 @@
        user via the Video Editors sheet tab, and posts to #video-editing as the
        SyncView Bot. The editor/mention is never trusted from the client. */
     const URGENT_SLACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/send-urgent-slack';
+    /* ============================================================
+       CALENDAR v2 (Supabase realtime) — Phase 2 config
+       See CALENDAR_REALTIME_MIGRATION.md. Hidden behind ?v2=1
+       (sticky in localStorage; ?v2=0 clears it). Two gates:
+         _calV2Enabled() — flag only. Turns on field-level patch
+            writes (the upsert workflow already accepts partial
+            patches). No backend dependency; reads stay on n8n.
+         _calV2Ready()   — flag AND the anon key below is set.
+            Switches reads to Supabase REST + opens the realtime
+            subscription.
+       ACTIVATION (Sidney, in Supabase — SQL in the migration doc):
+         1) anon SELECT policy on public.calendar_posts
+         2) add the table to the supabase_realtime publication
+         3) paste the anon (publishable) key into CAL_SUPABASE_ANON_KEY
+       Until (3) is filled in, _calV2Ready() is false and nothing
+       touches Supabase — the flag only enables patch writes. The
+       anon/publishable key is a browser key (same exposure as
+       today's open calendar webhooks); commit it ONLY once the RLS
+       policy in (1) is live. */
+    const CAL_SUPABASE_URL      = 'https://uzltbbrjidmjwwfakwve.supabase.co';
+    const CAL_SUPABASE_ANON_KEY = ''; // paste anon/publishable key to activate realtime reads
+    const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
+    const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
+    const CAL_V2_RT_DEBOUNCE_MS = 350;
     /* Default Caption Writer prompt — kept in sync with the same string
        baked into the SyncView Calendar — Generate Caption workflow. When
        a client's CaptionPrompts row is empty, both the front-end modal
@@ -12172,6 +12199,7 @@
     }
 
     function mountCalendar() {
+        _calV2Teardown(); // Phase 2: clear any stale realtime channel before (re)mount.
         const prefs = _calLoadPrefs();
         const pins  = _calGetPins();
         let initial = null;
@@ -14036,6 +14064,143 @@
         }
     }
 
+    /* ============================================================
+       CALENDAR v2 (Supabase realtime) — Phase 2 runtime
+       ------------------------------------------------------------
+       Read path: when fully configured, the calendar reads its posts
+       from Supabase REST (same { ok, posts[] } shape as calendar-get,
+       so the whole downstream pipeline — settings split, dedupe,
+       normalize, LWW merge, render, cache — is reused unchanged) and
+       subscribes to Postgres-changes realtime so a teammate's edit
+       shows up without the 90 s poll. Writes still go through the
+       n8n upsert webhook (Phase 1 dual-writes them to Supabase), so
+       Linear sync / caption automation are untouched; the realtime
+       echo is what surfaces them to every other viewer.
+       Everything here is inert unless ?v2=1 AND the anon key is set.
+       ============================================================ */
+    let _calV2FlagCache = null;
+    function _calV2Enabled() {
+        if (_calV2FlagCache !== null) return _calV2FlagCache;
+        let on = false;
+        try {
+            const q = new URLSearchParams(location.search).get('v2');
+            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(CAL_V2_LS_KEY, '1'); } catch {} }
+            else if (q === '0' || q === 'false') { on = false; try { localStorage.removeItem(CAL_V2_LS_KEY); } catch {} }
+            else { on = (localStorage.getItem(CAL_V2_LS_KEY) === '1'); }
+        } catch { on = false; }
+        _calV2FlagCache = on;
+        return on;
+    }
+    function _calV2Ready() {
+        return _calV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY;
+    }
+    /* Lazy-load supabase-js (UMD) the first time the realtime path is
+       actually used — never on a normal load — then memoize the client.
+       Any failure resolves to null so callers fall back to the n8n read. */
+    let _calV2LibPromise = null;
+    let _calV2ClientObj = null;
+    let _calV2ClientPromise = null;
+    function _calV2LoadLib() {
+        if (window.supabase && window.supabase.createClient) return Promise.resolve(window.supabase);
+        if (_calV2LibPromise) return _calV2LibPromise;
+        _calV2LibPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = CAL_SUPABASE_LIB_URL; s.async = true;
+            s.onload = () => resolve((window.supabase && window.supabase.createClient) ? window.supabase : null);
+            s.onerror = () => { _calV2LibPromise = null; reject(new Error('supabase-js failed to load')); };
+            document.head.appendChild(s);
+        });
+        return _calV2LibPromise;
+    }
+    function _calV2Client() {
+        if (!_calV2Ready()) return Promise.resolve(null);
+        if (_calV2ClientObj) return Promise.resolve(_calV2ClientObj);
+        if (_calV2ClientPromise) return _calV2ClientPromise;
+        _calV2ClientPromise = _calV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _calV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: false },
+                realtime: { params: { eventsPerSecond: 5 } }
+            });
+            return _calV2ClientObj;
+        }).catch(e => { console.warn('[Calendar v2] supabase-js init failed', e); _calV2ClientPromise = null; return null; });
+        return _calV2ClientPromise;
+    }
+    /* Read one client's posts from Supabase REST, shaped exactly like the
+       calendar-get webhook. On ANY failure, fall back to the webhook so a
+       Supabase hiccup can never blank the calendar. */
+    async function _calV2FetchPosts(slug, signal) {
+        const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
+        try {
+            const resp = await fetch(url, {
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
+                signal: signal || undefined
+            });
+            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            return { ok: true, posts: rows };
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            console.warn('[Calendar v2] Supabase read failed — falling back to n8n calendar-get', e);
+            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            return resp.json();
+        }
+    }
+    /* Realtime subscription lifecycle. One channel per client; switching
+       clients (or leaving the calendar) tears the old one down. A change
+       coalesces into one debounced background reload — the reload reads
+       Supabase (cheap, no n8n quota) and flows through the same merge that
+       protects in-flight edits and optimistic state, so a teammate's change
+       appears without a refresh jump. */
+    let _calV2Channel = null;
+    let _calV2SubSlug = null;
+    let _calV2RtTimer = null;
+    async function _calV2EnsureSubscribed(slug) {
+        if (!_calV2Ready() || !slug) return;
+        if (_calV2SubSlug === slug && _calV2Channel) return;
+        _calV2Teardown();
+        const client = await _calV2Client();
+        if (!client) return;
+        if (calClientSlug(calState.client) !== slug) return; // client switched during lib load
+        _calV2SubSlug = slug;
+        try {
+            _calV2Channel = client
+                .channel('cal-' + slug)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug))
+                .subscribe((status) => {
+                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[Calendar v2] realtime status:', status);
+                });
+        } catch (e) {
+            console.warn('[Calendar v2] realtime subscribe failed', e);
+            _calV2Channel = null; _calV2SubSlug = null;
+        }
+    }
+    function _calV2OnRealtimeChange(slug) {
+        if (calClientSlug(calState.client) !== slug) return;
+        if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
+        _calV2RtTimer = setTimeout(() => {
+            _calV2RtTimer = null;
+            if (calClientSlug(calState.client) !== slug) return;
+            if (_calBgLoadInFlight || calState.loading) return;
+            loadCalendarPosts({ background: true });
+        }, CAL_V2_RT_DEBOUNCE_MS);
+    }
+    function _calV2Teardown() {
+        if (_calV2RtTimer) { clearTimeout(_calV2RtTimer); _calV2RtTimer = null; }
+        if (_calV2Channel) {
+            try {
+                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_calV2Channel);
+                else if (typeof _calV2Channel.unsubscribe === 'function') _calV2Channel.unsubscribe();
+            } catch {}
+        }
+        _calV2Channel = null; _calV2SubSlug = null;
+    }
+    /* Console helper for the Phase 2 test week: window.calV2Status(). */
+    window.calV2Status = function () {
+        return { flag: _calV2Enabled(), ready: _calV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_calV2Channel, slug: _calV2SubSlug };
+    };
+
     let _calLoadSeq = 0;
     let _calBgLoadInFlight = false;
     function _calSetRefreshing(on) {
@@ -14146,6 +14311,11 @@
         _calLastNetworkLoadAt = Date.now();
         try {
             const fetchPromise = (async () => {
+                // Phase 2: when v2 is fully configured (flag + Supabase key),
+                // read from Supabase REST instead of the n8n calendar-get
+                // webhook. Identical { ok, posts[] } shape → identical
+                // downstream handling. Falls back to the webhook on error.
+                if (_calV2Ready()) return _calV2FetchPosts(slug, ctrl ? ctrl.signal : null);
                 const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), ctrl ? { signal: ctrl.signal } : undefined);
                 return resp.json();
             })();
@@ -14338,6 +14508,10 @@
                 _calRefreshParentLinkFlags();
             }
             _calApplyFocusRequest();
+            // Phase 2: open (or re-point) the realtime subscription for the
+            // client we just loaded. Idempotent; keyed on slug. No-op unless
+            // v2 is fully configured.
+            if (_calV2Ready()) _calV2EnsureSubscribed(slug);
         }
     }
     /* After a load, if the workload view asked to open a specific sub-issue,
@@ -16472,17 +16646,50 @@
             // legacy `tweaks` column (mirroring video comments) for the
             // back-compat transition period.
             post.status = computeOverallStatus(post);
-            const wirePost = Object.assign({}, post);
-            wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
-            wirePost.graphic_tweaks = _calStringifyComments(_calCommentsFor(post, 'graphic'));
-            wirePost.caption_tweaks = _calStringifyComments(_calCommentsFor(post, 'caption'));
-            wirePost.tweaks = wirePost.video_tweaks;
-            delete wirePost.comments;
-            delete wirePost.video_comments;
-            delete wirePost.graphic_comments;
-            delete wirePost.caption_comments;
-            delete wirePost._baseAt;
-            delete wirePost._saveError;
+            // Build the payload. v1 (and any brand-new row, regardless of
+            // flag) sends the whole card. v2 sends a FIELD-LEVEL PATCH — only
+            // the columns this edit touched — which is exactly what the upsert
+            // workflow's "Build Row From Patch" + autoMapInputData expects
+            // (it writes only the keys present in `post`, matched on id, and
+            // leaves every other column untouched). Patching is what deletes
+            // the whole-card clobber bug class: two people editing different
+            // fields of the same card no longer overwrite each other.
+            let wirePost;
+            // Empty `edits` means a forced full re-send (e.g. _calRetrySave) —
+            // keep whole-card semantics there even under v2.
+            if (_calV2Enabled() && !wasNewRow && Object.keys(edits).length > 0) {
+                wirePost = { id: post.id };
+                for (const k of Object.keys(edits)) {
+                    if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
+                    wirePost[k] = post[k];
+                }
+                // Per-component comment threads: send only the component(s)
+                // whose thread changed, re-derived from the live arrays so
+                // coalesced edits stay consistent. Mirror the legacy `tweaks`
+                // column when the video thread changed.
+                CAL_COMPONENTS.forEach(comp => {
+                    const fk = comp + '_tweaks';
+                    if (fk in edits) {
+                        wirePost[fk] = _calStringifyComments(_calCommentsFor(post, comp));
+                        if (comp === 'video') wirePost.tweaks = wirePost[fk];
+                    }
+                });
+                // Overall status only moves when a sub-status changes, and
+                // those edits always carry it; send the recomputed value then.
+                if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+            } else {
+                wirePost = Object.assign({}, post);
+                wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
+                wirePost.graphic_tweaks = _calStringifyComments(_calCommentsFor(post, 'graphic'));
+                wirePost.caption_tweaks = _calStringifyComments(_calCommentsFor(post, 'caption'));
+                wirePost.tweaks = wirePost.video_tweaks;
+                delete wirePost.comments;
+                delete wirePost.video_comments;
+                delete wirePost.graphic_comments;
+                delete wirePost.caption_comments;
+                delete wirePost._baseAt;
+                delete wirePost._saveError;
+            }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
             // base so a concurrent comment from another browser (e.g. the

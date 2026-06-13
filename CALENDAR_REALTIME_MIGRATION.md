@@ -224,3 +224,40 @@ a Supabase-side failure can't break the live calendar. Snapshot each
 workflow into `n8n-backups/` immediately before editing it (fresh
 snapshots already taken 2026-06-12). Remember the `calendar-reorder`
 draft-vs-published divergence flagged above.
+
+### Dual-write status — 2026-06-13
+
+Pattern used (uniform): after the existing Sheets write, a fan-out
+side-branch mirrors the row into Supabase via the **native Supabase node**
+(credential `Supabase - SyncView Calendar`), set to
+`onError: continueRegularOutput` so a Supabase failure can never fail the
+save or alter the webhook response. The response path is byte-unchanged.
+Tested on `sidneylaruel` (create + update + archive + reorder all verified
+writing to Supabase).
+
+| Workflow | Mirror nodes added | Status |
+|---|---|---|
+| `calendar-upsert-post` (`pWSqaqVw7dmqhYOA`) | Prep Mirror → Row Existed? → Mirror Update / Mirror Create (create-or-update) | **LIVE (published 2026-06-13)** — confirmed: caption edit on the site appeared in Supabase |
+| `calendar-delete-post` (`JcekBKUzELgX4HjH`) | Prep Mirror Del → Mirror Archive (update) | Draft built + tested — **awaiting publish** |
+| `calendar-reorder-batch` (`lTtZNLrQLpIZqwAY`) | Prep Mirror Reorder → Mirror Reorder (update per row) | Draft built + tested — **awaiting publish** |
+| `calendar-append-post` (`iA54ipMOybicmYBh`) | Prep Mirror Append → Mirror Create Append (create) | Draft built — **awaiting publish** (dormant: FE does not call this webhook) |
+| `calendar-reorder` (`OXd0sUoSJYMspGTF`) | — | **NOT TOUCHED** — divergent unpublished batched draft; editing+publishing would also flip live reorder to the batched version. It's only the FE fallback when `reorder-batch` fails. Decide separately: (a) publish batched + add dual-write, or (b) rebuild dual-write on the active per-row version. Until then, a fallback reorder won't mirror (self-heals on next backfill or next `reorder-batch`). |
+
+Note: `publish_workflow` via MCP is approval-gated and could not be
+completed programmatically; workflows are published manually in the n8n UI.
+
+Mirror semantics: upsert = create-or-update (keyed on the Sheets
+`Read Existing Row` result); delete = update `status=Archived`; reorder =
+update `order_index` of existing rows only (no insert, matching the Sheets
+phantom-row guard). All filters use `allFilters` on `(client, id)`.
+
+Test residue: an archived card `p_test_dw_001` ("DUALWRITE TEST") exists on
+`sidneylaruel` in both Sheets (invisible) and Supabase — safe to ignore or
+delete.
+
+### Phase 1 remaining
+- Publish `delete-post`, `reorder-batch`, `append-post` (UI).
+- Decide on `calendar-reorder` fallback (above).
+- Optional: a periodic parity check (sheet vs Supabase) now that writes are
+  mirrored; the `Backfill (ALL clients)` workflow (`yQBGgdbZPqOgn2eE`)
+  doubles as a re-sync + parity report.

@@ -14239,6 +14239,8 @@
     let _calV2RtTimer = null;
     let _calV2RtPending = false;       // a realtime change arrived mid-load → service it after, don't drop it
     let _calV2SubscribedOnce = false;  // tell the FIRST subscribe apart from a reconnect (catch-up)
+    let _calLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime ECHO of our own write
+    const CAL_RT_SELF_ECHO_MS = 4000;  // a realtime event within this window of a local save is treated as our own echo and deferred
     async function _calV2EnsureSubscribed(slug) {
         if (!_calV2Ready() || !slug) return;
         if (_calV2SubSlug === slug && _calV2Channel) return;
@@ -14275,9 +14277,19 @@
     function _calV2OnRealtimeChange(slug) {
         if (calClientSlug(calState.client) !== slug) return;
         if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
-        _calV2RtTimer = setTimeout(() => {
+        _calV2RtTimer = setTimeout(function tick() {
             _calV2RtTimer = null;
             if (calClientSlug(calState.client) !== slug) return;
+            // Coalesce the echo of our OWN just-made write. A field patch /
+            // comment / delete round-trips back as a realtime event a second or
+            // two later; reloading then only flickers the strip (and can race a
+            // just-deleted comment back into view). If we wrote locally very
+            // recently this event is almost certainly that echo — re-arm and
+            // re-check instead of reloading now, so the reload lands only once
+            // WE'VE settled. A teammate's change while we're idle is never
+            // suppressed (we didn't just write).
+            const sinceLocal = Date.now() - _calLastLocalWriteAt;
+            if (sinceLocal < CAL_RT_SELF_ECHO_MS) { _calV2RtTimer = setTimeout(tick, CAL_RT_SELF_ECHO_MS - sinceLocal); return; }
             // A load is already running — don't DROP this change (that left the
             // observer tab stale until the next event/focus); defer it. The
             // load's tail re-services the pending flag once it's free.
@@ -16836,6 +16848,9 @@
             // skipped; the comment 3-way merge still unions correctly (baseAt
             // empty keeps both sides' comments).
             const _baseAtToSend = _calV2Enabled() ? '' : String(post._baseAt || '');
+            // Mark this as a local write so the realtime ECHO of it (arriving a
+            // second or two later) doesn't flicker the strip or race a delete.
+            _calLastLocalWriteAt = Date.now();
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend })
@@ -16894,6 +16909,7 @@
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.
             _calLocalRecentSaves.set(realId, Date.now());
+            _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
             _calConflictNotified.delete(realId);
             // Save landed — drop any failed-create flag so the "Save failed"
             // chip clears and the poll-merge no longer force-keeps the card on
@@ -22633,7 +22649,8 @@
        just before the user approves a card can finish 200 ms later and
        repaint with the pre-approval state, making the card "snap back". */
     let _kasperLoadGen = 0;
-    function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; }
+    let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
+    function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
     function _kasperIsReviewMounted() {
         return _kasperState.tab === 'review' && !!document.getElementById('kasperContent');
     }
@@ -22695,6 +22712,23 @@
        configured, so v1 makes zero Supabase calls. */
     let _kasperV2Channel = null;
     let _kasperV2RtTimer = null;
+    const KASPER_RT_SELF_ECHO_MS = 5000;
+    function _kasperViewBusy() {
+        // True while Kasper is actively working: a recent local action (its own
+        // realtime echo is still incoming), a save in flight, a draft being
+        // written, or a textarea focused. The realtime refresh waits until he's
+        // settled so it never reloads thumbnails or drops his caret mid-review.
+        if (Date.now() - _kasperLastLocalWriteAt < KASPER_RT_SELF_ECHO_MS) return true;
+        const items = (_kasperState && _kasperState.items) || [];
+        for (const it of items) {
+            if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
+            if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim())) return true;
+            if (it._replyDraft && String(it._replyDraft).trim()) return true;
+        }
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;
+        return false;
+    }
     async function _kasperV2EnsureSubscribed() {
         if (!_calV2Ready() || _kasperV2Channel) return;
         const client = await _calV2Client();
@@ -22704,7 +22738,15 @@
                 .channel('kasper-cal')
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, () => {
                     if (_kasperV2RtTimer) clearTimeout(_kasperV2RtTimer);
-                    _kasperV2RtTimer = setTimeout(() => { _kasperV2RtTimer = null; _kasperMaybeBackgroundRefresh(); }, 1500);
+                    _kasperV2RtTimer = setTimeout(function tick() {
+                        _kasperV2RtTimer = null;
+                        // Don't rebuild the queue (reloads thumbnails + drops the
+                        // textarea caret) on Kasper's OWN action echoes or while
+                        // he's mid-review. Re-arm until he's settled; a teammate's
+                        // change while he's idle still comes through.
+                        if (_kasperViewBusy()) { _kasperV2RtTimer = setTimeout(tick, 2000); return; }
+                        _kasperMaybeBackgroundRefresh();
+                    }, 1500);
                 })
                 .subscribe();
         } catch (e) {

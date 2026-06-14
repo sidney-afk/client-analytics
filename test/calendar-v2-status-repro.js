@@ -64,6 +64,7 @@ const REAL = [
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'), grabFunc('_calCommentsFor'),
   grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'), grabFunc('_calCommentStamp'),
   grabFunc('_calMergeCommentLists'), grabFunc('_calMergePostComments'), grabFunc('_calPostsEqualForRender'),
+  grabFunc('_calRecentSaveReconcile'),
 ].join('\n\n');
 
 // Stubs for globals the extracted code touches but we don't model.
@@ -79,11 +80,12 @@ const mod = new Function(STUBS + '\n' + REAL + `
   computeOverallStatus, _calClearStaleApprovals, _calLoadCommentsField,
   _calMigratePostShape, _calCommentsFor, _calSetCommentsFor,
   _calStringifyComments, _calMergeCommentLists, _calMergePostComments,
-  _calPostsEqualForRender };`)();
+  _calPostsEqualForRender, _calRecentSaveReconcile };`)();
 
 const {
   CAL_COMPONENTS, _calNormStatus, computeOverallStatus, _calClearStaleApprovals,
   _calMigratePostShape, _calCommentsFor, _calMergePostComments, _calPostsEqualForRender,
+  _calRecentSaveReconcile,
 } = mod;
 
 const CAL_CONFLICT_WINDOW_MS = 90 * 1000; // index.html:11906
@@ -486,6 +488,55 @@ console.log('============================================================');
 const cmtFixed = runCommentTest(echoMergeFixed);
 
 console.log('\n============================================================');
+console.log('E) CROSS-ACTOR RECENT-SAVE RECONCILE (Kasper→SMM clobber fix)');
+console.log('============================================================');
+// Exercises the REAL _calRecentSaveReconcile extracted from index.html with the
+// exact values from the live clobber (v2debug log, 2026-06-14 23:21–23:22): the
+// SMM saved video=Kasper Approval @23:21:42; Kasper approved video=Client
+// Approval @23:21:55; the 90s recent-save guard kept the stale local copy and
+// would re-save it over Kasper. The reconcile must now ADOPT Kasper's value,
+// while still keeping local for a stale Linear round-trip (a revert to base, or
+// an echo of what we wrote) and never touching an older-or-equal server row.
+const eResults = [];
+function eCase(label, lp, fp, rsf, expect) {
+  const out = _calRecentSaveReconcile(lp, fp, rsf);
+  let ok;
+  if (expect === null) ok = (out === null);
+  else ok = !!out && CAL_COMPONENTS.every(c => out[c + '_status'] === expect[c]) && out.status === computeOverallStatus(out);
+  console.log(`  ${ok ? '✅' : '❌'} ${label}`);
+  if (!ok) console.log('      got', out && { v: out.video_status, g: out.graphic_status, c: out.caption_status, o: out.status }, '| want', expect);
+  eResults.push(ok);
+}
+const LP = { id: 'p_x', video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval', status: 'Kasper Approval', updated_at: '2026-06-14T23:21:42.833Z' };
+const RSF = { wrote: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval' },
+              base:  { video_status: 'In Progress',     graphic_status: 'In Progress',     caption_status: 'In Progress' } };
+const newer = '2026-06-14T23:21:55.831Z', older = '2026-06-14T23:21:40.000Z';
+// 1) the live clobber: Kasper moved video to a genuinely NEW value → adopt it, keep g/c local.
+eCase('Kasper approval (video→Client Approval) is ADOPTED, not clobbered',
+  LP, Object.assign({}, LP, { video_status: 'Client Approval', updated_at: newer }), RSF,
+  { video: 'Client Approval', graphic: 'Kasper Approval', caption: 'Kasper Approval' });
+// 2) stale Linear round-trip reverts video to its pre-save base → IGNORE (keep local, no flicker).
+eCase('stale Linear revert (video→base "In Progress") is IGNORED → keep local',
+  LP, Object.assign({}, LP, { video_status: 'In Progress', updated_at: newer }), RSF, null);
+// 3) the realtime echo of our own write (server == what we wrote) → nothing to adopt.
+eCase('echo of our own write (video==wrote) → no-op',
+  LP, Object.assign({}, LP, { video_status: 'Kasper Approval', updated_at: newer }), RSF, null);
+// 4) server row is NOT newer than our write → never override.
+eCase('server not newer than local → no-op',
+  LP, Object.assign({}, LP, { video_status: 'Client Approval', updated_at: older }), RSF, null);
+// 5) no recent-save record at all → no-op.
+eCase('no recent-save record (rsf null) → no-op',
+  LP, Object.assign({}, LP, { video_status: 'Client Approval', updated_at: newer }), null, null);
+// 6) a field we did NOT change this save (wrote==base) that Kasper then changed → still adopted.
+eCase('untouched field (wrote==base) changed by Kasper → ADOPTED',
+  LP, Object.assign({}, LP, { graphic_status: 'Client Approval', updated_at: newer }),
+  { wrote: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval' },
+    base:  { video_status: 'In Progress',     graphic_status: 'Kasper Approval', caption_status: 'In Progress' } },
+  { video: 'Kasper Approval', graphic: 'Client Approval', caption: 'Kasper Approval' });
+const ePass = eResults.every(Boolean);
+console.log(`  → ${eResults.filter(Boolean).length}/${eResults.length} (old blanket guard kept LOCAL on all of these — the clobber)`);
+
+console.log('\n============================================================');
 console.log('SUMMARY');
 console.log('============================================================');
 console.log(`  A) pre-fix canonical repro:   ${buggy ? 'BUG REPRODUCED ❌' : 'no bug ⚠️'}`);
@@ -493,6 +544,7 @@ console.log(`  B) fixed canonical repro:     ${fixed ? 'STILL BUGGY ❌' : 'BUG 
 console.log(`  C) battery (fixed):           ${results.every(Boolean) ? 'ALL PASS ✅' : 'FAILURES ❌'} (${results.filter(Boolean).length}/${results.length})`);
 console.log(`     buggy-merge control:       ${canonicalBuggy ? 'PASS (unexpected!) ⚠️' : 'FAILS as expected ✅'}`);
 console.log(`  D) comment preservation:      ${cmtFixed ? 'PASS ✅' : 'FAIL ❌'}`);
-const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed;
+console.log(`  E) cross-actor reconcile:     ${ePass ? 'ALL PASS ✅' : 'FAILURES ❌'} (${eResults.filter(Boolean).length}/${eResults.length})`);
+const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass;
 console.log(`\n  OVERALL: ${allGood ? 'PASS ✅' : 'FAIL ❌'}`);
 process.exit(allGood ? 0 : 1);

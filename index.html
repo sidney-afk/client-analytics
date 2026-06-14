@@ -11903,6 +11903,44 @@
        version was silently overwritten. Map<pid, timestamp_ms>. Entries
        expire after CAL_CONFLICT_WINDOW_MS so old saves don't keep alarming. */
     const _calLocalRecentSaves = new Map();
+    /* Per recently-saved card: the sub-status values we just WROTE and the
+       values they had immediately BEFORE that save (`base`). Lets the v2 merge
+       tell a stale Linear status-sync round-trip (server reverts a sub-status to
+       `base`, or just echoes `wrote`) apart from a genuinely NEW value written by
+       someone else (e.g. Kasper approving the card we just routed to him) — so
+       the recent-save guard protects our edit WITHOUT swallowing and then
+       re-clobbering a real approval. Keyed like _calLocalRecentSaves and only
+       read while that entry is still live. */
+    const _calRecentSaveFields = new Map();
+    /* v2 cross-actor reconcile (the Kasper→SMM approval-clobber fix). Given our
+       local row `lp`, the freshly-fetched server row `fp`, and what we last
+       wrote/based for this card (`rsf`), return a COPY of `lp` with any
+       sub-status the server moved to a genuinely NEW value adopted — but only
+       when the server row is strictly newer than ours. A server value equal to
+       what we wrote (our own echo) or to its pre-save base (a stale Linear
+       round-trip) is NOT adopted, so a fresh local edit still rides those out.
+       Returns null when there is nothing to adopt (caller then keeps `lp`).
+       Pure (besides computeOverallStatus) so the regression harness can extract
+       and exercise the real shipped code. */
+    function _calRecentSaveReconcile(lp, fp, rsf) {
+        if (!lp || !fp || !rsf) return null;
+        const lT = Date.parse(lp.updated_at || '');
+        const fT = Date.parse(fp.updated_at || '');
+        if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
+        let merged = null;
+        for (const f of ['video_status', 'graphic_status', 'caption_status']) {
+            const sv = fp[f];
+            if (sv == null) continue;
+            const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+            const base = rsf.base ? rsf.base[f] : undefined;
+            if (sv !== wrote && sv !== base) {
+                if (!merged) merged = Object.assign({}, lp);
+                merged[f] = sv;
+            }
+        }
+        if (merged) merged.status = computeOverallStatus(merged);
+        return merged;
+    }
     const CAL_CONFLICT_WINDOW_MS = 90 * 1000;
     /* IDs we've already warned about in the current session — prevents
        the same conflict from re-firing the dialog on every 30 s poll
@@ -14524,6 +14562,7 @@
                     const recentSave = _calLocalRecentSaves.get(fp.id);
                     if (recentSave && (nowMs - recentSave) > CAL_CONFLICT_WINDOW_MS) {
                         _calLocalRecentSaves.delete(fp.id);
+                        _calRecentSaveFields.delete(fp.id);
                         // recentSave now considered expired below.
                     }
                     const stillRecent = _calLocalRecentSaves.has(fp.id);
@@ -14536,7 +14575,21 @@
                     // is (which can be stale by a few seconds and would
                     // otherwise flicker a freshly-approved component back
                     // to Client Approval).
-                    if (stillRecent) return lp;
+                    if (stillRecent) {
+                        // …but under v2 don't let that blanket "keep local"
+                        // swallow a genuinely newer sub-status from another actor
+                        // (Kasper approving the card we just routed to him) and
+                        // then re-save our stale copy back over it — a silent
+                        // approval clobber. Adopt only the sub-statuses the server
+                        // moved to a NEW value; a stale Linear round-trip (a
+                        // revert to base, or an echo of what we wrote) is still
+                        // kept local.
+                        if (_calV2Enabled()) {
+                            const reconciled = _calRecentSaveReconcile(lp, fp, _calRecentSaveFields.get(fp.id));
+                            if (reconciled) return reconciled;
+                        }
+                        return lp;
+                    }
                     // Last-write-wins fallback: keep local if its updated_at
                     // is newer than — or equal to — the server's. On an exact
                     // tie the two are almost always the same version (so the
@@ -14570,7 +14623,10 @@
                 // un-resolved one. Union them per-comment so neither side's
                 // tweaks/resolutions vanish from the view. (The server upsert
                 // is authoritative for persistence and deletions.)
-                _calMergePostComments(winner, winner === lp ? fp : lp);
+                // Union comments against the side the winner ISN'T. winner can
+                // now be a reconciled copy (neither lp nor fp), so key off fp:
+                // anything but the server row unions with the server's comments.
+                _calMergePostComments(winner, winner === fp ? lp : fp);
                 // Record the server version we just observed as the base for
                 // the server's next 3-way comment merge. Only ever advanced by
                 // a real server read or save echo — never by an optimistic
@@ -16952,6 +17008,16 @@
             // merge can detect a remote overwrite (someone else saved AFTER
             // us). Clears its own old entries on read.
             _calLocalRecentSaves.set(realId, Date.now());
+            // Remember what we just wrote + the pre-save base for each sub-status
+            // so a v2 background merge can adopt a genuinely new status from
+            // another actor (Kasper) while still riding out a stale Linear
+            // round-trip. Paired with _calLocalRecentSaves (same lifetime).
+            _calRecentSaveFields.set(realId, {
+                wrote: { video_status: post.video_status, graphic_status: post.graphic_status, caption_status: post.caption_status },
+                base: prevSnapshot
+                    ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status }
+                    : {}
+            });
             _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
             _calConflictNotified.delete(realId);
             // Save landed — drop any failed-create flag so the "Save failed"

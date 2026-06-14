@@ -12782,11 +12782,9 @@
     const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
     const CAL_LINEAR_META_FORCE_MIN_MS = 5 * 60 * 1000; // cap Linear force-fetches to once / 5 min
     let _calLinearMetaHydrated = false;
-    let _calLinearMetaLastForceAt = 0;
-    let _calLinearMetaLastForceSig = '';
-    // Separate throttle for the "fetch meta for done-card issues the workload
-    // feed excludes" lookup (via the linear-issue-statuses webhook). Disabled
-    // for the session if that webhook doesn't return a `meta` field yet (older
+    // Throttle for the Linear-meta fetch (project/due/editor via the
+    // linear-issue-statuses webhook, the single source for the banner). Disabled
+    // for the session if that webhook doesn't return a `meta` field (older
     // backend), so it can't add ongoing n8n load before the backend ships.
     let _calLinearStatusMetaAt = 0;
     let _calLinearStatusMetaSig = '';
@@ -12823,18 +12821,13 @@
         return !!id && _calParentLinks.has(id);
     }
     /* For a card linked to a real sub-issue (not a parent), return which of
-       due date / editor are missing on the Linear side. Returns null if the
-       card has no link, the link points to a parent, the sub-issue meta hasn't
-       been seen yet, or nothing is missing. Video takes precedence over graphic
-       (matches parent-link banner order).
-       NOTE: "project" is deliberately NOT flagged. A sub-issue's project is
-       inconsistent — some carry it directly, some inherit the client via the
-       workload feed's client mapping, and many (with their parents) have none —
-       and it's never the actionable signal: the editor finds the work via its
-       assignee + due date, and the card already belongs to a client by being on
-       this calendar. Flagging it produced the "one card says no project, the
-       others don't, but none of them have one" inconsistency. Due date + editor
-       are the only fields the banner nudges, so it reads the same on every card. */
+       project / due date / editor are missing on the Linear side. Returns null
+       if the card has no link, the link points to a parent, the sub-issue meta
+       hasn't been seen yet, or nothing is missing. Video takes precedence over
+       graphic. The meta is sourced straight from Linear (see
+       _calRefreshParentLinkFlags), so "project" reflects the issue's (or its
+       parent's) ACTUAL Linear project: a genuinely project-less sub-issue is
+       flagged; one that has or inherits a project is not. */
     function _calLinearMissingForCard(p) {
         if (!p) return null;
         const slots = [
@@ -12848,6 +12841,7 @@
             const meta = _calLinearMetaByIdent.get(ident);
             if (!meta) continue;
             const missing = [];
+            if (!meta.hasProject) missing.push('project');
             if (!meta.hasDue)     missing.push('due date');
             if (!meta.hasEditor)  missing.push('editor');
             if (missing.length) return { comp, url, missing };
@@ -12864,100 +12858,51 @@
             if (g) idents.add(g);
         }
         if (!idents.size) return;
-        let issues;
-        try { ({ issues } = await loadLinearIssues(false)); } catch { return; }
-        // If any linked identifier isn't in the cached feed, the cache is
-        // probably stale — the issue was Approved/Posted (and so excluded)
-        // when last fetched, or it was created after. Force one refresh so
-        // the banner reads current meta. The miss check is cheap; the
-        // refetch only happens when at least one card actually needs it.
-        const cachedIdents = new Set();
-        for (const i of issues || []) cachedIdents.add(String(i.identifier || '').toUpperCase());
-        const missingSig = Array.from(idents).filter(id => !cachedIdents.has(id)).sort().join(',');
-        // Force a Linear refetch when a linked ident is missing from the cached
-        // feed. Throttle ONLY when the same idents are still missing as our last
-        // force (e.g. a card linked to an Approved/Posted issue the feed
-        // excludes) — a NEW missing ident (a just-linked sub-issue) always
-        // forces immediately so its banner isn't delayed. Idle and realtime
-        // reloads never reach here (they pass no returnRefresh), so this can
-        // only fire on a real foreground / tab-return load.
-        if (missingSig && (missingSig !== _calLinearMetaLastForceSig
-            || (Date.now() - _calLinearMetaLastForceAt) > CAL_LINEAR_META_FORCE_MIN_MS)) {
-            _calLinearMetaLastForceSig = missingSig;
-            _calLinearMetaLastForceAt = Date.now();
-            try { ({ issues } = await loadLinearIssues(true)); } catch {}
-        }
+        // Source the banner meta (project / due date / editor + sub-vs-parent)
+        // straight from Linear via the linear-issue-statuses webhook, for EVERY
+        // linked ident in one batched call. Single source of truth, so the banner
+        // is ACCURATE — the workload feed resolves a card's project via a client
+        // mapping, not the issue's own Linear project field, so it can't tell a
+        // genuinely project-less sub-issue from one that inherits a client — and
+        // CONSISTENT across in-progress and Approved/Posted cards (the feed
+        // excludes done issues entirely). Throttled by the ident-set signature +
+        // the 5-min window, persisted (instant on the next load), and disabled
+        // for the session if the webhook returns no `meta` (older backend). Idle
+        // and realtime reloads never reach here, so it adds no polling/idle n8n
+        // load. Meta-only: never reads or writes sub-statuses, so #471 holds.
+        if (_calStatusMetaUnsupported) return;
+        const all = Array.from(idents);
+        const sig = all.slice().sort().join(',');
+        if (!(sig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) return;
+        _calLinearStatusMetaSig = sig;
+        _calLinearStatusMetaAt = Date.now();
+        let j;
+        try {
+            const resp = await fetch(LINEAR_STATUSES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: all }) });
+            j = await resp.json();
+        } catch { return; }
+        if (!j || !j.meta || typeof j.meta !== 'object') { _calStatusMetaUnsupported = true; return; }
         let changed = false;
-        for (const i of issues || []) {
-            const ident = String(i.identifier || '').toUpperCase();
-            if (!idents.has(ident)) continue;
-            if (!i.isSubIssue) {
-                if (!_calParentLinks.has(ident)) { _calParentLinks.add(ident); changed = true; }
-                // A parent never carries the editor / due-date / project
-                // expectations a sub-issue does — clear any stale meta we
-                // had from a previous incarnation of the identifier.
-                if (_calLinearMetaByIdent.delete(ident)) changed = true;
-                continue;
-            }
-            if (_calParentLinks.delete(ident)) changed = true;
-            const next = {
-                hasProject: !!(i.clientName && String(i.clientName).trim()),
-                hasDue:     !!i.dueDate,
-                hasEditor:  !!i.assigneeId
-            };
-            const prev = _calLinearMetaByIdent.get(ident);
-            if (!prev
-                || prev.hasProject !== next.hasProject
-                || prev.hasDue     !== next.hasDue
-                || prev.hasEditor  !== next.hasEditor) {
-                _calLinearMetaByIdent.set(ident, next);
-                changed = true;
-            }
-        }
-        // Cards linked to an Approved/Posted issue are EXCLUDED from the
-        // workload feed above, so their meta is still missing here and the
-        // "incomplete sub-issue" banner would silently never show on done
-        // cards. Fetch meta for the still-missing idents directly from the
-        // linear-issue-statuses webhook (it queries any issue, completed or
-        // not). Throttled by the missing-set signature + the 5-min window,
-        // persisted, and disabled for the session if the webhook returns no
-        // `meta` (older backend) — so it can't add ongoing n8n load. Meta-only:
-        // it never reads/writes sub-statuses, so the #471 reconcile-skip holds.
-        if (!_calStatusMetaUnsupported) {
-            const stillMissing = Array.from(idents).filter(id => id && !_calLinearMetaByIdent.has(id) && !_calParentLinks.has(id));
-            const missSig = stillMissing.slice().sort().join(',');
-            if (missSig && (missSig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) {
-                _calLinearStatusMetaSig = missSig;
-                _calLinearStatusMetaAt = Date.now();
-                try {
-                    const resp = await fetch(LINEAR_STATUSES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: stillMissing }) });
-                    const j = await resp.json();
-                    if (j && j.meta && typeof j.meta === 'object') {
-                        for (const id of stillMissing) {
-                            const e = j.meta[id];
-                            if (!e || typeof e !== 'object') continue;
-                            if (e.isSubIssue) {
-                                // Flag only due date + editor for done cards.
-                                // A card on a client calendar already belongs to
-                                // a client, and the workload feed resolves the
-                                // project via a client mapping (not the issue's
-                                // own project field) — which we can't replicate
-                                // here — so treat project as present to stay
-                                // consistent with the in-progress cards rather
-                                // than show a spurious "no project".
-                                _calLinearMetaByIdent.set(id, { hasProject: true, hasDue: !!e.hasDue, hasEditor: !!e.hasEditor });
-                                _calParentLinks.delete(id);
-                                changed = true;
-                            } else if (!_calParentLinks.has(id)) {
-                                _calParentLinks.add(id);
-                                changed = true;
-                            }
-                        }
-                    } else {
-                        // Backend doesn't return meta yet — don't keep calling.
-                        _calStatusMetaUnsupported = true;
-                    }
-                } catch {}
+        for (const id of all) {
+            const e = j.meta[id];
+            if (!e || typeof e !== 'object') continue;
+            if (e.isSubIssue) {
+                // hasProject: only flag "no project" when the backend EXPLICITLY
+                // reports the issue (and its parent) carry none. An older backend
+                // that doesn't return hasProject leaves it undefined → treat as
+                // present, so the project nudge stays off until the backend ships.
+                const next = { hasProject: e.hasProject !== false, hasDue: !!e.hasDue, hasEditor: !!e.hasEditor };
+                const prev = _calLinearMetaByIdent.get(id);
+                if (!prev || prev.hasProject !== next.hasProject || prev.hasDue !== next.hasDue || prev.hasEditor !== next.hasEditor) {
+                    _calLinearMetaByIdent.set(id, next);
+                    changed = true;
+                }
+                if (_calParentLinks.delete(id)) changed = true;
+            } else {
+                // Not a sub-issue (a parent/top-level link): drop any stale sub
+                // meta and flag the "parent issue linked" banner instead.
+                if (_calLinearMetaByIdent.delete(id)) changed = true;
+                if (!_calParentLinks.has(id)) { _calParentLinks.add(id); changed = true; }
             }
         }
         // Persist the refreshed meta so the banner is instant + correct on the

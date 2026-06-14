@@ -1,0 +1,142 @@
+{
+  "_backup_note": "LIVE snapshot of SyncView Calendar — Upsert Post (pWSqaqVw7dmqhYOA) taken 2026-06-14 immediately BEFORE adding the read-failure guard to the 'Merge Comments' code node. This is the per-row Sheets-write + async Supabase-mirror version; activeVersionId e6d87360-48c0-4875-9307-038fd8b7eb54 (versionId === activeVersionId, no divergent draft). Reason: today's ~5-min Google Sheets outage made 'Read Existing Row' (onError: continueRegularOutput) emit an error object with no id; 'Merge Comments' then read existsAlready=false and the phantom-row guard threw, so status-only saves were lost. The edit adds an early-return at the top of 'Merge Comments' that detects the read-error item and responds {ok:false, _conflict:true, error:'store briefly unavailable'} via the existing no-write (Is Conflict true) path, instead of throwing. No secrets in this file (Supabase/Sheets creds are referenced by binding, not embedded). n8n version history is the authoritative rollback.",
+  "name": "SyncView Calendar — Upsert Post",
+  "id": "pWSqaqVw7dmqhYOA",
+  "activeVersionId": "e6d87360-48c0-4875-9307-038fd8b7eb54",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Row From Patch", "type": "main", "index": 0 }]] },
+    "Build Row From Patch": { "main": [[{ "node": "Read Existing Row", "type": "main", "index": 0 }]] },
+    "Strip Routing": { "main": [[{ "node": "Upsert Calendar Row", "type": "main", "index": 0 }]] },
+    "Upsert Calendar Row": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }, { "node": "Prep Mirror", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] },
+    "Read Existing Row": { "main": [[{ "node": "Read Link Twins", "type": "main", "index": 0 }]] },
+    "Read Link Twins": { "main": [[{ "node": "Merge Comments", "type": "main", "index": 0 }]] },
+    "Merge Comments": { "main": [[{ "node": "Is Conflict", "type": "main", "index": 0 }]] },
+    "Is Conflict": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }], [{ "node": "Strip Routing", "type": "main", "index": 0 }]] },
+    "Prep Mirror": { "main": [[{ "node": "Row Existed?", "type": "main", "index": 0 }]] },
+    "Row Existed?": { "main": [[{ "node": "Mirror Update", "type": "main", "index": 0 }], [{ "node": "Mirror Create", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "2c07a715-2a95-4b87-82e2-676bf1633faf",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "calendar-upsert-post", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } },
+      "webhookId": "b7d1640b-1f23-4956-88f1-d70fd119dfc3"
+    },
+    {
+      "id": "f053d7a1-29b2-481a-b329-eeba15d19c86",
+      "name": "Build Row From Patch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": { "jsCode": "const ALLOWED = [\n  'order_index','scheduled_date','name','asset_url','thumbnail_url',\n  'caption','caption_alt','caption_alt_platform','post_url','cta','tweaks','status','linear_issue_id',\n  'kasper_approved_at','posted_at','platform','platforms','color',\n  'video_status','graphic_status','caption_status',\n  'graphic_linear_issue_id',\n  'video_tweaks','graphic_tweaks','caption_tweaks',\n    'client_video_approved_at','client_graphic_approved_at','client_caption_approved_at',\n  'kasper_seen','kasper_approved_after_tweaks'\n];\nconst body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nif (!client) throw new Error('client required');\nconst post = body.post || {};\nlet id = String(post.id || '').trim();\nif (!id) {\n  id = 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);\n}\nconst row = { id, updated_at: new Date().toISOString() };\nfor (const k of ALLOWED) {\n  if (Object.prototype.hasOwnProperty.call(post, k)) {\n    const v = post[k];\n    row[k] = v == null ? '' : String(v);\n  }\n}\nconst baseAt = String(body.comments_base_at || '');\nreturn [{ json: { ...row, _sheetName: 'Calendar_' + client, _client: client, _baseAt: baseAt } }];" }
+    },
+    {
+      "id": "f21d613d-b8ac-4cb3-b7c2-8e58062a9f9c",
+      "name": "Read Existing Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [448, 0],
+      "parameters": { "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" }, "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Row From Patch\").item.json._sheetName }}" }, "filtersUI": { "values": [{ "lookupColumn": "id", "lookupValue": "={{ $(\"Build Row From Patch\").item.json.id }}" }] }, "options": {} },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "781218cf-ea26-46a3-80e6-1896324dfbbf",
+      "name": "Merge Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": { "jsCode": "const incoming = $('Build Row From Patch').first().json;\nconst existingArr = $('Read Existing Row').all();\nconst existing = (existingArr[0] && existingArr[0].json) || {};\n// Read Link Twins output: rows in this tab whose linear_issue_id equals the\n// incoming one (its lookup uses a __no_link__ sentinel when the incoming link\n// is blank, so a blank link never matches anything).\nconst twinItems = $input.all();\n\n// Phantom-row guard: if no existing row AND the incoming payload has no\n// substantive content fields, abort. This blocks the misrouted-skeleton\n// bug pattern where the FE accidentally calls upsert with a stale id and\n// no real fields, causing Sheets appendOrUpdate to create an empty ghost\n// row in the wrong tab. Real creates always include at least one of:\n// caption / caption_alt / name / asset_url / thumbnail_url /\n// linear_issue_id / scheduled_date / cta / color / platforms /\n// graphic_linear_issue_id.\nconst existsAlready = !!(existing && existing.id);\nconst CONTENT_FIELDS = ['caption','caption_alt','name','asset_url','thumbnail_url','linear_issue_id','scheduled_date','cta','color','platforms','graphic_linear_issue_id'];\nconst hasContent = CONTENT_FIELDS.some(k => String(incoming[k] == null ? '' : incoming[k]).trim() !== '');\nif (!existsAlready && !hasContent) {\n  throw new Error('phantom-row guard: refusing to create a row in ' + (incoming._sheetName || '?') + ' with id ' + incoming.id + ' because the row does not exist and the payload contains no substantive content fields. This is the misrouted-skeleton pattern.');\n}\n\nconst baseAt = String(incoming._baseAt || '');\nconst RETAIN_MS = 30*24*60*60*1000;\nconst nowMs = Date.now();\nfunction parse(s){ try { const a = JSON.parse(s == null ? '[]' : (String(s) || '[]')); return Array.isArray(a) ? a.filter(c => c && c.id) : []; } catch (e) { return []; } }\nfunction stamp(c){ return String((c && (c.updated_at || c.created_at)) || ''); }\nfunction mergeCell(existingStr, incomingStr){\n  const ex = parse(existingStr), inc = parse(incomingStr);\n  const incIds = new Set(inc.map(c => c.id));\n  const exById = new Map(ex.map(c => [c.id, c]));\n  const out = [];\n  for (const c of inc){ const e = exById.get(c.id); out.push(e && stamp(e) > stamp(c) ? e : c); }\n  for (const e of ex){\n    if (incIds.has(e.id)) continue;\n    if (e.deleted) { out.push(e); continue; }\n    const es = stamp(e);\n    if (!baseAt) { out.push(e); continue; }\n    if (es && es > baseAt) out.push(e);\n  }\n  const cutoff = nowMs - RETAIN_MS;\n  const kept = out.filter(function(c){ if (!c.deleted) return true; const t = Date.parse(c.updated_at || c.created_at || ''); return !(isFinite(t) && t < cutoff); });\n  return kept.length ? JSON.stringify(kept) : '';\n}\nconst row = Object.assign({}, incoming);\nfor (const col of ['video_tweaks','graphic_tweaks','caption_tweaks']){\n  if (Object.prototype.hasOwnProperty.call(incoming, col)) row[col] = mergeCell(existing[col], incoming[col]);\n}\nif (Object.prototype.hasOwnProperty.call(incoming, 'video_tweaks')) row.tweaks = row.video_tweaks;\n\n// Explicit link clear: the literal value '__CLEAR_LINK__' removes a stored\n// link, bypassing the carry-forward guard below (a plain '' can never clear,\n// by design — see link-clobber guard).\nconst CLEAR = '__CLEAR_LINK__';\nconst cleared = {};\nfor (const linkCol of ['graphic_linear_issue_id','linear_issue_id']){\n  if (Object.prototype.hasOwnProperty.call(incoming, linkCol)\n      && String(incoming[linkCol] == null ? '' : incoming[linkCol]).trim() === CLEAR) {\n    row[linkCol] = '';\n    cleared[linkCol] = true;\n  }\n}\n\n// Link-clobber guard: a full-card save from a stale or secondary client tab\n// can carry an empty graphic_linear_issue_id / linear_issue_id. Without this,\n// appendOrUpdate would overwrite a real saved Linear link with ''. Carry the\n// stored value forward whenever the incoming link is blank but one exists.\nfor (const linkCol of ['graphic_linear_issue_id','linear_issue_id']){\n  if (cleared[linkCol]) continue;\n  if (Object.prototype.hasOwnProperty.call(incoming, linkCol)\n      && String(incoming[linkCol] == null ? '' : incoming[linkCol]).trim() === ''\n      && String(existing[linkCol] == null ? '' : existing[linkCol]).trim() !== '') {\n    row[linkCol] = existing[linkCol];\n  }\n}\n\n// Duplicate-link guard: linear_issue_id must stay unique across live rows in\n// a tab — the FE collapses cards sharing a link to a single visible card,\n// which is how cards \"disappear\" and swap titles/dates (Dr. Sonia, 2026-06-11,\n// VID-12598 ended up on two rows). If another non-archived row already owns\n// the incoming link: a CREATE proceeds unlinked, an UPDATE keeps the link it\n// already had.\nconst incomingLink = (!cleared.linear_issue_id && Object.prototype.hasOwnProperty.call(incoming, 'linear_issue_id'))\n  ? String(incoming.linear_issue_id == null ? '' : incoming.linear_issue_id).trim() : '';\nif (incomingLink) {\n  const twin = twinItems.map(t => (t && t.json) || {}).find(t => t.id\n    && String(t.id) !== String(incoming.id)\n    && String(t.status || '').toLowerCase() !== 'archived'\n    && String(t.linear_issue_id || '').trim() === incomingLink);\n  if (twin) {\n    if (!existsAlready) {\n      row.linear_issue_id = '';\n    } else if (String(existing.linear_issue_id == null ? '' : existing.linear_issue_id).trim() !== incomingLink) {\n      row.linear_issue_id = existing.linear_issue_id == null ? '' : existing.linear_issue_id;\n    }\n  }\n}\n\n// Conflict guard: comments_base_at is the sheet updated_at this browser last\n// saw for the card (advanced on every fetch and save echo). If the stored row\n// is newer than that base, another browser saved in between — and if this\n// save would ALSO change a scalar field, last-writer-wins would silently\n// revert the other person's edit (the date/title flip-flop two concurrent\n// SMMs hit on Dr. Sonia's calendar). Block it; the FE shows the error on the\n// card's save chip. Comment-only saves pass through (the 3-way merge above\n// already handles concurrent comments), as do saves without a base (bulk\n// import, settings row, server-side callers). Compared against the EFFECTIVE\n// row (after carry-forward/dup guards) so a blank carried-forward link never\n// counts as a change.\nif (existsAlready && baseAt) {\n  const storedAt = String(existing.updated_at || '');\n  if (storedAt && storedAt > baseAt) {\n    const SCALAR_FIELDS = ['scheduled_date','name','caption','caption_alt','caption_alt_platform','asset_url','thumbnail_url','post_url','cta','status','video_status','graphic_status','caption_status','linear_issue_id','graphic_linear_issue_id','platform','platforms','color','kasper_approved_at','posted_at'];\n    const changed = SCALAR_FIELDS.filter(k => Object.prototype.hasOwnProperty.call(incoming, k)\n      && String(row[k] == null ? '' : row[k]) !== String(existing[k] == null ? '' : existing[k]));\n    if (changed.length) {\n      return [{ json: { _conflict: true, ok: false, conflict: true, id: incoming.id,\n        error: 'Not saved: someone else updated this card (' + changed.join(', ') + ') after your screen last loaded it. Refresh the calendar to see their version, then re-apply your change.' } }];\n    }\n  }\n}\n\nrow._conflict = false;\nreturn [{ json: row }];" }
+    },
+    {
+      "id": "69ebe36c-94a9-4b80-b03d-10bb0887adba",
+      "name": "Strip Routing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 0],
+      "parameters": { "mode": "runOnceForEachItem", "jsCode": "const j = $input.item.json;\nconst out = {};\nfor (const k of Object.keys(j)) {\n  if (k.charAt(0) === '_') continue;\n  out[k] = j[k];\n}\nreturn { json: out };" }
+    },
+    {
+      "id": "fbdd80f3-2efa-4876-9051-49cc4ee01a49",
+      "name": "Upsert Calendar Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [1120, 0],
+      "parameters": { "operation": "appendOrUpdate", "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" }, "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Row From Patch\").item.json._sheetName }}" }, "columns": { "mappingMode": "autoMapInputData", "matchingColumns": ["id"], "schema": [], "attemptToConvertTypes": false, "convertFieldsToString": true }, "options": { "cellFormat": "RAW", "handlingExtraData": "insertInNewColumn" } }
+    },
+    {
+      "id": "a54b4e6d-7afc-4d12-a2a6-f76b4d44464a",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1344, 0],
+      "parameters": { "jsCode": "const j = ($input.first() && $input.first().json) || {};\nconst post = j || {};\nreturn [{ json: { ok: true, post } }];" }
+    },
+    {
+      "id": "35ded630-17a5-43c8-8d7b-00f74b9c1a0d",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1568, 0],
+      "parameters": { "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } } }
+    },
+    {
+      "id": "90c79bd3-ae31-4f15-ae08-617d83a085df",
+      "name": "Read Link Twins",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [560, 208],
+      "parameters": { "resource": "sheet", "operation": "read", "documentId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" }, "sheetName": { "__rl": true, "mode": "name", "value": "={{ $(\"Build Row From Patch\").first().json._sheetName }}" }, "filtersUI": { "values": [{ "lookupColumn": "linear_issue_id", "lookupValue": "={{ String($(\"Build Row From Patch\").first().json.linear_issue_id || '').trim() || '__no_link__' }}" }] }, "options": { "returnAllMatches": "returnAllMatches" } },
+      "notes": "Rows in this tab whose linear_issue_id equals the incoming one. Lookup falls back to the __no_link__ sentinel when the incoming link is blank so it never matches empty cells. Feeds the duplicate-link guard in Merge Comments.",
+      "onError": "continueRegularOutput",
+      "alwaysOutputData": true
+    },
+    {
+      "id": "04f2a3cf-d94e-4696-9749-2496f02865e2",
+      "name": "Is Conflict",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [896, -192],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "combinator": "and", "conditions": [{ "id": "conflict-flag", "leftValue": "={{ $json._conflict === true }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }] }, "options": {} },
+      "notes": "True branch: stale-save conflict detected by Merge Comments — respond {ok:false, conflict:true, error} without writing. False branch: normal upsert path."
+    },
+    {
+      "id": "b611435c-b650-4dbe-ad31-5ee3debb973a",
+      "name": "Prep Mirror",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 260],
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "const client = $('Build Row From Patch').first().json._client;\nconst row = $('Upsert Calendar Row').first().json || {};\nreturn [{ json: Object.assign({ client }, row) }];" }
+    },
+    {
+      "id": "a77895c6-ba32-4eb4-9308-b0d47b5b36dc",
+      "name": "Row Existed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1340, 260],
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 }, "combinator": "and", "conditions": [{ "id": "exists", "leftValue": "={{ ($('Read Existing Row').first().json && $('Read Existing Row').first().json.id) ? true : false }}", "rightValue": "", "operator": { "type": "boolean", "operation": "true", "singleValue": true } }] }, "options": {} }
+    },
+    {
+      "id": "1b21d961-feed-4831-abd4-d11cbd36f4fb",
+      "name": "Mirror Update",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 160],
+      "parameters": { "resource": "row", "operation": "update", "tableId": "calendar_posts", "filterType": "manual", "matchType": "allFilters", "filters": { "conditions": [{ "keyName": "client", "condition": "eq", "keyValue": "={{ $json.client }}" }, { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }] }, "dataToSend": "autoMapInputData" },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "3ba7f116-af6c-4144-9257-20287cb30f87",
+      "name": "Mirror Create",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 360],
+      "parameters": { "resource": "row", "operation": "create", "tableId": "calendar_posts", "dataToSend": "autoMapInputData" },
+      "onError": "continueRegularOutput"
+    }
+  ]
+}

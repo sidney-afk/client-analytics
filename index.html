@@ -12823,10 +12823,18 @@
         return !!id && _calParentLinks.has(id);
     }
     /* For a card linked to a real sub-issue (not a parent), return which of
-       project / due date / editor are missing on the Linear side. Returns
-       null if the card has no link, the link points to a parent, the sub-
-       issue meta hasn't been seen yet, or nothing is missing. Video takes
-       precedence over graphic (matches parent-link banner order). */
+       due date / editor are missing on the Linear side. Returns null if the
+       card has no link, the link points to a parent, the sub-issue meta hasn't
+       been seen yet, or nothing is missing. Video takes precedence over graphic
+       (matches parent-link banner order).
+       NOTE: "project" is deliberately NOT flagged. A sub-issue's project is
+       inconsistent — some carry it directly, some inherit the client via the
+       workload feed's client mapping, and many (with their parents) have none —
+       and it's never the actionable signal: the editor finds the work via its
+       assignee + due date, and the card already belongs to a client by being on
+       this calendar. Flagging it produced the "one card says no project, the
+       others don't, but none of them have one" inconsistency. Due date + editor
+       are the only fields the banner nudges, so it reads the same on every card. */
     function _calLinearMissingForCard(p) {
         if (!p) return null;
         const slots = [
@@ -12840,7 +12848,6 @@
             const meta = _calLinearMetaByIdent.get(ident);
             if (!meta) continue;
             const missing = [];
-            if (!meta.hasProject) missing.push('project');
             if (!meta.hasDue)     missing.push('due date');
             if (!meta.hasEditor)  missing.push('editor');
             if (missing.length) return { comp, url, missing };

@@ -351,3 +351,51 @@ batched draft.
 - Activate (steps above); then Sidney + one SMM run real calendars on `?v2=1`
   for ~a week, watching for any divergence vs v1.
 - Phase 3 = flip v2 to default behind a kill-switch flag once proven.
+
+## Phase 2 progress — 2026-06-14 (activated, bug-fixed, hardened)
+
+v2 is live behind `?v2=1` and in active testing on `sidneylaruel`. Work merged
+(PRs #473 / #474 / #475):
+
+- **Status-revert bug FIXED (#473).** Field-level patch echoes are partial
+  (only the written columns); `_calFlushCardSave` was running
+  `_calMigratePostShape` on that partial echo, which invented the absent
+  sub-statuses and clobbered correct local state on the editing tab (latent
+  until the next status click; healed by a refresh). Fix: migrate the MERGED
+  full row, not the partial echo. Reproduced + proven via
+  `test/calendar-v2-status-repro.js` (extracts the real shipped functions; A/Bs
+  buggy vs fixed across 11 sequences + comments). FE-only; no backend change.
+- **Realtime freshness (#474).** Cross-tab updates were intermittent: a
+  backgrounded tab's WebSocket suspends and Supabase realtime doesn't replay
+  missed events, and the only fallback (refresh-on-focus) was throttled 90s (a
+  v1 guard for the costly `calendar-get`). Now under v2: tab-return refetches
+  from Supabase almost always (cheap; still event-driven, never a poll); a
+  catch-up reload fires on realtime re-subscribe; a mid-load event is deferred,
+  not dropped.
+- **Linear-meta banner — persisted + consistent (#474/#475 + backend).** The
+  "incomplete sub-issue" banner (driven by Linear meta not on the Supabase row)
+  is persisted (localStorage, 7-day TTL) so it's instant + survives a refresh,
+  refreshed on tab-return (cache-first, throttled — no idle n8n load), and now
+  also shows on Approved/Posted cards via an additive extension to
+  `linear-issue-statuses` (returns `{statuses, meta}`; snapshots
+  `linear-issue-statuses.2026-06-14.{pre,post}-meta.json`). It flags only **due
+  date + editor** — "no project" was dropped (a sub-issue's project is
+  inconsistent and not the actionable signal). Guard:
+  `test/calendar-v2-banner-persist.js`.
+- **#470 / #471 re-confirmed correct** (scalar-conflict guard bypass for v2;
+  skip the FE Linear reconcile under v2 — Linear→calendar flows via the backend
+  sync → mirror → realtime).
+
+### Before Phase 3 — run the full-system audit
+`PHASE3_AUDIT_PROMPT.md` is a paste-in prompt for a fresh session: audit every
+n8n workflow, the FE v2 path, Sheet↔Supabase parity, Supabase RLS/realtime, and
+security, with an empirical go/no-go for flipping v2 to default.
+
+### Still open (carried into Phase 3/4)
+- `calendar-reorder` fallback has no Supabase mirror (low-risk; only on a
+  `reorder-batch` failure). Rebuild the mirror on the live per-row version
+  without publishing the divergent batched draft.
+- Rotate the plaintext Linear API key (in `linear-status-sync` +
+  `linear-issue-statuses` code nodes) and the service_role key into credentials.
+- Phase 4: remove legacy polling/LWW/conflict/ledger machinery; per-client RLS;
+  close the open unauthenticated webhooks.

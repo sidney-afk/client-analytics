@@ -18,11 +18,30 @@ then `CALENDAR_REALTIME_MIGRATION.md` for the full migration plan.
 - **Phase 1 (dual-write Sheets→Supabase): done & verified** (all FE-used write workflows mirror to Supabase; only the rare `calendar-reorder` *fallback* lacks a mirror).
 - **Phase 2 (hidden v2 behind `?v2=1`): built, merged, live.** v2 reads from Supabase REST + a realtime subscription, and writes **field-level patches** to the existing n8n upsert webhook.
 - **Verified working:** realtime delivers in <1s; field patches persist to Supabase; caption-status (no Linear link) round-trips cleanly; sidneylaruel Sheet↔Supabase in sync; 0 legacy null-sub rows across all 617 rows / 15 clients.
-- **STATUS-REVERT BUG: FIXED 2026-06-13 (this session).** Root cause confirmed against
-  the real code AND the live backend, reproduced deterministically, fixed FE-only (no
-  backend change), and proven with the two-tab repro + 11 related sequences + comment
-  round-trip. **See "THE STATUS-REVERT BUG — RESOLVED" below.** Regression guard:
-  `test/calendar-v2-status-repro.js` (`node test/calendar-v2-status-repro.js`).
+- **STATUS-REVERT BUG: FIXED 2026-06-13.** Root cause confirmed against the real code AND
+  the live backend, reproduced deterministically, fixed FE-only, proven with the two-tab
+  repro + 11 related sequences + comment round-trip. **See "THE STATUS-REVERT BUG — RESOLVED"
+  below.** Regression guard: `test/calendar-v2-status-repro.js`.
+
+### 2026-06-14 updates (merged: PRs #473 / #474 / #475)
+- **Realtime freshness (#474):** cross-tab updates were intermittent (observer tab sometimes
+  only updated on a manual refresh). Fixes: under v2 the tab-return refetch drops the 90s
+  throttle (Supabase reads are cheap; still event-driven, never a poll); a **catch-up reload
+  when the realtime socket re-subscribes** (a suspended background tab misses events — Supabase
+  doesn't replay them); a realtime event that lands mid-load is **deferred, not dropped**.
+- **Linear-meta banner persistence (#474):** the "incomplete sub-issue" banner (project/due/
+  editor) is now persisted (localStorage, 7-day TTL) so it's instant on load + survives refresh,
+  and refreshed on v2 tab-return so it self-heals. No timer/poll; no idle n8n load.
+- **Banner on done cards (#475 + backend):** Approved/Posted issues are excluded from the
+  workload feed, so done cards showed no banner. The FE now fetches their meta from the
+  **extended `linear-issue-statuses` webhook** (now returns `{statuses, meta}`; see
+  `n8n-backups/linear-issue-statuses.2026-06-14.post-meta.json`). Throttled, persisted,
+  degrades gracefully. Meta-only — never touches sub-statuses (so #471 holds).
+- **Banner consistency (this branch):** stopped flagging **"no project"** entirely. A sub-issue's
+  project is inconsistent (some carry it, some inherit a client via the feed's mapping, many +
+  their parents have none) and is never the actionable signal — the banner now flags only due
+  date + editor, so it reads the same on every card. Guard: `test/calendar-v2-banner-persist.js`.
+- **NEXT:** before Phase 3, run the full-system audit in **`PHASE3_AUDIT_PROMPT.md`**.
 
 ---
 
@@ -32,8 +51,10 @@ Migrate the content calendar's storage from a Google Sheet (read/written via una
 n8n webhooks) to **Supabase** (Postgres + realtime), so the calendar behaves like a live
 Google-Sheet for every viewer (no 90s poll, no refresh jumps, no clobbering). Phases:
 1. Dual-write (Sheet + Supabase) — **done.**
-2. Hidden v2 view behind `?v2=1` (read Supabase + realtime, write field-level patches) — **in progress (this is us).**
-3. Make v2 the default (v1 behind a flag) — not started.
+2. Hidden v2 view behind `?v2=1` (read Supabase + realtime, write field-level patches) —
+   **built, merged, live; status-revert bug fixed; realtime + banner hardened.** Audit
+   pending before flipping the default (see `PHASE3_AUDIT_PROMPT.md`).
+3. Make v2 the default (v1 behind a flag) — **next** (run the Phase 3 audit first).
 4. Remove the legacy polling/LWW/conflict/ledger machinery; add real per-client auth (RLS); close the open webhooks — not started.
 
 ---

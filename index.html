@@ -14159,6 +14159,35 @@
        echo is what surfaces them to every other viewer.
        Everything here is inert unless ?v2=1 AND the anon key is set.
        ============================================================ */
+    /* Debug logging for the v2 realtime/merge/save path — gated, OFF by
+       default. Turn on per session in the console with `_calV2Debug = true`,
+       or with ?v2debug=1 (sticky); ?v2debug=0 clears it. Produces zero output
+       for normal users. Added 2026-06-14 to diagnose the Kasper→SMM
+       status-revert/clobber (a stale local copy winning the merge, then being
+       saved back over a fresh approval). */
+    let _calV2DebugLS = null;
+    function _calV2DebugOn() {
+        if (window._calV2Debug === true) return true;
+        if (window._calV2Debug === false) return false;
+        if (_calV2DebugLS !== null) return _calV2DebugLS;
+        let on = false;
+        try {
+            const q = new URLSearchParams(location.search).get('v2debug');
+            if (q === '1') { on = true; localStorage.setItem('syncview_cal_v2debug', '1'); }
+            else if (q === '0') { on = false; localStorage.removeItem('syncview_cal_v2debug'); }
+            else on = (localStorage.getItem('syncview_cal_v2debug') === '1');
+        } catch {}
+        _calV2DebugLS = on;
+        return on;
+    }
+    function _calV2Log() {
+        try {
+            if (!_calV2DebugOn()) return;
+            const a = ['[calV2 ' + new Date().toISOString().slice(11, 23) + ']'];
+            for (let i = 0; i < arguments.length; i++) a.push(arguments[i]);
+            console.log.apply(console, a);
+        } catch (e) {}
+    }
     let _calV2FlagCache = null;
     function _calV2Enabled() {
         if (_calV2FlagCache !== null) return _calV2FlagCache;
@@ -14255,6 +14284,7 @@
                 .channel('cal-' + slug)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug))
                 .subscribe((status) => {
+                    _calV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _calV2SubscribedOnce);
                     if (status === 'SUBSCRIBED') {
                         // A *re*-subscribe means the socket had dropped (a
                         // backgrounded/asleep tab whose WebSocket was suspended,
@@ -14275,6 +14305,7 @@
         }
     }
     function _calV2OnRealtimeChange(slug) {
+        _calV2Log('realtime event received for slug:', slug, '| currently viewing:', calClientSlug(calState.client));
         if (calClientSlug(calState.client) !== slug) return;
         if (_calV2RtTimer) clearTimeout(_calV2RtTimer);
         _calV2RtTimer = setTimeout(function tick() {
@@ -14289,11 +14320,12 @@
             // WE'VE settled. A teammate's change while we're idle is never
             // suppressed (we didn't just write).
             const sinceLocal = Date.now() - _calLastLocalWriteAt;
-            if (sinceLocal < CAL_RT_SELF_ECHO_MS) { _calV2RtTimer = setTimeout(tick, CAL_RT_SELF_ECHO_MS - sinceLocal); return; }
+            if (sinceLocal < CAL_RT_SELF_ECHO_MS) { _calV2Log('realtime: suppressed as self-echo (', sinceLocal, 'ms since local write); re-arming'); _calV2RtTimer = setTimeout(tick, CAL_RT_SELF_ECHO_MS - sinceLocal); return; }
             // A load is already running — don't DROP this change (that left the
             // observer tab stale until the next event/focus); defer it. The
             // load's tail re-services the pending flag once it's free.
-            if (_calBgLoadInFlight || calState.loading) { _calV2RtPending = true; return; }
+            if (_calBgLoadInFlight || calState.loading) { _calV2Log('realtime: deferred (load already in flight)'); _calV2RtPending = true; return; }
+            _calV2Log('realtime: triggering background reload from Supabase');
             loadCalendarPosts({ background: true });
         }, CAL_V2_RT_DEBOUNCE_MS);
     }
@@ -14522,6 +14554,16 @@
                     if (pend) return Object.assign({}, fp, pend);
                     return fp;
                 })();
+                if (_calV2DebugOn() && winner === lp &&
+                    (lp.video_status !== fp.video_status || lp.graphic_status !== fp.graphic_status ||
+                     lp.caption_status !== fp.caption_status || lp.status !== fp.status)) {
+                    _calV2Log('MERGE kept LOCAL over a DIFFERING server row →', fp.id,
+                        '| reason:', _calSaveInFlight[fp.id] ? 'saveInFlight' : (_calLocalRecentSaves.has(fp.id) ? 'recentSave<90s' : 'localTs>=serverTs'),
+                        '| localTs:', lp.updated_at, 'serverTs:', fp.updated_at,
+                        '| LOCAL v/g/c/overall:', lp.video_status + '/' + lp.graphic_status + '/' + lp.caption_status + '/' + lp.status,
+                        '| SERVER v/g/c/overall:', fp.video_status + '/' + fp.graphic_status + '/' + fp.caption_status + '/' + fp.status,
+                        '— this local copy will be re-saved over the server (clobber) on the next write');
+                }
                 // Comments live in one cell per component that both the client
                 // and the SMM overwrite wholesale, so the LWW winner may carry
                 // a stale thread that dropped the other side's comments or
@@ -16851,6 +16893,7 @@
             // Mark this as a local write so the realtime ECHO of it (arriving a
             // second or two later) doesn't flicker the strip or race a delete.
             _calLastLocalWriteAt = Date.now();
+            _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
             const resp = await fetch(CALENDAR_UPSERT_URL, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend })

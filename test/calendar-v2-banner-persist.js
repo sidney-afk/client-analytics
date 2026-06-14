@@ -44,10 +44,12 @@ ${grabConst('CAL_LINEAR_META_LS_KEY')}
 ${grabConst('CAL_LINEAR_META_TTL_MS')}
 ${grabFunc('_calHydrateLinearMeta')}
 ${grabFunc('_calPersistLinearMeta')}
+${grabFunc('_calIdentFromUrl')}
+${grabFunc('_calLinearMissingForCard')}
 return {
   _calParentLinks, _calLinearMetaByIdent, localStorage, _store,
   CAL_LINEAR_META_LS_KEY, CAL_LINEAR_META_TTL_MS,
-  _calHydrateLinearMeta, _calPersistLinearMeta,
+  _calHydrateLinearMeta, _calPersistLinearMeta, _calLinearMissingForCard,
   resetHydrated(){ _calLinearMetaHydrated = false; },
 };`;
 const m = new Function(SANDBOX)();
@@ -92,6 +94,22 @@ let threw = false;
 try { m.localStorage.setItem(m.CAL_LINEAR_META_LS_KEY, '{not json'); m.resetHydrated(); m._calHydrateLinearMeta(); }
 catch { threw = true; }
 ok(!threw, 'corrupt localStorage payload is handled gracefully');
+
+// 5) _calLinearMissingForCard consumption (the done-card path sets
+//    hasProject:true so only due date / editor are ever flagged).
+m._calParentLinks.clear(); m._calLinearMetaByIdent.clear();
+m._calLinearMetaByIdent.set('VID-1', { hasProject: true, hasDue: false, hasEditor: false }); // done card: no due, no editor
+m._calLinearMetaByIdent.set('VID-2', { hasProject: true, hasDue: true, hasEditor: true });   // complete
+m._calLinearMetaByIdent.set('GRA-3', { hasProject: true, hasDue: true, hasEditor: false });  // graphic missing editor
+const card = (v, g) => ({ linear_issue_id: v ? ('https://linear.app/x/issue/' + v) : '', graphic_linear_issue_id: g ? ('https://linear.app/x/issue/' + g) : '' });
+const r1 = m._calLinearMissingForCard(card('VID-1'));
+ok(r1 && r1.comp === 'video' && r1.missing.join(',') === 'due date,editor', 'done card → "due date, editor" (never project)');
+ok(m._calLinearMissingForCard(card('VID-2')) === null, 'complete sub-issue → no banner');
+const r3 = m._calLinearMissingForCard(card('VID-2', 'GRA-3'));
+ok(r3 && r3.comp === 'graphic' && r3.missing.join(',') === 'editor', 'falls through to graphic slot when video is complete');
+ok(m._calLinearMissingForCard(card('VID-UNKNOWN')) === null, 'no meta yet → no banner (no spurious flag)');
+m._calParentLinks.add('VID-1');
+ok(m._calLinearMissingForCard(card('VID-1')) === null, 'parent-linked ident is skipped');
 
 console.log(`\n  ${fail === 0 ? 'PASS ✅' : 'FAIL ❌'}  (${pass} passed, ${fail} failed)`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,0 +1,55 @@
+{
+  "_backup_note": "APPLIED + VERIFIED LIVE 2026-06-14. State of SyncView Calendar — Linear Issue Statuses (GP8CSZDNcy5sGdFr) after extending it to also return per-issue meta. Verified by POSTing the sidneylaruel test idents: response carries the unchanged statuses map PLUS meta:{IDENT:{state,isSubIssue,hasDue,hasEditor}} (e.g. VID-12612/Approved -> {isSubIssue:true,hasDue:false,hasEditor:false}). Rollback = linear-issue-statuses.2026-06-14.pre-meta.json. CHANGE: additive — still returns {ok, statuses:{IDENT:stateName}} exactly as before (existing on-load reconcile unaffected), PLUS the meta map. The calendar uses meta to show the 'incomplete sub-issue' banner on Approved/Posted cards too (those issues are excluded from the workload feed). Project is intentionally NOT returned: a card on a client calendar already belongs to a client and the workload feed resolves the project via a client mapping, so the FE treats project as present to stay consistent with in-progress cards. Restore the real Linear key in place of [REDACTED-LINEAR-KEY] if re-importing. Read-only workflow; not on the dual-write list.",
+  "name": "SyncView Calendar — Linear Issue Statuses",
+  "id": "GP8CSZDNcy5sGdFr",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Fetch Issue Statuses", "type": "main", "index": 0 }]] },
+    "Fetch Issue Statuses": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "2001998b-b1e9-4cd2-ab2b-704b5a673f57",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "linear-issue-statuses",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      },
+      "webhookId": "e344f72b-4c9c-4e96-b985-edc6aec3e42e"
+    },
+    {
+      "id": "ade06202-95ea-4857-9ed1-ba5d562a51df",
+      "name": "Fetch Issue Statuses",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst issues = Array.isArray(body.issues) ? body.issues : [];\nconst ids = [];\nconst seen = {};\nfor (let i = 0; i < issues.length; i++) {\n  const m = String(issues[i] || '').match(/([A-Za-z]+-\\d+)/);\n  if (m) { const id = m[1].toUpperCase(); if (!seen[id]) { seen[id] = true; ids.push(id); } }\n}\nif (!ids.length) return [{ json: { ok: true, statuses: {}, meta: {} } }];\nconst capped = ids.slice(0, 100);\nconst LINEAR_KEY = '[REDACTED-LINEAR-KEY]';\nconst parts = capped.map((id, i) => 'a' + i + ': issue(id: \"' + id + '\") { identifier state { name } dueDate assignee { id } parent { id } }');\nconst query = '{ ' + parts.join(' ') + ' }';\nlet resp;\ntry {\n  resp = await this.helpers.httpRequest({ method: 'POST', url: 'https://api.linear.app/graphql', headers: { Authorization: LINEAR_KEY, 'Content-Type': 'application/json' }, body: { query }, json: true });\n} catch (e) { return [{ json: { ok: false, error: 'Could not reach the Linear API.' } }]; }\nconst data = (resp && resp.data) || {};\nconst statuses = {};\nconst meta = {};\nfor (let i = 0; i < capped.length; i++) {\n  const issue = data['a' + i];\n  if (issue && issue.identifier) {\n    const ident = String(issue.identifier).toUpperCase();\n    const stateName = (issue.state && issue.state.name) || '';\n    statuses[ident] = stateName;\n    meta[ident] = {\n      state: stateName,\n      isSubIssue: !!(issue.parent && issue.parent.id),\n      hasDue: !!issue.dueDate,\n      hasEditor: !!(issue.assignee && issue.assignee.id)\n    };\n  }\n}\nreturn [{ json: { ok: true, statuses, meta } }];"
+      }
+    },
+    {
+      "id": "7c9e78b0-4c66-4d5a-bab6-f5e613ee542b",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [448, 0],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

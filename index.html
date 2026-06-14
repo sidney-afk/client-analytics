@@ -12784,6 +12784,13 @@
     let _calLinearMetaHydrated = false;
     let _calLinearMetaLastForceAt = 0;
     let _calLinearMetaLastForceSig = '';
+    // Separate throttle for the "fetch meta for done-card issues the workload
+    // feed excludes" lookup (via the linear-issue-statuses webhook). Disabled
+    // for the session if that webhook doesn't return a `meta` field yet (older
+    // backend), so it can't add ongoing n8n load before the backend ships.
+    let _calLinearStatusMetaAt = 0;
+    let _calLinearStatusMetaSig = '';
+    let _calStatusMetaUnsupported = false;
     function _calHydrateLinearMeta() {
         if (_calLinearMetaHydrated) return;
         _calLinearMetaHydrated = true;
@@ -12898,6 +12905,52 @@
                 || prev.hasEditor  !== next.hasEditor) {
                 _calLinearMetaByIdent.set(ident, next);
                 changed = true;
+            }
+        }
+        // Cards linked to an Approved/Posted issue are EXCLUDED from the
+        // workload feed above, so their meta is still missing here and the
+        // "incomplete sub-issue" banner would silently never show on done
+        // cards. Fetch meta for the still-missing idents directly from the
+        // linear-issue-statuses webhook (it queries any issue, completed or
+        // not). Throttled by the missing-set signature + the 5-min window,
+        // persisted, and disabled for the session if the webhook returns no
+        // `meta` (older backend) — so it can't add ongoing n8n load. Meta-only:
+        // it never reads/writes sub-statuses, so the #471 reconcile-skip holds.
+        if (!_calStatusMetaUnsupported) {
+            const stillMissing = Array.from(idents).filter(id => id && !_calLinearMetaByIdent.has(id) && !_calParentLinks.has(id));
+            const missSig = stillMissing.slice().sort().join(',');
+            if (missSig && (missSig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) {
+                _calLinearStatusMetaSig = missSig;
+                _calLinearStatusMetaAt = Date.now();
+                try {
+                    const resp = await fetch(LINEAR_STATUSES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: stillMissing }) });
+                    const j = await resp.json();
+                    if (j && j.meta && typeof j.meta === 'object') {
+                        for (const id of stillMissing) {
+                            const e = j.meta[id];
+                            if (!e || typeof e !== 'object') continue;
+                            if (e.isSubIssue) {
+                                // Flag only due date + editor for done cards.
+                                // A card on a client calendar already belongs to
+                                // a client, and the workload feed resolves the
+                                // project via a client mapping (not the issue's
+                                // own project field) — which we can't replicate
+                                // here — so treat project as present to stay
+                                // consistent with the in-progress cards rather
+                                // than show a spurious "no project".
+                                _calLinearMetaByIdent.set(id, { hasProject: true, hasDue: !!e.hasDue, hasEditor: !!e.hasEditor });
+                                _calParentLinks.delete(id);
+                                changed = true;
+                            } else if (!_calParentLinks.has(id)) {
+                                _calParentLinks.add(id);
+                                changed = true;
+                            }
+                        }
+                    } else {
+                        // Backend doesn't return meta yet — don't keep calling.
+                        _calStatusMetaUnsupported = true;
+                    }
+                } catch {}
             }
         }
         // Persist the refreshed meta so the banner is instant + correct on the

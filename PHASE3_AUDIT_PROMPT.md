@@ -1,136 +1,135 @@
-# Content Calendar — Full System Audit Prompt (pre–Phase 3)
+# Content Calendar → Supabase — Complete-the-Migration Plan & Audit (paste into a fresh session)
 
 > **How to use:** open a fresh Claude Code session on this repo (`sidney-afk/client-analytics`)
-> with the same MCP access (n8n, Supabase via the committed publishable key, Linear, GitHub)
-> and paste everything below the line as the task. It drives a rigorous, read‑only audit of the
-> entire content‑calendar system before we flip v2 to the default (Phase 3). Develop on a branch
-> if you fix anything; never push to `main`.
+> with the same MCP access (n8n, Supabase via the committed publishable key, Linear, GitHub) and
+> paste everything below the line as the task. The goal of this session is to get **every surface
+> that shows calendar data onto Supabase (live reads + realtime)**, prove the whole system works,
+> and only THEN flip v2 to the default for everyone — followed by cleanup. Develop on a feature
+> branch and open PRs; **never push to `main`**. Be rigorous and **empirical: verify against real
+> data and the live backend; reproduce; don't guess.**
 
 ---
 
-You are auditing the **Content Calendar realtime migration (Google Sheets → Supabase)** end to
-end, to decide whether it is safe to make **v2 the default** (Phase 3). Be rigorous and
-**empirical — verify against real data and the live backend, do not guess or trust the docs
-blindly.** Reproduce, check the actual code/workflows/rows, and only then conclude.
+You are completing the **Content Calendar realtime migration (Google Sheets → Supabase)**. Phase 1
+(dual-write) and Phase 2 (a hidden v2 read path behind `?v2=1` for the main calendar) are done and
+in testing. The remaining job before making v2 the default is: **every place in the app that reads
+calendar data must read it from Supabase (with realtime), not the Google Sheet** — otherwise some
+surfaces would be live and others stale after the flip.
 
-## 0. First, read these in full (in order)
-1. `CALENDAR_V2_AUDIT_HANDOFF.md` — current state, what's built/merged, verified facts, known risks.
-2. `CALENDAR_REALTIME_MIGRATION.md` — the full migration plan + phase history + n8n workflow map.
-3. Skim the committed test harnesses and RUN them (Node, no deps):
-   - `node test/calendar-v2-status-repro.js` → expect `OVERALL: PASS` (status‑revert bug + 11 sequences).
-   - `node test/calendar-v2-banner-persist.js` → expect `PASS` (Linear‑meta banner persistence + logic).
+## 0. Read first (in full)
+1. `CALENDAR_V2_AUDIT_HANDOFF.md` — current state, fixes, verified facts, known risks.
+2. `CALENDAR_REALTIME_MIGRATION.md` — full plan, phase history, n8n workflow map.
+3. Run the committed harnesses (Node, no deps): `node test/calendar-v2-status-repro.js` and
+   `node test/calendar-v2-banner-persist.js` — both must pass.
 
 ## Ground rules
-- **Read‑only by default.** This is an audit. If you find a real bug, fix it on a feature branch
-  and open a PR — never push to `main`. v2 is gated behind `?v2=1`; v1 (default) must stay
-  behaviorally unchanged for normal users.
-- **Snapshot before any n8n edit** into `n8n-backups/<name>.<date>.<reason>.json` (redact secrets,
-  e.g. the Linear API key → `[REDACTED-LINEAR-KEY]`). n8n's own version history is the real rollback.
-- **Do not put secrets in the repo** (commits, PRs, docs). The browser publishable key is the only
-  key that belongs in the repo; service_role + Linear keys live only in n8n.
-- **Verify with real data:** read Supabase REST with the committed publishable key; exercise the
-  n8n webhooks against the test client `sidneylaruel`; cross‑check the Google Sheet.
+- **Branch, don't push to main.** v2 is gated behind `?v2=1`; v1 (default) must stay behaviorally
+  unchanged for normal users until the deliberate Phase 3 flip.
+- **Snapshot before any n8n edit** into `n8n-backups/<name>.<date>.<reason>.json` (redact the Linear
+  API key → `[REDACTED-LINEAR-KEY]`). n8n's own version history is the real rollback.
+- **No secrets in the repo.** Only the browser publishable key belongs here.
+- **Verify with real data:** read Supabase REST with the committed publishable key; exercise the n8n
+  webhooks against test client `sidneylaruel`; cross-check the Google Sheet. After any change,
+  re-run the harnesses and do a live repro.
+- **No polling / no idle n8n load.** Reads under v2 come from Supabase; realtime is push (WebSocket).
+  Any Linear/n8n touch must be event-driven (focus / explicit refresh), cache-first, and throttled —
+  never a timer, never on every realtime tick. An idle open tab must make zero calls.
 
-## Access & key facts (verify these are still true)
+## Key facts (verify still true)
 - **Site:** `https://syncview.synchrosocial.com/?v2=1#calendar` (GitHub Pages caches `index.html`
-  ~10 min — hard‑refresh after a deploy). Console helper: `calV2Status()`.
-- **Supabase:** project ref `uzltbbrjidmjwwfakwve` (`https://uzltbbrjidmjwwfakwve.supabase.co`).
-  Table `public.calendar_posts`, PK `(client, id)`, all columns `text`. Publishable key is in
-  `index.html` (`CAL_SUPABASE_ANON_KEY`). REST read example:
-  `/rest/v1/calendar_posts?select=*&client=eq.sidneylaruel` with `apikey`/`Authorization: Bearer` headers.
-- **n8n:** `synchrosocial.app.n8n.cloud`. Supabase credential `Supabase - SyncView Calendar`
-  (`XdBpJ6Xk8PMpZXXT`). Webhooks (unauthenticated, CORS `*`): `calendar-get`, `calendar-upsert-post`,
-  `calendar-append-post`, `calendar-delete-post`, `calendar-reorder`, `calendar-reorder-batch`,
-  `linear-status-sync`, `linear-issue-statuses`, `generate-caption`, `kasper-queue`.
-- **Google Sheet:** doc `1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps`, one tab `Calendar_<slug>` per client.
-- **Test client:** `sidneylaruel` (a few TEST cards, some linked to Linear VID-/GRA- sub‑issues).
-- **Code:** everything is in `index.html` (one inline `<script>`). Search anchors: `CALENDAR v2`,
-  `_calV2`, `_calFlushCardSave`, `_calMigratePostShape`, `loadCalendarPosts`, `_calRefreshParentLinkFlags`.
+  ~10 min — hard-refresh after deploy). Console: `calV2Status()` → `{flag,ready,subscribed,slug}`.
+- **Supabase:** ref `uzltbbrjidmjwwfakwve`. Table `public.calendar_posts`, PK `(client,id)`, all text.
+  Publishable key in `index.html` (`CAL_SUPABASE_ANON_KEY`). REST read:
+  `/rest/v1/calendar_posts?select=*&client=eq.<slug>` (+ `apikey` / `Authorization: Bearer`). RLS:
+  anon SELECT only; `service_role` (n8n) writes. Realtime: table in `supabase_realtime` publication,
+  `replica identity full`.
+- **n8n:** `synchrosocial.app.n8n.cloud`. Supabase credential `XdBpJ6Xk8PMpZXXT`. Code lives in one
+  inline `<script>` in `index.html` (search `CALENDAR v2`, `_calV2`, `loadCalendarPosts`).
 
 ---
 
-## 1. n8n workflows — audit every one that touches the calendar
-For each: snapshot first (if you'll edit), confirm `active`, read the code nodes, and verify behavior
-against a real call where feasible. Confirm the **Supabase mirror** is present AND published (active
-version), not just in a draft.
+## 1. SURFACE INVENTORY — every reader of CALENDAR data (CONFIRM this; don't trust it)
+Re-verify by grepping `CALENDAR_GET_URL`, `KASPER_QUEUE_URL`, `rest/v1/calendar_posts`, and callers of
+`loadCalendarPosts`. Find anything this table missed.
 
-| Workflow | id | What to verify |
-|---|---|---|
-| Upsert Post | `pWSqaqVw7dmqhYOA` | `Build Row From Patch` ALLOWED whitelist; phantom‑row / link‑clobber / duplicate‑link / 3‑way comment‑merge guards; **scalar conflict guard** (compares `comments_base_at` vs the SHEET's `updated_at`); Sheets `appendOrUpdate` (autoMapInputData, match `id`); **Supabase mirror fan‑out** (`onError: continueRegularOutput`). Response echoes ONLY the patched columns (`{id, updated_at, …}`). |
-| Append Post | `iA54ipMOybicmYBh` | dual‑write mirror present. Dormant (FE doesn't call it) — confirm. |
-| Delete Post | `JcekBKUzELgX4HjH` | soft delete (`status=Archived`) + mirror. |
-| Reorder (fallback) | `OXd0sUoSJYMspGTF` | **NO Supabase mirror** (known gap); also a divergent unpublished batched draft — editing+publishing would flip live reorder to the draft. Decide: rebuild the mirror on the LIVE per‑row version without publishing the draft. |
-| Reorder batch | `lTtZNLrQLpIZqwAY` | one `values:batchUpdate` + mirror. |
-| Linear Status Sync | `MJbMZ789B5ExZz9x` | Linear webhook → patches ONLY the matched sub‑status via the upsert webhook (so it dual‑writes for free); never writes caption/overall; skips Posted/archived. ⚠️ **live Linear API key hardcoded in plaintext** in the code node. |
-| Linear Issue Statuses | `GP8CSZDNcy5sGdFr` | Returns `{ok, statuses, meta}` (meta = `{state,isSubIssue,hasDue,hasEditor}`). The FE banner uses `meta` for done cards. ⚠️ **same plaintext Linear key.** Snapshots: `linear-issue-statuses.2026-06-14.{pre,post}-meta.json`. |
-| Generate Caption | `rNrRCwKPGuau7sLH` | calls calendar‑get/upsert (inherits dual‑write); caption_jobs data table. |
-| Kasper queue | `TcWOfnKd4Csdnnbv` | batchGet read of many tabs (Supabase read in a later phase). |
-| Get | `KViFEOqSRBNdCJRk` | reads one tab; v2's fallback when Supabase read fails. |
+| # | Surface | Function (index.html) | Reads today | On Supabase? |
+|---|---|---|---|---|
+| 1 | Main SMM calendar | `loadCalendarPosts` → `_calV2FetchPosts` | Supabase REST + realtime (v2) | ✅ (flag/default) |
+| 2 | Client review (share link `?c=`) | same `loadCalendarPosts` | follows the v2 flag | ✅ (flag/default) |
+| 3 | SMM review view (`view=review/smmreview`) | renders `calState.posts` | inherits #1 | ✅ |
+| 4 | **Kasper queue/review** | `_kasperFetchAllRelevantPosts` | `kasper-queue` batchGet (all clients) + `calendar-get` — **the Sheet** | ❌ **MIGRATE** |
+| 5 | **Filming runway** | `_filmsFetchRunway(slug)` | `calendar-get` — **the Sheet** | ❌ **MIGRATE** |
+| 6 | Parity/verify helper | `_calFetchPostsForVerify` | `calendar-get` | ⚠️ diagnostic — migrate or retire |
 
-**Checks:** (a) Is every FE‑reachable WRITE mirrored to Supabase? (`calendar-reorder` is the known
-exception.) (b) Do mirror writes use the SAME `updated_at` the Sheet write uses (so LWW/realtime are
-consistent)? (c) Are there workflows that write the Sheet directly and are NOT mirrored?
+**NOT calendar data (different sources — out of scope for THIS migration; do not move to Supabase):**
+- **Workload view** (`loadLinearIssues` → `linear-issues`): the editor's **Linear** issues by due date.
+  Linear is its source of truth; it's not in `calendar_posts`. (If "live workload" is wanted later,
+  that's a separate Linear-realtime question, not this migration.)
+- Filming **plans** (`FILMING_PLANS_URL` gviz / `filming-plan-tabs`), `editors-week`, caption jobs
+  (`caption_jobs` n8n table), briefs / hooks / templates / samples / tiktok / forms — separate data.
 
-## 2. Front‑end v2 path (`index.html`) — audit holistically
-- **Gating:** `_calV2Enabled()` (flag, sticky in localStorage) and `_calV2Ready()` (flag + anon key).
-  Confirm v1 (flag off) makes **zero** Supabase/extra calls and is behaviorally identical.
-- **Read swap + merge:** `loadCalendarPosts` → `_calV2FetchPosts` (Supabase REST, falls back to
-  `calendar-get`). Normalize/dedupe/**LWW merge** with the **recent‑save guard** (`_calLocalRecentSaves`,
-  `CAL_CONFLICT_WINDOW_MS=90s`) — prefers local within the window. Confirm this can't strand a stale
-  optimistic value beyond a refresh.
-- **Write path:** `_calFlushCardSave` field‑level patch builder (only changed cols + recomputed
-  `status` + changed `*_tweaks`); **echo‑merge** must migrate the MERGED full row, NOT the partial
-  echo (the status‑revert fix — confirm `_calMigratePostShape(merged)`, not `(saved)`); v2 sends
-  `comments_base_at:''` (skips the scalar conflict guard). Re‑confirm the status harness still passes.
-- **Realtime:** `_calV2EnsureSubscribed` (one channel/client; **catch‑up reload on re‑SUBSCRIBE**;
-  teardown on client switch / leave). `_calV2OnRealtimeChange` debounces a background reload and
-  **defers (not drops)** an event that lands mid‑load. `_calRefreshOnReturn` uses a 4 s throttle under
-  v2 (vs 90 s v1). Verify: NO timers/polling; idle tabs make no n8n calls.
-- **`_calMigratePostShape` callers:** confirm only full rows reach it (echo‑merge fixed; cache,
-  network, Kasper hydrate/load all full). It must never invent absent sub‑statuses on a partial row.
-- **#471 reconcile skip:** `_calReconcileLinearStatuses` early‑returns under v2 (Linear→calendar now
-  flows via the backend sync → Supabase mirror → realtime). Confirm.
-- **Banner:** `_calLinearMissingForCard` flags due date/editor only (project intentionally dropped);
-  `_calRefreshParentLinkFlags` persists `_calLinearMetaByIdent` (localStorage, 7‑day TTL) and fetches
-  meta for done‑card idents from `linear-issue-statuses` (throttled, session‑disabled if no `meta`).
-  Confirm it never adds idle/polling load.
+So the concrete remaining migration work is **#4, #5, (#6)** — get the Kasper queue and the filming
+runway reading calendar data from Supabase (with realtime where the surface is long-lived), behind
+the same v2 gate, with v1 untouched.
 
-## 3. Google Sheet ↔ Supabase parity
-- Pick a few clients (incl. `sidneylaruel`) and a high‑traffic one. Compare row counts and a sample
-  of rows (statuses, comments, links, `updated_at`) between the Sheet (via `calendar-get`) and
-  Supabase (REST). The `Backfill (ALL clients)` workflow (`yQBGgdbZPqOgn2eE`) doubles as a re‑sync +
-  parity report — consider a dry read.
-- Confirm NO drift class remains: e.g. rows present in one store but not the other; `updated_at`
-  skew that would flip LWW; un‑mirrored writes (the reorder fallback).
-- Confirm `0` rows have an overall `status` set with all three sub‑statuses empty (the legacy
-  in‑memory‑seeding divergence) — the FE recomputes overall on load, so stored overall is advisory.
+## 2. Migrate the remaining calendar-data readers (Part B)
+- **Kasper queue (`_kasperFetchAllRelevantPosts`)** — today it batchGets every `Calendar_<slug>` tab
+  via `kasper-queue`. In Supabase all clients live in ONE table, so this becomes a single REST query
+  (e.g. `select=*` filtered to the statuses Kasper cares about, or all rows then filter client-side
+  like today). Add a realtime subscription (no client filter, or per the set of clients shown) so the
+  queue updates live. Reuse the `_calV2FetchPosts` / `_calV2EnsureSubscribed` patterns; keep the
+  `kasper-queue` webhook as the fallback on any Supabase error (so it can never blank). Gate on
+  `_calV2Ready()` exactly like the calendar, so v1 is byte-identical.
+- **Filming runway (`_filmsFetchRunway`)** — swap its per-client `calendar-get` read to the Supabase
+  REST read (same shape) behind `_calV2Ready()`, n8n fallback retained. Realtime optional (it's a
+  computed summary; a refresh-on-open is probably enough).
+- **`_calFetchPostsForVerify`** — diagnostic; either point it at Supabase or leave it as the
+  Sheet-side half of a parity check. Decide and note.
+- Confirm: with `?v2=0` (or no flag) every one of these is byte-identical to today.
 
-## 4. Supabase config & data integrity
-- **RLS:** `anon` has SELECT (`using (true)`) and NOTHING else (no insert/update/delete). Only
-  `service_role` (n8n) writes. Verify by attempting an anon write (should fail).
-- **Realtime:** `calendar_posts` is in the `supabase_realtime` publication and has
-  `replica identity full`. Verify an end‑to‑end event (subscribe, POST a patch, see it < ~1 s).
-- **Data:** spot‑check types/coercion (all text), `(client,id)` uniqueness, no orphan/dup rows.
+## 3. Full-system audit (Part C)
+- **n8n workflows** — for each, confirm `active`, read the code, and verify the Supabase mirror is in
+  the ACTIVE version (not a draft). Writers: `calendar-upsert-post` (`pWSqaqVw7dmqhYOA`),
+  `calendar-append-post` (`iA54ipMOybicmYBh`), `calendar-delete-post` (`JcekBKUzELgX4HjH`),
+  `calendar-reorder-batch` (`lTtZNLrQLpIZqwAY`), **`calendar-reorder` (`OXd0sUoSJYMspGTF`) — still
+  has NO Supabase mirror + a divergent unpublished batched draft (rebuild the mirror on the LIVE
+  per-row version; don't publish the draft).** Reads/sync: `linear-status-sync` (`MJbMZ789B5ExZz9x`),
+  `linear-issue-statuses` (`GP8CSZDNcy5sGdFr`, returns `{statuses, meta}` incl. `hasProject`),
+  `generate-caption` (`rNrRCwKPGuau7sLH`), `kasper-queue` (`TcWOfnKd4Csdnnbv`), `calendar-get`
+  (`KViFEOqSRBNdCJRk`). Confirm mirror writes use the same `updated_at` the Sheet write uses.
+- **FE v2 path** — gating (`_calV2Enabled`/`_calV2Ready`; v1 makes zero Supabase/extra calls);
+  read swap + LWW merge + recent-save guard (`CAL_CONFLICT_WINDOW_MS`); write path
+  (`_calFlushCardSave` field patches; echo-merge migrates the MERGED full row, not the partial echo —
+  the status-revert fix; `comments_base_at:''` for v2); realtime (catch-up reload on re-subscribe;
+  deferred-not-dropped mid-load event; 4 s return throttle); `_calMigratePostShape` never sees a
+  partial row; `_calReconcileLinearStatuses` skipped under v2 (#471); the Linear-meta banner
+  (`_calRefreshParentLinkFlags` sources project/due/editor from `linear-issue-statuses` for all
+  linked cards; persisted; throttled).
+- **Sheet ↔ Supabase parity** — compare row counts + a sample (statuses, comments, links,
+  `updated_at`) for several clients incl. `sidneylaruel`. The `Backfill (ALL clients)` workflow
+  (`yQBGgdbZPqOgn2eE`) doubles as a re-sync + parity report. Confirm no un-mirrored writes (reorder
+  fallback) and no `updated_at` skew that would flip LWW.
+- **Supabase config** — anon SELECT only (try an anon write → must fail); realtime publication +
+  `replica identity full`; end-to-end event < ~1 s.
+- **Security (flag now, fix in Phase 4)** — calendar webhooks are unauthenticated + CORS `*`; the
+  live Linear API key is hardcoded in plaintext in `linear-status-sync` and `linear-issue-statuses`
+  (rotate into a credential); rotate the service_role key.
 
-## 5. Security posture (informs Phase 4, but flag now)
-- Calendar webhooks are **unauthenticated, CORS `*`** — anyone with a URL can read/write any client.
-- **Live Linear API key is hardcoded in plaintext** in ≥2 code nodes (`linear-status-sync`,
-  `linear-issue-statuses`). Recommend rotating into an n8n credential.
-- The **service_role key** was pasted in chat in a prior session — recommend rotating it (update
-  credential `XdBpJ6Xk8PMpZXXT`). The publishable key is browser‑safe.
+## 4. Flip v2 to the default — Phase 3 (Part D)
+Only once 1–3 are green: make v2 the default with v1 behind a kill-switch flag (e.g. `?v2=0`), for
+~2 weeks. Writes keep mirroring to the Sheet, so rollback = flip the flag. This is a tiny, reversible
+change — NOT a data migration (all clients/rows already dual-write). Watch for any divergence.
 
----
+## 5. Cleanup — Phase 4 (Part E)
+After v2 has been the default and proven: remove the legacy polling/LWW/conflict/ledger machinery
+from `index.html`; add real per-client auth (Supabase RLS + keys) and tighten the anon policy from
+`using (true)` to per-client; close the open unauthenticated webhooks; rotate the plaintext Linear
+key + service_role key into credentials; decide whether to keep the Google Sheet as a
+human-readable mirror/export (cheap safety net) or retire it.
 
 ## Required output
-Produce a concise **Phase 3 go / no‑go** with:
-1. A **risk register** — each finding: severity (blocker / should‑fix / nice‑to‑have), evidence
-   (what you actually checked), and a concrete fix.
-2. **Parity verdict** (Sheet ↔ Supabase) with the numbers you observed.
-3. **Confirmation** the FE v2 path has no remaining status/echo/realtime/banner correctness bug
-   (cite the harness runs + any live repro you did).
-4. A clear recommendation: is it safe to flip v2 to default behind a kill‑switch flag (Phase 3),
-   and if not, exactly what must be fixed first.
-
-Phase 3 = make v2 the default with v1 behind a flag for ~2 weeks (writes keep mirroring to the
-Sheet, so rollback = flip the flag). Phase 4 = remove the legacy polling/LWW/conflict/ledger
-machinery, add real per‑client auth (RLS), close the open webhooks.
+1. A confirmed/corrected **surface inventory** (what reads calendar data, from where, now).
+2. **What you migrated** (Kasper queue, filming runway, …) with the live verification you did.
+3. A **risk register** (blocker / should-fix / nice-to-have, with evidence + fix) and a
+   **Sheet↔Supabase parity verdict** (numbers).
+4. A clear **go / no-go** on flipping v2 to default, and the exact remaining work if no-go.

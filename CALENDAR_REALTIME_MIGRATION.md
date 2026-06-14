@@ -450,11 +450,50 @@ the two remaining calendar-data readers. **Branch only; default NOT flipped.**
 After this, every live calendar-data surface reads from Supabase under v2.
 Checks: inline script syntax-clean; both harnesses pass; parity perfect.
 
-### Reorder-mirror (in progress this session)
-Rebuilding the Supabase mirror onto `calendar-reorder`'s LIVE per-row version
-(doc option b) **without** publishing the divergent batched draft. Snapshot of
-the active version taken first; publish is manual in the n8n UI (MCP publish is
-approval-gated), so live behavior does not change until that publish.
+### Reorder-mirror — snapshotted; needs a human UI step (do NOT auto-edit via MCP)
+Snapshot of the LIVE per-row active version taken first:
+`n8n-backups/calendar-reorder.2026-06-14.pre-mirror.json` (activeVersionId
+`8a591214`, verified current).
+
+**Why this can't be safely automated via MCP** (confirmed this session): the n8n
+`update_workflow` tool applies operations (addNode/addConnection/…) to the
+workflow's **current draft** — and for `calendar-reorder` that draft is the
+**batched** version (`versionId 188e6149`), NOT the live per-row one
+(`activeVersionId 8a591214`). So `addNode` would attach the mirror to the batched
+graph, and any publish would flip live reorder to batched+mirror — the exact
+unintended behavior change the original audit said to avoid. There is no clean
+MCP op to reset the draft back to the per-row version, so this is left for a
+human in the n8n UI (which is also where it self-evidently shows which version is
+being edited). This matches why the prior session deferred it.
+
+**Safe UI recipe (option b — per-row + mirror, ~2 min):**
+1. Open workflow `OXd0sUoSJYMspGTF` (SyncView Calendar — Reorder). The editor
+   shows the **batched** draft — discard it: revert/restore to the **published**
+   (per-row) version so the canvas shows `Fan Out Reorder Items → Strip Routing →
+   Update Order Index → Wrap Response → Respond JSON` (the snapshot above is the
+   source of truth if a rebuild is needed).
+2. Copy the two mirror nodes from **SyncView Calendar — Reorder (batch)**
+   (`lTtZNLrQLpIZqwAY`): `Prep Mirror Reorder` (code) and `Mirror Reorder`
+   (Supabase, credential `Supabase - SyncView Calendar` / `XdBpJ6Xk8PMpZXXT`,
+   `onError: continueRegularOutput`).
+3. Change ONLY `Prep Mirror Reorder`'s code to source rows from the per-row
+   workflow's fan-out instead of the batch workflow's plan:
+   ```js
+   const items = $('Fan Out Reorder Items').all().map(i => i.json || {});
+   return items.map(it => ({ json: {
+     client: String(it._client || ''), id: String(it.id),
+     order_index: String(it.order_index), updated_at: String(it.updated_at)
+   } }));
+   ```
+4. Wire: `Update Order Index` → (existing) `Wrap Response` AND (new)
+   `Prep Mirror Reorder` → `Mirror Reorder`. Leave the response path unchanged.
+5. Publish. Verify with a fallback reorder (or re-run the parity check) that
+   `order_index` mirrors to Supabase.
+
+Until then: a reorder that falls back to `calendar-reorder` won't mirror, but it
+self-heals on the next `reorder-batch`/backfill. Current `order_index` parity is
+**perfect** (0 diffs), and the fallback last fired 2026-06-10 — so the live risk
+is minimal.
 
 ### NOT done (needs explicit sign-off)
 - **Phase 3 flip** (v2 → default). Technically green + reversible, but v2 has only

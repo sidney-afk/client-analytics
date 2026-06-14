@@ -13641,6 +13641,15 @@
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
+        // Deliberately reads the SHEET (calendar-get), not Supabase, even under
+        // v2. This is the post-bulk-import retry check: it confirms rows landed
+        // and re-sends any that didn't. The upsert webhook writes the Sheet
+        // synchronously (it responds AFTER that write) but mirrors to Supabase
+        // as an async fan-out, so a Supabase read here could momentarily miss a
+        // just-written row (mirror lag) and trigger spurious re-sends. The Sheet
+        // is the immediately-consistent write target, so verify against it. It's
+        // a transient diagnostic, not a live-read surface — revisit only when the
+        // Sheet is retired (Phase 4/5).
         try {
             const slug = calClientSlug(calState.client);
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
@@ -22648,6 +22657,11 @@
             window.addEventListener('pageshow', _kasperMaybeBackgroundRefresh);
             _kasperWiredVisibility = true;
         }
+        // Under v2 the queue is also live: a realtime subscription pushes a
+        // throttled refresh when any calendar_posts row changes, so a card the
+        // SMM moves to Kasper Approval appears without waiting for a focus
+        // event. Push-only — an idle tab makes no n8n calls. No-op under v1.
+        _kasperV2EnsureSubscribed();
     }
     /* Stop the Kasper background poller + detach its visibility listeners
        when leaving the Kasper page. Mirrors how the TikTok upload tab tears
@@ -22660,6 +22674,48 @@
             window.removeEventListener('pageshow', _kasperMaybeBackgroundRefresh);
             _kasperWiredVisibility = false;
         }
+        _kasperV2Teardown();
+    }
+
+    /* Kasper queue realtime (v2). The review queue spans every client, so a
+       single channel subscribes to ALL calendar_posts changes and triggers the
+       same throttled background refresh the focus/visibility path uses (which
+       itself skips when hidden / not on the review tab / mid-typing / already
+       loading, and force-refreshes from Supabase — cheap, no n8n). Debounced so
+       a burst of row changes (a reorder, a Linear sync) coalesces into one
+       refresh. Reuses the shared supabase-js client. Scoped to the Kasper view:
+       opened from _kasperEnsureAutoRefresh, torn down in _kasperTeardown. A
+       backgrounded tab whose socket suspends and misses events self-heals via
+       the existing focus/visibility refresh on return. No-op unless v2 is fully
+       configured, so v1 makes zero Supabase calls. */
+    let _kasperV2Channel = null;
+    let _kasperV2RtTimer = null;
+    async function _kasperV2EnsureSubscribed() {
+        if (!_calV2Ready() || _kasperV2Channel) return;
+        const client = await _calV2Client();
+        if (!client || _kasperV2Channel) return; // re-check: a teardown/second mount may have raced the lib load
+        try {
+            _kasperV2Channel = client
+                .channel('kasper-cal')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts' }, () => {
+                    if (_kasperV2RtTimer) clearTimeout(_kasperV2RtTimer);
+                    _kasperV2RtTimer = setTimeout(() => { _kasperV2RtTimer = null; _kasperMaybeBackgroundRefresh(); }, 1500);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Kasper v2] realtime subscribe failed', e);
+            _kasperV2Channel = null;
+        }
+    }
+    function _kasperV2Teardown() {
+        if (_kasperV2RtTimer) { clearTimeout(_kasperV2RtTimer); _kasperV2RtTimer = null; }
+        if (_kasperV2Channel) {
+            try {
+                if (_calV2ClientObj && typeof _calV2ClientObj.removeChannel === 'function') _calV2ClientObj.removeChannel(_kasperV2Channel);
+                else if (typeof _kasperV2Channel.unsubscribe === 'function') _kasperV2Channel.unsubscribe();
+            } catch {}
+        }
+        _kasperV2Channel = null;
     }
 
     function _kasperHydrateCache() {
@@ -22821,9 +22877,20 @@
     // Latest scheduled_date across a client's live (non-archived) calendar posts.
     async function _filmsFetchRunway(slug) {
         try {
-            const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
-            if (!resp.ok) return null;
-            const json = await resp.json();
+            // v2: read this client's posts from Supabase instead of the Sheet
+            // (gated on _calV2Ready() so v1 is byte-identical). _calV2FetchPosts
+            // already falls back to the n8n calendar-get webhook on any Supabase
+            // error, so the runway can never blank. The runway is just a computed
+            // summary (latest scheduled date), so a refresh-on-open is enough —
+            // no realtime subscription needed here.
+            let json;
+            if (_calV2Ready()) {
+                json = await _calV2FetchPosts(slug);
+            } else {
+                const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                if (!resp.ok) return null;
+                json = await resp.json();
+            }
             if (!json || !json.ok || !Array.isArray(json.posts)) return null;
             let latest = '';
             for (const p of json.posts) {
@@ -23549,6 +23616,46 @@
                 const cached = _kasperCalCacheRead(wlNormalizeClient(client));
                 if (cached && cached.ok) settled.push({ status: 'fulfilled', value: extract(client, cached) });
                 else remaining.push(client);
+            }
+        }
+        // v2: every client lives in ONE Supabase table, so a single REST read
+        // covers all of them — no per-client calendar-get fan-out, no n8n load.
+        // Group rows by their client column and reuse the same extract() the
+        // Sheet path uses. On ANY Supabase error we leave `remaining` untouched
+        // and fall through to the kasper-queue batch + per-client fan-out below,
+        // so the queue can never blank. Gated on _calV2Ready() so v1 is
+        // byte-identical. (One query returns every row — ~600 today with ample
+        // headroom; revisit pagination well before the table nears PostgREST's
+        // max-rows.)
+        if (remaining.length && _calV2Ready()) {
+            try {
+                const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+                const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+                const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&limit=20000', {
+                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
+                    signal: ctrl ? ctrl.signal : undefined,
+                });
+                if (timer) clearTimeout(timer);
+                if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+                const allRows = await resp.json();
+                if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
+                const byClient = new Map();
+                for (const r of allRows) {
+                    const c = String((r && r.client) || '');
+                    if (!c) continue;
+                    if (!byClient.has(c)) byClient.set(c, []);
+                    byClient.get(c).push(r);
+                }
+                const covered = [];
+                for (const client of remaining) {
+                    const shaped = { ok: true, posts: byClient.get(wlNormalizeClient(client)) || [] };
+                    _kasperCalCacheWrite(wlNormalizeClient(client), shaped);
+                    settled.push({ status: 'fulfilled', value: extract(client, shaped) });
+                    covered.push(client);
+                }
+                remaining = remaining.filter(c => !covered.includes(c));
+            } catch (e) {
+                console.warn('[Kasper] Supabase read failed — falling back to kasper-queue/calendar-get', e);
             }
         }
         if (remaining.length) {

@@ -12239,13 +12239,22 @@
        (the ⟳ control) or any real edit still updates immediately; this only
        suppresses the automatic focus/visibility refetch. */
     const CAL_RETURN_REFRESH_MIN_MS = 90_000;
+    // v2 reads from Supabase (cheap, no n8n quota), so re-fetching when a tab
+    // regains focus is effectively free — refresh on almost every return
+    // instead of throttling to 90 s (a v1-only guard that existed to spare the
+    // n8n calendar-get webhook). This is still strictly EVENT-driven (focus /
+    // visibility return); it is NOT a background poll, so an idle open tab
+    // makes zero calls. The small floor just de-dupes the focus/visibility/
+    // pageshow listeners firing together on a single return.
+    const CAL_RETURN_REFRESH_MIN_MS_V2 = 4_000;
     let _calLastNetworkLoadAt = 0;
     function _calRefreshOnReturn() {
         if (document.visibilityState === 'hidden') return;
         if (!calState.client) return;
         const calBody = document.getElementById('calBody');
         if (!calBody) return;
-        if (Date.now() - _calLastNetworkLoadAt < CAL_RETURN_REFRESH_MIN_MS) return;
+        const _returnMinMs = _calV2Ready() ? CAL_RETURN_REFRESH_MIN_MS_V2 : CAL_RETURN_REFRESH_MIN_MS;
+        if (Date.now() - _calLastNetworkLoadAt < _returnMinMs) return;
         // Skip if a load is already in flight — otherwise rapid tab switches
         // pile up overlapping fetches, each resetting the timeout and keeping
         // the "Refreshing…" chip on indefinitely while the n8n backend is busy
@@ -12256,7 +12265,7 @@
         const now = Date.now();
         if (now - _calLastReturnLoad < 500) return;
         _calLastReturnLoad = now;
-        loadCalendarPosts({ background: true });
+        loadCalendarPosts({ background: true, returnRefresh: true });
     }
     /* When a background refresh resolves while the user is mid-edit, the
        render is deferred onto this flag and applied once nothing in the
@@ -12760,6 +12769,44 @@
        Populated from the workload's cached Linear feed the same way
        _calParentLinks is, and keyed by identifier (e.g. "VID-123"). */
     const _calLinearMetaByIdent = new Map();
+    /* The parent-link + "incomplete sub-issue" banners are driven by Linear
+       metadata (project / due date / editor) that does NOT live on the Supabase
+       row, so it can't ride the realtime stream. Persist it (per browser, keyed
+       by Linear identifier) so the banner is correct INSTANTLY on load — no
+       blank-until-the-Linear-feed-lands flicker, and it survives a refresh
+       instead of being rebuilt from a fetch every time. It is only refreshed
+       from Linear on real foreground / tab-return loads (cache-first, with the
+       force-fetch throttled below) — never on a timer and never on a realtime
+       tick — so an idle open tab costs nothing on n8n. */
+    const CAL_LINEAR_META_LS_KEY = 'syncview_calLinearMeta_v1';
+    const CAL_LINEAR_META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+    const CAL_LINEAR_META_FORCE_MIN_MS = 5 * 60 * 1000; // cap Linear force-fetches to once / 5 min
+    let _calLinearMetaHydrated = false;
+    let _calLinearMetaLastForceAt = 0;
+    let _calLinearMetaLastForceSig = '';
+    function _calHydrateLinearMeta() {
+        if (_calLinearMetaHydrated) return;
+        _calLinearMetaHydrated = true;
+        try {
+            const data = JSON.parse(localStorage.getItem(CAL_LINEAR_META_LS_KEY) || 'null');
+            if (!data || typeof data !== 'object') return;
+            if (!data.savedAt || (Date.now() - data.savedAt) > CAL_LINEAR_META_TTL_MS) return;
+            if (Array.isArray(data.parents)) data.parents.forEach(id => { if (id) _calParentLinks.add(String(id)); });
+            if (data.meta && typeof data.meta === 'object') {
+                for (const k of Object.keys(data.meta)) {
+                    const m = data.meta[k];
+                    if (m && typeof m === 'object') _calLinearMetaByIdent.set(k, { hasProject: !!m.hasProject, hasDue: !!m.hasDue, hasEditor: !!m.hasEditor });
+                }
+            }
+        } catch {}
+    }
+    function _calPersistLinearMeta() {
+        try {
+            const meta = {};
+            _calLinearMetaByIdent.forEach((v, k) => { meta[k] = { hasProject: !!v.hasProject, hasDue: !!v.hasDue, hasEditor: !!v.hasEditor }; });
+            localStorage.setItem(CAL_LINEAR_META_LS_KEY, JSON.stringify({ savedAt: Date.now(), parents: Array.from(_calParentLinks), meta }));
+        } catch {}
+    }
     function _calIdentFromUrl(url) {
         const m = String(url || '').toUpperCase().match(/([A-Z]+-\d+)/);
         return m ? m[1] : '';
@@ -12794,6 +12841,7 @@
         return null;
     }
     async function _calRefreshParentLinkFlags() {
+        _calHydrateLinearMeta();
         const idents = new Set();
         for (const p of calState.posts || []) {
             const v = _calIdentFromUrl(p && p.linear_issue_id);
@@ -12811,9 +12859,18 @@
         // refetch only happens when at least one card actually needs it.
         const cachedIdents = new Set();
         for (const i of issues || []) cachedIdents.add(String(i.identifier || '').toUpperCase());
-        let missing = false;
-        for (const id of idents) { if (!cachedIdents.has(id)) { missing = true; break; } }
-        if (missing) {
+        const missingSig = Array.from(idents).filter(id => !cachedIdents.has(id)).sort().join(',');
+        // Force a Linear refetch when a linked ident is missing from the cached
+        // feed. Throttle ONLY when the same idents are still missing as our last
+        // force (e.g. a card linked to an Approved/Posted issue the feed
+        // excludes) — a NEW missing ident (a just-linked sub-issue) always
+        // forces immediately so its banner isn't delayed. Idle and realtime
+        // reloads never reach here (they pass no returnRefresh), so this can
+        // only fire on a real foreground / tab-return load.
+        if (missingSig && (missingSig !== _calLinearMetaLastForceSig
+            || (Date.now() - _calLinearMetaLastForceAt) > CAL_LINEAR_META_FORCE_MIN_MS)) {
+            _calLinearMetaLastForceSig = missingSig;
+            _calLinearMetaLastForceAt = Date.now();
             try { ({ issues } = await loadLinearIssues(true)); } catch {}
         }
         let changed = false;
@@ -12843,6 +12900,9 @@
                 changed = true;
             }
         }
+        // Persist the refreshed meta so the banner is instant + correct on the
+        // next load without re-fetching from Linear.
+        if (changed) _calPersistLinearMeta();
         // Don't yank a caret mid-edit for a banner; the next render shows it.
         if (changed && !_calIsCalBusy()) _calRenderBody({ preserveScroll: true });
     }
@@ -14163,6 +14223,8 @@
     let _calV2Channel = null;
     let _calV2SubSlug = null;
     let _calV2RtTimer = null;
+    let _calV2RtPending = false;       // a realtime change arrived mid-load → service it after, don't drop it
+    let _calV2SubscribedOnce = false;  // tell the FIRST subscribe apart from a reconnect (catch-up)
     async function _calV2EnsureSubscribed(slug) {
         if (!_calV2Ready() || !slug) return;
         if (_calV2SubSlug === slug && _calV2Channel) return;
@@ -14171,12 +14233,25 @@
         if (!client) return;
         if (calClientSlug(calState.client) !== slug) return; // client switched during lib load
         _calV2SubSlug = slug;
+        _calV2SubscribedOnce = false;
         try {
             _calV2Channel = client
                 .channel('cal-' + slug)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'calendar_posts', filter: 'client=eq.' + slug }, () => _calV2OnRealtimeChange(slug))
                 .subscribe((status) => {
-                    if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.warn('[Calendar v2] realtime status:', status);
+                    if (status === 'SUBSCRIBED') {
+                        // A *re*-subscribe means the socket had dropped (a
+                        // backgrounded/asleep tab whose WebSocket was suspended,
+                        // then woke up). Supabase realtime does NOT replay the
+                        // row changes missed during that gap, so pull one
+                        // catch-up snapshot from Supabase (cheap, no n8n). Skip
+                        // the FIRST subscribe — the load that opened this channel
+                        // is already current.
+                        if (_calV2SubscribedOnce) _calV2OnRealtimeChange(slug);
+                        _calV2SubscribedOnce = true;
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        console.warn('[Calendar v2] realtime status:', status);
+                    }
                 });
         } catch (e) {
             console.warn('[Calendar v2] realtime subscribe failed', e);
@@ -14189,7 +14264,10 @@
         _calV2RtTimer = setTimeout(() => {
             _calV2RtTimer = null;
             if (calClientSlug(calState.client) !== slug) return;
-            if (_calBgLoadInFlight || calState.loading) return;
+            // A load is already running — don't DROP this change (that left the
+            // observer tab stale until the next event/focus); defer it. The
+            // load's tail re-services the pending flag once it's free.
+            if (_calBgLoadInFlight || calState.loading) { _calV2RtPending = true; return; }
             loadCalendarPosts({ background: true });
         }, CAL_V2_RT_DEBOUNCE_MS);
     }
@@ -14222,6 +14300,10 @@
     async function loadCalendarPosts(opts) {
         opts = opts || {};
         if (!calState.client) { _calRenderBody(); return; }
+        // Banner metadata (Linear project/due/editor) is persisted across loads;
+        // hydrate it now so the cache-primed render below shows the right banners
+        // instantly instead of blank-until-the-Linear-feed-lands.
+        _calHydrateLinearMeta();
         const seq = ++_calLoadSeq;
         // Fire-and-forget — first calendar load also primes the per-client
         // caption-prompt cache used by the Generate Caption button and the
@@ -14513,12 +14595,28 @@
             if (!opts.background) {
                 _calReconcileLinearStatuses();
                 _calRefreshParentLinkFlags();
+            } else if (opts.returnRefresh && _calV2Ready()) {
+                // Tab-return under v2: refresh the Linear-meta banner so it
+                // self-heals when you come back (e.g. after adding the project /
+                // editor in Linear). Cache-first; the force-fetch is throttled
+                // (CAL_LINEAR_META_FORCE_MIN_MS), so it can't hammer n8n. We do
+                // NOT run _calReconcileLinearStatuses here — that's the v1 status
+                // pull #471 disables under v2 (a stale read could revert a fresh
+                // edit). Realtime-triggered reloads carry no returnRefresh flag,
+                // so cross-tab churn never touches the Linear feed.
+                _calRefreshParentLinkFlags();
             }
             _calApplyFocusRequest();
             // Phase 2: open (or re-point) the realtime subscription for the
             // client we just loaded. Idempotent; keyed on slug. No-op unless
             // v2 is fully configured.
-            if (_calV2Ready()) _calV2EnsureSubscribed(slug);
+            if (_calV2Ready()) {
+                _calV2EnsureSubscribed(slug);
+                // A realtime change that arrived while this load was in flight
+                // was deferred, not dropped — service it now (re-debounced) so
+                // the observer tab can't be left a version behind.
+                if (_calV2RtPending) { _calV2RtPending = false; _calV2OnRealtimeChange(slug); }
+            }
         }
     }
     /* After a load, if the workload view asked to open a specific sub-issue,

@@ -392,10 +392,114 @@ n8n workflow, the FE v2 path, Sheet↔Supabase parity, Supabase RLS/realtime, an
 security, with an empirical go/no-go for flipping v2 to default.
 
 ### Still open (carried into Phase 3/4)
-- `calendar-reorder` fallback has no Supabase mirror (low-risk; only on a
-  `reorder-batch` failure). Rebuild the mirror on the live per-row version
-  without publishing the divergent batched draft.
+- ~~`calendar-reorder` fallback has no Supabase mirror~~ — see the reorder-mirror
+  note in the Phase 3-prep section below.
 - Rotate the plaintext Linear API key (in `linear-status-sync` +
   `linear-issue-statuses` code nodes) and the service_role key into credentials.
 - Phase 4: remove legacy polling/LWW/conflict/ledger machinery; per-client RLS;
   close the open unauthenticated webhooks.
+
+## Phase 3 prep — 2026-06-14 (audit + remaining readers migrated)
+
+A full empirical audit (live Supabase + n8n, not just docs) and the migration of
+the two remaining calendar-data readers. **Branch only; default NOT flipped.**
+
+### Audit verdict (all verified against the live backend)
+- **Sheet ↔ Supabase parity: PERFECT** — 617 rows / 15 clients, 15 fields each
+  (overall + 3 sub-statuses, order_index, updated_at, scheduled_date, asset/
+  thumbnail, caption, both Linear links, all three comment threads): 0 missing,
+  0 field diffs.
+- **Writers** `upsert`/`append`/`delete`/`reorder-batch`: all active, mirror in
+  the LIVE version (`versionId === activeVersionId`), mirroring with the **same
+  `updated_at`** as the Sheet write (why parity is exact).
+- **`calendar-reorder` (fallback)**: confirmed `versionId 188e6149 ≠
+  activeVersionId 8a591214` — active version is the per-row loop with **no
+  mirror**; editor draft holds the batched rewrite. Last fired 2026-06-10; parity
+  still perfect → order_index drift self-heals on the next reorder-batch/backfill.
+- **`linear-status-sync`**: active; calls `calendar-upsert-post` over HTTP →
+  inherits the mirror; writes only the matched sub-status, never the overall.
+- **RLS**: anon SELECT works; anon write → **HTTP 401**. **Realtime**: a
+  `postgres_changes` subscription on `calendar_posts` is accepted live (binding id
+  returned) → table is in the publication + replica identity is set.
+- Recent `upsert` "error" executions are the **phantom-row guard** firing as
+  designed (they throw before any write — not mirror failures).
+- **v1 is byte-identical**: every `CAL_SUPABASE_URL` reference is gated behind
+  `_calV2Ready()`; with the flag off, zero Supabase calls and supabase-js never
+  loads.
+
+### Readers migrated (behind `?v2=1`; v1 byte-identical; n8n fallback retained)
+- **Kasper queue** (`_kasperFetchAllRelevantPosts`): under v2 a **single Supabase
+  REST read** (`select=*`) covers every client (one table); rows are grouped by
+  the `client` column and run through the **same `extract()`** the Sheet path
+  uses. On any Supabase error it falls through to the existing `kasper-queue`
+  batch + per-client `calendar-get` fan-out (can never blank). Plus a **realtime
+  subscription** (`_kasperV2EnsureSubscribed`/`_kasperV2Teardown`, channel
+  `kasper-cal`, all clients) that pushes a **debounced** call to the existing
+  `_kasperMaybeBackgroundRefresh` — so the queue is live without a poll; an idle
+  tab makes no n8n calls. Torn down on leaving the Kasper view.
+  *Verified live: the single grouped query reproduces every client's
+  `calendar-get` id-set exactly (15/15, 617 rows).*
+- **Filming runway** (`_filmsFetchRunway`): per-client read swapped to
+  `_calV2FetchPosts` under v2 (which already falls back to `calendar-get`).
+  Refresh-on-open only — no realtime (it's a computed summary).
+- **`_calFetchPostsForVerify`**: **deliberately left on the Sheet.** It's the
+  post-bulk-import retry check; the upsert webhook writes the Sheet synchronously
+  (responds after) but mirrors to Supabase async, so a Supabase read here could
+  see mirror lag and trigger spurious re-sends. Revisit when the Sheet is retired.
+
+After this, every live calendar-data surface reads from Supabase under v2.
+Checks: inline script syntax-clean; both harnesses pass; parity perfect.
+
+### Reorder-mirror — snapshotted; needs a human UI step (do NOT auto-edit via MCP)
+Snapshot of the LIVE per-row active version taken first:
+`n8n-backups/calendar-reorder.2026-06-14.pre-mirror.json` (activeVersionId
+`8a591214`, verified current).
+
+**Why this can't be safely automated via MCP** (confirmed this session): the n8n
+`update_workflow` tool applies operations (addNode/addConnection/…) to the
+workflow's **current draft** — and for `calendar-reorder` that draft is the
+**batched** version (`versionId 188e6149`), NOT the live per-row one
+(`activeVersionId 8a591214`). So `addNode` would attach the mirror to the batched
+graph, and any publish would flip live reorder to batched+mirror — the exact
+unintended behavior change the original audit said to avoid. There is no clean
+MCP op to reset the draft back to the per-row version, so this is left for a
+human in the n8n UI (which is also where it self-evidently shows which version is
+being edited). This matches why the prior session deferred it.
+
+**Safe UI recipe (option b — per-row + mirror, ~2 min):**
+1. Open workflow `OXd0sUoSJYMspGTF` (SyncView Calendar — Reorder). The editor
+   shows the **batched** draft — discard it: revert/restore to the **published**
+   (per-row) version so the canvas shows `Fan Out Reorder Items → Strip Routing →
+   Update Order Index → Wrap Response → Respond JSON` (the snapshot above is the
+   source of truth if a rebuild is needed).
+2. Copy the two mirror nodes from **SyncView Calendar — Reorder (batch)**
+   (`lTtZNLrQLpIZqwAY`): `Prep Mirror Reorder` (code) and `Mirror Reorder`
+   (Supabase, credential `Supabase - SyncView Calendar` / `XdBpJ6Xk8PMpZXXT`,
+   `onError: continueRegularOutput`).
+3. Change ONLY `Prep Mirror Reorder`'s code to source rows from the per-row
+   workflow's fan-out instead of the batch workflow's plan:
+   ```js
+   const items = $('Fan Out Reorder Items').all().map(i => i.json || {});
+   return items.map(it => ({ json: {
+     client: String(it._client || ''), id: String(it.id),
+     order_index: String(it.order_index), updated_at: String(it.updated_at)
+   } }));
+   ```
+4. Wire: `Update Order Index` → (existing) `Wrap Response` AND (new)
+   `Prep Mirror Reorder` → `Mirror Reorder`. Leave the response path unchanged.
+5. Publish. Verify with a fallback reorder (or re-run the parity check) that
+   `order_index` mirrors to Supabase.
+
+Until then: a reorder that falls back to `calendar-reorder` won't mirror, but it
+self-heals on the next `reorder-batch`/backfill. Current `order_index` parity is
+**perfect** (0 diffs), and the fallback last fired 2026-06-10 — so the live risk
+is minimal.
+
+### NOT done (needs explicit sign-off)
+- **Phase 3 flip** (v2 → default). Technically green + reversible, but v2 has only
+  been dogfooded ~1–2 days (mostly `sidneylaruel`); recommend a few more days of
+  real use first. Migrating Kasper/runway was NOT a hard blocker for the flip
+  (dual-write keeps the Sheet current) — it's needed for live-everywhere + Sheet
+  retirement.
+- Security (Phase 4): the **live** plaintext Linear key, open unauthenticated
+  webhooks + CORS `*`, service_role rotation, tightening anon RLS to per-client.

@@ -14592,6 +14592,15 @@
                         // resets that in-memory map.
                         _calPendingBackgroundRender = true;
                         _calSchedulePendingRender();
+                        // A teammate's (Kasper's / the client's) new note must
+                        // surface LIVE — but the full repaint above is deferred
+                        // whenever the cal is "busy" (any pending edit), which
+                        // left the unread Notes dot stuck off until the deferred
+                        // render finally ran ("had to open Notes for it to show").
+                        // Refresh just the Notes dots now: a cheap footer-button
+                        // swap that never touches a focused field. v2 only (the
+                        // realtime path); v1 has no live push to surface.
+                        if (_calV2Ready()) { try { calState.posts.forEach(p => _calRefreshCommentsBtn(p.id)); } catch {} }
                     } else {
                         _calRenderBody({ preserveScroll: true });
                     }
@@ -20241,9 +20250,6 @@
         const target = arr.find(c => c.id === commentId);
         if (!target || !_calCanDeleteComment(target)) return;
         const isRoot = !target.parent_id;
-        // Only an open change-request gates the auto-advance — deleting a plain
-        // comment must never move the component's status.
-        const wasOpenRoot = isRoot && !target.done && _calMsgIsTweak(target);
         const msg = isRoot
             ? "This deletes the message and every reply in this thread. This can't be undone."
             : "Delete this reply? This can't be undone.";
@@ -20264,12 +20270,11 @@
             if (comp === 'video') post.comments = next;
             const fieldKey = comp + '_tweaks';
             _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(next) });
-            // Per-component: SMM deleting the last open thread for this
-            // component flips that component to Client Approval.
-            if (wasOpenRoot && _calCommentRole() === 'smm') {
-                const stillOpenForComp = next.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
-                if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
-            }
+            // Deleting a tweak just deletes it — it must NOT open the
+            // resolve-destination chooser ("where to go next?"). That modal is
+            // only for an explicit resolve/mark-done (see _calToggleCommentDone).
+            // The component's status is left untouched here; the SMM moves it via
+            // the status pill when ready.
             _calWatchNoteSave(pid);
             _calRefreshCommentsBtn(pid);
             _calUpdateCardStatusDisplay(pid);
@@ -23791,37 +23796,34 @@
        _calPostKasperVisible upstream and aren't fetched at all.) */
     function _kasperKeepAfterDismiss(post) {
         if (!post || !_kasperState.dismissed || !_kasperState.dismissed[post.id]) return true;
-        // A dismissed card comes back on a genuine fresh ask:
-        //   • a component is back at Kasper Approval that he has NOT commented on
-        //     (the SMM re-routed it to him) — a real new request; or
-        //   • a new message arrived since he finished (the SMM replied in a
-        //     thread he left open). A component parked at Kasper Approval purely
-        //     because Kasper commented on it is NOT a fresh ask, so it stays
-        //     dismissed until the SMM actually responds.
-        // A dismissed card has no component at Kasper Approval at dismiss time
-        // (Finish is blocked otherwise), so any component back at Kasper
-        // Approval now is a genuine fresh ask from the SMM. It also returns if
-        // the SMM replied in the thread since he finished.
+        // Dismissed = Kasper clicked "Finish reviewing". The card stays VISIBLE
+        // in "Tweaks pending" (handed to the SMM) rather than vanishing — it only
+        // leaves once the SMM addresses the tweaks, because the fetch then stops
+        // including it (no unresolved Kasper tweak, not back at Kasper Approval).
+        // A genuine fresh ask — a component back at Kasper Approval, or the SMM
+        // replied since he finished — un-dismisses it so it returns to "Waiting
+        // for your review" instead of sitting in "Tweaks pending".
         const backToKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
         const latest = _calLatestMsgAt(post);
         const seenAt = _kasperGetSeenAt(post.id);
         const newReply = latest && (!seenAt || latest > seenAt);
-        if (backToKasper || newReply) { delete _kasperState.dismissed[post.id]; return true; }
-        return false;
+        if (backToKasper || newReply) delete _kasperState.dismissed[post.id];
+        return true;
     }
     function _kasperPartitionItems(items) {
+        // Bucket on whether Kasper has clicked "Finish reviewing" (the card is
+        // dismissed), NOT on live component status. Writing a tweak flips a
+        // component to Tweaks Needed, but the card must STAY in "Waiting" so he
+        // can keep adding tweaks/decisions — it moves to "Tweaks pending" only
+        // when he explicitly finishes. A finished card stays in "Tweaks pending"
+        // (handed to the SMM) until they address it: the fetch then stops
+        // returning it (no unresolved Kasper tweak, not back at Kasper Approval)
+        // and it drops out. A fresh ask un-dismisses it (see _kasperKeepAfterDismiss).
         const waiting = [], tweaks = [];
+        const dismissed = _kasperState.dismissed || {};
         for (const it of items) {
-            const p = it.post;
-            const hasKA = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
-            if (hasKA) { waiting.push(it); continue; }
-            const hasPendingKasperTweak = CAL_COMPONENTS.some(c => {
-                const cs = _calNormStatus(p[c + '_status'] || '');
-                return cs === 'Tweaks Needed' && _calCompHasUnresolvedKasperTweak(p, c);
-            });
-            if (hasPendingKasperTweak) tweaks.push(it);
-            // else: item is neither Waiting nor Tweaks (e.g. SMM moved
-            // past Kasper) — already filtered out by the fetch, defensive.
+            if (dismissed[it.post.id]) tweaks.push(it);
+            else waiting.push(it);
         }
         return { waiting, tweaks };
     }
@@ -23844,7 +23846,7 @@
             : `<div class="kasper-empty">
                 <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
                 <div class="kasper-empty-title">You're all caught up</div>
-                <div class="kasper-empty-sub">No videos are sitting on Kasper Approval right now.</div>
+                <div class="kasper-empty-sub">Nothing is waiting for your review right now.</div>
             </div>`;
         const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${waitingCollapsedCls}" id="kasperWaitingWrap">
             <div class="kasper-history-head" onclick="_kasperToggleWaiting()">
@@ -24017,10 +24019,17 @@
         // handed to the SMM; any open comment → waiting on the SMM's reply.
         const undecidedComps = _kasperUndecidedComps(p);
         const canFinish = undecidedComps.length === 0;
+        const isFinished = !!(_kasperState.dismissed && _kasperState.dismissed[pid]);
         const finishTitle = canFinish
-            ? 'Finish reviewing — remove this card from your queue. Approved components go to the client; change requests go to the SMM; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
+            ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending"; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
             : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish. (A comment is just a question; it doesn\'t count as a decision.)';
-        const doneBtn = `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
+        // While Kasper is still reviewing (not finished) he gets the Finish
+        // action; once finished the card sits in "Tweaks pending", so show its
+        // handed-off state instead (it returns to Waiting if the SMM replies or
+        // sends a component back to Kasper Approval).
+        const doneBtn = isFinished
+            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Sent to SMM</button>`
+            : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -24651,15 +24660,17 @@
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // Outstanding change requests, handed to the SMM. Stamp the
-            // last-seen message time and record the dismissal so a refresh
-            // doesn't drag it back; it returns when the SMM re-routes a
-            // component to Kasper Approval or replies in the thread (see
-            // _kasperKeepAfterDismiss). Not logged as Approved — it's a hand-off.
+            // Outstanding change requests, handed to the SMM. Mark the card
+            // finished (dismissed) + stamp the last-seen message time. It does
+            // NOT leave the queue: it moves to "Tweaks pending" (re-partitioned
+            // by the repaint below) and stays there until the SMM addresses it
+            // (the fetch then stops returning it) or sends a component back /
+            // replies, which un-dismisses it into "Waiting". Not logged as
+            // Approved — it's a hand-off.
             _kasperMarkSeenAt(pid, _calLatestMsgAt(post));
             _kasperState.dismissed[pid] = true;
             _kasperPersistCache();
-            _kasperRemoveItem(pid);
+            _kasperPaintReview();
         }
     }
 

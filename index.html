@@ -24329,9 +24329,26 @@
         const item = _kasperState.items.find(x => x.post.id === pid);
         const el = document.querySelector('.kcard[data-kasper-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
         if (!item || !el) return;
+        // Preserve the caret across the rebuild. If Kasper is typing in one of
+        // this card's textareas when an after-save repaint fires (e.g. the
+        // "thumbnail approved — sent to client" path repaints while he's already
+        // writing a caption note), a bare replaceWith destroys that textarea and
+        // kicks focus out. The draft text itself survives via item._drafts, so
+        // capture the focused textarea (by its unique oninput = pid+comp) + the
+        // caret, rebuild, then restore focus to the same box.
+        let _restore = null;
+        const _a = document.activeElement;
+        if (_a && _a.tagName === 'TEXTAREA' && el.contains(_a)) {
+            _restore = { sig: _a.getAttribute('oninput') || '', start: _a.selectionStart, end: _a.selectionEnd };
+        }
         const tmp = document.createElement('div');
         tmp.innerHTML = _kasperRenderCard(item);
-        el.replaceWith(tmp.firstElementChild);
+        const newEl = tmp.firstElementChild;
+        el.replaceWith(newEl);
+        if (_restore && _restore.sig) {
+            const ta = Array.from(newEl.querySelectorAll('textarea')).find(t => (t.getAttribute('oninput') || '') === _restore.sig);
+            if (ta) { try { ta.focus(); ta.setSelectionRange(_restore.start, _restore.end); } catch {} }
+        }
     }
 
 

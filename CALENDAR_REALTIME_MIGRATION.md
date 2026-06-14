@@ -549,3 +549,38 @@ no error) is unaffected, so new-row creates still work.
   and the calendar still mirrors to Supabase.
 - **Bigger cure still pending:** make Supabase the write target (writes are still
   Sheet-first, amplified ~3× by Linear status-sync). Phase-4-scale; plan later.
+- **Update 2026-06-14:** the read-failure guard was **published** — upsert
+  `activeVersionId fc5368e1` carries it live (verified via n8n MCP).
+
+## Phase 3 — flip v2 to the DEFAULT (2026-06-14, prepped)
+
+v2 is now the **default** (no flag needed) behind a sticky `?v2=0` kill-switch.
+`_calV2Enabled()` returns true unless this browser opted out via `?v2=0` (which
+sets `CAL_V2_KILL_KEY` in localStorage); `?v2=1` force-enables and clears the
+opt-out. One contained change to one function — it flips the main calendar, the
+client share view (`?c=`), the SMM review, the **Kasper queue**, and the
+**filming runway** together (all gated on `_calV2Ready()`). **Samples is
+unaffected** (its own `?sv2=1`). Writes still dual-write to the Sheet, so
+rollback is trivial and lossless.
+
+- **Rollback (everyone):** change `let on = true` back to `let on = false` in
+  `_calV2Enabled()` and redeploy (or merge a revert).
+- **Rollback (one browser):** open `?v2=0` (sticky).
+- **Prereqs that landed first (both done):** the Kasper→SMM approval-clobber fix
+  (the 90 s recent-save guard now adopts a third party's genuinely-newer
+  sub-status instead of keeping + re-saving the stale local copy; regression
+  test §E in `test/calendar-v2-status-repro.js`, replays the live clobber) and
+  the `calendar-upsert-post` read-failure guard (live).
+- **Watch after deploy:** v2 had only ~2 days of dogfooding (mostly
+  `sidneylaruel`) before the flip, now exposed to every client — watch the first
+  day; `?v2=0` is the instant escape hatch.
+- **Status:** prepped on the feature branch; **deploying it to everyone is a
+  deliberate merge** (own PR, separate from the already-merged #484).
+
+### Still open → Phase 4 (cleanup + security, not started)
+- Rotate the plaintext Linear key + the `service_role` key into n8n credentials.
+- Close the open unauthenticated webhooks + CORS `*`; tighten anon RLS from
+  `using(true)` to per-client when real auth lands.
+- Remove the legacy polling/LWW/conflict/ledger machinery once v2 has proven out;
+  remove the `?v2debug=1` logging when no longer needed.
+- **Separate track:** Samples → Supabase (its own `?sv2=1`, architectural twin).

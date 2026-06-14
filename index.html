@@ -11000,6 +11000,7 @@
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
+    const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
     /* Default Caption Writer prompt — kept in sync with the same string
        baked into the SyncView Calendar — Generate Caption workflow. When
@@ -14229,13 +14230,18 @@
     let _calV2FlagCache = null;
     function _calV2Enabled() {
         if (_calV2FlagCache !== null) return _calV2FlagCache;
-        let on = false;
+        // Phase 3 (2026-06-14): v2 is now the DEFAULT. With no query param it is
+        // ON unless this browser opted out via ?v2=0 (which sets a sticky
+        // kill-switch). ?v2=1 force-enables and clears a prior opt-out.
+        // Rollback for everyone = flip this default back to false; rollback for
+        // one browser = ?v2=0.
+        let on = true;
         try {
             const q = new URLSearchParams(location.search).get('v2');
-            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(CAL_V2_LS_KEY, '1'); } catch {} }
-            else if (q === '0' || q === 'false') { on = false; try { localStorage.removeItem(CAL_V2_LS_KEY); } catch {} }
-            else { on = (localStorage.getItem(CAL_V2_LS_KEY) === '1'); }
-        } catch { on = false; }
+            if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(CAL_V2_KILL_KEY, '1'); localStorage.removeItem(CAL_V2_LS_KEY); } catch {} }
+            else if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(CAL_V2_LS_KEY, '1'); localStorage.removeItem(CAL_V2_KILL_KEY); } catch {} }
+            else { on = (localStorage.getItem(CAL_V2_KILL_KEY) !== '1'); }
+        } catch { on = true; }
         _calV2FlagCache = on;
         return on;
     }

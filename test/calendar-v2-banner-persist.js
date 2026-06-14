@@ -101,9 +101,12 @@ m._calParentLinks.clear(); m._calLinearMetaByIdent.clear();
 m._calLinearMetaByIdent.set('VID-1', { hasProject: true, hasDue: false, hasEditor: false }); // done card: no due, no editor
 m._calLinearMetaByIdent.set('VID-2', { hasProject: true, hasDue: true, hasEditor: true });   // complete
 m._calLinearMetaByIdent.set('GRA-3', { hasProject: true, hasDue: true, hasEditor: false });  // graphic missing editor
+m._calLinearMetaByIdent.set('VID-4', { hasProject: false, hasDue: false, hasEditor: false }); // no project — must NOT be flagged
 const card = (v, g) => ({ linear_issue_id: v ? ('https://linear.app/x/issue/' + v) : '', graphic_linear_issue_id: g ? ('https://linear.app/x/issue/' + g) : '' });
 const r1 = m._calLinearMissingForCard(card('VID-1'));
 ok(r1 && r1.comp === 'video' && r1.missing.join(',') === 'due date,editor', 'done card → "due date, editor" (never project)');
+const r4 = m._calLinearMissingForCard(card('VID-4'));
+ok(r4 && r4.missing.join(',') === 'due date,editor', 'no-project issue is NOT flagged "project" (consistency fix)');
 ok(m._calLinearMissingForCard(card('VID-2')) === null, 'complete sub-issue → no banner');
 const r3 = m._calLinearMissingForCard(card('VID-2', 'GRA-3'));
 ok(r3 && r3.comp === 'graphic' && r3.missing.join(',') === 'editor', 'falls through to graphic slot when video is complete');

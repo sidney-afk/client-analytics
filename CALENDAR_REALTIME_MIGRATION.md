@@ -503,3 +503,49 @@ is minimal.
   retirement.
 - Security (Phase 4): the **live** plaintext Linear key, open unauthenticated
   webhooks + CORS `*`, service_role rotation, tightening anon RLS to per-client.
+
+## Write-path hardening — 2026-06-14 (STAGED in n8n, awaiting publish)
+
+Bucket 2, part 1 from the evening handoff. The ~5-min Google Sheets outage
+(21:42–21:47 UTC) lost saves. **Root cause re-confirmed from the live failed
+execution (`pWSqaqVw7dmqhYOA` exec 68798), not just the docs:** `Read Existing
+Row` ran **185,312 ms** then (with `onError: continueRegularOutput`) forwarded an
+item shaped `{ json: { error: 'Service unavailable…' }, error: {NodeApiError} }`.
+`Merge Comments` read that as `existsAlready=false` and the **phantom-row guard
+threw** on `p_mq5noms6_ju5k2` — a *real existing* `sidneylaruel` row — so a
+status-only save was rejected and lost. Five execs failed this way in the window
+(68798/802/806/810/814).
+
+**Fix (staged):** a **read-failure guard** at the top of `Merge Comments` — if the
+`Read Existing Row` item carries an error (`.json.error` string / item `.error`
+object), early-return `{ _conflict:true, ok:false, error:'…briefly unavailable…' }`
+through the existing **no-write** path (`Is Conflict` true → `Respond JSON`). This
+(a) stops the phantom-row throw on a failed read, (b) stops a failed read from
+**bypassing the link-clobber/conflict guards** on content patches, and (c) returns
+a clean, retryable response — the FE's `if(!json.ok) throw` path shows the message
+on the save chip and keeps the user's typed text (verified against
+`_calFlushCardSave`, index.html ~16861). A genuine "row not found" (`{json:{}}`,
+no error) is unaffected, so new-row creates still work.
+
+- **Snapshots:** `n8n-backups/calendar-upsert-post.2026-06-14.pre-readfail-guard.json`
+  (live pre-edit, activeVersionId `e6d87360…`) and `…post-readfail-guard.json`
+  (reference). Patched code syntax-checked (`node --check`).
+- **Status:** staged to the **draft** via MCP (`versionId fc5368e1…`); the
+  **active version is unchanged** (`activeVersionId e6d87360…`) — production is
+  byte-identical until **Sidney publishes** it in the n8n UI. Only `Merge
+  Comments`.jsCode changed; 14 nodes, all other guards intact.
+- **NOT addressed — the ~3-min hang itself.** The handoff's part (a) ("give Read
+  Existing Row a ~10 s timeout") is **not possible on the native Google Sheets
+  node** — it has no per-node request-timeout option (that's an HTTP Request node
+  feature). So during an outage the read still hangs ~185 s before this guard can
+  return the clean error. Fail-fast would require converting `Read Existing Row`
+  to an HTTP Request node (raw Sheets API + `options.timeout`) or an n8n-level
+  execution timeout — a larger, separate change. The data-loss/clobber bug is
+  fixed by the guard regardless of hang time.
+- **To publish + verify (Sidney):** open `calendar-upsert-post`, review the
+  `Merge Comments` diff (the new guard block right after `const twinItems =
+  $input.all();`), **Publish**. Then `activeVersionId` should become `fc5368e1…`.
+  Optional live check: a normal save still round-trips (create + status patch),
+  and the calendar still mirrors to Supabase.
+- **Bigger cure still pending:** make Supabase the write target (writes are still
+  Sheet-first, amplified ~3× by Linear status-sync). Phase-4-scale; plan later.

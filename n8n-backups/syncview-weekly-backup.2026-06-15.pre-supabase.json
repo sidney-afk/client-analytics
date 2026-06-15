@@ -1,0 +1,184 @@
+{
+  "id": "jlVfbg0Njxf1It7h",
+  "name": "SyncView — Weekly Backup",
+  "active": true,
+  "versionId": "db6fcca3-8b91-4efb-b06f-e7dd2eeff897",
+  "description": "Weekly (Sun 2AM) backup: creates a dated folder in the SyncView Backups folder (My Drive) and copies the main + calendar Google Sheets, a zip of the client-analytics GitHub repo, and all n8n workflows exported as JSON.",
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "nodes": [
+    {
+      "id": "80c185f2-8da2-427b-8e2a-69fedd5f494d",
+      "name": "Weekly Sunday 2AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 288],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "weeksInterval": 1,
+              "triggerAtDay": [0],
+              "triggerAtHour": 2,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "7008f55a-c510-47cf-9145-753d1714c5fa",
+      "name": "Create Dated Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [224, 288],
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $now.toFormat(\"yyyy-MM-dd\") }}",
+        "folderId": { "__rl": true, "mode": "id", "value": "15m--zegUJLIX9ND_4LKv3xQC1Oc4SFVJ" },
+        "options": {}
+      }
+    },
+    {
+      "id": "49e7d0b3-028d-4938-a75c-0f5a17b7a748",
+      "name": "Copy Main Sheet",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [448, 0],
+      "parameters": {
+        "resource": "file",
+        "operation": "copy",
+        "fileId": { "__rl": true, "mode": "id", "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8" },
+        "name": "=SyncView Main Sheet — {{ $now.toFormat(\"yyyy-MM-dd\") }}",
+        "sameFolder": false,
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "41b3ffa8-bc3c-4bc2-a98c-061a2b942a18",
+      "name": "Copy Calendar Sheet",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [448, 192],
+      "parameters": {
+        "resource": "file",
+        "operation": "copy",
+        "fileId": { "__rl": true, "mode": "id", "value": "1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps" },
+        "name": "=SyncView Calendar Sheet — {{ $now.toFormat(\"yyyy-MM-dd\") }}",
+        "sameFolder": false,
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "350e5fee-ba86-4203-a86a-697aed7e1a28",
+      "name": "Download GitHub Repo Zip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [448, 384],
+      "parameters": {
+        "method": "GET",
+        "url": "https://github.com/sidney-afk/client-analytics/archive/refs/heads/main.zip",
+        "options": {
+          "response": { "response": { "responseFormat": "file", "outputPropertyName": "data" } },
+          "redirect": { "redirect": { "followRedirects": true } },
+          "timeout": 120000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "73ded536-409c-4e8d-b6d7-80efcc1e2cfc",
+      "name": "Upload Repo Zip",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [672, 384],
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "inputDataFieldName": "data",
+        "name": "=client-analytics-{{ $now.toFormat(\"yyyy-MM-dd\") }}.zip",
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a43c41a0-aade-4def-9fdf-2596cda2cc1e",
+      "name": "Export n8n Workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [448, 576],
+      "parameters": {
+        "resource": "workflow",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": { "activeWorkflows": false, "excludePinnedData": true }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "33b1263e-1f7e-41d5-b5c4-01faf4252307",
+      "name": "Build Workflows JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 576],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const all = $input.all().map(i => i.json);\nconst date = $now.toFormat(\"yyyy-MM-dd\");\nconst payload = { exportedAt: new Date().toISOString(), count: all.length, workflows: all };\nconst text = JSON.stringify(payload, null, 2);\nconst b64 = Buffer.from(text, \"utf8\").toString(\"base64\");\nreturn [{ json: { count: all.length, date }, binary: { data: { data: b64, mimeType: \"application/json\", fileName: \"n8n-workflows-\" + date + \".json\" } } }];"
+      }
+    },
+    {
+      "id": "d13728e0-819c-4ca5-a3dd-8f065b473a35",
+      "name": "Upload Workflows JSON",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [896, 576],
+      "parameters": {
+        "resource": "file",
+        "operation": "upload",
+        "inputDataFieldName": "data",
+        "name": "=n8n-workflows-{{ $now.toFormat(\"yyyy-MM-dd\") }}.json",
+        "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" },
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1468cfa5-cecb-4d5c-85d5-690ae967cecd",
+      "name": "Sticky Note d836696b",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, -50],
+      "parameters": {
+        "content": "## Weekly backup\nBacks up both Google Sheets, the GitHub repo zip, and all n8n workflows (JSON) into the SyncView Backups folder in My Drive every Sunday 2 AM.",
+        "color": 3,
+        "width": 300,
+        "height": 200
+      }
+    }
+  ],
+  "connections": {
+    "Weekly Sunday 2AM": { "main": [[{ "node": "Create Dated Folder", "type": "main", "index": 0 }]] },
+    "Create Dated Folder": {
+      "main": [[
+        { "node": "Copy Main Sheet", "type": "main", "index": 0 },
+        { "node": "Copy Calendar Sheet", "type": "main", "index": 0 },
+        { "node": "Download GitHub Repo Zip", "type": "main", "index": 0 },
+        { "node": "Export n8n Workflows", "type": "main", "index": 0 }
+      ]]
+    },
+    "Download GitHub Repo Zip": { "main": [[{ "node": "Upload Repo Zip", "type": "main", "index": 0 }]] },
+    "Export n8n Workflows": { "main": [[{ "node": "Build Workflows JSON", "type": "main", "index": 0 }]] },
+    "Build Workflows JSON": { "main": [[{ "node": "Upload Workflows JSON", "type": "main", "index": 0 }]] }
+  }
+}

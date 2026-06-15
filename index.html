@@ -1186,29 +1186,29 @@
         .workload-popover-item-due   { font-size: 0.66rem; color: var(--text-muted); flex-shrink: 0; font-weight: 600; }
         .workload-popover-item-due.past { color: #dc2626; }
         /* Tweak-comment preview inside the workload popover — surfaces the
-           client / Kasper comment that bounced the sub-issue back, so the
-           editor knows what to change without opening Linear. */
+           client / Kasper comment that bounced the sub-issue back so the
+           editor sees what to change. One muted row per comment (author ·
+           body · time), no card chrome, matching the popover items above. */
         .wl-tweak-frame-note { display: flex; gap: 7px; align-items: center; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; font-size: 0.68rem; font-weight: 600; color: #9a3412; line-height: 1.45; }
         .wl-tweak-frame-note > svg { flex-shrink: 0; }
         /* The (i) carries the full explanation in its title tooltip. */
         .wl-tweak-frame-info { display: inline-flex; align-items: center; color: #b45309; cursor: help; flex-shrink: 0; border-radius: 50%; }
         .wl-tweak-frame-info:hover { color: #7c2d12; }
-        .wl-tweak-comments { display: flex; flex-direction: column; gap: 5px; margin: 0 4px 8px 16px; }
-        .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; }
-        .wl-tweak-comment { background: #fff7ed; border: 1px solid #fed7aa; border-left: 3px solid #ea580c; border-radius: 8px; padding: 6px 9px; }
-        .wl-tweak-comment-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
-        .wl-tweak-comment-author { font-size: 0.66rem; font-weight: 800; color: #9a3412; }
-        .wl-tweak-comment-time { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; flex: 1; }
-        .wl-tweak-comment-link { font-size: 0.6rem; font-weight: 600; color: var(--text-muted); text-decoration: none; flex-shrink: 0; }
-        .wl-tweak-comment-link:hover { color: var(--text-primary); text-decoration: underline; }
-        /* Comments longer than 6 lines clamp; wlMarkClampedComments adds
-           .is-clamped only when the text genuinely overflows, so short
-           comments don't advertise an expand that does nothing. */
-        .wl-tweak-comment-body { font-size: 0.72rem; color: var(--text-primary); line-height: 1.45; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
+        .wl-tweak-comments { display: flex; flex-direction: column; gap: 1px; margin: 2px 4px 6px 16px; }
+        .wl-tweak-comments:empty { display: none; }
+        .wl-tweak-comments-status { font-size: 0.64rem; color: var(--text-muted); font-style: italic; padding: 2px 4px 2px 8px; }
+        .wl-tweak-comment { display: flex; align-items: baseline; gap: 8px; padding: 3px 6px 3px 8px; border-radius: 6px; }
+        .wl-tweak-comment:hover { background: var(--bg); }
+        .wl-tweak-comment-author { font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; }
+        .wl-tweak-comment-time { font-size: 0.6rem; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        /* One row by default (truncated with an ellipsis); wlMarkClampedComments
+           adds .is-clamped only when the body genuinely overflows, so short
+           comments don't advertise an expand that does nothing. Click expands
+           the body to its full wrapped text. */
+        .wl-tweak-comment-body { font-size: 0.72rem; color: var(--text-primary); line-height: 1.45; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .wl-tweak-comment-body.is-clamped { cursor: pointer; }
-        .wl-tweak-comment-body.expanded { display: block; -webkit-line-clamp: unset; }
-        .wl-tweak-comment-empty { font-size: 0.66rem; color: #9a3412; background: #fffbeb; border: 1px dashed #fcd34d; border-radius: 8px; padding: 6px 9px; line-height: 1.45; }
-        .wl-tweak-comment-more { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding-left: 2px; }
+        .wl-tweak-comment-body.expanded { white-space: pre-wrap; word-break: break-word; overflow: visible; text-overflow: clip; }
+        .wl-tweak-comment-more { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 1px 4px 1px 8px; }
         .workload-needs-assignment { border: 1.5px dashed var(--border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--white); }
         .workload-needs-assignment.empty { display: none; }
         .workload-capacity { border: 1px solid var(--border); border-radius: 12px; padding: 9px 16px; margin-bottom: 14px; background: var(--white); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
@@ -9452,30 +9452,31 @@
         return out;
     }
     function wlRenderTweakComments(comments) {
+        // No comment on the sub-issue → render nothing. An absent comment is
+        // not worth a row of its own; the empty popover row speaks for itself.
         if (!comments || !comments.length) {
-            return '<div class="wl-tweak-comment-empty">No comment on the Linear sub-issue — the status was probably changed by hand, or the tweak was left in Frame.io. Check Frame.io / ask the SMM.</div>';
+            return '';
         }
         const shown = comments.slice(0, 3);
         const more = comments.length - shown.length;
+        // One row per comment: author · body · time. No Frame/Linear link and
+        // no card chrome — the body is the signal, everything else is muted.
         return shown.map(c => `<div class="wl-tweak-comment">
-            <div class="wl-tweak-comment-head">
-                <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>
-                <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
-                ${c.url ? `<a class="wl-tweak-comment-link" href="${wlEscape(c.url)}" target="_blank" rel="noopener noreferrer">Open in Linear ↗</a>` : ''}
-            </div>
-            <div class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)">${wlEscape(c.body || '')}</div>
+            <span class="wl-tweak-comment-author">${wlEscape(c.author || 'Unknown')}</span>
+            <span class="wl-tweak-comment-body" onclick="wlToggleTweakComment(this)">${wlEscape(c.body || '')}</span>
+            <span class="wl-tweak-comment-time">${wlEscape(_calFmtCommentTime(c.createdAt))}</span>
         </div>`).join('') + (more > 0
             ? `<div class="wl-tweak-comment-more">+ ${more} older comment${more === 1 ? '' : 's'} on the sub-issue in Linear</div>`
             : '');
     }
-    // Expand/collapse is only offered on comments that genuinely overflow
-    // the 6-line clamp — a one-liner has nothing to expand, so it gets no
-    // pointer cursor and no tooltip. Must run AFTER the comments are in the
-    // DOM, since it measures rendered heights.
+    // Expand/collapse is only offered on comments whose body genuinely
+    // overflows its single row — a short comment that already fits has
+    // nothing to expand, so it gets no pointer cursor and no tooltip. Must
+    // run AFTER the comments are in the DOM, since it measures rendered width.
     function wlMarkClampedComments(scope) {
         scope.querySelectorAll('.wl-tweak-comment-body').forEach(el => {
             if (el.classList.contains('expanded') || el.classList.contains('is-clamped')) return;
-            if (el.scrollHeight > el.clientHeight + 1) {
+            if (el.scrollWidth > el.clientWidth + 1) {
                 el.classList.add('is-clamped');
                 el.title = 'Click to expand';
             }
@@ -9620,7 +9621,11 @@
         // the token guard stops a slow response from painting into a
         // popover that has since been reopened on another rollup.
         const tweakSubs = subs.filter(wlIsTweaksNeeded);
-        const frameNote = tweakSubs.length
+        // The Frame.io reminder belongs on the per-client / tweak views where
+        // the editor is reading tweak notes. The editor-workload chips
+        // (source="active") are a capacity view — "how busy is this editor" —
+        // so the note is just noise there and is skipped.
+        const frameNote = (tweakSubs.length && sourceMode !== 'active')
             ? `<div class="wl-tweak-frame-note">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 1.8L15 14H1L8 1.8z"/><path d="M8 6.5v3.5"/><circle cx="8" cy="12" r="0.4" fill="currentColor"/></svg>
                 <span><strong>Always check Frame.io too.</strong></span>

@@ -10073,6 +10073,16 @@
     const SM_CACHE_PREFIX = 'syncview_samplesCache_v1:';
     const SM_PREFS_KEY = 'syncview_samples_prefs_v1';
     const SM_SEEN_KEY = 'syncview_samplesSeen_v1';
+    /* Samples v2 (Supabase realtime) — own flag ?sv2=1, sticky (mirrors the
+       calendar's ?v2). Reuses the calendar's Supabase project + publishable key
+       + supabase-js loader (CAL_SUPABASE_URL/_ANON_KEY/_LIB_URL, defined in the
+       calendar module below). _smV2Ready() gates every Supabase touch, so with
+       the flag off the page is byte-identical to v1 (no Supabase calls, the lib
+       never loads). */
+    const SM_V2_LS_KEY         = 'syncview_samples_v2';
+    const SM_V2_KILL_KEY       = 'syncview_samples_v2_off';
+    const SM_V2_RT_DEBOUNCE_MS = 350;
+    const SM_RT_SELF_ECHO_MS   = 4000;  // a realtime event within this window of a local save = our own echo → defer
 
     let smState = { client: null, kind: 'reel', mode: 'editor', samples: [], loading: false, error: null, embedded: false, focusCard: null };
     let _smLinkClient = null;     // client locked in via a ?c=…&v=samples share link
@@ -10252,6 +10262,149 @@
         };
     }
 
+    /* ===================================================================
+     * CONTENT SAMPLES v2 — Supabase realtime (clone of the calendar's
+     * _calV2* runtime; see CALENDAR_REALTIME_MIGRATION.md). Hidden behind
+     * ?sv2=1 until the flip. Reads come from the content_samples table over
+     * REST with a realtime subscription; writes still flow through the
+     * samples-* n8n webhooks (which dual-write the Sheet + Supabase), so the
+     * Sheet stays a lossless mirror and rollback = ?sv2=0 / revert. Any
+     * Supabase failure falls back to samples-get, so v2 can never blank the
+     * board.
+     * =================================================================== */
+    let _smV2FlagCache = null;
+    function _smV2Enabled() {
+        if (_smV2FlagCache !== null) return _smV2FlagCache;
+        // Phase 2: default OFF; ?sv2=1 turns it on (sticky). The flip will swap
+        // this default to true with ?sv2=0 as the sticky kill-switch.
+        let on = false;
+        try {
+            const q = new URLSearchParams(location.search).get('sv2');
+            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SM_V2_LS_KEY, '1'); localStorage.removeItem(SM_V2_KILL_KEY); } catch {} }
+            else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SM_V2_KILL_KEY, '1'); localStorage.removeItem(SM_V2_LS_KEY); } catch {} }
+            else { on = (localStorage.getItem(SM_V2_LS_KEY) === '1') && (localStorage.getItem(SM_V2_KILL_KEY) !== '1'); }
+        } catch { on = false; }
+        _smV2FlagCache = on;
+        return on;
+    }
+    function _smV2Ready() {
+        return _smV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY;
+    }
+    /* Own supabase-js client (gated on _smV2Ready so it's fully decoupled from
+       the calendar's flag), reusing the calendar's generic UMD loader so the lib
+       is fetched at most once. Any failure resolves to null → callers fall back. */
+    let _smV2ClientObj = null;
+    let _smV2ClientPromise = null;
+    function _smV2Client() {
+        if (!_smV2Ready()) return Promise.resolve(null);
+        if (_smV2ClientObj) return Promise.resolve(_smV2ClientObj);
+        if (_smV2ClientPromise) return _smV2ClientPromise;
+        _smV2ClientPromise = _calV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _smV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: false },
+                realtime: { params: { eventsPerSecond: 5 } }
+            });
+            return _smV2ClientObj;
+        }).catch(e => { console.warn('[Samples v2] supabase-js init failed', e); _smV2ClientPromise = null; return null; });
+        return _smV2ClientPromise;
+    }
+    /* Read one client's samples from Supabase REST, shaped like samples-get
+       ({ ok, samples[] }). On ANY failure, fall back to the webhook. */
+    async function _smV2FetchSamples(slug, signal) {
+        const url = CAL_SUPABASE_URL + '/rest/v1/content_samples?select=*&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
+        try {
+            const resp = await fetch(url, {
+                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
+                signal: signal || undefined
+            });
+            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            return { ok: true, samples: rows };
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            console.warn('[Samples v2] Supabase read failed — falling back to samples-get', e);
+            const resp = await fetch(SAMPLES_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            return resp.json();
+        }
+    }
+    /* Realtime lifecycle: one channel per client; switching clients (or leaving
+       Samples) tears it down. A change coalesces into one debounced background
+       reload — suppressed while it's the echo of our own write, and deferred
+       while the user is actively editing (Notes modal open or a field focused)
+       so it can never clobber an in-progress edit or the caret. */
+    let _smV2Channel = null, _smV2SubSlug = null, _smV2RtTimer = null;
+    let _smV2RtPending = false, _smV2SubscribedOnce = false;
+    let _smLastLocalWriteAt = 0;       // when we last saved locally — used to ignore our own realtime echo
+    function _smEditingBusy() {
+        if (_smOpenCommentsId) return true;            // Notes modal open
+        const ae = document.activeElement;
+        return !!(ae && ae.closest && ae.closest('.sm-card') && /^(TEXTAREA|INPUT)$/.test(ae.tagName));
+    }
+    async function _smV2EnsureSubscribed(slug) {
+        if (!_smV2Ready() || !slug) return;
+        if (_smV2SubSlug === slug && _smV2Channel) return;
+        _smV2Teardown();
+        const client = await _smV2Client();
+        if (!client) return;
+        if (smClientSlug(smState.client) !== slug) return; // client switched during lib load
+        _smV2SubSlug = slug; _smV2SubscribedOnce = false;
+        try {
+            _smV2Channel = client
+                .channel('sm-' + slug)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'content_samples', filter: 'client=eq.' + slug }, () => _smV2OnRealtimeChange(slug))
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        // A re-subscribe means the socket had dropped (a suspended
+                        // background tab that woke up); realtime doesn't replay the
+                        // missed events, so pull one catch-up snapshot. Skip the
+                        // FIRST subscribe — the load that opened the channel is current.
+                        if (_smV2SubscribedOnce) _smV2OnRealtimeChange(slug);
+                        _smV2SubscribedOnce = true;
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        console.warn('[Samples v2] realtime status:', status);
+                    }
+                });
+        } catch (e) {
+            console.warn('[Samples v2] realtime subscribe failed', e);
+            _smV2Channel = null; _smV2SubSlug = null;
+        }
+    }
+    function _smV2OnRealtimeChange(slug) {
+        if (smClientSlug(smState.client) !== slug) return;
+        if (_smV2RtTimer) clearTimeout(_smV2RtTimer);
+        _smV2RtTimer = setTimeout(function tick() {
+            _smV2RtTimer = null;
+            if (smClientSlug(smState.client) !== slug) return;
+            // Suppress the echo of our OWN just-made write (a whole-row save
+            // round-trips back as a realtime event a second or two later;
+            // reloading then would only flicker the strip). Re-arm and re-check
+            // so the reload lands once WE'VE settled. A teammate's change while
+            // we're idle is never suppressed (we didn't just write).
+            const sinceLocal = Date.now() - _smLastLocalWriteAt;
+            if (sinceLocal < SM_RT_SELF_ECHO_MS) { _smV2RtTimer = setTimeout(tick, SM_RT_SELF_ECHO_MS - sinceLocal); return; }
+            // Never disrupt active editing: if the Notes modal is open or a sample
+            // field is focused, defer (serviced on close / blur / load-end).
+            if (_smEditingBusy() || smState.loading) { _smV2RtPending = true; return; }
+            _smV2RtPending = false;
+            loadSamples({ background: true, skipCache: true });
+        }, SM_V2_RT_DEBOUNCE_MS);
+    }
+    function _smV2ServicePending() { if (_smV2RtPending && _smV2SubSlug) _smV2OnRealtimeChange(_smV2SubSlug); }
+    function _smV2Teardown() {
+        if (_smV2RtTimer) { clearTimeout(_smV2RtTimer); _smV2RtTimer = null; }
+        if (_smV2Channel) {
+            try {
+                if (_smV2ClientObj && typeof _smV2ClientObj.removeChannel === 'function') _smV2ClientObj.removeChannel(_smV2Channel);
+                else if (typeof _smV2Channel.unsubscribe === 'function') _smV2Channel.unsubscribe();
+            } catch {}
+        }
+        _smV2Channel = null; _smV2SubSlug = null;
+    }
+    /* Console helper for verification: window.smV2Status(). */
+    window.smV2Status = function () { return { flag: _smV2Enabled(), ready: _smV2Ready(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_smV2Channel, slug: _smV2SubSlug }; };
+
     /* ---- comment view helpers ---- */
     function _smVisibleComments(s){
         const all = Array.isArray(s.comments) ? s.comments : [];
@@ -10302,36 +10455,47 @@
 
     async function loadSamples(opts){
         opts = opts || {};
+        const bg = !!opts.background;            // realtime-triggered reload: no loader, no focus jump
         const client = smState.client;
         if(!client){ smState.samples = []; _smRenderBody(); return; }
         const slug = smClientSlug(client);
         if(!opts.skipCache){
             const cached = _smCacheRead(slug);
-            if(cached && cached.length){ smState.samples = cached.filter(s => String(s.status||'').toLowerCase() !== 'archived'); smState.loading = false; _smRenderBody(); }
+            if(cached && cached.length){ smState.samples = cached.filter(s => String(s.status||'').toLowerCase() !== 'archived'); smState.loading = false; if(!bg) _smRenderBody(); }
         }
-        smState.loading = !smState.samples.length;
+        if(!bg){ smState.loading = !smState.samples.length; if(smState.loading) _smRenderBody(); }
         smState.error = null;
-        if(smState.loading) _smRenderBody();
         try {
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 12000);
-            const resp = await fetch(SAMPLES_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), { signal: ctrl.signal });
+            let data;
+            if(_smV2Ready()){
+                data = await _smV2FetchSamples(slug, ctrl.signal);   // Supabase REST (falls back to samples-get on any error)
+            } else {
+                const resp = await fetch(SAMPLES_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), { signal: ctrl.signal });
+                if(!resp.ok) throw new Error('HTTP ' + resp.status);
+                data = await resp.json();
+            }
             clearTimeout(timer);
-            if(!resp.ok) throw new Error('HTTP ' + resp.status);
-            const data = await resp.json();
             const rows = Array.isArray(data) ? data : (data.samples || data.posts || (data.json && (data.json.samples || data.json.posts)) || []);
             if(smState.client !== client) return;   // user switched clients mid-flight
             smState.samples = (rows || []).map(_smNormalize).filter(s => String(s.status||'').toLowerCase() !== 'archived');
             smState.loading = false; smState.error = null;
             _smCacheWrite(slug, smState.samples);
             _smRenderBody();
-            setTimeout(_smApplyFocus, 120);
+            if(!bg) setTimeout(_smApplyFocus, 120);
+            // Phase 2: open (or re-point) the realtime subscription for this client.
+            // Idempotent (keyed on slug); a change deferred mid-load is serviced now.
+            if(_smV2Ready()){
+                _smV2EnsureSubscribed(slug);
+                if(_smV2RtPending){ _smV2RtPending = false; _smV2OnRealtimeChange(slug); }
+            }
         } catch(e){
             if(smState.client !== client) return;
             smState.loading = false;
             if(!smState.samples.length){ smState.error = 'offline'; }   // nothing cached, nothing live
             _smRenderBody();
-            setTimeout(_smApplyFocus, 120);
+            if(!bg) setTimeout(_smApplyFocus, 120);
         }
     }
 
@@ -10620,6 +10784,7 @@
             if(smState.client) _smCacheWrite(smClientSlug(smState.client), smState.samples);
             _smRenderBody();
             const client = smState.client;
+            _smLastLocalWriteAt = Date.now();
             if(client) fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: { id, status: 'Archived', updated_at: new Date().toISOString() } }) }).catch(() => {});
             _smFlash('Sample deleted');
         }, 'Delete');
@@ -10650,6 +10815,7 @@
     async function _smPersistReorder(){
         const client = smState.client; if(!client) return;
         const items = smState.samples.map(s => ({ id: s.id, order_index: s.order_index }));
+        _smLastLocalWriteAt = Date.now();
         try { await fetch(SAMPLES_REORDER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), items }) }); } catch(e){}
     }
 
@@ -10670,6 +10836,7 @@
         const s = _smFind(id);
         if(!s || !client) return;
         s.updated_at = new Date().toISOString();
+        _smLastLocalWriteAt = Date.now();   // open the self-echo window before the realtime echo lands
         _smCacheWrite(smClientSlug(client), smState.samples);
         _smSetSaving(id, 'saving');
         const wire = { id: s.id, kind: s.kind, order_index: s.order_index, label: s.label, media_url: s.media_url, creative_direction: s.creative_direction, hide_creative_direction: s.hide_creative_direction ? 'TRUE' : 'FALSE', comments: _smStringify(s.comments), status: s.status || 'Active', approval: _smApprNorm(s.approval), kasper_approved_at: s.kasper_approved_at || '', kasper_approved_by: s.kasper_approved_by || '', client_approved_at: s.client_approved_at || '', client_approved_by: s.client_approved_by || '', created_at: s.created_at, updated_at: s.updated_at };
@@ -10677,6 +10844,8 @@
             const resp = await fetch(SAMPLES_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: smClientSlug(client), sample: wire }) });
             if(!resp.ok) throw new Error('HTTP ' + resp.status);
             _smSetSaving(id, 'ok');
+            _smLastLocalWriteAt = Date.now();   // refresh: the realtime echo fires just after this success
+            _smV2ServicePending();
         } catch(e){ _smSetSaving(id, 'local'); }
     }
 
@@ -10709,6 +10878,7 @@
         document.body.classList.remove('sm-modal-open');
         const id = _smOpenCommentsId; _smOpenCommentsId = null; _smReplyTarget = null; _smChangeReqPending = null;
         if(id){ _smMarkSeen(id); _smRefreshCommentsBtn(id); }
+        _smV2ServicePending();   // a realtime change deferred while the modal was open can land now
     }
     function _smCaptureDraft(){ const ta = document.getElementById('smCmComposer'); if(!ta) return; if(_smReplyTarget) _smReplyDrafts[_smReplyTarget] = ta.value; else _smRootDraft = ta.value; }
     function _smRenderCommentsModal(){
@@ -10867,6 +11037,8 @@
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
         if (page !== 'samples') document.body.classList.remove('sm-modal-open');
+        // Phase 2: drop the Samples Supabase realtime subscription when leaving.
+        if (page !== 'samples' && typeof _smV2Teardown === 'function') _smV2Teardown();
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');

@@ -12,7 +12,7 @@
 
 | System | What it holds per client | Onboarding touch? |
 |---|---|---|
-| **Frontend** `index.html` | The **allowlist of client *names*** (`WL_CLIENT_NAMES`). Everything else is fetched at runtime. | ✅ **1 line** |
+| **Frontend** `index.html` | Derives the live client list from the **Clients Info** sheet at runtime (hardcoded list is just a fallback seed). | ❌ **Auto** — the Clients Info row does it |
 | **"SYNCVIEW" Google Sheet** (`10QQ…QqAU8`) | The real per‑client config: **Clients Info**, **Social Media Managers**, **FilmingPlans**, Templates, CaptionPrompts (+ data tabs the robots fill). | ✅ **3–4 rows** |
 | **"SyncView Calendar" Google Sheet** (`1Gsn…A9Yps`) | `Calendar_<slug>` / `Samples_<slug>` / `TikTokUploads` tabs. **Now a legacy mirror** of Supabase. | ⚪ Optional |
 | **Supabase** (`uzltbbrjidmjwwfakwve`) | `calendar_posts` + `content_samples` (the content calendar & the sample strip). | ❌ **Nothing — auto** |
@@ -41,7 +41,7 @@
 - [ ] *(not urgent)* Create their **upload‑post profile**, put the name in `upload_post_profile`. → [§6d](#6d-upload-post-profile-not-urgent)
 
 **Code + platforms**
-- [ ] **Frontend:** add the client's display name to `WL_CLIENT_NAMES` in `index.html` (≈line 8032), commit, push (auto‑deploys). → [§6e](#6e-frontend-the-only-code-change)
+- [ ] **Frontend:** nothing — the client goes live automatically once the Clients Info row exists (sheet-driven allowlist). → [§6e](#6e-frontend-now-automatic)
 - [ ] **Supabase:** **do nothing** — the calendar & samples auto‑create. (Confirm why in [§6f](#6f-supabase-nothing-to-do).)
 - [ ] **Linear (SMM):** create a Project for the client on the **Video + Graphics** teams, set the SMM as lead, link the Slack channel. → [§6g](#6g-linear-project-smm)
 
@@ -171,21 +171,10 @@ This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5
 ### 6d. upload‑post profile (not urgent)
 Only needed if the client uses **TikTok auto‑upload**. Create a profile on upload‑post.com, then put its name in `upload_post_profile` (Clients Info). If blank, the uploader falls back to the slug and shows a ⚠ badge — harmless until they actually use it.
 
-### 6e. Frontend (the only code change)
-Add the client's **display name** to the `WL_CLIENT_NAMES` array in `index.html` (≈**line 8032**):
+### 6e. Frontend (now automatic)
+**Nothing to do.** The dashboard now derives its client allowlist from the **Clients Info** sheet at load time (`wlMergeClientsFromSheet` in `index.html`), so the moment the Clients Info row exists the client is live everywhere — no code edit, no deploy. The hardcoded `WL_CLIENT_NAMES` list (~line 8032) is just an offline seed / first‑paint fallback; you don't normally touch it.
 
-```javascript
-const WL_CLIENT_NAMES = [
-    'Baya Voce',
-    …
-    'Terrin Ammar',
-    'New Client Name',   // ← add here, exact spelling
-];
-```
-
-The slug is auto‑derived — you don't add it anywhere else in code. Commit + push to `main`; GitHub Pages redeploys `syncview.synchrosocial.com` automatically.
-
-> ⚠️ **Ignore two stale instructions:** (a) the comment right above the array (`index.html:8023–8031`) telling you to run "Provision Missing Tabs" — see [§6f](#6f-supabase-nothing-to-do); and (b) the **root `README.md`**, which describes an old Instaloader/`scraper.py` pipeline that no longer exists.
+> ⚠️ The **root `README.md`** is still stale (it describes an old Instaloader/`scraper.py` pipeline that no longer exists) — ignore its "Add More Clients" section.
 
 ### 6f. Supabase (nothing to do)
 **You do NOT manually create a content calendar or sample calendar in Supabase.** Under the current (Supabase‑primary) architecture:
@@ -216,6 +205,7 @@ Usually done by the **Social Media Manager**. In the **`synchro-social`** worksp
 
 ## What's automatic (don't waste time on it)
 
+- **Going live in the dashboard** — the Clients Info row is folded into the allowlist on load; no code change/deploy. ([§6e](#6e-frontend-now-automatic))
 - **Supabase** content calendar & sample strip — auto‑create on first write. ([§6f](#6f-supabase-nothing-to-do))
 - **Metrics, Top Videos, Competitor Research, Market Research** — scheduled n8n workflows that read **Clients Info**; they pick up the new client on their next run.
 - **Per‑client caches / realtime channels / share‑link state** in the frontend — created at runtime from the slug.
@@ -224,8 +214,8 @@ Usually done by the **Social Media Manager**. In the **`synchro-social`** worksp
 ## Gotchas & drift to watch
 
 1. **Name spelling must be identical** across `WL_CLIENT_NAMES`, Clients Info, Social Media Managers, FilmingPlans, and the Linear project. The slug is unforgiving (see the slug rule).
-2. **Allowlist lives in several places** that can drift: the frontend `WL_CLIENT_NAMES` (authoritative for the app), the Clients Info tab, and the n8n provisioner `SLUGS` arrays (legacy). Keep them in sync if you touch the provisioners.
-3. **Stale docs:** root `README.md` (old Instaloader pipeline) and the `index.html:8023–8031` "provision the tab" comment both predate the current architecture. Don't follow them.
+2. **The dashboard allowlist is now the Clients Info sheet** (folded in at load by `wlMergeClientsFromSheet`). The only remaining hardcoded slug lists are the **n8n "Provision Missing Tabs" `SLUGS` arrays** — legacy/optional mirror only; update them just if you want the Sheet mirror + Drive backups to stay complete.
+3. **Stale doc:** root `README.md` describes an old Instaloader pipeline that no longer exists — don't follow it. (The old `index.html` "provision the tab" comment was corrected in this PR.)
 4. **Duplicate Linear projects** are common (several clients already have 2–3). Search before creating; reuse the canonical one.
 5. **Secrets stay out of git:** Linear API keys, `client_review_token`s, Supabase service‑role — they live in the Google Sheet / n8n only. This public repo must never contain them.
 

@@ -1,6 +1,15 @@
 # Content Calendar — Realtime Migration Plan (Sheets → Supabase)
 
-Status: **approved direction, not started** (audit done 2026-06-12).
+Status: **SHIPPED (Phases 1–3) as of 2026-06-14; v2 is default-on.** (original audit 2026-06-12).
+
+> ⚠️ **SUPERSEDED / HISTORICAL (as of the 2026-06-15 audit).** This is the original end-to-end plan;
+> most of it is DONE. **Current source of truth: `AUDIT_2026-06-15.md`.** Two corrections that matter
+> for anyone reading below: (1) **`calendar-reorder` now has a LIVE Supabase mirror** (added +
+> published 2026-06-14) — every "no mirror / NOT TOUCHED / divergent unpublished draft / needs a human
+> UI step" note below about `calendar-reorder` is **STALE; skip it**. (2) The write path is being
+> **inverted to Supabase-primary** (authoritative Supabase write → best-effort Sheet mirror), so the
+> "dual-write keeps the Sheet authoritative" framing below is being retired; the Sheet is kept only as
+> a backup mirror.
 Goal: make the content calendar behave like Google Sheets — always live for
 every user, no refresh jumps, no desyncs — without ever breaking the live site.
 
@@ -450,7 +459,12 @@ the two remaining calendar-data readers. **Branch only; default NOT flipped.**
 After this, every live calendar-data surface reads from Supabase under v2.
 Checks: inline script syntax-clean; both harnesses pass; parity perfect.
 
-### Reorder-mirror — snapshotted; needs a human UI step (do NOT auto-edit via MCP)
+### ✅ DONE 2026-06-14 — Reorder-mirror is LIVE (skip this entire section)
+> The steps below were completed: the two mirror nodes were added to `calendar-reorder`
+> (`OXd0sUoSJYMspGTF`) and published. `versionId === activeVersionId` (no draft). Kept for history
+> only — do **not** re-do it.
+
+#### (historical) Reorder-mirror — snapshotted; needed a human UI step (do NOT auto-edit via MCP)
 Snapshot of the LIVE per-row active version taken first:
 `n8n-backups/calendar-reorder.2026-06-14.pre-mirror.json` (activeVersionId
 `8a591214`, verified current).

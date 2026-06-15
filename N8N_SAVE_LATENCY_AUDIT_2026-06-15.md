@@ -109,3 +109,33 @@ n8n's version history is the authoritative rollback. Current live versions:
 > inexact "backup" is worse than none for rollback. Export from n8n (or via the
 > MCP `get_workflow_details`) at edit-time and commit it to `n8n-backups/` with a
 > `_backup_note`, exactly as the existing snapshots were made.
+
+## Status update (2026-06-15, later) — option 2a built & validated, live apply BLOCKED
+
+Sidney approved applying the `linear-status-sync` lightening (option 2a + the
+timeouts of 2b). The change was **built, read-only-validated, and snapshotted**,
+but the **live write to n8n was blocked by this session's tool permissions**
+(`update_workflow` → "requires approval", denied twice). **Production
+`linear-status-sync` is unchanged** — nothing half-applied.
+
+**What's ready in the repo (PR #493):**
+- `n8n-backups/linear-status-sync.2026-06-15.pre-targeted-read.json` — exact
+  current live node (key redacted) + rollback `activeVersionId`.
+- `n8n-backups/linear-status-sync.PROPOSED-targeted-read.jsCode.js` — the new
+  `Handle Linear Event` code (key redacted), validated: the only diff vs. live is
+  (1) two new consts `SUPA_URL`/`SUPA_KEY`, (2) `timeout: 15000` on the Linear +
+  read calls, (3) a `supaCandidates()` targeted reader, (4) the read block now
+  uses it with the full `calendar-get` kept as fallback. The targeted Supabase
+  query was confirmed live read-only (full=14 rows, filtered=2 for `VID-12570`).
+
+**To apply (n8n UI, ~2 min — for whoever publishes n8n):**
+1. Open workflow **SyncView Calendar — Linear Status Sync** → node **Handle
+   Linear Event**.
+2. Replace the code with `linear-status-sync.PROPOSED-targeted-read.jsCode.js`,
+   then change the one `[REDACTED-LINEAR-KEY]` back to the key already in that
+   node (the key line is otherwise unchanged).
+3. **Publish.** Watch the next few executions — `{ok:true, updated:n}` = good.
+   Rollback = republish `edac6163-829f-4c2b-96da-b25135fc094d`.
+
+**Or:** re-run the agent in a session where the n8n MCP **write** tools are
+permitted, and it will apply + publish + verify in one pass.

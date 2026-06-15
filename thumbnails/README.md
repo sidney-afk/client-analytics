@@ -36,10 +36,10 @@ screens/
                           Per-profile rendering rules (e.g. Baya's two-tone bottom layout).
   create-profile.jsx    ← Profile creator. Upload sample thumbnails, pick fonts/colors, choose layout.
 
-samples.html, index.html, syncview-favicon.png
+index.html, syncview-favicon.png
                         ← Imported from sidney-afk/client-analytics for theme reference.
-                          (samples.html and index.html are NOT linked from the app — keep or
-                          delete depending on whether you want them as reference in-repo.)
+                          (index.html is NOT linked from the app — keep or
+                          delete depending on whether you want it as reference in-repo.)
 ```
 
 ## Data model

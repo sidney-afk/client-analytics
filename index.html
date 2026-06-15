@@ -1603,11 +1603,11 @@
         .cal-view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 5px; border-radius: 99px; background: #ec4899; color: #fff; font-size: 0.64rem; font-weight: 800; line-height: 1; }
         .cal-view-btn.active .cal-view-badge { background: #db2777; }
         .cal-month-filter { position: relative; display: inline-flex; align-items: center; }
-        .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; min-width: 150px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); justify-content: space-between; background: var(--bg); box-shadow: none; }
+        .cal-month-filter .dropdown-trigger { padding: 8px 14px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); background: var(--bg); box-shadow: none; }
         .cal-month-filter .dropdown-trigger:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.08); color: var(--text-primary); }
         .cal-month-filter .dropdown-trigger.is-filtered { background: var(--text-primary); color: var(--white); }
         .cal-month-filter .dropdown-trigger.is-filtered:hover { color: var(--white); }
-        .cal-month-filter .dropdown-trigger .dd-arrow { font-size: 0.62rem; margin-left: 6px; opacity: 0.55; }
+        .cal-month-filter .dropdown-trigger .dd-arrow { font-size: 0.62rem; margin-left: 2px; opacity: 0.55; }
         .cal-month-filter .dropdown-menu { min-width: 200px; max-height: 320px; overflow-y: auto; left: 0; right: auto; padding: 6px; }
         .cal-month-filter .dropdown-item { padding: 8px 12px; font-size: 0.78rem; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
         .cal-month-filter .dropdown-item .cal-month-filter-tag { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
@@ -1615,6 +1615,25 @@
         .cal-month-filter-custom { position: relative; cursor: pointer; }
         .cal-month-filter-custom-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; background: transparent; opacity: 0; cursor: pointer; color: transparent; font-family: inherit; }
         .cal-month-filter-custom-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; opacity: 0; }
+        /* SMM quick-links to the client's own social profiles — an icon button
+           in the calendar toolbar that drops down the client's accounts, each
+           opening in a new tab. Sourced from the Clients Info sheet. */
+        .cal-client-links { position: relative; display: inline-flex; align-items: center; }
+        .cal-client-links .dropdown-trigger { padding: 8px 11px; border-radius: 20px; background: var(--bg); box-shadow: none; color: var(--text-primary); gap: 5px; }
+        .cal-client-links .dropdown-trigger:hover, .cal-client-links .dropdown-trigger.open { box-shadow: 0 1px 4px rgba(0,0,0,0.08); color: var(--text-primary); }
+        .cal-client-links .cal-client-links-ico { width: 15px; height: 15px; display: block; }
+        .cal-client-links .dropdown-trigger .dd-arrow { opacity: 0.55; }
+        .cal-client-links .dropdown-menu { left: 0; right: auto; min-width: 216px; padding: 6px; }
+        .cal-client-links-head { padding: 4px 10px 6px; font-size: 0.6rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+        .cal-client-link-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border-radius: 8px; text-decoration: none; transition: background 0.1s; }
+        .cal-client-link-item:hover { background: var(--bg); }
+        .cal-client-link-ico { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex-shrink: 0; }
+        .cal-client-link-ico svg { width: 17px; height: 17px; display: block; }
+        .cal-client-link-txt { display: flex; flex-direction: column; line-height: 1.2; flex: 1; min-width: 0; }
+        .cal-client-link-name { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .cal-client-link-sub { font-size: 0.66rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .cal-client-link-ext { display: inline-flex; align-items: center; color: var(--text-muted); opacity: 0.5; flex-shrink: 0; transition: opacity 0.1s; }
+        .cal-client-link-item:hover .cal-client-link-ext { opacity: 0.9; }
         .cal-filter-empty { padding: 32px 22px; text-align: center; color: var(--text-secondary); font-size: 0.88rem; }
         .cal-filter-empty-title { font-weight: 700; font-size: 0.95rem; color: var(--text-primary); margin-bottom: 6px; }
         .cal-filter-empty-sub { font-size: 0.82rem; color: var(--text-muted); }
@@ -15232,6 +15251,86 @@
         _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
     }
 
+    /* Client social profiles — an SMM-only toolbar shortcut to open the active
+       client's own Instagram / TikTok / YouTube in a new tab. Handles come from
+       the Clients Info sheet (clientMap, keyed by client name); the same fields
+       and URL helpers the profile cards use. Hidden on the client-facing share
+       link (_isClientLink) and whenever no handles are on file. */
+    let _calClientLinksOutside = null;
+    function _calClientLinks() {
+        if (!calState.client || _isClientLink) return [];
+        const info = (typeof clientMap !== 'undefined' && clientMap[calState.client]) || {};
+        const ig = String(info.instagram_handle || '').trim().replace(/^@+/, '');
+        const tt = String(info.tiktok_handle || '').trim().replace(/^@+/, '');
+        const yt = String(info.youtube_channel_id || '').trim();
+        const out = [];
+        if (ig) out.push({ key: 'instagram', sub: '@' + ig, url: igUrl(ig) });
+        if (tt) out.push({ key: 'tiktok',    sub: '@' + tt, url: ttUrl(tt) });
+        if (yt) out.push({ key: 'youtube',   sub: 'Channel', url: ytUrl(yt) });
+        return out.filter(l => l.url);
+    }
+    function _calClientLinksHtml() {
+        const links = _calClientLinks();
+        if (!links.length) return '';
+        const chev  = `<svg class="dd-arrow" width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 3.5L5 7l3.5-3.5"/></svg>`;
+        const globe = `<svg class="cal-client-links-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6.3"/><path d="M1.7 8h12.6"/><path d="M8 1.7c1.7 1.8 2.6 3.9 2.6 6.3S9.7 12.5 8 14.3C6.3 12.5 5.4 10.4 5.4 8 5.4 5.6 6.3 3.5 8 1.7z"/></svg>`;
+        const items = links.map(l => {
+            const p = CAL_PLATFORM_BY_KEY[l.key] || {};
+            const lbl = p.label || l.key;
+            return `<a class="cal-client-link-item" href="${_calEscAttr(l.url)}" target="_blank" rel="noopener noreferrer" onclick="_calCloseClientLinks()" title="Open ${_calEscAttr(lbl)} in a new tab">`
+                + `<span class="cal-client-link-ico" style="color:${p.color || 'var(--text-secondary)'}">${p.icon || ''}</span>`
+                + `<span class="cal-client-link-txt"><span class="cal-client-link-name">${_calEsc(lbl)}</span><span class="cal-client-link-sub">${_calEsc(l.sub)}</span></span>`
+                + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
+        }).join('');
+        return `<div class="cal-client-links" id="calClientLinksWrap">
+            <button type="button" class="dropdown-trigger" id="calClientLinksBtn" onclick="_calToggleClientLinks(event)" title="Open this client's social profiles" aria-haspopup="true" aria-expanded="false" aria-label="Open this client's social profiles">${globe}${chev}</button>
+            <div class="dropdown-menu" id="calClientLinksMenu" role="menu"><div class="cal-client-links-head">Open profiles</div>${items}</div>
+        </div>`;
+    }
+    function _calToggleClientLinks(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('calClientLinksMenu');
+        const btn  = document.getElementById('calClientLinksBtn');
+        if (!menu || !btn) return;
+        if (menu.classList.contains('open')) { _calCloseClientLinks(); return; }
+        menu.classList.add('open');
+        btn.classList.add('open');
+        btn.setAttribute('aria-expanded', 'true');
+        const close = (ev) => {
+            const wrap = document.getElementById('calClientLinksWrap');
+            if (wrap && !wrap.contains(ev.target)) _calCloseClientLinks();
+        };
+        _calClientLinksOutside = close;
+        setTimeout(() => document.addEventListener('click', close), 0);
+    }
+    function _calCloseClientLinks() {
+        const menu = document.getElementById('calClientLinksMenu');
+        const btn  = document.getElementById('calClientLinksBtn');
+        if (menu) menu.classList.remove('open');
+        if (btn)  { btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+        if (_calClientLinksOutside) { document.removeEventListener('click', _calClientLinksOutside); _calClientLinksOutside = null; }
+    }
+    /* Keep the button in sync with clientMap between full shell renders: it may
+       render before the Clients Info sheet has loaded, so insert it once the
+       handles arrive. An already-shown button is left untouched (a client
+       switch rebuilds the whole toolbar) so a background refresh never closes
+       an open menu mid-click. */
+    function _calSyncClientLinks() {
+        const mid = document.querySelector('.cal-toolbar-mid');
+        if (!mid) return;
+        const existing = mid.querySelector('#calClientLinksWrap');
+        const html = _calClientLinksHtml();
+        if (!html) { if (existing) existing.remove(); return; }
+        if (existing) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const node = tmp.firstElementChild;
+        if (!node) return;
+        const toggle = mid.querySelector('.cal-view-toggle');
+        if (toggle) mid.insertBefore(node, toggle);
+        else mid.appendChild(node);
+    }
+
     function _calRenderShell() {
         const view = document.getElementById('calView');
         if (!view) return;
@@ -15272,6 +15371,7 @@
                 <div class="cal-toolbar-mid">
                     ${_calMonthFilterHtml()}
                     ${_calStatusFilterHtml()}
+                    ${_calClientLinksHtml()}
                     <div class="cal-view-toggle">
                         ${tabViews.map(v => {
                             const n = (v === 'review' || v === 'smmreview') ? _calApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
@@ -15650,6 +15750,7 @@
         if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
         _calUpdateReviewBadge();
         _calSyncMonthWarnIcon();
+        _calSyncClientLinks();
     }
 
     /* Drag a post pill from one day cell to another to reschedule it. */

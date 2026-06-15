@@ -18884,17 +18884,22 @@
         return (!_isClientLink && calState.view === 'smmreview') ? 'smm' : 'client';
     }
     // A component is "in play" on a review surface when it's sitting at that
-    // surface's approval status. The client surface ALSO keeps components
-    // that have been sent back for tweaks, so the client can pile on more
-    // notes before the editor turns it around. The SMM surface does NOT:
-    // once the SMM requests tweaks the ball is in the editor's court, so the
-    // card drops off the SMM Review queue until it's re-submitted at "For SMM
-    // Approval" (this also matches the Review-tab badge, which never counts
-    // Tweaks-Needed cards — see _calApprovalBadgeCount).
+    // surface's approval status. The client surface ALSO keeps components that
+    // have been sent back for tweaks — but only while Collaborative mode is on,
+    // so the client can pile on more notes before the editor turns it around.
+    // With collab OFF the client gets the same hands-off view as the SMM
+    // surface: in-flight tweaks belong to the editor, so a Tweaks-Needed
+    // component (and any card whose only live component is in tweaks) drops off
+    // the client's Review queue until it comes back at "Client Approval". The
+    // SMM surface NEVER keeps Tweaks-Needed components: once the SMM requests
+    // tweaks the ball is in the editor's court, so the card drops off the SMM
+    // Review queue until it's re-submitted at "For SMM Approval" (this also
+    // matches the Review-tab badge, which never counts Tweaks-Needed cards —
+    // see _calApprovalBadgeCount).
     function _calReviewComponentActive(p, c, mode) {
         const cs = _calNormStatus(p[c + '_status'] || '');
         if (cs === _CAL_REVIEW_CFG[mode].reviewStatus) return true;
-        return mode !== 'smm' && cs === 'Tweaks Needed';
+        return mode !== 'smm' && cs === 'Tweaks Needed' && (!_isClientLink || _calIsCollabOn());
     }
     // Persistent "this component has been in Kasper review at least once"
     // ledger. Once a component is sent to Kasper (or is ever observed at/past
@@ -19234,11 +19239,15 @@
     function _calReviewPendingLabel(p) {
         const mode = _calReviewMode();
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
+        // In-flight (Tweaks Needed) work is only surfaced to the client while
+        // Collaborative mode is on — the same gate as _calReviewComponentActive,
+        // so the label never advertises a component the queue itself has hidden.
+        const showInFlight = mode !== 'client' || !_isClientLink || _calIsCollabOn();
         const awaiting = [], inFlight = [];
         for (const c of CAL_COMPONENTS) {
             const cs = _calNormStatus(p[c + '_status'] || '');
             if (cs === reviewStatus) awaiting.push(c);
-            else if (cs === 'Tweaks Needed') inFlight.push(c);
+            else if (showInFlight && cs === 'Tweaks Needed') inFlight.push(c);
         }
         if (!awaiting.length && !inFlight.length) return '';
         const human = (list) => {

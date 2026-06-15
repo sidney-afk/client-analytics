@@ -14833,6 +14833,17 @@
                 // local write — so it always reflects what this browser last
                 // saw the sheet contain.
                 winner._baseAt = fp.updated_at || '';
+                // Pin a just-applied / in-flight drag's order_index over a
+                // reload that raced the reorder write — the fetched row can
+                // still carry the PRE-drag order until the write is readable in
+                // Supabase, and a reorder bumps no updated_at so LWW above can't
+                // protect it. See _calReorderOptimistic. Expired entries are
+                // dropped so a genuinely newer reorder (anyone) still wins.
+                const _ro = _calReorderOptimistic.get(fp.id);
+                if (_ro) {
+                    if ((nowMs - _ro.at) < CAL_REORDER_GUARD_MS) winner.order_index = _ro.order_index;
+                    else _calReorderOptimistic.delete(fp.id);
+                }
                 return winner;
             });
             // Preserve locally-created/edited cards the fetch doesn't include
@@ -15390,7 +15401,6 @@
                     <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
                     ${selectBtnHtml}
                     ${bulkCapBtnHtml}
-                    <span id="calStatusBadge" class="tpl-status-badge"></span>
                     ${kebabHtml}
                 </div>
             </div>
@@ -17309,7 +17319,13 @@
             const _okPost = calState.posts.find(p => p.id === realId);
             if (_okPost && _okPost._saveError) delete _okPost._saveError;
             _calSetCardStatus(realId, 'saved');
-            _calRefreshCardThumb(realId);
+            // Only repaint the thumbnail when this save actually changed a
+            // media link. A caption / status / date save still bumps updated_at
+            // (→ the _cb cache-buster), which used to make this re-decode the
+            // image on every save — the "thumbnail reloads every time it saves"
+            // flash. (_calRefreshCardThumb's base-URL guard also no-ops a pure
+            // _cb bump, so this is belt-and-suspenders.)
+            if ('thumbnail_url' in edits || 'asset_url' in edits) _calRefreshCardThumb(realId);
             // A freshly-promoted blank card carries the blank-time layout in
             // the DOM (no media slots, no status pills, etc.) — _calPromoteBlankCard
             // only rewrites identifiers, not the visual shape. Without a
@@ -17472,6 +17488,18 @@
         _calWireDragOnCard(blank);
     }
 
+    /* Compare two thumbnail src URLs while IGNORING our cache-buster tokens:
+       _cb (the post's updated_at, which is bumped on EVERY save) and _r (the
+       one-shot manual force-refresh). Two srcs that differ only by those tokens
+       point at the same underlying image, so the <img> must not be torn down
+       and re-decoded. Without this, every caption/status/date save advanced
+       updated_at → a new _cb → the guard below saw a "changed" URL and reloaded
+       the thumbnail on every single save (the visible per-save reload flash).
+       The _cb still does its real job — forcing a refetch across a full page
+       reload when a file behind an unchanged Drive link was replaced. */
+    function _calThumbSrcBase(u) {
+        return String(u || '').replace(/[?&](?:_cb|_r)=[^&]*/g, '').replace(/[?&]$/, '');
+    }
     function _calRefreshCardThumb(pid) {
         const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
         if (!card) return;
@@ -17482,7 +17510,7 @@
         if (!thumbDiv) return;
         const existing = thumbDiv.querySelector('img');
         if (info.url) {
-            if (existing && existing.getAttribute('src') === info.url) return;
+            if (existing && _calThumbSrcBase(existing.getAttribute('src')) === _calThumbSrcBase(info.url)) return;
             _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
         } else if (info.frame) {
             const existingFrame = thumbDiv.querySelector('.cal-thumb-frame');
@@ -18484,6 +18512,7 @@
             // it back and the user thinks the drag didn't happen.
             const prevOrder = new Map(calState.posts.map(p => [p.id, Number(p.order_index || 0)]));
             items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p) p.order_index = order_index; });
+            _calRecordReorderOptimistic(items);
             try { _calCacheWrite(calClientSlug(calState.client), calState.posts); } catch {}
             persistCalReorder(items, prevOrder);
         });
@@ -18584,6 +18613,23 @@
     }
     let _calReorderInFlight = false;
     let _calReorderPending  = null;   // latest {items, prevOrder} requested mid-flight
+    /* Optimistic order_index guard. A drag writes order_index into calState
+       locally but deliberately never bumps updated_at (it's not a card-content
+       edit), so the last-write-wins merge in loadCalendarPosts can't tell the
+       local order is "newer" than a fetch — and a reorder is NOT covered by
+       _calSaveInFlight / _calLocalRecentSaves either. A background reload (the
+       reorder's own realtime echo, the 30s poll, or a focus-return) that lands
+       before the reorder write is READABLE in Supabase would then adopt the
+       STALE server order_index and snap the cards back, only to re-correct on
+       the next echo — exactly the "I move cards fast and it reverts, refreshes,
+       reverts" flicker. Record each dragged id's intended order here; the merge
+       pins it until the write + read-lag settle (or the entry expires). */
+    const _calReorderOptimistic = new Map();   // id -> { order_index:Number, at:ms }
+    const CAL_REORDER_GUARD_MS = 12000;
+    function _calRecordReorderOptimistic(items) {
+        const at = Date.now();
+        (items || []).forEach(({ id, order_index }) => _calReorderOptimistic.set(id, { order_index: Number(order_index), at }));
+    }
     /* Undo for the last drag-reorder: restore the order captured just before
        the drag and persist it through the same serialized reorder funnel.
        Skipped if the user has switched client tabs — the snapshot belongs to
@@ -18595,6 +18641,7 @@
         try { _calCacheWrite(slug, calState.posts); } catch (e) {}
         try { _calRenderBody({ preserveScroll: true }); } catch (e) {}
         const items = [...prevOrder].map(([id, order_index]) => ({ id, order_index }));
+        _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
 
@@ -18609,7 +18656,14 @@
         // a drag made while a write is in flight is held and run after it.
         if (_calReorderInFlight) { _calReorderPending = { items, prevOrder, slug }; return; }
         _calReorderInFlight = true;
-        _setCalStatus('saving');
+        // Treat the reorder as a local write so its OWN realtime echo (and any
+        // poll inside the window) is recognised as ours and DEFERRED by
+        // _calV2OnRealtimeChange, instead of firing a reload that races this
+        // write and snaps the cards back. Refreshed again on success, since the
+        // echo actually lands a beat after the write resolves. (No header badge
+        // here any more — it shifted the toolbar; the toast below is the
+        // feedback, and the per-card optimistic move is the live confirmation.)
+        _calLastLocalWriteAt = Date.now();
         try {
             // Batched endpoint first (one atomic write); original per-row
             // endpoint as fallback so a batch outage never blocks reorders.
@@ -18629,7 +18683,9 @@
                 json = await resp.json();
             }
             if (!json.ok) throw new Error('reorder failed');
-            _setCalStatus('saved');
+            // Refresh the self-echo window — the realtime echo of this write
+            // lands a beat later and must not reload/flicker the strip.
+            _calLastLocalWriteAt = Date.now();
             // Offer Undo only for the latest completed drag — a coalesced
             // follow-up drag queued behind this write shows its own toast.
             if (prevOrder && prevOrder.size && !_calReorderPending) {
@@ -18637,7 +18693,15 @@
             }
         } catch (e) {
             console.warn('[Calendar] reorder failed', e);
-            _setCalStatus('error', e.message || 'reorder failed');
+            // Feedback via a toast, not the header badge that displaced the
+            // toolbar. Drop the optimistic guard for the ids this write tried to
+            // set — but only where a newer drag hasn't already superseded them —
+            // so the reverted (server) order is what the next reload adopts.
+            showToast('Couldn’t save the new order — reverted. Try again.');
+            items.forEach(({ id, order_index }) => {
+                const ro = _calReorderOptimistic.get(id);
+                if (ro && ro.order_index === Number(order_index)) _calReorderOptimistic.delete(id);
+            });
             // Roll back to the prior order_index values so the next render
             // (and the cached copy after the next successful load) match
             // what's actually on the sheet.
@@ -18661,6 +18725,11 @@
             if (_calReorderPending) {
                 const next = _calReorderPending;
                 _calReorderPending = null;
+                // Refresh the optimistic guard's timestamp as this coalesced
+                // drag finally goes out — a slow (cold-start) in-flight write
+                // could otherwise let its entry age past CAL_REORDER_GUARD_MS
+                // before it even runs, re-exposing it to a racing reload.
+                _calRecordReorderOptimistic(next.items);
                 persistCalReorder(next.items, next.prevOrder, next.slug);
             }
         }
@@ -20861,24 +20930,12 @@
         card.classList.toggle('cal-card-posted', isPosted);
     }
 
-    function _setCalStatus(state, message) {
-        const el = document.getElementById('calStatusBadge');
-        if (!el) return;
-        el.classList.remove('saving','saved','error');
-        if (state === 'saving') {
-            el.classList.add('saving');
-            el.innerHTML = '<span class="dot"></span> Saving…';
-        } else if (state === 'saved') {
-            el.classList.add('saved');
-            el.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5L9.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved';
-            setTimeout(() => { if (el.classList.contains('saved')) { el.classList.remove('saved'); el.innerHTML = ''; } }, 1800);
-        } else if (state === 'error') {
-            el.classList.add('error');
-            el.innerHTML = '<span class="dot"></span> ' + (message || 'Save failed');
-        } else {
-            el.innerHTML = '';
-        }
-    }
+    // (Removed _setCalStatus / the #calStatusBadge header indicator.) It was a
+    // flex child in .cal-toolbar-right that, on every reorder, popped to
+    // "Saving…"/"Saved" and shifted the whole toolbar. Reorders now use the
+    // non-displacing toast ("New order saved" / the error toast) for feedback,
+    // and per-card saves already have their own in-card save chip. Don't
+    // re-add a toolbar text badge — it reflows the controls next to it.
 
     function renderLinearView() {
         const saved = loadLinearForm();

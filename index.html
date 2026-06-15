@@ -4800,6 +4800,13 @@
         // not linger from the snapshot.
         Object.keys(clientMap).forEach(k=>{delete clientMap[k];});
         parseCSV(clientsText).forEach(r=>{if(r.client_name)clientMap[r.client_name]=r;});
+        // Clients Info is the source of truth for who's live: fold any new
+        // client_name into the allowlist so a new sheet row goes live with no
+        // deploy. Wrapped defensively so a cache paint that runs before the
+        // allowlist consts initialise can't break the render (the fresh
+        // fetchEssentials() pass merges moments later regardless).
+        try { wlMergeClientsFromSheet(Object.keys(clientMap)); }
+        catch(e){ console.warn('[SyncView] client allowlist merge deferred:', e && e.message); }
         // Add placeholder rows for clients in Clients Info sheet that don't have metrics yet
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{
@@ -8020,15 +8027,17 @@
         t = t.replace(/[^a-z0-9&]+/g, '');
         return t;
     }
-    // INVARIANT: every name here must have a matching Calendar_<slug> tab
-    // (slug = wlNormalizeClient(name)) on the SyncView Calendar Sheet, or that
-    // client's content calendar silently breaks — calendar-get returns an empty
-    // 200 (the Sheets read throws on the missing tab) and calendar-upsert-post
-    // can't append, so cards appear to "save" optimistically then vanish on the
-    // next load. Adding a client here is NOT enough: provision its tab by running
-    // the "SyncView Calendar — Provision Missing Tabs" n8n workflow (idempotent —
-    // creates only missing tabs, never touches existing ones). This gap is what
-    // left Kasper Hytonen with no tab after he was added to the allowlist.
+    // SEED + OFFLINE FALLBACK ONLY. The live source of truth for "who's a
+    // client" is the "Clients Info" sheet: wlMergeClientsFromSheet() (below)
+    // folds every client_name from that sheet into this allowlist on each load,
+    // so adding a Clients Info row makes a client go live everywhere with no
+    // code change. This hardcoded list just guarantees a sane first paint if the
+    // sheet fetch fails — you normally do NOT need to edit it by hand.
+    // (Historical note: under the pre-2026-06 architecture the calendar read from
+    // a Calendar_<slug> Google-Sheet tab, so a new client also needed that tab
+    // provisioned via the "Provision Missing Tabs" n8n workflow. The calendar now
+    // reads from Supabase calendar_posts, which auto-creates rows on first write,
+    // so that step is no longer required — the Sheet tab is just a mirror.)
     const WL_CLIENT_NAMES = [
         'Baya Voce',
         'Jessica Winterstern',
@@ -8070,6 +8079,23 @@
     }
     function wlIsAllowedClient(name) {
         return WL_CLIENT_CANONICAL.has(wlNormalizeClient(name));
+    }
+    // Sheet-driven onboarding: merge any client_name from the "Clients Info"
+    // sheet that isn't already known into the allowlist, so a new sheet row goes
+    // live without a deploy. Additive only (never removes a seed client), and it
+    // never overrides an existing canonical name, so Linear-variant collapsing
+    // (e.g. "Miki-agrawal" -> "Miki Agrawal") is preserved. Idempotent: re-running
+    // on every sheet load is a no-op for clients already present.
+    function wlMergeClientsFromSheet(names) {
+        if (!Array.isArray(names)) return;
+        for (const raw of names) {
+            const name = (raw == null ? '' : String(raw)).trim();
+            if (!name) continue;
+            const slug = wlNormalizeClient(name);
+            if (!slug || WL_CLIENT_CANONICAL.has(slug)) continue;
+            WL_CLIENT_CANONICAL.set(slug, name);
+            WL_CLIENT_NAMES.push(name);
+        }
     }
 
     // Effective work date = the working day BEFORE the due date, never earlier

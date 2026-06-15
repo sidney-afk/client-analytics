@@ -144,6 +144,10 @@ ok(/if \('thumbnail_url' in edits \|\| 'asset_url' in edits\) _calRefreshCardThu
    'the thumbnail refresh is gated on a real media-link edit');
 ok(/_calThumbSrcBase\(existing\.getAttribute\('src'\)\) === _calThumbSrcBase\(info\.url\)/.test(INDEX),
    '_calRefreshCardThumb compares src with the cache-buster-agnostic guard');
+ok(/map\.set\(pid \+ '\|' \+ _calThumbSrcBase\(src\), img\)/.test(INDEX),
+   'refresh path: _calHarvestThumbs keys on the cache-buster-agnostic base URL');
+ok(/map\.get\(pid \+ '\|' \+ _calThumbSrcBase\(src\)\)/.test(INDEX),
+   'refresh path: _calRestoreThumbs reuses the <img> when only _cb changed');
 
 console.log('\n============================================================');
 console.log('SUMMARY');

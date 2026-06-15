@@ -66,7 +66,7 @@ There are no tests. The app is small enough to verify by opening in a browser. I
 - "Should I add a build step?" — almost always no.
 - "Should I migrate to TypeScript?" — no.
 - "Should I add a backend?" — yes, but ask first what the data model should be. Profiles probably want to sync; thumbnail history might.
-- "Can I delete `index.html` and `samples.html`?" — they're imported from SyncView for theme reference. Ask Sidney; he may want them gone or want them deployed alongside.
+- "Can I delete `index.html`?" — it's imported from SyncView for theme reference. Ask Sidney; he may want it gone or want it deployed alongside.
 
 ## Common pitfalls
 

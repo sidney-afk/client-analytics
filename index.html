@@ -10275,15 +10275,18 @@
     let _smV2FlagCache = null;
     function _smV2Enabled() {
         if (_smV2FlagCache !== null) return _smV2FlagCache;
-        // Phase 2: default OFF; ?sv2=1 turns it on (sticky). The flip will swap
-        // this default to true with ?sv2=0 as the sticky kill-switch.
-        let on = false;
+        // Phase 3 (2026-06-15): v2 is now the DEFAULT. With no query param it is
+        // ON unless this browser opted out via ?sv2=0 (sticky kill-switch).
+        // ?sv2=1 force-enables and clears a prior opt-out. Rollback for everyone
+        // = flip this default back to false; rollback for one browser = ?sv2=0.
+        // Writes still dual-write to the Sheet, so a flip back is lossless.
+        let on = true;
         try {
             const q = new URLSearchParams(location.search).get('sv2');
-            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SM_V2_LS_KEY, '1'); localStorage.removeItem(SM_V2_KILL_KEY); } catch {} }
-            else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SM_V2_KILL_KEY, '1'); localStorage.removeItem(SM_V2_LS_KEY); } catch {} }
-            else { on = (localStorage.getItem(SM_V2_LS_KEY) === '1') && (localStorage.getItem(SM_V2_KILL_KEY) !== '1'); }
-        } catch { on = false; }
+            if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SM_V2_KILL_KEY, '1'); localStorage.removeItem(SM_V2_LS_KEY); } catch {} }
+            else if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SM_V2_LS_KEY, '1'); localStorage.removeItem(SM_V2_KILL_KEY); } catch {} }
+            else { on = (localStorage.getItem(SM_V2_KILL_KEY) !== '1'); }
+        } catch { on = true; }
         _smV2FlagCache = on;
         return on;
     }

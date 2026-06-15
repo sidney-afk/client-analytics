@@ -154,3 +154,64 @@ threads an `edits` set and sends field patches). Two implications:
 4. A go/no-go on flipping `?sv2=1` to default, and the whole-row-vs-patch decision recorded.
 5. After the flip proves out: **retire the Google Sheet** (it's now only a mirror) — decide keep as
    a human-readable export or drop, and update `CALENDAR_REALTIME_MIGRATION.md`/this doc.
+
+---
+
+## SHIPPED — 2026-06-15 (Phases 1–3 done in one session, branch `claude/vibrant-newton-wjc0c4`)
+
+Everything above landed. Empirically verified against the live backend before flipping
+(not from docs). The audit that started this session found the migration was **0% built —
+the kickoff above was a plan, not progress** — so it was done from scratch, fast, because
+Samples is barely used (19 rows total). The kickoff's technical map proved accurate.
+
+**What shipped**
+- **Table** `public.content_samples` (PK `(client,id)`, all text) + RLS anon-SELECT `using(true)`
+  + `supabase_realtime` publication + `replica identity full`. SQL committed in
+  `samples-supabase-migration.sql` (Sidney ran it in the Supabase SQL editor).
+- **Dual-write mirror** added to **both** writers and **published live via n8n MCP**
+  (publish was NOT approval-gated this session, unlike when the calendar shipped):
+  - `samples-upsert` (`23jv00ihCX75TjaB`): `Upsert Samples Row` fans out to
+    `Prep Mirror → Row Existed? → Mirror Update / Mirror Create` (native Supabase node,
+    cred `XdBpJ6Xk8PMpZXXT`, `onError: continueRegularOutput`, table `content_samples`).
+    `Prep Mirror` whitelists the known columns (defensive vs a stray `row_number`).
+  - `samples-reorder` (`3WDxAYW23RBJTuFW`): `Update Order Index → Prep Mirror Reorder →
+    Mirror Reorder` (per-row update of existing rows).
+  - Sheet write paths byte-unchanged; a Supabase failure can never break a save. Pre-edit
+    snapshots: `n8n-backups/samples-{upsert,reorder}.2026-06-15.pre-supabase.json`.
+- **Backfill**: not a workflow — this session's permission mode blocked
+  `create_workflow_from_code`/`validate_workflow`, and the data is tiny, so the 19 existing
+  rows were seeded with an idempotent `insert … on conflict do update` (Block 2 of
+  `samples-supabase-migration.sql`, generated live from `samples-get`).
+- **Front-end** (`index.html`): `_smV2*` clone of the calendar `_calV2*` runtime behind
+  `?sv2=1`, then **flipped to default-on** (`_smV2Enabled()`; sticky `?sv2=0` kill-switch).
+  Reads `content_samples` over REST + a `sm-<slug>` realtime channel, falls back to
+  `samples-get` on any error. Gated on `_smV2Ready()` → v1 byte-identical with the flag off.
+
+**Decisions recorded**
+- **Whole-row writes kept** (no field-patches). Safer here — the calendar's partial-echo
+  status-revert bug can't occur with whole-row. Trade-off (last-writer-wins on the same card's
+  scalars) is fine at this usage; comments are still backend-merged by the upsert.
+- **One extra guard over the calendar's first cut**: a realtime reload is deferred while the
+  Notes modal is open or a sample field is focused (`_smEditingBusy()`), and self-echo-suppressed
+  within 4s of a local save — so a teammate's change can't clobber an in-progress edit or caret.
+- **No multi-day soak** (calendar got one because it's high-traffic/concurrent). Replaced with
+  live verification; dual-write keeps the Sheet authoritative so rollback stays lossless.
+
+**Verification (live, 2026-06-15)**
+- Parity: **19/19 rows, every id matches** across all 5 clients with data. 0 diffs.
+- Security: anon SELECT 200; anon INSERT **401**; anon UPDATE leaves rows unchanged (RLS) —
+  identical posture to the live `calendar_posts`.
+- Realtime: **end-to-end event received** (a `samples-upsert` write → mirror → Supabase →
+  push to a `postgres_changes` subscriber).
+- v1 byte-identical with `?sv2=0`: every Supabase touch is gated on `_smV2Ready()`.
+
+**Goes live for everyone on merge to `main`** (this is a branch). Rollback = revert the flip
+commit, or `?sv2=0` per browser.
+
+**Still open (Phase 4, not blocking)**
+- Decide whether to **retire / keep** the Google Sheet (now just a mirror; a Drive backup of it
+  may still run). Until then it's a free human-readable export + extra safety net.
+- Shared with the calendar: tighten anon RLS from `using(true)` to per-client when real auth lands;
+  the `samples-*` webhooks are still unauthenticated with CORS `*`.
+- `samples.html` (repo root) is confirmed **dead** (not linked from the app; the real feature is
+  the native module in `index.html`) — safe to delete in a cleanup pass.

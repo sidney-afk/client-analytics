@@ -1,5 +1,12 @@
 # Content Calendar → Supabase — Complete-the-Migration Plan & Audit (paste into a fresh session)
 
+> ⚠️ **SUPERSEDED / HISTORICAL (as of the 2026-06-15 audit).** This was a planning/handoff prompt;
+> the work below is DONE (v2 is default-on; all 7 writers mirror to Supabase). **Current source of
+> truth: `AUDIT_2026-06-15.md`.** In particular, **ignore any claim below that `calendar-reorder`
+> lacks a Supabase mirror or carries a divergent unpublished draft** — its mirror has been LIVE
+> since 2026-06-14. The write path is being inverted to Supabase-primary (Sheet kept as a backup
+> mirror).
+
 > **How to use:** open a fresh Claude Code session on this repo (`sidney-afk/client-analytics`)
 > with the same MCP access (n8n, Supabase via the committed publishable key, Linear, GitHub) and
 > paste everything below the line as the task. The goal of this session is to get **every surface

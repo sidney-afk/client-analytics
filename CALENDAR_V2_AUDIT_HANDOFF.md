@@ -1,5 +1,11 @@
 # Calendar v2 (Phase 2) — Session Handoff & Audit Brief
 
+> ⚠️ **SUPERSEDED / HISTORICAL (as of the 2026-06-15 audit).** Current source of truth:
+> **`AUDIT_2026-06-15.md`**. Correction to checklist item #9 and the TL;DR below: the
+> **`calendar-reorder` Supabase mirror is LIVE** (added + published 2026-06-14) — it is **no longer
+> deferred** and there is **no divergent draft**. All 7 writers mirror to Supabase. The write path
+> is being inverted to Supabase-primary (Sheet kept as a backup mirror).
+
 **Date:** 2026-06-13
 **Prev session branch:** `claude/busy-hamilton-44ajpb` (merged via PRs #469, #470, #471)
 **Purpose:** Hand off the calendar realtime migration (Phase 2) to a fresh session for a

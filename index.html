@@ -11928,12 +11928,24 @@
        de-duplication or filter passes that run over real posts. */
     const CAL_SETTINGS_PID = 'p_cal_settings';
     const CAL_SETTINGS_DEFAULTS = { collab_mode: false };
-    /* localStorage holds the authoritative per-client settings on this
-       device. The backend write is a best-effort sync so a different SMM /
-       a different browser eventually sees the same setting — but localStorage
-       is what survives a refresh on this device even if the backend write
-       silently lost the row (e.g. n8n filtered the sentinel out). */
+    /* The backend sentinel row is the SHARED source of truth for these
+       per-client settings: collab mode is something every SMM and the client
+       view must agree on, so whatever the backend holds is what the toggle
+       must show. localStorage is only (a) a first-paint cache so a refresh
+       isn't blank while the network responds, and (b) a short-lived optimistic
+       overlay for a toggle the user JUST made on this device — it outranks the
+       backend for at most CAL_SETTINGS_LOCAL_TRUST_MS after it's written, then
+       the backend always wins. That cap is the fix for the stuck-switch bug:
+       a local toggle whose best-effort backend sync silently failed used to
+       keep a newer _ts forever, so the backend's real value could never
+       reclaim the switch on that device (one SMM saw collab OFF while the
+       client view, and every other device, saw it ON). */
     const CAL_SETTINGS_LS_KEY = 'syncview_calendar_settings_v1';
+    /* How long a freshly-written local value may outrank the backend. Long
+       enough to cover an optimistic toggle propagating through n8n/Supabase
+       (seconds, occasionally up to ~a minute); short enough that a failed or
+       abandoned write reconciles to the shared truth almost immediately. */
+    const CAL_SETTINGS_LOCAL_TRUST_MS = 120000;
     function _calLoadLocalSettings(slug) {
         if (!slug) return null;
         try {
@@ -11975,6 +11987,20 @@
             }
         }
         return { settings, posts, found };
+    }
+    /* Decide which collab settings win when a fresh backend snapshot arrives.
+       The backend is authoritative; the local value is kept ONLY while it is
+       both newer than the backend AND still inside the trust window (an
+       in-flight / just-made optimistic toggle on this device). Otherwise the
+       backend value is adopted, so a stale local value — including one left
+       behind by a failed sync — can never permanently mask the shared state.
+       Pure and side-effect free so the rule can be unit-tested in isolation. */
+    function _calReconcileSettings(local, backend, nowMs) {
+        const backendTs = Number((backend && backend._ts) || 0);
+        const localTs = Number((local && local._ts) || 0);
+        const localFresh = localTs > 0 && (nowMs - localTs) < CAL_SETTINGS_LOCAL_TRUST_MS;
+        if (localTs > backendTs && localFresh) return { settings: local, source: 'local' };
+        return { settings: Object.assign({}, CAL_SETTINGS_DEFAULTS, backend), source: 'backend' };
     }
     function _calIsCollabOn() { return !!(calState.settings && calState.settings.collab_mode); }
     /* Who may drag a pill onto a day to (re)schedule it. The SMM always can;
@@ -12021,20 +12047,30 @@
             video_status: '', graphic_status: '', caption_status: '',
             updated_at: new Date().toISOString()
         };
-        try {
-            const resp = await fetch(CALENDAR_UPSERT_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
-            });
-            const j = await resp.json();
-            if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
-            return true;
-        } catch (e) {
-            // Backend sync failed but localStorage already holds the value;
-            // the toggle still persists on this device. Log so a console-watching
-            // SMM can spot a backend issue without surfacing a scary modal.
-            console.warn('[Calendar] settings backend sync failed (localStorage still authoritative)', e);
-            return true;
+        // The backend write is what makes this toggle real for every other SMM
+        // and for the client view, so don't let a single transient blip drop it
+        // on the floor — retry a few times with a short backoff. localStorage
+        // holds the optimistic value meanwhile; if every attempt fails the value
+        // reconciles back to the backend's truth once the trust window lapses
+        // (see _calReconcileSettings) instead of masking it forever.
+        for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+                const resp = await fetch(CALENDAR_UPSERT_URL, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
+                });
+                const j = await resp.json();
+                if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
+                return true;
+            } catch (e) {
+                if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
+                // Every attempt failed. localStorage keeps the optimistic value
+                // for now; it will reconcile to the backend once the trust window
+                // lapses. Log so a console-watching SMM can spot a backend issue
+                // without surfacing a scary modal.
+                console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                return true;
+            }
         }
     }
     function _calSyncCollabSwitch() {
@@ -14742,15 +14778,17 @@
             // we primed earlier stays authoritative instead of getting reset
             // to defaults on every refresh.
             if (split.found) {
-                // Only let the backend value overwrite localStorage when its
-                // client-side _ts is strictly newer. Comparing payload _ts
-                // (not row.updated_at) survives out-of-order n8n arrivals: an
-                // older toggle that lands at the backend AFTER a newer one
-                // would have an older _ts in its JSON and is rejected here.
-                const backendTs = Number((split.settings && split.settings._ts) || 0);
-                const localTs = Number((calState.settings && calState.settings._ts) || 0);
-                if (backendTs > localTs) {
-                    calState.settings = Object.assign({}, CAL_SETTINGS_DEFAULTS, split.settings);
+                // The backend sentinel is the shared truth. Adopt it unless a
+                // toggle made on THIS device within the last
+                // CAL_SETTINGS_LOCAL_TRUST_MS is still ahead of it (an
+                // optimistic overlay that hasn't propagated yet). Comparing
+                // payload _ts (not row.updated_at) still survives out-of-order
+                // n8n arrivals; the freshness cap is what stops a stale or
+                // failed local write from masking the backend forever — the
+                // stuck-switch bug where an SMM saw OFF while the client saw ON.
+                const decision = _calReconcileSettings(calState.settings, split.settings, Date.now());
+                if (decision.source === 'backend') {
+                    calState.settings = decision.settings;
                     _calSaveLocalSettings(slug, calState.settings);
                     _calSyncCollabSwitch();
                 }

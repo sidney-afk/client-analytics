@@ -15669,7 +15669,13 @@
             const card = img.closest('.cal-card');
             const pid = card && card.getAttribute('data-pid');
             const src = img.getAttribute('src') || '';
-            if (pid && src) map.set(pid + '|' + src, img);
+            // Key by the cache-buster-agnostic base URL: an updated_at bump (new
+            // _cb) on an UNCHANGED thumbnail link must still match so the already
+            // decoded <img> is reused across the re-render. Keying on the full
+            // src meant every save/refresh changed the key → the element was
+            // rebuilt and the picture flashed ("thumbnail reloads on refresh").
+            // A real link change yields a different base and correctly reloads.
+            if (pid && src) map.set(pid + '|' + _calThumbSrcBase(src), img);
         });
         return map;
     }
@@ -15681,7 +15687,7 @@
             const card = newImg.closest('.cal-card');
             const pid = card && card.getAttribute('data-pid');
             const src = newImg.getAttribute('src') || '';
-            const saved = map.get(pid + '|' + src);
+            const saved = map.get(pid + '|' + _calThumbSrcBase(src));
             if (saved) newImg.replaceWith(saved);
         });
     }

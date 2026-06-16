@@ -8,9 +8,11 @@
  * thumbnail reloads on every save / the header Saving badge shifts the
  * toolbar" report:
  *
- *  1. THUMBNAIL: _calThumbSrcBase (extracted verbatim) must treat two src URLs
- *     that differ only by the _cb (updated_at) / _r (force-refresh) cache-buster
- *     as equal, so a save that bumps updated_at no longer re-decodes the <img>.
+ *  1. THUMBNAIL: _calThumbSrcBase (extracted verbatim) strips the per-save _cb
+ *     (updated_at) token so two srcs differing only by _cb compare EQUAL — a save
+ *     that bumps updated_at no longer re-decodes the <img>. It KEEPS the _r rev
+ *     (bumped only on a real link write) so a link change compares DIFFERENT and
+ *     the strip reloads the picture automatically, with no hard refresh.
  *
  *  2. REORDER GUARD: _calRecordReorderOptimistic (extracted verbatim) + a
  *     faithful copy of the loadCalendarPosts merge-pin and the error-clear must
@@ -65,8 +67,12 @@ ok(_calThumbSrcBase(driveBase + '&_cb=A') === _calThumbSrcBase(driveBase + '&_cb
 const imgBase = 'https://cdn.example.com/a.jpg';
 ok(_calThumbSrcBase(imgBase + '?_cb=2026-01-01') === imgBase,
    'strips a leading ?_cb token (direct image)');
-ok(_calThumbSrcBase(imgBase + '?_cb=X&_r=12345') === imgBase,
-   'strips BOTH _cb and the _r force-refresh token');
+ok(_calThumbSrcBase(imgBase + '?_cb=X&_r=12345') === imgBase + '?_r=12345',
+   'strips _cb but KEEPS the _r rev (normalizing the now-leading separator)');
+ok(_calThumbSrcBase(driveBase + '&_cb=A&_r=1') !== _calThumbSrcBase(driveBase + '&_cb=A&_r=2'),
+   'two srcs differing by _r (a real link write) compare DIFFERENT → reloads');
+ok(_calThumbSrcBase(driveBase + '&_cb=A&_r=7') === _calThumbSrcBase(driveBase + '&_cb=B&_r=7'),
+   'same _r, differing _cb still compare EQUAL → no per-save reload');
 ok(_calThumbSrcBase(driveBase) === driveBase,
    'leaves a URL without cache-busters untouched (real link changes still differ)');
 ok(_calThumbSrcBase('https://drive.google.com/thumbnail?id=ABC&_cb=1') !==

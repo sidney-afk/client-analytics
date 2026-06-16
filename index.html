@@ -1553,8 +1553,18 @@
         .cal-toolbar-right { flex: 0 0 auto; }
         .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
 
-        /* Tabs (one per pinned client) */
-        .cal-tabs { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+        /* Tabs (one per pinned client). Kept to a SINGLE row: the pills live in
+           a horizontally-scrollable inner strip (.cal-tabs-scroll) so a client
+           with many pins scrolls sideways instead of wrapping the header onto a
+           second row. The add/search button sits OUTSIDE that scroller so its
+           dropdown isn't clipped by the scroll container's overflow. The active
+           tab is scrolled into view on every render (_calScrollTabStripToActive). */
+        .cal-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
+        .cal-tabs-scroll { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 0; flex: 0 1 auto;
+            overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth; }
+        .cal-tabs-scroll::-webkit-scrollbar { display: none; }
+        .cal-tabs-scroll > .cal-tab { flex: 0 0 auto; }
+        .cal-tabs > .cal-tab-add-wrap { flex: 0 0 auto; }
         .cal-tab { position: relative; display: inline-flex; align-items: center; gap: 7px;
             padding: 8px 14px; border-radius: 99px; cursor: pointer;
             border: 1px solid hsl(var(--tab-h, 220) 45% 86%);
@@ -3095,9 +3105,13 @@
         .cal-cap-gen.is-busy .cal-cap-gen-spin { animation: cal-cap-spin 0.9s linear infinite; }
         .cal-cap-gen-spin { display: inline-block; width: 11px; height: 11px; border: 1.6px solid var(--border); border-top-color: var(--text-primary); border-radius: 50%; }
         @keyframes cal-cap-spin { to { transform: rotate(360deg); } }
-        /* Per-card cancel for an in-flight generation — opposite corner from
-           the busy pill so neither covers the other. */
-        .cal-cap-gen-x { position: absolute; right: 8px; bottom: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s; }
+        /* Per-card cancel for an in-flight generation. Anchored TOP-right: the
+           bottom edge is already taken by the busy pill (bottom-left), the error
+           banner (bottom-left) and the "Show more" toggle (bottom-right), and the
+           cancel-X used to sit bottom-right where it overlapped that toggle when a
+           long (overflowing) caption was re-generated. Top-right is the only free
+           corner, and reads as the conventional "cancel" spot. */
+        .cal-cap-gen-x { position: absolute; right: 8px; top: 8px; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 99px; background: var(--white); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: color 0.12s, border-color 0.12s, background 0.12s; z-index: 2; }
         .cal-cap-gen-x:hover { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
         .cal-cap-gen-x svg { width: 10px; height: 10px; }
         .cal-cap-err { position: absolute; left: 8px; bottom: 38px; max-width: calc(100% - 16px); padding: 5px 9px; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; font-size: 0.72rem; font-weight: 600; line-height: 1.35; pointer-events: none; }
@@ -3701,8 +3715,15 @@
         .sm-embed-title strong { font-size:1rem; font-weight:800; letter-spacing:-0.02em; }
         .sm-embed-title span { font-size:0.72rem; color:var(--text-muted); font-weight:600; }
 
-        /* client tabs — mirrors the calendar's per-client pills */
-        .sm-tabs { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        /* client tabs — mirrors the calendar's per-client pills. Single-row:
+           pills scroll horizontally inside .sm-tabs-scroll; the add/search button
+           stays outside so its dropdown isn't clipped. */
+        .sm-tabs { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; }
+        .sm-tabs-scroll { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; min-width:0; flex:0 1 auto;
+            overflow-x:auto; overflow-y:hidden; scrollbar-width:none; scroll-behavior:smooth; }
+        .sm-tabs-scroll::-webkit-scrollbar { display:none; }
+        .sm-tabs-scroll > .sm-tab { flex:0 0 auto; white-space:nowrap; }
+        .sm-tabs > .sm-tab-add-wrap { flex:0 0 auto; }
         .sm-tab { position:relative; display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:9px; border:1.5px solid var(--border); background:var(--white); font-family:inherit; font-size:0.8rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.14s; }
         .sm-tab:hover { border-color:#bbb; color:var(--text-primary); }
         .sm-tab.active { color:var(--text-primary); border-color:transparent; background:hsl(var(--tab-h,250) 70% 96%); box-shadow:inset 0 0 0 1.5px hsl(var(--tab-h,250) 60% 78%); }
@@ -10612,7 +10633,8 @@
             return `<button type="button" class="sm-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSmTabClick(${_jsAttrArg(name)})"><span class="sm-tab-dot"></span><span>${_smEsc(name)}</span><span class="sm-tab-x" onclick="event.stopPropagation();onSmTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span></button>`;
         }).join('');
         const plus = `<svg viewBox="0 0 16 16" fill="none"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
-        el.innerHTML = `${tabHtml}<div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
+        el.innerHTML = `<div class="sm-tabs-scroll" id="smTabsScroll">${tabHtml}</div><div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
+        _calScrollTabStripToActive('smTabsScroll');
     }
 
     function onSmTabClick(name){ if(!name || name === smState.client) return; onSmClientChange(name); }
@@ -15627,7 +15649,7 @@
         const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
         const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
         const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
-        tabs.innerHTML = `${tabHtml}
+        tabs.innerHTML = `<div class="cal-tabs-scroll" id="calTabsScroll">${tabHtml}</div>
             <div class="cal-tab-add-wrap" id="calTabAddWrap">
                 <button type="button" class="${addBtnCls}" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
                 <div class="cal-tab-search" id="calTabSearchPanel" hidden>
@@ -15637,6 +15659,22 @@
                     </div>
                 </div>
             </div>`;
+        _calScrollTabStripToActive('calTabsScroll');
+    }
+
+    // Keep the active client's pill visible in a single-row, horizontally
+    // scrollable tab strip. Only adjusts the strip's own scrollLeft (never the
+    // page), and no-ops when the strip isn't laid out yet (clientWidth 0).
+    function _calScrollTabStripToActive(scrollId) {
+        const strip = document.getElementById(scrollId);
+        if (!strip || !strip.clientWidth) return;
+        const active = strip.querySelector('.active');
+        if (!active) return;
+        const pad = 12;
+        const viewL = strip.scrollLeft, viewR = viewL + strip.clientWidth;
+        const aL = active.offsetLeft, aR = aL + active.offsetWidth;
+        if (aL < viewL + pad) strip.scrollLeft = Math.max(0, aL - pad);
+        else if (aR > viewR - pad) strip.scrollLeft = aR - strip.clientWidth + pad;
     }
 
     function onCalTabClick(name) {
@@ -15810,6 +15848,49 @@
             if (saved) newImg.replaceWith(saved);
         });
     }
+    /* Same decoded-<img>-reuse idea as _calHarvestThumbs/_calRestoreThumbs, but
+       for the `.kcard` thumbnails shared by the Kasper review queue
+       (data-kasper-pid) and the client/SMM Review surface (data-cal-review-pid).
+       Those repaint by rebuilding the card DOM (replaceWith / innerHTML) on every
+       approve / request-change / realtime echo, which recreated the <img> — so the
+       picture BLINKED and the thumbnail box reflowed each time. Reusing the already
+       decoded node, keyed on the cache-buster-agnostic base URL (_calThumbSrcBase
+       strips _cb but KEEPS _r=thumb_rev), removes the blink while still reloading
+       on a genuine link change. keyAttr selects which surface's id attribute keys
+       the map. */
+    function _kcardHarvestThumbs(rootEl, keyAttr) {
+        if (!rootEl) return null;
+        const map = new Map();
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] .kcard-thumb img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;   // only reuse a fully-decoded image
+            const card = img.closest('.kcard');
+            const key = card && card.getAttribute(keyAttr);
+            const src = img.getAttribute('src') || '';
+            if (key && src) map.set(key + '|' + _calThumbSrcBase(src), img);
+        });
+        return map;
+    }
+    function _kcardRestoreThumbs(rootEl, map, keyAttr) {
+        if (!map || map.size === 0 || !rootEl) return;
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] .kcard-thumb img').forEach(newImg => {
+            const card = newImg.closest('.kcard');
+            const key = card && card.getAttribute(keyAttr);
+            const src = newImg.getAttribute('src') || '';
+            const saved = key && map.get(key + '|' + _calThumbSrcBase(src));
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
+    /* Single-card variant: move the decoded thumbnail from an old `.kcard` into
+       its freshly-rebuilt replacement (used right before el.replaceWith). No-op
+       when the image isn't decoded yet or the link actually changed. */
+    function _kcardReuseThumbInto(oldEl, newEl) {
+        if (!oldEl || !newEl) return;
+        const o = oldEl.querySelector('.kcard-thumb img');
+        const n = newEl.querySelector('.kcard-thumb img');
+        if (!o || !n || !o.complete || o.naturalWidth === 0) return;
+        if (_calThumbSrcBase(o.getAttribute('src') || '') !== _calThumbSrcBase(n.getAttribute('src') || '')) return;
+        n.replaceWith(o);
+    }
     function _calPostsEqualForRender(a, b) {
         if (a === b) return true;
         if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
@@ -15857,7 +15938,9 @@
             return;
         }
         if (calState.view === 'review' || calState.view === 'smmreview') {
+            const reviewThumbs = _kcardHarvestThumbs(body, 'data-cal-review-pid');
             body.innerHTML = renderCalReview();
+            _kcardRestoreThumbs(body, reviewThumbs, 'data-cal-review-pid');
             _calWireReviewExpand(body);
         } else if (calState.view === 'organizer') {
             body.innerHTML = renderCalOrganizer();
@@ -16732,7 +16815,8 @@
             const lock = (c !== 'caption' && !link) ? ' is-locked' : '';
             // URGENT ping — Video only, and only once it's actually in Tweaks
             // Needed with a Linear sub-issue we can resolve the editor from.
-            const showUrgent = c === 'video' && cs === 'Tweaks Needed' && !!link;
+            // (Shared predicate so the in-place updater stays in lockstep.)
+            const showUrgent = _calShowUrgent(p, c);
             const urgentBtn = showUrgent
                 ? `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_calSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`
                 : '';
@@ -19843,7 +19927,10 @@
         if (!el || !post) return;
         const tmp = document.createElement('div');
         tmp.innerHTML = _calReviewCardHtml(post);
-        if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
+        if (tmp.firstElementChild) {
+            _kcardReuseThumbInto(el, tmp.firstElementChild);   // keep the decoded thumbnail — no blink on approve/request-change
+            el.replaceWith(tmp.firstElementChild);
+        }
         _calUpdateReviewBadge();
     }
 
@@ -20446,6 +20533,28 @@
             for (const m of list) {
                 if (!m || m.deleted) continue;
                 const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+    /* Like _calLatestMsgAt but ranks by created_at ONLY — "when was the newest
+       message CREATED", ignoring later updated_at bumps. Resolving a tweak
+       (mark-done) bumps its updated_at to now; that must NOT read as a brand-new
+       message for Kasper's finish/close re-surface checks, or a finished card
+       bounces back to "Waiting" the instant the SMM resolves an old comment while
+       another component is still in tweaks. Used ONLY by the finish/close
+       re-surface logic + the finish stamp (kept symmetric so "seen up to here" and
+       "is there something newer?" use the same basis); _calLatestMsgAt stays the
+       updated_at-based merge / seen / unread clock everywhere else. */
+    function _calLatestMsgCreatedAt(post) {
+        let max = '';
+        for (const c of CAL_COMPONENTS) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const t = String(m.created_at || '');
                 if (t > max) max = t;
             }
         }
@@ -21105,6 +21214,18 @@
         _calMarkLocalStatus(pid, which);
         return true;
     }
+    /* Single source of truth for the URGENT ping affordance: Video only, only
+       while it's actually at "Tweaks Needed", and only when there's a Linear
+       sub-issue to resolve the editor from. Used by BOTH the full card render and
+       the in-place status updater so the badge can never linger after the
+       component leaves Tweaks Needed (it used to stick next to "For Client
+       Approval" when a tweak was resolved + sent to the client in place). */
+    function _calShowUrgent(p, c) {
+        if (!p || c !== 'video') return false;
+        if (_calNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
+        const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
+        return !!link;
+    }
     /* Refresh just the status chip/dropdown on a card without re-rendering
        the whole calendar — used after an auto-status change so the card
        behind the tweaks modal updates immediately. */
@@ -21150,6 +21271,17 @@
                 trigger.classList.add('cal-fld-status-' + _calStatusSlug(cs));
                 const labelEl = trigger.querySelector('.cal-fld-substatus-label');
                 if (labelEl) labelEl.textContent = _calStatusLabel(cs);
+            }
+            // Reconcile the URGENT badge in place, same predicate as the full
+            // render — otherwise it lingered next to "For Client Approval" after
+            // a tweak was resolved and the component left Tweaks Needed.
+            const showUrgent = _calShowUrgent(post, c);
+            subWrap.classList.toggle('has-urgent', showUrgent);
+            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (showUrgent && !urgentEl) {
+                subWrap.insertAdjacentHTML('beforeend', `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_calSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`);
+            } else if (!showUrgent && urgentEl) {
+                urgentEl.remove();
             }
         }
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
@@ -24544,7 +24676,7 @@
         if (!stampedAt && !localFin) return false;
         if (_kasperUndecidedComps(post).length > 0) return false;        // fresh ask: actionable KA
         const seen = stampedAt || _kasperGetSeenAt(post.id);             // global stamp, else local seen
-        const latest = _calLatestMsgAt(post);
+        const latest = _calLatestMsgCreatedAt(post);                     // created-at: a resolve/edit bump is NOT a new ask
         if (seen && latest && latest > seen) return false;               // reply since he finished
         return true;
     }
@@ -24557,7 +24689,7 @@
         const localClosed = !!(_kasperState.closed && _kasperState.closed[post.id]);
         if (!closedAt && !localClosed) return false;
         if (closedAt) {
-            const latest = _calLatestMsgAt(post);
+            const latest = _calLatestMsgCreatedAt(post);                 // created-at: a resolve bump must not un-hide a closed card
             if (latest && latest > closedAt) return false;
         }
         return true;
@@ -24605,7 +24737,9 @@
             </div>
             <div class="kasper-history-body">${waitingBodyHtml}</div>
         </div>`;
+        const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-pid');
         body.innerHTML = waitingHtml + _kasperRenderTweaksSection(tweaks) + _kasperRenderHistorySection();
+        _kcardRestoreThumbs(body, _thumbs, 'data-kasper-pid');
     }
 
     /* Cards Kasper has already tweaked but hasn't hit Done reviewing on
@@ -25051,6 +25185,7 @@
         const tmp = document.createElement('div');
         tmp.innerHTML = _kasperRenderCard(item);
         const newEl = tmp.firstElementChild;
+        _kcardReuseThumbInto(el, newEl);   // keep the decoded thumbnail — no blink/reflow on approve/request-change
         el.replaceWith(newEl);
         if (_restore && _restore.sig) {
             const ta = Array.from(newEl.querySelectorAll('textarea')).find(t => (t.getAttribute('oninput') || '') === _restore.sig);
@@ -25439,7 +25574,7 @@
             // It does NOT leave the queue: it moves to "Tweaks pending" and stays
             // until the SMM addresses it or a fresh ask supersedes it. Not logged
             // as Approved — it's a hand-off.
-            const stamp = _calLatestMsgAt(post) || new Date().toISOString();
+            const stamp = _calLatestMsgCreatedAt(post) || new Date().toISOString();
             post.kasper_finished_at = stamp;
             _kasperMarkSeenAt(pid, stamp);
             _kasperState.dismissed[pid] = true;

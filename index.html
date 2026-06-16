@@ -12566,6 +12566,12 @@
         if (now - _calLastReturnLoad < 500) return;
         _calLastReturnLoad = now;
         loadCalendarPosts({ background: true, returnRefresh: true });
+        // Also re-check the Linear meta (project / due date / editor) on an
+        // explicit tab return, forcing past its 5-min throttle, so a due date
+        // just set in Linear clears its "no due date" banner without a manual
+        // refresh. Event-driven (focus/visibility) and bounded by this handler's
+        // own return throttle above — not a background poll.
+        _calRefreshParentLinkFlags(true);
     }
     /* When a background refresh resolves while the user is mid-edit, the
        render is deferred onto this flag and applied once nothing in the
@@ -13148,7 +13154,7 @@
         }
         return null;
     }
-    async function _calRefreshParentLinkFlags() {
+    async function _calRefreshParentLinkFlags(force) {
         _calHydrateLinearMeta();
         const idents = new Set();
         for (const p of calState.posts || []) {
@@ -13173,7 +13179,7 @@
         if (_calStatusMetaUnsupported) return;
         const all = Array.from(idents);
         const sig = all.slice().sort().join(',');
-        if (!(sig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) return;
+        if (!force && !(sig !== _calLinearStatusMetaSig || (Date.now() - _calLinearStatusMetaAt) > CAL_LINEAR_META_FORCE_MIN_MS)) return;
         _calLinearStatusMetaSig = sig;
         _calLinearStatusMetaAt = Date.now();
         let j;

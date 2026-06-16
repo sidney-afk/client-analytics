@@ -1554,17 +1554,27 @@
         .cal-tool-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); flex-shrink: 0; }
 
         /* Tabs (one per pinned client). Kept to a SINGLE row: the pills live in
-           a horizontally-scrollable inner strip (.cal-tabs-scroll) so a client
-           with many pins scrolls sideways instead of wrapping the header onto a
-           second row. The add/search button sits OUTSIDE that scroller so its
-           dropdown isn't clipped by the scroll container's overflow. The active
-           tab is scrolled into view on every render (_calScrollTabStripToActive). */
+           a horizontally-scrollable inner strip (.cal-tabs-scroll). When they
+           overflow, a chevron button appears on each scrollable side (+ an edge
+           fade so a pill never hard-clips mid-word), so it's obvious there are
+           more clients and how to reach them. The add/search button sits OUTSIDE
+           the scroller so its dropdown isn't clipped. State is driven by
+           _calUpdateTabScroll; the active tab is scrolled into view on render. */
         .cal-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; min-width: 0; }
         .cal-tabs-scroll { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; min-width: 0; flex: 0 1 auto;
             overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-behavior: smooth; }
         .cal-tabs-scroll::-webkit-scrollbar { display: none; }
         .cal-tabs-scroll > .cal-tab { flex: 0 0 auto; }
         .cal-tabs > .cal-tab-add-wrap { flex: 0 0 auto; }
+        .cal-tabs-scroll.fade-left  { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px); mask-image: linear-gradient(to right, transparent, #000 20px); }
+        .cal-tabs-scroll.fade-right { -webkit-mask-image: linear-gradient(to left, transparent, #000 20px); mask-image: linear-gradient(to left, transparent, #000 20px); }
+        .cal-tabs-scroll.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
+        .cal-tab-scroll-btn { flex: 0 0 auto; display: none; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0;
+            border-radius: 50%; border: 1px solid var(--border); background: var(--white); box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+            cursor: pointer; color: var(--text-secondary); transition: color 0.12s, border-color 0.12s; }
+        .cal-tab-scroll-btn.is-shown { display: inline-flex; }
+        .cal-tab-scroll-btn:hover { color: var(--text-primary); border-color: #999; }
+        .cal-tab-scroll-btn svg { width: 12px; height: 12px; display: block; }
         .cal-tab { position: relative; display: inline-flex; align-items: center; gap: 7px;
             padding: 8px 14px; border-radius: 99px; cursor: pointer;
             border: 1px solid hsl(var(--tab-h, 220) 45% 86%);
@@ -3724,6 +3734,9 @@
         .sm-tabs-scroll::-webkit-scrollbar { display:none; }
         .sm-tabs-scroll > .sm-tab { flex:0 0 auto; white-space:nowrap; }
         .sm-tabs > .sm-tab-add-wrap { flex:0 0 auto; }
+        .sm-tabs-scroll.fade-left  { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px); mask-image: linear-gradient(to right, transparent, #000 20px); }
+        .sm-tabs-scroll.fade-right { -webkit-mask-image: linear-gradient(to left, transparent, #000 20px); mask-image: linear-gradient(to left, transparent, #000 20px); }
+        .sm-tabs-scroll.fade-left.fade-right { -webkit-mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); mask-image: linear-gradient(to right, transparent, #000 20px, #000 calc(100% - 20px), transparent); }
         .sm-tab { position:relative; display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:9px; border:1.5px solid var(--border); background:var(--white); font-family:inherit; font-size:0.8rem; font-weight:700; color:var(--text-secondary); cursor:pointer; transition:all 0.14s; }
         .sm-tab:hover { border-color:#bbb; color:var(--text-primary); }
         .sm-tab.active { color:var(--text-primary); border-color:transparent; background:hsl(var(--tab-h,250) 70% 96%); box-shadow:inset 0 0 0 1.5px hsl(var(--tab-h,250) 60% 78%); }
@@ -10633,8 +10646,12 @@
             return `<button type="button" class="sm-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSmTabClick(${_jsAttrArg(name)})"><span class="sm-tab-dot"></span><span>${_smEsc(name)}</span><span class="sm-tab-x" onclick="event.stopPropagation();onSmTabRemove(${_jsAttrArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span></button>`;
         }).join('');
         const plus = `<svg viewBox="0 0 16 16" fill="none"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
-        el.innerHTML = `<div class="sm-tabs-scroll" id="smTabsScroll">${tabHtml}</div><div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
+        el.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_calTabScrollBy('smTabsScroll',-1)">${_calChevron(-1)}</button>`
+            + `<div class="sm-tabs-scroll" id="smTabsScroll" onscroll="_calUpdateTabScroll('smTabsScroll')">${tabHtml}</div>`
+            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_calTabScrollBy('smTabsScroll',1)">${_calChevron(1)}</button>`
+            + `<div class="sm-tab-add-wrap" id="smTabAddWrap"><button type="button" class="sm-tab-add" onclick="onSmTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sm-tab-search" id="smTabSearch" hidden><input type="text" id="smClientSearch" placeholder="Search clients…" autocomplete="off" oninput="_smRenderClientSearch(this.value)" onkeydown="_smSearchKey(event)"><div class="sm-tab-results" id="smClientResults"></div></div></div>`;
         _calScrollTabStripToActive('smTabsScroll');
+        _calUpdateTabScroll('smTabsScroll');
     }
 
     function onSmTabClick(name){ if(!name || name === smState.client) return; onSmClientChange(name); }
@@ -11287,6 +11304,7 @@
     const CAL_CAPJOB_POLL_MS = 5000;
     const CAL_CAPJOB_STALE_MS = 12 * 60 * 1000;      // no backend movement → timed out
     const CAL_CAPJOB_CONFIRM_MS = 45 * 1000;          // POST failed + row never appeared → unreachable
+    const CAL_CAPJOB_CANCEL_GRACE_MS = 12 * 1000;     // after an explicit cancel, wait this long for the backend to confirm, then settle locally
     const CAL_CAPJOB_FETCH_TIMEOUT_MS = 10 * 60 * 1000;
     const _calCaptionJobs = new Map();                // pid → job
     let _calCapJobBatch = null;                       // floating chip counters
@@ -15649,8 +15667,10 @@
         const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
         const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
         const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
-        tabs.innerHTML = `<div class="cal-tabs-scroll" id="calTabsScroll">${tabHtml}</div>
-            <div class="cal-tab-add-wrap" id="calTabAddWrap">
+        tabs.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_calTabScrollBy('calTabsScroll',-1)">${_calChevron(-1)}</button>`
+            + `<div class="cal-tabs-scroll" id="calTabsScroll" onscroll="_calUpdateTabScroll('calTabsScroll')">${tabHtml}</div>`
+            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_calTabScrollBy('calTabsScroll',1)">${_calChevron(1)}</button>`
+            + `<div class="cal-tab-add-wrap" id="calTabAddWrap">
                 <button type="button" class="${addBtnCls}" onclick="onCalTabAddClick(event)" title="Add client">${addBtnLabel}</button>
                 <div class="cal-tab-search" id="calTabSearchPanel" hidden>
                     <div class="wl-client-search">
@@ -15660,8 +15680,14 @@
                 </div>
             </div>`;
         _calScrollTabStripToActive('calTabsScroll');
+        _calUpdateTabScroll('calTabsScroll');
     }
 
+    function _calChevron(dir) {
+        return dir < 0
+            ? `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 2.5 4 6l3.5 3.5"/></svg>`
+            : `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 2.5 8 6l-3.5 3.5"/></svg>`;
+    }
     // Keep the active client's pill visible in a single-row, horizontally
     // scrollable tab strip. Only adjusts the strip's own scrollLeft (never the
     // page), and no-ops when the strip isn't laid out yet (clientWidth 0).
@@ -15676,6 +15702,30 @@
         if (aL < viewL + pad) strip.scrollLeft = Math.max(0, aL - pad);
         else if (aR > viewR - pad) strip.scrollLeft = aR - strip.clientWidth + pad;
     }
+    // Show a clickable chevron + an edge-fade on each side the strip can still
+    // scroll toward, so overflow is obvious and reachable. Re-run on render,
+    // scroll, and window resize.
+    function _calUpdateTabScroll(scrollId) {
+        const strip = document.getElementById(scrollId);
+        if (!strip) return;
+        const canL = strip.scrollLeft > 2;
+        const canR = strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 2;
+        strip.classList.toggle('fade-left', canL);
+        strip.classList.toggle('fade-right', canR);
+        const parent = strip.parentElement;
+        if (parent) {
+            const l = parent.querySelector('.cal-tab-scroll-btn.left');
+            const r = parent.querySelector('.cal-tab-scroll-btn.right');
+            if (l) l.classList.toggle('is-shown', canL);
+            if (r) r.classList.toggle('is-shown', canR);
+        }
+    }
+    function _calTabScrollBy(scrollId, dir) {
+        const strip = document.getElementById(scrollId);
+        if (!strip) return;
+        strip.scrollBy({ left: dir * Math.max(160, Math.round(strip.clientWidth * 0.7)), behavior: 'smooth' });
+    }
+    window.addEventListener('resize', () => { _calUpdateTabScroll('calTabsScroll'); _calUpdateTabScroll('smTabsScroll'); });
 
     function onCalTabClick(name) {
         if (!name || name === calState.client) return;
@@ -18134,6 +18184,12 @@
        ============================================================ */
     function _calCapEsc(s) { return (window.CSS && CSS.escape) ? CSS.escape(String(s)) : String(s); }
     function _calCapJobActive(j) { return !!j && (j.status === 'queued' || j.status === 'running'); }
+    // True when the user cancelled this job and the backend hasn't confirmed
+    // within the grace window — the poll then settles it locally to 'cancelled'
+    // so the "Cancelling…" pill can't hang for the full stale timeout.
+    function _calCapJobCancelExpired(job, now) {
+        return !!(job && job.cancelRequested && ((now || Date.now()) - (job.cancelRequestedAt || job.startedAt || 0)) > CAL_CAPJOB_CANCEL_GRACE_MS);
+    }
     function _calCapJobsActiveList() { return Array.from(_calCaptionJobs.values()).filter(_calCapJobActive); }
     const CAL_CAPJOB_STAGE_LABEL = { queued: 'Queued…', scraping: 'Reading video…', transcribing: 'Transcribing…', writing: 'Writing caption…' };
     const CAL_CAPGEN_BUSY_TIP = 'Reads the Frame.io page, transcribes the audio with Whisper, and writes the caption with Claude — usually 1-3 minutes per video. Progress survives refreshes; the ✕ on the right cancels.';
@@ -18478,6 +18534,16 @@
                     if (row.status === 'error') { _calCapJobSettle(job, 'error', { error: _calCapJobCleanErr(row.error) || 'Generation failed', caption: row.caption || '' }); continue; }
                     if (row.stage && row.stage !== job.stage) { job.stage = row.stage; _calCapGenBtnRefresh(job.pid); }
                 }
+                // Explicit cancel that reached the backend: give it a short grace
+                // to checkpoint and write status='cancelled' (caught above); if it
+                // doesn't, settle locally so the "Cancelling…" pill can't hang for
+                // the full 12-min stale timeout. cancel_requested is (re)sent so a
+                // late checkpoint still won't save a caption.
+                if (_calCapJobCancelExpired(job, now)) {
+                    try { fetch(CAPTION_JOB_UPDATE_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobId: job.jobId, cancel_requested: true }) }); } catch {}
+                    _calCapJobSettle(job, 'cancelled', {});
+                    continue;
+                }
                 // Watchdogs — every job ends, one way or another.
                 if (!job.confirmed && job.postFailed) {
                     if (now - job.startedAt > CAL_CAPJOB_CONFIRM_MS) {
@@ -18514,6 +18580,7 @@
         }
         if (job.cancelRequested) return;
         job.cancelRequested = true;
+        job.cancelRequestedAt = Date.now();   // start the grace clock for the local fallback settle
         _calCapJobsPersist();
         _calCapGenBtnRefresh(pid);
         _calUpdateBulkCaptionBar();

@@ -12158,25 +12158,34 @@
     // mutation paths (move-to-date, archive) await this promise so their
     // writes can't race an in-flight save either.
     const _calSaveInFlight = Object.create(null);
-    /* Per-card thumbnail refresh token, bumped whenever THIS browser writes a
-       thumbnail / asset link (see _calBumpThumbRev callers). It's appended to the
-       derived thumbnail src as `_r`, alongside the updated_at-based `_cb`. The two
-       tokens do different jobs:
+    /* Thumbnail cache-bust rev, appended to the derived thumbnail src as `_r`
+       alongside the updated_at-based `_cb`. Two layers feed `_r`:
+         • post.thumb_rev — PERSISTED (a calendar_posts column, written by the
+           upsert and carried on every Supabase read + realtime row). Bumped only
+           on a thumbnail/asset link write, so it rides the sync to EVERY viewer
+           (the client, Kasper) — their live re-render derives the new _r and
+           reloads the picture without a hard refresh.
+         • _calThumbRev[id] — a SESSION mirror of the same token on the editing
+           browser, used so the local strip updates instantly (no wait for the
+           save echo) and as a graceful fallback before the thumb_rev column / the
+           upsert allow-list entry exist. Takes priority over post.thumb_rev on
+           the editor; remote viewers have no session entry so they use the
+           persisted value.
+       The two cache-bust tokens do different jobs:
          _cb (updated_at) changes on EVERY save and carries cross-RELOAD freshness
             (a replaced Drive file behind an unchanged link refetches after a page
             load). It is deliberately STRIPPED from the harvest key so an unrelated
             caption/status/date save doesn't re-decode every thumbnail — that was
             the old per-save flicker.
-         _r (this rev) changes ONLY when the link is actually edited, and it is
-            KEPT in the harvest key. So a real link change forces every render path
-            — in-place refresh, full re-render, and the realtime/background harvest
-            re-render — to drop the stale decoded <img> and load the new one.
-       Net: changing a thumbnail link updates the picture automatically everywhere
-       with no hard refresh, while unrelated saves still reuse the decoded image
-       with no flicker. Session-scoped (by id); a reload starts fresh and relies on
-       _cb for that first paint. */
+         _r changes ONLY when the link is actually edited, and it is KEPT in the
+            harvest key. So a real link change forces every render path — in-place
+            refresh, full re-render, and the realtime/background harvest re-render
+            — to drop the stale decoded <img> and load the new one.
+       Net: changing a thumbnail link updates the picture automatically for
+       everyone with no hard refresh, while unrelated saves still reuse the
+       decoded image with no flicker. */
     const _calThumbRev = Object.create(null);
-    function _calBumpThumbRev(pid) { if (pid) _calThumbRev[pid] = Date.now().toString(36); }
+    function _calBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _calThumbRev[pid] = t; return t; }
     /* Tracks the last time *this browser* successfully wrote each card.
        Used by the background-load merge to detect concurrent writes from a
        different user: if we just saved a card but the server now has a
@@ -16159,10 +16168,12 @@
        because the URL it keys its cache on is unchanged. Two tokens are appended:
          _cb = the post's updated_at, bumped on every save (see _calFlushCardSave)
                and persisted, so the busted URL survives a page reload.
-         _r  = the per-card thumbnail rev (_calThumbRev), bumped ONLY when the link
-               is actually written. Unlike _cb it is KEPT in the harvest key, so a
-               real link edit reloads the image on every render path (in-app, no
-               hard refresh) while unrelated saves still reuse the decoded <img>.
+         _r  = the thumbnail rev, bumped ONLY when the link is written and KEPT in
+               the harvest key, so a real link edit reloads the image on every
+               render path (in-app, no hard refresh) while unrelated saves still
+               reuse the decoded <img>. Sourced from the SESSION mirror first
+               (editing browser, instant) then the PERSISTED post.thumb_rev
+               (remote viewers + after a reload). See the _calThumbRev block.
        Objects without an id / updated_at (live-preview probes) get whichever
        tokens apply — a raw link change already forces a fresh fetch there. */
     function _calCacheBustThumb(url, p) {
@@ -16170,7 +16181,7 @@
         let out = url;
         const tok = p && p.updated_at;
         if (tok) out += (out.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
-        const rev = p && p.id && _calThumbRev[p.id];
+        const rev = (p && p.id && _calThumbRev[p.id]) || (p && p.thumb_rev);
         if (rev) out += (out.includes('?') ? '&' : '?') + '_r=' + encodeURIComponent(rev);
         return out;
     }
@@ -17265,7 +17276,10 @@
         // image, and every later harvest re-render keeps it (the _r stays in the
         // key) instead of restoring the stale decoded <img>. Only link writes bump
         // it, so caption/status/date saves never trigger a thumbnail reload.
-        if ('thumbnail_url' in edits || 'asset_url' in edits) _calBumpThumbRev(realId);
+        // post.thumb_rev mirrors the token into a PERSISTED column so the new _r
+        // rides the sheet/Supabase echo + realtime to the client & Kasper, whose
+        // live re-render then reloads the picture too (no hard refresh for anyone).
+        if ('thumbnail_url' in edits || 'asset_url' in edits) post.thumb_rev = _calBumpThumbRev(realId);
         // Clear any stale "Save failed" flag now that a fresh attempt is in
         // flight, so a mid-save re-render shows "Saving…" rather than the old
         // error (the flag is re-set in the catch if this attempt also fails).
@@ -17318,6 +17332,9 @@
                 // Overall status only moves when a sub-status changes, and
                 // those edits always carry it; send the recomputed value then.
                 if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+                // A link write bumped post.thumb_rev (the persisted cache-bust) —
+                // patch it through so the echo + realtime carry it to every viewer.
+                if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
             } else {
                 wirePost = Object.assign({}, post);
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));

@@ -147,6 +147,43 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
   check('youtube thumb resolves to the video id', s === 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg');
 })();
 
+// ── 8. Remote viewer (client/Kasper): persisted thumb_rev drives the reload ─
+// A viewer that didn't make the edit has NO session _calThumbRev entry — it
+// relies on post.thumb_rev arriving via the Supabase row / realtime.
+(() => {
+  const p = { id: 'remote1', thumbnail_url: DRIVE, asset_url: '', updated_at: 'r0', thumb_rev: 'aaa' };
+  const s0 = _calDeriveThumb(p);
+  check('viewer src uses persisted thumb_rev as _r', /_r=aaa/.test(s0));
+  // unrelated remote save: updated_at moves, thumb_rev unchanged
+  p.updated_at = 'r1';
+  const s1 = _calDeriveThumb(p);
+  check('viewer: unrelated remote save → reuses image (no flicker)', wouldReuse(s0, s1) === true);
+  // thumbnail remote save: thumb_rev bumps (the SMM wrote a link)
+  p.thumb_rev = 'bbb'; p.updated_at = 'r2';
+  const s2 = _calDeriveThumb(p);
+  check('viewer: thumb_rev change → RELOADS image (live, no hard refresh)', wouldReuse(s1, s2) === false);
+})();
+
+// ── 9. Editing browser: session rev takes priority over persisted ──────────
+(() => {
+  _calBumpThumbRev('edit1');
+  const sessionRev = mod._calThumbRev['edit1'];
+  const p = { id: 'edit1', thumbnail_url: DRIVE, asset_url: '', updated_at: 'e0', thumb_rev: 'persisted-yyy' };
+  const s = _calDeriveThumb(p);
+  check('editor uses session rev (instant), not the persisted echo',
+        s.includes('_r=' + sessionRev) && !s.includes('persisted-yyy'));
+})();
+
+// ── 10. Wiring: the shipped index.html persists + patches thumb_rev ─────────
+(() => {
+  check('flush sets post.thumb_rev from the rev bump on a link write',
+        /post\.thumb_rev = _calBumpThumbRev\(realId\)/.test(INDEX));
+  check('v2 field-patch sends thumb_rev when a link changed',
+        /if \('thumbnail_url' in edits \|\| 'asset_url' in edits\) wirePost\.thumb_rev = post\.thumb_rev;/.test(INDEX));
+  check('cache-bust prefers session _calThumbRev, falls back to post.thumb_rev',
+        /\(p && p\.id && _calThumbRev\[p\.id\]\) \|\| \(p && p\.thumb_rev\)/.test(INDEX));
+})();
+
 console.log(failures === 0
   ? '\nAll thumbnail cache-bust checks passed.'
   : '\n' + failures + ' check(s) FAILED.');

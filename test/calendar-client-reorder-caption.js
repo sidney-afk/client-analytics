@@ -71,8 +71,8 @@ ok(/<span class="cal-cap-toggle-txt">Show more<\/span>/.test(INDEX),
    'the toggle is an explicit "Show more" pill, not a bare chevron');
 ok(/wrap\.classList\.toggle\('is-clamped', overflowing && !open\)/.test(INDEX),
    '_calRefreshCaption drives is-clamped from overflow + collapsed state');
-ok(/lbl\.textContent = open \? 'Show less' : 'Show more'/.test(INDEX),
-   'the pill label flips between Show more / Show less');
+ok(/\.cal-cap-toggle\.is-expanded \.cal-cap-toggle-txt \{ display: none; \}/.test(INDEX),
+   'expanded toggle collapses to an arrow-only button (label hidden) so it does not cover the caption end');
 ok(/function _calCaptionWrapClick\(/.test(INDEX) && /if \(!ta \|\| !ta\.readOnly/.test(INDEX),
    'click-to-expand only hijacks the read-only (client) caption');
 

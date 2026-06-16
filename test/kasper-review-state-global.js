@@ -68,6 +68,7 @@ const REAL = [
   grabFunc('_calNormStatus'),
   grabFunc('_calCommentsFor'),
   grabFunc('_calLatestMsgAt'),
+  grabFunc('_calLatestMsgCreatedAt'),
   grabFunc('_kasperUndecidedComps'),
   grabFunc('_kasperFinishedAt'),
   grabFunc('_kasperIsFinished'),
@@ -96,6 +97,14 @@ function tweak(id, at) {
 function reply(id, at) {
   return { id, parent_id: null, author: 'SMM', role: 'smm', is_tweak: false,
            audience: 'internal', body: 'done', created_at: at, updated_at: at, done: false, deleted: false };
+}
+// A tweak CREATED at `createdAt` then RESOLVED (marked done) at `resolvedAt`:
+// created_at stays put while updated_at jumps to the resolution time. This is the
+// exact shape behind the bug — resolving must not read as a brand-new message.
+function resolvedTweak(id, createdAt, resolvedAt) {
+  return { id, parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true,
+           audience: 'internal', body: 'fix this', created_at: createdAt, updated_at: resolvedAt,
+           done: true, done_at: resolvedAt, done_by: 'SMM', deleted: false };
 }
 function buildPost(o) {
   return Object.assign({
@@ -150,6 +159,22 @@ check('stamp + unlinked graphic stuck at KA → still finished (gate holds)',
     kasper_finished_at: T.tweak, video_comments: [tweak('g4-v', T.tweak)],
   })), true);
 
+// G5 — REGRESSION GUARD for the reported bug. Kasper finished (stamp at the
+// tweaks' CREATED time). The SMM then moved ONE component tweaks→Client Approval
+// by RESOLVING its tweak (mark-done bumps that comment's updated_at to "now"),
+// while ANOTHER component is still in Tweaks Needed. A resolution is not a fresh
+// ask, so the card must STAY finished ("Tweaks pending"), not bounce to "Waiting".
+// Under the old updated_at basis this returned false (the bug).
+resetState();
+check('stamp + a tweak RESOLVED after finish (other comp still in tweaks) → still finished',
+  _kasperIsFinished(buildPost({
+    id: 'g5', video_status: 'Client Approval', graphic_status: 'Tweaks Needed',
+    graphic_linear_issue_id: 'https://linear.app/x/issue/GRA-9/x',
+    kasper_finished_at: T.tweak,
+    video_comments:   [resolvedTweak('g5-v', T.tweak, T.later)],   // the resolved one
+    graphic_comments: [tweak('g5-g', T.tweak)],                     // still open
+  })), true);
+
 console.log('\n— Same-device localStorage fallback (pre-backend, no stamp) —');
 
 // L1 — no stamp yet (column not live); the local flag + seen stamp must still work.
@@ -184,6 +209,14 @@ check('closed stamp, no new message → closed (cross-device)',
 resetState();
 check('closed stamp + message after close → not closed (re-surfaces)',
   _kasperIsClosed(buildPost({ id: 'c2', kasper_closed_at: T.tweak, video_comments: [reply('c2-r', T.later)] })), false);
+
+// C5 — closing analogue of G5: a RESOLVE after an X-close (updated_at bumped to
+// T.later, but the message was CREATED at T.earlier, before the close) must NOT
+// un-hide the card. Under the old updated_at basis this re-surfaced (the bug).
+resetState();
+check('closed stamp + a tweak RESOLVED after close (created before it) → still closed',
+  _kasperIsClosed(buildPost({ id: 'c5', kasper_closed_at: T.tweak,
+    video_comments: [resolvedTweak('c5-v', T.earlier, T.later)] })), true);
 
 resetState();
 mod._kasperState.closed['c3'] = true;

@@ -120,6 +120,24 @@ async function pullLinearToCard(card, comp, linCal) {
   return { res, patch };
 }
 
+// Collapse rows that share a linear_issue_id to the ONE the calendar actually
+// displays — mirror of index.html `_calDedupeByLinearIssue`: most-recent
+// updated_at wins (order_index tiebreak). Writing only this canonical row is
+// essential: touching a stale duplicate bumps its updated_at and flips which
+// row the calendar shows. Caller passes non-archived rows only.
+function dedupeByLinearIssue(cards) {
+  const score = (p) => { const t = Date.parse((p && p.updated_at) || ''); return isFinite(t) ? t : 0; };
+  const best = new Map();
+  for (const p of cards) {
+    const link = (p.linear_issue_id || '').trim();
+    if (!link) continue;
+    const prev = best.get(link);
+    if (!prev || score(p) > score(prev) || (score(p) === score(prev) && Number(p.order_index || 0) > Number(prev.order_index || 0))) best.set(link, p);
+  }
+  const winners = new Set(best.values());
+  return cards.filter(p => { const link = (p.linear_issue_id || '').trim(); return !link || winners.has(p); });
+}
+
 function loadLedger() {
   try { return JSON.parse(fs.readFileSync(LEDGER_PATH, 'utf8')); } catch { return {}; }
 }
@@ -140,9 +158,11 @@ const log = (s) => { console.log(s); lines.push(s); };
   const statuses = await resolveLinear(urls);
   log(`${cards.length} cards · ${new Set(urls).size} linked issues · ${Object.keys(statuses).length} Linear states · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
 
-  const corrections = []; let inSync = 0, archived = 0, unmapped = 0, missing = 0; const t = NOW();
-  for (const card of cards) {
-    if (String(card.status || '').toLowerCase() === 'archived') { archived++; continue; }
+  const live = cards.filter(c => String(c.status || '').toLowerCase() !== 'archived');
+  const archived = cards.length - live.length;
+  const canonical = dedupeByLinearIssue(live);   // only ever act on the row the calendar shows
+  const corrections = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
+  for (const card of canonical) {
     for (const comp of ['video', 'graphic']) {
       const url = comp === 'video' ? card.linear_issue_id : card.graphic_linear_issue_id;
       const ident = _calIdentFromUrl(url); if (!ident) continue;

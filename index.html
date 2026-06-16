@@ -24531,7 +24531,16 @@
         // A genuine fresh ask — a component back at Kasper Approval, or the SMM
         // replied since he finished — un-dismisses it so it returns to "Waiting
         // for your review" instead of sitting in "Tweaks pending".
-        const backToKasper = CAL_COMPONENTS.some(c => _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+        // "Back at Kasper Approval" MUST use the same unlinked-thumbnail gate as
+        // _kasperUndecidedComps / _calCompKasperVisible: a graphic slot with no
+        // GRA sub-issue can sit at "Kasper Approval" indefinitely (junk status
+        // nobody can act on, often left by a stale Linear sync). It does NOT
+        // block Finish, so it must NOT un-dismiss the card on the next refresh
+        // either — otherwise every finished hand-off whose card has an unlinked
+        // thumbnail bounces straight back into "Waiting for your review" (and
+        // "Tweaks pending" vanishes). _kasperUndecidedComps is exactly "actionable
+        // components still at Kasper Approval", which is what a fresh ask means.
+        const backToKasper = _kasperUndecidedComps(post).length > 0;
         const latest = _calLatestMsgAt(post);
         const seenAt = _kasperGetSeenAt(post.id);
         const newReply = latest && (!seenAt || latest > seenAt);

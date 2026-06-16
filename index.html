@@ -2306,6 +2306,10 @@
         .cal-cap-toggle-txt { line-height: 1; white-space: nowrap; }
         .cal-cap-toggle svg { width: 10px; height: 10px; transition: transform 0.16s; }
         .cal-cap-toggle.is-expanded svg { transform: rotate(180deg); }
+        /* Expanded: collapse the pill to just the up-chevron so it stops
+           covering the end of the caption (which is then clickable). */
+        .cal-cap-toggle.is-expanded { width: 21px; padding: 0; justify-content: center; }
+        .cal-cap-toggle.is-expanded .cal-cap-toggle-txt { display: none; }
 
         /* CTA + tweaks — clean filled fields */
         .cal-fld-cta, .cal-fld-tweaks { width: 100%; box-sizing: border-box; background: #f3f3f1; border: 1px solid transparent;
@@ -17065,9 +17069,9 @@
             const btn = wrap.querySelector('.cal-cap-toggle');
             if (btn) {
                 btn.hidden = !overflowing;
+                // Collapsed → "Show more" pill; expanded → just the up-chevron
+                // (CSS hides the label) so it doesn't cover the caption's end.
                 btn.classList.toggle('is-expanded', open);
-                const lbl = btn.querySelector('.cal-cap-toggle-txt');
-                if (lbl) lbl.textContent = open ? 'Show less' : 'Show more';
             }
         }
     }

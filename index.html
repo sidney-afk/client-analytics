@@ -19221,9 +19221,10 @@
     /* Per-card "last message Kasper had seen" timestamp (local, per-device).
        Distinct from the boolean _calKasperSeen above: this records WHEN he last
        caught up on a card's conversation, so we can tell whether the SMM has
-       replied since. Used by _kasperKeepAfterDismiss (don't drag a finished
-       comment-thread card back until there's a genuine new reply) and, next,
-       by the Replies tab / unread badges (phase 3D). */
+       replied since. Used as the same-device fallback in _kasperIsFinished
+       (don't drag a finished comment-thread card back until there's a genuine
+       new reply) and by the Replies tab / unread badges. The cross-device
+       source of truth is now the persisted kasper_finished_at stamp. */
     const KASPER_SEEN_AT_KEY = 'syncview_kasper_seen_at_v1';
     let _kasperSeenAtMap = null;
     function _kasperLoadSeenAt() {
@@ -23215,11 +23216,11 @@
         items: [],            // [{ post, client, slug, smm, _expanded, _saving, _saveError, _draft }]
         replies: [],          // [{ post, client, slug, smm, _replyDraft }] — unread-reply inbox
         history: [],          // [{ id, client, slug, name, asset_url, thumbnail_url, approvedAt }]
-        dismissed: {},        // pid -> true: cards Kasper hit "Done reviewing" on while a
-                              // tweak was still unresolved. Keeps them out of his queue
-                              // across refreshes until the SMM either resolves the tweak
-                              // (card leaves naturally) or sends a component back to
-                              // Kasper Approval (un-dismissed — see _kasperKeepAfterDismiss).
+        dismissed: {},        // pid -> true: SAME-DEVICE fallback for "Finish reviewing".
+                              // The cross-device source of truth is the persisted
+                              // kasper_finished_at stamp on the card; this local mirror
+                              // only keeps behaviour correct on this browser until the
+                              // backend column is live (see _kasperIsFinished).
         closed: {},           // pid -> true: cards Kasper explicitly closed via the X on
                               // the card (top-right). Unlike "Done reviewing", this needs
                               // no decision — it just hides the card. It stays hidden across
@@ -24121,7 +24122,9 @@
             for (const id of Object.keys(_kasperState.closed)) {
                 if (!_fetchedIds.has(id)) delete _kasperState.closed[id];
             }
-            const items = fetched.queue.filter(it => _kasperKeepAfterDismiss(it.post) && !_kasperState.closed[it.post.id]);
+            // Finished cards stay in the queue (they bucket into "Tweaks pending"
+            // via _kasperIsFinished); only X-closed cards are filtered out here.
+            const items = fetched.queue.filter(it => !_kasperIsClosed(it.post));
             // Decorate posts with SMM info.
             for (const it of items) {
                 const slug = wlNormalizeClient(it.client);
@@ -24516,50 +24519,59 @@
            hitting Done reviewing).
        The count chip at the top reflects only the Waiting bucket — that's
        what "needs your attention right now" means. */
-    /* Should a card survive a refresh given Kasper's explicit dismissals?
-       A card Kasper hit "Done reviewing" on stays hidden — UNLESS the SMM
-       has since sent a component back to Kasper Approval, which is a fresh
-       ask. In that case we drop the dismissal and let it back into the
-       queue. (Tweak-resolved cards never reach here: they fail
-       _calPostKasperVisible upstream and aren't fetched at all.) */
-    function _kasperKeepAfterDismiss(post) {
-        if (!post || !_kasperState.dismissed || !_kasperState.dismissed[post.id]) return true;
-        // Dismissed = Kasper clicked "Finish reviewing". The card stays VISIBLE
-        // in "Tweaks pending" (handed to the SMM) rather than vanishing — it only
-        // leaves once the SMM addresses the tweaks, because the fetch then stops
-        // including it (no unresolved Kasper tweak, not back at Kasper Approval).
-        // A genuine fresh ask — a component back at Kasper Approval, or the SMM
-        // replied since he finished — un-dismisses it so it returns to "Waiting
-        // for your review" instead of sitting in "Tweaks pending".
-        // "Back at Kasper Approval" MUST use the same unlinked-thumbnail gate as
-        // _kasperUndecidedComps / _calCompKasperVisible: a graphic slot with no
-        // GRA sub-issue can sit at "Kasper Approval" indefinitely (junk status
-        // nobody can act on, often left by a stale Linear sync). It does NOT
-        // block Finish, so it must NOT un-dismiss the card on the next refresh
-        // either — otherwise every finished hand-off whose card has an unlinked
-        // thumbnail bounces straight back into "Waiting for your review" (and
-        // "Tweaks pending" vanishes). _kasperUndecidedComps is exactly "actionable
-        // components still at Kasper Approval", which is what a fresh ask means.
-        const backToKasper = _kasperUndecidedComps(post).length > 0;
+    /* ── Is a card "finished" / "closed" right now? ──────────────────────
+       Both are GLOBAL + cross-device: the durable signal is a persisted
+       timestamp ON THE CARD — `kasper_finished_at` / `kasper_closed_at` — that
+       rides the upsert echo + Supabase realtime to every device, exactly like
+       `kasper_approved_at`. The per-browser `_kasperState.dismissed` / `.closed`
+       flags are kept only as a SAME-DEVICE fallback so behaviour is unchanged
+       until the backend columns are switched on (the upsert silently drops an
+       unknown field), then it becomes global automatically. Rollout + the two
+       backend steps: KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
+    function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
+    /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
+       until a genuine fresh ask supersedes it:
+         • an ACTIONABLE component is back at Kasper Approval — gated exactly like
+           _kasperUndecidedComps, so an unlinked-thumbnail graphic stuck at KA
+           (which can't be acted on and never blocked Finish) does NOT count; or
+         • a message landed after he finished (the SMM replied / client commented).
+       `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
+       test is just latestMsg > kasper_finished_at. */
+    function _kasperIsFinished(post) {
+        if (!post) return false;
+        const stampedAt = _kasperFinishedAt(post);
+        const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
+        if (!stampedAt && !localFin) return false;
+        if (_kasperUndecidedComps(post).length > 0) return false;        // fresh ask: actionable KA
+        const seen = stampedAt || _kasperGetSeenAt(post.id);             // global stamp, else local seen
         const latest = _calLatestMsgAt(post);
-        const seenAt = _kasperGetSeenAt(post.id);
-        const newReply = latest && (!seenAt || latest > seenAt);
-        if (backToKasper || newReply) delete _kasperState.dismissed[post.id];
+        if (seen && latest && latest > seen) return false;               // reply since he finished
+        return true;
+    }
+    /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new
+       message arrives after the close (a fresh "look again"). Pre-backend it
+       falls back to the local flag + the queue-membership prune (today's rule). */
+    function _kasperIsClosed(post) {
+        if (!post) return false;
+        const closedAt = String((post && post.kasper_closed_at) || '');
+        const localClosed = !!(_kasperState.closed && _kasperState.closed[post.id]);
+        if (!closedAt && !localClosed) return false;
+        if (closedAt) {
+            const latest = _calLatestMsgAt(post);
+            if (latest && latest > closedAt) return false;
+        }
         return true;
     }
     function _kasperPartitionItems(items) {
-        // Bucket on whether Kasper has clicked "Finish reviewing" (the card is
-        // dismissed), NOT on live component status. Writing a tweak flips a
-        // component to Tweaks Needed, but the card must STAY in "Waiting" so he
-        // can keep adding tweaks/decisions — it moves to "Tweaks pending" only
-        // when he explicitly finishes. A finished card stays in "Tweaks pending"
-        // (handed to the SMM) until they address it: the fetch then stops
-        // returning it (no unresolved Kasper tweak, not back at Kasper Approval)
-        // and it drops out. A fresh ask un-dismisses it (see _kasperKeepAfterDismiss).
+        // Bucket on whether Kasper has FINISHED the card (handed it to the SMM),
+        // sourced from the global kasper_finished_at stamp (local flag fallback),
+        // NOT live component status — writing a tweak flips a component to Tweaks
+        // Needed, but the card must STAY in "Waiting" so he can keep layering
+        // decisions; it moves to "Tweaks pending" only when he explicitly
+        // finishes, and returns to "Waiting" on a fresh ask (see _kasperIsFinished).
         const waiting = [], tweaks = [];
-        const dismissed = _kasperState.dismissed || {};
         for (const it of items) {
-            if (dismissed[it.post.id]) tweaks.push(it);
+            if (_kasperIsFinished(it.post)) tweaks.push(it);
             else waiting.push(it);
         }
         return { waiting, tweaks };
@@ -24756,7 +24768,7 @@
         // handed to the SMM; any open comment → waiting on the SMM's reply.
         const undecidedComps = _kasperUndecidedComps(p);
         const canFinish = undecidedComps.length === 0;
-        const isFinished = !!(_kasperState.dismissed && _kasperState.dismissed[pid]);
+        const isFinished = _kasperIsFinished(p);
         const finishTitle = canFinish
             ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending"; anything you only commented on waits for their reply. Nothing is approved unless you approved it.'
             : 'Decide on the ' + undecidedComps.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish. (A comment is just a question; it doesn\'t count as a decision.)';
@@ -25387,10 +25399,11 @@
        has only commented on can't be finished and stays in his queue. There is
        NO implicit approval and NO status write here:
          • No unresolved tweaks → he approved everything → logged to Approved.
-         • Has unresolved tweaks → handed off to the SMM, recorded as dismissed
-           (+ last-seen stamp) so a refresh doesn't drag it back. It returns
-           only when the SMM re-routes a component to Kasper Approval or replies
-           in the thread. See _kasperKeepAfterDismiss / _kasperState.dismissed. */
+         • Has unresolved tweaks → handed off to the SMM, stamped
+           kasper_finished_at (persisted, cross-device) so a refresh on any
+           device doesn't drag it back. It returns only when the SMM re-routes a
+           component to Kasper Approval or replies in the thread. See
+           _kasperIsFinished / kasper_finished_at. */
     async function _kasperDismiss(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
@@ -25400,11 +25413,11 @@
         // message from him is undecided and blocks finishing.
         if (_kasperUndecidedComps(post).length) return;
         _kasperInvalidateInFlightLoad();
-        // Finish writes NO status (each component already holds its explicit
+        // Finish writes NO sub-status (each component already holds its explicit
         // decision: approved → Client Approval, or change requested → Tweaks
-        // Needed) and persists nothing. Because the guard above blocks finishing
-        // while anything is still at Kasper Approval, there are no "parked
-        // comment" components to worry about here.
+        // Needed). Because the guard above blocks finishing while anything is
+        // still at Kasper Approval, there are no "parked comment" components to
+        // worry about here.
         const anyTweak = _calPostHasUnresolvedKasperTweak(post);
         if (!anyTweak) {
             // Clean approve: he approved everything, nothing outstanding.
@@ -25414,35 +25427,48 @@
             _kasperState.history = _kasperMergeHistory([entry], _kasperState.history);
             _kasperRemoveItem(pid);
         } else {
-            // Outstanding change requests, handed to the SMM. Mark the card
-            // finished (dismissed) + stamp the last-seen message time. It does
-            // NOT leave the queue: it moves to "Tweaks pending" (re-partitioned
-            // by the repaint below) and stays there until the SMM addresses it
-            // (the fetch then stops returning it) or sends a component back /
-            // replies, which un-dismisses it into "Waiting". Not logged as
-            // Approved — it's a hand-off.
-            _kasperMarkSeenAt(pid, _calLatestMsgAt(post));
+            // Outstanding change requests, handed to the SMM. Stamp the card
+            // FINISHED on the card itself (kasper_finished_at) and PERSIST it —
+            // the durable, cross-device hand-off marker that rides the upsert
+            // echo + Supabase realtime to every device (like kasper_approved_at),
+            // so a refresh on ANY device keeps it in "Tweaks pending". The stamp
+            // is the latest message time = "I'd seen everything up to here", so a
+            // later reply re-surfaces it (see _kasperIsFinished). The local
+            // dismissed flag + seen stamp stay as a same-device fallback until the
+            // kasper_finished_at column is live (KASPER_REVIEW_GLOBAL_ROLLOUT.md).
+            // It does NOT leave the queue: it moves to "Tweaks pending" and stays
+            // until the SMM addresses it or a fresh ask supersedes it. Not logged
+            // as Approved — it's a hand-off.
+            const stamp = _calLatestMsgAt(post) || new Date().toISOString();
+            post.kasper_finished_at = stamp;
+            _kasperMarkSeenAt(pid, stamp);
             _kasperState.dismissed[pid] = true;
             _kasperPersistCache();
             _kasperPaintReview();
+            try { await _kasperPersistPost(item); } catch (e) { /* same-device fallback holds; next successful write reconciles */ }
         }
     }
 
     /* Explicit close (the X on a card, top-right). No decision required and no
-       status is written — it simply hides the card from Kasper's queue and
-       remembers that across refreshes. The card stays gone even on reload while
-       its component is still parked at Kasper Approval; it only comes back once
-       the card leaves Kasper's queue (the SMM moved it on / back to In Progress)
-       and is later re-routed to Kasper Approval again — a genuine change of
-       status. See the prune step in _kasperLoadReview and _kasperState.closed. */
+       sub-status is written — it just hides the card. Now GLOBAL + cross-device
+       via the persisted kasper_closed_at stamp (see _kasperIsClosed): it stays
+       hidden on every device and re-surfaces when a new message lands after the
+       close. Pre-backend it falls back to the local _kasperState.closed flag +
+       the queue-membership prune in _kasperLoadReview (today's rule: stays gone
+       while still parked at Kasper Approval, reappears once re-routed back). */
     function _kasperClose(pid) {
         const item = _kasperState.items.find(x => x.post.id === pid);
         if (!item) return;
         _kasperInvalidateInFlightLoad();
+        // Durable, cross-device close marker (kasper_closed_at), persisted like
+        // the finish stamp so the card stays hidden on every device; the local
+        // `closed` flag is the same-device fallback until the column is live.
+        item.post.kasper_closed_at = new Date().toISOString();
         if (!_kasperState.closed || typeof _kasperState.closed !== 'object') _kasperState.closed = {};
         _kasperState.closed[pid] = true;
         _kasperPersistCache();
         _kasperRemoveItem(pid);
+        _kasperPersistPost(item).catch(() => {});   // background write; local fallback holds on failure
     }
 
     function _kasperRemoveItem(pid) {

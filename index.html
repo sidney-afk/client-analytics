@@ -12158,6 +12158,34 @@
     // mutation paths (move-to-date, archive) await this promise so their
     // writes can't race an in-flight save either.
     const _calSaveInFlight = Object.create(null);
+    /* Thumbnail cache-bust rev, appended to the derived thumbnail src as `_r`
+       alongside the updated_at-based `_cb`. Two layers feed `_r`:
+         • post.thumb_rev — PERSISTED (a calendar_posts column, written by the
+           upsert and carried on every Supabase read + realtime row). Bumped only
+           on a thumbnail/asset link write, so it rides the sync to EVERY viewer
+           (the client, Kasper) — their live re-render derives the new _r and
+           reloads the picture without a hard refresh.
+         • _calThumbRev[id] — a SESSION mirror of the same token on the editing
+           browser, used so the local strip updates instantly (no wait for the
+           save echo) and as a graceful fallback before the thumb_rev column / the
+           upsert allow-list entry exist. Takes priority over post.thumb_rev on
+           the editor; remote viewers have no session entry so they use the
+           persisted value.
+       The two cache-bust tokens do different jobs:
+         _cb (updated_at) changes on EVERY save and carries cross-RELOAD freshness
+            (a replaced Drive file behind an unchanged link refetches after a page
+            load). It is deliberately STRIPPED from the harvest key so an unrelated
+            caption/status/date save doesn't re-decode every thumbnail — that was
+            the old per-save flicker.
+         _r changes ONLY when the link is actually edited, and it is KEPT in the
+            harvest key. So a real link change forces every render path — in-place
+            refresh, full re-render, and the realtime/background harvest re-render
+            — to drop the stale decoded <img> and load the new one.
+       Net: changing a thumbnail link updates the picture automatically for
+       everyone with no hard refresh, while unrelated saves still reuse the
+       decoded image with no flicker. */
+    const _calThumbRev = Object.create(null);
+    function _calBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _calThumbRev[pid] = t; return t; }
     /* Tracks the last time *this browser* successfully wrote each card.
        Used by the background-load merge to detect concurrent writes from a
        different user: if we just saved a card but the server now has a
@@ -16139,19 +16167,29 @@
         _calRenderBody();
     }
 
-    /* Append a cache-busting token so a thumbnail re-fetches when the post's
-       link changes. Without it, swapping the thumbnail to a new Google Drive
-       link (or replacing the file behind an unchanged Drive link) leaves the
-       browser / Drive CDN serving the previously-cached image even after a
-       page refresh — the URL the browser keys its cache on is unchanged. The
-       token is the post's updated_at, which is bumped on every save (see
-       _calFlushCardSave) and persisted to the sheet, so the busted URL
-       survives a reload. Objects without updated_at (live-preview probes) get
-       the bare URL — the raw link change already forces a fresh fetch there. */
+    /* Append cache-busting tokens so a thumbnail re-fetches when its link (or the
+       file behind an unchanged link) changes. Without this, swapping the thumbnail
+       to a new Google Drive link — or replacing the file behind an unchanged Drive
+       link — leaves the browser / Drive CDN serving the previously-cached image,
+       because the URL it keys its cache on is unchanged. Two tokens are appended:
+         _cb = the post's updated_at, bumped on every save (see _calFlushCardSave)
+               and persisted, so the busted URL survives a page reload.
+         _r  = the thumbnail rev, bumped ONLY when the link is written and KEPT in
+               the harvest key, so a real link edit reloads the image on every
+               render path (in-app, no hard refresh) while unrelated saves still
+               reuse the decoded <img>. Sourced from the SESSION mirror first
+               (editing browser, instant) then the PERSISTED post.thumb_rev
+               (remote viewers + after a reload). See the _calThumbRev block.
+       Objects without an id / updated_at (live-preview probes) get whichever
+       tokens apply — a raw link change already forces a fresh fetch there. */
     function _calCacheBustThumb(url, p) {
+        if (!url) return url;
+        let out = url;
         const tok = p && p.updated_at;
-        if (!url || !tok) return url;
-        return url + (url.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
+        if (tok) out += (out.includes('?') ? '&' : '?') + '_cb=' + encodeURIComponent(tok);
+        const rev = (p && p.id && _calThumbRev[p.id]) || (p && p.thumb_rev);
+        if (rev) out += (out.includes('?') ? '&' : '?') + '_r=' + encodeURIComponent(rev);
+        return out;
     }
     function _calDeriveThumb(p) {
         const u = String(p.thumbnail_url || p.asset_url || '').trim();
@@ -17113,7 +17151,9 @@
         // the early-return below working and avoids a needless refetch on the
         // first keystroke in either URL field.
         const saved = (calState.posts || []).find(x => x.id === pid);
-        const preview = { thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '', updated_at: saved ? saved.updated_at : '' };
+        // id lets the derived src carry the same _r as the rendered img, so the
+        // exact-match early-return below still fires when the link is unchanged.
+        const preview = { id: pid, thumbnail_url: thumbInput ? thumbInput.value : '', asset_url: assetInput ? assetInput.value : '', updated_at: saved ? saved.updated_at : '' };
         const info = _calDeriveThumbInfo(preview);
         const thumbDiv = card.querySelector('.cal-card-thumb');
         if (!thumbDiv) return;
@@ -17236,6 +17276,16 @@
         // value. The merge in loadCalendarPosts compares local vs fetched
         // updated_at — newer wins.
         post.updated_at = new Date().toISOString();
+        // A link field was just written → bump this card's thumbnail rev now,
+        // synchronously, so both the on-blur force-refresh (which runs right after
+        // this flush returns) AND the post-save in-place refresh paint the fresh
+        // image, and every later harvest re-render keeps it (the _r stays in the
+        // key) instead of restoring the stale decoded <img>. Only link writes bump
+        // it, so caption/status/date saves never trigger a thumbnail reload.
+        // post.thumb_rev mirrors the token into a PERSISTED column so the new _r
+        // rides the sheet/Supabase echo + realtime to the client & Kasper, whose
+        // live re-render then reloads the picture too (no hard refresh for anyone).
+        if ('thumbnail_url' in edits || 'asset_url' in edits) post.thumb_rev = _calBumpThumbRev(realId);
         // Clear any stale "Save failed" flag now that a fresh attempt is in
         // flight, so a mid-save re-render shows "Saving…" rather than the old
         // error (the flag is re-set in the catch if this attempt also fails).
@@ -17288,6 +17338,9 @@
                 // Overall status only moves when a sub-status changes, and
                 // those edits always carry it; send the recomputed value then.
                 if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
+                // A link write bumped post.thumb_rev (the persisted cache-bust) —
+                // patch it through so the echo + realtime carry it to every viewer.
+                if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
             } else {
                 wirePost = Object.assign({}, post);
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
@@ -17569,17 +17622,24 @@
         _calWireDragOnCard(blank);
     }
 
-    /* Compare two thumbnail src URLs while IGNORING our cache-buster tokens:
-       _cb (the post's updated_at, which is bumped on EVERY save) and _r (the
-       one-shot manual force-refresh). Two srcs that differ only by those tokens
-       point at the same underlying image, so the <img> must not be torn down
-       and re-decoded. Without this, every caption/status/date save advanced
-       updated_at → a new _cb → the guard below saw a "changed" URL and reloaded
-       the thumbnail on every single save (the visible per-save reload flash).
-       The _cb still does its real job — forcing a refetch across a full page
-       reload when a file behind an unchanged Drive link was replaced. */
+    /* Normalize a thumbnail src for "same underlying image?" checks — the harvest
+       / restore key and the in-place refresh guard — by stripping the per-save
+       _cb token (the post's updated_at, bumped on EVERY save). Two srcs differing
+       only by _cb point at the same image, so the decoded <img> must NOT be torn
+       down and re-decoded; otherwise every caption/status/date save (each a new
+       _cb) reloaded the thumbnail — the visible per-save flash. _cb still does its
+       real job: forcing a refetch across a full page reload when a file behind an
+       unchanged Drive link was replaced.
+       _r is deliberately NOT stripped — it changes only when the link is actually
+       edited (see _calThumbRev), so keeping it in the key is exactly what makes a
+       link change reload the picture on every render path without a hard refresh. */
     function _calThumbSrcBase(u) {
-        return String(u || '').replace(/[?&](?:_cb|_r)=[^&]*/g, '').replace(/[?&]$/, '');
+        let s = String(u || '').replace(/[?&]_cb=[^&]*/g, '').replace(/[?&]$/, '');
+        // If _cb had been the leading "?" param, stripping it can leave the query
+        // starting with "&"; restore the canonical "?" so the key is identical
+        // whether or not a _cb was present (a query needs a "?" before any "&").
+        if (!s.includes('?') && s.includes('&')) s = s.replace('&', '?');
+        return s;
     }
     function _calRefreshCardThumb(pid) {
         const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
@@ -17604,14 +17664,18 @@
 
     /* Force this card's thumbnail <img> to re-fetch right now — even when the
        link TEXT didn't change (e.g. the file behind an unchanged Google Drive
-       share link was replaced). A one-shot uniquifier on the URL guarantees a
-       cache miss, so the browser / Drive CDN can't keep serving the previously
-       loaded image (the stale preview that used to need a manual cache clear).
-       This is a pure in-place <img> swap — only the thumbnail reloads, the page
-       does not. Reads the live URL-field values so a just-typed link is honored
-       before the debounced save writes it back to calState. Cross-reload
-       freshness is carried separately by the updated_at-based _cb token, which
-       the save advances and persists to the sheet. */
+       share link was replaced). Bumping the card's thumbnail rev gives the URL a
+       fresh _r, which guarantees a cache miss so the browser / Drive CDN can't
+       keep serving the previously loaded image (the stale preview that used to
+       need a manual cache clear) AND — because the harvest keeps _r in its key —
+       makes the fresh image survive the next re-render instead of being replaced
+       by the old decoded node. (The flush's synchronous bump usually fires first;
+       bumping again here is harmless and covers the rare in-flight-save path where
+       the flush early-returned without bumping.) This is a pure in-place <img>
+       swap — only the thumbnail reloads, the page does not. Reads the live
+       URL-field values so a just-typed link is honored before the debounced save
+       writes it back to calState. Cross-reload freshness is carried separately by
+       the updated_at-based _cb token, which the save advances and persists. */
     function _calForceThumbRefresh(pid) {
         const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
         if (!card) return;
@@ -17620,7 +17684,9 @@
         const thumbInput = card.querySelector('[data-fld="thumbnail_url"]');
         const assetInput = card.querySelector('[data-fld="asset_url"]');
         const saved = (calState.posts || []).find(x => x.id === pid);
+        _calBumpThumbRev(pid);
         const info = _calDeriveThumbInfo({
+            id:            pid,
             thumbnail_url: thumbInput ? thumbInput.value : (saved ? saved.thumbnail_url : ''),
             asset_url:     assetInput ? assetInput.value : (saved ? saved.asset_url : ''),
             updated_at:    saved ? saved.updated_at : ''
@@ -17634,7 +17700,8 @@
             }
             return;
         }
-        const fresh = info.url + (info.url.includes('?') ? '&' : '?') + '_r=' + Date.now();
+        // info.url already carries the freshly-bumped _r (plus _cb) from
+        // _calCacheBustThumb, so it's a guaranteed cache miss.
         const existing = thumbDiv.querySelector('img');
         if (existing) {
             // Keep the drive flag in sync with the new link so the load-error
@@ -17642,9 +17709,9 @@
             // changed (e.g. a Drive link swapped for a direct image URL).
             if (info.isDrive) existing.setAttribute('data-drive', '1');
             else existing.removeAttribute('data-drive');
-            existing.setAttribute('src', fresh);
+            existing.setAttribute('src', info.url);
         } else {
-            _calSetThumbMedia(thumbDiv, _calThumbImgTag({ url: fresh, isDrive: info.isDrive }, '_calOnThumbImgError'));
+            _calSetThumbMedia(thumbDiv, _calThumbImgTag(info, '_calOnThumbImgError'));
         }
     }
 

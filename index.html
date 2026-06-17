@@ -20368,6 +20368,7 @@
             video_comments:   post.video_comments,
             graphic_comments: post.graphic_comments,
             caption_comments: post.caption_comments,
+            title_comments:   post.title_comments,
             [comp + '_status']: post[comp + '_status'],
             status: post.status,
         };
@@ -21529,6 +21530,17 @@
             } else if (!showUrgent && urgentEl) {
                 urgentEl.remove();
             }
+        }
+        // Title status square (lives in the title row, not the sub-status row) —
+        // keep its colour in lockstep with title_status on in-place / realtime
+        // updates too, not just full re-renders.
+        const titleSq = document.querySelector(`.cal-title-status-sq[data-substatus-pid="${sel}"][data-substatus-comp="title"]`);
+        if (titleSq) {
+            const tcs = _calNormStatus(post.title_status || 'In Progress');
+            titleSq.setAttribute('data-val', tcs);
+            Array.from(titleSq.classList).forEach(cls => { if (cls.startsWith('cal-fld-status-')) titleSq.classList.remove(cls); });
+            titleSq.classList.add('cal-fld-status-' + _calStatusSlug(tcs));
+            titleSq.setAttribute('title', 'YouTube title — ' + _calStatusLabel(tcs));
         }
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
         if (!card) return;
@@ -23787,7 +23799,7 @@
         const items = (_kasperState && _kasperState.items) || [];
         for (const it of items) {
             if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
-            if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim())) return true;
+            if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim() || String(it._drafts.title || '').trim())) return true;
             if (it._replyDraft && String(it._replyDraft).trim()) return true;
         }
         const a = document.activeElement;
@@ -24955,10 +24967,22 @@
         return { waiting, tweaks };
     }
 
+    let _kasperPaintRetry = null;
     function _kasperPaintReview() {
         const body = document.getElementById('kasperReviewBody');
         const count = document.getElementById('kasperReviewCount');
         if (!body) return;
+        // Never wipe a textarea Kasper is typing in. EVERY caller (realtime echo,
+        // reload, post-save) defers here until focus leaves — the data is already
+        // in _kasperState, so a short re-arm catches up the moment he blurs. This
+        // is the central guard; per-caller guards elsewhere are belt-and-braces.
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintReview, 1200);
+            return;
+        }
+        if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
         const { waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
         if (count) count.textContent = String(waiting.length);
         const tabCount = document.querySelector('[data-kasper-count="review"]');

@@ -118,9 +118,12 @@ After fix:
   Makes ↻ / mount / tab-return **sub-second**. Realtime auto-update is coded but **gated off**
   (`WL_V2_REALTIME=false`) until the reconcile is delta-upsert — see Phase 1b. Syntax-verified
   (`node --check`); inert until a browser opts in with `?wl2=1`.
-- **Phase 1b(b) — webhook fast-path STAGED (draft, not yet live).** Added a parallel branch to
+- **Phase 1b(b) — webhook fast-path DONE & LIVE (verified 2026-06-17).** Parallel branch on
   `linear-status-sync` (`MJbMZ789B5ExZz9x`): `Receive Linear Event → Plan Workload Row (Code) →
-  Upsert Workload (HTTP → workload_issues)`. The existing `Handle Linear Event` node + connection
+  Upsert Workload (HTTP → workload_issues)`. Verified by replaying an assignee-only update:
+  the calendar branch correctly skipped ("not a state change", no side effect), the workload
+  branch upserted the row in ~2s (synced_at advanced; assignee/status/fields correct), and the
+  total row count stayed 1,784 (PK merge, no dupes). Supabase credential bound on Upsert Workload. The existing `Handle Linear Event` node + connection
   are UNCHANGED; both new nodes use `onError: continueRegularOutput` so the workload branch can
   never halt the calendar sync. Needs NO Linear key — the webhook payload already carries the
   resolved issue (assignee/state/team/project/dueDate/title/parentId). Builds the same row shape

@@ -294,3 +294,32 @@ off and the new fields are dropped by the upsert — no effect.
   further enhancement.
 - A literal YouTube logo glyph on the title pill/panel (currently a red dot + "Title").
 - **Part B** (Notes component picker + Linear routing) — separate phase, not started.
+
+## Outstanding bugs — live QA (2026-06-17)
+
+The title feature itself is **verified working** in live testing: `title_status` and
+`caption_status` hold correctly through every realtime reconcile; round numbering,
+echo-adopt, and the title square all behave. The items below are open. **Diagnostics:**
+append `&v2debug=1` to the URL (or run `window._calV2Debug = true`) for the `[calV2 …]`
+trace — `SAVE→` / `ECHO adopt` / `RECONCILE adopt remote` / `MERGE took SERVER` (the
+revert moment) / `MERGE kept LOCAL` / `COMMENT delete` + `COMMENT resurrection` /
+`BADGE refresh` / `REVIEW approve|request-change|comment`. Test only on the **Sidney
+Laruel** test client (slug `sidneylaruel`) — never touch other clients' data.
+
+- **A. Video/thumbnail status reverts after a client approval — PRE-EXISTING, Linear-sync,
+  independent of the title feature.** `_calRecentSaveReconcile` adopts a server
+  `video_status` (e.g. Approved → Tweaks Needed → Kasper Approval) over the client's
+  approval. Only the **Linear-backed** components (video, thumbnail) revert; caption and
+  title never do — the Linear Status Sync writes the linked issue's real Linear status
+  back into the calendar, overriding the calendar-side approval. Root-cause the
+  Linear-sync ↔ client-approval conflict (`_calRecentSaveReconcile`, the merge in
+  `loadCalendarPosts`, `_calPushStatusToLinear`, and the n8n "Linear Status Sync"
+  workflow). Prefer a front-end fix; treat the v2/Linear merge path as fragile — per
+  `AUDIT_2026-06-15.md` / `CALENDAR_V2_AUDIT_HANDOFF.md`, reproduce + root-cause + prove,
+  don't guess.
+- **B. Deleting a plain comment sometimes needs ~3 tries.** Suspected: a stale
+  merge/realtime reload resurrecting the tombstoned comment. Repro with `?v2debug=1` and
+  watch for `COMMENT delete` followed by `COMMENT resurrection`.
+- **C. A client comment from the Review surface doesn't badge the SMM.** The unread badge
+  is computed SMM-side; capture the **SMM tab's** console after a client comment and check
+  `_calHasUnreadNotes` + the Notes-button realtime re-render.

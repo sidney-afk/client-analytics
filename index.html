@@ -21109,41 +21109,50 @@
         const root = list.find(c => c.id === rootId && !c.parent_id);
         if (!root) return;
         const wasDone = !!root.done;
-        if (wasDone) {
-            root.done = false; root.done_at = ''; root.done_by = '';
-        } else {
-            root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor();
+        // Resolving the LAST open SMM change-request routes the component onward
+        // (client or Kasper) — the SMM must pick which FIRST. Defer the WHOLE
+        // resolution (mark-done + status flip) until they confirm in the chooser,
+        // so the comment doesn't vanish before the choice and Cancel can't
+        // silently swallow it (nothing is applied on cancel). Count the OTHER
+        // still-open change-requests, with this root excluded.
+        const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c) && c.id !== rootId).length;
+        const deferToChooser = !wasDone && _calCommentRole() === 'smm' && otherOpen === 0;
+
+        // Flip the comment's done state (data only).
+        const mutate = () => {
+            if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
+            else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _calCurrentAuthor(); }
+            // Bump the per-comment merge clock so this resolution change wins over
+            // any stale copy another browser holds (cross-surface comment merge).
+            root.updated_at = new Date().toISOString();
+            _calSetCommentsFor(post, comp, list);
+            if (comp === 'video') post.comments = list;
+            _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [comp + '_tweaks']: _calStringifyComments(list) });
+        };
+        // Persist + refresh the modal/card after a mutation.
+        const refresh = () => {
+            _calWatchNoteSave(pid);
+            _calRefreshCommentsBtn(pid);
+            _calUpdateCardStatusDisplay(pid);
+            _calCaptureModalDrafts();
+            _calRenderCommentsModal();
+            // Re-rendering rebuilds the feed and resets its scroll to the top. Keep
+            // it pinned to the bottom (where the action happened and the composer
+            // lives) — mirrors the post-send behaviour in _calSubmitComposer.
+            setTimeout(() => {
+                const feed = document.getElementById('calCommentsFeed');
+                if (feed) feed.scrollTop = feed.scrollHeight;
+            }, 0);
+        };
+
+        if (deferToChooser) {
+            // Chooser first; the resolve (mark-done) + status flip + refresh happen
+            // only on a pick. Cancel leaves the comment exactly as it was (open).
+            _calResolveLastTweak(pid, comp, mutate);
+            return;
         }
-        // Bump the per-comment merge clock so this resolution change wins over
-        // any stale copy another browser holds (cross-surface comment merge).
-        root.updated_at = new Date().toISOString();
-        _calSetCommentsFor(post, comp, list);
-        if (comp === 'video') post.comments = list;
-        const fieldKey = comp + '_tweaks';
-        _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(list) });
-        // Auto-status (per component): when SMM closes the last open thread
-        // for a single component, flip that component to Client Approval.
-        // Cross-component thread state is irrelevant — the caption being
-        // approved shouldn't block a video resolution from moving forward.
-        if (!wasDone && _calCommentRole() === 'smm') {
-            // Only open change-requests gate the advance — a lingering plain
-            // comment must not hold the component back (it's just discussion).
-            const stillOpenForComp = list.filter(c => !c.parent_id && !c.done && !c.deleted && _calMsgIsTweak(c)).length;
-            if (stillOpenForComp === 0) _calResolveLastTweak(pid, comp);
-        }
-        _calWatchNoteSave(pid);
-        _calRefreshCommentsBtn(pid);
-        _calUpdateCardStatusDisplay(pid);
-        _calCaptureModalDrafts();
-        _calRenderCommentsModal();
-        // Re-rendering rebuilds the feed and resets its scroll to the top.
-        // Keep the conversation pinned to the bottom (where the action just
-        // happened and the composer lives) instead of jumping up — mirrors
-        // the post-send behaviour in _calSubmitComposer.
-        setTimeout(() => {
-            const feed = document.getElementById('calCommentsFeed');
-            if (feed) feed.scrollTop = feed.scrollHeight;
-        }, 0);
+        mutate();
+        refresh();
     }
 
     /* Delete a comment. SMM can delete anything; the client can only
@@ -21249,7 +21258,7 @@
        the chosen sub-status and persists it (the flush also pushes the new
        status to the linked Linear issue). Cancelling leaves the status
        untouched — recoverable by reopening the thread. */
-    function _calResolveLastTweak(pid, comp) {
+    function _calResolveLastTweak(pid, comp, resolveComment) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         _calShowResolveDest({
@@ -21257,12 +21266,17 @@
             recommend: _calResolveDestRecommend(post, comp),
             reason: _calResolveDestReason(post, comp),
             onChoose: (destPick) => {
-                if (_calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick)) {
-                    _calWatchNoteSave(pid);
-                    _calRefreshCommentsBtn(pid);
-                    _calUpdateCardStatusDisplay(pid);
-                    _calRenderCommentsModal();
-                }
+                // Mark the comment resolved NOW (deferred from _calToggleCommentDone
+                // so Cancel wouldn't lose it), THEN flip the sub-status to the pick,
+                // then persist + refresh once. Cancelling never reaches here, so the
+                // comment stays open.
+                if (typeof resolveComment === 'function') resolveComment();
+                _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                _calWatchNoteSave(pid);
+                _calRefreshCommentsBtn(pid);
+                _calUpdateCardStatusDisplay(pid);
+                _calCaptureModalDrafts();
+                _calRenderCommentsModal();
             }
         });
     }

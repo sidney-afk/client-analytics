@@ -15599,6 +15599,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
+                        <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleTitleReviewMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch${_calIsTitleReviewOn() ? ' is-on' : ''}" id="calTitleReviewSwitch"></span></button>
                     </div>
                 </div>`
             : '';
@@ -16494,7 +16495,7 @@
         // see what's locked in regardless of mode. Only the "what's still
         // being worked on" pills follow the toggle.
         const clientHideInProgress = _isClientLink && !_calIsCollabOn();
-        return CAL_COMPONENTS.map(c => {
+        return _calComponentsFor(p).map(c => {
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             if (clientHideInProgress && !_CAL_CLIENT_READY_STATES.has(cs)) return '';
             const slug = _calStatusSlug(cs);
@@ -16951,7 +16952,7 @@
         const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
             ? _calLinearMissingForCard(p)
             : null;
-        const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
+        const subStatusHtml = (ro || _isClientLink) ? '' : (_calTitlePillShown(p) ? CAL_REVIEW_COMPONENTS : CAL_COMPONENTS).map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
             // already guarantees a value, so a blank reaching this point is
@@ -16959,7 +16960,7 @@
             const cs = _calNormStatus(p[c + '_status'] || 'In Progress');
             const slug = _calStatusSlug(cs);
             const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
-            const lock = (c !== 'caption' && !link) ? ' is-locked' : '';
+            const lock = (c !== 'caption' && c !== 'title' && !link) ? ' is-locked' : '';
             // URGENT ping — Video only, and only once it's actually in Tweaks
             // Needed with a Linear sub-issue we can resolve the editor from.
             // (Shared predicate so the in-place updater stays in lockstep.)
@@ -17044,7 +17045,7 @@
             : (post.status || 'In Progress');
         const menu = document.createElement('div');
         menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = CAL_STATUSES.map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
+        menu.innerHTML = (which === 'title' ? CAL_TITLE_STATUSES : CAL_STATUSES).map(s => `<button type="button" class="cal-fld-status-item cal-fld-status-${_calStatusSlug(s)}${s === currentStatus ? ' active' : ''}" onclick="_calStatusPick('${_calEscAttr(pid)}','${_calEscAttr(s)}','${_calEscAttr(which)}')">${_calEsc(_calStatusLabel(s))}</button>`).join('');
         document.body.appendChild(menu);
         const rect = triggerEl.getBoundingClientRect();
         const menuW = Math.max(menu.offsetWidth, 200);
@@ -17082,8 +17083,11 @@
             if (post[key] === status) return;
             post[key] = status;
             _calPendingEdits[pid][key] = status;
-            post.status = computeOverallStatus(post);
-            _calPendingEdits[pid].status = post.status;
+            // Title is independent of the overall card status — never fold it in.
+            if (which !== 'title') {
+                post.status = computeOverallStatus(post);
+                _calPendingEdits[pid].status = post.status;
+            }
             _calMarkLocalStatus(pid, which);
         } else {
             if (post.status === status) return;
@@ -19413,8 +19417,8 @@
        client link reviews at "Client Approval" (approve → Approved), and the
        SMM's own Review tab reviews at "For SMM Approval" (approve → Kasper
        Approval, and posts with no media are hidden). */
-    const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption' };
-    const COMP_PILL_COLORS = { video: '#06b6d4', graphic: '#d946ef', caption: '#f59e0b' };
+    const COMP_LABELS = { video: 'Video', graphic: 'Thumbnail', caption: 'Caption', title: 'Title' };
+    const COMP_PILL_COLORS = { video: '#06b6d4', graphic: '#d946ef', caption: '#f59e0b', title: '#ef4444' };
     const _calReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
 
     /* ── Review audience (client vs SMM) ──────────────────────────────

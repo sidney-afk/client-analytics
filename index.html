@@ -20645,7 +20645,7 @@
     function _calOpenCommentCount(post) {
         if (!post) return 0;
         let n = 0;
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsForView(post, c);
             if (!Array.isArray(list) || !list.length) continue;
             for (const root of _calCommentRoots(list)) {
@@ -20785,7 +20785,7 @@
     // still in flight (see _calShowApprovedAfterTweaks; hidden once Approved/
     // Scheduled/Posted, though the flag stays in the sheet as history).
     function _calAatBadgeHtml(post) {
-        if (!post || !CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(post, c))) return '';
+        if (!post || !_calComponentsFor(post).some(c => _calShowApprovedAfterTweaks(post, c))) return '';
         return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
     }
     function _calCommentsBtnHtml(post, pid) {
@@ -20874,7 +20874,7 @@
         // tweak requests from the client across video, thumbnail, and caption
         // in one feed. _calCommentsForView strips Kasper-role entries when
         // the viewer is on the client-link surface.
-        const compThreads = CAL_COMPONENTS.flatMap(c => {
+        const compThreads = _calComponentsFor(post).flatMap(c => {
             const list = _calCommentsForView(post, c);
             if (!Array.isArray(list) || !list.length) return [];
             return _calCommentRoots(list).map(r => ({ comp: c, list, root: r }));
@@ -21002,7 +21002,7 @@
         const roleCls  = role === 'client' ? 'is-client' : 'is-smm';
         const isReply  = !!_calReplyTarget;
         // Reply target may live on any component's thread — look across all.
-        const allLists = CAL_COMPONENTS.map(c => c === 'video'
+        const allLists = _calComponentsFor(post).map(c => c === 'video'
             ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
             : _calCommentsFor(post, c));
         const target   = isReply
@@ -21178,7 +21178,7 @@
        id. Lets SMM resolve / delete comments on any component's thread from
        the unified modal feed. */
     function _calFindCompForCommentId(post, commentId) {
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = c === 'video'
                 ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
                 : _calCommentsFor(post, c);
@@ -21448,7 +21448,7 @@
         // mutation like _calApplyAutoStatus) would leave the pill DOM
         // stale and the dropdown's "active" highlight would disagree with
         // the visible label.
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
             if (!subWrap) continue;
             const cs = _calNormStatus(post[c + '_status'] || post.status || 'In Progress');
@@ -24250,7 +24250,7 @@
         const seen = _kasperGetSeenAt(pid);
         // Group internal messages into threads (root + replies).
         const threads = [];
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(p)) {
             const list = _calCommentsFor(p, c);
             if (!Array.isArray(list)) continue;
             for (const m of list) {
@@ -25110,7 +25110,7 @@
         const tweaksChip = openTweaks > 0
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';
-        const aatChip = CAL_COMPONENTS.some(c => _calShowApprovedAfterTweaks(p, c))
+        const aatChip = _calComponentsFor(p).some(c => _calShowApprovedAfterTweaks(p, c))
             ? `<span class="kcard-aat-chip" title="No more tweaks needed — pre-cleared for the client"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`
             : '';
         const dateHtml = dateNice
@@ -25155,7 +25155,7 @@
         // pin a panel open — the sub-status must still be Kasper Approval
         // OR Tweaks Needed-with-unresolved-tweak. Anything past that and
         // the panel drops out (handled by _calCompKasperVisible).
-        const activeComps = CAL_COMPONENTS.filter(c => _calCompKasperVisible(p, c));
+        const activeComps = _calComponentsFor(p).filter(c => _calCompKasperVisible(p, c));
         if (!activeComps.length) {
             return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this card.</div></div>`;
         }
@@ -25169,7 +25169,8 @@
         }
         const panels = activeComps.map(comp => _kasperPanelHtml(item, comp)).join('');
         const cols = activeComps.length;
-        return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+        const gridCols = cols >= 4 ? 2 : cols;   // 4 comps (title review on) → 2×2
+        return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${gridCols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
     }
 
     function _kasperHeroPreviewHtml(p, comp) {
@@ -25197,6 +25198,10 @@
             }
             const escPid = _calEscAttr(p.id);
             return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
+        }
+        if (comp === 'title') {
+            const t = String(p.name || '').trim();
+            return `<div class="kasper-hero-caption-card${t ? '' : ' kasper-hero-caption-empty'}">${t ? _calEsc(t) : 'No title yet.'}</div>`;
         }
         // caption
         const cap = String(p.caption || '').trim();
@@ -25435,7 +25440,7 @@
         const echo = json.post;
         if (echo && typeof echo === 'object') {
             _calMigratePostShape(echo);
-            for (const comp of CAL_COMPONENTS) {
+            for (const comp of _calComponentsFor(item.post)) {
                 if (!((comp + '_tweaks') in echo)) continue;
                 // Union, don't replace: keep any comment added locally between
                 // this chained write and its echo while still adopting the
@@ -25509,7 +25514,7 @@
             // at Kasper Approval OR Kasper still has unresolved tweaks
             // (those need to live until SMM resolves them, or Kasper
             // explicitly dismisses via Done reviewing).
-            const stillKasper = CAL_COMPONENTS.some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
+            const stillKasper = _calComponentsFor(item.post).some(c => _calNormStatus(item.post[c + '_status'] || '') === 'Kasper Approval');
             const stillHasTweaks = _calPostHasUnresolvedKasperTweak(item.post);
             const _undoCtx = { item: item, comp: comp, prev: prev, entry: null, idx: -1, at: Date.now() };
             if (!stillKasper && !stillHasTweaks) {

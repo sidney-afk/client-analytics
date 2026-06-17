@@ -1665,6 +1665,10 @@
            filter. Absolutely positioned so appearing/vanishing never shifts
            the dropdown — and an icon, not a banner row, because hidden cards
            in other months are normal and must not cost height. */
+        /* The flag hangs 25px to the LEFT of the month pill; once the tab strip
+           fills the row it landed on the "+" add-client button. Reserve clearance
+           on the month-filter group — but only while the flag is actually shown. */
+        .cal-month-filter:has(.cal-month-warn) { margin-left: 30px; }
         .cal-month-warn { position: absolute; left: -25px; top: 50%; transform: translateY(-50%);
             width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center;
             border: none; background: none; padding: 0; color: #ea580c; cursor: pointer; }
@@ -15898,48 +15902,66 @@
             if (saved) newImg.replaceWith(saved);
         });
     }
-    /* Same decoded-<img>-reuse idea as _calHarvestThumbs/_calRestoreThumbs, but
-       for the `.kcard` thumbnails shared by the Kasper review queue
-       (data-kasper-pid) and the client/SMM Review surface (data-cal-review-pid).
-       Those repaint by rebuilding the card DOM (replaceWith / innerHTML) on every
-       approve / request-change / realtime echo, which recreated the <img> — so the
-       picture BLINKED and the thumbnail box reflowed each time. Reusing the already
-       decoded node, keyed on the cache-buster-agnostic base URL (_calThumbSrcBase
-       strips _cb but KEEPS _r=thumb_rev), removes the blink while still reloading
-       on a genuine link change. keyAttr selects which surface's id attribute keys
-       the map. */
+    /* Reuse ALL already-decoded <img> elements across a `.kcard` rebuild — the
+       collapsed strip thumbnail (.kcard-thumb) AND the expanded review previews
+       (.cal-review-video-bg "open video" tile, the graphic preview image). Kasper
+       / client / SMM review cards rebuild their DOM (replaceWith / innerHTML) on
+       every approve / comment / realtime echo, recreating these <img>s — each new
+       node refetches from Drive, so the picture blanks and the tile reflows (the
+       "thumbnail disappears and reappears" flicker, worst on the EXPANDED card
+       where the previews live and a comment triggers 3 repaints). Moving the
+       existing decoded nodes into the new card paints instantly with no refetch.
+       Keyed by a stable SLOT (which image in the card) + the cache-buster-agnostic
+       base URL (_calThumbSrcBase strips _cb, keeps _r=thumb_rev): a same-URL image
+       used in two slots can't cross-match, an updated_at bump still reuses, and a
+       genuine link change (new _r) correctly reloads. A slot collision is harmless
+       anyway (same base ⇒ identical picture). */
+    function _kcardImgSlot(img) {
+        const cls = img.getAttribute('class') || '';
+        if (cls) return 'c:' + cls;                              // e.g. .cal-review-video-bg — unique by class
+        if (img.closest('.kcard-thumb')) return 'thumb';         // collapsed strip thumbnail (class-less)
+        if (img.closest('.cal-review-preview-thumb')) return 'gprev'; // expanded graphic preview (class-less)
+        const panel = img.closest('[data-comp]');
+        return 'p:' + (panel ? panel.getAttribute('data-comp') : '');
+    }
+    // Full-list harvest/restore around a body.innerHTML rebuild (keyed by card id).
     function _kcardHarvestThumbs(rootEl, keyAttr) {
         if (!rootEl) return null;
         const map = new Map();
-        rootEl.querySelectorAll('.kcard[' + keyAttr + '] .kcard-thumb img').forEach(img => {
-            if (!img.complete || img.naturalWidth === 0) return;   // only reuse a fully-decoded image
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return; // only reuse a fully-decoded image
             const card = img.closest('.kcard');
             const key = card && card.getAttribute(keyAttr);
             const src = img.getAttribute('src') || '';
-            if (key && src) map.set(key + '|' + _calThumbSrcBase(src), img);
+            if (key && src) map.set(key + '|' + _kcardImgSlot(img) + '|' + _calThumbSrcBase(src), img);
         });
         return map;
     }
     function _kcardRestoreThumbs(rootEl, map, keyAttr) {
         if (!map || map.size === 0 || !rootEl) return;
-        rootEl.querySelectorAll('.kcard[' + keyAttr + '] .kcard-thumb img').forEach(newImg => {
+        rootEl.querySelectorAll('.kcard[' + keyAttr + '] img').forEach(newImg => {
             const card = newImg.closest('.kcard');
             const key = card && card.getAttribute(keyAttr);
             const src = newImg.getAttribute('src') || '';
-            const saved = key && map.get(key + '|' + _calThumbSrcBase(src));
+            const saved = key && map.get(key + '|' + _kcardImgSlot(newImg) + '|' + _calThumbSrcBase(src));
             if (saved) newImg.replaceWith(saved);
         });
     }
-    /* Single-card variant: move the decoded thumbnail from an old `.kcard` into
-       its freshly-rebuilt replacement (used right before el.replaceWith). No-op
-       when the image isn't decoded yet or the link actually changed. */
+    /* Single-card variant: move EVERY decoded image from an old `.kcard` into its
+       freshly-rebuilt replacement (used right before el.replaceWith). No-op for an
+       image that isn't decoded yet or whose link actually changed. */
     function _kcardReuseThumbInto(oldEl, newEl) {
         if (!oldEl || !newEl) return;
-        const o = oldEl.querySelector('.kcard-thumb img');
-        const n = newEl.querySelector('.kcard-thumb img');
-        if (!o || !n || !o.complete || o.naturalWidth === 0) return;
-        if (_calThumbSrcBase(o.getAttribute('src') || '') !== _calThumbSrcBase(n.getAttribute('src') || '')) return;
-        n.replaceWith(o);
+        const map = new Map();
+        oldEl.querySelectorAll('img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            map.set(_kcardImgSlot(img) + '|' + _calThumbSrcBase(img.getAttribute('src') || ''), img);
+        });
+        if (!map.size) return;
+        newEl.querySelectorAll('img').forEach(newImg => {
+            const saved = map.get(_kcardImgSlot(newImg) + '|' + _calThumbSrcBase(newImg.getAttribute('src') || ''));
+            if (saved) newImg.replaceWith(saved);
+        });
     }
     function _calPostsEqualForRender(a, b) {
         if (a === b) return true;

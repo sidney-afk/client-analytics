@@ -59,7 +59,7 @@ const REAL = [
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'),
   grabFunc('_calIsYouTubeCard'), grabFunc('_calTitleEngaged'), grabFunc('_calComponentsFor'),
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'),
-  grabFunc('_calCommentsFor'), grabFunc('_calMsgIsTweak'), grabFunc('_calLinearUrlFor'),
+  grabFunc('_calCommentsFor'), grabFunc('_calMsgIsTweak'), grabFunc('_calNextTweakRound'), grabFunc('_calLinearUrlFor'),
   grabFunc('_calReviewComponentActive'),
   grabFunc('_calCompHasUnresolvedKasperTweak'), grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'), grabFunc('_kasperUndecidedComps'),
@@ -67,10 +67,12 @@ const REAL = [
 
 const mod = new Function(STUBS + '\n' + REAL + `
 ;return { CAL_TITLE_STATUSES, computeOverallStatus, _calComponentsFor, _calMigratePostShape,
-  _calLinearUrlFor, _calReviewComponentActive, _calPostKasperVisible, _kasperUndecidedComps };`)();
+  _calLinearUrlFor, _calReviewComponentActive, _calPostKasperVisible, _kasperUndecidedComps,
+  _calNextTweakRound };`)();
 const {
   CAL_TITLE_STATUSES, computeOverallStatus, _calComponentsFor, _calMigratePostShape,
   _calLinearUrlFor, _calReviewComponentActive, _calPostKasperVisible, _kasperUndecidedComps,
+  _calNextTweakRound,
 } = mod;
 
 let failures = 0;
@@ -124,6 +126,12 @@ check('title at Client Approval is active on the client review surface', _calRev
 console.log('\n— Title has no Linear counterpart —');
 check('_calLinearUrlFor(title) is empty', _calLinearUrlFor({ linear_issue_id: 'VID-1', graphic_linear_issue_id: 'GRA-1' }, 'title'), '');
 check('_calLinearUrlFor(video) still resolves', _calLinearUrlFor({ linear_issue_id: 'VID-1' }, 'video'), 'VID-1');
+
+console.log('\n— Tweak round numbering (2nd / 3rd tweak …) —');
+check('first tweak on a fresh component → round 1', _calNextTweakRound({ title_comments: [] }, 'title'), 1);
+check('after one tweak → next is round 2', _calNextTweakRound({ title_comments: [{ id: 't1', is_tweak: true }] }, 'title'), 2);
+check('plain comments do not count toward the round', _calNextTweakRound({ title_comments: [{ id: 't1', is_tweak: true }, { id: 'c1', is_tweak: false }] }, 'title'), 2);
+check('deleted tweaks are not counted', _calNextTweakRound({ title_comments: [{ id: 't1', is_tweak: true, deleted: true }] }, 'title'), 1);
 
 console.log('');
 if (failures) { console.log(`OVERALL: FAIL (${failures})`); process.exit(1); }

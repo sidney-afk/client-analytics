@@ -11514,6 +11514,16 @@
         if (typeof c.is_tweak === 'boolean') return c.is_tweak;
         return true;
     }
+    /* Revision number for a NEW change-request on this component: the Nth tweak
+       (1-based), counting existing change-requests on the same component. Stamped
+       on the tweak at creation so the UI can show "Tweak #2 / #3 …" — the
+       "leave no room for error" history the title review (and every component)
+       wants, without re-deriving it on every render. */
+    function _calNextTweakRound(post, comp) {
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return 1;
+        return list.filter(c => c && _calMsgIsTweak(c) && !c.deleted).length + 1;
+    }
     /* Render-side wrapper: same data as _calCommentsFor, but the client-link
        view only ever sees threads addressed to the client. A thread's audience
        lives on its ROOT message and replies inherit it. We also hard-hide
@@ -20303,6 +20313,7 @@
             author: _calCurrentAuthor(),
             role: _calCommentRole(),
             is_tweak: true,
+            round: _calNextTweakRound(post, comp),
             body: body,
             created_at: _now,
             updated_at: _now,
@@ -20902,7 +20913,7 @@
                 : '';
             // Only change-requests get a tag — sits right after the name.
             const typeTag = (!isReply && _calMsgIsTweak(c))
-                ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak</span>`
+                ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
                 : '';
             return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}">
                 <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
@@ -21161,6 +21172,7 @@
         if (isRoot) {
             msg.audience = (role === 'client') ? 'client' : _calComposeAudience;
             msg.is_tweak = (role === 'client') ? _calComposeIsTweak : false;
+            if (msg.is_tweak) msg.round = _calNextTweakRound(post, comp);
         }
         arr.push(msg);
         _calSetCommentsFor(post, comp, arr);
@@ -24275,7 +24287,7 @@
             const author = m.author || (m.role === 'client' ? 'Client' : m.role === 'kasper' ? 'Kasper' : 'SMM');
             const isNew = m.role !== 'kasper' && String(m.updated_at || m.created_at || '') > seen;
             const typeTag = (!isReply && _calMsgIsTweak(m))
-                ? `<span class="cal-cm-type-tag is-tweak">Tweak</span>`
+                ? `<span class="cal-cm-type-tag is-tweak">Tweak${m.round ? ' #' + m.round : ''}</span>`
                 : '';
             return `<div class="cal-review-comment cal-cm-${m.role || 'smm'}${isReply ? ' is-reply' : ''}${isNew ? ' is-new' : ''}">
                 <div class="cal-review-comment-head"><strong>${_calEsc(author)}</strong>${typeTag}<span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(m.created_at))}</span></div>
@@ -25678,6 +25690,7 @@
             author: 'Kasper',
             role: 'kasper',
             is_tweak: true,
+            round: _calNextTweakRound(item.post, comp),
             audience: 'internal',
             body: body,
             created_at: _now,

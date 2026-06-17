@@ -74,6 +74,8 @@ let _isClientLink = false;
 const _kasperSeen = Object.create(null);
 function _calMarkKasperSeen(pid, comp){ _kasperSeen[pid+'|'+comp] = true; }
 function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → _calComponentsFor = base 3
+function _calV2Log(){}                        // diagnostic logger — no-op in the harness
+function _calV2DebugOn(){ return false; }
 `;
 
 // Build a module and pull out the symbols we need.

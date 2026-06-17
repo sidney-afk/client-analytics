@@ -7921,16 +7921,18 @@
     let _wlV2FlagCache = null;
     function _wlV2Enabled() {
         if (_wlV2FlagCache !== null) return _wlV2FlagCache;
-        // Phase 2: OFF by default — opt in per-browser with ?wl2=1 (sticky), opt
-        // out with ?wl2=0. Flip this default to `true` once the Linear webhook
-        // fast-path (Phase 1b) is live so reassignments land in ~2s.
-        let on = false;
+        // Phase 3 (2026-06-17): v2 is now the DEFAULT — the Supabase read path is
+        // ON for everyone (webhook fast-path is live, ~2s reassignments). ?wl2=0 is
+        // a sticky per-browser kill-switch; ?wl2=1 force-enables / clears an opt-out.
+        // Rollback for everyone = set this default back to false; the Supabase read
+        // always falls back to the live linear-issues endpoint, so a flip is lossless.
+        let on = true;
         try {
             const q = new URLSearchParams(location.search).get('wl2');
             if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
             else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
-            else { on = (localStorage.getItem(WL_V2_LS_KEY) === '1') && (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
-        } catch { on = false; }
+            else { on = (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
+        } catch { on = true; }
         _wlV2FlagCache = on;
         return on;
     }

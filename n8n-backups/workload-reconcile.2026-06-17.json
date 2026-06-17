@@ -1,0 +1,73 @@
+{
+  "_backup_note": "Backup of the NEW isolated workflow 'SyncView Workload — Reconcile' (id lGwC9WWPVJtxphtf), created 2026-06-17 for Phase 1a of the event-driven Workload. Schedule (10 min) -> GET /webhook/linear-issues -> bulk upsert into Supabase workload_issues -> soft-deactivate rows that left the active set. Touches NO existing workflow; writes ONLY workload_issues. No secrets embedded (Supabase auth is the existing 'Supabase - SyncView Calendar' supabaseApi credential, referenced by predefined type; URLs are public). Safety: empty/failed read returns [] so the upsert+deactivate never run (no mass-deactivation); deactivation is a soft active=false flip (never deletes) and self-heals next run. To disable: deactivate the workflow in n8n (no rollback target needed — it is net-new).",
+  "id": "lGwC9WWPVJtxphtf",
+  "name": "SyncView Workload — Reconcile",
+  "active": true,
+  "activeVersionId": "50a8a1e4-3d7d-4327-b8be-fc708cee4fe7",
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 10 } ] } },
+      "name": "Every 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const LINEAR_ISSUES = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issues';\nlet resp;\ntry {\n  resp = await this.helpers.httpRequest({ method: 'GET', url: LINEAR_ISSUES, json: true, timeout: 60000 });\n} catch (e) {\n  // Read failed — skip ALL writes this run. Never mass-deactivate on a bad read.\n  return [];\n}\nconst issues = (resp && Array.isArray(resp.issues)) ? resp.issues : [];\n// Safety gate: an empty/failed sweep must NOT reach the mark-sweep (it would\n// deactivate every row). Only proceed when we actually received issues.\nif (!issues.length) return [];\nconst runStart = new Date().toISOString();\nconst rows = issues.map((i) => ({\n  id: i.id,\n  identifier: i.identifier == null ? null : i.identifier,\n  title: i.title == null ? null : i.title,\n  url: i.url == null ? null : i.url,\n  is_sub_issue: !!i.isSubIssue,\n  parent_id: i.parentId == null ? null : i.parentId,\n  parent_identifier: i.parentIdentifier == null ? null : i.parentIdentifier,\n  due_date: i.dueDate == null ? null : i.dueDate,\n  linear_created_at: i.createdAt == null ? null : i.createdAt,\n  linear_updated_at: i.updatedAt == null ? null : i.updatedAt,\n  status: i.status == null ? null : i.status,\n  status_type: i.statusType == null ? null : i.statusType,\n  team_key: i.teamKey == null ? null : i.teamKey,\n  team_name: i.teamName == null ? null : i.teamName,\n  assignee_id: i.assigneeId == null ? null : i.assigneeId,\n  assignee_name: i.assigneeName == null ? null : i.assigneeName,\n  assignee_email: i.assigneeEmail == null ? null : i.assigneeEmail,\n  client_name: i.clientName == null ? null : i.clientName,\n  active: true,\n  synced_at: runStart,\n}));\nconst seen = new Set();\nconst deduped = [];\nfor (const r of rows) { if (!r.id || seen.has(r.id)) continue; seen.add(r.id); deduped.push(r); }\nreturn [{ json: { rows: deduped, runStart, count: deduped.length } }];"
+      },
+      "name": "Fetch & Build Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/workload_issues",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Prefer", "value": "resolution=merge-duplicates,return=minimal" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.rows }}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "Bulk Upsert workload_issues",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [448, 0],
+      "_credentials": "supabaseApi: 'Supabase - SyncView Calendar' (id XdBpJ6Xk8PMpZXXT) — bound in n8n UI"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/workload_issues",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendQuery": true,
+        "queryParameters": { "parameters": [ { "name": "active", "value": "eq.true" }, { "name": "synced_at", "value": "={{ 'lt.' + $('Fetch & Build Rows').first().json.runStart }}" } ] },
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "Prefer", "value": "return=minimal" } ] },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"active\": false}",
+        "options": { "timeout": 60000 }
+      },
+      "name": "Deactivate Stale Rows",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [672, 0],
+      "_credentials": "supabaseApi: 'Supabase - SyncView Calendar' (id XdBpJ6Xk8PMpZXXT) — bound in n8n UI"
+    }
+  ],
+  "connections": {
+    "Every 10 min": { "main": [ [ { "node": "Fetch & Build Rows", "type": "main", "index": 0 } ] ] },
+    "Fetch & Build Rows": { "main": [ [ { "node": "Bulk Upsert workload_issues", "type": "main", "index": 0 } ] ] },
+    "Bulk Upsert workload_issues": { "main": [ [ { "node": "Deactivate Stale Rows", "type": "main", "index": 0 } ] ] }
+  }
+}

@@ -99,3 +99,20 @@ After fix:
    real-time. Bigger build (table + webhook + FE read + one-time backfill).
 3. **De-dupe the redundant keys** (efficiency/rate-limit hygiene, not latency): if the
    6 SMM keys share a Linear workspace, fetch with one and skip the rest.
+
+## Event-driven rollout status
+
+- **Phase 0 — DONE.** `workload_issues` table created (`workload-issues-supabase-migration.sql`),
+  anon read-only, realtime-published. Verified live: anon read 200, anon write 401.
+- **Phase 1a — DONE & ACTIVE.** New isolated n8n workflow *SyncView Workload — Reconcile*
+  (`lGwC9WWPVJtxphtf`, backup `n8n-backups/workload-reconcile.2026-06-17.json`), every 10 min:
+  GET `/webhook/linear-issues` → bulk upsert → soft-deactivate stale rows. Reuses the existing
+  `Supabase - SyncView Calendar` credential (no new secret). Tested: 1,784 rows at exact parity
+  with the live endpoint; idempotent (re-run stays 1,784, no row explosion); every active row
+  shares one `synced_at` (no stale-active leakage); empty-read guard prevents mass-deactivation;
+  soft-deactivate never deletes. Touches no existing workflow; writes only `workload_issues`.
+- **Phase 1b — TODO.** Extend the `linear-status-sync` Linear webhook to also upsert the changed
+  sub-issue (+parent) into `workload_issues` for ~1–2s freshness (additive, backed up).
+- **Phase 2 — TODO.** Frontend reads `workload_issues` (Supabase REST + realtime) behind a sticky
+  `?wl2=1` flag, with the live `/webhook/linear-issues` as automatic fallback. This is the step
+  that makes the refresh sub-second in the app; nothing changes for users until the flag flips.

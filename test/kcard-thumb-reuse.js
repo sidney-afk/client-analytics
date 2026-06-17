@@ -66,8 +66,21 @@ const harvestSrc = grabFunc('_kcardHarvestThumbs');
 check('_kcardHarvestThumbs only reuses a fully-decoded image',
   /naturalWidth\s*===?\s*0/.test(harvestSrc) || /naturalWidth\s*>\s*0/.test(harvestSrc), true);
 const reuseSrc = grabFunc('_kcardReuseThumbInto');
-check('_kcardReuseThumbInto bails when the link base changed',
-  /!==\s*_calThumbSrcBase|_calThumbSrcBase[^=]*!==/.test(reuseSrc), true);
+check('_kcardReuseThumbInto reuses ALL card images, not just the collapsed .kcard-thumb',
+  /querySelectorAll\(\s*['"]img['"]\s*\)/.test(reuseSrc), true);
+check('_kcardReuseThumbInto keys reuse by slot + _calThumbSrcBase (a link change still reloads)',
+  /_kcardImgSlot\([^)]*\)\s*\+\s*['"]\|['"]\s*\+\s*_calThumbSrcBase/.test(reuseSrc), true);
+
+console.log('\n— generalized: covers the EXPANDED previews (the real comment-add flicker) —');
+const slotSrc = grabFunc('_kcardImgSlot');
+check('_kcardImgSlot separates the expanded graphic preview from the collapsed thumb',
+  /cal-review-preview-thumb/.test(slotSrc) && /kcard-thumb/.test(slotSrc), true);
+check('_kcardHarvestThumbs harvests every card image (slot-keyed), not only .kcard-thumb',
+  /_kcardImgSlot\s*\(/.test(harvestSrc), true);
+check('_kcardRestoreThumbs restores by the same slot key',
+  /_kcardImgSlot\s*\(/.test(grabFunc('_kcardRestoreThumbs')), true);
+check('the comment-add handler repaints through the (now image-preserving) path',
+  /_kasperRepaintCard\s*\(/.test(grabFunc('_kasperAddCommentComp')), true);
 
 console.log('\n— All four repaint paths route through the reuse helpers —');
 const kPaint = grabFunc('_kasperPaintReview');

@@ -12386,6 +12386,7 @@
             if (sv !== wrote && sv !== base) {
                 if (!merged) merged = Object.assign({}, lp);
                 merged[f] = sv;
+                _calV2Log('RECONCILE adopt remote →', fp.id, '|', f, ':', lp[f], '→', sv, '(wrote:', wrote, '| base:', base, ')');
             }
         }
         if (merged) merged.status = computeOverallStatus(merged);
@@ -15072,13 +15073,22 @@
                 })();
                 if (_calV2DebugOn() && winner === lp &&
                     (lp.video_status !== fp.video_status || lp.graphic_status !== fp.graphic_status ||
-                     lp.caption_status !== fp.caption_status || lp.status !== fp.status)) {
+                     lp.caption_status !== fp.caption_status || lp.title_status !== fp.title_status || lp.status !== fp.status)) {
                     _calV2Log('MERGE kept LOCAL over a DIFFERING server row →', fp.id,
                         '| reason:', _calSaveInFlight[fp.id] ? 'saveInFlight' : (_calLocalRecentSaves.has(fp.id) ? 'recentSave<90s' : 'localTs>=serverTs'),
                         '| localTs:', lp.updated_at, 'serverTs:', fp.updated_at,
-                        '| LOCAL v/g/c/overall:', lp.video_status + '/' + lp.graphic_status + '/' + lp.caption_status + '/' + lp.status,
-                        '| SERVER v/g/c/overall:', fp.video_status + '/' + fp.graphic_status + '/' + fp.caption_status + '/' + fp.status,
+                        '| LOCAL v/g/c/t/overall:', lp.video_status + '/' + lp.graphic_status + '/' + lp.caption_status + '/' + lp.title_status + '/' + lp.status,
+                        '| SERVER v/g/c/t/overall:', fp.video_status + '/' + fp.graphic_status + '/' + fp.caption_status + '/' + fp.title_status + '/' + fp.status,
                         '— this local copy will be re-saved over the server (clobber) on the next write');
+                }
+                if (_calV2DebugOn() && winner !== lp &&
+                    (lp.video_status !== winner.video_status || lp.graphic_status !== winner.graphic_status ||
+                     lp.caption_status !== winner.caption_status || lp.title_status !== winner.title_status || lp.status !== winner.status)) {
+                    _calV2Log('MERGE took SERVER/reconciled over LOCAL →', fp.id,
+                        '| localTs:', lp.updated_at, 'serverTs:', fp.updated_at,
+                        '| LOCAL v/g/c/t/overall:', lp.video_status + '/' + lp.graphic_status + '/' + lp.caption_status + '/' + lp.title_status + '/' + lp.status,
+                        '| WINNER v/g/c/t/overall:', winner.video_status + '/' + winner.graphic_status + '/' + winner.caption_status + '/' + winner.title_status + '/' + winner.status,
+                        '— a status here that differs from your last action IS the revert');
                 }
                 // Comments live in one cell per component that both the client
                 // and the SMM overwrite wholesale, so the LWW winner may carry
@@ -17799,6 +17809,8 @@
                 // comment-merge base to its updated_at.
                 merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');
                 calState.posts[i2] = merged;
+                _calV2Log('ECHO adopt →', realId, '| echo keys:', Object.keys(saved).join(','),
+                    '| MERGED v/g/c/t/overall:', merged.video_status + '/' + merged.graphic_status + '/' + merged.caption_status + '/' + merged.title_status + '/' + merged.status);
             }
             // Record this successful local write so the next background
             // merge can detect a remote overwrite (someone else saved AFTER
@@ -20259,6 +20271,7 @@
         let _kasperSeenCsv = null;
         if (approveTo === 'Kasper Approval') _kasperSeenCsv = _calRecordKasperSeenOnPost(post, comp);
         post[subKey] = approveTo;
+        _calV2Log('REVIEW approve →', pid, '| comp:', comp, '| →', approveTo, '| mode:', mode, 'dest:', dest);
         if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
         post.status = computeOverallStatus(post);
         // Stamp updated_at locally so a background poll racing this write
@@ -20333,6 +20346,7 @@
         });
         _calSetCommentsFor(post, comp, list);
         post.updated_at = _now;                 // no status change — it's a comment
+        _calV2Log('REVIEW comment →', pid, '| comp:', comp, '| role:', _calCommentRole());
         _calReviewState.drafts[key] = '';
         _calReviewState.saving[key] = true;
         _calReviewState.errors[key] = '';
@@ -20381,6 +20395,7 @@
         };
         _calSetCommentsFor(post, comp, list);
         post[comp + '_status'] = 'Tweaks Needed';
+        _calV2Log('REVIEW request-change →', pid, '| comp:', comp, '| role:', _calCommentRole());
         post.status = computeOverallStatus(post);
         post.updated_at = new Date().toISOString();
         _calReviewState.drafts[key] = '';
@@ -20614,7 +20629,10 @@
             for (const c of list) {
                 if (!c || !c.id) continue;
                 const prev = out.get(c.id);
-                if (!prev || _calCommentStamp(c) >= _calCommentStamp(prev)) out.set(c.id, c);
+                if (!prev || _calCommentStamp(c) >= _calCommentStamp(prev)) {
+                    if (prev && prev.deleted && !c.deleted) _calV2Log('COMMENT resurrection →', c.id, '| a live copy (stamp', _calCommentStamp(c), ') overrode a tombstone (stamp', _calCommentStamp(prev), ')');
+                    out.set(c.id, c);
+                }
             }
         };
         absorb(a); absorb(b);
@@ -20867,6 +20885,7 @@
         if (!wrap) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
+        _calV2Log('BADGE refresh →', pid, '| unread:', _calHasUnreadNotes(post), '| open:', _calOpenCommentCount(post));
         const tmp = document.createElement('div');
         tmp.innerHTML = _calCommentsBtnHtml(post, pid);
         wrap.replaceWith(tmp.firstElementChild);
@@ -21341,6 +21360,7 @@
             ));
             _calSetCommentsFor(post, comp, next);
             if (comp === 'video') post.comments = next;
+            _calV2Log('COMMENT delete →', pid, '| comp:', comp, '| id:', commentId, '| live before/after:', arr.filter(c => !c.deleted).length, '→', next.filter(c => !c.deleted).length);
             const fieldKey = comp + '_tweaks';
             _calPendingEdits[pid] = Object.assign(_calPendingEdits[pid] || {}, { [fieldKey]: _calStringifyComments(next) });
             // Deleting a tweak just deletes it — it must NOT open the

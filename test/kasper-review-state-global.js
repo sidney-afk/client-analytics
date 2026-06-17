@@ -60,11 +60,16 @@ const HARNESS = `
 let _kasperState = { dismissed: {}, closed: {} };
 let _seenMap = {};
 function _kasperGetSeenAt(pid){ return _seenMap[pid] || ''; }
+function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → _calComponentsFor = base 3
 `;
 
 const REAL = [
   grabConst('CAL_STATUSES'),
   grabConst('CAL_COMPONENTS'),
+  grabConst('CAL_REVIEW_COMPONENTS'),
+  grabFunc('_calIsYouTubeCard'),
+  grabFunc('_calTitleEngaged'),
+  grabFunc('_calComponentsFor'),
   grabFunc('_calNormStatus'),
   grabFunc('_calCommentsFor'),
   grabFunc('_calLatestMsgAt'),

@@ -283,10 +283,14 @@ in Supabase, then add `title_status`, `title_tweaks`, `client_title_approved_at`
 n8n `calendar-upsert-post` `ALLOWED` array (migration first). Until then the toggle is
 off and the new fields are dropped by the upsert — no effect.
 
+**Audit trail — DONE:** per-comment role/author/time/resolved + `client_title_approved_at`
++ `kasper_seen` (via reuse), **plus explicit `round` numbering** on every change-request
+(`_calNextTweakRound`), surfaced as "Tweak #N" in the Notes feed + replies inbox. Guarded by
+`test/title-review-lifecycle.js`.
+
 **Deferred (not yet built):**
-- The explicit `round` integer + `kind:'event'` audit-log entries (§4b) and the
-  `edit_title` logging. The baseline trail (per-comment role/author/time/resolved +
-  `client_title_approved_at` + `kasper_seen`) is in place via reuse; explicit revision
-  numbering / lifecycle events are an enhancement.
+- `kind:'event'` lifecycle log entries (submit / approve / `edit_title` with old→new) — the
+  `round` numbering above already covers "2nd / 3rd tweak"; a full system-event timeline is a
+  further enhancement.
 - A literal YouTube logo glyph on the title pill/panel (currently a red dot + "Title").
 - **Part B** (Notes component picker + Linear routing) — separate phase, not started.

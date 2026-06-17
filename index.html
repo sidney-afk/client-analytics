@@ -15456,7 +15456,7 @@
                 + `<span class="cal-client-link-txt"><span class="cal-client-link-name">${_calEsc(lbl)}</span><span class="cal-client-link-sub">${_calEsc(l.sub)}</span></span>`
                 + `<span class="cal-client-link-ext" aria-hidden="true">${_mrExternalLink}</span></a>`;
         }).join('');
-        return `<div class="cal-client-links" id="calClientLinksWrap">
+        return `<div class="cal-client-links" id="calClientLinksWrap" data-client="${_calEscAttr(calState.client || '')}">
             <button type="button" class="dropdown-trigger" id="calClientLinksBtn" onclick="_calToggleClientLinks(event)" title="Open this client's social profiles" aria-haspopup="true" aria-expanded="false" aria-label="Open this client's social profiles">${globe}${chev}</button>
             <div class="dropdown-menu" id="calClientLinksMenu" role="menu"><div class="cal-client-links-head">Open profiles</div>${items}</div>
         </div>`;
@@ -15495,7 +15495,15 @@
         const existing = mid.querySelector('#calClientLinksWrap');
         const html = _calClientLinksHtml();
         if (!html) { if (existing) existing.remove(); return; }
-        if (existing) return;
+        if (existing) {
+            // Same client: leave the (possibly open) menu untouched so a background
+            // refresh can't close it mid-click. Different client (a tab switch does
+            // NOT rebuild the toolbar): drop it and rebuild with the new client's
+            // handles — otherwise "Open profiles" keeps opening the PREVIOUS
+            // client's Instagram/TikTok/YouTube.
+            if (existing.getAttribute('data-client') === (calState.client || '')) return;
+            existing.remove();
+        }
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         const node = tmp.firstElementChild;

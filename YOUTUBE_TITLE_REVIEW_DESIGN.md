@@ -1,6 +1,6 @@
 # YouTube Title Review + Notes Component Routing — Design Spec
 
-**Status:** Draft for sign-off (Sidney + Kasper) · **Date:** 2026-06-17
+**Status:** Decisions locked — ready to build · **Date:** 2026-06-17
 **Owner area:** Calendar → per-card title, Kasper/client review, Notes modal, Linear sync
 
 This spec covers two related features decided together:
@@ -192,19 +192,18 @@ blindly for caption/title.
 `_calPostLinearComment` (~13074) is already async + fire-and-forget with a **retry outbox**
 on failure, so routing is resilient and never blocks the save.
 
-## B3. Decisions to confirm (Part B)
+## B3. Decisions (Part B) — locked
 
-1. **Which notes go to Linear?** Today only *change-requests* push. You asked for a plain
-   *comment* on the thumbnail to reach Linear → plan is **all video/thumbnail notes
-   (comments and change-requests) post to Linear.** Confirm (vs change-requests only).
-2. **Replies:** plan is replies on a video/thumbnail thread **also** post to Linear (so the
-   issue carries the whole conversation). Higher fidelity, but more Linear writes — confirm.
-3. **Create-only (a known limit):** editing / resolving / deleting a note does **not** sync
-   to Linear (matches today's review behaviour). The Linear comment is a one-time post.
-4. **Audience:** Linear is internal tooling, so notes post to Linear **regardless** of the
-   internal/client audience toggle. (The audience toggle still controls client visibility in
-   the app.)
-5. **Default picker selection:** default **Video** (preserves current muscle memory).
+1. **All video/thumbnail notes post to Linear** — both comments **and** change-requests, so
+   the editor sees every piece of feedback on the sub-issue. *(chosen)*
+2. **Replies also post to Linear** — a video/thumbnail thread carries its whole back-and-forth
+   onto the issue. *(chosen)*
+3. **Create-only:** editing / resolving / deleting a note does **not** sync to Linear (matches
+   today's review behaviour). The Linear comment is a one-time post. *(chosen)*
+4. **Audience-independent:** notes post to Linear **regardless** of the internal/client
+   audience toggle (Linear is internal tooling; the toggle still controls in-app client
+   visibility). *(chosen)*
+5. **Picker defaults to Video** (preserves current muscle memory). *(chosen)*
 
 ## B4. Touch-points (Part B)
 
@@ -264,7 +263,7 @@ Each phase ships safe behind the off-by-default toggle (A) / is additive (B).
 - Syncing Notes edits/resolves/deletes back to Linear (create-only).
 - A per-card feature menu (toggle is per-client).
 
-## Open decisions (need your call)
+## Status of decisions
 
-The five Part-B items in **§B3** (chiefly: *all notes* vs *change-requests only* to Linear,
-and whether *replies* also post). Everything in Part A is locked.
+All decisions (Part A and Part B) are **locked** — see "Decisions captured" (§A2) and §B3.
+The spec is ready to build per the phased order above.

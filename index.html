@@ -2098,6 +2098,22 @@
         /* Unlinked card — the Linear button warns it must be connected. */
         .cal-linear-btn.cal-linear-btn-warn { background: #ffedd5; color: #ea580c; }
         .cal-linear-btn.cal-linear-btn-warn:hover { background: #fed7aa; color: #c2410c; }
+        /* Linear sub-issue buttons moved to a vertical pile at the bottom-right
+           of the thumbnail box (video on top, graphic below). */
+        .cal-linear-pile { position: absolute; right: 8px; bottom: 8px; z-index: 3; flex-direction: column; gap: 4px; }
+        .cal-linear-pile .cal-linear-btn, .cal-linear-pile .cal-linear-link-wrap { box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+        /* YouTube title status — small colour square to the left of the title. */
+        .cal-title-status-sq { flex: 0 0 auto; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.10); transition: filter 0.12s; }
+        .cal-title-status-sq:hover { filter: brightness(0.96); }
+        .cal-title-status-sq.cal-fld-status-in-progress      { background: #fef08a; }
+        .cal-title-status-sq.cal-fld-status-for-smm-approval { background: #fce7f3; }
+        .cal-title-status-sq.cal-fld-status-kasper-approval  { background: #ffe4cc; }
+        .cal-title-status-sq.cal-fld-status-client-approval  { background: #fee2e2; }
+        .cal-title-status-sq.cal-fld-status-approved         { background: #dcfce7; }
+        .cal-title-status-sq.cal-fld-status-tweaks-needed    { background: #fdba74; }
+        /* Collapse toggle for long Kasper review threads (show 3 most recent). */
+        .cal-review-thread-toggle { display: block; width: 100%; text-align: center; background: none; border: 0; color: #6b6b66; font-size: 0.72rem; font-weight: 600; padding: 5px; margin: 2px 0; cursor: pointer; border-radius: 6px; }
+        .cal-review-thread-toggle:hover { color: #3a3a37; background: #f3f3f1; }
         .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
             display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
             border: 0; cursor: pointer; background: #ea580c; color: #fff; font-family: inherit;
@@ -11746,6 +11762,7 @@
         const str = _calStringifyComments(list);
         if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
         if (comp === 'caption') { post.caption_comments = list; post.caption_tweaks = str; return; }
+        if (comp === 'title') { post.title_comments = list; post.title_tweaks = str; return; }
         post.video_comments = list;
         post.comments = list;
         post.video_tweaks = str;
@@ -12149,6 +12166,12 @@
             btn.setAttribute('title', aria);
             btn.setAttribute('aria-label', aria);
         });
+        // Toggling YouTube while title review is on flips whether the title
+        // status pill should show — that's structural (a pill added/removed),
+        // which the in-place strip tweak above can't do, so redraw the card.
+        if (key === 'youtube' && _calIsTitleReviewOn()) {
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        }
         // Persist via the usual debounced save path so the platforms field
         // rides on the next upsert with the rest of the post.
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -17043,15 +17066,34 @@
         const warn = !_calIsBlankId(pid) ? ' cal-linear-btn-warn' : '';
         return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_calLinearEdit('${pid}','${which}')" title="Link a Linear ${label}">${_calLinearSvg()}</button>`;
     }
+    /* Video (top) + graphic (bottom) Linear sub-issue buttons, stacked at the
+       bottom-right of the thumbnail box. stopPropagation so a click links/opens
+       Linear instead of triggering the thumbnail's own click. SMM-only (the slot
+       html returns '' in the client view). */
+    function _calLinearPileHtml(pid, p) {
+        const v = _calLinearSlotHtml(pid, p.linear_issue_id, false, 'video');
+        const g = _calLinearSlotHtml(pid, p.graphic_linear_issue_id, false, 'graphic');
+        if (!v && !g) return '';
+        return `<div class="cal-linear-slot cal-linear-pile" data-linear-slot="${pid}" onclick="event.stopPropagation()">${v}${g}</div>`;
+    }
     function _calTitleRowHtml(pid, p, ro, editableText) {
         // editableText defaults to !ro so existing callers (the SMM-only
         // render paths) keep their old behaviour. The new client-Collab
         // flow passes editableText=true explicitly so the client can rename
-        // the post while everything else (Linear slots, video/thumb pills)
-        // stays SMM-only.
+        // the post while everything else stays SMM-only.
         const nameRo = (editableText == null) ? ro : !editableText;
-        return `<div class="cal-linear-slot" data-linear-slot="${pid}">${_calLinearSlotHtml(pid, p.linear_issue_id, ro, 'video')}${ro ? '' : _calLinearSlotHtml(pid, p.graphic_linear_issue_id, ro, 'graphic')}</div>
-                <input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
+        // YouTube title status — a small colour SQUARE to the LEFT of the title
+        // (SMM-only; shown when the feature is on for a YouTube card, or the
+        // title already carries review state). Click opens the same status menu.
+        // The Linear sub-issue buttons that used to sit here now live on the
+        // thumbnail (see _calLinearPileHtml).
+        let titleSq = '';
+        if (!ro && !_isClientLink && _calTitlePillShown(p)) {
+            const ts = _calNormStatus(p.title_status || 'In Progress');
+            const slug = _calStatusSlug(ts);
+            titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
+        }
+        return `${titleSq}<input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
     }
     function _calLinearEdit(pid, comp) {
         const which = comp || 'video';
@@ -17148,7 +17190,7 @@
         const linearMissing = (!ro && !isBlank && !needsLinear && !parentComp)
             ? _calLinearMissingForCard(p)
             : null;
-        const subStatusHtml = (ro || _isClientLink) ? '' : (_calTitlePillShown(p) ? CAL_REVIEW_COMPONENTS : CAL_COMPONENTS).map(c => {
+        const subStatusHtml = (ro || _isClientLink) ? '' : CAL_COMPONENTS.map(c => {
             // Don't fall back to overall — overall is lower-priority-wins,
             // so seeding a blank sub from it would lie about state. Migrate
             // already guarantees a value, so a blank reaching this point is
@@ -17191,7 +17233,7 @@
             ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_calCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}</div>
+            <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
@@ -25450,6 +25492,42 @@
         return `<div class="kasper-hero-caption-card kasper-hero-caption-multi">${sec('main', cap)}${sec('alt', alt)}</div>`;
     }
 
+    /* Render a Kasper review thread, collapsed to the most recent few with a
+       Show more / Show less toggle so a long history doesn't dominate the panel.
+       Expand state lives on the item, per component. */
+    function _kasperRenderThread(item, comp, comments) {
+        if (!comments || !comments.length) return `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const row = (c) => {
+            const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+            const isResolved = !!c.done;
+            const resolvedBadge = isResolved ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>` : '';
+            return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+        };
+        const COLLAPSE_AT = 3;
+        const total = comments.length;
+        if (total <= COLLAPSE_AT) return comments.map(row).join('');
+        const escId = _calEscAttr(item.post.id);
+        const escComp = _calEscAttr(comp);
+        const toggle = (label) => `<button type="button" class="cal-review-thread-toggle" onclick="_kasperToggleThread('${escId}','${escComp}')">${label}</button>`;
+        if (item._threadOpen && item._threadOpen[comp]) return comments.map(row).join('') + toggle('Show less');
+        const hidden = total - COLLAPSE_AT;
+        return toggle(`Show ${hidden} earlier ${hidden === 1 ? 'message' : 'messages'}`) + comments.slice(total - COLLAPSE_AT).map(row).join('');
+    }
+    function _kasperToggleThread(pid, comp) {
+        const item = _kasperState.items.find(x => x.post && x.post.id === pid);
+        if (!item) return;
+        if (!item._threadOpen) item._threadOpen = {};
+        item._threadOpen[comp] = !item._threadOpen[comp];
+        _kasperRepaintCard(pid);
+    }
     function _kasperHeroPanel(item, comp) {
         const p = item.post;
         const escId = _calEscAttr(p.id);
@@ -25479,23 +25557,7 @@
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
         const previewHtml = _kasperHeroPreviewHtml(p, comp);
-        const threadHtml = comments && comments.length
-            ? comments.map(c => {
-                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
-                const isResolved = !!c.done;
-                const resolvedBadge = isResolved
-                    ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
-                    : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
-                    <div class="cal-review-comment-head">
-                        <strong>${_calEsc(author)}</strong>
-                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
-                        ${resolvedBadge}
-                    </div>
-                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
-                </div>`;
-            }).join('')
-            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const threadHtml = _kasperRenderThread(item, comp, comments);
         return `<div class="cal-review-panel kasper-hero-panel" data-comp="${escComp}" data-state="${state}">
             <div class="kasper-hero-left">${previewHtml}</div>
             <div class="kasper-hero-right">
@@ -25551,23 +25613,7 @@
         const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
         const previewHtml = _calReviewComponentPreview(p, comp);
-        const threadHtml = comments && comments.length
-            ? comments.map(c => {
-                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
-                const isResolved = !!c.done;
-                const resolvedBadge = isResolved
-                    ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>`
-                    : '';
-                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
-                    <div class="cal-review-comment-head">
-                        <strong>${_calEsc(author)}</strong>
-                        <span class="cal-review-comment-time">${_calEsc(_calFmtCommentTime(c.created_at))}</span>
-                        ${resolvedBadge}
-                    </div>
-                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
-                </div>`;
-            }).join('')
-            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const threadHtml = _kasperRenderThread(item, comp, comments);
         const stateLabel = inTweaks ? 'Changes requested' : '';
         return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
             <div class="cal-review-panel-head">
@@ -25654,12 +25700,14 @@
         wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
         wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
         wire.caption_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'caption'));
+        wire.title_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'title'));
         wire.tweaks = wire.video_tweaks;
         wire.status = computeOverallStatus(item.post);
         delete wire.comments;
         delete wire.video_comments;
         delete wire.graphic_comments;
         delete wire.caption_comments;
+        delete wire.title_comments;
         delete wire._baseAt;
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST',

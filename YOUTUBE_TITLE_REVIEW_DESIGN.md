@@ -1,6 +1,6 @@
 # YouTube Title Review + Notes Component Routing — Design Spec
 
-**Status:** Decisions locked — ready to build · **Date:** 2026-06-17
+**Status:** Part A front-end BUILT + pushed (`claude/zen-meitner-bmih9m`); Phase 0 backend + Part B pending · **Date:** 2026-06-17
 **Owner area:** Calendar → per-card title, Kasper/client review, Notes modal, Linear sync
 
 This spec covers two related features decided together:
@@ -266,4 +266,27 @@ Each phase ships safe behind the off-by-default toggle (A) / is additive (B).
 ## Status of decisions
 
 All decisions (Part A and Part B) are **locked** — see "Decisions captured" (§A2) and §B3.
-The spec is ready to build per the phased order above.
+
+## Implementation status (2026-06-17)
+
+**Part A front-end — DONE & pushed** (off-by-default, safe). Foundation/data layer
+(`CAL_REVIEW_COMPONENTS` split, `title_status`/`title_tweaks`/`client_title_approved_at`
+in migrate + patch builder + rollback/dedupe/realtime tuples), the per-client ⋮ toggle,
+the SMM title pill (trimmed status list), the SMM + client review panels (title preview,
+2×2 grid), the Kasper queue + Kasper panels (hero + multi, auto-advance to Client), and
+the Notes feed (title comments labeled "Title", full unread/seen). Title is Linear-safe
+(`_calLinearUrlFor` → `''`). Guarded by `test/title-review-lifecycle.js` (proves the
+overall-status invariant) + the full existing suite (all pass).
+
+**Phase 0 backend — PENDING (needs you / sign-off):** run `title-review-migration.sql`
+in Supabase, then add `title_status`, `title_tweaks`, `client_title_approved_at` to the
+n8n `calendar-upsert-post` `ALLOWED` array (migration first). Until then the toggle is
+off and the new fields are dropped by the upsert — no effect.
+
+**Deferred (not yet built):**
+- The explicit `round` integer + `kind:'event'` audit-log entries (§4b) and the
+  `edit_title` logging. The baseline trail (per-comment role/author/time/resolved +
+  `client_title_approved_at` + `kasper_seen`) is in place via reuse; explicit revision
+  numbering / lifecycle events are an enhancement.
+- A literal YouTube logo glyph on the title pill/panel (currently a red dot + "Title").
+- **Part B** (Notes component picker + Linear routing) — separate phase, not started.

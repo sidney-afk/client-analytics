@@ -19982,7 +19982,14 @@
         const mode = _calReviewMode();
         return (calState.posts || []).filter(p => {
             const s = _calNormStatus(p.status || '');
-            if (s === 'Approved' || s === 'Scheduled' || s === 'Posted') return false;
+            // The YouTube title is excluded from the overall status, so a card can
+            // read Approved/Scheduled/Posted overall while its title is still
+            // awaiting review on THIS surface. Don't hide those — otherwise a
+            // title-only review never reaches the queue once the other three are
+            // already approved.
+            const surf = (mode === 'smm') ? 'smm' : 'client';
+            const titlePending = _calIsYouTubeCard(p) && _calReviewComponentActive(p, 'title', surf);
+            if ((s === 'Approved' || s === 'Scheduled' || s === 'Posted') && !titlePending) return false;
             // SMM Review tab: only posts with a component awaiting SMM
             // approval (or sent back for tweaks), AND that actually have
             // something to look at — a post with no video and no thumbnail

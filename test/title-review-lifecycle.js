@@ -123,6 +123,10 @@ check('title is an undecided component for "Finish reviewing"', _kasperUndecided
 check('same statuses on a NON-YouTube card → not in Kasper queue', _calPostKasperVisible(ig({ video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Kasper Approval' })), false);
 const cReady = yt({ video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved', title_status: 'Client Approval' });
 check('title at Client Approval is active on the client review surface', _calReviewComponentActive(cReady, 'title', 'client'), true);
+// Regression: the _calReviewItems "done" gate must keep a card whose overall
+// reads Approved (the 3 real components done) while the title is still pending
+// client sign-off — otherwise a title-only review never reaches the queue.
+check('…and the overall reads Approved at the same time', computeOverallStatus(cReady), 'Approved');
 
 console.log('\n— Title has no Linear counterpart —');
 check('_calLinearUrlFor(title) is empty', _calLinearUrlFor({ linear_issue_id: 'VID-1', graphic_linear_issue_id: 'GRA-1' }, 'title'), '');

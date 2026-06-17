@@ -59,7 +59,8 @@ const REAL = [
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'),
   grabFunc('_calIsYouTubeCard'), grabFunc('_calTitleEngaged'), grabFunc('_calComponentsFor'),
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'),
-  grabFunc('_calCommentsFor'), grabFunc('_calMsgIsTweak'), grabFunc('_calNextTweakRound'), grabFunc('_calLinearUrlFor'),
+  grabFunc('_calCommentsFor'), grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'),
+  grabFunc('_calMsgIsTweak'), grabFunc('_calNextTweakRound'), grabFunc('_calLinearUrlFor'),
   grabFunc('_calReviewComponentActive'),
   grabFunc('_calCompHasUnresolvedKasperTweak'), grabFunc('_calCompKasperVisible'),
   grabFunc('_calPostKasperVisible'), grabFunc('_kasperUndecidedComps'),
@@ -68,11 +69,11 @@ const REAL = [
 const mod = new Function(STUBS + '\n' + REAL + `
 ;return { CAL_TITLE_STATUSES, computeOverallStatus, _calComponentsFor, _calMigratePostShape,
   _calLinearUrlFor, _calReviewComponentActive, _calPostKasperVisible, _kasperUndecidedComps,
-  _calNextTweakRound };`)();
+  _calNextTweakRound, _calSetCommentsFor };`)();
 const {
   CAL_TITLE_STATUSES, computeOverallStatus, _calComponentsFor, _calMigratePostShape,
   _calLinearUrlFor, _calReviewComponentActive, _calPostKasperVisible, _kasperUndecidedComps,
-  _calNextTweakRound,
+  _calNextTweakRound, _calSetCommentsFor,
 } = mod;
 
 let failures = 0;
@@ -126,6 +127,15 @@ check('title at Client Approval is active on the client review surface', _calRev
 console.log('\n— Title has no Linear counterpart —');
 check('_calLinearUrlFor(title) is empty', _calLinearUrlFor({ linear_issue_id: 'VID-1', graphic_linear_issue_id: 'GRA-1' }, 'title'), '');
 check('_calLinearUrlFor(video) still resolves', _calLinearUrlFor({ linear_issue_id: 'VID-1' }, 'video'), 'VID-1');
+
+console.log('\n— Comment writer routes title correctly (regression: must not clobber video) —');
+{
+  const p = { video_comments: [{ id: 'v1' }], video_tweaks: '[{"id":"v1"}]' };
+  _calSetCommentsFor(p, 'title', [{ id: 't1' }]);
+  check('title write lands in title_comments', (p.title_comments && p.title_comments[0] || {}).id, 't1');
+  check('title write populates title_tweaks', typeof p.title_tweaks === 'string' && p.title_tweaks.indexOf('t1') >= 0, true);
+  check('title write does NOT touch video_comments', (p.video_comments[0] || {}).id, 'v1');
+}
 
 console.log('\n— Tweak round numbering (2nd / 3rd tweak …) —');
 check('first tweak on a fresh component → round 1', _calNextTweakRound({ title_comments: [] }, 'title'), 1);

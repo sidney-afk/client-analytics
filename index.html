@@ -11569,6 +11569,7 @@
         const str = _calStringifyComments(list);
         if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
         if (comp === 'caption') { post.caption_comments = list; post.caption_tweaks = str; return; }
+        if (comp === 'title') { post.title_comments = list; post.title_tweaks = str; return; }
         post.video_comments = list;
         post.comments = list;
         post.video_tweaks = str;
@@ -11972,6 +11973,12 @@
             btn.setAttribute('title', aria);
             btn.setAttribute('aria-label', aria);
         });
+        // Toggling YouTube while title review is on flips whether the title
+        // status pill should show — that's structural (a pill added/removed),
+        // which the in-place strip tweak above can't do, so redraw the card.
+        if (key === 'youtube' && _calIsTitleReviewOn()) {
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        }
         // Persist via the usual debounced save path so the platforms field
         // rides on the next upsert with the rest of the post.
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -25431,12 +25438,14 @@
         wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
         wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
         wire.caption_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'caption'));
+        wire.title_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'title'));
         wire.tweaks = wire.video_tweaks;
         wire.status = computeOverallStatus(item.post);
         delete wire.comments;
         delete wire.video_comments;
         delete wire.graphic_comments;
         delete wire.caption_comments;
+        delete wire.title_comments;
         delete wire._baseAt;
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST',

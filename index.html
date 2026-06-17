@@ -7900,10 +7900,174 @@
         return typeof fetchedAt === 'number' && (Date.now() - fetchedAt) < LINEAR_ISSUES_TTL_MS;
     }
 
+    /* ===================================================================
+     * WORKLOAD v2 — Supabase-backed reads (clone of the samples-v2 / calendar-v2
+     * runtime). Hidden behind ?wl2=1 until the flip. Reads come from the
+     * workload_issues table (kept fresh by the reconcile + Linear webhook) over
+     * REST with a realtime subscription, instead of the live multi-workspace
+     * Linear sweep. ANY Supabase failure falls back to the linear-issues webhook,
+     * so v2 can never blank the board. Rollback for everyone = leave the default
+     * false; rollback for one browser = ?wl2=0.
+     * =================================================================== */
+    const WL_V2_LS_KEY         = 'syncview_workload_v2';
+    const WL_V2_KILL_KEY       = 'syncview_workload_v2_off';
+    const WL_V2_RT_DEBOUNCE_MS = 500;
+    // Realtime auto-update is gated OFF until the reconcile is delta-upsert. The
+    // current reconcile re-writes every row each run (to advance synced_at for the
+    // mark-sweep), which would emit ~1 event per row per run — a flood for open
+    // boards. With this false, v2 still reads Supabase (fast ↻ / mount / tab-return);
+    // it just doesn't push live. Flip to true once the reconcile only writes changed rows.
+    const WL_V2_REALTIME       = false;
+    let _wlV2FlagCache = null;
+    function _wlV2Enabled() {
+        if (_wlV2FlagCache !== null) return _wlV2FlagCache;
+        // Phase 2: OFF by default — opt in per-browser with ?wl2=1 (sticky), opt
+        // out with ?wl2=0. Flip this default to `true` once the Linear webhook
+        // fast-path (Phase 1b) is live so reassignments land in ~2s.
+        let on = false;
+        try {
+            const q = new URLSearchParams(location.search).get('wl2');
+            if (q === '1' || q === 'true') { on = true; localStorage.setItem(WL_V2_LS_KEY, '1'); localStorage.removeItem(WL_V2_KILL_KEY); }
+            else if (q === '0' || q === 'false') { on = false; localStorage.setItem(WL_V2_KILL_KEY, '1'); localStorage.removeItem(WL_V2_LS_KEY); }
+            else { on = (localStorage.getItem(WL_V2_LS_KEY) === '1') && (localStorage.getItem(WL_V2_KILL_KEY) !== '1'); }
+        } catch { on = false; }
+        _wlV2FlagCache = on;
+        return on;
+    }
+    function _wlV2Ready() { return _wlV2Enabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+
+    let _wlV2ClientObj = null, _wlV2ClientPromise = null;
+    function _wlV2Client() {
+        if (!_wlV2Ready()) return Promise.resolve(null);
+        if (_wlV2ClientObj) return Promise.resolve(_wlV2ClientObj);
+        if (_wlV2ClientPromise) return _wlV2ClientPromise;
+        // Reuse the calendar's generic supabase-js UMD loader so the lib loads at most once.
+        _wlV2ClientPromise = _calV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _wlV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: false },
+                realtime: { params: { eventsPerSecond: 5 } }
+            });
+            return _wlV2ClientObj;
+        }).catch(e => { console.warn('[Workload v2] supabase-js init failed', e); _wlV2ClientPromise = null; return null; });
+        return _wlV2ClientPromise;
+    }
+
+    // Map a snake_case workload_issues row to the camelCase issue shape the
+    // board consumes (identical to what the linear-issues endpoint returns).
+    function _wlV2MapRow(r) {
+        return {
+            id: r.id,
+            identifier: r.identifier,
+            title: r.title,
+            url: r.url,
+            isSubIssue: !!r.is_sub_issue,
+            parentId: r.parent_id,
+            parentIdentifier: r.parent_identifier,
+            dueDate: r.due_date,
+            createdAt: r.linear_created_at,
+            updatedAt: r.linear_updated_at,
+            status: r.status,
+            statusType: r.status_type,
+            teamKey: r.team_key,
+            teamName: r.team_name,
+            assigneeId: r.assignee_id,
+            assigneeName: r.assignee_name,
+            assigneeEmail: r.assignee_email,
+            clientName: r.client_name,
+        };
+    }
+    // Read every ACTIVE row. Supabase caps a single response at 1000 rows, so we
+    // page with limit/offset until a short page — otherwise the board would
+    // silently miss issues beyond the first 1000.
+    async function _wlV2FetchIssues() {
+        const base = CAL_SUPABASE_URL + '/rest/v1/workload_issues?select=*&active=eq.true&order=id.asc&limit=1000&offset=';
+        const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+        let from = 0, all = [];
+        for (let guard = 0; guard < 50; guard++) {        // hard cap 50k rows
+            const resp = await fetch(base + from, { headers });
+            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            all = all.concat(rows);
+            if (rows.length < 1000) break;
+            from += 1000;
+        }
+        return all.map(_wlV2MapRow);
+    }
+
+    // Realtime: one global channel on workload_issues. A change coalesces into a
+    // debounced silent refetch (which re-reads Supabase and repaints, deferring
+    // while a popover is open). The board has no inline editing, so there's no
+    // self-echo to suppress (writes come from n8n, not the browser).
+    let _wlV2Channel = null, _wlV2RtTimer = null, _wlV2SubscribedOnce = false;
+    function _wlV2OnRealtimeChange() {
+        if (!document.querySelector('.workload-view')) return;
+        if (_wlV2RtTimer) clearTimeout(_wlV2RtTimer);
+        _wlV2RtTimer = setTimeout(() => {
+            _wlV2RtTimer = null;
+            if (!document.querySelector('.workload-view')) return;
+            wlRefetchSilent();
+        }, WL_V2_RT_DEBOUNCE_MS);
+    }
+    async function _wlV2EnsureSubscribed() {
+        if (!WL_V2_REALTIME) return;            // gated off until the reconcile is delta-upsert (see note above)
+        if (!_wlV2Ready() || _wlV2Channel) return;
+        const client = await _wlV2Client();
+        if (!client || !document.querySelector('.workload-view')) return; // left during lib load
+        try {
+            _wlV2Channel = client
+                .channel('workload_issues')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'workload_issues' }, () => _wlV2OnRealtimeChange())
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        // A re-subscribe means the socket dropped (suspended tab woke up);
+                        // realtime doesn't replay missed events, so pull a catch-up snapshot.
+                        // Skip the FIRST subscribe — the load that opened the channel is current.
+                        if (_wlV2SubscribedOnce) _wlV2OnRealtimeChange();
+                        _wlV2SubscribedOnce = true;
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        console.warn('[Workload v2] realtime status:', status);
+                    }
+                });
+        } catch (e) {
+            console.warn('[Workload v2] realtime subscribe failed', e);
+            _wlV2Channel = null;
+        }
+    }
+    function _wlV2Teardown() {
+        if (_wlV2RtTimer) { clearTimeout(_wlV2RtTimer); _wlV2RtTimer = null; }
+        if (_wlV2Channel) {
+            try {
+                if (_wlV2ClientObj && typeof _wlV2ClientObj.removeChannel === 'function') _wlV2ClientObj.removeChannel(_wlV2Channel);
+                else if (typeof _wlV2Channel.unsubscribe === 'function') _wlV2Channel.unsubscribe();
+            } catch {}
+        }
+        _wlV2Channel = null; _wlV2SubscribedOnce = false;
+    }
+    window.wlV2Status = function () { return { flag: _wlV2Enabled(), ready: _wlV2Ready(), subscribed: !!_wlV2Channel }; };
+
     async function loadLinearIssues(force) {
         const cache = wlReadCache();
         if (cache && !force && wlIsFresh(cache.fetchedAt)) {
             return { issues: cache.issues, fetchedAt: cache.fetchedAt, fromCache: true };
+        }
+        // Workload v2 (?wl2=1): read the prebuilt workload_issues table from
+        // Supabase (sub-second). ANY failure — or a suspicious empty result —
+        // falls through to the original linear-issues endpoint below, so v2 can
+        // never blank or half-populate the board.
+        if (_wlV2Ready()) {
+            try {
+                const issues = await _wlV2FetchIssues();
+                if (Array.isArray(issues) && issues.length) {
+                    const fetchedAt = Date.now();
+                    wlWriteCache({ issues, fetchedAt });
+                    return { issues, fetchedAt, fromCache: false };
+                }
+                console.warn('[Workload v2] Supabase returned 0 active rows — falling back to linear-issues');
+            } catch (e) {
+                console.warn('[Workload v2] Supabase read failed — falling back to linear-issues', e);
+            }
         }
         // When forcing a refresh (e.g. the bulk-create polling loop), bypass
         // the browser's HTTP cache so a previous 304 doesn't replay stale
@@ -8439,6 +8603,10 @@
         // suggestions appear instantly.
         wlWireToolbar();
         wlWireClientSearch();
+        // Workload v2 (?wl2=1): open the Supabase realtime subscription so the
+        // board updates on its own when workload_issues changes. No-op when the
+        // flag is off. Fire-and-forget; teardown happens on leaving the view.
+        _wlV2EnsureSubscribed();
 
         try {
             const { issues, fetchedAt } = await loadLinearIssues(!!cache);
@@ -11149,6 +11317,7 @@
         if (page !== 'samples') document.body.classList.remove('sm-modal-open');
         // Phase 2: drop the Samples Supabase realtime subscription when leaving.
         if (page !== 'samples' && typeof _smV2Teardown === 'function') _smV2Teardown();
+        if (page !== 'workload' && typeof _wlV2Teardown === 'function') _wlV2Teardown();
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');

@@ -134,5 +134,8 @@ After fix:
 - **Phase 1b(a) — TODO.** Convert the reconcile to **delta-upsert** (write only changed rows +
   targeted-deactivate the genuinely-gone) so it stops re-writing all rows each run — removes the
   realtime event flood and lets `WL_V2_REALTIME` be enabled.
-- **Phase 3 — TODO.** Flip `?wl2` default ON (and `WL_V2_REALTIME` on) once 1b is verified, so the
-  live experience is fast *and* fresh. Rollback = flip the default back / `?wl2=0`.
+- **Phase 3 — default flipped ON (2026-06-17).** `?wl2` now defaults to ON for everyone (Supabase
+  read path live; webhook fast-path verified). `?wl2=0` is a sticky per-browser kill-switch; the
+  read still falls back to the live `/webhook/linear-issues` on any failure, so the flip is lossless.
+  Rollback for everyone = set the `_wlV2Enabled` default back to `false`. `WL_V2_REALTIME` remains
+  OFF (no-click auto-update is the optional follow-up, pending the delta-upsert reconcile).

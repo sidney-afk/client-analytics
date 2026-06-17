@@ -111,8 +111,17 @@ After fix:
   with the live endpoint; idempotent (re-run stays 1,784, no row explosion); every active row
   shares one `synced_at` (no stale-active leakage); empty-read guard prevents mass-deactivation;
   soft-deactivate never deletes. Touches no existing workflow; writes only `workload_issues`.
-- **Phase 1b — TODO.** Extend the `linear-status-sync` Linear webhook to also upsert the changed
-  sub-issue (+parent) into `workload_issues` for ~1–2s freshness (additive, backed up).
-- **Phase 2 — TODO.** Frontend reads `workload_issues` (Supabase REST + realtime) behind a sticky
-  `?wl2=1` flag, with the live `/webhook/linear-issues` as automatic fallback. This is the step
-  that makes the refresh sub-second in the app; nothing changes for users until the flag flips.
+- **Phase 2 — read path DONE (behind `?wl2=1`, off by default).** `loadLinearIssues` reads
+  `workload_issues` from Supabase REST (paginated past the 1000-row cap; verified assembles all
+  1,784) and maps snake_case → the camelCase shape the board consumes. ANY failure or empty
+  result falls back to the live `/webhook/linear-issues`, so v2 can never blank the board.
+  Makes ↻ / mount / tab-return **sub-second**. Realtime auto-update is coded but **gated off**
+  (`WL_V2_REALTIME=false`) until the reconcile is delta-upsert — see Phase 1b. Syntax-verified
+  (`node --check`); inert until a browser opts in with `?wl2=1`.
+- **Phase 1b — TODO.** (a) Convert the reconcile to **delta-upsert** (write only changed rows +
+  targeted-deactivate the genuinely-gone), so it stops re-writing all 1,784 rows each run — this
+  removes the realtime event flood and lets us enable `WL_V2_REALTIME`. (b) Extend the
+  `linear-status-sync` Linear webhook (additively, without touching its calendar-status logic) to
+  upsert the changed sub-issue (+parent) into `workload_issues` for ~1–2s reassignment freshness.
+- **Phase 3 — TODO.** Flip `?wl2` default ON (and `WL_V2_REALTIME` on) once 1b is verified, so the
+  live experience is fast *and* fresh. Rollback = flip the default back / `?wl2=0`.

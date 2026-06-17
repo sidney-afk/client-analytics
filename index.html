@@ -2555,6 +2555,12 @@
         .cal-urgent-btn:disabled { background: #9ca3af; cursor: default; }
         .cal-urgent-btn.is-sent { background: #166534; }
         .cal-urgent-btn svg { width: 11px; height: 11px; flex-shrink: 0; }
+        /* Standalone red URGENT pill for Kasper's review-card action row — the
+           same button as the calendar, minus the segmented border-radius, sized
+           to sit beside Finish reviewing / Watch video. Red bg, hover, is-sent
+           (green) and disabled (grey) all inherit from .cal-urgent-btn. */
+        .kcard-urgent-btn { padding: 9px 13px; border-radius: 10px; font-size: 0.72rem; letter-spacing: 0.04em; }
+        .kcard-urgent-btn svg { width: 13px; height: 13px; }
         /* Second Linear slot (graphics) in the title row — purple ONLY when
            linked, so an unlinked graphic slot falls back to the neutral
            gray (default) or warn-orange (cal-linear-btn-warn) the same way
@@ -13281,7 +13287,16 @@
             showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
             return;
         }
-        const client = String(calState.client || '').trim();
+        _calUrgentSlackDispatch(btn, issue, String(calState.client || '').trim(), post.name);
+    }
+    /* Shared confirm → POST → button-latch for the URGENT ping. Used by BOTH the
+       SMM calendar button (_calSendUrgentSlack) and Kasper's review-card button
+       (_kasperSendUrgentSlack). The front-end only ever sends the video
+       sub-issue URL + client name; the send-urgent-slack workflow resolves the
+       editor from Linear and posts to #video-editing, so the message is byte-for
+       -byte identical no matter who triggers it. `btn` may be null (no element to
+       latch). */
+    function _calUrgentSlackDispatch(btn, issue, client, name) {
         showConfirm(
             'Send urgent tweak ping?',
             'This posts an “URGENT TWEAKS NEEDED” message in the #video-editing Slack channel and tags the editor assigned to this video on Linear. Only use it for tweaks that genuinely need attention today.',
@@ -13291,7 +13306,7 @@
                     try {
                         const resp = await fetch(URGENT_SLACK_URL, {
                             method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ issue, client, name: String(post.name || '') })
+                            body: JSON.stringify({ issue, client, name: String(name || '') })
                         });
                         let j = null;
                         try { j = await resp.json(); } catch {}
@@ -25195,6 +25210,16 @@
         const doneBtn = isFinished
             ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Sent to SMM</button>`
             : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_kasperDismiss('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
+        // URGENT ping — the same affordance as the SMM's calendar button, surfaced
+        // in Kasper's queue so he can flag a video tweak straight to the editor in
+        // Slack (#video-editing) himself instead of waiting on the SMM to click it.
+        // Same gate as the calendar (_calShowUrgent): video at Tweaks Needed with a
+        // linked sub-issue to resolve the editor from. Routes through
+        // _kasperSendUrgentSlack, which resolves the post from the (cross-client)
+        // review queue rather than calState.posts.
+        const urgentBtn = _calShowUrgent(p, 'video')
+            ? `<button type="button" class="cal-urgent-btn kcard-urgent-btn" data-urgent-pid="${_calEscAttr(pid)}" onclick="event.stopPropagation();_kasperSendUrgentSlack(event,'${_calEscAttr(pid)}')" title="Ping the editor in #video-editing that this video needs urgent tweaks">URGENT</button>`
+            : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
         const openTweaks = _calOpenCommentCount(p);
         const tweaksChip = openTweaks > 0
@@ -25225,6 +25250,7 @@
                     <div class="kcard-meta-row">${smmHtml}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${urgentBtn}
                     ${doneBtn}
                     ${watchBtn}
                     <button class="kcard-expand-btn" type="button" onclick="_kasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
@@ -25233,6 +25259,32 @@
             ${expandedHtml}
         </div>`;
     }
+
+    /* Kasper's URGENT ping. Mirrors the SMM calendar button, but the review
+       queue is CROSS-CLIENT, so the post can't be looked up in calState.posts
+       (that's only the actively-loaded client) — it's resolved from
+       _kasperState.items / .replies instead, and the card's own client is sent.
+       Everything else (confirm, latch, toast) is the shared dispatch, so the
+       Slack message is identical to an SMM-triggered ping. */
+    function _kasperSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') {
+            showNotify('Already sent', 'An urgent ping for this video was already sent in this session.');
+            return;
+        }
+        const item = (_kasperState.items || []).find(x => x && x.post && x.post.id === pid)
+                  || (_kasperState.replies || []).find(x => x && x.post && x.post.id === pid);
+        if (!item || !item.post) return;
+        const issue = String(item.post.linear_issue_id || '').trim();
+        if (!issue) {
+            showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.');
+            return;
+        }
+        const client = String(item.client || wlCanonicalClient(item.slug) || '').trim();
+        _calUrgentSlackDispatch(btn, issue, client, item.post.name);
+    }
+    window._kasperSendUrgentSlack = _kasperSendUrgentSlack;
 
     function _kasperRenderExpanded(item /*, comments, videoUrl, calUrl */) {
         const p = item.post;

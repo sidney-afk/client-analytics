@@ -59,7 +59,8 @@ function grabConst(name) {
 
 // ---- Real code extracted verbatim from index.html (by name) ----
 const REAL = [
-  grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'),
+  grabConst('CAL_STATUSES'), grabConst('CAL_PRIORITY'), grabConst('CAL_COMPONENTS'), grabConst('CAL_REVIEW_COMPONENTS'),
+  grabFunc('_calIsYouTubeCard'), grabFunc('_calTitleEngaged'), grabFunc('_calComponentsFor'),
   grabFunc('_calNormStatus'), grabFunc('computeOverallStatus'), grabFunc('_calClearStaleApprovals'),
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'), grabFunc('_calCommentsFor'),
   grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'), grabFunc('_calCommentStamp'),
@@ -72,6 +73,7 @@ const STUBS = `
 let _isClientLink = false;
 const _kasperSeen = Object.create(null);
 function _calMarkKasperSeen(pid, comp){ _kasperSeen[pid+'|'+comp] = true; }
+function _calPostPlatforms(){ return []; }   // test posts aren't YouTube → _calComponentsFor = base 3
 `;
 
 // Build a module and pull out the symbols we need.

@@ -11569,7 +11569,7 @@
     function _calLinearUrlFor(post, comp) {
         if (!post) return '';
         if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim();
-        if (comp === 'caption') return '';
+        if (comp === 'caption' || comp === 'title') return '';
         return String(post.linear_issue_id || '').trim();
     }
     const CAL_PREFS_KEY = 'syncview_calendar_prefs';
@@ -19519,7 +19519,7 @@
         if (!post) return false;
         const myRole = _calCommentRole();           // 'smm' or 'client'
         const seen = _notesGetSeen(post.id);
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsForView(post, c); // respects client visibility
             if (!Array.isArray(list)) continue;
             for (const m of list) {
@@ -19538,7 +19538,7 @@
     function _kasperHasUnreadReply(post) {
         if (!post) return false;
         const seen = _kasperGetSeenAt(post.id);
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsFor(post, c);
             if (!Array.isArray(list)) continue;
             const byId = new Map();
@@ -19557,7 +19557,7 @@
        from the Replies inbox should land so the conversation stays together. */
     function _kasperLatestInternalComp(post) {
         let best = null, bestT = '';
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsFor(post, c);
             if (!Array.isArray(list)) continue;
             const byId = new Map();
@@ -19578,9 +19578,9 @@
     function _calRecordKasperSeenOnPost(post, comp) {
         _calMarkKasperSeen(post.id, comp);
         const set = new Set(String(post.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean));
-        CAL_COMPONENTS.forEach(c => { if (_calWasKasperSeen(post.id, c)) set.add(c); });
+        _calComponentsFor(post).forEach(c => { if (_calWasKasperSeen(post.id, c)) set.add(c); });
         set.add(comp);
-        const csv = CAL_COMPONENTS.filter(c => set.has(c)).join(',');
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
         post.kasper_seen = csv;
         return csv;
     }
@@ -19596,7 +19596,7 @@
     function _calRecordApprovedAfterTweaks(post, comp) {
         const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
         set.add(comp);
-        const csv = CAL_COMPONENTS.filter(c => set.has(c)).join(',');
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
         post.kasper_approved_after_tweaks = csv;
         return csv;
     }
@@ -19606,7 +19606,7 @@
         const set = new Set(String(post.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
         if (!set.has(comp)) return post.kasper_approved_after_tweaks || '';
         set.delete(comp);
-        const csv = CAL_COMPONENTS.filter(c => set.has(c)).join(',');
+        const csv = _calComponentsFor(post).filter(c => set.has(c)).join(',');
         post.kasper_approved_after_tweaks = csv;
         return csv;
     }
@@ -19719,7 +19719,7 @@
         const reviewStatus = _CAL_REVIEW_CFG[mode].reviewStatus;
         return (calState.posts || []).reduce((n, p) => {
             if (mode === 'smm' && !_calHasMedia(p)) return n;
-            const awaiting = CAL_COMPONENTS.some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
+            const awaiting = _calComponentsFor(p).some(c => _calNormStatus(p[c + '_status'] || '') === reviewStatus);
             return n + (awaiting ? 1 : 0);
         }, 0);
     }
@@ -19751,7 +19751,7 @@
             // isn't ready for sign-off, so it stays hidden until media lands.
             if (mode === 'smm') {
                 if (!_calHasMedia(p)) return false;
-                return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'smm'));
+                return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'smm'));
             }
             // Clients see cards waiting on their approval AND cards
             // where they've already left tweaks (so they can add more
@@ -19759,7 +19759,7 @@
             // around). The card only drops off the queue once that
             // component reaches Approved.
             if (_isClientLink) {
-                return CAL_COMPONENTS.some(c => _calReviewComponentActive(p, c, 'client'));
+                return _calComponentsFor(p).some(c => _calReviewComponentActive(p, c, 'client'));
             }
             return true;
         }).slice().sort((a, b) => {
@@ -19797,7 +19797,7 @@
         // so the label never advertises a component the queue itself has hidden.
         const showInFlight = mode !== 'client' || !_isClientLink || _calIsCollabOn();
         const awaiting = [], inFlight = [];
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(p)) {
             const cs = _calNormStatus(p[c + '_status'] || '');
             if (cs === reviewStatus) awaiting.push(c);
             else if (showInFlight && cs === 'Tweaks Needed') inFlight.push(c);
@@ -19874,16 +19874,19 @@
         // Approved (handled by _calReviewItems on the next render).
         const _reviewMode = _calReviewMode();
         const activeComps = (_reviewMode === 'smm')
-            ? CAL_COMPONENTS.filter(c => _calReviewComponentActive(p, c, 'smm'))
+            ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'smm'))
             : (_isClientLink
-                ? CAL_COMPONENTS.filter(c => _calReviewComponentActive(p, c, 'client'))
-                : CAL_COMPONENTS);
+                ? _calComponentsFor(p).filter(c => _calReviewComponentActive(p, c, 'client'))
+                : _calComponentsFor(p));
         if (!activeComps.length) {
             return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing left to review on this post.</div></div>`;
         }
         const panels = activeComps.map(comp => _calReviewPanelHtml(p, comp)).join('');
         const cols = activeComps.length;
-        return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">
+        // 4 components (a YouTube card with title review on) lay out 2×2 instead
+        // of a cramped 4-wide row; 1–3 keep their natural column count.
+        const gridCols = cols >= 4 ? 2 : cols;
+        return `<div class="cal-review-body" style="grid-template-columns: repeat(${gridCols}, minmax(0, 1fr));" onclick="event.stopPropagation();">
             ${panels}
         </div>`;
     }
@@ -20069,6 +20072,11 @@
             const escPid = _calEscAttr(p.id);
             return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
         }
+        if (comp === 'title') {
+            const t = String(p.name || '').trim();
+            if (!t) return `<div class="cal-review-preview-empty">No title yet.</div>`;
+            return `<div class="cal-review-preview-caption cal-review-preview-title">${_calEsc(t)}</div>`;
+        }
         const cap = String(p.caption || '').trim();
         const alt = String(p.caption_alt || '').trim();
         if (!cap && !alt) return `<div class="cal-review-preview-empty">No caption yet.</div>`;
@@ -20212,7 +20220,7 @@
         // a glitch. Otherwise just repaint the card so the approved component
         // lands as an instant mini panel.
         const clearsCard = (mode === 'smm' || _isClientLink)
-            && !CAL_COMPONENTS.some(c => _calReviewComponentActive(post, c, mode));
+            && !_calComponentsFor(post).some(c => _calReviewComponentActive(post, c, mode));
         if (clearsCard) {
             _calReviewRemoveCard(pid);
         } else {
@@ -20325,7 +20333,7 @@
         // The client surface keeps Tweaks-Needed cards, so it always repaints.
         const _tweakMode = _calReviewMode();
         const clearsCard = (_tweakMode === 'smm' || _isClientLink)
-            && !CAL_COMPONENTS.some(c => _calReviewComponentActive(post, c, _tweakMode));
+            && !_calComponentsFor(post).some(c => _calReviewComponentActive(post, c, _tweakMode));
         if (clearsCard) {
             _calReviewRemoveCard(pid);
         } else {
@@ -20556,7 +20564,7 @@
        over the other. Returns winner. */
     function _calMergePostComments(winner, other) {
         if (!winner || !other) return winner;
-        for (const comp of CAL_COMPONENTS) {
+        for (const comp of _calComponentsFor(winner)) {
             const merged = _calMergeCommentLists(_calCommentsFor(winner, comp), _calCommentsFor(other, comp));
             _calSetCommentsFor(winner, comp, merged);
         }
@@ -20611,7 +20619,7 @@
     function _calAllCommentLists(post) {
         if (!post) return [];
         const lists = [];
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             // Use the view-filtered reader so the client's "Tweaks" badge
             // / open-comment count doesn't include Kasper-only entries.
             const list = _calCommentsForView(post, c);
@@ -20686,18 +20694,18 @@
         return false;
     }
     function _calPostKasperVisible(post) {
-        return CAL_COMPONENTS.some(c => _calCompKasperVisible(post, c));
+        return _calComponentsFor(post).some(c => _calCompKasperVisible(post, c));
     }
     /* Whole-card: any unresolved Kasper tweak across any component. Used
        for the Done-reviewing button visibility and the card-stays rule. */
     function _calPostHasUnresolvedKasperTweak(post) {
-        return CAL_COMPONENTS.some(c => _calCompHasUnresolvedKasperTweak(post, c));
+        return _calComponentsFor(post).some(c => _calCompHasUnresolvedKasperTweak(post, c));
     }
     /* Newest message timestamp across every component (ignores tombstones).
        Used to detect "has anyone replied since Kasper last caught up?". */
     function _calLatestMsgAt(post) {
         let max = '';
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsFor(post, c);
             if (!Array.isArray(list)) continue;
             for (const m of list) {
@@ -20719,7 +20727,7 @@
        updated_at-based merge / seen / unread clock everywhere else. */
     function _calLatestMsgCreatedAt(post) {
         let max = '';
-        for (const c of CAL_COMPONENTS) {
+        for (const c of _calComponentsFor(post)) {
             const list = _calCommentsFor(post, c);
             if (!Array.isArray(list)) continue;
             for (const m of list) {
@@ -20743,7 +20751,7 @@
         // Kasper would be forced to decide on a thumbnail that isn't part of
         // the card's scope (and that the SMM can't even re-route, since the
         // pill is locked without a link).
-        return CAL_COMPONENTS.filter(c =>
+        return _calComponentsFor(post).filter(c =>
             !(c === 'graphic' && !String(post.graphic_linear_issue_id || '').trim())
             && _calNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
     }

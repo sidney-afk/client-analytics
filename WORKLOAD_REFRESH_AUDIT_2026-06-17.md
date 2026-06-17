@@ -118,10 +118,18 @@ After fix:
   Makes ↻ / mount / tab-return **sub-second**. Realtime auto-update is coded but **gated off**
   (`WL_V2_REALTIME=false`) until the reconcile is delta-upsert — see Phase 1b. Syntax-verified
   (`node --check`); inert until a browser opts in with `?wl2=1`.
-- **Phase 1b — TODO.** (a) Convert the reconcile to **delta-upsert** (write only changed rows +
-  targeted-deactivate the genuinely-gone), so it stops re-writing all 1,784 rows each run — this
-  removes the realtime event flood and lets us enable `WL_V2_REALTIME`. (b) Extend the
-  `linear-status-sync` Linear webhook (additively, without touching its calendar-status logic) to
-  upsert the changed sub-issue (+parent) into `workload_issues` for ~1–2s reassignment freshness.
+- **Phase 1b(b) — webhook fast-path STAGED (draft, not yet live).** Added a parallel branch to
+  `linear-status-sync` (`MJbMZ789B5ExZz9x`): `Receive Linear Event → Plan Workload Row (Code) →
+  Upsert Workload (HTTP → workload_issues)`. The existing `Handle Linear Event` node + connection
+  are UNCHANGED; both new nodes use `onError: continueRegularOutput` so the workload branch can
+  never halt the calendar sync. Needs NO Linear key — the webhook payload already carries the
+  resolved issue (assignee/state/team/project/dueDate/title/parentId). Builds the same row shape
+  as the reconcile; omits `parent_identifier` (not in payload) so a partial upsert preserves it.
+  Backup: `n8n-backups/linear-status-sync.2026-06-17.pre-workload-branch.jsCode.js` (rollback =
+  republish activeVersionId `1e4d000c-6851-420c-a3dc-91c0cc9b7f4e`). REMAINING: bind the Supabase
+  credential on the `Upsert Workload` node in the n8n UI + publish, then verify.
+- **Phase 1b(a) — TODO.** Convert the reconcile to **delta-upsert** (write only changed rows +
+  targeted-deactivate the genuinely-gone) so it stops re-writing all rows each run — removes the
+  realtime event flood and lets `WL_V2_REALTIME` be enabled.
 - **Phase 3 — TODO.** Flip `?wl2` default ON (and `WL_V2_REALTIME` on) once 1b is verified, so the
   live experience is fast *and* fresh. Rollback = flip the default back / `?wl2=0`.

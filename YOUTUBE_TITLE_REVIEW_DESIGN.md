@@ -1,232 +1,270 @@
-# YouTube Title Review — Design Spec
+# YouTube Title Review + Notes Component Routing — Design Spec
 
 **Status:** Draft for sign-off (Sidney + Kasper) · **Date:** 2026-06-17
-**Owner area:** Calendar → per-card title, Kasper review, client review
+**Owner area:** Calendar → per-card title, Kasper/client review, Notes modal, Linear sync
+
+This spec covers two related features decided together:
+
+- **Part A — YouTube Title Review:** let the SMM put a YouTube title through Kasper- and
+  client-approval, fully tracked, without affecting the card's overall status.
+- **Part B — Notes component picker + Linear routing:** in the Notes modal, let the SMM /
+  client say *which deliverable* a note is about, and route video/thumbnail notes to the
+  matching Linear sub-issue (caption + title have no Linear, so they're Supabase-only).
+
+Part B improves all components; Part A only depends on it for the "Title" picker option.
 
 ---
 
-## 1. The problem (in one line)
+## Core architectural decision (applies to both parts)
 
-For YouTube, the **title** is a first-class deliverable (it drives CTR), but today the
-card's title is just a plain `name` text box with **no review, no approval, and no
-history** — so there's no way for the SMM to send a title to Kasper, and then the client,
-for sign-off.
+Today one array, `CAL_COMPONENTS = ['video','graphic','caption']` (`index.html` ~11324),
+serves **two different jobs**: it defines what folds into the card's **overall status**
+(`computeOverallStatus` ~11338) **and** what shows in the **review / Notes / queue** UI.
 
-## 2. What this feature does
+We **split it in two**:
 
-Adds an **opt-in, YouTube-only title review lifecycle** to a calendar card:
+- **`CAL_COMPONENTS = ['video','graphic','caption']`** → **overall status only.** Unchanged.
+  The title never enters it, so `computeOverallStatus`, the `Archived`/`Posted`/`Scheduled`
+  gating, "done-ness" warnings, client-ready gating, and Linear status push are **100%
+  untouched**, and all 617 existing cards behave exactly as before.
+- **`CAL_REVIEW_COMPONENTS = ['video','graphic','caption','title']`** → **everything else:**
+  status pills, review panels, Kasper queue, Notes feed, unread/seen tracking, comment
+  resolve/delete.
 
-1. The SMM can **send the title for review** (one button on the card).
-2. **Kasper approves** it (or requests a change). On approval it **auto-advances to the
-   client**.
-3. The **client approves** it (or requests a change).
-4. **Everything is tracked** — who did what, when, and on which revision round — so there
-   is a complete, auditable history with no room for error.
-
-### Guiding constraint (why this is the safe design)
-
-The title review is a **parallel lifecycle that never touches the card's overall status.**
-It is **not** a new component in `CAL_COMPONENTS` and **never enters `computeOverallStatus`**
-(`index.html` ~11338) or the `*_status` set. There is **no `title_status` field and no new
-status value.** State is **derived from timestamps + an event log** — the same proven
-pattern as the existing `kasper_approved_at` / `kasper_finished_at` / `kasper_closed_at`
-stamps.
-
-Consequence: the title can be in any review phase while the card's overall status
-(`Approved`/`Posted`/`Archived`, the archived/posted gating, Linear push, "done-ness"
-warnings) is **completely unaffected**. All 617 existing cards and every non-YouTube
-client are untouched, because every new field is additive and optional.
+Every current `CAL_COMPONENTS` usage is then audited and pointed at the correct list (the
+full site inventory is in §A6/§B3). This split is the linchpin: it lets the title be a
+first-class *review* component while staying invisible to the *overall-status* machinery —
+the part with all the historical bugs.
 
 ---
 
-## 3. Decisions captured (this session)
+# PART A — YouTube Title Review
 
-- **Approach:** Option B — **timestamps + event log, no new status**, out of
-  `computeOverallStatus`. *(chosen)*
-- **Title does NOT affect overall card status.** *(confirmed)*
-- **Toggle:** **per-client**, in the existing global ⋮ menu, cross-device — mirrors
-  "Collaborative mode." *(chosen)*
-- **Applies to YouTube cards only** (`_calPostPlatforms(post)` includes `youtube`), badged
-  with a small YouTube logo. *(chosen)*
-- **On Kasper approval → auto-advance to client review.** *(chosen)*
-- **After a CLIENT change request + SMM revision → straight back to the client** (skip
-  Kasper). After a **Kasper** change request + revision → back to **Kasper**. Re-review
-  routing keys off **who raised the change.** *(chosen)*
+## A1. The problem
 
----
+For YouTube the **title** drives CTR, but the card's title is just the plain `name` text
+box — no review, no approval, no history. The SMM needs to send a title to Kasper, then the
+client, for sign-off, with a complete audit trail.
 
-## 4. Data model
+## A2. Approach (decided)
 
-### 4a. New per-card fields (additive, back-compatible)
+The title becomes a **4th review component** with its own **`title_status`** that reuses the
+**existing** status values, set by the SMM via the **same dropdown** the other components
+use (`_calStatusToggleMenu` ~16961 → `_calStatusPick` ~17007). It is **excluded from
+`computeOverallStatus`** (via the list split above).
 
-All added to the n8n `calendar-upsert-post` **`ALLOWED`** list, the Supabase
-`calendar_posts` table, and the Google Sheet mirror — exactly like the `caption_*` and
-`kasper_*_at` fields already are.
+- **No new status *value*** — reuses the existing vocabulary.
+- **Never affects overall status** — not in `CAL_COMPONENTS`.
+- **SMM has full control** — can skip Kasper (set straight to *Client Approval*/*Approved*),
+  keep *Approved* after a typo edit, or send back for re-review. Kasper and the client still
+  use the guided **Approve / Request change** buttons in their panels (no free dropdown for
+  them — same as today).
+
+Behaviourally the title mirrors the **caption** (the existing no-Linear component), with
+four deliberate differences: (1) excluded from overall status, (2) gated to YouTube + a
+per-client toggle, (3) a trimmed status list, (4) no Linear.
+
+### Decisions captured
+- Own `title_status`, reusing existing values, **off the overall status.** *(chosen)*
+- **Status options = relevant subset:** `In Progress`, `For SMM Approval`, `Kasper
+  Approval`, `Client Approval`, `Tweaks Needed`, `Approved`. Drops `Scheduled`/`Posted`
+  (publishing states that don't apply to a title). *(chosen)*
+- Goes through **Kasper *and* client** approval. *(chosen)*
+- **Kasper Approve → auto-advances to Client Approval** (mirrors `_kasperApproveComp`
+  ~25396, which routes a sub-status to `Client Approval`). *(chosen)*
+- Re-review routing is **SMM-driven via the dropdown** (e.g. after a client change request
+  the SMM resubmits straight to *Client Approval*, skipping Kasper). *(follows from the
+  dropdown decision)*
+- **Per-client toggle** in the global ⋮ menu (~15523), cross-device, mirroring
+  "Collaborative mode" (`_calIsCollabOn`); default off. *(chosen)*
+- **YouTube cards only** (`_calPostPlatforms(post)` includes `youtube`), badged with a small
+  YouTube glyph. *(chosen)*
+- **Editing an approved title does NOT force re-review** — the SMM decides. We still **log**
+  the edit (old → new) in the history for the audit trail. *(chosen)*
+
+## A3. Data model
+
+New per-card fields (added to the n8n `calendar-upsert-post` `ALLOWED` list + Supabase
+`calendar_posts` + Sheet mirror, exactly like the `caption_*` fields):
 
 | Field | Type | Meaning |
 |---|---|---|
-| `title_submitted_at` | text (ISO ts) | When the SMM last sent the **current** title for review. Bumped on every (re)submit; marks the start of a round. |
-| `title_kasper_approved_at` | text (ISO ts) | When Kasper approved the current title. |
-| `title_client_approved_at` | text (ISO ts) | When the client approved (terminal). |
-| `title_comments` | text (JSON array) | The **thread + audit log**. Same comment object shape as `caption_comments`, with two small additions (`round`, `kind`). |
+| `title_status` | text | One of the A2 subset. **Not** folded into `computeOverallStatus`. |
+| `title_tweaks` | text (JSON) | The title's comment/tweak thread — same shape as `caption_tweaks`. |
+| `client_title_approved_at` | text (ISO ts) | Client approval timestamp (mirrors `client_caption_approved_at`). |
 
-**No `title_status`.** State is derived (see §5).
+The **audit trail** comes from the existing comment model, which already records per entry:
+`{ role: 'smm'|'kasper'|'client', author, is_tweak, audience, body, created_at, updated_at,
+done, done_at, done_by }` — i.e. **who / what / when / resolved**. We add two small,
+title-scoped extensions for the "leave no room for error" goal:
 
-### 4b. The `title_comments` entry shape
+- a **`round`** integer tag on entries (revision 1, 2, 3…), and
+- optional **`kind:'event'`** system entries logging lifecycle moments (`submit`,
+  `kasper_approve`, `client_approve`, `edit_title` with old→new). The thread is JSON, so
+  this is additive and needs no migration — and gives headroom for details we add later.
 
-Reuses the existing comment object (so it inherits thread rendering, role colors,
-resolved/seen tracking) and adds two fields:
+The per-client enable flag lives where "Collaborative mode" persists (cross-device).
 
-```js
-{
-  id, parent_id,
-  role: 'smm' | 'kasper' | 'client',   // WHO
-  author,                               // display name
-  is_tweak: boolean,                    // true = a change request
-  audience: 'internal' | 'client',
-  body,                                 // the note (for tweaks/comments)
-  created_at, updated_at,               // WHEN
-  done, done_at, done_by,               // resolution tracking (existing)
-  // NEW:
-  round: integer,                       // which revision round this belongs to
-  kind: 'comment' | 'event',            // 'event' = a system lifecycle entry
-  action,                               // for events: 'submit' | 'kasper_approve' |
-                                        //   'client_approve' | 'request_changes' |
-                                        //   'edit_title' | 'reopen'
-  to,                                   // for 'submit' events: 'kasper' | 'client'
-  from_value, to_value                  // for 'edit_title': old → new title text
-}
-```
+## A4. Lifecycle
 
-- **Human discussion / change requests** are normal comments (`kind:'comment'`,
-  `is_tweak` true for change requests).
-- **Lifecycle moments** (submit, approvals, edits) are logged as `kind:'event'` entries so
-  the thread reads as a complete chronological history in one place.
-- The three scalar stamps in §4a are **denormalized fast pointers** for the headline state
-  (cheap to render, ride realtime); the log is the **full audit trail** and is JSON, so
-  new actions/fields cost nothing and need no migration (the "details we haven't thought
-  of yet" headroom).
+The title flows through `title_status` like any component:
 
-### 4c. The per-client enable flag
+- **SMM** sets it via the dropdown (full freedom).
+- Card enters **Kasper's queue** when `title_status === 'Kasper Approval'`
+  (`_calCompKasperVisible` ~20600, with the caption's no-Linear rule). Title is added to
+  `_kasperUndecidedComps` (~20667) so **"Finish reviewing"** requires a title decision.
+- **Kasper** Approve → `Client Approval` (auto-advance) + stamps; Request change →
+  `Tweaks Needed` + a Kasper tweak comment. (No Linear push — title has no issue.)
+- **Client** Approve → `Approved` + `client_title_approved_at`; Request change →
+  `Tweaks Needed` + a client tweak.
+- **Edit after approval** → logged as an `edit_title` event; status unchanged unless the SMM
+  changes it.
 
-Stored where "Collaborative mode" persists (cross-device, per client), surfaced as a
-toggle in the global ⋮ menu (`index.html` ~15523). Default **off**. When off, no title
-review UI renders and the feature is a complete no-op.
+## A5. UI surfaces
 
----
+1. **Sheet/organizer card:** a **title status pill** next to the `name` input
+   (`_calTitleRowHtml` ~16782), opening the same status dropdown — shown only when the
+   feature is on **and** the card is YouTube. Badged with a small YouTube glyph.
+2. **Kasper & client review panels:** the review body is a hard 3-column grid
+   (`.cal-review-body { grid-template-columns: repeat(3,…) }`, panels via
+   `_calReviewPanelHtml` ~19818). When the title panel is present, switch to a **2×2 grid**
+   and render a title panel (reusing the existing approve / request-change / thread markup;
+   no Linear link; YT badge).
+3. **Client view:** the title panel shows when `title_status === 'Client Approval'`. The
+   card must be **visible to the client when the title is in client review** even if the
+   other 3 components aren't client-ready — so the client-visibility gate (`_calIsClientReady`
+   ~16419 is overall-only; the actual view filter) gets an **OR "title in client review."**
+4. **Notes:** title comments appear in the Notes feed labeled **"Title"** automatically once
+   `COMP_LABELS['title']='Title'` is set and the feed iterates `CAL_REVIEW_COMPONENTS`
+   (`_calRenderCommentsModal` ~20796 / label at 20816).
 
-## 5. The derived state machine
+## A6. Touch-point inventory (which list each site uses)
 
-A single helper `_titleReviewState(post)` is the **only** source of truth for the chip and
-the review panels, so they can never disagree.
+**Stay on `CAL_COMPONENTS` (overall status — exclude title):** `computeOverallStatus`
+(~11340); `_calIsClientReady` (~16419); the overall-status recompute in the patch builder.
 
-Let `S = title_submitted_at`, `K = title_kasper_approved_at`,
-`C = title_client_approved_at`, `openTweak` = the latest `is_tweak && !done` entry,
-`lastSubmit` = the latest `kind:'event', action:'submit'` entry (carries `to`).
+**Move to `CAL_REVIEW_COMPONENTS` (include title):** status-pill render (~16887,
+`_calClientCompPillsHtml` ~16430); `_calReviewComponentActive` (~19378) + review-panel
+iteration (~19804); Kasper visibility/undecided (~20600/~20616/~20667); Notes feed
+(~20796); unread/seen (`_notesHasUnread` ~19450, `_kasperHasUnreadReply` ~19468,
+`_calMarkKasperSawComp` ~19508); `_calFindCompForCommentId` (~21099); Kasper item
+saving-state/drafts (~23654/~24404); `COMP_LABELS`/`COMP_PILL_COLORS` (~19347/19348, add
+`title`).
 
-| Phase | Condition | Waiting on | Chip |
-|---|---|---|---|
-| **disabled** | feature off OR card not YouTube | — | *(nothing)* |
-| **draft** | no `S` (never sent), or title edited after approval (`reopen`) | SMM | "Send for review" |
-| **changes_requested** | `openTweak` exists | SMM | "Changes requested by Kasper/Client" (+ round) |
-| **in_kasper_review** | `lastSubmit.to === 'kasper'` and not yet K-approved this round | Kasper | "In review · Kasper" |
-| **in_client_review** | (K ≥ S, auto-advanced) OR `lastSubmit.to === 'client'`, not yet C-approved this round | Client | "In review · Client" |
-| **approved** | `C ≥ S` | — | "Approved ✓" |
-
-**Round** = number of `submit` events (1 on first send, 2 on first resubmit, …). Every
-comment/tweak/event is tagged with the current round, so "2nd tweak / 3rd tweak" is a
-stored fact, not a guess.
-
-### Transitions (who writes what)
-
-| Action | Actor | Writes |
-|---|---|---|
-| **Send for review** | SMM | `title_submitted_at = now`; `submit` event `{to:'kasper', round}` |
-| **Approve** | Kasper | `title_kasper_approved_at = now`; `kasper_approve` event → auto-advance to client |
-| **Request change** | Kasper | `is_tweak` comment `{role:'kasper', round}` + `request_changes` event → phase `changes_requested` (back to SMM) |
-| **Resubmit after Kasper tweak** | SMM | resolve the tweak; `title_submitted_at = now`; round++; `submit` event `{to:'kasper'}` → back to Kasper |
-| **Approve** | Client | `title_client_approved_at = now`; `client_approve` event → **approved** |
-| **Request change** | Client | `is_tweak` comment `{role:'client', round}` + `request_changes` event → `changes_requested` (back to SMM) |
-| **Resubmit after Client tweak** | SMM | resolve the tweak; `title_submitted_at = now`; round++; `submit` event `{to:'client'}` → **straight back to client** |
-| **Edit an approved title** | SMM | `edit_title` event `{from_value,to_value}`; phase → `draft` (re-review required) — prevents an approved title silently drifting |
-
-The skip-Kasper routing is encoded entirely by `lastSubmit.to` in the log — no extra
-status field.
+**Seed / persist:** `_calMigratePostShape` (~11407) seeds `title_status` (default empty so
+no pill shows when feature off) + loads `title_tweaks`; new-card template (~12112);
+`_calFlushCardSave` patch builder (~17566) includes `title_status`/`title_tweaks`/
+`client_title_approved_at`; `_CAL_ROLLBACK_FIELDS` (~17467); dedupe keys (~15987);
+remote-change detection (~12281); recent-save tracking (~17687).
 
 ---
 
-## 6. UI surfaces (three touch-points)
+# PART B — Notes component picker + Linear routing
 
-### 6a. Sheet/organizer card — the title row
-Next to the existing `name` input (`_calTitleRowHtml` ~16782), when the feature is on and
-the card is YouTube:
-- A small **derived-state chip** (phase + round) with a **YouTube glyph**.
-- For the SMM: a **"Send title for review"** button (enabled only when the title is
-  non-empty and phase is `draft`/`changes_requested`).
+## B1. The problem
 
-### 6b. Kasper & client review panels — 2×2 grid
-The review body is currently a hard 3-column grid
-(`.cal-review-body { grid-template-columns: repeat(3, …) }`, panels via
-`_calReviewPanelHtml` ~19818). When a title panel is present, switch the grid to **2×2**
-(`repeat(2, …)`) and render a **title panel** reusing the existing thread / approve /
-request-change rendering, badged YouTube.
-- **Kasper queue:** add a title predicate to `_calPostKasperVisible` (~20616) so a card
-  surfaces when `phase === 'in_kasper_review'`. Add the title to `_kasperUndecidedComps`
-  (~20667) so **"Finish reviewing"** requires a title decision — nothing slips through.
-  Re-surfacing on resubmit works for free (a new `submit` event is a new message, which the
-  existing `kasper_finished_at` logic already treats as a fresh ask).
-- **Client view:** title panel shows when `phase === 'in_client_review'`. Client
-  **Approve** writes `title_client_approved_at`; **Request change** writes a client
-  `is_tweak`. The card must be **visible to the client when the title is in client review**
-  even if the other components aren't client-ready yet — extend the client-visibility gate
-  (`_calIsClientReady` ~16419) with an OR for "title in client review."
+In the Notes modal, a **new** note is hardcoded to the `video` component and is **never
+posted to Linear** (`_calAppendComment` ~21049, root comp = `'video'`; no
+`_calPostLinearComment` call). So there's no way to leave a note *about the thumbnail* from
+Notes, and Notes feedback never reaches the editor's Linear sub-issue. Only review-panel
+**change-requests** currently reach Linear.
 
-### 6c. Visual language
-Reuse `.cal-review-panel*` / `.kcard-*` tokens so the title panel feels native. The YouTube
-badge is a small inline logo on the chip and the panel head.
+## B2. The feature
 
----
+Add a **component picker** to the Notes-modal composer (`_calComposerHtml` ~20917) for a new
+root note: **Video · Thumbnail · Caption · Title** (Title only when the Part-A feature is on
++ YouTube; options limited to components active on that card). Replies keep inheriting their
+parent thread's component (no picker on replies).
 
-## 7. Edge cases
+`_calAppendComment` takes the chosen component instead of the hardcoded `'video'` and writes
+to `<comp>_tweaks` (already persisted to Supabase + Sheet). **Routing to Linear:** after the
+note is appended, if the component has a Linear issue, post it there via
+`_calPostLinearComment(_calLinearUrlFor(post, comp), body, author)`:
 
-- **Non-YouTube card / feature off** → no title UI; existing behavior 100% unchanged.
-- **Empty title** → "Send for review" disabled.
-- **Feature toggled off mid-review** → hide the UI but **preserve** all `title_*` data;
-  toggling back on restores the exact state.
-- **Existing cards** (no `title_*` fields) → phase `draft`/`disabled`; nothing renders
-  unless YouTube + enabled.
-- **Cross-device** → all four fields ride the existing upsert echo + Supabase realtime, so
-  every device shows the same state (same mechanism as `kasper_*_at`).
-- **Overall status** → never gated by the title. A card can be `Approved`/`Posted` with its
-  title still in review, and vice versa (confirmed acceptable).
+- **Video** → `post.linear_issue_id`
+- **Thumbnail (graphic)** → `post.graphic_linear_issue_id`
+- **Caption / Title** → **no Linear** (Supabase only).
 
----
+⚠️ **Gate explicitly on `comp ∈ {video, graphic}`** — `_calLinearUrlFor` (~11521) falls
+through to the *video* id for any non-`graphic` comp (incl. caption), so we must not call it
+blindly for caption/title.
 
-## 8. Build order (once approved)
+`_calPostLinearComment` (~13074) is already async + fire-and-forget with a **retry outbox**
+on failure, so routing is resilient and never blocks the save.
 
-1. **Backend (no-op until enabled):** add the 4 columns to Supabase (idempotent migration,
-   like `kasper-review-state-migration.sql`); add the 4 names to the n8n `ALLOWED` list;
-   Sheet auto-adds columns. **Run the migration before adding to `ALLOWED`** (same ordering
-   rule as the Kasper-state rollout).
-2. **Data layer:** `_titleReviewState`; load `title_comments` in `_calMigratePostShape`
-   (~11407); include the new fields in the `_calFlushCardSave` patch builder (~17566).
-3. **Per-client toggle** in the ⋮ menu (mirror `_calIsCollabOn`).
-4. **SMM title-row chip + Send for review.**
-5. **Kasper review:** 2×2 grid + title panel + queue predicate + `_kasperUndecidedComps`.
-6. **Client review:** title panel + approve/request-change + client visibility.
-7. **Audit log:** `event` entries, `round` tracking, `edit_title` stale detection.
-8. **Regression test** `test/title-review-lifecycle.js` (mirroring
-   `test/kasper-review-state-global.js` + `calendar-v2-status-repro.js`): assert the state
-   machine across multiple rounds and both routing paths (Kasper-tweak→Kasper,
-   client-tweak→client), and that `computeOverallStatus` is provably untouched.
+## B3. Decisions to confirm (Part B)
 
-The FE ships safe behind the off-by-default toggle, so steps 3–7 can land incrementally.
+1. **Which notes go to Linear?** Today only *change-requests* push. You asked for a plain
+   *comment* on the thumbnail to reach Linear → plan is **all video/thumbnail notes
+   (comments and change-requests) post to Linear.** Confirm (vs change-requests only).
+2. **Replies:** plan is replies on a video/thumbnail thread **also** post to Linear (so the
+   issue carries the whole conversation). Higher fidelity, but more Linear writes — confirm.
+3. **Create-only (a known limit):** editing / resolving / deleting a note does **not** sync
+   to Linear (matches today's review behaviour). The Linear comment is a one-time post.
+4. **Audience:** Linear is internal tooling, so notes post to Linear **regardless** of the
+   internal/client audience toggle. (The audience toggle still controls client visibility in
+   the app.)
+5. **Default picker selection:** default **Video** (preserves current muscle memory).
+
+## B4. Touch-points (Part B)
+
+`_calComposerHtml` (~20917) add the picker + a `_calComposeComp` state var;
+`_calAppendComment` (~21049) use the chosen comp + add the Linear-routing call;
+`_calFindCompForCommentId` (~21099) iterate `CAL_REVIEW_COMPONENTS`. No new persistence
+beyond Part A's `title_tweaks` (component notes already persist via `<comp>_tweaks`).
 
 ---
 
-## 9. Out of scope (v1)
+## Data / persistence (both parts)
 
-- Title review for non-YouTube platforms.
-- Linear integration for titles (titles, like captions, have no Linear issue).
-- Title A/B testing, CTR analytics, or AI title suggestions.
-- A per-card menu (the toggle is per-client; there is no per-card ⋮ today).
+New Supabase columns on `public.calendar_posts` (idempotent migration, like
+`kasper-review-state-migration.sql`): `title_status`, `title_tweaks`,
+`client_title_approved_at`. Add the same three to the n8n `calendar-upsert-post` `ALLOWED`
+array. **Run the migration before editing `ALLOWED`** (same ordering rule as the
+Kasper-state rollout — otherwise the Supabase mirror sends an unknown column and errors).
+The Sheet auto-adds columns. Part B needs **no** new columns.
+
+## Edge cases
+
+- Feature off / non-YouTube card → no title pill, no Title picker option; behaviour 100%
+  unchanged. Existing cards have empty `title_*` → nothing shows.
+- Toggle off mid-review → hide title UI but **preserve** `title_*` data; toggling back on
+  restores state.
+- Cross-device → all new fields ride the existing upsert echo + Supabase realtime.
+- A video/thumbnail with **no Linear issue linked** → the note saves to Supabase and simply
+  isn't posted to Linear (no error; `_calPostLinearComment` no-ops on empty url).
+- Overall status never gated by the title (a card can be `Approved`/`Posted` with its title
+  still in review, and vice versa).
+
+## Build order
+
+**Phase 0 — backend (no-op until used):** Supabase migration (3 columns) → `ALLOWED` (3
+names). 
+
+**Phase A — title review:** list split (`CAL_REVIEW_COMPONENTS`) + audit the §A6 sites →
+seed/persist (`_calMigratePostShape`, patch builder) → `COMP_LABELS`/colors + status subset
+helper → per-client ⋮ toggle → title pill on the card → 2×2 review grid + title panel →
+Kasper queue + undecided → client view + visibility OR → Notes "Title" label → audit
+`round`/event log.
+
+**Phase B — Notes picker + Linear routing:** composer picker + `_calComposeComp` →
+`_calAppendComment` comp + Linear routing → `_calFindCompForCommentId` review list.
+
+**Tests:** `test/title-review-lifecycle.js` (state across rounds; both routing paths; proves
+`computeOverallStatus` untouched) and `test/notes-linear-routing.js` (comp targeting; Linear
+called for video/graphic only, never caption/title; create-only). Mirror the existing
+`test/kasper-review-state-global.js` / `calendar-v2-status-repro.js` harness style.
+
+Each phase ships safe behind the off-by-default toggle (A) / is additive (B).
+
+## Out of scope (v1)
+
+- Title review for non-YouTube platforms; Linear for titles/captions (none exist).
+- Title A/B testing, CTR analytics, AI title suggestions.
+- Syncing Notes edits/resolves/deletes back to Linear (create-only).
+- A per-card feature menu (toggle is per-client).
+
+## Open decisions (need your call)
+
+The five Part-B items in **§B3** (chiefly: *all notes* vs *change-requests only* to Linear,
+and whether *replies* also post). Everything in Part A is locked.

@@ -11322,6 +11322,41 @@
        Must stay in lock-step with the n8n linear-status-sync PRIORITY table. */
     const CAL_PRIORITY = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5,'Scheduled':6,'Posted':7 };
     const CAL_COMPONENTS = ['video','graphic','caption'];
+    /* Review components: the set that flows through the review panels, the
+       Kasper queue, the Notes feed and unread/seen tracking. The YouTube TITLE
+       is one of these — but is DELIBERATELY kept OUT of CAL_COMPONENTS above, so
+       it never enters computeOverallStatus / _calIsClientReady / any overall-
+       status machinery. See YOUTUBE_TITLE_REVIEW_DESIGN.md. Iterate this list
+       (via _calComponentsFor) for review/Notes/queue; iterate CAL_COMPONENTS for
+       anything that feeds the overall status. */
+    const CAL_REVIEW_COMPONENTS = ['video','graphic','caption','title'];
+    /* The title reuses the existing status vocabulary, minus the publishing-only
+       states (Scheduled / Posted) that don't apply to a title. */
+    const CAL_TITLE_STATUSES = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved'];
+    /* Title review applies to YouTube cards only. */
+    function _calIsYouTubeCard(post) { return _calPostPlatforms(post).includes('youtube'); }
+    /* Per-client, cross-device toggle for the title-review feature (mirrors
+       collab mode; lives in calState.settings). */
+    function _calIsTitleReviewOn() { return !!(calState.settings && calState.settings.title_review); }
+    /* Has the title been engaged in review (a sub-status was set)? Data-driven,
+       so cross-client surfaces (the Kasper queue) work WITHOUT a per-client
+       settings lookup: title_status can only be non-empty if an SMM whose
+       feature was on set it. */
+    function _calTitleEngaged(post) { return !!String((post && post.title_status) || '').trim(); }
+    /* Components active for a post on the REVIEW / Notes / queue surfaces. The
+       title joins only when it's an engaged YouTube card. (The SMM calendar's
+       status row uses _calTitlePillShown instead, so the SMM can engage the
+       title before it carries any status.) */
+    function _calComponentsFor(post) {
+        return (_calIsYouTubeCard(post) && _calTitleEngaged(post)) ? CAL_REVIEW_COMPONENTS : CAL_COMPONENTS;
+    }
+    /* Does the SMM calendar show a title status pill for this card? Toggle-gated
+       (calState.settings is the right client in the calendar view), OR whenever
+       the title already carries review state — so an in-flight review stays
+       visible even if the feature is later toggled off. */
+    function _calTitlePillShown(post) {
+        return _calIsYouTubeCard(post) && (_calIsTitleReviewOn() || _calTitleEngaged(post));
+    }
     /* Map any legacy / external status string onto the current set.
        "Draft" was retired — those posts become "In Progress". */
     function _calNormStatus(s) {
@@ -11361,6 +11396,12 @@
                 if (pending) pending[stampKey] = '';
             }
         });
+        // Title follows the same stale-client-stamp rule, but stands apart from
+        // CAL_COMPONENTS (it never feeds the overall status or kasper_approved_at).
+        if (String(post.title_status || '').trim() && !above.has(_calNormStatus(post.title_status || '')) && post.client_title_approved_at) {
+            post.client_title_approved_at = '';
+            if (pending) pending.client_title_approved_at = '';
+        }
         if (post.kasper_approved_at) {
             const anyAbove = CAL_COMPONENTS.some(c => above.has(_calNormStatus(post[c + '_status'] || '')));
             if (!anyAbove) {
@@ -11418,14 +11459,20 @@
         p.video_status   = hasV ? _calNormStatus(p.video_status)   : (isLegacyOnly ? legacy : 'In Progress');
         p.graphic_status = hasG ? _calNormStatus(p.graphic_status) : (isLegacyOnly ? legacy : 'In Progress');
         p.caption_status = hasC ? _calNormStatus(p.caption_status) : (isLegacyOnly ? legacy : 'In Progress');
+        // Title status is independent of the overall card status and is NEVER
+        // seeded from the legacy `status`. It stays empty until an SMM engages
+        // it, so existing / non-YouTube cards never surface a title review and
+        // computeOverallStatus (which ignores it anyway) is unaffected.
+        p.title_status = String(p.title_status || '').trim() ? _calNormStatus(p.title_status) : '';
         p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
         p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
         p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
+        p.title_comments   = _calLoadCommentsField(p, 'title_tweaks',   '');
         // Per-comment merge clock. Legacy comments (and any written before the
         // field existed) lack updated_at; seed it from created_at so newer-wins
         // comparisons in the CRDT merge are always well-defined and a later
         // resolve/delete reliably beats the original.
-        [p.video_comments, p.graphic_comments, p.caption_comments].forEach(arr => {
+        [p.video_comments, p.graphic_comments, p.caption_comments, p.title_comments].forEach(arr => {
             if (Array.isArray(arr)) arr.forEach(c => { if (c && !c.updated_at) c.updated_at = c.created_at || ''; });
         });
         p.comments = p.video_comments;
@@ -11444,6 +11491,7 @@
         if (!post) return [];
         if (comp === 'graphic') return Array.isArray(post.graphic_comments) ? post.graphic_comments : [];
         if (comp === 'caption') return Array.isArray(post.caption_comments) ? post.caption_comments : [];
+        if (comp === 'title') return Array.isArray(post.title_comments) ? post.title_comments : [];
         if (Array.isArray(post.video_comments)) return post.video_comments;
         return Array.isArray(post.comments) ? post.comments : [];
     }
@@ -11980,7 +12028,7 @@
         lastSel: null,
         monthFilter: null,
         statusFilter: 'all',
-        settings: { collab_mode: false },
+        settings: { collab_mode: false, title_review: false },
     };
 
     /* Per-client calendar settings ride on a sentinel row inside the same
@@ -11992,7 +12040,7 @@
        renders, never gets archived, and never participates in the
        de-duplication or filter passes that run over real posts. */
     const CAL_SETTINGS_PID = 'p_cal_settings';
-    const CAL_SETTINGS_DEFAULTS = { collab_mode: false };
+    const CAL_SETTINGS_DEFAULTS = { collab_mode: false, title_review: false };
     /* The backend sentinel row is the SHARED source of truth for these
        per-client settings: collab mode is something every SMM and the client
        view must agree on, so whatever the backend holds is what the toggle
@@ -12167,6 +12215,25 @@
         // outcome without changing the user-visible timing.
         await savePromise;
     }
+    function _calSyncTitleReviewSwitch() {
+        const sw = document.getElementById('calTitleReviewSwitch');
+        if (sw) sw.classList.toggle('is-on', _calIsTitleReviewOn());
+    }
+    /* Per-client toggle for the YouTube title-review feature. Mirrors
+       _calToggleCollabMode exactly (synchronous optimistic flip + localStorage
+       + background backend sync), so it's cross-device and stuck-switch-proof
+       for free. */
+    async function _calToggleTitleReviewMode() {
+        const slug = calClientSlug(calState.client);
+        const next = !_calIsTitleReviewOn();
+        const savePromise = _calSaveSettings({ title_review: next });
+        _calSyncTitleReviewSwitch();
+        try { _calRenderBody({ preserveScroll: true }); } catch {}
+        if (calClientSlug(calState.client) === slug) {
+            try { _calCacheWrite(slug, calState.posts); } catch {}
+        }
+        await savePromise;
+    }
     function _calCurrentMonthIso() {
         const d = new Date();
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -12278,7 +12345,7 @@
         const fT = Date.parse(fp.updated_at || '');
         if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
         let merged = null;
-        for (const f of ['video_status', 'graphic_status', 'caption_status']) {
+        for (const f of ['video_status', 'graphic_status', 'caption_status', 'title_status']) {
             const sv = fp[f];
             if (sv == null) continue;
             const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
@@ -15985,7 +16052,7 @@
         const keys = ['id','order_index','scheduled_date','status','name',
                       'asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','cta',
                       'linear_issue_id','graphic_linear_issue_id',
-                      'video_status','graphic_status','caption_status',
+                      'video_status','graphic_status','caption_status','title_status',
                       'updated_at'];
         for (let i = 0; i < a.length; i++) {
             for (const k of keys) {
@@ -17464,7 +17531,7 @@
        worse than the de-sync. The 'error' chip stays on the card so the
        user knows to retry. */
     const _CAL_ROLLBACK_FIELDS = [
-        'video_status', 'graphic_status', 'caption_status', 'status',
+        'video_status', 'graphic_status', 'caption_status', 'title_status', 'status',
         'order_index', 'scheduled_date',
         'linear_issue_id', 'graphic_linear_issue_id',
         'client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
@@ -17573,7 +17640,7 @@
                 // whose thread changed, re-derived from the live arrays so
                 // coalesced edits stay consistent. Mirror the legacy `tweaks`
                 // column when the video thread changed.
-                CAL_COMPONENTS.forEach(comp => {
+                CAL_REVIEW_COMPONENTS.forEach(comp => {
                     const fk = comp + '_tweaks';
                     if (fk in edits) {
                         wirePost[fk] = _calStringifyComments(_calCommentsFor(post, comp));
@@ -17591,11 +17658,13 @@
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
                 wirePost.graphic_tweaks = _calStringifyComments(_calCommentsFor(post, 'graphic'));
                 wirePost.caption_tweaks = _calStringifyComments(_calCommentsFor(post, 'caption'));
+                wirePost.title_tweaks   = _calStringifyComments(_calCommentsFor(post, 'title'));
                 wirePost.tweaks = wirePost.video_tweaks;
                 delete wirePost.comments;
                 delete wirePost.video_comments;
                 delete wirePost.graphic_comments;
                 delete wirePost.caption_comments;
+                delete wirePost.title_comments;
                 delete wirePost._baseAt;
                 delete wirePost._saveError;
             }
@@ -17684,9 +17753,9 @@
             // another actor (Kasper) while still riding out a stale Linear
             // round-trip. Paired with _calLocalRecentSaves (same lifetime).
             _calRecentSaveFields.set(realId, {
-                wrote: { video_status: post.video_status, graphic_status: post.graphic_status, caption_status: post.caption_status },
+                wrote: { video_status: post.video_status, graphic_status: post.graphic_status, caption_status: post.caption_status, title_status: post.title_status },
                 base: prevSnapshot
-                    ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status }
+                    ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status, caption_status: prevSnapshot.caption_status, title_status: prevSnapshot.title_status }
                     : {}
             });
             _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success

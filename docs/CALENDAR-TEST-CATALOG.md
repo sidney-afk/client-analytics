@@ -240,12 +240,132 @@ Cross each "✅/⛔" with: button state, direct-call rejection, and persistence.
 
 ---
 
-## 10. Coverage checklist (tick when a green probe exists)
+## 10. Interaction sequences — the state-machine "branch tree" (L9/L12/L14)
+
+The deep bugs live in **multi-step, multi-actor sequences**: Kasper approves →
+client requests a change → SMM resolves to client → client approves → SMM marks
+posted; or Kasper approves → undo → request-change → … Hand-listing these is
+infinite. So we encode the app's **real status graph once** and let a depth-first
+walk enumerate every branch — exactly the "go deep, backtrack, take the next path"
+process, made exhaustive. Generator: **`docs/interaction-path-generator.js`**
+(`node docs/interaction-path-generator.js`). Model it on **one component**
+(video/graphic/caption/title) — the lifecycle is identical for each.
+
+### 10.1 The state graph (mirrors `index.html`)
+States: `In Progress → For SMM Approval → Kasper Approval → Tweaks Needed ↔
+Client Approval → Approved → Posted`, plus `Archived` (from any state). Edges (who
+fires them):
+
+| Actor | Action | From → To | In code |
+|---|---|---|---|
+| SMM | submit for SMM approval | In Progress → For SMM Approval | status control |
+| SMM | send to Kasper | In Progress / For SMM Approval → Kasper Approval | sets `kasper_seen` |
+| Kasper | approve → client | Kasper Approval → Client Approval | `_kasperApproveComp` |
+| Kasper | request change | Kasper Approval → Tweaks Needed | `_kasperRequestTweakComp` |
+| Kasper | approve after tweaks | Kasper Approval → Tweaks Needed (preapproved-for-client) | `_kasperApproveAfterTweaksComp` |
+| Kasper | undo approve | Client Approval → Kasper Approval | `_kasperUndoApprove` |
+| SMM | resolve last tweak → Kasper / → client | Tweaks Needed → Kasper Approval / Client Approval | `_calApplyAutoStatus('smm_resolved_last')` |
+| Client | request change | Client Approval (any non-TN) → Tweaks Needed | `_calApplyAutoStatus('client_added')` |
+| Client | approve | Client Approval → Approved | client approve |
+| SMM | archive / mark posted | any → Archived / Approved → Posted | archive / status |
+
+### 10.2 Coverage criteria — why this terminates
+| Criterion | Count | Use |
+|---|---|---|
+| **All paths** (every branch to a terminal) | 28 (cycles=1) → 252 (=2) → 2 356 (=3) → ∞ | Impossible to fully run — this is your "all the time in the world". |
+| **All transition-pairs** (every actor hand-off adjacency) | **33** (stable from cycles≥2) | ✅ **The tractable "complete" target.** Catches the interaction bugs without the explosion. |
+| **Golden paths** (the canonical end-to-end flows) | ~6 | Must-pass smoke set. |
+
+**Rule of thumb:** make a probe for each **golden path** (10.4), then ensure the
+union of your probes covers **all 33 transition-pairs** (10.3). Then spot-check
+deep **tweak loops** with `--cycles=2`. That's "complete by construction" for
+interactions, and it's finite.
+
+### 10.3 The 33 transition-pairs to cover (every actor hand-off)
+Each row = "after action A, do action B and assert the state + all three surfaces
+are correct." These are where hand-off bugs hide.
+
+```
+ 1. Client:approve                  ▶ SMM:archive
+ 2. Client:approve                  ▶ SMM:mark posted
+ 3. Client:request change           ▶ SMM:archive
+ 4. Client:request change           ▶ SMM:resolve last tweak → Kasper
+ 5. Client:request change           ▶ SMM:resolve last tweak → client
+ 6. Kasper:approve after tweaks     ▶ SMM:archive
+ 7. Kasper:approve after tweaks     ▶ SMM:resolve last tweak → Kasper
+ 8. Kasper:approve after tweaks     ▶ SMM:resolve last tweak → client
+ 9. Kasper:approve → client         ▶ Client:approve
+10. Kasper:approve → client         ▶ Client:request change
+11. Kasper:approve → client         ▶ Kasper:undo approve
+12. Kasper:approve → client         ▶ SMM:archive
+13. Kasper:request change           ▶ SMM:archive
+14. Kasper:request change           ▶ SMM:resolve last tweak → Kasper
+15. Kasper:request change           ▶ SMM:resolve last tweak → client
+16. Kasper:undo approve             ▶ Kasper:approve after tweaks
+17. Kasper:undo approve             ▶ Kasper:approve → client
+18. Kasper:undo approve             ▶ Kasper:request change
+19. Kasper:undo approve             ▶ SMM:archive
+20. SMM:resolve last tweak → Kasper ▶ Kasper:approve after tweaks
+21. SMM:resolve last tweak → Kasper ▶ Kasper:approve → client
+22. SMM:resolve last tweak → Kasper ▶ Kasper:request change
+23. SMM:resolve last tweak → Kasper ▶ SMM:archive
+24. SMM:resolve last tweak → client ▶ Client:approve
+25. SMM:resolve last tweak → client ▶ Client:request change
+26. SMM:resolve last tweak → client ▶ Kasper:undo approve
+27. SMM:resolve last tweak → client ▶ SMM:archive
+28. SMM:send to Kasper              ▶ Kasper:approve after tweaks
+29. SMM:send to Kasper              ▶ Kasper:approve → client
+30. SMM:send to Kasper              ▶ Kasper:request change
+31. SMM:send to Kasper              ▶ SMM:archive
+32. SMM:submit for SMM approval     ▶ SMM:archive
+33. SMM:submit for SMM approval     ▶ SMM:send to Kasper
+```
+
+### 10.4 Golden end-to-end paths (must-pass)
+- **Clean approve:** send to Kasper → Kasper approve → client approve → mark posted.
+- **Kasper tweak loop:** send to Kasper → request change → SMM resolve→Kasper → Kasper approve → client approve.
+- **Client tweak loop:** … Kasper approve → client request change → SMM resolve→client → client approve.
+- **Approve-after-tweaks shortcut:** send to Kasper → approve-after-tweaks → SMM resolve→client (no Kasper re-review) → client approve.
+- **Undo:** send to Kasper → approve → **undo approve** → request change.
+- **Archive at each stage:** archive from In Progress / Kasper Approval / Tweaks Needed / Client Approval / Approved (+ Undo restores).
+
+### 10.5 Turning a path into a probe
+For each step: fire the action **on the real surface** (`_kasperApproveComp`,
+`_kasperRequestTweakComp`, the client review approve/request, the SMM
+status/resolve handlers) — not by writing the status directly. After **every
+step** assert: the component sub-status, the overall card status
+(`computeOverallStatus` = lower-wins), the card's presence/absence in **Kasper's
+queue**, and what the **client** surface shows. That's what turns a path into a
+real cross-surface interaction test. Seed the starting state via the upsert
+webhook; clean up (archive) at the end.
+
+### 10.6 Multiple components at once (the real explosion)
+A card has up to **4 components**, each running this graph independently, and the
+overall status is lower-wins across them. The full product is astronomically
+large, so **don't** enumerate it — instead cover **component pairs**: drive two
+components through *different* branches simultaneously (e.g. video at Client
+Approval while caption is in a Kasper tweak loop) and assert the overall status +
+each surface stays correct. Pairwise interleaving catches the cross-component
+bugs (e.g. "approve video while caption is Tweaks Needed → overall stays Tweaks
+Needed") without the full product.
+
+### 10.7 Extending the model
+When a transition changes in `index.html`, update `EDGES` in the generator and
+re-run — the path/pair counts and lists regenerate. Keep the generator's edge
+table in sync with the code; it's the single source of truth for interaction
+coverage. (Step 0 for a fresh session: skim the four transition functions cited
+in 10.1 and confirm the edge table still matches.)
+
+---
+
+## 11. Coverage checklist (tick when a green probe exists)
 - [ ] §4 SMM calendar — all subsections
 - [ ] §5 Title review
 - [ ] §6 Cross-surface
 - [ ] §7 Role × Mode matrix
 - [ ] §8 Concurrency
+- [ ] §10 Interaction sequences — all **6 golden paths** + union covers all **33 transition-pairs** + a `--cycles=2` tweak-loop spot-check
+- [ ] §10.6 Component-pair interleaving (≥ video×caption, video×title)
 - [ ] §3 Fuzz battery run on every input field
 - [ ] Every probe asserts **0 JS errors** and **cleans up** its Sidney data
 - [ ] Pre-push ritual (guide §6) green before any push

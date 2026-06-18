@@ -24098,7 +24098,7 @@
     // a TDZ; their old declarations have been removed from this spot.
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
-        { key: 'replies', label: 'Replies',        icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
+        { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' }
     ];
@@ -24825,14 +24825,19 @@
         // Landing straight on Replies (persisted tab) with nothing loaded yet —
         // kick a fetch; it re-renders this tab when done.
         if (!_kasperState.lastLoaded && !_kasperState.loading) _kasperLoadReview(true);
-        const list = _kasperState.replies || [];
+        // Newest conversation first: an inbox reads top-down, most-recent at the
+        // top. Rank by the newest message's created_at (not updated_at) so that
+        // resolving/editing an old thread doesn't bump a stale card to the top.
+        // Sort a copy — _kasperState.replies order is preserved for everything else.
+        const list = (_kasperState.replies || []).slice().sort((a, b) =>
+            String(_calLatestMsgCreatedAt(b.post) || '').localeCompare(String(_calLatestMsgCreatedAt(a.post) || '')));
         if (!list.length) {
             const loadingNote = _kasperState.loading && !_kasperState.lastLoaded
-                ? `<div class="kasper-loading"><div class="spinner"></div>Checking for replies…</div>`
+                ? `<div class="kasper-loading"><div class="spinner"></div>Checking for messages…</div>`
                 : `<div class="kasper-empty">
                     <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
-                    <div class="kasper-empty-title">No new replies</div>
-                    <div class="kasper-empty-sub">When an SMM or client replies on one of your threads, it shows up here.</div>
+                    <div class="kasper-empty-title">No new messages</div>
+                    <div class="kasper-empty-sub">When an SMM or client messages you about a card, it shows up here.</div>
                 </div>`;
             root.innerHTML = loadingNote;
             return;
@@ -24903,7 +24908,7 @@
                     <div class="kasper-replies-title">${_calEsc(p.name || 'Untitled')}</div>
                 </div>
                 <a class="kasper-replies-open" href="${_calEscAttr(calUrl)}" target="_blank" rel="noopener" title="Open this card in the content calendar (new tab)">Open<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h6.5V10M12.5 3.5L6.5 9.5M11 9v3.5H3.5V5H7"/></svg></a>
-                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your replies">Mark as read</button>
+                <button type="button" class="kasper-replies-read" onclick="_kasperMarkRepliesRead('${_calEscAttr(pid)}')" title="Mark this conversation as read and clear it from your messages">Mark as read</button>
             </div>
             <div class="kasper-replies-thread">${threadHtml || '<div class="cal-review-comment-empty">No messages.</div>'}</div>
             <div class="cal-review-panel-compose kasper-replies-compose">
@@ -25746,7 +25751,7 @@
                         ${dateHtml}
                         ${tweaksChip}
                         ${aatChip}
-                        ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New reply</span>' : ''}
+                        ${_kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : ''}
                         ${undecidedComps.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecidedComps.map(c => `<span class="kcard-comp-pill">${_calEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
                     </div>
                     <div class="kcard-title">${_calEsc(title)}</div>

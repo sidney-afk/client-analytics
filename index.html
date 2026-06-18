@@ -20871,6 +20871,12 @@
        reply or a question never moves the status. SMM modal posts are always
        comments (they request changes from the review panel). Resets on open. */
     let _calComposeIsTweak = false;
+    /* Component the NEXT new root note targets, chosen in the Notes composer's
+       picker (Part B): video | graphic | caption | title. Default 'video'
+       (preserves the old hardcoded target + the SMM's muscle memory). Replies
+       ignore this — they inherit their parent thread's component. Resets to
+       'video' each time the modal opens. */
+    let _calComposeComp = 'video';
     function _calSetComposeAudience(val) {
         _calComposeAudience = (val === 'client') ? 'client' : 'internal';
         const seg = document.querySelector('[data-cm-toggle="audience"]');
@@ -20888,6 +20894,18 @@
             b.classList.toggle('is-active', (b.dataset.tweak === '1') === _calComposeIsTweak));
         const ta = document.getElementById('calCommentComposer');
         if (ta && !_calReplyTarget) ta.placeholder = _calComposeIsTweak ? 'Describe the change you need…' : _calComposePlaceholder('client');
+    }
+    /* Pick which deliverable the next new root note is about (Part B picker).
+       Validated against the card's ACTIVE review components (_calComponentsFor)
+       so the picker can never target a component the card doesn't have — and a
+       note can't land on a thread that wouldn't render in the feed. */
+    function _calSetComposeComp(val) {
+        const post = calState.posts.find(p => p.id === _calOpenCommentsPid);
+        const allowed = post ? _calComponentsFor(post) : CAL_COMPONENTS;
+        _calComposeComp = (allowed.indexOf(val) >= 0) ? val : 'video';
+        const seg = document.querySelector('[data-cm-toggle="comp"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b =>
+            b.classList.toggle('is-active', b.dataset.comp === _calComposeComp));
     }
     /* Resolved (done) change-requests are history — hidden from the live feed
        until the user opens the history toggle (top-right of the modal). */
@@ -21205,6 +21223,7 @@
         try { _calRootDraft = sessionStorage.getItem('sv_noteDraft_' + pid) || ''; } catch (e) {}
         _calComposeAudience = 'internal';   // safe default each open
         _calComposeIsTweak = false;         // default to a plain comment
+        _calComposeComp = 'video';          // Part B: picker defaults to Video
         _calShowResolved = false;           // start on the live feed, not history
         _notesMarkSeen(pid);                // opening = caught up; clears the unread dot
         const ovl = document.getElementById('calCommentsOverlay');
@@ -21420,9 +21439,23 @@
                 </div>
             </div>`
             : '';
+        // Component picker (Part B) — which deliverable this NEW root note is
+        // about. Shown on a fresh root for the SMM and the client alike; replies
+        // inherit their thread's component so they get no picker. Offers the
+        // card's active review components (Title appears once the title is an
+        // engaged review component); defaults to Video.
+        const compPicker = !isReply
+            ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="cal-cm-audience-cap">About the…</span>
+                <div class="cal-cm-aud-seg">${_calComponentsFor(post).map(c =>
+                    `<button type="button" class="cal-cm-aud-btn${_calComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_calSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(COMP_LABELS[c] || c)}</button>`
+                ).join('')}</div>
+            </div>`
+            : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         return `<div class="cal-cm-composer-wrap">
             ${replyingTo}
+            ${compPicker}
             ${audienceToggle}
             ${changeToggle}
             <div class="cal-cm-composer">
@@ -21512,9 +21545,12 @@
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         // Replies inherit the component of the parent thread so a reply to a
-        // thumbnail tweak lands in graphic_tweaks (not video). New root
-        // threads stay on the video component (the SMM's default workspace).
-        const comp = parentId ? _calFindCompForCommentId(post, parentId) : 'video';
+        // thumbnail tweak lands in graphic_tweaks (not video). A NEW root targets
+        // the component the SMM/client picked in the composer (Part B), validated
+        // against the card's active review components (default 'video').
+        const comp = parentId
+            ? _calFindCompForCommentId(post, parentId)
+            : (_calComponentsFor(post).indexOf(_calComposeComp) >= 0 ? _calComposeComp : 'video');
         const arr = comp === 'video'
             ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
             : _calCommentsFor(post, comp).slice();
@@ -21552,6 +21588,17 @@
         // Only a client's explicit change-REQUEST root flips status — a plain
         // comment or any reply leaves the status untouched.
         if (isRoot && role === 'client' && msg.is_tweak) _calApplyAutoStatus(pid, 'client_added', comp);
+        // Part B — route a video/thumbnail note to its Linear sub-issue so the
+        // editor / designer sees every piece of feedback in their inbox: BOTH
+        // plain comments AND change-requests, roots AND replies (replies route
+        // via the inherited parent component). Caption & title have no Linear —
+        // gate explicitly on video/graphic so _calLinearUrlFor's video fallback
+        // can never leak a caption/title note onto the video issue. Create-only
+        // (edits/resolves/deletes never sync); audience-independent;
+        // _calPostLinearComment no-ops on an unlinked issue (empty url).
+        if (comp === 'video' || comp === 'graphic') {
+            _calPostLinearComment(_calLinearUrlFor(post, comp), body, msg.author);
+        }
         _calWatchNoteSave(pid);
         _calRefreshCommentsBtn(pid);
         _calUpdateCardStatusDisplay(pid);
@@ -21560,7 +21607,11 @@
        id. Lets SMM resolve / delete comments on any component's thread from
        the unified modal feed. */
     function _calFindCompForCommentId(post, commentId) {
-        for (const c of _calComponentsFor(post)) {
+        // Iterate the FULL review component set (not just the card's currently
+        // active ones) so a reply always resolves to the right thread — e.g. a
+        // title note routes back to 'title' even if the title later carries no
+        // status. (Part B: keeps reply→component + Linear routing correct.)
+        for (const c of CAL_REVIEW_COMPONENTS) {
             const list = c === 'video'
                 ? (Array.isArray(post.comments) ? post.comments : _calLoadComments(post))
                 : _calCommentsFor(post, c);

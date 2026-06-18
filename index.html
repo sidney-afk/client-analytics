@@ -18937,6 +18937,13 @@
         job.settledAt = Date.now();
         job.error = data.error || '';
         if (data.caption) job.caption = String(data.caption).trim();
+        // A 'done' with no caption is a failure, not a success — otherwise the chip
+        // says "✓ Caption generated" over an empty box and the batch counts it ok.
+        if (status === 'done' && !job.caption) {
+            status = 'error';
+            job.status = 'error';
+            job.error = job.error || 'The generator returned an empty caption — try again.';
+        }
         let applied = false;
         if (job.caption && (status === 'done' || status === 'error')) {
             const sameClient = calClientSlug(calState.client || '') === job.client;
@@ -18949,6 +18956,11 @@
                 if (!typed || typed === job.caption) {
                     post.caption = job.caption;
                     post.updated_at = new Date().toISOString();
+                    // Protect the just-applied caption through the conflict window so a
+                    // background v2 poll (Supabase mirror lagging the sheet write) can't
+                    // briefly revert the caption box to empty. The error path also flushes
+                    // below (which sets this), but 'done' relies on the workflow's own write.
+                    _calLocalRecentSaves.set(job.pid, Date.now());
                     if (status === 'error') {
                         if (!_calPendingEdits[job.pid]) _calPendingEdits[job.pid] = {};
                         _calPendingEdits[job.pid].caption = post.caption;

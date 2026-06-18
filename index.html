@@ -11806,7 +11806,7 @@
     ];
     const CAL_PLATFORM_BY_KEY = Object.fromEntries(CAL_PLATFORMS.map(p => [p.key, p]));
     const CAL_ENABLED_PLATFORMS_KEY = 'syncview_cal_enabled_platforms_v1';
-    function _calEnabledPlatforms(slug) {
+    function _calEnabledPlatformsLocal(slug) {
         if (!slug) return [];
         try {
             const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
@@ -11814,6 +11814,20 @@
             const list = Array.isArray(map[slug]) ? map[slug] : [];
             return list.filter(k => CAL_PLATFORM_BY_KEY[k]);
         } catch { return []; }
+    }
+    function _calEnabledPlatforms(slug) {
+        if (!slug) return [];
+        // Prefer the shared settings row: it's persisted to the backend, so the
+        // CLIENT view and other SMM devices see the same platform icons (the set
+        // used to be localStorage-only, so the client saw none at all). localStorage
+        // stays a first-paint cache. Settings apply to the current client only.
+        try {
+            if (calState && slug === calClientSlug(calState.client)
+                && calState.settings && Array.isArray(calState.settings.enabled_platforms)) {
+                return calState.settings.enabled_platforms.filter(k => CAL_PLATFORM_BY_KEY[k]);
+            }
+        } catch {}
+        return _calEnabledPlatformsLocal(slug);
     }
     function _calSetEnabledPlatforms(slug, list) {
         if (!slug) return;
@@ -12216,7 +12230,10 @@
         modal.querySelectorAll('input[data-platform-edit]').forEach(cb => {
             if (cb.checked) picked.push(cb.getAttribute('data-platform-edit'));
         });
-        _calSetEnabledPlatforms(slug, picked);
+        _calSetEnabledPlatforms(slug, picked);   // localStorage first-paint cache
+        // Persist to the shared settings row so the client view + other SMM devices
+        // pick up the platform icons (was localStorage-only, so the client saw none).
+        if (slug === calClientSlug(calState.client)) _calSaveSettings({ enabled_platforms: picked });
         closeCalImport();
         try { _calRenderBody({ preserveScroll: true }); } catch {}
     }
@@ -12331,6 +12348,8 @@
        same gate that lets them suggest posts, so reserve content they place /
        swap stays consistent with everything else they can touch. */
     function _calCanDragCards() { return !_isClientLink || _calIsCollabOn(); }
+    // Tail of the serialized settings-write queue (see _calSaveSettings).
+    let _calSettingsWriteChain = Promise.resolve();
     async function _calSaveSettings(patch) {
         if (!calState.client) return false;
         // Pin the destination client at call time, BEFORE the await — otherwise
@@ -12376,25 +12395,37 @@
         // holds the optimistic value meanwhile; if every attempt fails the value
         // reconciles back to the backend's truth once the trust window lapses
         // (see _calReconcileSettings) instead of masking it forever.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
-                });
-                const j = await resp.json();
-                if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
-                return true;
-            } catch (e) {
-                if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
-                // Every attempt failed. localStorage keeps the optimistic value
-                // for now; it will reconcile to the backend once the trust window
-                // lapses. Log so a console-watching SMM can spot a backend issue
-                // without surfacing a scary modal.
-                console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
-                return true;
+        const doWrite = async () => {
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const resp = await fetch(CALENDAR_UPSERT_URL, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
+                    });
+                    const j = await resp.json();
+                    if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
+                    return true;
+                } catch (e) {
+                    if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
+                    // Every attempt failed. localStorage keeps the optimistic value
+                    // for now; it will reconcile to the backend once the trust window
+                    // lapses. Log so a console-watching SMM can spot a backend issue
+                    // without surfacing a scary modal.
+                    console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    return true;
+                }
             }
-        }
+            return true;
+        };
+        // SERIALIZE settings writes: a fast double-toggle (e.g. collab then
+        // YouTube-title-review) used to fire two independent POSTs that could
+        // arrive at the backend out of order, so the older blob clobbered the
+        // newer one and a toggle silently reverted after the trust window. Each
+        // write now lands strictly in toggle order. The wirePost captured above
+        // already carries every earlier toggle (calState.settings is updated
+        // synchronously), so the backend converges on the final state.
+        _calSettingsWriteChain = _calSettingsWriteChain.then(doWrite, doWrite);
+        return _calSettingsWriteChain;
     }
     function _calSyncCollabSwitch() {
         const sw = document.getElementById('calCollabSwitch');
@@ -12451,7 +12482,10 @@
     function _calNormMonthFilter(v) {
         if (v === 'all') return 'all';
         if (typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return v;
-        return _calCurrentMonthIso();
+        // Default to ALL months (not the current month). Defaulting to the current
+        // month silently hid every card scheduled in another month behind a small
+        // warning chip, so cards looked "missing" until you noticed the filter.
+        return 'all';
     }
     function _calShiftMonthIso(ym, n) {
         const [Y, M] = ym.split('-').map(Number);
@@ -15263,6 +15297,19 @@
                     _calSaveLocalSettings(slug, calState.settings);
                     _calSyncCollabSwitch();
                     _calSyncTitleReviewSwitch();
+                }
+            }
+            // One-time platforms migration (SMM only): the enabled-platforms set
+            // used to live solely in this browser's localStorage, so the client
+            // view and other devices never saw the icons. If this device has a local
+            // set but the shared settings row doesn't carry one yet, push it up once
+            // so it becomes visible everywhere. Fires at most once per client — after
+            // the write, settings carries enabled_platforms and the guard is false.
+            if (!_isClientLink && calState.settings && !Array.isArray(calState.settings.enabled_platforms)) {
+                const _lsPlatforms = _calEnabledPlatformsLocal(slug);
+                if (_lsPlatforms.length) {
+                    calState.settings = Object.assign({}, calState.settings, { enabled_platforms: _lsPlatforms });
+                    _calSaveSettings({ enabled_platforms: _lsPlatforms });
                 }
             }
             _calCleanArchiveLedger(slug, split.posts);
@@ -18441,6 +18488,23 @@
        moment the user clicked Archive so a mid-flight client switch
        can't redirect the write to (or write the cache against) the
        wrong calendar tab. */
+    // Run fn over items with at most `limit` in flight. Returns results in input
+    // order, Promise.allSettled-shaped ({status:'fulfilled',value} | {status:'rejected',reason}).
+    const CAL_BULK_ARCHIVE_CONCURRENCY = 6;
+    async function _calRunPooled(items, limit, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+            while (next < items.length) {
+                const i = next++;
+                try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+                catch (e) { results[i] = { status: 'rejected', reason: e }; }
+            }
+        }
+        const n = Math.max(1, Math.min(limit, items.length));
+        await Promise.all(Array.from({ length: n }, () => worker()));
+        return results;
+    }
     async function _calArchiveOne(id, slug) {
         const useSlug = slug || calClientSlug(calState.client);
         // The card is being archived, so any queued edits for it are moot —
@@ -18564,7 +18628,11 @@
                 if (btn) btn.classList.remove('active');
                 _calRenderBody({ preserveScroll: true });
                 try { _calCacheWrite(slug, calState.posts); } catch {}
-                const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id, slug)));
+                // Bounded concurrency: a 30-card bulk archive used to fire 30
+                // simultaneous upsert webhooks at n8n. The UI is already optimistic
+                // (cards vanished above), so throttling the background writes costs
+                // nothing visible and stops the request spike. Same allSettled shape.
+                const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, id => _calArchiveOne(id, slug));
                 // Roll back ledger entries for posts whose archive write
                 // failed so the row stops being hidden after the grace
                 // window — also reload to bring them back into the

@@ -318,13 +318,19 @@ Regression coverage: `test/calendar-v2-status-repro.js` sections E/F/G.
   Linear-backed regress below Client Approval when we just advanced past it and there is no
   corroborating change-request comment; `loadCalendarPosts` re-asserts the kept value to
   Linear so the drift heals forward. Verified live (`RECONCILE keep LOCAL` fired; the
-  approval held). **Backend proposal (not applied — snapshot first):** the durable guard
-  belongs in the Linear Status Sync — it should compare the incoming Linear state's change
-  time against the card's `updated_at` and **not** overwrite a sub-status the calendar
-  changed more recently (most-recent-action-wins, per `LINEAR_SYNC_RECONCILE.md`). Today
-  it posts the bare sub-status to `calendar-upsert-post` with no base, so it always wins.
-  Adding a `comments_base_at`-style freshness check (or a `*_status_at` column) would close
-  the race at source. Snapshot `MJbMZ789B5ExZz9x` to `n8n-backups/` before editing.
+  approval held). **Backend guard — IMPLEMENTED + deployed 2026-06-18.** The durable half
+  now lives in the Linear Status Sync (`MJbMZ789B5ExZz9x`, `Handle Linear Event` node):
+  before writing a mapped sub-status it computes `linAt` (Linear's own `data.updatedAt`)
+  and, per matched card, drops a write that would REGRESS a sub-status currently at/above
+  Client Approval to below it when the card's `updated_at` is newer than `linAt`
+  (`!(linAt > cardAt)`) — most-recent-action-wins, so a fresh calendar approval is never
+  clobbered at source. Forward moves and Linear-newer regressions are unaffected; reports a
+  `skippedFresh` count. Proven offline against the exact deployed code (decision unit test
+  9/9 + end-to-end mock run 4/4); the node was character-verified after the push.
+  Snapshot (Linear key redacted):
+  `n8n-backups/linear-status-sync.2026-06-18.pre-freshness-guard.Handle-Linear-Event.js`.
+  **Rollback:** republish n8n version `cedf2b13-ec20-4ce5-a601-f21b3f1840db` (new active
+  version `3f99f865-bc1b-4b72-ab8f-6e153236100e`).
 - **B. Deleting a plain comment sometimes needs ~3 tries — FIXED (front-end).** Root cause
   in the LWW take-server merge: `winner = Object.assign({}, fp, pend)` overlaid pend's
   `*_tweaks` STRING (the delete-tombstone) but left the parsed `*_comments` ARRAY as the

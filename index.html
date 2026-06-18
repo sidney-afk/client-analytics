@@ -1952,6 +1952,10 @@
         .cal-card-color-tag[data-color="emerald"]  .cal-card-color-tag-dot { background: #10b981; }
         .cal-card-color-tag[data-color="indigo"]   .cal-card-color-tag-dot { background: #6366f1; }
         .cal-card-color-tag.has-color { opacity: 1; }
+        /* Client / read-only rendering of the colour tag: a passive dot, no
+           picker — so kill the clickable affordances (pointer + hover scale). */
+        .cal-card-color-tag.is-readonly { cursor: default; }
+        .cal-card-color-tag.is-readonly:hover { transform: none; }
         .cal-card-color-picker { position: absolute; left: 8px; bottom: 36px; z-index: 5; background: var(--white); border-radius: 10px; padding: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: flex; flex-direction: row; gap: 5px; }
         .cal-card-color-pick { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.1); cursor: pointer; padding: 0; transition: transform 0.08s; }
         .cal-card-color-pick:hover { transform: scale(1.12); }
@@ -12097,10 +12101,14 @@
         return CAL_COLORS.includes(c) ? c : '';
     }
     function _calColorTagHtml(post, ro) {
-        // Color tags are an internal grouping tool for the SMM — clients
-        // don't need to see them at all (or the month/week dot).
-        if (ro || _isClientLink) return '';
         const color = _calPostColor(post);
+        // Read-only / client view: surface the colour as a passive, read-only
+        // dot — but only when the SMM actually tagged the card (no colour, no
+        // dot), and never the interactive picker.
+        if (ro || _isClientLink) {
+            if (!color) return '';
+            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}"><span class="cal-card-color-tag-dot"></span></span>`;
+        }
         const pid = _calEscAttr(post.id);
         return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;
     }
@@ -19885,8 +19893,9 @@
         const grip = canDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
         const ribbonComp = _calTweakRibbonComp(p);
         const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-        // Color tag is SMM-internal — never surface the dot on the client view.
-        const color = _isClientLink ? '' : _calPostColor(p);
+        // Colour dot shows on the client view too — but only when the SMM has
+        // tagged the card (no colour, no dot). Passive; clients can't change it.
+        const color = _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
         return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
@@ -20018,8 +20027,9 @@
                                 const grip = wCanDrag ? `<span class="cal-move-grip" title="Drag to another day">${_calGripSvg()}</span>` : '';
                                 const ribbonComp = _calTweakRibbonComp(p);
                                 const ribbonAttr = ribbonComp ? ` data-tweak-comp="${ribbonComp}"` : '';
-                                // Color tag is SMM-internal — hide on client view.
-                                const wColor = _isClientLink ? '' : _calPostColor(p);
+                                // Colour dot shows on the client view too — but only when the
+                                // SMM has tagged the card (no colour, no dot). Passive / read-only.
+                                const wColor = _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
                                 const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
                                 return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;

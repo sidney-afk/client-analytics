@@ -344,6 +344,20 @@ function assertShippedReconcileGuarded() {
   console.log('✓ Shipped index.html reconcile refuses a stale Linear regress of a fresh approval and re-asserts it to Linear.\n');
 }
 
+// Bug C: a comment that lands while we're inside our own recent-save window is
+// folded into the KEPT-LOCAL row by _calMergePostComments (in place), so
+// _calPostsEqualForRender compares that row to itself → dataChanged is a FALSE
+// negative. The shipped !dataChanged background branch must therefore refresh
+// the Notes badges unconditionally so the unread dot can't be missed.
+function assertShippedBadgeRefreshUnconditional() {
+  const m = INDEX.match(/if \(!dataChanged\) \{([\s\S]*?)\} else if \(opts\.background && _calIsCalBusy\(\)\)/);
+  if (!m || !/_calRefreshCommentsBtn\(p\.id\)/.test(m[1])) {
+    console.error('SHIPPED CODE CHECK FAILED — the !dataChanged background branch does not refresh Notes badges.');
+    process.exit(1);
+  }
+  console.log('✓ Shipped index.html refreshes Notes badges on a background reload even when dataChanged is a false negative.\n');
+}
+
 // Generalized driver: run an arbitrary step list with the given echo-merge and
 // assert tab1's PAINTED state equals the cumulative truth after EVERY step
 // (no sub ever shows a value the user didn't set), and that tab2 + a refresh +
@@ -412,6 +426,31 @@ function runCommentTest(echoMerge) {
 assertSimulatorMatchesReality();
 assertShippedCodeIsFixed();
 assertShippedReconcileGuarded();
+assertShippedBadgeRefreshUnconditional();
+
+// Behavioural proof of the bug-C false negative against the REAL extracted code:
+// a new comment unioned into a kept-local row is present in calState, yet
+// _calPostsEqualForRender reports no change (it compares the mutated row to
+// itself) — which is exactly why the badge refresh must not be gated on it.
+function runBadgeFalseNegative() {
+  const c1 = { id: 'c1', parent_id: null, role: 'client', body: 'a', created_at: '2026-06-14T23:00:00.000Z', updated_at: '2026-06-14T23:00:00.000Z' };
+  const c2 = { id: 'c2', parent_id: null, role: 'client', body: 'new note', created_at: '2026-06-14T23:31:00.000Z', updated_at: '2026-06-14T23:31:00.000Z' };
+  const lp = { id: 'p_badge', updated_at: '2026-06-14T23:30:00.000Z', video_status: 'Approved', graphic_status: 'Approved',
+    caption_status: 'Approved', status: 'Approved', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([c1]) };
+  _calMigratePostShape(lp);
+  const fp = { id: 'p_badge', updated_at: '2026-06-14T23:29:00.000Z', video_status: 'Approved', graphic_status: 'Approved',
+    caption_status: 'Approved', status: 'Approved', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([c1, c2]) };
+  _calMigratePostShape(fp);
+  const prevPosts = [lp];
+  _calMergePostComments(lp, fp);              // winner is the kept-local lp → mutated in place
+  const newPosts = [lp];                      // same object reference
+  const lpHasC2 = _calCommentsFor(lp, 'caption').some(c => c.id === 'c2');
+  const dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
+  const ok = lpHasC2 && dataChanged === false; // comment IS present, yet equality misses it
+  console.log(`  ${ok ? '✅' : '❌'} bug C: comment folded into kept-local row is present (${lpHasC2}) but dataChanged is a false negative (${dataChanged}) → badge refresh must be unconditional`);
+  return ok;
+}
+const badgeFalseNeg = runBadgeFalseNegative();
 
 const buggy = runRepro('A) CURRENT-PRE-FIX BEHAVIOR (buggy echo-merge: migrate the partial echo)', echoMergeBuggy);
 const fixed = runRepro('B) FIXED BEHAVIOR (migrate the merged full row)', echoMergeFixed);
@@ -613,6 +652,7 @@ console.log(`  C) battery (fixed):           ${results.every(Boolean) ? 'ALL PAS
 console.log(`     buggy-merge control:       ${canonicalBuggy ? 'PASS (unexpected!) ⚠️' : 'FAILS as expected ✅'}`);
 console.log(`  D) comment preservation:      ${cmtFixed ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`  E) cross-actor reconcile:     ${ePass ? 'ALL PASS ✅' : 'FAILURES ❌'} (${eResults.filter(Boolean).length}/${eResults.length})`);
-const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass;
+console.log(`  F) badge false-negative (C):  ${badgeFalseNeg ? 'PROVEN ✅' : 'FAIL ❌'}`);
+const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass && badgeFalseNeg;
 console.log(`\n  OVERALL: ${allGood ? 'PASS ✅' : 'FAIL ❌'}`);
 process.exit(allGood ? 0 : 1);

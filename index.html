@@ -15446,7 +15446,18 @@
                 calState.loading = false;
                 if (background) {
                     if (!dataChanged) {
-                        /* no-op — current strip is already correct */
+                        // _calPostsEqualForRender can be a FALSE negative for a
+                        // comment that the LWW merge folded into the KEPT-LOCAL
+                        // row: _calMergePostComments mutates that row IN PLACE, so
+                        // the "before" snapshot is the very same object and now
+                        // already carries the new comment — the equality check
+                        // sees no diff. That left a client/Kasper note that landed
+                        // while we were inside our own recent-save window unable to
+                        // light the unread Notes dot (the "client comment from the
+                        // Review surface doesn't badge the SMM" bug). Refresh the
+                        // Notes dots from the already-merged calState so the badge
+                        // can't miss it — a cheap footer swap, never a focused field.
+                        if (_calV2Ready()) { try { calState.posts.forEach(p => _calRefreshCommentsBtn(p.id)); } catch {} }
                     } else if (opts.background && _calIsCalBusy()) {
                         // Only a PASSIVE refresh (focus/visibility return, the
                         // sole caller that passes {background:true}) may defer

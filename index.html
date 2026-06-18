@@ -18841,6 +18841,13 @@
             return { ok: false, error: 'Caption already set', skipped: true };
         }
         const clientName = calState.client;
+        // Make sure THIS client's custom caption prompt has actually loaded before
+        // we bake it into the job. _calLoadCaptionPrompts() is fire-and-forget at
+        // startup, so a Generate click in the first second after switching clients
+        // would otherwise read '' and the workflow would silently fall back to the
+        // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
+        // above so a client switch during this await can't mis-target the job.
+        if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,

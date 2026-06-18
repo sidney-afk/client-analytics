@@ -35,3 +35,39 @@ Goal: the *_tweaks columns become atomic; everything else unchanged.
 
 Verify after wiring: /tmp/qa/qa7c.js (concurrency repro) must show BOTH comments
 survive on a sidneylaruel card, and a normal single save must still round-trip.
+
+---
+
+## Phase 2 — APPLIED & LIVE (2026-06-18)
+
+Migration `calendar_merge_comments` pasted into Supabase (SECURITY INVOKER, granted
+to service_role). The "Upsert Post" workflow (pWSqaqVw7dmqhYOA) UPDATE branch now:
+
+```
+Row Existed? (true) → Build RPC Args → Call Atomic Merge → Strip Tweaks For Mirror → Mirror Update → Wrap Response
+```
+
+- **Build RPC Args** (Code): builds {p_client, p_id, p_<comp>=raw tweaks for cols present, p_base:''}.
+- **Call Atomic Merge** (Execute Sub-workflow): calls helper `meM78zr1Gcl72c6f`
+  ("Calendar Comment Merge (helper)") → HTTP POST /rest/v1/rpc/calendar_merge_comments
+  with the supabaseApi (service_role) credential. The row-locked function merges the
+  *_tweaks columns atomically — concurrent writers can no longer clobber each other.
+- **Strip Tweaks For Mirror** (Code): removes *_tweaks from the row so the scalar
+  Mirror Update never re-writes them (that whole-cell write was the race). Mirror Update
+  then writes scalars + the ISO `updated_at` (authoritative).
+- CREATE branch (Mirror Create) unchanged — a new row writes its first comment as-is;
+  the RPC is an UPDATE so it no-ops pre-existence.
+- On helper/RPC failure the workflow errors → webhook 5xx → the FE retries (no silent loss).
+
+Active version after change: c30642aa-4007-4db7-b964-ce5efbcc63e3
+ROLLBACK: restore version 9c8e4a93-0de8-4e27-ad82-21d672c01d6b (History), OR re-point
+`Row Existed?` output 0 back to `Mirror Update` and delete the 3 added nodes.
+
+NOTE (credential): the helper's HTTP node relies on n8n auto-resolving the single
+`supabaseApi` credential (the API couldn't attach it explicitly). Verified working in
+live production executions. If a SECOND supabaseApi credential is ever added, attach the
+correct one to the helper's "Call Merge RPC" node in the n8n UI.
+
+VERIFIED LIVE: concurrent same-component writes both survive (qa7c ×2); delete-vs-add no
+longer resurrects/loses (qa12 ×3); regression — delete 6/6, multi-surface comments+badge
+7/7, reply threading 10/10.

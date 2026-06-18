@@ -11806,7 +11806,7 @@
     ];
     const CAL_PLATFORM_BY_KEY = Object.fromEntries(CAL_PLATFORMS.map(p => [p.key, p]));
     const CAL_ENABLED_PLATFORMS_KEY = 'syncview_cal_enabled_platforms_v1';
-    function _calEnabledPlatforms(slug) {
+    function _calEnabledPlatformsLocal(slug) {
         if (!slug) return [];
         try {
             const raw = localStorage.getItem(CAL_ENABLED_PLATFORMS_KEY);
@@ -11814,6 +11814,20 @@
             const list = Array.isArray(map[slug]) ? map[slug] : [];
             return list.filter(k => CAL_PLATFORM_BY_KEY[k]);
         } catch { return []; }
+    }
+    function _calEnabledPlatforms(slug) {
+        if (!slug) return [];
+        // Prefer the shared settings row: it's persisted to the backend, so the
+        // CLIENT view and other SMM devices see the same platform icons (the set
+        // used to be localStorage-only, so the client saw none at all). localStorage
+        // stays a first-paint cache. Settings apply to the current client only.
+        try {
+            if (calState && slug === calClientSlug(calState.client)
+                && calState.settings && Array.isArray(calState.settings.enabled_platforms)) {
+                return calState.settings.enabled_platforms.filter(k => CAL_PLATFORM_BY_KEY[k]);
+            }
+        } catch {}
+        return _calEnabledPlatformsLocal(slug);
     }
     function _calSetEnabledPlatforms(slug, list) {
         if (!slug) return;
@@ -12216,7 +12230,10 @@
         modal.querySelectorAll('input[data-platform-edit]').forEach(cb => {
             if (cb.checked) picked.push(cb.getAttribute('data-platform-edit'));
         });
-        _calSetEnabledPlatforms(slug, picked);
+        _calSetEnabledPlatforms(slug, picked);   // localStorage first-paint cache
+        // Persist to the shared settings row so the client view + other SMM devices
+        // pick up the platform icons (was localStorage-only, so the client saw none).
+        if (slug === calClientSlug(calState.client)) _calSaveSettings({ enabled_platforms: picked });
         closeCalImport();
         try { _calRenderBody({ preserveScroll: true }); } catch {}
     }
@@ -12331,6 +12348,8 @@
        same gate that lets them suggest posts, so reserve content they place /
        swap stays consistent with everything else they can touch. */
     function _calCanDragCards() { return !_isClientLink || _calIsCollabOn(); }
+    // Tail of the serialized settings-write queue (see _calSaveSettings).
+    let _calSettingsWriteChain = Promise.resolve();
     async function _calSaveSettings(patch) {
         if (!calState.client) return false;
         // Pin the destination client at call time, BEFORE the await — otherwise
@@ -12376,25 +12395,37 @@
         // holds the optimistic value meanwhile; if every attempt fails the value
         // reconciles back to the backend's truth once the trust window lapses
         // (see _calReconcileSettings) instead of masking it forever.
-        for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
-                });
-                const j = await resp.json();
-                if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
-                return true;
-            } catch (e) {
-                if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
-                // Every attempt failed. localStorage keeps the optimistic value
-                // for now; it will reconcile to the backend once the trust window
-                // lapses. Log so a console-watching SMM can spot a backend issue
-                // without surfacing a scary modal.
-                console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
-                return true;
+        const doWrite = async () => {
+            for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                    const resp = await fetch(CALENDAR_UPSERT_URL, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
+                    });
+                    const j = await resp.json();
+                    if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
+                    return true;
+                } catch (e) {
+                    if (attempt < 3) { await new Promise(r => setTimeout(r, 500 * attempt)); continue; }
+                    // Every attempt failed. localStorage keeps the optimistic value
+                    // for now; it will reconcile to the backend once the trust window
+                    // lapses. Log so a console-watching SMM can spot a backend issue
+                    // without surfacing a scary modal.
+                    console.warn('[Calendar] settings backend sync failed after 3 attempts; local value will reconcile to the backend once the trust window lapses', e);
+                    return true;
+                }
             }
-        }
+            return true;
+        };
+        // SERIALIZE settings writes: a fast double-toggle (e.g. collab then
+        // YouTube-title-review) used to fire two independent POSTs that could
+        // arrive at the backend out of order, so the older blob clobbered the
+        // newer one and a toggle silently reverted after the trust window. Each
+        // write now lands strictly in toggle order. The wirePost captured above
+        // already carries every earlier toggle (calState.settings is updated
+        // synchronously), so the backend converges on the final state.
+        _calSettingsWriteChain = _calSettingsWriteChain.then(doWrite, doWrite);
+        return _calSettingsWriteChain;
     }
     function _calSyncCollabSwitch() {
         const sw = document.getElementById('calCollabSwitch');
@@ -12451,7 +12482,10 @@
     function _calNormMonthFilter(v) {
         if (v === 'all') return 'all';
         if (typeof v === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(v)) return v;
-        return _calCurrentMonthIso();
+        // Default to ALL months (not the current month). Defaulting to the current
+        // month silently hid every card scheduled in another month behind a small
+        // warning chip, so cards looked "missing" until you noticed the filter.
+        return 'all';
     }
     function _calShiftMonthIso(ym, n) {
         const [Y, M] = ym.split('-').map(Number);
@@ -15160,6 +15194,7 @@
         // new client. Same reason _calSyncCollabSwitch is called after the
         // network split below.
         _calSyncCollabSwitch();
+        _calSyncTitleReviewSwitch();
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
@@ -15261,6 +15296,20 @@
                     calState.settings = decision.settings;
                     _calSaveLocalSettings(slug, calState.settings);
                     _calSyncCollabSwitch();
+                    _calSyncTitleReviewSwitch();
+                }
+            }
+            // One-time platforms migration (SMM only): the enabled-platforms set
+            // used to live solely in this browser's localStorage, so the client
+            // view and other devices never saw the icons. If this device has a local
+            // set but the shared settings row doesn't carry one yet, push it up once
+            // so it becomes visible everywhere. Fires at most once per client — after
+            // the write, settings carries enabled_platforms and the guard is false.
+            if (!_isClientLink && calState.settings && !Array.isArray(calState.settings.enabled_platforms)) {
+                const _lsPlatforms = _calEnabledPlatformsLocal(slug);
+                if (_lsPlatforms.length) {
+                    calState.settings = Object.assign({}, calState.settings, { enabled_platforms: _lsPlatforms });
+                    _calSaveSettings({ enabled_platforms: _lsPlatforms });
                 }
             }
             _calCleanArchiveLedger(slug, split.posts);
@@ -16165,6 +16214,7 @@
             _calFlushAllPending();
             const next = pins[0] || null;
             calState.client = next;
+            _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
             _calSavePrefs();
@@ -16216,6 +16266,7 @@
             // Persist debounced saves for the outgoing client before switching.
             _calFlushAllPending();
             calState.client = name;
+            _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
             _calSavePrefs();
@@ -16406,6 +16457,7 @@
             if (JSON.stringify(a[i].comments || []) !== JSON.stringify(b[i].comments || [])) return false;
             if (JSON.stringify(a[i].graphic_comments || []) !== JSON.stringify(b[i].graphic_comments || [])) return false;
             if (JSON.stringify(a[i].caption_comments || []) !== JSON.stringify(b[i].caption_comments || [])) return false;
+            if (JSON.stringify(a[i].title_comments || []) !== JSON.stringify(b[i].title_comments || [])) return false;
         }
         return true;
     }
@@ -16699,6 +16751,7 @@
         // either leak into the new client's tab or be silently dropped.
         _calFlushAllPending();
         calState.client = name;
+        _calResetSelection();
         _calLoadClientFilters();
         _calSavePrefs();
         _calSyncUrlClient();
@@ -16710,6 +16763,16 @@
         _calRenderBody();
         loadCalendarPosts();
     }
+    /* Clear multi-select state. Must run on every CLIENT switch (not just view
+       changes) — otherwise select-mode + a stale `selected` Set holding the
+       previous client's ids survives the switch, and a later bulk-archive could
+       act on cards from the wrong client / cards the user never saw. */
+    function _calResetSelection() {
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+    }
     function onCalViewChange(v) {
         if (!['review','smmreview','organizer','month','week'].includes(v)) return;
         calState.view = v;
@@ -16718,10 +16781,7 @@
         if (v !== 'organizer') calState.focusPid = null;
         _calSavePrefs();
         if (v !== 'organizer' && calState.selectMode) {
-            calState.selectMode = false;
-            calState.selectAction = 'archive';
-            calState.selected = new Set();
-            calState.lastSel = null;
+            _calResetSelection();
         }
         document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
         const selBtn = document.querySelector('.cal-select-btn');
@@ -18428,6 +18488,23 @@
        moment the user clicked Archive so a mid-flight client switch
        can't redirect the write to (or write the cache against) the
        wrong calendar tab. */
+    // Run fn over items with at most `limit` in flight. Returns results in input
+    // order, Promise.allSettled-shaped ({status:'fulfilled',value} | {status:'rejected',reason}).
+    const CAL_BULK_ARCHIVE_CONCURRENCY = 6;
+    async function _calRunPooled(items, limit, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+            while (next < items.length) {
+                const i = next++;
+                try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+                catch (e) { results[i] = { status: 'rejected', reason: e }; }
+            }
+        }
+        const n = Math.max(1, Math.min(limit, items.length));
+        await Promise.all(Array.from({ length: n }, () => worker()));
+        return results;
+    }
     async function _calArchiveOne(id, slug) {
         const useSlug = slug || calClientSlug(calState.client);
         // The card is being archived, so any queued edits for it are moot —
@@ -18487,9 +18564,14 @@
     function _calCardSelectClick(e, pid) {
         e.preventDefault();
         e.stopPropagation();
-        const order = calState.posts.slice()
-            .sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0))
-            .map(p => p.id);
+        // Build the shift-range from the cards ACTUALLY ON SCREEN (the selectable
+        // ones in the rendered strip), not from all of calState.posts. Ranging
+        // over every post let a shift-click silently select — and then
+        // bulk-archive — cards hidden by the active month/status filter, plus
+        // blank/read-only cards. The DOM order is the filtered, visible, sorted
+        // truth; non-selectable cards never carry .cal-card-selectable.
+        const order = Array.from(document.querySelectorAll('#calStrip .cal-card-selectable[data-pid]'))
+            .map(el => el.getAttribute('data-pid'));
         if (e.shiftKey && calState.lastSel && calState.lastSel !== pid) {
             const a = order.indexOf(calState.lastSel), b = order.indexOf(pid);
             if (a >= 0 && b >= 0) {
@@ -18546,7 +18628,11 @@
                 if (btn) btn.classList.remove('active');
                 _calRenderBody({ preserveScroll: true });
                 try { _calCacheWrite(slug, calState.posts); } catch {}
-                const results = await Promise.allSettled(ids.map(id => _calArchiveOne(id, slug)));
+                // Bounded concurrency: a 30-card bulk archive used to fire 30
+                // simultaneous upsert webhooks at n8n. The UI is already optimistic
+                // (cards vanished above), so throttling the background writes costs
+                // nothing visible and stops the request spike. Same allSettled shape.
+                const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, id => _calArchiveOne(id, slug));
                 // Roll back ledger entries for posts whose archive write
                 // failed so the row stops being hidden after the grace
                 // window — also reload to bring them back into the
@@ -18823,6 +18909,13 @@
             return { ok: false, error: 'Caption already set', skipped: true };
         }
         const clientName = calState.client;
+        // Make sure THIS client's custom caption prompt has actually loaded before
+        // we bake it into the job. _calLoadCaptionPrompts() is fire-and-forget at
+        // startup, so a Generate click in the first second after switching clients
+        // would otherwise read '' and the workflow would silently fall back to the
+        // DEFAULT prompt, ignoring the client's tailored one. clientName is captured
+        // above so a client switch during this await can't mis-target the job.
+        if (!_calCaptionPromptsLoaded) { try { await _calLoadCaptionPrompts(); } catch (e) {} }
         const job = {
             jobId: 'job_' + pid + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
             pid: pid, client: calClientSlug(clientName), clientName: clientName,
@@ -18912,6 +19005,13 @@
         job.settledAt = Date.now();
         job.error = data.error || '';
         if (data.caption) job.caption = String(data.caption).trim();
+        // A 'done' with no caption is a failure, not a success — otherwise the chip
+        // says "✓ Caption generated" over an empty box and the batch counts it ok.
+        if (status === 'done' && !job.caption) {
+            status = 'error';
+            job.status = 'error';
+            job.error = job.error || 'The generator returned an empty caption — try again.';
+        }
         let applied = false;
         if (job.caption && (status === 'done' || status === 'error')) {
             const sameClient = calClientSlug(calState.client || '') === job.client;
@@ -18924,6 +19024,11 @@
                 if (!typed || typed === job.caption) {
                     post.caption = job.caption;
                     post.updated_at = new Date().toISOString();
+                    // Protect the just-applied caption through the conflict window so a
+                    // background v2 poll (Supabase mirror lagging the sheet write) can't
+                    // briefly revert the caption box to empty. The error path also flushes
+                    // below (which sets this), but 'done' relies on the workflow's own write.
+                    _calLocalRecentSaves.set(job.pid, Date.now());
                     if (status === 'error') {
                         if (!_calPendingEdits[job.pid]) _calPendingEdits[job.pid] = {};
                         _calPendingEdits[job.pid].caption = post.caption;
@@ -19918,6 +20023,30 @@
         }
         return false;
     }
+    /* Newest NON-Kasper internal-thread message timestamp on this card — the exact
+       basis _kasperHasUnreadReply tests against. "Mark as read" must stamp THIS,
+       not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's own
+       and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
+       more recently than a still-unread reply makes mark-read stamp the newer
+       time and silently bury that genuinely-unread reply. */
+    function _kasperRepliesSeenBasis(post) {
+        if (!post) return '';
+        let max = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === 'kasper') continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
     /* Component owning the most recent internal message — where a Kasper reply
        from the Replies inbox should land so the conversation stays together. */
     function _kasperLatestInternalComp(post) {
@@ -20209,7 +20338,7 @@
         // Weekday included so the client can place the date without doing
         // mental arithmetic ("Sat 21 Jun 2026" reads faster than "21 Jun 2026").
         const dateStr = p.scheduled_date
-            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
         const pendingLabel = _calReviewPendingLabel(p);
         // Component pills are gated by Collaborative mode — when off, only
@@ -20751,7 +20880,7 @@
         if (!ovl || !box) return;
         const thumb = _calDeriveThumb(p);
         const dateStr = p.scheduled_date
-            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
         const linkify = (u) => {
             const v = String(u || '').trim();
@@ -24112,7 +24241,11 @@
     }
     function _kasperMaybeBackgroundRefresh() {
         if (document.visibilityState === 'hidden') return;
-        if (!_kasperIsReviewMounted()) return;
+        // Refresh on the Review AND Replies tabs (both mount into #kasperContent).
+        // Replies was excluded before, so the inbox stayed frozen until you left
+        // the tab and came back — incoming SMM/client replies never arrived live.
+        if (!document.getElementById('kasperContent')) return;
+        if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
         if (_kasperState.loading) return;
         // Skip while the user is actively typing in a panel textarea so a
         // background paint doesn't yank focus out of the draft mid-keystroke.
@@ -24179,6 +24312,13 @@
         for (const it of items) {
             if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
             if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim() || String(it._drafts.title || '').trim())) return true;
+            if (it._replyDraft && String(it._replyDraft).trim()) return true;
+        }
+        // Reply drafts live on _kasperState.replies (the Replies inbox), NOT on the
+        // queue items above — so scan them too, or a realtime refresh can blow away
+        // a half-typed reply now that the Replies tab refreshes live.
+        const replies = (_kasperState && _kasperState.replies) || [];
+        for (const it of replies) {
             if (it._replyDraft && String(it._replyDraft).trim()) return true;
         }
         const a = document.activeElement;
@@ -24667,9 +24807,20 @@
         const el = document.querySelector('[data-kasper-count="replies"]');
         if (el) el.textContent = String(n);
     }
+    let _kasperRepliesPaintRetry = null;
     function _kasperRenderReplies() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
+        // Don't rebuild the inbox out from under a reply being typed — the draft
+        // survives in item._replyDraft, but an innerHTML rebuild drops focus/caret
+        // mid-keystroke. Defer until the compose box blurs (mirrors _kasperPaintReview).
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperRepliesPaintRetry) clearTimeout(_kasperRepliesPaintRetry);
+            _kasperRepliesPaintRetry = setTimeout(_kasperRenderReplies, 1200);
+            return;
+        }
+        if (_kasperRepliesPaintRetry) { clearTimeout(_kasperRepliesPaintRetry); _kasperRepliesPaintRetry = null; }
         _kasperUpdateReplyCount();
         // Landing straight on Replies (persisted tab) with nothing loaded yet —
         // kick a fetch; it re-renders this tab when done.
@@ -24776,7 +24927,7 @@
     }
     function _kasperMarkRepliesRead(pid) {
         const item = (_kasperState.replies || []).find(x => x.post.id === pid);
-        if (item) _kasperMarkSeenAt(pid, _calLatestMsgAt(item.post));
+        if (item) _kasperMarkSeenAt(pid, _kasperRepliesSeenBasis(item.post) || _calLatestMsgAt(item.post));
         _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
         _kasperRenderReplies();
     }

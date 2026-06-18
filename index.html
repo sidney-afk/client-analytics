@@ -2222,6 +2222,21 @@
             border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
             font-size: 0.78rem; color: var(--text-primary); outline: 0; }
 
+        /* Linear link already-in-use prompt — replaces the link input when the
+           pasted sub-issue is already on another live card. Offers Move / Cancel. */
+        .cal-link-conflict { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center;
+            gap: 6px; padding: 5px 9px; box-sizing: border-box; border: 1px solid #e0a23c;
+            background: #fff7ea; border-radius: 7px; }
+        .cal-link-conflict-msg { flex: 1 1 140px; min-width: 0; font-size: 0.72rem; line-height: 1.25;
+            color: #7a4e10; }
+        .cal-link-conflict-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .cal-link-conflict-move, .cal-link-conflict-cancel { font-family: inherit; font-size: 0.72rem;
+            font-weight: 600; padding: 4px 9px; border-radius: 6px; cursor: pointer; border: 1px solid transparent; }
+        .cal-link-conflict-move { background: #e0a23c; color: #fff; }
+        .cal-link-conflict-move:hover { background: #cf9230; }
+        .cal-link-conflict-cancel { background: transparent; color: #7a4e10; border-color: #e0a23c; }
+        .cal-link-conflict-cancel:hover { background: #f3e4cb; }
+
         /* Meta row — date + status as two equal chips */
         .cal-meta-row { display: flex; gap: 7px; }
         .cal-meta-row > * { flex: 1 1 0; min-width: 0; }
@@ -12914,30 +12929,51 @@
        dragged / edited (and bumped updated_at on) wins over a stale
        legacy duplicate at a higher order_index. Rows without a
        linear_issue_id are passed through unchanged. */
+    /* Normalised comparison key for a Linear sub-issue link: trim + lowercase,
+       so two links pointing at the SAME issue that differ only in case or stray
+       whitespace are treated as one — matching the backend's case-insensitive
+       ILIKE match in the Linear status-sync workflow. Shared by the dedupe AND
+       the paste-time collision check (_calLinkConflict) so the warning predicts
+       exactly what the dedupe would otherwise collapse. */
+    function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
     function _calDedupeByLinearIssue(posts) {
         if (!Array.isArray(posts) || posts.length < 2) return posts || [];
-        const bestByLink = new Map();
         const score = (p) => {
             const t = Date.parse(p && p.updated_at || '');
             return isFinite(t) ? t : 0;
         };
-        for (const p of posts) {
-            const link = p && p.linear_issue_id ? String(p.linear_issue_id).trim() : '';
-            if (!link) continue;
-            const prev = bestByLink.get(link);
-            if (!prev) { bestByLink.set(link, p); continue; }
+        // One winner per link key, considering BOTH the video (linear_issue_id)
+        // and graphic (graphic_linear_issue_id) slots — video & graphic are
+        // deduped symmetrically so a duplicate behaves identically in either
+        // slot. Winner = most-recently-touched (updated_at), order_index as the
+        // tiebreak; on a full tie the first row in input order keeps it.
+        const bestByLink = new Map();
+        const consider = (p, link) => {
+            const key = _calLinkKey(link);
+            if (!key) return;
+            const prev = bestByLink.get(key);
+            if (!prev) { bestByLink.set(key, p); return; }
             const sNew = score(p), sPrev = score(prev);
             if (sNew > sPrev
                 || (sNew === sPrev && Number(p.order_index || 0) > Number(prev.order_index || 0))) {
-                bestByLink.set(link, p);
+                bestByLink.set(key, p);
             }
+        };
+        for (const p of posts) {
+            if (!p) continue;
+            consider(p, p.linear_issue_id);
+            consider(p, p.graphic_linear_issue_id);
         }
-        // Preserve the original ordering: walk the input, keep each row
-        // only when it is the chosen dedupe winner (or has no link).
-        const winners = new Set(bestByLink.values());
+        // Preserve the original ordering: a row survives only when it is the
+        // chosen winner for EVERY link it carries (a row with no link at all
+        // always passes through unchanged).
         return posts.filter(p => {
-            const link = p && p.linear_issue_id ? String(p.linear_issue_id).trim() : '';
-            return !link || winners.has(p);
+            if (!p) return false;
+            const vKey = _calLinkKey(p.linear_issue_id);
+            const gKey = _calLinkKey(p.graphic_linear_issue_id);
+            if (vKey && bestByLink.get(vKey) !== p) return false;
+            if (gKey && bestByLink.get(gKey) !== p) return false;
+            return true;
         });
     }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
@@ -17303,6 +17339,14 @@
         const post = calState.posts.find(p => p.id === pid);
         const cur = post ? String(post[fld] || '') : '';
         const changed = !cancelled && val !== cur;
+        // A non-empty NEW link that already lives on another live card: don't
+        // silently swallow it (the dedupe would collapse the two cards on the
+        // next refresh, so the link would appear to vanish). Surface the clash
+        // and offer to MOVE it here; the real commit waits on the user's choice.
+        if (changed && val) {
+            const conflict = _calLinkConflict(val, pid);
+            if (conflict) { _calShowLinkConflict(pid, which, val, conflict); return; }
+        }
         if (changed) {
             if (post) post[fld] = val;
             if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
@@ -17317,6 +17361,88 @@
         }
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+    /* Paste-time uniqueness guard. A Linear sub-issue is effectively a unique
+       key: the status-sync, the status push and the dedupe all assume one card
+       per issue (see _calDedupeByLinearIssue). So when the link just entered is
+       already on another LIVE card we DON'T silently take it — we surface the
+       clash and offer to MOVE it here. The pending value sits in
+       _calPendingLinkMove (keyed by the receiving card) so the URL never has to
+       be quoted into an onclick attribute. */
+    let _calPendingLinkMove = Object.create(null);
+    // Returns a live (non-archived) card OTHER than selfPid whose video OR
+    // graphic slot already holds `link`, or null. Uniqueness is checked across
+    // BOTH slots so video & graphic behave identically.
+    function _calLinkConflict(link, selfPid) {
+        const key = _calLinkKey(link);
+        if (!key) return null;
+        const archived = _calArchivedRefs(calClientSlug(calState.client));
+        for (const p of calState.posts) {
+            if (!p || p.id === selfPid) continue;
+            if (String(p.status || '').toLowerCase() === 'archived') continue;
+            if (_calIsArchivedRef(p, archived)) continue;
+            if (_calLinkKey(p.linear_issue_id) === key || _calLinkKey(p.graphic_linear_issue_id) === key) return p;
+        }
+        return null;
+    }
+    function _calShowLinkConflict(pid, which, val, conflict) {
+        _calPendingLinkMove[pid] = { which: which, val: val, oldPid: conflict.id };
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (!row) return;
+        const nm = String(conflict.name || '').trim() || 'Untitled post';
+        row.innerHTML = `<div class="cal-link-conflict" data-link-conflict="${_calEscAttr(pid)}">`
+            + `<span class="cal-link-conflict-msg">This Linear sub-issue is already linked to “${_calEsc(nm)}”.</span>`
+            + `<span class="cal-link-conflict-actions">`
+            + `<button type="button" class="cal-link-conflict-move" onclick="_calMoveLinkConfirm('${pid}')">Move it here</button>`
+            + `<button type="button" class="cal-link-conflict-cancel" onclick="_calLinkConflictCancel('${pid}')">Cancel</button>`
+            + `</span></div>`;
+    }
+    function _calLinkConflictCancel(pid) {
+        delete _calPendingLinkMove[pid];
+        const post = calState.posts.find(p => p.id === pid);
+        const row = document.querySelector(`[data-title-row="${pid}"]`);
+        if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+    }
+    function _calMoveLinkConfirm(pid) {
+        const mv = _calPendingLinkMove[pid];
+        if (!mv) return;
+        delete _calPendingLinkMove[pid];
+        _calMoveLink(mv.oldPid, pid, mv.which, mv.val);
+    }
+    /* Move a Linear sub-issue link from the old card onto the new one. Clear the
+       OLD card's matching slot FIRST so the two cards never hold the same issue
+       at the same instant (which is exactly what the dedupe collapses), then set
+       it on the new card. The two writes hit different rows, so they don't race.
+       The new card's status fills itself in from Linear via
+       _calSyncStatusFromLinear; Linear itself is untouched — only WHICH card
+       points at the issue changes. */
+    function _calMoveLink(oldPid, newPid, which, val) {
+        const slug = calClientSlug(calState.client);
+        const key = _calLinkKey(val);
+        const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
+        const oldPost = calState.posts.find(p => p.id === oldPid);
+        if (oldPost) {
+            let cleared = false;
+            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(f => {
+                if (_calLinkKey(oldPost[f]) === key) {
+                    oldPost[f] = '';
+                    if (!_calPendingEdits[oldPid]) _calPendingEdits[oldPid] = {};
+                    _calPendingEdits[oldPid][f] = '';
+                    cleared = true;
+                }
+            });
+            if (cleared) _calFlushCardSave(oldPid);
+        }
+        const newPost = calState.posts.find(p => p.id === newPid);
+        if (newPost) {
+            newPost[newFld] = val;
+            if (!_calPendingEdits[newPid]) _calPendingEdits[newPid] = {};
+            _calPendingEdits[newPid][newFld] = val;
+            _calFlushCardSave(newPid);
+            if (val) _calArchivedRemove(slug, [val]);
+        }
+        _calRenderBody({ preserveScroll: true });
+        if (newPost && val) _calSyncStatusFromLinear(newPid, val, which);
     }
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {

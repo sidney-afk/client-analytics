@@ -2164,6 +2164,15 @@
         .cal-select-archive:disabled { opacity: 0.4; cursor: default; }
         .cal-select-cancel { background: rgba(255,255,255,0.16); color: #fff; }
         .cal-select-cancel:hover { background: rgba(255,255,255,0.26); }
+        /* Bulk colour-tag swatches shown in the select bar when colour mode is
+           active. Scoped under .cal-select-bar so they beat the generic
+           `.cal-select-bar button` padding/radius and stay circular. */
+        .cal-bulk-color-swatches { display: inline-flex; align-items: center; gap: 7px; }
+        .cal-select-bar .cal-bulk-color-swatch { width: 24px; height: 24px; border-radius: 50%; padding: 0; border: 1.5px solid rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.18); cursor: pointer; transition: transform 0.08s; }
+        .cal-select-bar .cal-bulk-color-swatch:hover:not(:disabled) { transform: scale(1.14); }
+        .cal-select-bar .cal-bulk-color-swatch:disabled { opacity: 0.4; cursor: default; }
+        .cal-select-bar .cal-bulk-color-swatch.is-clear { background: #fff; position: relative; overflow: hidden; }
+        .cal-select-bar .cal-bulk-color-swatch.is-clear::after { content: ''; position: absolute; left: 50%; top: 2px; width: 1.5px; height: calc(100% - 4px); background: #dc2626; transform: translateX(-50%) rotate(45deg); }
         /* Floating glass pill that slides in from the top of its parent
            (the parent needs position:relative). Reusable affordance for
            any "background refresh in progress" state — used by both the
@@ -12107,7 +12116,7 @@
         // dot), and never the interactive picker.
         if (ro || _isClientLink) {
             if (!color) return '';
-            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}"><span class="cal-card-color-tag-dot"></span></span>`;
+            return `<span class="cal-card-color-tag has-color is-readonly" data-color="${color}" title="Color tag — identifies which batch of content this post belongs to"><span class="cal-card-color-tag-dot"></span></span>`;
         }
         const pid = _calEscAttr(post.id);
         return `<button type="button" class="cal-card-color-tag${color ? ' has-color' : ''}"${color ? ` data-color="${color}"` : ''} title="Tag this card with a color" onclick="_calOpenColorPicker(event,'${pid}')"><span class="cal-card-color-tag-dot"></span></button>`;
@@ -12159,6 +12168,45 @@
         _calCloseColorPicker();
         if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, 200);
+    }
+    /* ── Multi-select bulk colour ──────────────────────────────────────
+       The colour select-mode swatch row (clear + the four named colours)
+       shown in the bottom select bar; clicking one applies it to every
+       selected card. Rendered disabled until at least one card is picked
+       (see _calSyncSelectionUI). */
+    function _calBulkColorSwatchesHtml() {
+        const sw = (c) => `<button type="button" class="cal-bulk-color-swatch${c ? '' : ' is-clear'}" data-bulk-color="${c}"${c ? ` style="background:${CAL_COLOR_HEX[c]}"` : ''} title="${c ? ('Set ' + c) : 'Clear color'}" onclick="_calApplyBulkColor(event,'${c}')" disabled></button>`;
+        return sw('') + CAL_COLORS.map(sw).join('');
+    }
+    /* Apply one colour (or clear) to every selected card at once. Mirrors the
+       single-card picker's optimistic-then-persist path, but pools the saves
+       (same bound as bulk archive) so a big selection doesn't spike n8n. */
+    async function _calApplyBulkColor(e, color) {
+        if (e) e.stopPropagation();
+        const value = CAL_COLORS.includes(color) ? color : '';
+        const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
+        if (!ids.length) return;
+        ids.forEach(pid => {
+            const post = calState.posts.find(p => p.id === pid);
+            if (!post) return;
+            post.color = value;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid].color = value;
+        });
+        // Selection captured — drop out of select mode so the blue overlays and
+        // the swatch bar clear, then repaint with the new dots in place.
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach(b => b.classList.remove('active'));
+        _calRenderBody({ preserveScroll: true });
+        // Persist through the same per-card flush the picker uses, pooled.
+        ids.forEach(pid => { if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; } });
+        const results = await _calRunPooled(ids, CAL_BULK_ARCHIVE_CONCURRENCY, pid => _calFlushCardSave(pid));
+        const failed = results.filter(r => r.status === 'rejected').length;
+        if (failed) showNotify('Some colors were not saved', failed + ' of ' + ids.length + " couldn't be saved — they'll retry on the next edit or refresh.");
+        else showNotify('Color updated', ids.length + ' post' + (ids.length === 1 ? '' : 's') + ' set to ' + (value || 'no') + ' color.');
     }
     function _calPlatformsStripHtml(post, ro) {
         const slug = calClientSlug(calState.client);
@@ -16040,12 +16088,15 @@
                     </div>
                 </div>`
             : '';
-        const archiveActive = calState.selectMode && calState.selectAction !== 'caption' && calState.selectAction !== 'link';
+        const archiveActive = calState.selectMode && calState.selectAction !== 'caption' && calState.selectAction !== 'link' && calState.selectAction !== 'color';
         const selectBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
-            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" onclick="_calToggleSelectMode()" title="Select multiple posts to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            ? `<button class="cal-select-btn${archiveActive ? ' active' : ''}" type="button" data-select-action="archive" onclick="_calToggleSelectMode()" title="Select multiple posts to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
             : '';
         const bulkCapBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
-            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'caption' ? ' active' : ''}" type="button" data-select-action="caption" onclick="_calToggleSelectMode('caption')" title="Generate captions for multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h10M8 3v10M5 5l6 6M11 5l-6 6"/></svg></button>`
+            : '';
+        const bulkColorBtnHtml = (calState.client && !_isClientLink && calState.view === 'organizer')
+            ? `<button class="cal-select-btn${calState.selectMode && calState.selectAction === 'color' ? ' active' : ''}" type="button" data-select-action="color" onclick="_calToggleSelectMode('color')" title="Set a color tag on multiple posts"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.7a6.3 6.3 0 1 0 0 12.6c.85 0 1.35-.62 1.35-1.3 0-.36-.18-.66-.4-.94-.2-.27-.4-.55-.4-.92 0-.66.55-1.2 1.2-1.2h1.05A2.8 2.8 0 0 0 14.3 6 6.4 6.4 0 0 0 8 1.7z"/><circle cx="5" cy="6.6" r="0.85" fill="currentColor" stroke="none"/><circle cx="8" cy="4.9" r="0.85" fill="currentColor" stroke="none"/><circle cx="10.9" cy="6.6" r="0.85" fill="currentColor" stroke="none"/></svg></button>`
             : '';
         const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet', month: 'Month', week: 'Week' };
         // The client link gets the client approval queue ('review'); the SMM
@@ -16077,6 +16128,7 @@
                     <span class="cal-stale-notice" id="calStaleNotice" hidden onclick="loadCalendarPosts({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
                     ${selectBtnHtml}
                     ${bulkCapBtnHtml}
+                    ${bulkColorBtnHtml}
                     ${kebabHtml}
                 </div>
             </div>
@@ -17156,11 +17208,14 @@
                 : '');
         const isLinkAction = calState.selectAction === 'link';
         const isCaptionAction = calState.selectAction === 'caption';
+        const isColorAction = calState.selectAction === 'color';
         const actionBtn = isLinkAction
             ? `<button type="button" class="cal-select-archive" id="calSelectArchive" style="background:#5e6ad2" onclick="_calOpenBulkLinkOverlay()" disabled>Match to Linear</button>`
             : isCaptionAction
                 ? `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calBulkGenerateCaptions()" disabled>Generate captions</button>`
-                : `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
+                : isColorAction
+                    ? `<div class="cal-bulk-color-swatches" id="calBulkColorSwatches">${_calBulkColorSwatchesHtml()}</div>`
+                    : `<button type="button" class="cal-select-archive" id="calSelectArchive" onclick="_calArchiveSelected()" disabled>Archive</button>`;
         const selectBar = (calState.selectMode && !_isClientLink)
             ? `<div class="cal-select-bar" id="calSelectBar">
                     <span class="cal-select-count" id="calSelectCount">0 selected</span>
@@ -18712,14 +18767,15 @@
         }
         calState.selected = new Set();
         calState.lastSel = null;
-        // The toolbar has one button per action (archive, caption) — sync
-        // both, not just the first, so users see which mode is currently
-        // active without a full shell re-render.
-        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach((btn, i) => {
-            const isCaptionBtn = i === 1;
+        // One toolbar button per action (archive, caption, color) — sync them
+        // all by their data-select-action, not by index, so users see which
+        // mode is active without a full shell re-render.
+        document.querySelectorAll('.cal-toolbar .cal-select-btn').forEach((btn) => {
+            const a = btn.getAttribute('data-select-action') || 'archive';
             const active = calState.selectMode && (
-                isCaptionBtn ? calState.selectAction === 'caption'
-                             : calState.selectAction !== 'caption' && calState.selectAction !== 'link'
+                a === 'archive'
+                    ? (calState.selectAction !== 'caption' && calState.selectAction !== 'link' && calState.selectAction !== 'color')
+                    : calState.selectAction === a
             );
             btn.classList.toggle('active', active);
         });
@@ -18758,6 +18814,8 @@
         if (count) count.textContent = n + ' selected';
         const archive = document.getElementById('calSelectArchive');
         if (archive) archive.disabled = n === 0;
+        // Bulk-colour swatches share the same empty-selection guard.
+        document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
     }
     async function _calArchiveSelected() {
         const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
@@ -19897,8 +19955,11 @@
         // tagged the card (no colour, no dot). Passive; clients can't change it.
         const color = _calPostColor(p);
         const colorAttr = color ? ` data-color="${color}"` : '';
+        // On the client view, explain the corner dot on hover; the SMM already
+        // knows what its own batch colours mean, so it's client-only.
+        const colorTitle = (_isClientLink && color) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
         const warn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-        return `<button class="cal-month-pill${posted}"${colorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
+        return `<button class="cal-month-pill${posted}"${colorAttr}${colorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${thumb}<span class="cal-month-pill-meta"><span class="cal-month-pill-name">${_calEsc((p.name || 'Untitled').slice(0,40))}</span>${_calPillBadgeHtml(p)}</span>${warn}</button>`;
     }
 
     function renderCalMonth() {
@@ -20031,8 +20092,9 @@
                                 // SMM has tagged the card (no colour, no dot). Passive / read-only.
                                 const wColor = _calPostColor(p);
                                 const wColorAttr = wColor ? ` data-color="${wColor}"` : '';
+                                const wColorTitle = (_isClientLink && wColor) ? ' title="Color tag — identifies which batch of content this post belongs to"' : '';
                                 const wWarn = (!_isClientLink && _calSmmMissingMedia(p)) ? _calSmmWarnDotHtml(p) : '';
-                                return `<button class="cal-week-card${posted}"${wColorAttr}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
+                                return `<button class="cal-week-card${posted}"${wColorAttr}${wColorTitle}${ribbonAttr}${drag} onclick="openCalPreview('${id}')">${grip}${th}<span class="cal-week-card-body"><span class="cal-week-card-name">${_calEsc(p.name || 'Untitled')}</span>${_calPillBadgeHtml(p)}</span>${wWarn}</button>`;
                             }).join('')}
                         </div>
                     </div>`;

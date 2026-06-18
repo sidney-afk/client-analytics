@@ -295,31 +295,48 @@ off and the new fields are dropped by the upsert — no effect.
 - A literal YouTube logo glyph on the title pill/panel (currently a red dot + "Title").
 - **Part B** (Notes component picker + Linear routing) — separate phase, not started.
 
-## Outstanding bugs — live QA (2026-06-17)
+## Outstanding bugs — live QA (2026-06-17) → **ALL RESOLVED 2026-06-18**
 
-The title feature itself is **verified working** in live testing: `title_status` and
-`caption_status` hold correctly through every realtime reconcile; round numbering,
-echo-adopt, and the title square all behave. The items below are open. **Diagnostics:**
-append `&v2debug=1` to the URL (or run `window._calV2Debug = true`) for the `[calV2 …]`
-trace — `SAVE→` / `ECHO adopt` / `RECONCILE adopt remote` / `MERGE took SERVER` (the
-revert moment) / `MERGE kept LOCAL` / `COMMENT delete` + `COMMENT resurrection` /
-`BADGE refresh` / `REVIEW approve|request-change|comment`. Test only on the **Sidney
-Laruel** test client (slug `sidneylaruel`) — never touch other clients' data.
+The title feature is **verified working** in live testing (driven headlessly on the
+**Sidney Laruel** test client against the live backend): `title_status`/`caption_status`
+hold through every realtime reconcile; round numbering, echo-adopt and the title square
+all behave; the title is excluded from the overall status through SMM, Kasper and client
+title-review (approve / request-change / resolve), and every status + comment persists
+across refresh and across tabs. The three open items below were reproduced, root-caused
+against the real code + the live n8n workflows, fixed front-end, and re-verified live.
+**Diagnostics:** append `&v2debug=1` for the `[calV2 …]` trace — `SAVE→` / `ECHO adopt` /
+`RECONCILE adopt remote` / `RECONCILE keep LOCAL (stale Linear regress)` / `MERGE took
+SERVER` / `MERGE kept LOCAL` / `COMMENT delete` + `COMMENT resurrection` / `BADGE refresh`.
+Regression coverage: `test/calendar-v2-status-repro.js` sections E/F/G.
 
-- **A. Video/thumbnail status reverts after a client approval — PRE-EXISTING, Linear-sync,
-  independent of the title feature.** `_calRecentSaveReconcile` adopts a server
-  `video_status` (e.g. Approved → Tweaks Needed → Kasper Approval) over the client's
-  approval. Only the **Linear-backed** components (video, thumbnail) revert; caption and
-  title never do — the Linear Status Sync writes the linked issue's real Linear status
-  back into the calendar, overriding the calendar-side approval. Root-cause the
-  Linear-sync ↔ client-approval conflict (`_calRecentSaveReconcile`, the merge in
-  `loadCalendarPosts`, `_calPushStatusToLinear`, and the n8n "Linear Status Sync"
-  workflow). Prefer a front-end fix; treat the v2/Linear merge path as fragile — per
-  `AUDIT_2026-06-15.md` / `CALENDAR_V2_AUDIT_HANDOFF.md`, reproduce + root-cause + prove,
-  don't guess.
-- **B. Deleting a plain comment sometimes needs ~3 tries.** Suspected: a stale
-  merge/realtime reload resurrecting the tombstoned comment. Repro with `?v2debug=1` and
-  watch for `COMMENT delete` followed by `COMMENT resurrection`.
-- **C. A client comment from the Review surface doesn't badge the SMM.** The unread badge
-  is computed SMM-side; capture the **SMM tab's** console after a client comment and check
-  `_calHasUnreadNotes` + the Notes-button realtime re-render.
+- **A. Video/thumbnail status reverts after a client approval — FIXED (front-end).**
+  Root cause: `_calRecentSaveReconcile` adopted *any* server sub-status differing from
+  both `wrote` and `base`. The Linear Status Sync (`MJbMZ789B5ExZz9x`) writes back **only**
+  the bare sub-status of a **drifted** issue (no comment, never clearing
+  `client_<comp>_approved_at`, never the overall status) — a third value the reconcile then
+  adopted, reverting a fresh approval. Fix: `_calIsStaleLinearRegress` refuses to adopt a
+  Linear-backed regress below Client Approval when we just advanced past it and there is no
+  corroborating change-request comment; `loadCalendarPosts` re-asserts the kept value to
+  Linear so the drift heals forward. Verified live (`RECONCILE keep LOCAL` fired; the
+  approval held). **Backend proposal (not applied — snapshot first):** the durable guard
+  belongs in the Linear Status Sync — it should compare the incoming Linear state's change
+  time against the card's `updated_at` and **not** overwrite a sub-status the calendar
+  changed more recently (most-recent-action-wins, per `LINEAR_SYNC_RECONCILE.md`). Today
+  it posts the bare sub-status to `calendar-upsert-post` with no base, so it always wins.
+  Adding a `comments_base_at`-style freshness check (or a `*_status_at` column) would close
+  the race at source. Snapshot `MJbMZ789B5ExZz9x` to `n8n-backups/` before editing.
+- **B. Deleting a plain comment sometimes needs ~3 tries — FIXED (front-end).** Root cause
+  in the LWW take-server merge: `winner = Object.assign({}, fp, pend)` overlaid pend's
+  `*_tweaks` STRING (the delete-tombstone) but left the parsed `*_comments` ARRAY as the
+  server's live copy, which the comment merge + render read — silently resurrecting the
+  deleted comment. Fix: re-run `_calMigratePostShape` on the merged row when pend carries a
+  `*_tweaks`, so the tweaks string is re-parsed into the arrays and the tombstone wins.
+  Verified live: a deleted comment stays gone across a forced take-server reload.
+- **C. A client comment from the Review surface doesn't badge the SMM — FIXED (front-end).**
+  Root cause: when the LWW merge keeps the local row (recent-save window), the incoming
+  comment is unioned into that row IN PLACE, so `_calPostsEqualForRender` compares it to
+  itself and reports `dataChanged = false` (a false negative) — the `!dataChanged`
+  background branch was a no-op that refreshed nothing. Fix: refresh the Notes badges on
+  that branch too. Verified live: the unread dot now lights even inside the recent-save
+  window and cross-tab.
+

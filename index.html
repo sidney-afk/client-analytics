@@ -12561,6 +12561,24 @@
             const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
             const base = rsf.base ? rsf.base[f] : undefined;
             if (sv !== wrote && sv !== base) {
+                // Stale Linear round-trip guard (the "video reverts after a
+                // client approves it" bug). The Linear Status Sync writes back
+                // ONLY the matched sub-status (never a comment, never clearing
+                // the client_<comp>_approved_at sign-off, never the overall
+                // status). So when WE just advanced a Linear-backed component to
+                // client review / sign-off and the server now REGRESSES it below
+                // Client Approval with no new change-request comment to justify
+                // it, that's a stale Linear echo of a DRIFTED issue — not a real
+                // action by anyone. Refuse to adopt it: keep the fresh approval.
+                // (A genuine forward move, or a genuine tweak that carries a new
+                // comment, is still adopted — see _calIsStaleLinearRegress.) The
+                // caller re-asserts the kept value to Linear so the drift heals
+                // forward; the 10-min reconciler arbitrates any true conflict.
+                const comp = f.slice(0, f.length - '_status'.length);
+                if (_calIsStaleLinearRegress(lp, fp, comp, rsf)) {
+                    _calV2Log('RECONCILE keep LOCAL (stale Linear regress) →', fp.id, '|', f, ':', lp[f], 'vs server', sv, '(wrote:', wrote, ')');
+                    continue;
+                }
                 if (!merged) merged = Object.assign({}, lp);
                 merged[f] = sv;
                 _calV2Log('RECONCILE adopt remote →', fp.id, '|', f, ':', lp[f], '→', sv, '(wrote:', wrote, '| base:', base, ')');
@@ -12568,6 +12586,48 @@
         }
         if (merged) merged.status = computeOverallStatus(merged);
         return merged;
+    }
+    /* Is the server's value for `comp` a stale Linear status-sync round-trip of a
+       DRIFTED issue that would clobber a fresh local approval — as opposed to a
+       genuine new action? True only when ALL hold:
+         · comp is Linear-backed (video / graphic) — caption & title have no
+           Linear, so they can never round-trip and are never suppressed here;
+         · the server value differs from both what we wrote and its pre-save base
+           (a plain echo or a revert-to-base is already handled by the caller);
+         · WE just wrote an at-or-above Client-Approval status for it (so the
+           server value is a REGRESSION of a fresh approval); and
+         · there is NO new, open change-request comment on the component to
+           justify that regression. A real Tweaks-Needed (client/Kasper/SMM in
+           SyncView) always lands a comment with the status, so it is NOT treated
+           as stale and is still adopted; the Linear Status Sync writes only the
+           bare sub-status, so it is. Shared by the reconcile (to refuse the
+           adopt) and the caller (to re-assert to Linear) so the rule has one
+           source of truth. Pure (besides the status normaliser). */
+    function _calIsStaleLinearRegress(lp, fp, comp, rsf) {
+        if (!lp || !fp || !rsf) return false;
+        if (comp !== 'video' && comp !== 'graphic') return false;
+        const f = comp + '_status';
+        const sv = fp[f];
+        if (sv == null) return false;
+        const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+        const base = rsf.base ? rsf.base[f] : undefined;
+        if (sv === wrote || sv === base) return false;
+        const ABOVE = { 'Client Approval': 1, 'Approved': 1, 'Scheduled': 1, 'Posted': 1 };
+        if (!(ABOVE[_calNormStatus(wrote)] && !ABOVE[_calNormStatus(sv)])) return false;
+        return !_calReconcileHasGenuineTweak(fp, lp, comp);
+    }
+    /* Does the server row carry a NEW (not in our local copy) open change-request
+       on this component? That's the fingerprint of a genuine Tweaks-Needed (which
+       always writes a comment alongside the status) versus a bare Linear
+       round-trip (status only). Used to keep a real tweak adoptable while a stale
+       Linear regress is held back. */
+    function _calReconcileHasGenuineTweak(fp, lp, comp) {
+        const fc = _calCommentsFor(fp, comp);
+        if (!Array.isArray(fc) || !fc.length) return false;
+        const lById = new Map();
+        const lc = _calCommentsFor(lp, comp);
+        if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
+        return fc.some(c => c && c.id && _calMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
     const CAL_CONFLICT_WINDOW_MS = 90 * 1000;
     /* IDs we've already warned about in the current session — prevents
@@ -13344,6 +13404,30 @@
         };
         // run() never rejects (it catches + enqueues), so the chain stays live.
         _calLinearPushChain[url] = (_calLinearPushChain[url] || Promise.resolve()).then(run, run);
+    }
+    /* When the background merge refuses to adopt a stale Linear round-trip that
+       was regressing a fresh approval (see _calIsStaleLinearRegress), re-assert
+       our kept value onto the linked Linear sub-issue so the next status-sync
+       echoes the right state and the calendar↔Linear drift heals FORWARD instead
+       of fighting every realtime tick. Throttled per issue+status so a repeated
+       round-trip can't spam Linear; idempotent (_calPushStatusToLinear dedupes a
+       superseded push). This is the FE half of "a fresh client approval wins over
+       a stale sync"; the deeper durable guard belongs in the Linear Status Sync
+       workflow (proposed separately — most-recent-action-wins). */
+    const _calLinearReassertAt = new Map();
+    const CAL_LINEAR_REASSERT_MS = 20 * 1000;
+    function _calReassertLinearStatus(post, comp) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
+        if (!url) return;
+        const st = _calNormStatus(post[comp + '_status'] || '');
+        if (!st) return;
+        const key = url + '|' + st;
+        const now = Date.now();
+        if (now - (_calLinearReassertAt.get(key) || 0) < CAL_LINEAR_REASSERT_MS) return;
+        _calLinearReassertAt.set(key, now);
+        _calV2Log('RECONCILE re-assert to Linear →', post.id, '|', comp, ':', st, '| url:', url);
+        _calPushStatusToLinear(url, st);
     }
     /* Posts a client/kasper tweak comment to a Linear sub-issue so the
        video editor or graphic designer sees it in Linear (their only
@@ -15235,7 +15319,15 @@
                         // revert to base, or an echo of what we wrote) is still
                         // kept local.
                         if (_calV2Enabled()) {
-                            const reconciled = _calRecentSaveReconcile(lp, fp, _calRecentSaveFields.get(fp.id));
+                            const _rsf = _calRecentSaveFields.get(fp.id);
+                            const reconciled = _calRecentSaveReconcile(lp, fp, _rsf);
+                            // Heal any stale Linear round-trip we just refused to
+                            // adopt: re-assert the kept approval onto the Linear
+                            // sub-issue so the next sync echoes the right value
+                            // (throttled; never touches caption/title).
+                            ['video', 'graphic'].forEach(comp => {
+                                if (_calIsStaleLinearRegress(lp, fp, comp, _rsf)) _calReassertLinearStatus(lp, comp);
+                            });
                             if (reconciled) return reconciled;
                         }
                         return lp;
@@ -15254,7 +15346,19 @@
                     // updated_at). Overlay them so the next flush still has
                     // them.
                     const pend = _calPendingEdits[fp.id];
-                    if (pend) return Object.assign({}, fp, pend);
+                    if (pend) {
+                        const w = Object.assign({}, fp, pend);
+                        // A pending edit can carry a *_tweaks STRING (a queued
+                        // comment add, or a delete-tombstone) while the matching
+                        // parsed *_comments ARRAY on `w` is still fp's PRE-edit
+                        // copy (Object.assign overlaid only the string). The
+                        // comment merge + render below read the ARRAY, so without
+                        // re-deriving it a just-deleted comment is silently
+                        // resurrected (the "delete needs ~3 tries" bug). Re-parse
+                        // the tweaks back into the arrays so the tombstone wins.
+                        if (Object.keys(pend).some(k => /_tweaks$/.test(k))) _calMigratePostShape(w);
+                        return w;
+                    }
                     return fp;
                 })();
                 if (_calV2DebugOn() && winner === lp &&
@@ -15354,7 +15458,18 @@
                 calState.loading = false;
                 if (background) {
                     if (!dataChanged) {
-                        /* no-op — current strip is already correct */
+                        // _calPostsEqualForRender can be a FALSE negative for a
+                        // comment that the LWW merge folded into the KEPT-LOCAL
+                        // row: _calMergePostComments mutates that row IN PLACE, so
+                        // the "before" snapshot is the very same object and now
+                        // already carries the new comment — the equality check
+                        // sees no diff. That left a client/Kasper note that landed
+                        // while we were inside our own recent-save window unable to
+                        // light the unread Notes dot (the "client comment from the
+                        // Review surface doesn't badge the SMM" bug). Refresh the
+                        // Notes dots from the already-merged calState so the badge
+                        // can't miss it — a cheap footer swap, never a focused field.
+                        if (_calV2Ready()) { try { calState.posts.forEach(p => _calRefreshCommentsBtn(p.id)); } catch {} }
                     } else if (opts.background && _calIsCalBusy()) {
                         // Only a PASSIVE refresh (focus/visibility return, the
                         // sole caller that passes {background:true}) may defer

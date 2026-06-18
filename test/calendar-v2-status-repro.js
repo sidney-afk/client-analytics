@@ -65,6 +65,7 @@ const REAL = [
   grabFunc('_calLoadCommentsField'), grabFunc('_calMigratePostShape'), grabFunc('_calCommentsFor'),
   grabFunc('_calSetCommentsFor'), grabFunc('_calStringifyComments'), grabFunc('_calCommentStamp'),
   grabFunc('_calMergeCommentLists'), grabFunc('_calMergePostComments'), grabFunc('_calPostsEqualForRender'),
+  grabFunc('_calMsgIsTweak'), grabFunc('_calReconcileHasGenuineTweak'), grabFunc('_calIsStaleLinearRegress'),
   grabFunc('_calRecentSaveReconcile'),
 ].join('\n\n');
 
@@ -84,12 +85,12 @@ const mod = new Function(STUBS + '\n' + REAL + `
   computeOverallStatus, _calClearStaleApprovals, _calLoadCommentsField,
   _calMigratePostShape, _calCommentsFor, _calSetCommentsFor,
   _calStringifyComments, _calMergeCommentLists, _calMergePostComments,
-  _calPostsEqualForRender, _calRecentSaveReconcile };`)();
+  _calPostsEqualForRender, _calRecentSaveReconcile, _calIsStaleLinearRegress };`)();
 
 const {
   CAL_COMPONENTS, _calNormStatus, computeOverallStatus, _calClearStaleApprovals,
   _calMigratePostShape, _calCommentsFor, _calMergePostComments, _calPostsEqualForRender,
-  _calRecentSaveReconcile,
+  _calRecentSaveReconcile, _calIsStaleLinearRegress,
 } = mod;
 
 const CAL_CONFLICT_WINDOW_MS = 90 * 1000; // index.html:11906
@@ -328,6 +329,49 @@ function assertShippedCodeIsFixed() {
   console.log('✓ Shipped index.html _calFlushCardSave migrates the MERGED full row (not the raw partial echo).\n');
 }
 
+// Confirm the SHIPPED index.html carries the stale-Linear-round-trip guard: the
+// reconcile must consult _calIsStaleLinearRegress before adopting, and the
+// background-merge caller must re-assert a refused regress back to Linear.
+function assertShippedReconcileGuarded() {
+  const rec = grabFunc('_calRecentSaveReconcile');
+  const hasGuard = /_calIsStaleLinearRegress\(lp, fp, comp, rsf\)/.test(rec);
+  const hasReassertWiring = /_calIsStaleLinearRegress\(lp, fp, comp, _rsf\)\)\s*_calReassertLinearStatus\(lp, comp\)/.test(INDEX);
+  if (!hasGuard || !hasReassertWiring) {
+    console.error('SHIPPED CODE CHECK FAILED — stale-Linear-regress guard not wired.');
+    console.error('  reconcile guard:', hasGuard, '| caller re-assert:', hasReassertWiring);
+    process.exit(1);
+  }
+  console.log('✓ Shipped index.html reconcile refuses a stale Linear regress of a fresh approval and re-asserts it to Linear.\n');
+}
+
+// Bug C: a comment that lands while we're inside our own recent-save window is
+// folded into the KEPT-LOCAL row by _calMergePostComments (in place), so
+// _calPostsEqualForRender compares that row to itself → dataChanged is a FALSE
+// negative. The shipped !dataChanged background branch must therefore refresh
+// the Notes badges unconditionally so the unread dot can't be missed.
+function assertShippedBadgeRefreshUnconditional() {
+  const m = INDEX.match(/if \(!dataChanged\) \{([\s\S]*?)\} else if \(opts\.background && _calIsCalBusy\(\)\)/);
+  if (!m || !/_calRefreshCommentsBtn\(p\.id\)/.test(m[1])) {
+    console.error('SHIPPED CODE CHECK FAILED — the !dataChanged background branch does not refresh Notes badges.');
+    process.exit(1);
+  }
+  console.log('✓ Shipped index.html refreshes Notes badges on a background reload even when dataChanged is a false negative.\n');
+}
+
+// Bug B: a pending edit overlaid onto the server row (LWW takes-server branch)
+// can carry a *_tweaks STRING (a queued comment add / delete-tombstone) while the
+// matching parsed *_comments ARRAY still holds the server's pre-edit copy. The
+// comment merge + render read the ARRAY, so a just-deleted comment is resurrected
+// ("delete needs ~3 tries"). The fix re-parses pending tweaks back into arrays.
+function assertShippedPendingTweaksRemigrated() {
+  const m = INDEX.match(/const pend = _calPendingEdits\[fp\.id\];([\s\S]*?)return fp;/);
+  if (!m || !/_calMigratePostShape\(w\)/.test(m[1]) || !/_tweaks\$/.test(m[1])) {
+    console.error('SHIPPED CODE CHECK FAILED — pending-overlay branch does not re-parse pending *_tweaks into comment arrays.');
+    process.exit(1);
+  }
+  console.log('✓ Shipped index.html re-parses pending *_tweaks after the LWW overlay so a pending delete-tombstone is not resurrected.\n');
+}
+
 // Generalized driver: run an arbitrary step list with the given echo-merge and
 // assert tab1's PAINTED state equals the cumulative truth after EVERY step
 // (no sub ever shows a value the user didn't set), and that tab2 + a refresh +
@@ -395,6 +439,60 @@ function runCommentTest(echoMerge) {
 
 assertSimulatorMatchesReality();
 assertShippedCodeIsFixed();
+assertShippedReconcileGuarded();
+assertShippedBadgeRefreshUnconditional();
+assertShippedPendingTweaksRemigrated();
+
+// Behavioural proof of the bug-C false negative against the REAL extracted code:
+// a new comment unioned into a kept-local row is present in calState, yet
+// _calPostsEqualForRender reports no change (it compares the mutated row to
+// itself) — which is exactly why the badge refresh must not be gated on it.
+function runBadgeFalseNegative() {
+  const c1 = { id: 'c1', parent_id: null, role: 'client', body: 'a', created_at: '2026-06-14T23:00:00.000Z', updated_at: '2026-06-14T23:00:00.000Z' };
+  const c2 = { id: 'c2', parent_id: null, role: 'client', body: 'new note', created_at: '2026-06-14T23:31:00.000Z', updated_at: '2026-06-14T23:31:00.000Z' };
+  const lp = { id: 'p_badge', updated_at: '2026-06-14T23:30:00.000Z', video_status: 'Approved', graphic_status: 'Approved',
+    caption_status: 'Approved', status: 'Approved', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([c1]) };
+  _calMigratePostShape(lp);
+  const fp = { id: 'p_badge', updated_at: '2026-06-14T23:29:00.000Z', video_status: 'Approved', graphic_status: 'Approved',
+    caption_status: 'Approved', status: 'Approved', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([c1, c2]) };
+  _calMigratePostShape(fp);
+  const prevPosts = [lp];
+  _calMergePostComments(lp, fp);              // winner is the kept-local lp → mutated in place
+  const newPosts = [lp];                      // same object reference
+  const lpHasC2 = _calCommentsFor(lp, 'caption').some(c => c.id === 'c2');
+  const dataChanged = !_calPostsEqualForRender(prevPosts, newPosts);
+  const ok = lpHasC2 && dataChanged === false; // comment IS present, yet equality misses it
+  console.log(`  ${ok ? '✅' : '❌'} bug C: comment folded into kept-local row is present (${lpHasC2}) but dataChanged is a false negative (${dataChanged}) → badge refresh must be unconditional`);
+  return ok;
+}
+const badgeFalseNeg = runBadgeFalseNegative();
+
+// Behavioural proof of the bug-B resurrection against the REAL extracted code:
+// overlaying a pending delete-tombstone (a *_tweaks string) onto the server row
+// WITHOUT re-parsing leaves the live comment in the array (resurrected); the fix
+// (re-migrate after the overlay) keeps it deleted.
+function runDeleteTombstoneRepro() {
+  const X = { id: 'cX', parent_id: null, role: 'client', is_tweak: false, body: 'plain note',
+    created_at: '2026-06-14T23:00:00.000Z', updated_at: '2026-06-14T23:00:00.000Z' };
+  const fp = { id: 'p_del', updated_at: '2026-06-14T23:10:00.000Z', video_status: 'In Progress', graphic_status: 'In Progress',
+    caption_status: 'In Progress', status: 'In Progress', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([X]) };
+  _calMigratePostShape(fp);
+  const tomb = Object.assign({}, X, { deleted: true, updated_at: '2026-06-14T23:11:00.000Z' });
+  const pend = { caption_tweaks: JSON.stringify([tomb]) };
+  const liveIds = (w) => _calCommentsFor(w, 'caption').filter(c => !c.deleted).map(c => c.id);
+  // BUGGY: overlay only, no re-migrate → array stays the server's live copy.
+  const buggy = Object.assign({}, fp, pend);
+  _calMergePostComments(buggy, fp);
+  const buggyResurrected = liveIds(buggy).includes('cX');
+  // FIXED: re-migrate after overlay → array reflects the tombstone.
+  const fixed = Object.assign({}, fp, pend); _calMigratePostShape(fixed);
+  _calMergePostComments(fixed, fp);
+  const fixedStaysDeleted = !liveIds(fixed).includes('cX');
+  const ok = buggyResurrected && fixedStaysDeleted;
+  console.log(`  ${ok ? '✅' : '❌'} bug B: overlay-only resurrects the deleted comment (${buggyResurrected}); re-migrating keeps it deleted (${fixedStaysDeleted})`);
+  return ok;
+}
+const deleteRepro = runDeleteTombstoneRepro();
 
 const buggy = runRepro('A) CURRENT-PRE-FIX BEHAVIOR (buggy echo-merge: migrate the partial echo)', echoMergeBuggy);
 const fixed = runRepro('B) FIXED BEHAVIOR (migrate the merged full row)', echoMergeFixed);
@@ -537,8 +635,55 @@ eCase('untouched field (wrote==base) changed by Kasper → ADOPTED',
   { wrote: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval' },
     base:  { video_status: 'In Progress',     graphic_status: 'Kasper Approval', caption_status: 'In Progress' } },
   { video: 'Kasper Approval', graphic: 'Client Approval', caption: 'Kasper Approval' });
+// --- Stale-Linear-round-trip guard (the "video reverts after a client approves
+// it" bug). We just advanced a Linear-backed component to client review /
+// sign-off; the Linear Status Sync round-trips a DRIFTED issue's bare sub-status
+// back (no comment, no stamp clear). That regression must NOT be adopted, while
+// a genuine forward move or a real tweak (which carries a comment) still is. ---
+const LP_AP = { id: 'p_ap', video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved',
+  status: 'Approved', updated_at: '2026-06-14T23:21:42.833Z',
+  linear_issue_id: 'VID-1', graphic_linear_issue_id: 'GRA-1' };
+const RSF_AP = { wrote: { video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Approved' },
+                 base:  { video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval' } };
+// 7) THE BUG: a fresh video Approved is round-tripped down to Kasper Approval by
+//    a stale Linear sync (no comment) → keep local, adopt nothing.
+eCase('stale Linear regress (video Approved → Kasper Approval, no comment) is REFUSED → keep local',
+  LP_AP, Object.assign({}, LP_AP, { video_status: 'Kasper Approval', updated_at: newer }), RSF_AP, null);
+// 8) same shape, regressed all the way to Tweaks Needed (the doc's example) → refused.
+eCase('stale Linear regress (graphic Approved → Tweaks Needed, no comment) is REFUSED → keep local',
+  LP_AP, Object.assign({}, LP_AP, { graphic_status: 'Tweaks Needed', updated_at: newer }), RSF_AP, null);
+// 9) a GENUINE forward move from an approved state (Approved → Scheduled/Posted) is still adopted.
+const LP_CA = { id: 'p_ca', video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval',
+  status: 'Client Approval', updated_at: '2026-06-14T23:21:42.833Z', linear_issue_id: 'VID-2', graphic_linear_issue_id: 'GRA-2' };
+const RSF_CA = { wrote: { video_status: 'Client Approval', graphic_status: 'Client Approval', caption_status: 'Client Approval' },
+                 base:  { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', caption_status: 'Kasper Approval' } };
+eCase('forward move from above (video Client Approval → Approved) is ADOPTED',
+  LP_CA, Object.assign({}, LP_CA, { video_status: 'Approved', updated_at: newer }), RSF_CA,
+  { video: 'Approved', graphic: 'Client Approval', caption: 'Client Approval' });
+// 10) a GENUINE tweak (regression WITH a new change-request comment) is still adopted.
+eCase('genuine tweak (video Client Approval → Tweaks Needed WITH a new comment) is ADOPTED',
+  LP_CA, Object.assign({}, LP_CA, { video_status: 'Tweaks Needed', updated_at: newer,
+    video_comments: [{ id: 'tw_new', parent_id: null, is_tweak: true, deleted: false, done: false,
+      body: 'tighten the hook', created_at: newer, updated_at: newer }] }), RSF_CA,
+  { video: 'Tweaks Needed', graphic: 'Client Approval', caption: 'Client Approval' });
+// 11) CAPTION has no Linear, so a caption regression is never a round-trip → always adopted.
+eCase('caption regress (Approved → Kasper Approval) is ADOPTED — caption has no Linear to round-trip',
+  LP_AP, Object.assign({}, LP_AP, { caption_status: 'Kasper Approval', updated_at: newer }), RSF_AP,
+  { video: 'Approved', graphic: 'Approved', caption: 'Kasper Approval' });
+// 12) the pure predicate is video/graphic-only and respects the comment fingerprint.
+(() => {
+  const rsf = RSF_AP;
+  const fpReg = Object.assign({}, LP_AP, { video_status: 'Kasper Approval', updated_at: newer });
+  const checks = [
+    ['video regress, no comment → stale=true',  _calIsStaleLinearRegress(LP_AP, fpReg, 'video', rsf) === true],
+    ['caption never stale',                      _calIsStaleLinearRegress(LP_AP, Object.assign({}, LP_AP, { caption_status: 'Kasper Approval' }), 'caption', rsf) === false],
+    ['echo of our write is not stale',           _calIsStaleLinearRegress(LP_AP, Object.assign({}, LP_AP, { video_status: 'Approved' }), 'video', rsf) === false],
+    ['forward (Approved→Posted) not stale',      _calIsStaleLinearRegress(LP_AP, Object.assign({}, LP_AP, { video_status: 'Posted' }), 'video', rsf) === false],
+  ];
+  checks.forEach(([label, ok]) => { console.log(`  ${ok ? '✅' : '❌'} predicate: ${label}`); eResults.push(!!ok); });
+})();
 const ePass = eResults.every(Boolean);
-console.log(`  → ${eResults.filter(Boolean).length}/${eResults.length} (old blanket guard kept LOCAL on all of these — the clobber)`);
+console.log(`  → ${eResults.filter(Boolean).length}/${eResults.length} reconcile assertions`);
 
 console.log('\n============================================================');
 console.log('SUMMARY');
@@ -549,6 +694,8 @@ console.log(`  C) battery (fixed):           ${results.every(Boolean) ? 'ALL PAS
 console.log(`     buggy-merge control:       ${canonicalBuggy ? 'PASS (unexpected!) ⚠️' : 'FAILS as expected ✅'}`);
 console.log(`  D) comment preservation:      ${cmtFixed ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`  E) cross-actor reconcile:     ${ePass ? 'ALL PASS ✅' : 'FAILURES ❌'} (${eResults.filter(Boolean).length}/${eResults.length})`);
-const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass;
+console.log(`  F) badge false-negative (C):  ${badgeFalseNeg ? 'PROVEN ✅' : 'FAIL ❌'}`);
+console.log(`  G) delete-tombstone (B):      ${deleteRepro ? 'PROVEN ✅' : 'FAIL ❌'}`);
+const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass && badgeFalseNeg && deleteRepro;
 console.log(`\n  OVERALL: ${allGood ? 'PASS ✅' : 'FAIL ❌'}`);
 process.exit(allGood ? 0 : 1);

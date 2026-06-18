@@ -321,13 +321,20 @@ are correct." These are where hand-off bugs hide.
 33. SMM:submit for SMM approval     ▶ SMM:send to Kasper
 ```
 
-### 10.4 Golden end-to-end paths (must-pass)
-- **Clean approve:** send to Kasper → Kasper approve → client approve → mark posted.
-- **Kasper tweak loop:** send to Kasper → request change → SMM resolve→Kasper → Kasper approve → client approve.
-- **Client tweak loop:** … Kasper approve → client request change → SMM resolve→client → client approve.
-- **Approve-after-tweaks shortcut:** send to Kasper → approve-after-tweaks → SMM resolve→client (no Kasper re-review) → client approve.
-- **Undo:** send to Kasper → approve → **undo approve** → request change.
-- **Archive at each stage:** archive from In Progress / Kasper Approval / Tweaks Needed / Client Approval / Approved (+ Undo restores).
+### 10.4 Golden end-to-end paths (must-pass) — **already written & green** in `qa/`
+All six are implemented as live cross-surface probes under **`qa/`** (driving the
+real Kasper + client handlers, asserting on the backend after every step). They
+all pass today (48 assertions, 0 JS errors). Run them per `qa/README.md`.
+
+- **Clean approve** (`qa/golden_1_clean_approve.js`): send to Kasper → Kasper approve → client approve → mark posted.
+- **Kasper tweak loop** (`qa/golden_2_kasper_tweak_loop.js`): send to Kasper → request change → SMM resolve→Kasper → Kasper approve → client approve.
+- **Client tweak loop** (`qa/golden_3_client_tweak_loop.js`): Kasper approve → client request change → SMM resolve→client → client approve.
+- **Approve-after-tweaks shortcut** (`qa/golden_4_approve_after_tweaks.js`): send to Kasper → approve-after-tweaks → SMM resolve→client (no Kasper re-review) → client approve.
+- **Undo** (`qa/golden_5_undo_approve.js`): send to Kasper → approve → **undo approve** (toast) → request change.
+- **Archive at each stage** (`qa/golden_6_archive_cross_surface.js`): archive from Kasper Approval / Tweaks Needed → card leaves Kasper's queue → un-archive restores.
+
+These are the **template** for covering the remaining 33 transition-pairs (10.3):
+reuse `qa/golden_lib.js` and assemble the action helpers into each pair.
 
 ### 10.5 Turning a path into a probe
 For each step: fire the action **on the real surface** (`_kasperApproveComp`,

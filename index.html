@@ -15160,6 +15160,7 @@
         // new client. Same reason _calSyncCollabSwitch is called after the
         // network split below.
         _calSyncCollabSwitch();
+        _calSyncTitleReviewSwitch();
         const cached = !opts.skipCache ? _calCacheRead(slug) : null;
         const haveCache = !!(cached && Array.isArray(cached.posts) && cached.posts.length > 0);
         if (haveCache && calState.posts.length === 0) {
@@ -15261,6 +15262,7 @@
                     calState.settings = decision.settings;
                     _calSaveLocalSettings(slug, calState.settings);
                     _calSyncCollabSwitch();
+                    _calSyncTitleReviewSwitch();
                 }
             }
             _calCleanArchiveLedger(slug, split.posts);
@@ -16165,6 +16167,7 @@
             _calFlushAllPending();
             const next = pins[0] || null;
             calState.client = next;
+            _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
             _calSavePrefs();
@@ -16216,6 +16219,7 @@
             // Persist debounced saves for the outgoing client before switching.
             _calFlushAllPending();
             calState.client = name;
+            _calResetSelection();
             calState.posts = [];
             _calLoadClientFilters();
             _calSavePrefs();
@@ -16406,6 +16410,7 @@
             if (JSON.stringify(a[i].comments || []) !== JSON.stringify(b[i].comments || [])) return false;
             if (JSON.stringify(a[i].graphic_comments || []) !== JSON.stringify(b[i].graphic_comments || [])) return false;
             if (JSON.stringify(a[i].caption_comments || []) !== JSON.stringify(b[i].caption_comments || [])) return false;
+            if (JSON.stringify(a[i].title_comments || []) !== JSON.stringify(b[i].title_comments || [])) return false;
         }
         return true;
     }
@@ -16699,6 +16704,7 @@
         // either leak into the new client's tab or be silently dropped.
         _calFlushAllPending();
         calState.client = name;
+        _calResetSelection();
         _calLoadClientFilters();
         _calSavePrefs();
         _calSyncUrlClient();
@@ -16710,6 +16716,16 @@
         _calRenderBody();
         loadCalendarPosts();
     }
+    /* Clear multi-select state. Must run on every CLIENT switch (not just view
+       changes) — otherwise select-mode + a stale `selected` Set holding the
+       previous client's ids survives the switch, and a later bulk-archive could
+       act on cards from the wrong client / cards the user never saw. */
+    function _calResetSelection() {
+        calState.selectMode = false;
+        calState.selectAction = 'archive';
+        calState.selected = new Set();
+        calState.lastSel = null;
+    }
     function onCalViewChange(v) {
         if (!['review','smmreview','organizer','month','week'].includes(v)) return;
         calState.view = v;
@@ -16718,10 +16734,7 @@
         if (v !== 'organizer') calState.focusPid = null;
         _calSavePrefs();
         if (v !== 'organizer' && calState.selectMode) {
-            calState.selectMode = false;
-            calState.selectAction = 'archive';
-            calState.selected = new Set();
-            calState.lastSel = null;
+            _calResetSelection();
         }
         document.querySelectorAll('.cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
         const selBtn = document.querySelector('.cal-select-btn');
@@ -18487,9 +18500,14 @@
     function _calCardSelectClick(e, pid) {
         e.preventDefault();
         e.stopPropagation();
-        const order = calState.posts.slice()
-            .sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0))
-            .map(p => p.id);
+        // Build the shift-range from the cards ACTUALLY ON SCREEN (the selectable
+        // ones in the rendered strip), not from all of calState.posts. Ranging
+        // over every post let a shift-click silently select — and then
+        // bulk-archive — cards hidden by the active month/status filter, plus
+        // blank/read-only cards. The DOM order is the filtered, visible, sorted
+        // truth; non-selectable cards never carry .cal-card-selectable.
+        const order = Array.from(document.querySelectorAll('#calStrip .cal-card-selectable[data-pid]'))
+            .map(el => el.getAttribute('data-pid'));
         if (e.shiftKey && calState.lastSel && calState.lastSel !== pid) {
             const a = order.indexOf(calState.lastSel), b = order.indexOf(pid);
             if (a >= 0 && b >= 0) {
@@ -19918,6 +19936,30 @@
         }
         return false;
     }
+    /* Newest NON-Kasper internal-thread message timestamp on this card — the exact
+       basis _kasperHasUnreadReply tests against. "Mark as read" must stamp THIS,
+       not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's own
+       and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
+       more recently than a still-unread reply makes mark-read stamp the newer
+       time and silently bury that genuinely-unread reply. */
+    function _kasperRepliesSeenBasis(post) {
+        if (!post) return '';
+        let max = '';
+        for (const c of _calComponentsFor(post)) {
+            const list = _calCommentsFor(post, c);
+            if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === 'kasper') continue;
+                const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+                if (_calMsgAudience(root) !== 'internal') continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
     /* Component owning the most recent internal message — where a Kasper reply
        from the Replies inbox should land so the conversation stays together. */
     function _kasperLatestInternalComp(post) {
@@ -20209,7 +20251,7 @@
         // Weekday included so the client can place the date without doing
         // mental arithmetic ("Sat 21 Jun 2026" reads faster than "21 Jun 2026").
         const dateStr = p.scheduled_date
-            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
         const pendingLabel = _calReviewPendingLabel(p);
         // Component pills are gated by Collaborative mode — when off, only
@@ -20751,7 +20793,7 @@
         if (!ovl || !box) return;
         const thumb = _calDeriveThumb(p);
         const dateStr = p.scheduled_date
-            ? new Date(p.scheduled_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+            ? _calParseIso(String(p.scheduled_date).slice(0, 10)).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
             : 'Unscheduled';
         const linkify = (u) => {
             const v = String(u || '').trim();
@@ -24112,7 +24154,11 @@
     }
     function _kasperMaybeBackgroundRefresh() {
         if (document.visibilityState === 'hidden') return;
-        if (!_kasperIsReviewMounted()) return;
+        // Refresh on the Review AND Replies tabs (both mount into #kasperContent).
+        // Replies was excluded before, so the inbox stayed frozen until you left
+        // the tab and came back — incoming SMM/client replies never arrived live.
+        if (!document.getElementById('kasperContent')) return;
+        if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
         if (_kasperState.loading) return;
         // Skip while the user is actively typing in a panel textarea so a
         // background paint doesn't yank focus out of the draft mid-keystroke.
@@ -24179,6 +24225,13 @@
         for (const it of items) {
             if (it._saving && (it._saving.video || it._saving.graphic || it._saving.caption)) return true;
             if (it._drafts && (String(it._drafts.video || '').trim() || String(it._drafts.graphic || '').trim() || String(it._drafts.caption || '').trim() || String(it._drafts.title || '').trim())) return true;
+            if (it._replyDraft && String(it._replyDraft).trim()) return true;
+        }
+        // Reply drafts live on _kasperState.replies (the Replies inbox), NOT on the
+        // queue items above — so scan them too, or a realtime refresh can blow away
+        // a half-typed reply now that the Replies tab refreshes live.
+        const replies = (_kasperState && _kasperState.replies) || [];
+        for (const it of replies) {
             if (it._replyDraft && String(it._replyDraft).trim()) return true;
         }
         const a = document.activeElement;
@@ -24667,9 +24720,20 @@
         const el = document.querySelector('[data-kasper-count="replies"]');
         if (el) el.textContent = String(n);
     }
+    let _kasperRepliesPaintRetry = null;
     function _kasperRenderReplies() {
         const root = document.getElementById('kasperContent');
         if (!root) return;
+        // Don't rebuild the inbox out from under a reply being typed — the draft
+        // survives in item._replyDraft, but an innerHTML rebuild drops focus/caret
+        // mid-keystroke. Defer until the compose box blurs (mirrors _kasperPaintReview).
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperRepliesPaintRetry) clearTimeout(_kasperRepliesPaintRetry);
+            _kasperRepliesPaintRetry = setTimeout(_kasperRenderReplies, 1200);
+            return;
+        }
+        if (_kasperRepliesPaintRetry) { clearTimeout(_kasperRepliesPaintRetry); _kasperRepliesPaintRetry = null; }
         _kasperUpdateReplyCount();
         // Landing straight on Replies (persisted tab) with nothing loaded yet —
         // kick a fetch; it re-renders this tab when done.
@@ -24776,7 +24840,7 @@
     }
     function _kasperMarkRepliesRead(pid) {
         const item = (_kasperState.replies || []).find(x => x.post.id === pid);
-        if (item) _kasperMarkSeenAt(pid, _calLatestMsgAt(item.post));
+        if (item) _kasperMarkSeenAt(pid, _kasperRepliesSeenBasis(item.post) || _calLatestMsgAt(item.post));
         _kasperState.replies = (_kasperState.replies || []).filter(x => x.post.id !== pid);
         _kasperRenderReplies();
     }

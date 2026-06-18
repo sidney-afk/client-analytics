@@ -20964,14 +20964,22 @@
         const key = pid + '|' + comp;
         const body = String(_calReviewState.drafts[key] || '').trim();
         if (!body || _calReviewState.saving[key]) return;
+        const role = _calCommentRole();
         const list = _calCommentsFor(post, comp).slice();
         const _now = new Date().toISOString();
         const newComment = {
             id: _calMintCommentId(),
             parent_id: null,
             author: _calCurrentAuthor(),
-            role: _calCommentRole(),
+            role: role,
             is_tweak: true,
+            // Tag the audience exactly like a review-tab plain comment
+            // (_calReviewComment): a client's own change-request stays
+            // client-visible, but an SMM's (or Kasper's) review-tab request is a
+            // team message — internal, so the client never sees the note. The
+            // component still flips to Tweaks Needed either way; only the thread
+            // text is team-only.
+            audience: (role === 'client') ? 'client' : 'internal',
             round: _calNextTweakRound(post, comp),
             body: body,
             created_at: _now,

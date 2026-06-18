@@ -1,0 +1,19 @@
+name: Tests
+
+# Fast, dependency-free unit/wiring checks. Run on every push and PR. These do
+# NOT touch the network or any backend, so they're always safe to run.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run unit suite (test/*.js)
+        run: node test/run-all.js

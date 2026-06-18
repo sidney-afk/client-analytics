@@ -1,0 +1,23 @@
+name: Headless QA (manual)
+
+# Drives the REAL index.html in headless Chromium against the LIVE backend.
+# These probes WRITE to the live test client (sidneylaruel) and clean up after
+# themselves — so they are NOT run on every push. Trigger them by hand from the
+# Actions tab ("Run workflow") when you want a full end-to-end check.
+on:
+  workflow_dispatch:
+
+jobs:
+  headless:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright + Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Run headless probes (serves app, scoped to sidneylaruel)
+        run: npm run test:headless

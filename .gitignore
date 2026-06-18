@@ -1,3 +1,6 @@
 
 # Linear reconcile runtime ledger (persisted via Actions cache in CI)
 .sync-ledger/
+
+# Node / test tooling
+node_modules/

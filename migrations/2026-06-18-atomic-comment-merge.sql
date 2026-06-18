@@ -7,6 +7,11 @@
 --
 -- HOW TO APPLY: paste this whole file into the Supabase SQL editor and Run.
 -- Idempotent (CREATE OR REPLACE) — safe to run more than once.
+-- NOTE: calendar_posts.updated_at is a TEXT column holding ISO-8601
+-- strings (e.g. 2026-06-18T03:13:35.573Z), so the merge writes updated_at
+-- in that exact format (not now(), whose text cast uses a space + offset
+-- and would break row-freshness ordering).
+--
 -- After it's in, ping Claude to wire the n8n "Upsert Post" workflow to call
 -- calendar_merge_comments() for the comment columns.
 -- ============================================================================
@@ -89,7 +94,7 @@ begin
     graphic_tweaks = case when p_graphic is not null then _calmerge_comment_cell(c.graphic_tweaks, p_graphic, coalesce(p_base,'')) else c.graphic_tweaks end,
     caption_tweaks = case when p_caption is not null then _calmerge_comment_cell(c.caption_tweaks, p_caption, coalesce(p_base,'')) else c.caption_tweaks end,
     title_tweaks   = case when p_title   is not null then _calmerge_comment_cell(c.title_tweaks,   p_title,   coalesce(p_base,'')) else c.title_tweaks   end,
-    updated_at     = now()
+    updated_at     = to_char((now() at time zone 'utc'), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
   where c.client = p_client and c.id = p_id
   returning c.*;
 end;

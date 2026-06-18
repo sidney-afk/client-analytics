@@ -90,13 +90,26 @@ function freshPost(id) {
 }
 const lastCaption = (p) => p.caption_comments[p.caption_comments.length - 1];
 
-console.log('— Default audience (why an explicit tag is needed) —');
-// _calMsgAudience's back-compat default: an un-tagged SMM message reads as
-// 'client' — exactly the leak the fix closes by tagging explicitly.
-check('untagged smm tweak defaults to client (the old leak)',
-  mod._calMsgAudience({ role: 'smm', is_tweak: true }), 'client');
+console.log('— Default audience (back-compat safety net) —');
+// _calMsgAudience's back-compat default protects untagged TEAM messages: a
+// historical review-tab change-request saved with no audience tag still
+// resolves to 'internal', so the 99 pre-fix SMM tweaks never leak to clients.
+// Only an explicit audience tag — or a client-authored message — is visible.
+check('untagged smm tweak defaults to internal (historical leak closed)',
+  mod._calMsgAudience({ role: 'smm', is_tweak: true }), 'internal');
 check('untagged kasper tweak defaults to internal',
   mod._calMsgAudience({ role: 'kasper', is_tweak: true }), 'internal');
+check('untagged client message stays client-visible',
+  mod._calMsgAudience({ role: 'client', is_tweak: true }), 'client');
+
+console.log('\n— Historical untagged SMM tweak (no audience field) is hidden from the client —');
+// Exactly the shape of the 99 pre-fix rows: role smm, is_tweak true, NO audience.
+mod.setClient(true);
+const hist = mod.addPost({ id: 'p_hist', caption_status: 'Tweaks Needed', status: 'x',
+  caption_comments: [{ id: 'h1', parent_id: null, author: 'SMM', role: 'smm', is_tweak: true,
+    body: 'legacy untagged smm note' }], caption_tweaks: '' });
+check('legacy untagged SMM tweak is HIDDEN from the client view',
+  mod._calCommentsForView(hist, 'caption').some(c => c.body === 'legacy untagged smm note'), false);
 
 console.log('\n— SMM "Request change" from the review tab —');
 mod.setClient(false);

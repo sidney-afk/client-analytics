@@ -21223,6 +21223,29 @@
     function _calPostKasperVisible(post) {
         return _calComponentsFor(post).some(c => _calCompKasperVisible(post, c));
     }
+    /* Open-tweak count for Kasper's review-card chip. Same tally as
+       _calOpenCommentCount, but SCOPED to the components Kasper can actually
+       see/act on (_calCompKasperVisible) — i.e. those at Kasper Approval or
+       carrying an unresolved tweak of his. A client change-request on a
+       component that never reached him (e.g. a thumbnail still at Tweaks
+       Needed with no tweak of his) is correctly hidden from his expanded
+       card, so it must not inflate the chip either: otherwise the badge says
+       "3" while opening the card shows only 2 (the bug Kasper hit on Alli
+       Schaper's Lion's Mane card). The shared _calOpenCommentCount stays
+       whole-card for the SMM calendar, which does show every component. */
+    function _kasperOpenTweakCount(post) {
+        if (!post) return 0;
+        let n = 0;
+        for (const c of _calComponentsFor(post)) {
+            if (!_calCompKasperVisible(post, c)) continue;
+            const list = _calCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) continue;
+            for (const root of _calCommentRoots(list)) {
+                if (_calMsgIsTweak(root) && !root.done) n++;
+            }
+        }
+        return n;
+    }
     /* Whole-card: any unresolved Kasper tweak across any component. Used
        for the Done-reviewing button visibility and the card-stays rule. */
     function _calPostHasUnresolvedKasperTweak(post) {
@@ -25724,7 +25747,7 @@
             ? `<button type="button" class="cal-urgent-btn kcard-urgent-btn" data-urgent-pid="${_calEscAttr(pid)}" onclick="event.stopPropagation();_kasperSendUrgentSlack(event,'${_calEscAttr(pid)}')" title="Ping the editor in #video-editing that this video needs urgent tweaks">URGENT</button>`
             : '';
         const calUrl = `${location.pathname}#calendar/${encodeURIComponent(item.slug)}/${encodeURIComponent(pid)}`;
-        const openTweaks = _calOpenCommentCount(p);
+        const openTweaks = _kasperOpenTweakCount(p);
         const tweaksChip = openTweaks > 0
             ? `<span class="kcard-tweaks-chip" title="${openTweaks} open tweak${openTweaks === 1 ? '' : 's'}"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>${openTweaks}</span>`
             : '';

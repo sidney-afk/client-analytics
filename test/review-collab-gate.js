@@ -8,15 +8,16 @@
  * ../index.html (by name, brace-balanced — robust to line shifts) so we test
  * the ACTUAL shipping code, not a paraphrase.
  *
- * Behaviour under test: on the CLIENT review surface (the 'review' tab the
- * client link sees) a component that has been sent back for tweaks
- * ("Tweaks Needed") stays in the client's review queue ONLY while
- * Collaborative mode is on. With collab OFF the client gets the SMM-style
- * hands-off view — the in-flight component (and any card whose only live
- * component is in tweaks) drops off the queue until it comes back at
- * "Client Approval". Components sitting at the surface's approval status are
- * always in play; the SMM surface never keeps Tweaks-Needed components and
- * ignores the collab toggle entirely.
+ * Behaviour under test: a card appears in a review sheet only when at least
+ * one component is at THAT surface's approval status. On the CLIENT review
+ * surface (the 'review' tab the client link sees) a component sent back for
+ * tweaks ("Tweaks Needed") NEVER keeps the card in her queue — not even with
+ * Collaborative mode on. (Collab once kept in-flight cards visible so she could
+ * pile on notes, but that also surfaced cards whose only outstanding work was
+ * the SMM's internal tweaks, which she can't see.) Only "Client Approval"
+ * components keep the card, so the client queue matches the Review-tab badge.
+ * The SMM surface is unchanged: only "For SMM Approval" is in play, never
+ * Tweaks-Needed, and it ignores the collab toggle entirely.
  */
 const fs = require('fs');
 const path = require('path');
@@ -94,13 +95,15 @@ setView(true, true);
 check('Client Approval, collab ON  → active',
   _calReviewComponentActive(post('Client Approval'), 'video', 'client'), true);
 
-// Tweaks Needed follows the collab toggle — the crux of this fix.
+// Tweaks Needed is hidden from the client queue regardless of collab — the
+// crux of this fix. The card only returns when a component is at Client
+// Approval, so the queue can never show a card with nothing she may review.
 setView(true, false);
 check('Tweaks Needed,   collab OFF → hidden',
   _calReviewComponentActive(post('Tweaks Needed'), 'video', 'client'), false);
 setView(true, true);
-check('Tweaks Needed,   collab ON  → active',
-  _calReviewComponentActive(post('Tweaks Needed'), 'video', 'client'), true);
+check('Tweaks Needed,   collab ON  → hidden (was active; now matches the badge)',
+  _calReviewComponentActive(post('Tweaks Needed'), 'video', 'client'), false);
 
 // Finished / not-yet-client states never sit in the client queue.
 setView(true, true);

@@ -15346,7 +15346,19 @@
                     // updated_at). Overlay them so the next flush still has
                     // them.
                     const pend = _calPendingEdits[fp.id];
-                    if (pend) return Object.assign({}, fp, pend);
+                    if (pend) {
+                        const w = Object.assign({}, fp, pend);
+                        // A pending edit can carry a *_tweaks STRING (a queued
+                        // comment add, or a delete-tombstone) while the matching
+                        // parsed *_comments ARRAY on `w` is still fp's PRE-edit
+                        // copy (Object.assign overlaid only the string). The
+                        // comment merge + render below read the ARRAY, so without
+                        // re-deriving it a just-deleted comment is silently
+                        // resurrected (the "delete needs ~3 tries" bug). Re-parse
+                        // the tweaks back into the arrays so the tombstone wins.
+                        if (Object.keys(pend).some(k => /_tweaks$/.test(k))) _calMigratePostShape(w);
+                        return w;
+                    }
                     return fp;
                 })();
                 if (_calV2DebugOn() && winner === lp &&

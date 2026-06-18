@@ -358,6 +358,20 @@ function assertShippedBadgeRefreshUnconditional() {
   console.log('✓ Shipped index.html refreshes Notes badges on a background reload even when dataChanged is a false negative.\n');
 }
 
+// Bug B: a pending edit overlaid onto the server row (LWW takes-server branch)
+// can carry a *_tweaks STRING (a queued comment add / delete-tombstone) while the
+// matching parsed *_comments ARRAY still holds the server's pre-edit copy. The
+// comment merge + render read the ARRAY, so a just-deleted comment is resurrected
+// ("delete needs ~3 tries"). The fix re-parses pending tweaks back into arrays.
+function assertShippedPendingTweaksRemigrated() {
+  const m = INDEX.match(/const pend = _calPendingEdits\[fp\.id\];([\s\S]*?)return fp;/);
+  if (!m || !/_calMigratePostShape\(w\)/.test(m[1]) || !/_tweaks\$/.test(m[1])) {
+    console.error('SHIPPED CODE CHECK FAILED — pending-overlay branch does not re-parse pending *_tweaks into comment arrays.');
+    process.exit(1);
+  }
+  console.log('✓ Shipped index.html re-parses pending *_tweaks after the LWW overlay so a pending delete-tombstone is not resurrected.\n');
+}
+
 // Generalized driver: run an arbitrary step list with the given echo-merge and
 // assert tab1's PAINTED state equals the cumulative truth after EVERY step
 // (no sub ever shows a value the user didn't set), and that tab2 + a refresh +
@@ -427,6 +441,7 @@ assertSimulatorMatchesReality();
 assertShippedCodeIsFixed();
 assertShippedReconcileGuarded();
 assertShippedBadgeRefreshUnconditional();
+assertShippedPendingTweaksRemigrated();
 
 // Behavioural proof of the bug-C false negative against the REAL extracted code:
 // a new comment unioned into a kept-local row is present in calState, yet
@@ -451,6 +466,33 @@ function runBadgeFalseNegative() {
   return ok;
 }
 const badgeFalseNeg = runBadgeFalseNegative();
+
+// Behavioural proof of the bug-B resurrection against the REAL extracted code:
+// overlaying a pending delete-tombstone (a *_tweaks string) onto the server row
+// WITHOUT re-parsing leaves the live comment in the array (resurrected); the fix
+// (re-migrate after the overlay) keeps it deleted.
+function runDeleteTombstoneRepro() {
+  const X = { id: 'cX', parent_id: null, role: 'client', is_tweak: false, body: 'plain note',
+    created_at: '2026-06-14T23:00:00.000Z', updated_at: '2026-06-14T23:00:00.000Z' };
+  const fp = { id: 'p_del', updated_at: '2026-06-14T23:10:00.000Z', video_status: 'In Progress', graphic_status: 'In Progress',
+    caption_status: 'In Progress', status: 'In Progress', linear_issue_id: '', graphic_linear_issue_id: '', caption_tweaks: JSON.stringify([X]) };
+  _calMigratePostShape(fp);
+  const tomb = Object.assign({}, X, { deleted: true, updated_at: '2026-06-14T23:11:00.000Z' });
+  const pend = { caption_tweaks: JSON.stringify([tomb]) };
+  const liveIds = (w) => _calCommentsFor(w, 'caption').filter(c => !c.deleted).map(c => c.id);
+  // BUGGY: overlay only, no re-migrate → array stays the server's live copy.
+  const buggy = Object.assign({}, fp, pend);
+  _calMergePostComments(buggy, fp);
+  const buggyResurrected = liveIds(buggy).includes('cX');
+  // FIXED: re-migrate after overlay → array reflects the tombstone.
+  const fixed = Object.assign({}, fp, pend); _calMigratePostShape(fixed);
+  _calMergePostComments(fixed, fp);
+  const fixedStaysDeleted = !liveIds(fixed).includes('cX');
+  const ok = buggyResurrected && fixedStaysDeleted;
+  console.log(`  ${ok ? '✅' : '❌'} bug B: overlay-only resurrects the deleted comment (${buggyResurrected}); re-migrating keeps it deleted (${fixedStaysDeleted})`);
+  return ok;
+}
+const deleteRepro = runDeleteTombstoneRepro();
 
 const buggy = runRepro('A) CURRENT-PRE-FIX BEHAVIOR (buggy echo-merge: migrate the partial echo)', echoMergeBuggy);
 const fixed = runRepro('B) FIXED BEHAVIOR (migrate the merged full row)', echoMergeFixed);
@@ -653,6 +695,7 @@ console.log(`     buggy-merge control:       ${canonicalBuggy ? 'PASS (unexpecte
 console.log(`  D) comment preservation:      ${cmtFixed ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`  E) cross-actor reconcile:     ${ePass ? 'ALL PASS ✅' : 'FAILURES ❌'} (${eResults.filter(Boolean).length}/${eResults.length})`);
 console.log(`  F) badge false-negative (C):  ${badgeFalseNeg ? 'PROVEN ✅' : 'FAIL ❌'}`);
-const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass && badgeFalseNeg;
+console.log(`  G) delete-tombstone (B):      ${deleteRepro ? 'PROVEN ✅' : 'FAIL ❌'}`);
+const allGood = buggy && !fixed && results.every(Boolean) && !canonicalBuggy && cmtFixed && ePass && badgeFalseNeg && deleteRepro;
 console.log(`\n  OVERALL: ${allGood ? 'PASS ✅' : 'FAIL ❌'}`);
 process.exit(allGood ? 0 : 1);

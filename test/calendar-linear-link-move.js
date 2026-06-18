@@ -22,8 +22,9 @@ const path = require('path');
 const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 
 function grabFunc(name) {
-  const at = INDEX.indexOf('function ' + name + '(');
+  let at = INDEX.indexOf('function ' + name + '(');
   if (at < 0) throw new Error('function not found: ' + name);
+  if (INDEX.slice(at - 6, at) === 'async ') at -= 6; // keep the async keyword
   let i = INDEX.indexOf('{', at), depth = 0;
   for (let j = i; j < INDEX.length; j++) {
     const c = INDEX[j];
@@ -192,8 +193,9 @@ globalThis.calState = { client: 'Sydney', posts: [tgt5] };
 threw = false; try { _calLinearCommit({ dataset: { cancel: '1' }, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && tgt5.linear_issue_id === '' && flushCalls.length === 0, 'Escape-cancel discards the typed link');
 
+(async () => {
 console.log('\n============================================================');
-console.log('5) _calMoveLink — clear old FIRST, then set new (never coexist)');
+console.log('5) _calMoveLink — clear old (awaited) FIRST, then set new');
 console.log('============================================================');
 const _calMoveLink = def('_calMoveLink');
 let maxHolders, moveFlush, moveSync, moveArch;
@@ -205,7 +207,9 @@ function setupMove(oldC, newC, key) {
   globalThis.calState = { client: 'Sydney', posts: [oldC, newC] };
   globalThis._calPendingEdits = {};
   maxHolders = 0; moveFlush = []; moveSync = []; moveArch = [];
-  globalThis._calFlushCardSave = (pid) => { moveFlush.push(pid); maxHolders = Math.max(maxHolders, holdersOf(key)); };
+  // Async flush mock (matches the real signature) so the move's `await` on the
+  // old-card clear actually defers the new-card write, as in production.
+  globalThis._calFlushCardSave = async (pid) => { moveFlush.push(pid); maxHolders = Math.max(maxHolders, holdersOf(key)); };
   globalThis._calArchivedRemove = (slug, arr) => moveArch.push({ slug, arr });
   globalThis._calSyncStatusFromLinear = (pid, val, which) => moveSync.push({ pid, val, which });
   globalThis._calRenderBody = () => {};
@@ -216,12 +220,13 @@ function setupMove(oldC, newC, key) {
   const oC = { id: 'old', linear_issue_id: VID1 };
   const nC = { id: 'new', linear_issue_id: '', graphic_linear_issue_id: '' };
   setupMove(oC, nC, _calLinkKey(VID1));
-  _calMoveLink('old', 'new', 'video', VID1);
+  await _calMoveLink('old', 'new', 'video', VID1);
   ok(oC.linear_issue_id === '', 'old card video slot cleared');
   ok(nC.linear_issue_id === VID1, 'new card video slot set');
   ok(globalThis._calPendingEdits['old'].linear_issue_id === '' && globalThis._calPendingEdits['new'].linear_issue_id === VID1,
      'both sides queued as pending edits');
   ok(moveFlush.includes('old') && moveFlush.includes('new'), 'both cards saved');
+  ok(moveFlush[0] === 'old', 'OLD card is flushed BEFORE the new one (clear-then-set ordering)');
   ok(maxHolders <= 1 && holdersOf(_calLinkKey(VID1)) === 1, 'never two cards on the issue at once; exactly one holds it after');
   ok(moveSync.length === 1 && moveSync[0].pid === 'new' && moveSync[0].which === 'video', 'new card pulls its status from Linear');
   ok(moveArch.length === 1 && moveArch[0].arr[0] === VID1, 'the moved link is removed from the archive ledger');
@@ -231,7 +236,7 @@ function setupMove(oldC, newC, key) {
   const oC = { id: 'old', linear_issue_id: '', graphic_linear_issue_id: VID1 };
   const nC = { id: 'new', linear_issue_id: '', graphic_linear_issue_id: '' };
   setupMove(oC, nC, _calLinkKey(VID1));
-  _calMoveLink('old', 'new', 'video', VID1);
+  await _calMoveLink('old', 'new', 'video', VID1);
   ok(oC.graphic_linear_issue_id === '' && nC.linear_issue_id === VID1, 'clears whichever slot the OLD card held it in');
   ok(maxHolders <= 1, 'cross-slot move still never lets both hold the issue at once');
 }
@@ -240,8 +245,21 @@ function setupMove(oldC, newC, key) {
   const oC = { id: 'old', linear_issue_id: VID1 };
   const nC = { id: 'new', linear_issue_id: '', graphic_linear_issue_id: '' };
   setupMove(oC, nC, _calLinkKey(VID1));
-  _calMoveLink('old', 'new', 'graphic', VID1);
+  await _calMoveLink('old', 'new', 'graphic', VID1);
   ok(nC.graphic_linear_issue_id === VID1 && nC.linear_issue_id === '', 'which="graphic" sets the graphic slot on the new card');
+}
+// receiving card is a brand-new BLANK card NOT yet in calState.posts (the exact
+// real-world case: user clicked "add card", pasted the link, hit Move).
+{
+  const oC = { id: 'old', linear_issue_id: VID1 };
+  setupMove(oC, { id: '__unused__' }, _calLinkKey(VID1));
+  globalThis.calState.posts = [oC]; // the blank card isn't saved yet → not in state
+  await _calMoveLink('old', '__blank__xyz', 'video', VID1);
+  ok(oC.linear_issue_id === '', 'blank-card move: old card still cleared');
+  ok(globalThis._calPendingEdits['__blank__xyz'] && globalThis._calPendingEdits['__blank__xyz'].linear_issue_id === VID1,
+     'blank-card move: link queued for the not-yet-in-state new card (flush will promote it)');
+  ok(moveFlush.includes('old') && moveFlush.includes('__blank__xyz'), 'blank-card move: both old clear and new set are flushed');
+  ok(moveSync.some(s => s.pid === '__blank__xyz'), 'blank-card move: status sync attempted for the new card');
 }
 
 console.log('\n============================================================');
@@ -297,10 +315,18 @@ const showSrc = grabFunc('_calShowLinkConflict');
 ok(/Move it here/.test(showSrc) && /Cancel/.test(showSrc) && /already linked to/.test(showSrc),
    '_calShowLinkConflict renders the Move/Cancel prompt copy');
 const moveSrc = grabFunc('_calMoveLink');
-ok(moveSrc.indexOf('oldPost') < moveSrc.indexOf('newFld] = val'),
-   '_calMoveLink clears the OLD card before setting the new one (never coexist)');
+ok(/async function _calMoveLink/.test(moveSrc), '_calMoveLink is async');
+ok(/await _calFlushCardSave\(oldPid\)/.test(moveSrc), '_calMoveLink AWAITS the old-card clear');
+ok(moveSrc.indexOf('await _calFlushCardSave(oldPid)') < moveSrc.indexOf('newFld] = val'),
+   '_calMoveLink awaits the clear BEFORE setting the new card (dup-guard ordering)');
 ok(!/Link anyway/i.test(INDEX), 'no "Link anyway" escape hatch was added');
 ok(/\.cal-link-conflict\s*\{/.test(INDEX), 'the conflict-prompt CSS is present');
+// the empty→sentinel translation in the save funnel (so a clear actually clears)
+const flushSrc = grabFunc('_calFlushCardSave');
+ok(/CAL_CLEAR_LINK_SENTINEL/.test(flushSrc) && /'linear_issue_id', 'graphic_linear_issue_id'/.test(flushSrc),
+   '_calFlushCardSave translates an emptied link patch to the __CLEAR_LINK__ sentinel');
+ok(/const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';/.test(INDEX), 'the clear sentinel constant is defined');
 
 console.log(`\ncalendar-linear-link-move: ${pass} passed, ${fail} failed  ${fail ? '❌' : '✅'}`);
 process.exit(fail ? 1 : 0);
+})();

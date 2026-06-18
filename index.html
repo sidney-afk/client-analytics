@@ -17409,14 +17409,18 @@
         delete _calPendingLinkMove[pid];
         _calMoveLink(mv.oldPid, pid, mv.which, mv.val);
     }
-    /* Move a Linear sub-issue link from the old card onto the new one. Clear the
-       OLD card's matching slot FIRST so the two cards never hold the same issue
-       at the same instant (which is exactly what the dedupe collapses), then set
-       it on the new card. The two writes hit different rows, so they don't race.
-       The new card's status fills itself in from Linear via
-       _calSyncStatusFromLinear; Linear itself is untouched — only WHICH card
-       points at the issue changes. */
-    function _calMoveLink(oldPid, newPid, which, val) {
+    /* Move a Linear sub-issue link from the old card onto the new one. The
+       order matters and is load-bearing: clear the OLD card's slot and AWAIT
+       that write before setting the new card. The upsert's duplicate-link guard
+       strips an incoming link that another NON-archived row still owns — so if
+       both writes raced, the new card's link would be rejected and the old card
+       would keep it (the "I clicked Move and nothing happened" bug). Awaiting
+       the clear means the old card no longer owns the link when the new write's
+       twin-check runs. The clear is sent as __CLEAR_LINK__ by _calFlushCardSave
+       (a bare '' is ignored by the link-clobber guard). Linear itself is
+       untouched — only WHICH card points at the issue changes; the new card's
+       status fills in from Linear via _calSyncStatusFromLinear. */
+    async function _calMoveLink(oldPid, newPid, which, val) {
         const slug = calClientSlug(calState.client);
         const key = _calLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
@@ -17431,18 +17435,24 @@
                     cleared = true;
                 }
             });
-            if (cleared) _calFlushCardSave(oldPid);
+            if (cleared) {
+                _calRenderBody({ preserveScroll: true });   // show the old card unlinked right away
+                try { await _calFlushCardSave(oldPid); } catch (e) {}
+            }
         }
+        // The receiving card may be a brand-new BLANK card the user just added
+        // (it isn't in calState.posts until its first save). Mirror
+        // _calLinearCommit: queue the edit + flush regardless of whether the row
+        // exists locally yet — the flush promotes the blank card and carries the
+        // link onto the freshly-minted row.
         const newPost = calState.posts.find(p => p.id === newPid);
-        if (newPost) {
-            newPost[newFld] = val;
-            if (!_calPendingEdits[newPid]) _calPendingEdits[newPid] = {};
-            _calPendingEdits[newPid][newFld] = val;
-            _calFlushCardSave(newPid);
-            if (val) _calArchivedRemove(slug, [val]);
-        }
+        if (newPost) newPost[newFld] = val;
+        if (!_calPendingEdits[newPid]) _calPendingEdits[newPid] = {};
+        _calPendingEdits[newPid][newFld] = val;
+        _calFlushCardSave(newPid);
+        if (val) _calArchivedRemove(slug, [val]);
         _calRenderBody({ preserveScroll: true });
-        if (newPost && val) _calSyncStatusFromLinear(newPid, val, which);
+        if (val) _calSyncStatusFromLinear(newPid, val, which);
     }
 
     function _calRenderInlineCard(p, isBlank, isCurrent) {
@@ -18091,6 +18101,13 @@
         'kasper_approved_at', 'posted_at', 'kasper_approved_after_tweaks',
     ];
 
+    /* Backend sentinel for an intentional Linear-link clear. The calendar-upsert
+       workflow's link-clobber guard treats a bare empty string as a stale
+       full-card save and carries the STORED link forward — so a plain '' never
+       actually clears a link (and a "move" can't free it off the old card). The
+       workflow clears the column only when it receives this exact value. */
+    const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
         if (!edits) return;
@@ -18206,6 +18223,19 @@
                 // A link write bumped post.thumb_rev (the persisted cache-bust) —
                 // patch it through so the echo + realtime carry it to every viewer.
                 if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
+                // An intentionally-cleared Linear link must reach the backend as
+                // the explicit __CLEAR_LINK__ sentinel, not a bare '' (which the
+                // upsert's link-clobber guard carries the stored link forward
+                // over, silently no-opping the clear). Safe to do only on the
+                // field-level patch: a link column is present here only when it
+                // was actually edited, so an empty value is unambiguously a real
+                // clear — not a stale whole-card echo.
+                ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
+                    if (Object.prototype.hasOwnProperty.call(wirePost, lk)
+                        && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
+                        wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
+                    }
+                });
             } else {
                 wirePost = Object.assign({}, post);
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));

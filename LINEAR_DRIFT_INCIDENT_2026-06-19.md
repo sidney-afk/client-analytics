@@ -11,6 +11,22 @@ is supposed to auto-heal it within ~10 min — `scripts/linear-sync-reconcile.js
 deployed and healthy, but GitHub Actions throttles its `*/10` schedule to ~3.4 h on
 average**, so the drift stayed visible for hours instead of minutes. Nothing is corrupted.
 
+## Resolution (deployed 2026-06-19)
+
+- **Oprah 2 healed** to "For SMM Approval" by reconciler run **#25** (15:27 UTC) — the
+  GitHub cron firing **3.6 h** after the prior run (#24, 11:50), i.e. the throttling
+  reproduced live.
+- **Cadence fix deployed:** new n8n workflow **"SyncView Calendar — Linear Reconcile
+  Trigger"** (`AkiFmromoDkmsh39`) — a `scheduleTrigger` every 10 min → HTTP
+  `workflow_dispatch` of `linear-sync-reconcile.yml` (apply mode), authenticated by a
+  fine-grained GitHub PAT (Header Auth credential `fygMapRRjtItIsaE`). The tested reconcile
+  logic stays in the GitHub Action (single source of truth); GitHub's `*/10` cron remains a
+  free backstop. Verified end-to-end: n8n execution `82144` → GitHub run **#26**
+  (`workflow_dispatch`, success). Definition backed up at
+  `n8n-backups/linear-reconcile-trigger.2026-06-19.json`.
+- **Net effect:** worst-case visible drift drops from ~hours to ~10 min. The Linear→card
+  durable-retry gap and the optional Slack alert-on-correction remain as future hardening.
+
 ## The symptom
 
 - Card `p_mqfo6nbg_jgdv9` "Oprah 2" (client `jesseisrael`), **thumbnail/graphic** component.

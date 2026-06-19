@@ -1,0 +1,53 @@
+{
+  "_note": "n8n workflow AkiFmromoDkmsh39 — 'SyncView Calendar — Linear Reconcile Trigger'. Fires every 10 min and POSTs a GitHub workflow_dispatch to run .github/workflows/linear-sync-reconcile.yml (workflow id 296618163) in apply mode. This is the convergence backbone's reliable scheduler: GitHub's own */10 cron is throttled to ~3.4h on shared runners, so dropped Linear<->card sync events stayed visible for hours; n8n's scheduleTrigger fires dependably, restoring a true ~10-min heal. The tested reconcile logic stays in the GitHub Action (single source of truth). Auth: Header Auth credential 'GitHub PAT - reconcile' (fygMapRRjtItIsaE) = 'Authorization: Bearer <fine-grained PAT, repo client-analytics, Actions: read/write>'. See LINEAR_DRIFT_INCIDENT_2026-06-19.md.",
+  "name": "SyncView Calendar — Linear Reconcile Trigger",
+  "active": true,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 10 } ] }
+      },
+      "id": "cd3f4eb9-9f08-42eb-980b-7a04f6a8a4f1",
+      "name": "Every 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [ 0, 0 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/sidney-afk/client-analytics/actions/workflows/296618163/dispatches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            { "name": "Accept", "value": "application/vnd.github+json" },
+            { "name": "X-GitHub-Api-Version", "value": "2022-11-28" },
+            { "name": "User-Agent", "value": "syncview-reconcile-trigger" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{\"ref\":\"main\",\"inputs\":{\"dry_run\":\"false\"}}",
+        "options": { "timeout": 30000 }
+      },
+      "id": "1b5f2c60-d3d1-4a53-87d7-dbc64d5c6163",
+      "name": "Trigger GitHub Reconciler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [ 224, 0 ],
+      "credentials": {
+        "httpHeaderAuth": { "id": "fygMapRRjtItIsaE", "name": "GitHub PAT — reconcile" }
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 min": {
+      "main": [ [ { "node": "Trigger GitHub Reconciler", "type": "main", "index": 0 } ] ]
+    }
+  }
+}

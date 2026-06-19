@@ -20922,6 +20922,16 @@
         if (_calReviewState.saving[key]) return;
         const mode = _calReviewMode();
         const subKey = comp + '_status';
+        // A client can only approve a component sitting on THEIR review surface
+        // (Client Approval) or one they sent back for tweaks — never one still in
+        // internal review (For SMM / Kasper Approval). Without this, a direct
+        // _calReviewApprove call lets a client force a component straight to
+        // Approved, skipping Kasper + the SMM's routing. The UI already hides the
+        // button off-surface; this guards the handler. (SMM keeps its full control.)
+        if (_isClientLink) {
+            const cur = String(post[subKey] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
         const prev = {
             [subKey]: post[subKey],
             status: post.status,
@@ -21037,6 +21047,13 @@
         const key = pid + '|' + comp;
         const body = String(_calReviewState.drafts[key] || '').trim();
         if (!body || _calReviewState.saving[key]) return;
+        // Same surface guard as approve: a client can only request a change on a
+        // component on their review surface (Client Approval / Tweaks Needed), not
+        // one still in internal review. Guards the direct-call path.
+        if (_isClientLink) {
+            const cur = String(post[comp + '_status'] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return;
+        }
         const role = _calCommentRole();
         const list = _calCommentsFor(post, comp).slice();
         const _now = new Date().toISOString();

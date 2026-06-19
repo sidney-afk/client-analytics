@@ -127,8 +127,68 @@ Either:
   {"client":"jesseisrael","post":{"id":"p_mqfo6nbg_jgdv9","graphic_status":"For SMM Approval","status":"For SMM Approval"}}
   ```
 
+## Follow-up: a wrong-DIRECTION correction (GRA-6339, Henry Ammar "Video 5")
+
+A second card surfaced the same dropped-webhook drift — but the reconciler resolved it
+**backwards**, regressing Linear. Run **#25** (06-19 15:27, still on the throttled GitHub
+schedule) logged two corrections:
+
+```
+→ Linear GRA-6339 := "Tweaks Needed"  (was "For SMM Approval")  henryammar/p_mq9x35y0_x4qj0
+← card  p_mqfo6nbg_jgdv9 graphic := "For SMM Approval"  (was "Tweaks Needed")  jesseisrael
+```
+
+The second line healed Oprah 2 correctly. The **first line is the bug**: the graphic card
+was stale at "Tweaks Needed" (a dropped Linear→card event after Linear advanced to For SMM
+Approval at 13:33). Because the reconciler runs every ~3.4 h, it **missed Linear's
+intermediate flip** (Tweak→For SMM happened entirely between polls), so its poll-granularity
+ledger saw the card as "newer" and pushed the stale value onto Linear — dragging GRA-6339
+from For SMM Approval back to Tweak Needed. The SMM then moved it forward to For Kasper
+approval; no lasting damage, but our system did briefly corrupt a Linear issue.
+
+**Root cause:** same throttled schedule. Most-recent-wins is timed to *polling* granularity;
+with multi-hour gaps it can miss intermediate Linear states and pick the wrong direction.
+The 10-min n8n trigger makes this far rarer (a flip *and* its reversal must now fall inside
+one 10-min window), but does not eliminate it.
+
+## Audit: did the reconciler corrupt any other Linear issues?
+
+Scope: all **25** reconciler runs (06-16 → 06-19). Every card→Linear push goes through the
+`linear-set-status` webhook (`VQqqeY9B2GZbh2Bt`); reconciler pushes were isolated by
+run-time correlation and confirmed by `user-agent: node` + GitHub-runner IPs. **5 pushes
+total; 20 runs pushed nothing:**
+
+| Run | Issue | Push | Verdict |
+|----|-------|------|---------|
+| #1  | VID-12612 "test-2" | → Approved | test issue, forward — benign |
+| #7  | GRA-6310 "test-2" | → For Client approval | test issue, forward — benign |
+| #14 | GRA-6273 "test" | → Approved | test issue, forward — benign |
+| #15 | VID-12539 (Alli Schaper) | For Client Approval → Tweak Needed | **legitimate** — genuine client tweak the reconciler correctly backstopped to Linear (no recently-addressed tweak in its history) |
+| #25 | GRA-6339 (Henry Ammar "Video 5") | For SMM Approval → Tweak Needed | **WRONG regression** — the incident above (remediated by the SMM) |
+
+**Conclusion: exactly one wrong push touched real client Linear data (GRA-6339), already
+fixed. No other client's Linear was wrongly regressed.**
+
+## The real fix (recommended): exact change-timestamps
+
+Most-recent-wins should run on *truth*, not poll timing. Linear's API already exposes the
+exact moment each issue entered its current state (`stateHistory[last].startedAt`); the card
+side needs additive `video_status_at` / `graphic_status_at` columns, written whenever those
+sub-statuses change (in `calendar-upsert-post` and the Linear-status-sync). The reconciler
+then compares real timestamps. This is the **only** option that handles BOTH audit cases
+correctly — it heals a stale card (GRA-6339) *and* propagates a genuine tweak (VID-12539) —
+with no corruption and no lost tweaks. (`LINEAR_SYNC_RECONCILE.md` lists it under
+"Possible enhancements"; this incident is the proof it's worth doing.)
+
+A pure-reconciler **stopgap** (refuse any card→Linear push that would *lower* Linear's
+lifecycle state, flag it for review) prevents corruption with no schema change — but the
+audit shows its cost: it would have flagged VID-12539's legitimate tweak instead of
+propagating it. So it trades "occasionally corrupt Linear" for "occasionally fail to push a
+genuine tweak (still visible on the card)". Acceptable as a belt-and-suspenders, but not a
+substitute for exact timestamps.
+
 ## Investigation note
 
 This write-up is from **read-only** investigation across Linear, n8n, Supabase (a `GET`),
-and GitHub Actions. **No client data, Linear issue, n8n workflow, or Supabase row was
-modified.** The two heal/remediation steps above are pending explicit authorization.
+and GitHub Actions during diagnosis. The cadence fix (n8n trigger) and the Oprah 2 heal
+were applied with explicit authorization; the direction-fix above is not yet implemented.

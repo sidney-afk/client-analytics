@@ -17176,7 +17176,13 @@
         const posts = calState.posts.slice()
             // A card opened from the review queue (focusPid) is forced through
             // every filter so the jump-to-Sheet always lands on it.
-            .filter(p => p.id === calState.focusPid || _calPostInMonthFilter(p, monthFilter))
+            // The reserve pile is month-agnostic: an undated card has no month, so the
+            // "unscheduled" status filter must show it regardless of the month pill —
+            // otherwise picking a concrete month empties the reserve pile. Only DATED
+            // cards are subject to the month filter.
+            .filter(p => p.id === calState.focusPid
+                || (statusFilter === 'unscheduled' && !_calPostHasDate(p))
+                || _calPostInMonthFilter(p, monthFilter))
             .filter(p => p.id === calState.focusPid || _calPostInStatusFilter(p, statusFilter))
             .filter(p => p.id === calState.focusPid || !_isClientLink || _calIsCollabOn() || _calIsClientReady(p))
             .sort((a,b) => Number(a.order_index || 0) - Number(b.order_index || 0));

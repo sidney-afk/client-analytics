@@ -12080,6 +12080,7 @@
     }
     function _calAltCapRemove(e, pid) {
         if (e) { e.stopPropagation(); e.preventDefault(); }
+        if (_isClientLink) return;   // alt-caption editing is SMM-only
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const doRemove = () => {
@@ -12157,6 +12158,7 @@
     }
     function _calSetCardColor(e, pid, color) {
         if (e) e.stopPropagation();
+        if (_isClientLink) return;   // colour tagging is SMM-only
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         post.color = String(color || '');
@@ -12190,6 +12192,7 @@
        (same bound as bulk archive) so a big selection doesn't spike n8n. */
     async function _calApplyBulkColor(e, color) {
         if (e) e.stopPropagation();
+        if (_isClientLink) return;   // bulk colour tagging is SMM-only
         const value = CAL_COLORS.includes(color) ? color : '';
         const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
         if (!ids.length) return;
@@ -14214,6 +14217,7 @@
         }
     }
     function _calOpenBulkLinkOverlay() {
+        if (_isClientLink) return;   // Linear link-matching is SMM-only
         const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
         if (!ids.length) return;
         _calBulkLinkSubs = null;
@@ -17382,6 +17386,7 @@
         return `${titleSq}<input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
     }
     function _calLinearEdit(pid, comp) {
+        if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
         const which = comp || 'video';
         const row = document.querySelector(`[data-title-row="${pid}"]`);
         if (!row) return;
@@ -17486,6 +17491,7 @@
        untouched — only WHICH card points at the issue changes; the new card's
        status fills in from Linear via _calSyncStatusFromLinear. */
     async function _calMoveLink(oldPid, newPid, which, val) {
+        if (_isClientLink) return;   // moving a Linear link is SMM-only
         const slug = calClientSlug(calState.client);
         const key = _calLinkKey(val);
         const newFld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
@@ -18755,6 +18761,7 @@
         }
     }
     function _calToggleSelectMode(action) {
+        if (_isClientLink) return;   // multi-select (archive/caption/link/color) is SMM-only
         if (action) {
             if (calState.selectMode && calState.selectAction === action) {
                 calState.selectMode = false;
@@ -18821,6 +18828,7 @@
         document.querySelectorAll('#calSelectBar [data-bulk-color]').forEach(b => { b.disabled = n === 0; });
     }
     async function _calArchiveSelected() {
+        if (_isClientLink) return;   // bulk archive is SMM-only (defense in depth beyond select-mode)
         const ids = Array.from(calState.selected).filter(id => id && !_calIsBlankId(id));
         if (!ids.length) return;
         // Capture the slug at the moment of the click. The archive HTTPs

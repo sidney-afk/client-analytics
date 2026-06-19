@@ -12252,6 +12252,14 @@
         if (i >= 0) current.splice(i, 1); else current.push(key);
         const csv = current.join(',');
         post.platforms = csv;
+        // Removing YouTube ends any title review on this card: title_status is
+        // meaningful only on an engaged YouTube card, so leaving it set strands
+        // an unreachable review state (it drops from every queue but persists in
+        // the data, and would resurrect if YouTube were re-added). Clear the
+        // status — the title_tweaks comment history is kept — and persist the
+        // cleared value alongside the platform change.
+        const _titleStranded = (key === 'youtube' && i >= 0 && _calTitleEngaged(post));
+        if (_titleStranded) post.title_status = '';
         // Reflect on the strip without redrawing the whole card so the
         // toggle feels instant. Other strips for this post (if any) get
         // refreshed too.
@@ -12266,13 +12274,16 @@
         // Toggling YouTube while title review is on flips whether the title
         // status pill should show — that's structural (a pill added/removed),
         // which the in-place strip tweak above can't do, so redraw the card.
-        if (key === 'youtube' && _calIsTitleReviewOn()) {
+        // Also redraw when we just cleared a stranded title (its pill must go).
+        if (key === 'youtube' && (_calIsTitleReviewOn() || _titleStranded)) {
             try { _calRenderBody({ preserveScroll: true }); } catch {}
         }
+        if (_titleStranded) { try { showToast('Title review ended — YouTube removed from this card.'); } catch {} }
         // Persist via the usual debounced save path so the platforms field
         // rides on the next upsert with the rest of the post.
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid].platforms = csv;
+        if (_titleStranded) _calPendingEdits[pid].title_status = '';
         if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }

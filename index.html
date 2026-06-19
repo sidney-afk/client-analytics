@@ -12070,6 +12070,7 @@
        label always travels with the text even when the tab is still a local
        draft (platform never explicitly saved). */
     function _calOnAltCapInput(ta) {
+        if (_calClientFieldEditBlocked()) return;
         const pid = ta.dataset.pid;
         if (pid) {
             const post = calState.posts.find(p => p.id === pid);
@@ -18084,6 +18085,7 @@
     }
 
     function _calOnDateChange(el) {
+        if (_calClientFieldEditBlocked()) return;
         const pid = el.dataset.pid;
         const card = el.closest('.cal-card');
         const chip = card ? card.querySelector(`[data-date-display="${pid}"]`) : null;
@@ -18171,7 +18173,13 @@
         if (html) thumbDiv.insertAdjacentHTML('beforeend', html);
     }
 
+    // Editing card text (name / caption / CTA / alt-caption) and the date is allowed for
+    // the SMM always, and for a client only in Collaborative mode (mirrors the editableText
+    // gate that sets the readonly attribute). These handler-level checks stop a read-only
+    // client persisting an edit by bypassing the UI gate (e.g. a direct handler call).
+    function _calClientFieldEditBlocked() { return _isClientLink && !_calIsCollabOn(); }
     function _calOnFieldInput(el) {
+        if (_calClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;
@@ -18179,6 +18187,7 @@
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
     function _calOnFieldBlur(el) {
+        if (_calClientFieldEditBlocked()) return;
         const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
         if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
         _calPendingEdits[pid][fld] = val;

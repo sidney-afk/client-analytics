@@ -16701,6 +16701,10 @@
         });
     }
     function _calMovePostToDate(id, iso) {
+        // Rescheduling by drag is allowed for the SMM always, and for a client
+        // only in Collaborative mode (mirrors _calCanDragCards / the tray gate).
+        // The handler-level check stops a read-only client bypassing the UI gate.
+        if (!_calCanDragCards()) return;
         const post = calState.posts.find(p => p.id === id);
         if (!post || !iso) return;
         if (String(post.scheduled_date || '').slice(0,10) === iso) return;
@@ -19651,6 +19655,10 @@
         if (strip.dataset.dropWired === '1') return;
         strip.dataset.dropWired = '1';
         strip.addEventListener('drop', () => {
+            // Reordering is SMM-always / client-only-in-collab (same gate as the
+            // draggable attribute). Guard the handler so a read-only client can't
+            // persist a reorder by bypassing the UI.
+            if (!_calCanDragCards()) return;
             const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
             if (!ids.length) return;
             const byId = new Map(calState.posts.map(p => [p.id, p]));

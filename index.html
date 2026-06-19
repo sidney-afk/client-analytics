@@ -12578,7 +12578,11 @@
     function _calPostInMonthFilter(p, ym) {
         if (!ym || ym === 'all') return true;
         const d = String(p && p.scheduled_date || '').slice(0, 7);
-        if (!d) return true;
+        // An undated card has no month, so it must NOT pass a concrete-month
+        // filter (otherwise it masquerades under every month at once). It only
+        // shows under "All months" (handled above) or the "unscheduled" status
+        // filter, which is the reserve pile's home.
+        if (!d) return false;
         return d === ym;
     }
     /* Status filter — splits the Sheet tab by whether a post has a date yet.
@@ -15832,6 +15836,11 @@
         const statusFilter = _calNormStatusFilter(calState.statusFilter);
         const cands = (calState.posts || []).filter(p =>
             p.id !== calState.focusPid
+            // Only DATED cards can be "hidden by the month filter" in the anomalous
+            // sense this chip warns about. Undated cards live in the reserve pile and
+            // are expected to be absent from any concrete month, so they are neither
+            // "recently edited but hidden" nor "overdue" — exclude them outright.
+            && _calPostHasDate(p)
             && !_calPostInMonthFilter(p, monthFilter)
             && _calPostInStatusFilter(p, statusFilter)
             && (!_isClientLink || _calIsCollabOn() || _calIsClientReady(p)));

@@ -12239,6 +12239,7 @@
     }
     function _calTogglePostPlatform(e, pid, key) {
         if (e) e.stopPropagation();
+        if (_isClientLink) return;   // per-card platform tagging is SMM-only (client view is read-only)
         if (!CAL_PLATFORM_BY_KEY[key]) return;
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -12272,6 +12273,7 @@
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
     function openCalPlatformsEditor() {
+        if (_isClientLink) return;   // platform set is SMM-only (client sees the icons, can't edit them)
         if (!calState.client) return;
         const slug = calClientSlug(calState.client);
         const enabled = new Set(_calEnabledPlatforms(slug));
@@ -12510,6 +12512,7 @@
         if (sw) sw.classList.toggle('is-on', _calIsCollabOn());
     }
     async function _calToggleCollabMode() {
+        if (_isClientLink) return;   // kebab modes are SMM-only
         // Pin the slug up front: the awaited save below could let the user
         // switch clients mid-flight, and the cache write at the end must
         // target the client this toggle actually changed.
@@ -12543,6 +12546,7 @@
        + background backend sync), so it's cross-device and stuck-switch-proof
        for free. */
     async function _calToggleTitleReviewMode() {
+        if (_isClientLink) return;   // kebab modes are SMM-only
         const slug = calClientSlug(calState.client);
         const next = !_calIsTitleReviewOn();
         const savePromise = _calSaveSettings({ title_review: next });
@@ -17697,6 +17701,7 @@
         _calOpenStatusMenu = { pid, key: menuKey, comp: which, el: menu, triggerEl };
     }
     function _calStatusPick(pid, status, comp) {
+        if (_isClientLink) return;   // status control is SMM-only (client review uses _calReviewApprove)
         _calCloseStatusMenu();
         const which = comp || '';
         const post = calState.posts.find(p => p.id === pid);
@@ -17792,6 +17797,7 @@
         return 'cal-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-');
     }
     function _calSetAllStatus(pid, status) {
+        if (_isClientLink) return;   // SMM-only bulk status control
         _calCloseStatusMenu();
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
@@ -18680,6 +18686,10 @@
     }
 
     function addCalBlankCard() {
+        // Clients may add ("Suggest a post") ONLY when the SMM has turned
+        // Collaborative mode on — mirrors the canAddCard gate on the button so a
+        // direct call can't bypass it. SMM (non-client) always allowed.
+        if (_isClientLink && !_calIsCollabOn()) return;
         const strip = document.getElementById('calStrip');
         if (!strip) return;
         strip.classList.remove('is-empty');
@@ -18878,6 +18888,7 @@
             }, 'Archive');
     }
     function archiveCalPost(id) {
+        if (_isClientLink) return;   // archiving is SMM-only in every mode (incl. collab)
         if (!id || _calIsBlankId(id)) return;
         const slug = calClientSlug(calState.client);
         showConfirm('Archive this post?', "It's removed from the calendar but kept (archived) in the Google Sheet on our server, so it can always be recovered.", async () => {
@@ -19094,6 +19105,7 @@
     }
     async function _calGenerateCaption(pid, opts) {
         opts = opts || {};
+        if (_isClientLink) return { ok: false, error: 'forbidden' };   // caption generation is SMM-only
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return { ok: false, error: 'Post not found' };
         if (_calCapJobActive(_calCaptionJobs.get(pid))) {
@@ -19402,6 +19414,7 @@
         if (document.visibilityState === 'visible' && _calCapJobsActiveList().length) _calCapJobPollNow();
     });
     async function _calBulkGenerateCaptions() {
+        if (_isClientLink) return;   // bulk caption generation is SMM-only
         const all = Array.from(calState.selected);
         const eligible = all
             .map(id => calState.posts.find(p => p.id === id))

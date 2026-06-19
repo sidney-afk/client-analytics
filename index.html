@@ -12308,12 +12308,27 @@
         modal.querySelectorAll('input[data-platform-edit]').forEach(cb => {
             if (cb.checked) picked.push(cb.getAttribute('data-platform-edit'));
         });
-        _calSetEnabledPlatforms(slug, picked);   // localStorage first-paint cache
-        // Persist to the shared settings row so the client view + other SMM devices
-        // pick up the platform icons (was localStorage-only, so the client saw none).
-        if (slug === calClientSlug(calState.client)) _calSaveSettings({ enabled_platforms: picked });
-        closeCalImport();
-        try { _calRenderBody({ preserveScroll: true }); } catch {}
+        const apply = () => {
+            _calSetEnabledPlatforms(slug, picked);   // localStorage first-paint cache
+            // Persist to the shared settings row so the client view + other SMM devices
+            // pick up the platform icons (was localStorage-only, so the client saw none).
+            if (slug === calClientSlug(calState.client)) _calSaveSettings({ enabled_platforms: picked });
+            closeCalImport();
+            try { _calRenderBody({ preserveScroll: true }); } catch {}
+        };
+        // Saving an EMPTY set hides the platform strip AND the per-card platform
+        // toggles on every card — on the client view and all devices — and it's
+        // recoverable only by re-opening this editor. Confirm before wiping so a
+        // stray "Save" with nothing ticked can't silently strip every card. The
+        // platforms modal stays open behind the confirm, so Cancel returns the
+        // user to their selection.
+        if (!picked.length) {
+            showConfirm('Hide all platform icons?',
+                'No platforms are selected, so every card will show no platform tags — on the client view and all devices — until you pick at least one again here.',
+                apply, 'Hide all');
+            return;
+        }
+        apply();
     }
 
     const calState = {

@@ -19675,11 +19675,24 @@
             // duplicates on the next drag while only nudging upward (the min
             // is preserved, so the visible block won't leapfrog hidden posts
             // sitting below it).
+            //
+            // The bump must also avoid landing on a slot held by a HIDDEN post
+            // (one filtered out of this strip). The de-dup only sees the visible
+            // ids, so a bumped value could collide with a hidden post's
+            // order_index — a cross visible↔hidden tie that the sheet's
+            // tiebreaker-free sort then resolves nondeterministically on reload
+            // (the snap-back this whole block exists to prevent). Skip any slot
+            // occupied by a non-visible post so every assigned value is unique
+            // across the WHOLE calendar, not just the visible subset.
+            const idSet = new Set(ids);
+            const hiddenSlots = new Set(
+                calState.posts.filter(p => p && !idSet.has(p.id)).map(p => Number(p.order_index || 0)));
             const rawSlots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
             const slots = [];
             let prevSlot = -Infinity;
             for (const v of rawSlots) {
-                const s = v > prevSlot ? v : prevSlot + 1;
+                let s = v > prevSlot ? v : prevSlot + 1;
+                while (hiddenSlots.has(s)) s++;   // never reuse a hidden post's slot
                 slots.push(s);
                 prevSlot = s;
             }

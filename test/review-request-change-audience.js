@@ -138,7 +138,11 @@ check('client view HIDES the SMM plain comment',
 
 console.log('\n— Client\'s OWN "Request change" (must stay visible, not over-restricted) —');
 mod.setClient(true);
-const c = freshPost('p_cli');
+// The client acts on a component sitting on THEIR surface (Client Approval); the
+// review handlers now guard against a client acting on an off-surface status
+// (For SMM / Kasper Approval), so use the realistic status here.
+const c = mod.addPost({ id: 'p_cli', caption_status: 'Client Approval', status: 'In Progress',
+  caption_comments: [], caption_tweaks: '' });
 mod.setDraft('p_cli', 'caption', 'Can we change the thumbnail?');
 mod._calReviewRequestTweak('p_cli', 'caption');
 const cliTweak = lastCaption(c);

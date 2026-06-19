@@ -16,8 +16,11 @@
  *   Status genuinely changes on BOTH sides: editors/designers drive the review
  *   lifecycle in Linear; the SMM/client drive approvals, scheduling and posting in
  *   SyncView. A persistent ledger records, per card-component, the status last
- *   seen on each side and WHEN it changed (to polling granularity). When the two
- *   disagree the side whose value changed more recently wins. Near-concurrent
+ *   seen on each side and WHEN it changed. The CARD side uses the EXACT change time
+ *   (calendar_posts.video_status_at / graphic_status_at, DB-stamped — see
+ *   calendar-status-at-migration.sql) when present, else falls back to polling
+ *   granularity; Linear is polling-timed (fine at the 10-min n8n cadence). When the
+ *   two disagree the side whose value changed more recently wins. Near-concurrent
  *   changes tie-break to: a Tweaks-Needed request never loses, else the
  *   more-advanced lifecycle state wins.
  *
@@ -68,14 +71,22 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const NOW = () => new Date().toISOString();
 
 async function fetchAllCards() {
-  const cols = ['id','name','client','status','video_status','graphic_status','caption_status',
+  const base = ['id','name','client','status','video_status','graphic_status','caption_status',
     'linear_issue_id','graphic_linear_issue_id','order_index','updated_at',
     'client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','kasper_approved_at'];
+  // Exact per-component change-timestamps (calendar-status-at-migration.sql). OPTIONAL:
+  // if those columns aren't there yet, PostgREST errors the select, so we drop them and
+  // fall back to the base set + poll-timing — making this safe to ship in either order.
+  const ext = base.concat(['video_status_at', 'graphic_status_at']);
+  let cols = ext, fellBack = false;
   const out = []; let offset = 0; const page = 1000;
   for (;;) {
     const rows = await fetch(`${SUPA_URL}?select=${cols.join(',')}&order=client.asc&limit=${page}&offset=${offset}`,
       { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY } }).then(r => r.json());
-    if (!Array.isArray(rows)) throw new Error('supabase: ' + JSON.stringify(rows).slice(0, 200));
+    if (!Array.isArray(rows)) {
+      if (cols === ext && !fellBack) { cols = base; fellBack = true; offset = 0; out.length = 0; continue; }
+      throw new Error('supabase: ' + JSON.stringify(rows).slice(0, 200));
+    }
     out.push(...rows); if (rows.length < page) break; offset += page;
   }
   return out;
@@ -171,10 +182,20 @@ const log = (s) => { console.log(s); lines.push(s); };
       const linCal = _calMapLinearStatusStrict(linRaw);
       if (!linCal) { unmapped++; continue; }
       const cardCal = _calNormStatus(card[comp + '_status'] || '');
+      // EXACT card change-time from the DB trigger (calendar-status-at-migration.sql)
+      // when present, else fall back to poll-time `t`. This is what stops a stale card
+      // from looking "newer" than a Linear issue that advanced between polls — the
+      // GRA-6339 wrong-direction regression. Linear stays poll-timed (fine at 10-min).
+      const stampRaw = card[comp + '_status_at'];
+      const cardAtExact = (stampRaw && isFinite(Date.parse(stampRaw))) ? new Date(stampRaw).toISOString() : null;
       const key = `${card.client}|${card.id}|${comp}`;
       let led = ledger[key];
-      if (!led) led = ledger[key] = { cardCal, cardAt: t, linCal, linAt: t };
-      else { if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; } if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; } }
+      if (!led) led = ledger[key] = { cardCal, cardAt: cardAtExact || t, linCal, linAt: t };
+      else {
+        if (cardAtExact) { led.cardCal = cardCal; led.cardAt = cardAtExact; }
+        else if (cardCal !== led.cardCal) { led.cardCal = cardCal; led.cardAt = t; }
+        if (linCal !== led.linCal) { led.linCal = linCal; led.linAt = t; }
+      }
       if (cardCal === linCal) { inSync++; continue; }
       corrections.push({ card, comp, ident, url, cardCal, linCal, winner: decide(led, cardCal, linCal), led });
     }

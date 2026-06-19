@@ -11951,13 +11951,13 @@
         const genBtn = canEdit ? _calCapGenBtnHtml(p) : '';
         return `${tabsHtml}
             <div class="cal-cap-wrap${active === 'alt' ? ' captab-off' : ''}" data-capwrap="main" onclick="_calCaptionWrapClick(event,this)">
-                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption" placeholder="Caption" oninput="_calOnCaptionInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(p.caption)}</textarea>
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
                 ${genBtn}
             </div>
             ${hasAlt ? `<div class="cal-cap-wrap${active === 'alt' ? '' : ' captab-off'}" data-capwrap="alt" onclick="_calCaptionWrapClick(event,this)">
-                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
+                <textarea class="cal-fld-cap" rows="5" data-pid="${pid}" data-fld="caption_alt" placeholder="${_calEscAttr(platLabel)} caption" oninput="_calOnAltCapInput(this)" onfocus="_calOnCaptionFocus(this)" onblur="_calOnCaptionBlur(this)" onkeydown="_calOnCaptionKey(event,this)"${!editableText ? ' readonly' : ''}>${_calEsc(alt)}</textarea>
                 <div class="cal-cap-fade" aria-hidden="true"></div>
                 ${capToggle}
             </div>` : ''}`;
@@ -18012,6 +18012,20 @@
     function _calOnCaptionInput(ta) { _calRefreshCaption(ta, document.activeElement === ta); _calOnFieldInput(ta); }
     function _calOnCaptionFocus(ta) { _calRefreshCaption(ta, true); }
     function _calOnCaptionBlur(ta)  { _calRefreshCaption(ta, false); _calOnFieldBlur(ta); }
+    /* Escape inside a caption field defocuses it and collapses it back to the
+       resting (clamped) state — "let me out of here". The blur flushes the
+       save exactly like clicking away, so nothing typed is lost; removing
+       `expanded` first also unpins a Show-more expand so the field truly
+       returns to rest. stopPropagation keeps this Escape from also tripping
+       the document-level handlers (e.g. exiting multi-select). */
+    function _calOnCaptionKey(e, ta) {
+        if (e.key !== 'Escape' || !ta) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const wrap = ta.closest('.cal-cap-wrap');
+        if (wrap) wrap.classList.remove('expanded');
+        ta.blur();
+    }
     function _calToggleCaption(btn) {
         const wrap = btn.closest('.cal-cap-wrap');
         if (!wrap) return;
@@ -19581,7 +19595,17 @@
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
         const overlay = document.getElementById('calPromptOverlay');
-        if (overlay && overlay.classList.contains('open')) _calCloseCaptionPromptModal();
+        if (overlay && overlay.classList.contains('open')) { _calCloseCaptionPromptModal(); return; }
+        // The bulk Linear-link dialog is the one modal reachable from multi-select;
+        // Escape closes it (leaving select mode intact, so a second Escape exits).
+        const linkOvl = document.getElementById('calBulkLinkOverlay');
+        if (linkOvl && linkOvl.classList.contains('open')) { closeCalBulkLinkOverlay(); return; }
+        // Otherwise Escape leaves multi-select entirely — same as the "Done"
+        // button: clears the selection and restores the normal calendar. Guard on
+        // cal-modal-open so we never tear down select mode behind an open modal.
+        if (calState.selectMode && !_isClientLink && !document.body.classList.contains('cal-modal-open')) {
+            _calToggleSelectMode();
+        }
     });
     /* Caption-prompt edit modal — per client. Read-write against the
        CaptionPrompts tab via the caption-prompts-save webhook. Empty

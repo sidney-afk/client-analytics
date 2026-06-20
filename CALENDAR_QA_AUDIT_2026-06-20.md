@@ -159,12 +159,24 @@ undo, cross-surface archive). Offline unit suite: `test/*.js` (19 tests).
 - **`.github/workflows/calendar-unit-tests.yml`** — runs `node test/run-all.js` (the 19 unit suites)
   on **every push + PR**. Fast, no network/browser. The always-on gate.
 - **`.github/workflows/calendar-e2e-nightly.yml`** — runs `node qa/run-probes.js` (the
-  `nightly-manifest.txt` set, 44 probes) **nightly at 08:00 UTC + on demand** (Actions → Run
+  `nightly-manifest.txt` set, 50 probes) **nightly at 08:00 UTC + on demand** (Actions → Run
   workflow; optional probe-subset input). Each probe is retried (`PROBE_ATTEMPTS`, default 3) to
   absorb transient network/realtime flakiness; red only if a probe fails every attempt.
 - Local: `npm run test:unit` (fast) and `npm run test:e2e` (serves the app + runs the probes).
-- Manifest is verified green end-to-end (44/44). When adding a probe, append it to
+- Manifest is verified green end-to-end (50/50). When adding a probe, append it to
   `nightly-manifest.txt` once it's stable.
+
+## 5c. Comment/notes round (2026-06-20) + the Linear-link fix
+- New real-handler probes for the human comment flows: `p72` cross-surface thread (SMM↔client
+  union, no clobber + internal-note privacy), `p73` resolve/unresolve, `p74` delete-cascade
+  tombstone, `p75` unread-notes lifecycle, `p76` per-component comment isolation.
+- **Fix:** `_calLinearCommit` now validates a pasted Linear link — a non-Linear string (a note/blob)
+  is rejected with a disclaimer instead of being stored as "weird text" in the slot, and a VID-/GRA-
+  link pasted into the wrong slot prompts before saving. `p77` locks this in.
+- Confirmed (not bugs, by design): the paste-time uniqueness guard reverts a link already on another
+  card (shows a "move it here?" prompt); the link dedupe hides a card that shares a Linear issue id
+  with another (e.g. two cards both pointing at GRA-6273). Both are intentional — flagged for review
+  if the UX should change.
 
 ## 6. Recommended future testing
 - Re-run the suite after any calendar change; `p42`/`p65`/`p59`/`p70` are the concurrency canaries.

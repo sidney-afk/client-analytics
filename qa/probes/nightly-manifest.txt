@@ -58,3 +58,11 @@ p66_stale_approval_clear.js
 p67_thumb_rev_cachebust.js
 p68_linear_link_clear.js
 p69_date_reschedule.js
+# --- comments & notes, driven through the real handlers (2026-06-20 pass) ---
+p72_cross_surface_thread.js
+p73_resolve_unresolve.js
+p74_delete_cascade.js
+p75_unread_notes_lifecycle.js
+p76_component_comment_isolation.js
+# --- Linear sub-issue link validation (the "weird text in the link slot" guard) ---
+p77_linear_link_validation.js

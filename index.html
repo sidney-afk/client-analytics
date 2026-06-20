@@ -15178,19 +15178,56 @@
         }).catch(e => { console.warn('[Calendar v2] supabase-js init failed', e); _calV2ClientPromise = null; return null; });
         return _calV2ClientPromise;
     }
+    /* PostgREST caps every response at the project's db-max-rows (1000 here)
+       no matter how large a `limit` the client asks for, so a single read
+       silently drops every row past the first 1000 — which once the table
+       crossed 1000 rows hid freshly-added cards from Kasper's unscoped queue
+       (and would hide a heavy client's cards from the calendar). Page through
+       with KEYSET (cursor) pagination — immune to the offset-window drift that
+       skips/dups rows when the LIVE table is written between page reads.
+
+       COMPOUND cursor on (id, client): `id` is NOT globally unique — the same
+       id is reused across different clients (rows are keyed by (client, id), not
+       id alone; e.g. a template applied to several clients reuses one id). An
+       id-only cursor (`id=gt.X`) would skip every sibling of a same-id group
+       that happened to straddle a 1000-row page boundary. (id, client) IS
+       unique, so the compound cursor "(id,client) > (curId,curClient)" never
+       skips or duplicates a row. Requires the caller's `select` to include id
+       AND client — the production callers use `select=*`. The `signal` threads
+       the caller's abort/timeout through every page. Caller passes a URL WITHOUT
+       order/limit/cursor; we add them. */
+    const CAL_SUPABASE_PAGE = 1000;
+    async function _calSupabaseFetchAllRows(baseUrl, signal) {
+        const sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
+        const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+        const enc = encodeURIComponent;
+        const all = [];
+        let curId = null, curClient = null;
+        for (let page = 0; page < 100000; page++) {     // hard ceiling: 100,000,000 rows
+            let pageUrl = baseUrl + sep + 'order=id.asc,client.asc&limit=' + CAL_SUPABASE_PAGE;
+            if (curId != null) {
+                // (id, client) strictly greater than the last row seen
+                pageUrl += '&or=(id.gt.' + enc(curId) + ',and(id.eq.' + enc(curId) + ',client.gt.' + enc(curClient == null ? '' : curClient) + '))';
+            }
+            const resp = await fetch(pageUrl, { headers, signal: signal || undefined });
+            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
+            const rows = await resp.json();
+            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            for (const r of rows) all.push(r);
+            if (rows.length < CAL_SUPABASE_PAGE) break;
+            const last = rows[rows.length - 1];
+            curId = last.id;
+            curClient = last.client;
+        }
+        return all;
+    }
     /* Read one client's posts from Supabase REST, shaped exactly like the
        calendar-get webhook. On ANY failure, fall back to the webhook so a
        Supabase hiccup can never blank the calendar. */
     async function _calV2FetchPosts(slug, signal) {
-        const url = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
         try {
-            const resp = await fetch(url, {
-                headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
-                signal: signal || undefined
-            });
-            if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-            const rows = await resp.json();
-            if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
+            const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
             return { ok: true, posts: rows };
         } catch (e) {
             if (e && e.name === 'AbortError') throw e;
@@ -25624,6 +25661,9 @@
                 // Base watermark for the server's 3-way comment merge: the
                 // server version this browser last saw.
                 raw._baseAt = String(raw.updated_at || '');
+                // Scalar snapshot for the field-level persist patch (so Kasper's
+                // write only carries the columns HE changes — see _kasperPatchSnapshot).
+                raw._patchBase = _kasperPatchSnapshot(raw);
                 const hasKasperWork = _calPostKasperVisible(raw);
                 // Content gate: skip cards that have NEITHER a video
                 // (asset_url) NOR a graphic/thumbnail (thumbnail_url).
@@ -25682,26 +25722,24 @@
                 else remaining.push(client);
             }
         }
-        // v2: every client lives in ONE Supabase table, so a single REST read
-        // covers all of them — no per-client calendar-get fan-out, no n8n load.
-        // Group rows by their client column and reuse the same extract() the
-        // Sheet path uses. On ANY Supabase error we leave `remaining` untouched
-        // and fall through to the kasper-queue batch + per-client fan-out below,
-        // so the queue can never blank. Gated on _calV2Ready() so v1 is
-        // byte-identical. (One query returns every row — ~600 today with ample
-        // headroom; revisit pagination well before the table nears PostgREST's
-        // max-rows.)
+        // v2: every client lives in ONE Supabase table, so ONE paginated REST
+        // read covers all of them — no per-client calendar-get fan-out, no n8n
+        // load. Group rows by their client column and reuse the same extract()
+        // the Sheet path uses. On ANY Supabase error we leave `remaining`
+        // untouched and fall through to the kasper-queue batch + per-client
+        // fan-out below, so the queue can never blank. Gated on _calV2Ready() so
+        // v1 is byte-identical. _calSupabaseFetchAllRows pages past PostgREST's
+        // 1000-row max-rows cap, so the queue stays complete as the table grows
+        // (the unpaginated single read silently dropped every row past 1000,
+        // hiding freshly-added cards from Kasper once the table crossed 1000).
         if (remaining.length && _calV2Ready()) {
             try {
                 const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
                 const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
-                const resp = await fetch(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&limit=20000', {
-                    headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
-                    signal: ctrl ? ctrl.signal : undefined,
-                });
-                if (timer) clearTimeout(timer);
-                if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
-                const allRows = await resp.json();
+                let allRows;
+                try {
+                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*', ctrl ? ctrl.signal : undefined);
+                } finally { if (timer) clearTimeout(timer); }
                 if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
                 const byClient = new Map();
                 for (const r of allRows) {
@@ -26452,14 +26490,26 @@
        Mirrors how the calendar view saves cards: comments get serialised
        into the `tweaks` column on the wire. After the save lands, push
        the status change to Linear so the sub-issue follows. */
-    // Serialize whole-row writes per card. The button locks above are
-    // PER-COMPONENT (item._saving[comp]), but _kasperPersistPostWrite POSTs the
-    // ENTIRE row — so approving the video while submitting a graphic tweak holds
-    // two different component locks yet fires two overlapping read-modify-writes
-    // against the same sheet row, and the slower response's snapshot reverts the
-    // other component. Chain each write after the previous so they apply in
-    // order; since every caller mutates item.post synchronously before calling,
-    // the last write in the chain carries the fully-merged row.
+    /* The scalar (non-comment) columns Kasper's persist may touch. Used to send
+       a FIELD-LEVEL PATCH instead of the whole row: only the scalars that
+       changed vs the snapshot the card was loaded with go on the wire, so a
+       concurrent change to a DIFFERENT component (e.g. the client approving the
+       caption) that Kasper's row still carries a stale value for is NOT
+       clobbered. (`status` is derived and handled separately from
+       computeOverallStatus; comment cells are always sent and server-merged.) */
+    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at'];
+    function _kasperPatchSnapshot(post) {
+        const s = {};
+        for (const k of KASPER_PATCH_SCALARS) s[k] = (post && post[k] != null) ? String(post[k]) : '';
+        s.status = (post && post.status != null) ? String(post.status) : '';
+        return s;
+    }
+    // Serialize writes per card. The button locks above are PER-COMPONENT
+    // (item._saving[comp]); chaining each write after the previous keeps the
+    // per-card writes strictly ordered so a slower response can't revert a
+    // fresher one. The payload is now a field-level patch (see KASPER_PATCH_SCALARS)
+    // rather than the whole row, so two overlapping component writes no longer
+    // clobber each other's status — but the chain is kept as belt-and-suspenders.
     function _kasperPersistPost(item) {
         const run = () => _kasperPersistPostWrite(item);
         const chain = (item._persistChain || Promise.resolve()).then(run, run);
@@ -26472,19 +26522,28 @@
         // can't fetch the still-stale sheet row and clobber the freshly
         // submitted comment / status flip.
         item.post.updated_at = new Date().toISOString();
-        const wire = Object.assign({}, item.post);
+        const overall = computeOverallStatus(item.post);
+        // Field-level patch: send the id, the comment cells (always — the upsert
+        // 3-way-merges them), and ONLY the scalar columns that changed since this
+        // card was loaded (item.post._patchBase). A concurrent change to a
+        // component Kasper DIDN'T touch is therefore never on his wire, so it
+        // can't be clobbered. If no snapshot is available (older cached item),
+        // fall back to the whole row — identical to the previous behaviour, so a
+        // missing snapshot is never WORSE than before, only the patch is an
+        // improvement. (p42 cross-component clobber fix.)
+        const base = item.post._patchBase;
+        const wire = { id: item.post.id };
         wire.video_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'video'));
         wire.graphic_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'graphic'));
         wire.caption_tweaks = _calStringifyComments(_calCommentsFor(item.post, 'caption'));
         wire.title_tweaks   = _calStringifyComments(_calCommentsFor(item.post, 'title'));
         wire.tweaks = wire.video_tweaks;
-        wire.status = computeOverallStatus(item.post);
-        delete wire.comments;
-        delete wire.video_comments;
-        delete wire.graphic_comments;
-        delete wire.caption_comments;
-        delete wire.title_comments;
-        delete wire._baseAt;
+        for (const k of KASPER_PATCH_SCALARS) {
+            const cur = item.post[k] == null ? '' : String(item.post[k]);
+            if (!base || cur !== (base[k] == null ? '' : String(base[k]))) wire[k] = cur;
+        }
+        // overall status rides along only when it actually moved (or no snapshot)
+        if (!base || overall !== (base.status == null ? '' : String(base.status))) wire.status = overall;
         const resp = await fetch(CALENDAR_UPSERT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -26508,6 +26567,11 @@
             }
             item.post._baseAt = String(echo.updated_at || item.post._baseAt || '');
         }
+        // The patch base now reflects the row we just persisted, so the NEXT
+        // Kasper write on this card diffs against the post-write state (sequential
+        // approvals on different components each patch only their own column).
+        item.post.status = overall;
+        item.post._patchBase = _kasperPatchSnapshot(item.post);
         // Push each sub-status to its Linear sub-issue. Caption has no Linear
         // counterpart. Posted has no Linear equivalent (helper rejects it).
         const vUrl = String(item.post.linear_issue_id || '').trim();

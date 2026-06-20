@@ -144,6 +144,11 @@ globalThis._calRenderBody = () => { renderCalls++; };
 globalThis._calTitleRowHtml = () => 'TITLE_HTML';
 globalThis._isClientLink = false;
 globalThis.document = { querySelector: () => ({ innerHTML: '' }) };
+// New deps pulled in by the validation guard (real helpers + UI stubs).
+def('_calIdentFromUrl');
+def('_calLinearExpectPrefix');
+globalThis.showNotify = () => {};
+globalThis.showConfirm = () => {};
 
 // (a) conflict present → prompt shown, NOTHING committed.
 resetCommitSpies();
@@ -192,6 +197,30 @@ const tgt5 = { id: 'new', linear_issue_id: '' };
 globalThis.calState = { client: 'Sydney', posts: [tgt5] };
 threw = false; try { _calLinearCommit({ dataset: { cancel: '1' }, value: VID1 }, 'new', 'video'); } catch (e) { threw = true; }
 ok(!threw && tgt5.linear_issue_id === '' && flushCalls.length === 0, 'Escape-cancel discards the typed link');
+
+// (f) a non-Linear string → disclaimer, never stored, conflict check never runs.
+resetCommitSpies();
+let notifyCalls = []; globalThis.showNotify = (t, m) => notifyCalls.push({ t, m });
+globalThis._calLinkConflict = () => { throw new Error('conflict check must not run on an invalid link'); };
+const tgt6 = { id: 'new', linear_issue_id: '' };
+globalThis.calState = { client: 'Sydney', posts: [tgt6] };
+threw = false; try { _calLinearCommit({ dataset: {}, value: 'just a note, not a url' }, 'new', 'video'); } catch (e) { threw = true; }
+ok(!threw && notifyCalls.length === 1 && tgt6.linear_issue_id === '' && flushCalls.length === 0,
+   'a non-Linear string is rejected with a disclaimer and never stored');
+globalThis.showNotify = () => {};
+
+// (g) a GRA- link in the VIDEO slot → wrong-slot prompt; commit only on override.
+resetCommitSpies();
+let confirmYes = null; globalThis.showConfirm = (t, m, onYes) => { confirmYes = onYes; };
+globalThis._calLinkConflict = () => null;
+const tgt7 = { id: 'new', linear_issue_id: '' };
+globalThis.calState = { client: 'Sydney', posts: [tgt7] };
+_calLinearCommit({ dataset: {}, value: GRA9 }, 'new', 'video');
+ok(typeof confirmYes === 'function' && tgt7.linear_issue_id === '' && flushCalls.length === 0,
+   'a GRA- link in the VIDEO slot prompts and does NOT auto-commit');
+confirmYes();   // user overrides
+ok(tgt7.linear_issue_id === GRA9 && flushCalls.length === 1, 'override saves the mismatched link');
+globalThis.showConfirm = () => {};
 
 (async () => {
 console.log('\n============================================================');
@@ -306,8 +335,10 @@ console.log('\n============================================================');
 console.log('7) WIRING — the shipped index.html still carries the fix');
 console.log('============================================================');
 const commitSrc = grabFunc('_calLinearCommit');
-ok(/if \(changed && val\)/.test(commitSrc) && /_calLinkConflict\(val, pid\)/.test(commitSrc) && /_calShowLinkConflict\(/.test(commitSrc),
+ok(/_calLinkConflict\(val, pid\)/.test(commitSrc) && /_calShowLinkConflict\(/.test(commitSrc),
    '_calLinearCommit gates a changed, non-empty link through the conflict check');
+ok(/_calIdentFromUrl\(val\)/.test(commitSrc) && /isn.t a Linear link/.test(commitSrc) && /Wrong slot/.test(commitSrc),
+   '_calLinearCommit validates the link (non-Linear rejected, wrong slot warned) before saving');
 const dedupeSrc = grabFunc('_calDedupeByLinearIssue');
 ok(/consider\(p, p\.linear_issue_id\)/.test(dedupeSrc) && /consider\(p, p\.graphic_linear_issue_id\)/.test(dedupeSrc),
    '_calDedupeByLinearIssue dedupes BOTH the video and graphic slots');

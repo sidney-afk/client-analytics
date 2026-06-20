@@ -17488,6 +17488,10 @@
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
     }
+    /* Expected issue-id prefix per slot: the VIDEO slot points at a VID- sub-
+       issue and the GRAPHIC slot at a GRA-. (Other teams' prefixes are allowed
+       through without a component warning — we only flag a clear VID/GRA mix-up.) */
+    function _calLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
     function _calLinearCommit(input, pid, comp) {
         const which = comp || 'video';
         const fld = which === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id';
@@ -17496,28 +17500,66 @@
         const post = calState.posts.find(p => p.id === pid);
         const cur = post ? String(post[fld] || '') : '';
         const changed = !cancelled && val !== cur;
-        // A non-empty NEW link that already lives on another live card: don't
-        // silently swallow it (the dedupe would collapse the two cards on the
-        // next refresh, so the link would appear to vanish). Surface the clash
-        // and offer to MOVE it here; the real commit waits on the user's choice.
-        if (changed && val) {
+        // Repaint the read-only title row — used whenever we DON'T commit (no
+        // change, a rejected value, or a deferred choice) so the slot shows its
+        // stored value again instead of leaving the rejected text in the input.
+        const restoreRow = () => {
+            const row = document.querySelector(`[data-title-row="${pid}"]`);
+            if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+        };
+        // Persist + Linear-sync a value that has cleared every guard. Factored
+        // out so the wrong-slot override (a confirm) reuses the exact same path.
+        const applyCommit = (value) => {
+            if (post) post[fld] = value;
+            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
+            _calPendingEdits[pid][fld] = value;
+            _calFlushCardSave(pid);
+            if (value) _calArchivedRemove(calClientSlug(calState.client), [value]);
+            _calRenderBody({ preserveScroll: true });
+            if (value && post) _calSyncStatusFromLinear(pid, value, which);
+        };
+
+        if (!changed) { restoreRow(); return; }
+
+        if (val) {
+            // (1) Format guard. The slot holds a Linear SUB-ISSUE link and nothing
+            // else. Reject a non-Linear URL or any text with no issue identifier
+            // (e.g. a pasted note) with a clear disclaimer instead of silently
+            // storing it — unvalidated text is exactly what later shows up as
+            // "weird text" sitting in the link slot.
+            const ident = _calIdentFromUrl(val);
+            const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
+            if (!looksLinear || !ident) {
+                showNotify('That isn’t a Linear link',
+                    'Paste a Linear sub-issue URL like https://linear.app/your-team/issue/'
+                    + _calLinearExpectPrefix(which) + '-123. What you entered has no Linear issue id, so it wasn’t saved.');
+                restoreRow();
+                return;
+            }
+            // (2) Component guard. The VIDEO slot expects a VID- issue and the
+            // GRAPHIC slot a GRA-. A clear mismatch is almost always a paste into
+            // the wrong row — warn, but let the user override for the rare case.
+            const prefix = ident.split('-')[0];
+            const want = _calLinearExpectPrefix(which);
+            if ((prefix === 'GRA' || prefix === 'VID') && prefix !== want) {
+                const isG = prefix === 'GRA';
+                showConfirm('Wrong slot for this link?',
+                    'That looks like a ' + (isG ? 'GRAPHIC (GRA-)' : 'VIDEO (VID-)') + ' sub-issue, but you’re setting the '
+                    + (which === 'graphic' ? 'GRAPHIC' : 'VIDEO') + ' link. Use it here anyway?',
+                    () => applyCommit(val), 'Use it anyway');
+                return;
+            }
+            // (3) Uniqueness guard. A non-empty NEW link that already lives on
+            // another live card: don't silently swallow it (the dedupe would
+            // collapse the two cards on the next refresh, so the link would appear
+            // to vanish). Surface the clash and offer to MOVE it here; the real
+            // commit waits on the user's choice.
             const conflict = _calLinkConflict(val, pid);
             if (conflict) { _calShowLinkConflict(pid, which, val, conflict); return; }
         }
-        if (changed) {
-            if (post) post[fld] = val;
-            if (!_calPendingEdits[pid]) _calPendingEdits[pid] = {};
-            _calPendingEdits[pid][fld] = val;
-            _calFlushCardSave(pid);
-            if (val) _calArchivedRemove(calClientSlug(calState.client), [val]);
-        }
-        if (changed) {
-            _calRenderBody({ preserveScroll: true });
-            if (val && post) _calSyncStatusFromLinear(pid, val, which);
-            return;
-        }
-        const row = document.querySelector(`[data-title-row="${pid}"]`);
-        if (row) row.innerHTML = _calTitleRowHtml(pid, post || { id: pid }, _isClientLink);
+
+        // val may be '' here → an intentional clear, which is allowed.
+        applyCommit(val);
     }
     /* Paste-time uniqueness guard. A Linear sub-issue is effectively a unique
        key: the status-sync, the status push and the dedupe all assume one card

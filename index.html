@@ -13043,6 +13043,19 @@
             const t = Date.parse(p && p.updated_at || '');
             return isFinite(t) ? t : 0;
         };
+        // Archived cards are "almost deleted" — they must NOT compete for a link
+        // key. An archived twin that shares a Linear issue with a LIVE card was
+        // silently knocking the live card out of the calendar (it "won" the key,
+        // so the live row got filtered away and appeared to vanish / revert). The
+        // paste-time guard (_calLinkConflict) already ignores archived cards; this
+        // makes the dedupe match it. Refs come from status === 'Archived' OR the
+        // local archive ledger, same as _calLinkConflict.
+        let _archRefs = null;
+        try { _archRefs = _calArchivedRefs(calClientSlug(calState.client)); } catch (e) {}
+        const _isArch = (p) => {
+            if (String((p && p.status) || '').toLowerCase() === 'archived') return true;
+            try { return !!(_archRefs && _calIsArchivedRef(p, _archRefs)); } catch (e) { return false; }
+        };
         // One winner per link key, considering BOTH the video (linear_issue_id)
         // and graphic (graphic_linear_issue_id) slots — video & graphic are
         // deduped symmetrically so a duplicate behaves identically in either
@@ -13061,15 +13074,17 @@
             }
         };
         for (const p of posts) {
-            if (!p) continue;
+            if (!p || _isArch(p)) continue;   // archived cards don't claim a key
             consider(p, p.linear_issue_id);
             consider(p, p.graphic_linear_issue_id);
         }
-        // Preserve the original ordering: a row survives only when it is the
+        // Preserve the original ordering: a LIVE row survives only when it is the
         // chosen winner for EVERY link it carries (a row with no link at all
-        // always passes through unchanged).
+        // always passes through unchanged). Archived rows always pass through —
+        // downstream rendering filters them — they just can't drop a live row.
         return posts.filter(p => {
             if (!p) return false;
+            if (_isArch(p)) return true;
             const vKey = _calLinkKey(p.linear_issue_id);
             const gKey = _calLinkKey(p.graphic_linear_issue_id);
             if (vKey && bestByLink.get(vKey) !== p) return false;

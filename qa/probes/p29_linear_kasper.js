@@ -10,7 +10,7 @@ const vurl = (id) => 'https://linear.app/sidtest/issue/' + id;
 (async () => {
   const S = Q.makeOk('P29 linear-kasper');
   const browser = await Q.launch();
-  const PW = require('/opt/node22/lib/node_modules/playwright');
+  const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 950 }, ignoreHTTPSErrors: true });
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const setCalls = [], addCalls = [];

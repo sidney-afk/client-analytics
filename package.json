@@ -1,0 +1,14 @@
+{
+  "name": "client-analytics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SyncView — single-file calendar app (index.html) plus its automated test suites.",
+  "scripts": {
+    "test": "node test/run-all.js",
+    "test:unit": "node test/run-all.js",
+    "test:e2e": "node qa/run-probes.js"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1"
+  }
+}

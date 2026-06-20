@@ -18,7 +18,7 @@ const ADD = 'https://synchrosocial.app.n8n.cloud/webhook/linear-add-comment';
   const S = Q.makeOk('P28 linear-sync');
   const browser = await Q.launch();
   // SMM page with interception of the two Linear webhooks
-  const PW = require('/opt/node22/lib/node_modules/playwright');
+  const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, ignoreHTTPSErrors: true });
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
   const setCalls = [], addCalls = [];

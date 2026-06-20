@@ -6,7 +6,7 @@
 //   • title has no Linear sub-issue, so a title status change/ tweak NEVER pushes to Linear
 //     (we route every Linear webhook and assert ZERO title-driven calls).
 const Q = require('./lib.js');
-const PW = require('/opt/node22/lib/node_modules/playwright');
+const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 const PID = 'p_ttl_' + Math.floor(Date.now() / 1000);
 
 const overall = (page, pid) => page.evaluate((pid) => { const p = (calState.posts || []).find(x => x.id === pid); return p ? computeOverallStatus(p) : 'NO_POST'; }, pid);

@@ -1,0 +1,21 @@
+name: Calendar unit tests
+
+# Fast, dependency-free logic/wiring checks (test/*.js). They extract pieces of
+# index.html's inline script and assert on them — no network, no backend, no
+# browser — so they run on every push and pull request as the always-on net.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run unit suite (test/*.js)
+        run: node test/run-all.js

@@ -1,0 +1,36 @@
+name: Calendar E2E (nightly)
+
+# Drives the REAL index.html in headless Chromium against the LIVE Supabase +
+# n8n backend, exercising every calendar interaction across the SMM / Client /
+# Kasper surfaces. Scoped to the test client `sidneylaruel`; every probe cleans
+# up after itself (archives its cards, tombstones its comments). Because these
+# write to the live backend and depend on network/realtime timing, they run on a
+# schedule + on demand — NOT on every push. Each probe is retried (PROBE_ATTEMPTS)
+# to absorb transient flakiness; the job is red only if a probe fails every try.
+on:
+  schedule:
+    - cron: '0 8 * * *'   # 08:00 UTC nightly
+  workflow_dispatch:
+    inputs:
+      probes:
+        description: 'Optional space-separated probe names to run instead of the manifest (e.g. "p42_concurrent_components p46_pagination_fix")'
+        required: false
+        default: ''
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright + Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Run headless probes (serves app, scoped to sidneylaruel)
+        env:
+          PROBE_ATTEMPTS: '3'
+        run: node qa/run-probes.js ${{ github.event.inputs.probes }}

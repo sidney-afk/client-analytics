@@ -1,0 +1,60 @@
+# Probes run by the nightly E2E workflow (qa/run-probes.js).
+# One filename per line; '#' starts a comment. These are the verified, stable
+# end-to-end interaction probes (the 2026-06 QA pass). The older exploratory
+# probes p00–p27 stay in qa/probes/ for reference but are not part of the gate
+# until re-verified. Each probe is retried up to PROBE_ATTEMPTS times.
+
+# --- status sync: Linear push (SMM / Kasper / client) ---
+p28_linear_sync.js
+p29_linear_kasper.js
+p30_linear_client.js
+# --- caption generation ---
+p31_caption_gen.js
+p32_caption_races.js
+p38_bulk_caption.js
+# --- selection / status / placement ---
+p33_shift_range.js
+p34_set_all.js
+p35_month_grid.js
+p36_full_sync.js
+# --- notes / comments / inbox / unread ---
+p39_kasper_inbox.js
+p40_unread_dot.js
+p41_tweak_rounds.js
+# --- concurrency ---
+p42_concurrent_components.js
+p43_smm_client_concurrent.js
+p43b_stale_overall_heal.js
+p44_kasper_clobber_blastradius.js
+p65_concurrent_same_thread.js
+# --- lifecycles ---
+p45_aat_flow.js
+p47_title_review.js
+p48_schedule_post_archive.js
+p53_kasper_finish_handoff.js
+p54_kasper_undo_close.js
+p55_kasper_comment.js
+p71_full_pipeline_capstone.js
+# --- pagination / isolation / reconcile / realtime ---
+p46_pagination_fix.js
+p49_realtime_propagation.js
+p56_cross_client_isolation.js
+p59_reconcile_live.js
+p70_rapid_realtime_converge.js
+# --- per-surface review + mixed state ---
+p50_mixed_state_card.js
+p51_client_tweak_roundtrip.js
+p57_smm_review_sheet.js
+# --- comments modal (deep) ---
+p60_modal_smm.js
+p61_modal_client.js
+p62_modal_resolve_delete.js
+p63_client_privacy_filter.js
+p64_modal_feed_badge.js
+# --- editing / misc ---
+p52_alt_caption.js
+p58_bulk_archive_color.js
+p66_stale_approval_clear.js
+p67_thumb_rev_cachebust.js
+p68_linear_link_clear.js
+p69_date_reschedule.js

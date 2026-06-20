@@ -15183,33 +15183,41 @@
        silently drops every row past the first 1000 — which once the table
        crossed 1000 rows hid freshly-added cards from Kasper's unscoped queue
        (and would hide a heavy client's cards from the calendar). Page through
-       the rows until a short page signals the end, so every row is fetched
-       however large the table grows.
+       with KEYSET (cursor) pagination — immune to the offset-window drift that
+       skips/dups rows when the LIVE table is written between page reads.
 
-       KEYSET (cursor) pagination, not offset: each page after the first asks
-       for ids strictly greater than the last id seen, ordered by id. This is
-       immune to the offset-window drift that duplicates/skips rows when the
-       LIVE table is written between page reads (a card added/archived mid-scan
-       just lands in its natural id position). id is the unique PK, so the
-       cursor is total and stable. The `signal` threads the caller's
-       abort/timeout through every page. Caller passes a URL WITHOUT
-       `limit`/`offset`/`order`/`id=gt`; we add them. */
+       COMPOUND cursor on (id, client): `id` is NOT globally unique — the same
+       id is reused across different clients (rows are keyed by (client, id), not
+       id alone; e.g. a template applied to several clients reuses one id). An
+       id-only cursor (`id=gt.X`) would skip every sibling of a same-id group
+       that happened to straddle a 1000-row page boundary. (id, client) IS
+       unique, so the compound cursor "(id,client) > (curId,curClient)" never
+       skips or duplicates a row. Requires the caller's `select` to include id
+       AND client — the production callers use `select=*`. The `signal` threads
+       the caller's abort/timeout through every page. Caller passes a URL WITHOUT
+       order/limit/cursor; we add them. */
     const CAL_SUPABASE_PAGE = 1000;
     async function _calSupabaseFetchAllRows(baseUrl, signal) {
         const sep = baseUrl.indexOf('?') >= 0 ? '&' : '?';
         const headers = { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
+        const enc = encodeURIComponent;
         const all = [];
-        let cursor = null;
-        for (let page = 0; page < 10000; page++) {     // hard ceiling: 10,000,000 rows
-            let pageUrl = baseUrl + sep + 'order=id.asc&limit=' + CAL_SUPABASE_PAGE;
-            if (cursor != null) pageUrl += '&id=gt.' + encodeURIComponent(cursor);
+        let curId = null, curClient = null;
+        for (let page = 0; page < 100000; page++) {     // hard ceiling: 100,000,000 rows
+            let pageUrl = baseUrl + sep + 'order=id.asc,client.asc&limit=' + CAL_SUPABASE_PAGE;
+            if (curId != null) {
+                // (id, client) strictly greater than the last row seen
+                pageUrl += '&or=(id.gt.' + enc(curId) + ',and(id.eq.' + enc(curId) + ',client.gt.' + enc(curClient == null ? '' : curClient) + '))';
+            }
             const resp = await fetch(pageUrl, { headers, signal: signal || undefined });
             if (!resp.ok) throw new Error('Supabase HTTP ' + resp.status);
             const rows = await resp.json();
             if (!Array.isArray(rows)) throw new Error('Supabase: unexpected payload');
             for (const r of rows) all.push(r);
             if (rows.length < CAL_SUPABASE_PAGE) break;
-            cursor = rows[rows.length - 1].id;
+            const last = rows[rows.length - 1];
+            curId = last.id;
+            curClient = last.client;
         }
         return all;
     }

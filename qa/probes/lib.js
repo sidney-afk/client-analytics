@@ -1,7 +1,9 @@
 // Extended harness for overnight calendar testing. Builds on the repo's golden_lib.
 // Scope: ONLY the `sidneylaruel` test client. Every probe must clean up (archive) what it creates.
 const G = require('../golden_lib.js');
-const PW = require('/opt/node22/lib/node_modules/playwright');
+// Playwright: use the locally-installed module in CI; fall back to the
+// container's global path for ad-hoc local runs.
+const PW = (() => { try { return require('playwright'); } catch (e) { return require('/opt/node22/lib/node_modules/playwright'); } })();
 const ORIGIN = 'http://localhost:8000';
 const UPSERT = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
 const SUPA   = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';

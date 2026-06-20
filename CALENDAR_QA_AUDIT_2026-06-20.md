@@ -155,6 +155,17 @@ undo, cross-surface archive). Offline unit suite: `test/*.js` (19 tests).
 - **Sidney's fixtures:** collab_mode=true, title_review=true, enabled_platforms=
   [instagram,youtube,linkedin], 4 real scratch cards (TESTTT, TEST 1/2/3) — leave them intact.
 
+## 5b. CI (automated — no manual testing)
+- **`.github/workflows/calendar-unit-tests.yml`** — runs `node test/run-all.js` (the 19 unit suites)
+  on **every push + PR**. Fast, no network/browser. The always-on gate.
+- **`.github/workflows/calendar-e2e-nightly.yml`** — runs `node qa/run-probes.js` (the
+  `nightly-manifest.txt` set, 44 probes) **nightly at 08:00 UTC + on demand** (Actions → Run
+  workflow; optional probe-subset input). Each probe is retried (`PROBE_ATTEMPTS`, default 3) to
+  absorb transient network/realtime flakiness; red only if a probe fails every attempt.
+- Local: `npm run test:unit` (fast) and `npm run test:e2e` (serves the app + runs the probes).
+- Manifest is verified green end-to-end (44/44). When adding a probe, append it to
+  `nightly-manifest.txt` once it's stable.
+
 ## 6. Recommended future testing
 - Re-run the suite after any calendar change; `p42`/`p65`/`p59`/`p70` are the concurrency canaries.
 - Untested edges worth adding: reserve-tray drag-to-schedule UI, settings reconcile cross-device

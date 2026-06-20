@@ -68,7 +68,11 @@ const hasStatus = (st) => (c) => String(c.issue || '').includes('FS-' + TS) && c
     S.ok(await waitFor(addCalls, c => String(c.issue || '').includes('FS-' + TS) && /re-cut the intro/i.test(String(c.body || ''))), 'step3 LINEAR: posted the client tweak comment to the video issue');
 
     // STEP 4 — SMM moves video back to Client Approval. DB + Linear.
-    await smm.evaluate((pid) => { try { _calStatusPick(pid, 'Client Approval', 'video'); } catch (e) {} }, PID);
+    // Refresh the SMM page so it has seen the client's step-3 write FIRST — otherwise the SMM's
+    // save base is stale and the upsert's conflict guard correctly rejects it ("someone else
+    // updated this card"). A human would see the Tweaks-Needed flip before acting; mirror that.
+    await Q.waitForPost(smm, PID, "p=>p.video_status==='Tweaks Needed'");
+    await smm.evaluate((pid) => { try { delete _calPendingEdits[pid]; _calStatusPick(pid, 'Client Approval', 'video'); } catch (e) {} }, PID);
     r = await Q.pollRaw(PID, x => x.video_status === 'Client Approval', 'video_status', 16000);
     S.ok(r.video_status === 'Client Approval', 'step4 DB: SMM moves video → Client Approval');
     S.ok(await waitFor(setCalls, c => String(c.issue || '').includes('FS-' + TS) && c.status === 'Client Approval'), 'step4 LINEAR: re-pushed status=Client Approval');

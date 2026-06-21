@@ -69,5 +69,9 @@ p77_linear_link_validation.js
 # --- approve/request lifecycle cycles (2026-06-20) ---
 p78_approve_undo_reapprove.js
 p79_request_approve_pingpong.js
+# --- concurrency + Linear-link integration (2026-06-20) ---
+p80_concurrent_comment_status.js
+p81_link_move_conflict.js
+p82_archive_resolves_collision.js
 # --- concurrency: comment-merge vs status field-patch on the same card ---
 p80_concurrent_comment_status.js

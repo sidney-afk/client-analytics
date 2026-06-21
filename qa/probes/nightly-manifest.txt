@@ -74,5 +74,3 @@ p80_concurrent_comment_status.js
 p81_link_move_conflict.js
 p82_archive_resolves_collision.js
 p83_reply_to_resolved.js
-# --- concurrency: comment-merge vs status field-patch on the same card ---
-p80_concurrent_comment_status.js

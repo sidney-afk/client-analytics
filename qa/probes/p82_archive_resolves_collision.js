@@ -13,8 +13,8 @@ const state = (smm, id) => smm.evaluate(async (a) => {
   for (let i = 0; i < 10; i++) { try { await loadCalendarPosts(); } catch (e) {} await new Promise(x => setTimeout(x, 700)); }
   const p = (calState.posts || []).find(x => x.id === a.id);
   const flagged = !!(p && typeof _calLinkDuplicatePeers === 'function' && _calLinkDuplicatePeers(p).length);
-  const banner = !!document.querySelector('.cal-card[data-pid="' + a.id + '"] .cal-dupe-warn');
-  return { visible: !!p, flagged, banner };
+  const el = document.querySelector('.cal-card[data-pid="' + a.id + '"] .cal-dupe-warn');
+  return { visible: !!p, flagged, banner: !!el, bannerText: el ? el.textContent : '' };
 }, { id });
 
 (async () => {
@@ -33,6 +33,8 @@ const state = (smm, id) => smm.evaluate(async (a) => {
     // and BOTH are flagged as duplicates (data + the on-card warning banner)
     S.ok(a1.flagged && b1.flagged, 'both cards are detected as duplicates (_calLinkDuplicatePeers)');
     S.ok(a1.banner === true && b1.banner === true, 'both cards render the "duplicate Linear issue" warning banner');
+    // the collision is a shared GRAPHIC link → the banner must name the THUMBNAIL (not video)
+    S.ok(/thumbnail/i.test(a1.bannerText) && !/video/i.test(a1.bannerText), 'banner names the component: "thumbnail" for a graphic collision (' + JSON.stringify(a1.bannerText.trim().slice(0, 60)) + ')');
 
     // archive B → A stays visible AND the duplicate flag clears (collision resolved)
     await Q.up({ id: B, status: 'Archived' });

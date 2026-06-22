@@ -71,27 +71,49 @@ console.log('============================================================');
   ok(out.length === 3 && out[0] === a && out[1] === b && out[2] === c, 'no active card is dropped — all returned, order kept');
   ok(_calDedupeByLinearIssue([a]) === undefined || _calDedupeByLinearIssue([{ id: 'x' }]).length === 1, 'fewer than 2 posts returns input as-is');
 }
-// _calLinkDuplicatePeers — names the OTHER cards sharing a Linear issue (from calState).
-const peers = (p) => { const x = _calLinkDuplicatePeers(p); return Array.isArray(x) ? x.slice().sort() : x; };
+// _calLinkDuplicatePeers — the OTHER cards sharing a Linear issue, grouped by the
+// colliding slot: [{ comp:'video'|'graphic', names:[...] }]. names for one component:
+const peerComp = (p, comp) => { const g = (_calLinkDuplicatePeers(p) || []).find(d => d.comp === comp); return g ? g.names.slice().sort() : []; };
 {
   const a = { id: 'a', name: 'Card A', linear_issue_id: VID1, status: 'In Progress' };
   const b = { id: 'b', name: 'Card B', linear_issue_id: VID1, status: 'Approved' };
   const c = { id: 'c', name: 'Card C', linear_issue_id: VID2, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, b, c] };
-  ok(JSON.stringify(peers(a)) === JSON.stringify(['Card B']), 'two cards on one VIDEO link see each other as duplicates');
-  ok(JSON.stringify(peers(b)) === JSON.stringify(['Card A']), 'the warning is symmetric');
+  ok(JSON.stringify(peerComp(a, 'video')) === JSON.stringify(['Card B']), 'two cards on one VIDEO link see each other as duplicates (comp=video)');
+  ok(JSON.stringify(peerComp(b, 'video')) === JSON.stringify(['Card A']), 'the warning is symmetric');
   ok(_calLinkDuplicatePeers(c).length === 0, 'a card on a unique issue has no duplicate peers');
 }
-// shared GRAPHIC link (case/space-insensitive), and cross-slot (video == graphic).
+// A shared GRAPHIC link is reported as comp=graphic (NOT video) — case/space-insensitive.
 {
   const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, status: 'In Progress' };
   const b = { id: 'b', name: 'B', graphic_linear_issue_id: '  ' + GRA9.toUpperCase() + ' ', status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [a, b] };
-  ok(_calLinkDuplicatePeers(a).includes('B'), 'shared GRAPHIC link (case/space-insensitive) is flagged');
+  ok(peerComp(a, 'graphic').includes('B') && peerComp(a, 'video').length === 0, 'a shared GRAPHIC link is flagged as comp=graphic, not video');
+  // cross-slot: a card's VIDEO issue sitting in another card's GRAPHIC slot.
   const v = { id: 'v', name: 'V', linear_issue_id: VID1, status: 'In Progress' };
   const g = { id: 'g', name: 'G', graphic_linear_issue_id: VID1, status: 'In Progress' };
   globalThis.calState = { client: 'x', posts: [v, g] };
-  ok(_calLinkDuplicatePeers(v).includes('G'), 'same issue across different slots (video vs graphic) is flagged');
+  ok(peerComp(v, 'video').includes('G'), 'same issue across different slots is flagged (from the video owner, comp=video)');
+}
+// The banner TEXT names the component — the whole point of this change.
+{
+  const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  const _calDupeWarnText = def('_calDupeWarnText');
+  const txt = _calDupeWarnText(_calLinkDuplicatePeers(a));
+  ok(/thumbnail/.test(txt) && /\bB\b/.test(txt) && !/video/.test(txt), 'banner reads "Same thumbnail Linear issue as B" for a graphic collision');
+  globalThis.calState = { client: 'x', posts: [{ id: 'a', name: 'A', linear_issue_id: VID1, status: 'In Progress' }, { id: 'b', name: 'B', linear_issue_id: VID1, status: 'In Progress' }] };
+  ok(/video/.test(_calDupeWarnText(_calLinkDuplicatePeers(globalThis.calState.posts[0]))), 'banner reads "video" for a video collision');
+}
+// A card colliding on BOTH slots reports both groups, video first.
+{
+  const a = { id: 'a', name: 'A', linear_issue_id: VID1, graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const bv = { id: 'bv', name: 'BV', linear_issue_id: VID1, status: 'In Progress' };
+  const bg = { id: 'bg', name: 'BG', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, bv, bg] };
+  const out = _calLinkDuplicatePeers(a);
+  ok(out.length === 2 && out[0].comp === 'video' && out[0].names.includes('BV') && out[1].comp === 'graphic' && out[1].names.includes('BG'), 'collisions on BOTH slots are reported, video first');
 }
 // archived cards neither raise nor receive a duplicate warning.
 {
@@ -350,6 +372,11 @@ ok(/linear_issue_id/.test(peersSrc) && /graphic_linear_issue_id/.test(peersSrc),
    '_calLinkDuplicatePeers checks BOTH the video and graphic slots');
 ok(/isArch/.test(peersSrc) && /calState\.posts/.test(peersSrc),
    '_calLinkDuplicatePeers excludes archived cards and reads the live card list');
+ok(/comp: 'video'/.test(peersSrc) && /comp: 'graphic'/.test(peersSrc),
+   '_calLinkDuplicatePeers reports WHICH slot collides (video vs graphic)');
+const warnSrc = grabFunc('_calDupeWarnText');
+ok(/thumbnail/.test(warnSrc) && /Linear issue as/.test(warnSrc),
+   '_calDupeWarnText names the component (thumbnail vs video) in the banner copy');
 const showSrc = grabFunc('_calShowLinkConflict');
 ok(/Move it here/.test(showSrc) && /Cancel/.test(showSrc) && /already linked to/.test(showSrc),
    '_calShowLinkConflict renders the Move/Cancel prompt copy');

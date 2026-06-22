@@ -1,0 +1,302 @@
+{
+  "_backup_note": "SyncView TikTok Upload \u2014 Submit (workflow id o6wWaGNlIlyZFTX7). Captured 2026-06-22 BEFORE migrating from upload-post.com to Post For Me (api.postforme.dev). activeVersionId at capture: 07dd92cc-2671-403c-a446-79412c4cfc72. To restore the old behavior, re-import this file or roll back to that version in the n8n UI. The single 'Call upload-post.com' HTTP node (multipart POST to https://api.upload-post.com/api/upload, credential 'Upload-Post' httpHeaderAuth) is the node being replaced by the 3-step Post For Me flow.",
+  "name": "SyncView TikTok Upload \u2014 Submit",
+  "id": "o6wWaGNlIlyZFTX7",
+  "active": true,
+  "activeVersionId": "07dd92cc-2671-403c-a446-79412c4cfc72",
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "description": "POST /webhook/tiktok-upload. Prefers scheduledAtUTC; else converts scheduledAt+timezone to UTC via Intl. Forwards to upload-post.com /api/upload, upserts a TikTokUploads row, returns {ok,id,status,row}.",
+  "connections": {
+    "Receive POST": {
+      "main": [
+        [
+          {
+            "node": "Build Upload Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Upload Row": {
+      "main": [
+        [
+          {
+            "node": "Call upload-post.com",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call upload-post.com": {
+      "main": [
+        [
+          {
+            "node": "Merge Upload Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Upload Response": {
+      "main": [
+        [
+          {
+            "node": "Append TikTokUploads Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append TikTokUploads Row": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Response": {
+      "main": [
+        [
+          {
+            "node": "Respond JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "id": "753ce82f-5f5a-4113-bccc-5fd9af290278",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "tiktok-upload",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*",
+          "binaryPropertyName": "media"
+        }
+      },
+      "webhookId": "27f5ac6e-1e35-4b1c-968b-f3bbf9bf17b0"
+    },
+    {
+      "id": "1a7a9341-15cd-4c8d-9bc5-106eb570ecb8",
+      "name": "Build Upload Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first() || {};\nconst json = item.json || {};\nconst body = json.body || {};\nconst client = String(body.clientName || '').trim();\nconst profile = String(body.profile || '').trim();\nconst title = String(body.title || '').trim();\nif (!client) throw new Error('clientName required');\nif (!profile) throw new Error('profile required');\nif (!title) throw new Error('title required');\nlet options = {};\ntry { options = body.options ? JSON.parse(body.options) : {}; } catch (e) {}\nconst id = String(body.idempotencyKey || '').trim() || ('tk_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8));\n\nlet scheduledUtc = '';\nconst rawUtc = String(body.scheduledAtUTC || '').trim();\nconst rawLocal = String(body.scheduledAt || '').trim();\nconst tz = String(body.timezone || '').trim();\nif (rawUtc) {\n  const d = new Date(rawUtc);\n  if (!isNaN(d.getTime())) scheduledUtc = d.toISOString();\n}\nif (!scheduledUtc && rawLocal) {\n  const m = /^(\\d{4})-(\\d{2})-(\\d{2})T(\\d{2}):(\\d{2})(?::(\\d{2}))?/.exec(rawLocal);\n  if (m && tz) {\n    const y = +m[1], mo = +m[2], d_ = +m[3], h = +m[4], mi = +m[5], s = +(m[6] || 0);\n    const naiveUTC = Date.UTC(y, mo - 1, d_, h, mi, s);\n    try {\n      const dtf = new Intl.DateTimeFormat('en-US', {\n        timeZone: tz, hourCycle: 'h23',\n        year: 'numeric', month: '2-digit', day: '2-digit',\n        hour: '2-digit', minute: '2-digit', second: '2-digit'\n      });\n      const parts = Object.fromEntries(dtf.formatToParts(new Date(naiveUTC)).map(p => [p.type, p.value]));\n      const asTz = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);\n      scheduledUtc = new Date(naiveUTC - (asTz - naiveUTC)).toISOString();\n    } catch (e) {}\n  }\n  if (!scheduledUtc) {\n    const d2 = new Date(rawLocal.length === 16 ? rawLocal + ':00' : rawLocal);\n    if (!isNaN(d2.getTime())) scheduledUtc = d2.toISOString();\n  }\n}\n\nconst status = scheduledUtc ? 'scheduled' : 'uploading';\nconst nowIso = new Date().toISOString();\nconst inBin = item.binary || {};\nlet mediaKey = '';\nif (inBin.media) mediaKey = 'media';\nelse {\n  const keys = Object.keys(inBin);\n  mediaKey = keys.find(k => k === 'media0') || keys[0] || '';\n}\nconst outBin = mediaKey ? { media: inBin[mediaKey] } : {};\nconst row = {\n  id, client, profile, title,\n  post_comment: String(body.postComment || ''),\n  options_json: JSON.stringify(options),\n  scheduled_for: scheduledUtc,\n  timezone: tz,\n  status,\n  upload_post_id: '',\n  tiktok_url: '',\n  error: '',\n  posted_at: '',\n  created_at: nowIso,\n  updated_at: nowIso,\n};\nreturn [{ json: { ...row, _options: options, _scheduledUtc: scheduledUtc }, binary: outBin }];"
+      }
+    },
+    {
+      "id": "d1e566c7-7c87-44f0-afbb-a219dba96270",
+      "name": "Call upload-post.com",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.upload-post.com/api/upload",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user",
+              "value": "={{ $json.profile }}"
+            },
+            {
+              "name": "title",
+              "value": "={{ $json.title }}"
+            },
+            {
+              "name": "platform[]",
+              "value": "tiktok"
+            },
+            {
+              "name": "privacy_level",
+              "value": "={{ $json._options.privacy_level || \"PUBLIC_TO_EVERYONE\" }}"
+            },
+            {
+              "name": "post_mode",
+              "value": "={{ $json._options.post_mode || \"DIRECT_POST\" }}"
+            },
+            {
+              "name": "cover_timestamp_ms",
+              "value": "={{ $json._options.cover_timestamp_ms || 1000 }}"
+            },
+            {
+              "name": "disable_duet",
+              "value": "={{ $json._options.disable_duet ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "disable_comment",
+              "value": "={{ $json._options.disable_comment ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "disable_stitch",
+              "value": "={{ $json._options.disable_stitch ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "brand_content_toggle",
+              "value": "={{ $json._options.brand_content_toggle ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "brand_organic_toggle",
+              "value": "={{ $json._options.brand_organic_toggle ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "is_aigc",
+              "value": "={{ $json._options.is_aigc ? \"true\" : \"false\" }}"
+            },
+            {
+              "name": "scheduled_date",
+              "value": "={{ $json._scheduledUtc }}"
+            },
+            {
+              "name": "post_comment",
+              "value": "={{ $json.post_comment }}"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "video",
+              "inputDataFieldName": "media"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 180000
+        }
+      }
+    },
+    {
+      "id": "9664617a-934f-4f73-b741-7c902b3f5014",
+      "name": "Merge Upload Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const prev = $('Build Upload Row').first().json || {};\nconst resp = ($input.first() && $input.first().json) || {};\nconst tk = (resp.results && (resp.results.tiktok || resp.results.TikTok)) || {};\nconst ok = resp.success === true || resp.success === 'true' || !!tk.id;\nconst uploadPostId = tk.id ? String(tk.id) : '';\nconst tiktokUrl = (tk.share_url || tk.url) ? String(tk.share_url || tk.url) : '';\nlet errMsg = '';\nif (!ok) {\n  const raw = resp.message || resp.error || (typeof resp === 'string' ? resp : JSON.stringify(resp));\n  errMsg = String(raw).slice(0, 280);\n}\nconst isImmediatePost = ok && prev.status === 'uploading';\nconst status = ok ? (isImmediatePost ? 'posted' : prev.status) : 'failed';\nconst nowIso = new Date().toISOString();\nconst postedAt = isImmediatePost ? nowIso : (prev.posted_at || '');\nconst { _options, _scheduledUtc, ...row } = prev;\nreturn [{ json: { ...row, status, upload_post_id: uploadPostId, tiktok_url: tiktokUrl, error: errMsg, posted_at: postedAt, updated_at: nowIso } }];"
+      }
+    },
+    {
+      "id": "c0f87e5b-0c93-4ceb-99ef-821b02b048f9",
+      "name": "Append TikTokUploads Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 442801294,
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [
+            "id"
+          ]
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      }
+    },
+    {
+      "id": "36590d99-38f6-4ff4-9084-e4feddfbfa1c",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const row = ($input.first() && $input.first().json) || {};\nreturn [{ json: { ok: row.status !== 'failed', id: row.id, status: row.status, scheduled_for: row.scheduled_for, error: row.error || undefined, row } }];"
+      }
+    },
+    {
+      "id": "cba6deed-421a-429d-996f-3a72423952ff",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1344,
+        0
+      ],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

@@ -2080,6 +2080,11 @@
         .cal-card.is-blank .cal-card-thumb-fallback { color: #c5c5c2; }
         .cal-card.is-blank .cal-card-thumb-fallback svg { width: 44px; height: 44px; }
         .cal-card-body { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
+        /* Duplicate Linear-issue warning — two active cards point at the same sub-issue.
+           Loud (red) so a collision can never hide silently the way it used to. */
+        .cal-dupe-warn { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+            border-radius: 7px; padding: 6px 9px; font-size: 0.7rem; font-weight: 700;
+            line-height: 1.3; letter-spacing: 0.01em; }
 
         /* Title — reads as a heading, not a form field */
         .cal-fld-name { width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent;
@@ -13037,60 +13042,40 @@
        the paste-time collision check (_calLinkConflict) so the warning predicts
        exactly what the dedupe would otherwise collapse. */
     function _calLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    // Two active cards that point at the same Linear sub-issue USED to be collapsed
+    // here — one was silently dropped from the calendar. That hidden-but-active card is
+    // exactly what blocked its twin's link and made it "revert"/vanish with no warning.
+    // We no longer collapse: both cards render, and each shows a duplicate warning (see
+    // _calLinkDuplicatePeers + the .cal-dupe-warn banner) so the user can resolve it
+    // (archive one / relink). Kept as an explicit pass-through so the call sites read
+    // clearly. (Linear PULL/import is disabled under v2, so there are no backend-created
+    // phantom rows that would need collapsing.)
     function _calDedupeByLinearIssue(posts) {
-        if (!Array.isArray(posts) || posts.length < 2) return posts || [];
-        const score = (p) => {
-            const t = Date.parse(p && p.updated_at || '');
-            return isFinite(t) ? t : 0;
-        };
-        // Archived cards are "almost deleted" — they must NOT compete for a link
-        // key. An archived twin that shares a Linear issue with a LIVE card was
-        // silently knocking the live card out of the calendar (it "won" the key,
-        // so the live row got filtered away and appeared to vanish / revert). The
-        // paste-time guard (_calLinkConflict) already ignores archived cards; this
-        // makes the dedupe match it. Refs come from status === 'Archived' OR the
-        // local archive ledger, same as _calLinkConflict.
-        let _archRefs = null;
-        try { _archRefs = _calArchivedRefs(calClientSlug(calState.client)); } catch (e) {}
-        const _isArch = (p) => {
+        return Array.isArray(posts) ? posts : (posts || []);
+    }
+    // Names of OTHER non-archived cards that share a Linear sub-issue (video OR graphic)
+    // with `post`. Computed live from calState AT RENDER, so it always reflects the
+    // final card list — no per-row flag to keep in sync through the load/merge (which
+    // dropped it). Drives the duplicate-issue warning banner. Mirrors _calLinkConflict's
+    // archived exclusion: archived cards neither raise nor receive a warning.
+    function _calLinkDuplicatePeers(post) {
+        if (!post) return [];
+        let archived = null;
+        try { archived = _calArchivedRefs(calClientSlug(calState.client)); } catch (e) {}
+        const isArch = (p) => {
             if (String((p && p.status) || '').toLowerCase() === 'archived') return true;
-            try { return !!(_archRefs && _calIsArchivedRef(p, _archRefs)); } catch (e) { return false; }
+            try { return !!(archived && _calIsArchivedRef(p, archived)); } catch (e) { return false; }
         };
-        // One winner per link key, considering BOTH the video (linear_issue_id)
-        // and graphic (graphic_linear_issue_id) slots — video & graphic are
-        // deduped symmetrically so a duplicate behaves identically in either
-        // slot. Winner = most-recently-touched (updated_at), order_index as the
-        // tiebreak; on a full tie the first row in input order keeps it.
-        const bestByLink = new Map();
-        const consider = (p, link) => {
-            const key = _calLinkKey(link);
-            if (!key) return;
-            const prev = bestByLink.get(key);
-            if (!prev) { bestByLink.set(key, p); return; }
-            const sNew = score(p), sPrev = score(prev);
-            if (sNew > sPrev
-                || (sNew === sPrev && Number(p.order_index || 0) > Number(prev.order_index || 0))) {
-                bestByLink.set(key, p);
-            }
-        };
-        for (const p of posts) {
-            if (!p || _isArch(p)) continue;   // archived cards don't claim a key
-            consider(p, p.linear_issue_id);
-            consider(p, p.graphic_linear_issue_id);
+        if (isArch(post)) return [];
+        const myKeys = [_calLinkKey(post.linear_issue_id), _calLinkKey(post.graphic_linear_issue_id)].filter(Boolean);
+        if (!myKeys.length) return [];
+        const peers = [];
+        for (const p of (calState.posts || [])) {
+            if (!p || p.id === post.id || isArch(p)) continue;
+            const ks = [_calLinkKey(p.linear_issue_id), _calLinkKey(p.graphic_linear_issue_id)].filter(Boolean);
+            if (ks.some(k => myKeys.includes(k))) peers.push(String(p.name || '').trim() || 'Untitled post');
         }
-        // Preserve the original ordering: a LIVE row survives only when it is the
-        // chosen winner for EVERY link it carries (a row with no link at all
-        // always passes through unchanged). Archived rows always pass through —
-        // downstream rendering filters them — they just can't drop a live row.
-        return posts.filter(p => {
-            if (!p) return false;
-            if (_isArch(p)) return true;
-            const vKey = _calLinkKey(p.linear_issue_id);
-            const gKey = _calLinkKey(p.graphic_linear_issue_id);
-            if (vKey && bestByLink.get(vKey) !== p) return false;
-            if (gKey && bestByLink.get(gKey) !== p) return false;
-            return true;
-        });
+        return [...new Set(peers)];
     }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
@@ -17714,6 +17699,9 @@
         // lives in _calReviewCardBody / _calReviewPanelHtml exclusively.
         const canApprove = false;
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
+        // Other active cards that point at this card's Linear sub-issue(s) — drives the
+        // duplicate warning banner. Computed here (render) from the live card list.
+        const dupePeers = (!_isClientLink && !isBlank) ? _calLinkDuplicatePeers(p) : [];
         // Linked, but to a parent issue — same orange banner, different ask.
         // Video takes precedence if both slots are parent-linked.
         const parentComp = (!ro && !isBlank && !needsLinear)
@@ -17771,6 +17759,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="This card shares a Linear sub-issue with: ${_calEscAttr(dupePeers.join(', '))}. Two cards can't own the same Linear issue — archive one of them, or change one card's link.">⚠ Same Linear issue as ${_calEsc(dupePeers.join(', '))} — archive one or change its link</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}

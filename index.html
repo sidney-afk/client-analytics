@@ -23472,7 +23472,7 @@
 
        Client → Post For Me account mapping comes from the
        "Clients Info" sheet column `postforme_account_id` (the
-       connected account's `sa_…` id). If it's missing the form shows
+       connected account's `spc_…` id). If it's missing the form shows
        a ⚠ badge and blocks submit — there's no safe fallback, since
        posting to the wrong/every account would mis-post a client.
        ============================================================ */
@@ -23498,7 +23498,7 @@
     const tkState = {
         client: null,
         profile: null,
-        profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me sa_… account id)
+        profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me spc_… account id)
         file: null,
         fileMeta: null,             // {name,size,type} — persisted so we can warn after reload
         objectUrl: null,
@@ -23651,7 +23651,7 @@
         document.head.appendChild(style);
     }
 
-    // Resolves the client's Post For Me connected-account id (sa_…) from the
+    // Resolves the client's Post For Me connected-account id (spc_…) from the
     // Clients Info sheet. `profile` here holds that account id. There is NO
     // fallback: without an explicit mapping we return source 'missing' so the
     // form blocks submit — guessing an account could mis-post to another client.
@@ -23912,7 +23912,7 @@
             if (tkState.profileSource === 'sheet') {
                 profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
             } else if (tkState.profileSource === 'missing') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> (their connected TikTok account's <code>sa_…</code> id) to the Clients Info sheet before uploading.</div>`;
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`;
             }
         }
 
@@ -24259,7 +24259,7 @@
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
         const fd = new FormData();
         fd.append('clientName', tkState.client);
-        fd.append('socialAccountId', tkState.profile);          // Post For Me connected-account id (sa_…)
+        fd.append('socialAccountId', tkState.profile);          // Post For Me connected-account id (spc_…)
         fd.append('title', tkState.title);
         fd.append('options', JSON.stringify(tkState.options));
         fd.append('scheduledAt', scheduledAtWall);              // wall-clock "YYYY-MM-DDTHH:MM"

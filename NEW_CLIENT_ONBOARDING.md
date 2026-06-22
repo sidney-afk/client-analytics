@@ -39,7 +39,7 @@
 
 **Slack / Post For Me**
 - [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
-- [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `sa_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
+- [ ] *(not urgent)* Connect their **TikTok account in Post For Me**, put the account's `spc_…` id in `postforme_account_id`. → [§6d](#6d-post-for-me-account-not-urgent)
 
 - [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
 
@@ -108,7 +108,7 @@ This is the part that's easy to forget the *method* for. You're producing three 
 | `tiktok_handle` | TikTok handle | **Blank/`N/A` is fine** — scrapers skip it. |
 | `youtube_channel_id` | `UC…` channel ID | **Blank/`N/A` is fine.** |
 | `slack_channel_id` | `C…` channel ID for their Slack | Fill after you create the channel ([§6c](#6c-slack-channel)). Weekly report posts here. |
-| `postforme_account_id` | Post For Me account id (`sa_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
+| `postforme_account_id` | Post For Me account id (`spc_…`) | **Usually blank** — only the TikTok‑auto‑upload clients use it ([§6d](#6d-post-for-me-account-not-urgent)). |
 
 **Also read by the app** (add if you have them; they live in this same tab to the right): `slack_team_id` (Slack workspace id, for deep‑links) and `client_review_token` (guards the client's `?c=…` share link — if blank the app still works but the share link is unguarded).
 
@@ -172,7 +172,7 @@ The Filming Plans UI lives under the **Kasper tab → Filming Plans** sub‑tab;
 This is what the **"Weekly Slack – Top Reel of the Week"** automation (`BTxic5NSaCMtZMh6`) posts to every Monday, and where urgent tweak pings go.
 
 ### 6d. Post For Me account (not urgent)
-Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`sa_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
+Only needed if the client uses **TikTok auto‑upload**. In [Post For Me](https://www.postforme.dev) connect the client's TikTok account, copy that account's id (`spc_…`), and put it in `postforme_account_id` (Clients Info). If blank, the TikTok Upload tab shows a ⚠ badge and blocks submit for that client — there's deliberately no fallback, because guessing an account could post one client's video to another's TikTok. (The n8n "SyncView TikTok Upload — Submit" workflow needs an httpBearerAuth credential named **Post For Me** holding the API key.)
 
 ### 6e. Frontend (now automatic)
 **Nothing to do.** The dashboard now derives its client allowlist from the **Clients Info** sheet at load time (`wlMergeClientsFromSheet` in `index.html`), so the moment the Clients Info row exists the client is live everywhere — no code edit, no deploy. The hardcoded `WL_CLIENT_NAMES` list (~line 8032) is just an offline seed / first‑paint fallback; you don't normally touch it.

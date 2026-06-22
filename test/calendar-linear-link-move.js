@@ -44,6 +44,9 @@ function ok(cond, label) { if (cond) { pass++; console.log('  ✅ ' + label); } 
 const _calLinkKey = def('_calLinkKey');
 const _calIsArchivedRef = def('_calIsArchivedRef');
 const _calDedupeByLinearIssue = def('_calDedupeByLinearIssue');
+const _calLinkDuplicatePeers = def('_calLinkDuplicatePeers');
+globalThis.calClientSlug = (n) => String(n || '').toLowerCase();
+globalThis._calArchivedRefs = () => new Set();
 
 const VID1 = 'https://linear.app/acme/issue/VID-1/make-the-thing';
 const VID2 = 'https://linear.app/acme/issue/VID-2/other';
@@ -57,62 +60,51 @@ ok(_calLinkKey(VID1.toUpperCase()) === _calLinkKey(VID1.toLowerCase()), 'case va
 ok(_calLinkKey('') === '' && _calLinkKey(null) === '' && _calLinkKey(undefined) === '', 'empty / null / undefined → empty key');
 
 console.log('\n============================================================');
-console.log('2) _calDedupeByLinearIssue — video + graphic, symmetric');
+console.log('2) duplicates are SURFACED (warned), never silently HIDDEN');
 console.log('============================================================');
-// Legacy video dedupe: newer updated_at wins, loser dropped, order preserved.
+// _calDedupeByLinearIssue no longer collapses — it returns every card unchanged.
 {
-  const a = { id: 'a', linear_issue_id: VID1, updated_at: '2026-01-02T00:00:00Z', order_index: 1 };
-  const b = { id: 'b', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 9 };
-  const c = { id: 'c', linear_issue_id: VID2, updated_at: '2026-01-01T00:00:00Z', order_index: 2 };
+  const a = { id: 'a', name: 'Card A', linear_issue_id: VID1 };
+  const b = { id: 'b', name: 'Card B', linear_issue_id: VID1 };
+  const c = { id: 'c', name: 'Card C', linear_issue_id: VID2 };
   const out = _calDedupeByLinearIssue([a, b, c]);
-  ok(out.length === 2 && out.includes(a) && out.includes(c) && !out.includes(b),
-     'two cards on one VIDEO link collapse to the most-recently-updated one');
-}
-// Graphic dedupe (the new symmetry — previously graphic dups were NOT collapsed).
-{
-  const a = { id: 'a', graphic_linear_issue_id: GRA9, updated_at: '2026-01-02T00:00:00Z', order_index: 1 };
-  const b = { id: 'b', graphic_linear_issue_id: GRA9, updated_at: '2026-01-01T00:00:00Z', order_index: 9 };
-  const out = _calDedupeByLinearIssue([a, b]);
-  ok(out.length === 1 && out[0] === a, 'two cards on one GRAPHIC link also collapse (symmetry)');
-}
-// Case / whitespace-only differences still collapse.
-{
-  const a = { id: 'a', linear_issue_id: VID1, updated_at: '2026-01-02T00:00:00Z', order_index: 1 };
-  const b = { id: 'b', linear_issue_id: '  ' + VID1.toUpperCase() + ' ', updated_at: '2026-01-01T00:00:00Z', order_index: 9 };
-  ok(_calDedupeByLinearIssue([a, b]).length === 1, 'case/whitespace-only variants of the same link collapse');
-}
-// A link in card A's video slot and card B's graphic slot = same issue → collapse.
-{
-  const a = { id: 'a', linear_issue_id: VID1, updated_at: '2026-01-02T00:00:00Z', order_index: 1 };
-  const b = { id: 'b', graphic_linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 9 };
-  ok(_calDedupeByLinearIssue([a, b]).length === 1, 'same issue across different slots collapses (cross-slot)');
-}
-// order_index breaks an updated_at tie; full tie keeps the first in input order.
-{
-  const a = { id: 'a', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 1 };
-  const b = { id: 'b', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 9 };
-  ok(_calDedupeByLinearIssue([a, b])[0] === b, 'equal updated_at → higher order_index wins');
-  const c = { id: 'c', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 5 };
-  const d = { id: 'd', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 5 };
-  ok(_calDedupeByLinearIssue([c, d])[0] === c, 'full tie → first in input order wins (deterministic)');
-}
-// Archived cards must NOT compete for a link key — an archived twin can't drop a
-// live card off the calendar (mirrors _calLinkConflict; the "TEST 1 vanishes" bug).
-{
-  const live = { id: 'live', linear_issue_id: VID1, status: 'In Progress', updated_at: '2026-01-01T00:00:00Z', order_index: 1 };
-  const archNewer = { id: 'arch', linear_issue_id: VID1, status: 'Archived', updated_at: '2026-09-09T00:00:00Z', order_index: 9 };
-  const out = _calDedupeByLinearIssue([live, archNewer]);
-  ok(out.some(p => p === live), 'a NEWER archived twin does NOT knock the live card off the calendar');
-  const archG = { id: 'archG', graphic_linear_issue_id: GRA9, status: 'Archived', updated_at: '2026-09-09T00:00:00Z', order_index: 9 };
-  const liveG = { id: 'liveG', graphic_linear_issue_id: GRA9, status: 'In Progress', updated_at: '2026-01-01T00:00:00Z', order_index: 1 };
-  ok(_calDedupeByLinearIssue([archG, liveG]).some(p => p === liveG), 'same holds for a shared GRAPHIC link (archived ignored)');
-}
-// Rows with no link always pass through; ordering preserved.
-{
-  const a = { id: 'a' }, b = { id: 'b', linear_issue_id: VID1, updated_at: '2026-01-02T00:00:00Z' }, c = { id: 'c' };
-  const out = _calDedupeByLinearIssue([a, b, c]);
-  ok(out.length === 3 && out[0] === a && out[1] === b && out[2] === c, 'link-less rows pass through unchanged, order kept');
+  ok(out.length === 3 && out[0] === a && out[1] === b && out[2] === c, 'no active card is dropped — all returned, order kept');
   ok(_calDedupeByLinearIssue([a]) === undefined || _calDedupeByLinearIssue([{ id: 'x' }]).length === 1, 'fewer than 2 posts returns input as-is');
+}
+// _calLinkDuplicatePeers — names the OTHER cards sharing a Linear issue (from calState).
+const peers = (p) => { const x = _calLinkDuplicatePeers(p); return Array.isArray(x) ? x.slice().sort() : x; };
+{
+  const a = { id: 'a', name: 'Card A', linear_issue_id: VID1, status: 'In Progress' };
+  const b = { id: 'b', name: 'Card B', linear_issue_id: VID1, status: 'Approved' };
+  const c = { id: 'c', name: 'Card C', linear_issue_id: VID2, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b, c] };
+  ok(JSON.stringify(peers(a)) === JSON.stringify(['Card B']), 'two cards on one VIDEO link see each other as duplicates');
+  ok(JSON.stringify(peers(b)) === JSON.stringify(['Card A']), 'the warning is symmetric');
+  ok(_calLinkDuplicatePeers(c).length === 0, 'a card on a unique issue has no duplicate peers');
+}
+// shared GRAPHIC link (case/space-insensitive), and cross-slot (video == graphic).
+{
+  const a = { id: 'a', name: 'A', graphic_linear_issue_id: GRA9, status: 'In Progress' };
+  const b = { id: 'b', name: 'B', graphic_linear_issue_id: '  ' + GRA9.toUpperCase() + ' ', status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [a, b] };
+  ok(_calLinkDuplicatePeers(a).includes('B'), 'shared GRAPHIC link (case/space-insensitive) is flagged');
+  const v = { id: 'v', name: 'V', linear_issue_id: VID1, status: 'In Progress' };
+  const g = { id: 'g', name: 'G', graphic_linear_issue_id: VID1, status: 'In Progress' };
+  globalThis.calState = { client: 'x', posts: [v, g] };
+  ok(_calLinkDuplicatePeers(v).includes('G'), 'same issue across different slots (video vs graphic) is flagged');
+}
+// archived cards neither raise nor receive a duplicate warning.
+{
+  const live = { id: 'live', name: 'Live', linear_issue_id: VID1, status: 'In Progress' };
+  const arch = { id: 'arch', name: 'Arch', linear_issue_id: VID1, status: 'Archived' };
+  globalThis.calState = { client: 'x', posts: [live, arch] };
+  ok(_calLinkDuplicatePeers(live).length === 0, 'an archived twin does NOT raise a duplicate warning on the live card');
+  ok(_calLinkDuplicatePeers(arch).length === 0, 'an archived card itself shows no duplicate warning');
+}
+// a link-less card has no peers.
+{
+  globalThis.calState = { client: 'x', posts: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B', linear_issue_id: VID1, status: 'In Progress' }] };
+  ok(_calLinkDuplicatePeers({ id: 'a', name: 'A' }).length === 0, 'a link-less card has no duplicate peers');
 }
 
 console.log('\n============================================================');
@@ -351,8 +343,13 @@ ok(/_calLinkConflict\(val, pid\)/.test(commitSrc) && /_calShowLinkConflict\(/.te
 ok(/_calIdentFromUrl\(val\)/.test(commitSrc) && /isn.t a Linear link/.test(commitSrc) && /Wrong slot/.test(commitSrc),
    '_calLinearCommit validates the link (non-Linear rejected, wrong slot warned) before saving');
 const dedupeSrc = grabFunc('_calDedupeByLinearIssue');
-ok(/consider\(p, p\.linear_issue_id\)/.test(dedupeSrc) && /consider\(p, p\.graphic_linear_issue_id\)/.test(dedupeSrc),
-   '_calDedupeByLinearIssue dedupes BOTH the video and graphic slots');
+ok(!/return false/.test(dedupeSrc) && !/\.filter\(/.test(dedupeSrc),
+   '_calDedupeByLinearIssue no longer drops any card (pass-through — nothing hidden)');
+const peersSrc = grabFunc('_calLinkDuplicatePeers');
+ok(/linear_issue_id/.test(peersSrc) && /graphic_linear_issue_id/.test(peersSrc),
+   '_calLinkDuplicatePeers checks BOTH the video and graphic slots');
+ok(/isArch/.test(peersSrc) && /calState\.posts/.test(peersSrc),
+   '_calLinkDuplicatePeers excludes archived cards and reads the live card list');
 const showSrc = grabFunc('_calShowLinkConflict');
 ok(/Move it here/.test(showSrc) && /Cancel/.test(showSrc) && /already linked to/.test(showSrc),
    '_calShowLinkConflict renders the Move/Cancel prompt copy');

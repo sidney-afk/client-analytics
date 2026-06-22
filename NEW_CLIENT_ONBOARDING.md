@@ -19,7 +19,7 @@
 | **n8n** | All the scrapers/automations (metrics, top videos, competitor & market research, weekly Slack, caption gen, calendar/samples sync). | ⚪ Mostly auto |
 | **Linear** (`synchro-social`) | One **Project** per client across the **Video + Graphics** teams. | ✅ SMM does it |
 | **Slack** | One channel per client (weekly reports + tweak pings post there). | ✅ Create channel |
-| **Sandcastles** | Content intelligence on a watchlist of channels (recaps, top hooks/topics/formats, outlier alerts). Today it's almost all **competitors**; clients' own channels are mostly absent. | ⚪ Add the client (recommended) |
+| **Sandcastles** | Content-intelligence watchlist — channel recaps, top hooks/topics/formats, outlier alerts. | ✅ Add the client **+ their competitors** |
 | **upload‑post.com** | A posting **profile** per client (TikTok auto‑upload). | ⚪ Not urgent |
 | **Notion** | The intake **"Onboarding Form"** that kicks everything off. | ▶️ Entry point |
 
@@ -41,7 +41,7 @@
 - [ ] Create the client's **Slack channel**, grab its **channel ID** (→ Clients Info) and **member/SMM user ID** (→ SMM tab). → [§6c](#6c-slack-channel)
 - [ ] *(not urgent)* Create their **upload‑post profile**, put the name in `upload_post_profile`. → [§6d](#6d-upload-post-profile-not-urgent)
 
-- [ ] *(recommended)* Add the client to **Sandcastles** — their IG (and TikTok) to the watchlist, for content intelligence on their posts. → [§6h](#6h-sandcastles-content-intelligence)
+- [ ] *(recommended)* Add the client to **Sandcastles** — their **own** IG/TikTok **and** their **competitor** handles to the watchlist. → [§6h](#6h-sandcastles-content-intelligence)
 
 **Code + platforms**
 - [ ] **Frontend:** nothing — the client goes live automatically once the Clients Info row exists (sheet-driven allowlist). → [§6e](#6e-frontend-now-automatic)
@@ -202,11 +202,14 @@ Usually done by the **Social Media Manager**. In the **`synchro-social`** worksp
 ### 6h. Sandcastles (content intelligence)
 **Where:** Sandcastles → the **watchlist** (add via the web app, or the MCP tool `add_channels_to_watchlist`). One workspace, **"My Workspace"**, holds the whole watchlist.
 
-1. Add the client's **Instagram** handle/URL — and **TikTok**, if they post there — to the watchlist. Channels new to Sandcastles are submitted automatically and finish scraping within a few minutes.
-2. Once scraped you can pull a `channel_recap`, `top_hooks` / `top_topics` / `top_formats`, and outlier alerts for the client — useful for briefs and ideation. (A deep `analyze_video` on a single post costs 1 analysis credit; tracking and recaps don't.)
-3. *(optional — niche research)* Also add the client's **competitors**. In practice the watchlist today is almost entirely competitor channels (therapyjeff, realbrittanydawn, communicationjon, …) grouped by niche — so adding competitors is the established pattern, and the client's own channel is usually the gap.
+Add **both** to the watchlist (`add_channels_to_watchlist`, or the web app):
 
-> **Audit (2026-06-20):** of the 28 clients in Clients Info, only **Lily Baker**'s own channel was in the watchlist; the other 27 were missing. If you want content intelligence on the client themselves, this step is what adds it.
+1. The client's **own** Instagram/TikTok — to track their own performance.
+2. The client's **competitor** handles (the `competitors` column in Clients Info) — to mine the niche for hooks/formats. If competitors aren't filled in yet, do that first ([§3](#3-research-keywords--content-description)); that same list feeds the competitor/market-research robots.
+
+New-to-Sandcastles channels are submitted automatically and finish scraping within a few minutes. After that you can pull `channel_recap`, `top_hooks` / `top_topics` / `top_formats`, and outlier alerts on any of them. (A deep `analyze_video` on a single post costs 1 analysis credit; tracking and recaps are free.)
+
+> **Audit (2026-06-20):** the watchlist was a small (~9 channels), relationship/marriage-coaching–heavy set that wasn't organized by client — almost none of the clients' own channels or competitors were in it. Treat this step as net-new for nearly every client.
 
 ### 6i. Verify
 - Open the dashboard, switch to the new client: calendar and samples load (empty is fine).

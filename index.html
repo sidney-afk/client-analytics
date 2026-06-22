@@ -23612,6 +23612,7 @@
         .tk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
         .tk-pill.queued    { background: #f3f4f6; color: #4b5563; }
         .tk-pill.uploading { background: #dbeafe; color: #1e40af; }
+        .tk-pill.processing { background: #e0e7ff; color: #3730a3; }
         .tk-pill.scheduled { background: #fef3c7; color: #92400e; }
         .tk-pill.posted    { background: #d1fae5; color: #065f46; }
         .tk-pill.failed    { background: #fee2e2; color: #991b1b; }
@@ -23864,11 +23865,10 @@
         });
     }
     function _tkEffectiveStatus(r) {
-        const s = String(r.status || '').toLowerCase();
-        // Post For Me accepted the post (we have a post id) — treat as posted
-        // even if the workflow never flipped status off "uploading".
-        if (s === 'uploading' && r.upload_post_id) return 'posted';
-        return s || 'queued';
+        // Trust the server status. An accepted upload is 'processing' until the
+        // Post For Me result webhook flips the row to 'posted'/'failed' with the
+        // real TikTok outcome — we no longer optimistically claim 'posted'.
+        return String(r.status || '').toLowerCase() || 'queued';
     }
 
     function renderTiktokUploadView() {
@@ -24399,8 +24399,8 @@
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
-        const upcoming = visible.filter(r => ['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r)));
-        const recent   = visible.filter(r => !['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
+        const upcoming = visible.filter(r => ['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r)));
+        const recent   = visible.filter(r => !['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
 
         const itemHTML = (r) => {
             const when = r.scheduled_for
@@ -24490,7 +24490,7 @@
     function _tkActiveUploadCount() {
         return (tkState.uploads || []).filter(r => {
             const s = _tkEffectiveStatus(r);
-            return s === 'queued' || s === 'uploading';
+            return s === 'queued' || s === 'uploading' || s === 'processing';
         }).length;
     }
     function _tkHasScheduled() {

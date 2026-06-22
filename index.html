@@ -24736,6 +24736,43 @@
     let _kasperLoadGen = 0;
     let _kasperLastLocalWriteAt = 0;   // last local Kasper action — used to ignore the realtime echo of our own writes
     function _kasperInvalidateInFlightLoad() { _kasperLoadGen++; _kasperLastLocalWriteAt = Date.now(); }
+    /* Click-eaten-by-re-render guard. The queue repaints by rebuilding DOM
+       (_kasperPaintReview rebuilds the whole list; _kasperRepaintCard replaces a
+       card). A background repaint — a realtime echo of ANY client's change, a
+       tab-focus refresh, a slow save landing — can fire in the instant Kasper has
+       a button pressed, tearing that button out between pointerdown and click so
+       the click never registers. "Finish reviewing" then silently no-ops and he
+       has to click again. While a pointer is held on a control in the Kasper view
+       we defer background repaints and let the existing retry timer catch up the
+       moment it's released. A user action's OWN repaint is unaffected: its onclick
+       runs only after pointerup, when this flag is already clear. */
+    let _kasperPointerHeld = false;
+    let _kasperPointerSafetyTimer = null;
+    function _kasperOnPointerDown(e) {
+        const t = e && e.target;
+        if (!t || !t.closest) return;
+        // Only guard presses on actual controls inside the queue — those are the
+        // clicks a rebuild can swallow. A press on inert text shouldn't freeze
+        // live updates.
+        if (!t.closest('#kasperContent')) return;
+        if (!t.closest('button, a, [onclick], input, label')) return;
+        _kasperPointerHeld = true;
+        if (_kasperPointerSafetyTimer) clearTimeout(_kasperPointerSafetyTimer);
+        // Safety net: a missed pointerup (drag-off, context menu, alert) must
+        // never freeze the queue's live updates. Auto-release shortly after.
+        _kasperPointerSafetyTimer = setTimeout(_kasperReleasePointer, 1500);
+    }
+    function _kasperReleasePointer() {
+        if (_kasperPointerSafetyTimer) { clearTimeout(_kasperPointerSafetyTimer); _kasperPointerSafetyTimer = null; }
+        _kasperPointerHeld = false;
+        // No explicit flush here on purpose: any repaint deferred while held armed
+        // its own short retry (see the _kasperPointerHeld guards in
+        // _kasperPaintReview / _kasperRepaintCard), which catches up now that the
+        // flag is clear. Kasper's OWN action repaints immediately anyway — its
+        // onclick runs after this pointerup, when the flag is already false — so a
+        // blanket repaint-on-every-release would only add a redundant full rebuild
+        // (and would clobber the clean-approve fade-out).
+    }
     function _kasperIsReviewMounted() {
         return _kasperState.tab === 'review' && !!document.getElementById('kasperContent');
     }
@@ -24766,6 +24803,12 @@
             document.addEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
             window.addEventListener('focus', _kasperMaybeBackgroundRefresh);
             window.addEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            // Click-eaten-by-re-render guard (see _kasperPointerHeld): track a
+            // pressed pointer on a queue control so a background repaint can't tear
+            // the button out mid-click. Capture phase, so we see the press first.
+            document.addEventListener('pointerdown', _kasperOnPointerDown, true);
+            document.addEventListener('pointerup', _kasperReleasePointer, true);
+            document.addEventListener('pointercancel', _kasperReleasePointer, true);
             _kasperWiredVisibility = true;
         }
         // Under v2 the queue is also live: a realtime subscription pushes a
@@ -24783,8 +24826,12 @@
             document.removeEventListener('visibilitychange', _kasperMaybeBackgroundRefresh);
             window.removeEventListener('focus', _kasperMaybeBackgroundRefresh);
             window.removeEventListener('pageshow', _kasperMaybeBackgroundRefresh);
+            document.removeEventListener('pointerdown', _kasperOnPointerDown, true);
+            document.removeEventListener('pointerup', _kasperReleasePointer, true);
+            document.removeEventListener('pointercancel', _kasperReleasePointer, true);
             _kasperWiredVisibility = false;
         }
+        _kasperReleasePointer();
         _kasperV2Teardown();
     }
 
@@ -26018,6 +26065,14 @@
             _kasperPaintRetry = setTimeout(_kasperPaintReview, 1200);
             return;
         }
+        // Don't rebuild the list out from under a pressed button — the click
+        // would land on a removed node and be lost (see _kasperPointerHeld).
+        // Short re-arm; _kasperReleasePointer also flushes on pointerup.
+        if (_kasperPointerHeld) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintReview, 200);
+            return;
+        }
         if (_kasperPaintRetry) { clearTimeout(_kasperPaintRetry); _kasperPaintRetry = null; }
         const { waiting, tweaks } = _kasperPartitionItems(_kasperState.items);
         if (count) count.textContent = String(waiting.length);
@@ -26522,6 +26577,11 @@
         const item = _kasperState.items.find(x => x.post.id === pid);
         const el = document.querySelector('.kcard[data-kasper-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
         if (!item || !el) return;
+        // Same click-eaten guard as _kasperPaintReview: a slow save landing while
+        // Kasper has a button pressed must not replace this card's DOM mid-click.
+        // Retry once the pointer is released. (A user action's own synchronous
+        // repaint runs from onclick, i.e. after pointerup, so it's never held.)
+        if (_kasperPointerHeld) { setTimeout(function () { _kasperRepaintCard(pid); }, 200); return; }
         // Preserve the caret across the rebuild. If Kasper is typing in one of
         // this card's textareas when an after-save repaint fires (e.g. the
         // "thumbnail approved — sent to client" path repaints while he's already

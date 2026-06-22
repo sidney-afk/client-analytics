@@ -13053,11 +13053,14 @@
     function _calDedupeByLinearIssue(posts) {
         return Array.isArray(posts) ? posts : (posts || []);
     }
-    // Names of OTHER non-archived cards that share a Linear sub-issue (video OR graphic)
-    // with `post`. Computed live from calState AT RENDER, so it always reflects the
-    // final card list — no per-row flag to keep in sync through the load/merge (which
-    // dropped it). Drives the duplicate-issue warning banner. Mirrors _calLinkConflict's
-    // archived exclusion: archived cards neither raise nor receive a warning.
+    // The OTHER non-archived cards that share a Linear sub-issue with `post`, grouped by
+    // WHICH slot collides: returns [{ comp:'video'|'graphic', names:[...] }] (video first).
+    // Naming the component matters — "same Linear issue" alone left the SMM digging to
+    // find whether it was the reel or the thumbnail that clashed. Computed live from
+    // calState AT RENDER so it always reflects the final card list (no per-row flag to
+    // keep in sync through the load/merge). Mirrors _calLinkConflict's archived exclusion:
+    // archived cards neither raise nor receive a warning. A card's key matches a peer in
+    // EITHER of the peer's slots (the same issue can sit in a different slot on the twin).
     function _calLinkDuplicatePeers(post) {
         if (!post) return [];
         let archived = null;
@@ -13067,15 +13070,26 @@
             try { return !!(archived && _calIsArchivedRef(p, archived)); } catch (e) { return false; }
         };
         if (isArch(post)) return [];
-        const myKeys = [_calLinkKey(post.linear_issue_id), _calLinkKey(post.graphic_linear_issue_id)].filter(Boolean);
-        if (!myKeys.length) return [];
-        const peers = [];
+        const vKey = _calLinkKey(post.linear_issue_id);
+        const gKey = _calLinkKey(post.graphic_linear_issue_id);
+        if (!vKey && !gKey) return [];
+        const vPeers = new Set(), gPeers = new Set();
         for (const p of (calState.posts || [])) {
             if (!p || p.id === post.id || isArch(p)) continue;
-            const ks = [_calLinkKey(p.linear_issue_id), _calLinkKey(p.graphic_linear_issue_id)].filter(Boolean);
-            if (ks.some(k => myKeys.includes(k))) peers.push(String(p.name || '').trim() || 'Untitled post');
+            const nm = String(p.name || '').trim() || 'Untitled post';
+            const pv = _calLinkKey(p.linear_issue_id), pg = _calLinkKey(p.graphic_linear_issue_id);
+            if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
+            if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
         }
-        return [...new Set(peers)];
+        const out = [];
+        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
+        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
+        return out;
+    }
+    // Human label for the dupe banner: the calendar calls the graphic slot "Thumbnail".
+    function _calDupeWarnText(groups) {
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
+            + ' Linear issue as ' + g.names.join(', ')).join(' · ');
     }
     function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
@@ -17759,7 +17773,7 @@
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveCalPost('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_calThumbClick(event,'${pid}')">${needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}')" title="Link this post to its Linear sub-issue"><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Link the Linear sub-issue</button>` : (parentComp ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_calLinearEdit('${pid}'${parentComp === 'graphic' ? ",'graphic'" : ''})" title="This card links the parent issue — statuses pushed there never reach the editor’s Workload. Paste the ${parentComp === 'graphic' ? 'GRA (graphic)' : 'VID (video)'} sub-issue link instead."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Parent issue linked — link the sub-issue</button>` : (linearMissing ? `<a class="cal-thumb-linear-warn" href="${_calEscAttr(/^https?:\/\//i.test(linearMissing.url) ? linearMissing.url : 'https://' + linearMissing.url)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="This Linear ${linearMissing.comp === 'graphic' ? 'graphic' : 'video'} sub-issue has no ${linearMissing.missing.join(', no ')} set. Open it on Linear to fix."><svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>Sub-issue has no ${linearMissing.missing.join(', no ')}</a>` : ''))}${_calThumbContent(p)}${_calPlatformsStripHtml(p, _isClientLink || ro)}${_calColorTagHtml(p, _isClientLink || ro)}${_isClientLink ? '' : _calSmmWarnOverlayHtml(p)}${(_isClientLink || ro) ? '' : _calLinearPileHtml(pid, p)}</div>
             <div class="cal-card-body">
-                ${dupePeers.length ? `<div class="cal-dupe-warn" title="This card shares a Linear sub-issue with: ${_calEscAttr(dupePeers.join(', '))}. Two cards can't own the same Linear issue — archive one of them, or change one card's link.">⚠ Same Linear issue as ${_calEsc(dupePeers.join(', '))} — archive one or change its link</div>` : ''}
+                ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
                 ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}

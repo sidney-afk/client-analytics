@@ -96,6 +96,17 @@ console.log('============================================================');
   const d = { id: 'd', linear_issue_id: VID1, updated_at: '2026-01-01T00:00:00Z', order_index: 5 };
   ok(_calDedupeByLinearIssue([c, d])[0] === c, 'full tie → first in input order wins (deterministic)');
 }
+// Archived cards must NOT compete for a link key — an archived twin can't drop a
+// live card off the calendar (mirrors _calLinkConflict; the "TEST 1 vanishes" bug).
+{
+  const live = { id: 'live', linear_issue_id: VID1, status: 'In Progress', updated_at: '2026-01-01T00:00:00Z', order_index: 1 };
+  const archNewer = { id: 'arch', linear_issue_id: VID1, status: 'Archived', updated_at: '2026-09-09T00:00:00Z', order_index: 9 };
+  const out = _calDedupeByLinearIssue([live, archNewer]);
+  ok(out.some(p => p === live), 'a NEWER archived twin does NOT knock the live card off the calendar');
+  const archG = { id: 'archG', graphic_linear_issue_id: GRA9, status: 'Archived', updated_at: '2026-09-09T00:00:00Z', order_index: 9 };
+  const liveG = { id: 'liveG', graphic_linear_issue_id: GRA9, status: 'In Progress', updated_at: '2026-01-01T00:00:00Z', order_index: 1 };
+  ok(_calDedupeByLinearIssue([archG, liveG]).some(p => p === liveG), 'same holds for a shared GRAPHIC link (archived ignored)');
+}
 // Rows with no link always pass through; ordering preserved.
 {
   const a = { id: 'a' }, b = { id: 'b', linear_issue_id: VID1, updated_at: '2026-01-02T00:00:00Z' }, c = { id: 'c' };

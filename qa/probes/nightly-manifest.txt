@@ -66,3 +66,14 @@ p75_unread_notes_lifecycle.js
 p76_component_comment_isolation.js
 # --- Linear sub-issue link validation (the "weird text in the link slot" guard) ---
 p77_linear_link_validation.js
+# --- approve/request lifecycle cycles (2026-06-20) ---
+p78_approve_undo_reapprove.js
+p79_request_approve_pingpong.js
+# --- concurrency + Linear-link integration (2026-06-20) ---
+p80_concurrent_comment_status.js
+p81_link_move_conflict.js
+p82_archive_resolves_collision.js
+p83_reply_to_resolved.js
+# --- authorization + approval races (2026-06-20) ---
+p84_concurrent_double_approve.js
+p85_review_gate_enforcement.js

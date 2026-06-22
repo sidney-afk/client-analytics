@@ -4319,8 +4319,8 @@
     // Fields: clientName, hookType, openingLine, template, views, sourceUrl, dateAdded
     const HOOK_LIBRARY_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/add-hook-to-library';
     const WEEKLY_SLACK_WEBHOOK = 'https://synchrosocial.app.n8n.cloud/webhook/weekly-slack-top-reel';
-    // TikTok Upload module — proxies the upload-post.com API through n8n so the API
-    // key stays server-side. See the bottom of this file for the module implementation.
+    // TikTok Upload module — proxies the Post For Me API (api.postforme.dev) through
+    // n8n so the API key stays server-side. See the bottom of this file for the module.
     const TIKTOK_UPLOAD_WEBHOOK    = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload';
     const TIKTOK_UPLOADS_LIST_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-uploads-list';
     const TIKTOK_UPLOAD_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/tiktok-upload-status';
@@ -4329,7 +4329,7 @@
     const TIKTOK_PENDING_KEY       = 'syncview_pendingTiktokUploads_v1';
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
-    const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // upload-post.com / TikTok limit
+    const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -23459,8 +23459,10 @@
 
     /* ============================================================
        TIKTOK UPLOAD MODULE
-       Posts videos to upload-post.com through a server-side n8n
-       proxy so the API key never reaches the browser.
+       Posts videos to Post For Me (api.postforme.dev) through a
+       server-side n8n proxy so the API key never reaches the browser.
+       n8n runs the 3-step flow: create-upload-url → PUT the binary →
+       POST /v1/social-posts targeting the client's connected account.
 
        n8n workflows used (separate repo / instance):
          POST /webhook/tiktok-upload         multipart: media + JSON metadata
@@ -23468,20 +23470,22 @@
          GET  /webhook/tiktok-upload-status  ?id=…  → poll a single upload
          POST /webhook/tiktok-upload-cancel  { id } → cancel a scheduled upload
 
-       Client → upload-post.com profile mapping comes from the
-       "Clients Info" sheet column `upload_post_profile`. Falls back
-       to wlNormalizeClient(name) with a ⚠ badge so the page is still
-       usable while the sheet is being filled in.
+       Client → Post For Me account mapping comes from the
+       "Clients Info" sheet column `postforme_account_id` (the
+       connected account's `spc_…` id). If it's missing the form shows
+       a ⚠ badge and blocks submit — there's no safe fallback, since
+       posting to the wrong/every account would mis-post a client.
        ============================================================ */
+    // Post For Me's TikTok privacy_status only accepts `public` or `private`
+    // (n8n maps PUBLIC_TO_EVERYONE → public, anything else → private), so we
+    // expose just those two rather than TikTok's full four-level enum.
     const TK_PRIVACY_LEVELS = [
         { v: 'PUBLIC_TO_EVERYONE', label: 'Public' },
-        { v: 'MUTUAL_FOLLOW_FRIENDS', label: 'Friends' },
-        { v: 'FOLLOWER_OF_CREATOR', label: 'Followers' },
         { v: 'SELF_ONLY', label: 'Private (only me)' },
     ];
     const TK_POST_MODES = [
         { v: 'DIRECT_POST', label: 'Direct post' },
-        { v: 'MEDIA_UPLOAD', label: 'Send to drafts' },
+        { v: 'MEDIA_UPLOAD', label: 'Send to TikTok drafts' },
     ];
     const TK_TIMEZONES = [
         'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -23494,12 +23498,11 @@
     const tkState = {
         client: null,
         profile: null,
-        profileSource: null,        // 'sheet' | 'fallback'
+        profileSource: null,        // 'sheet' | 'missing'  (profile holds the Post For Me spc_… account id)
         file: null,
         fileMeta: null,             // {name,size,type} — persisted so we can warn after reload
         objectUrl: null,
         title: '',
-        comment: '',
         options: {
             privacy_level: 'PUBLIC_TO_EVERYONE',
             post_mode: 'DIRECT_POST',
@@ -23609,6 +23612,7 @@
         .tk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
         .tk-pill.queued    { background: #f3f4f6; color: #4b5563; }
         .tk-pill.uploading { background: #dbeafe; color: #1e40af; }
+        .tk-pill.processing { background: #e0e7ff; color: #3730a3; }
         .tk-pill.scheduled { background: #fef3c7; color: #92400e; }
         .tk-pill.posted    { background: #d1fae5; color: #065f46; }
         .tk-pill.failed    { background: #fee2e2; color: #991b1b; }
@@ -23648,11 +23652,15 @@
         document.head.appendChild(style);
     }
 
+    // Resolves the client's Post For Me connected-account id (spc_…) from the
+    // Clients Info sheet. `profile` here holds that account id. There is NO
+    // fallback: without an explicit mapping we return source 'missing' so the
+    // form blocks submit — guessing an account could mis-post to another client.
     function _tkResolveProfile(client) {
         if (!client) return { profile: null, source: null };
-        const fromSheet = (clientMap[client]?.upload_post_profile || '').trim();
+        const fromSheet = (clientMap[client]?.postforme_account_id || '').trim();
         if (fromSheet) return { profile: fromSheet, source: 'sheet' };
-        return { profile: wlNormalizeClient(client), source: 'fallback' };
+        return { profile: null, source: 'missing' };
     }
 
     function _tkFormatBytes(n) {
@@ -23737,21 +23745,25 @@
         } catch { return null; }
     }
 
+    // Post For Me only distinguishes public vs private, so the preview label
+    // mirrors that: PUBLIC_TO_EVERYONE → Public, everything else → Private.
     const TK_PRIVACY_LABELS = {
         PUBLIC_TO_EVERYONE: 'Public',
-        MUTUAL_FOLLOW_FRIENDS: 'Friends',
-        FOLLOWER_OF_CREATOR: 'Followers',
         SELF_ONLY: 'Private',
     };
 
     function _tkRenderPreview() {
         const wrap = document.getElementById('tkPreviewWrap');
         if (!wrap) return;
-        const handle = tkState.profile ? '@' + tkState.profile : '@your_account';
+        // Preview handle is cosmetic — show the client's TikTok handle if the
+        // sheet has one, else the client name. (tkState.profile is now an opaque
+        // Post For Me account id, so it's no longer suitable to display.)
+        const ttHandle = (clientMap[tkState.client]?.tiktok_handle || '').trim().replace(/^@+/, '');
+        const handle = ttHandle ? '@' + ttHandle : (tkState.client || '@your_account');
         const caption = (tkState.title || '').trim();
         const captionHasOver = caption.length > 2200;
         const videoSrc = tkState.objectUrl || '';
-        const initial = (tkState.client || tkState.profile || '?').charAt(0).toUpperCase();
+        const initial = (tkState.client || '?').charAt(0).toUpperCase();
         const privacy = TK_PRIVACY_LABELS[tkState.options.privacy_level] || 'Public';
         const isPrivate = tkState.options.privacy_level === 'SELF_ONLY';
         const postMode = tkState.options.post_mode === 'MEDIA_UPLOAD' ? 'Drafts (no auto-post)' : 'Direct post';
@@ -23803,7 +23815,6 @@
             const d = JSON.parse(raw);
             if (d.client && WL_CLIENT_NAMES.includes(d.client)) tkState.client = d.client;
             if (typeof d.title === 'string') tkState.title = d.title;
-            if (typeof d.comment === 'string') tkState.comment = d.comment;
             if (d.options && typeof d.options === 'object') Object.assign(tkState.options, d.options);
             if (d.schedule && typeof d.schedule === 'object') Object.assign(tkState.schedule, d.schedule);
             if (d.fileMeta && typeof d.fileMeta === 'object') tkState.fileMeta = d.fileMeta;
@@ -23813,7 +23824,7 @@
     function _tkSaveDraft() {
         try {
             const payload = {
-                client: tkState.client, title: tkState.title, comment: tkState.comment,
+                client: tkState.client, title: tkState.title,
                 options: tkState.options, schedule: tkState.schedule,
                 fileMeta: tkState.file ? { name: tkState.file.name, size: tkState.file.size, type: tkState.file.type } : tkState.fileMeta,
             };
@@ -23854,11 +23865,10 @@
         });
     }
     function _tkEffectiveStatus(r) {
-        const s = String(r.status || '').toLowerCase();
-        // upload-post.com returned success synchronously (we have an id) — treat as posted
-        // even if the workflow never flipped status off "uploading".
-        if (s === 'uploading' && r.upload_post_id) return 'posted';
-        return s || 'queued';
+        // Trust the server status. An accepted upload is 'processing' until the
+        // Post For Me result webhook flips the row to 'posted'/'failed' with the
+        // real TikTok outcome — we no longer optimistically claim 'posted'.
+        return String(r.status || '').toLowerCase() || 'queued';
     }
 
     function renderTiktokUploadView() {
@@ -23868,7 +23878,7 @@
                 <div class="tk-header">
                     <div>
                         <div class="tk-title">TikTok Upload</div>
-                        <div class="tk-sub">Schedule a TikTok post for a client — uploads through upload-post.com.</div>
+                        <div class="tk-sub">Schedule a TikTok post for a client — uploads through Post For Me.</div>
                     </div>
                 </div>
                 <div class="tk-col tk-form-col" id="tkFormCol"></div>
@@ -23900,9 +23910,9 @@
         let profileLine = '';
         if (tkState.client) {
             if (tkState.profileSource === 'sheet') {
-                profileLine = `<div class="tk-profile-line">Posts as <span class="tk-profile-chip">@${_tkEscape(tkState.profile)}</span> on upload-post.com</div>`;
-            } else if (tkState.profileSource === 'fallback') {
-                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No mapping</span> Fallback profile <span class="tk-profile-chip">@${_tkEscape(tkState.profile)}</span> — add an <code>upload_post_profile</code> value in the Clients Info sheet.</div>`;
+                profileLine = `<div class="tk-profile-line">Posts to Post For Me account <span class="tk-profile-chip">${_tkEscape(tkState.profile)}</span></div>`;
+            } else if (tkState.profileSource === 'missing') {
+                profileLine = `<div class="tk-profile-line"><span class="tk-warn-chip">⚠ No account</span> Add this client's <code>postforme_account_id</code> — the account's <strong>Connection ID</strong> (<code>spc_…</code>) from Post For Me — to the Clients Info sheet before uploading.</div>`;
             }
         }
 
@@ -23975,10 +23985,6 @@
                     <textarea class="tpl-textarea" id="tkTitle" placeholder="What this post is about — include hashtags here." rows="4">${_tkEscape(tkState.title)}</textarea>
                     <div class="tk-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
                 </div>
-                <div class="tk-row">
-                    <label for="tkComment">First comment <span class="tk-help">(optional — posted after the video goes live)</span></label>
-                    <textarea class="tpl-textarea" id="tkComment" placeholder="Add a first comment…" rows="2">${_tkEscape(tkState.comment)}</textarea>
-                </div>
             </div>
 
             <div class="tk-card">
@@ -24013,7 +24019,7 @@
                     <label>Interaction</label>
                     <div class="tk-toggles">
                         <label class="tk-toggle"><input type="checkbox" id="tkDuet"    ${opts.disable_duet ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable duet</label>
-                        <label class="tk-toggle"><input type="checkbox" id="tkComment" ${opts.disable_comment ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable comments</label>
+                        <label class="tk-toggle"><input type="checkbox" id="tkDisableComment" ${opts.disable_comment ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable comments</label>
                         <label class="tk-toggle"><input type="checkbox" id="tkStitch"  ${opts.disable_stitch ? 'checked' : ''}><span class="tk-toggle-track"><span class="tk-toggle-thumb"></span></span>Disable stitch</label>
                     </div>
                 </div>
@@ -24124,7 +24130,6 @@
             }
             _tkSaveDraftSoon();
         });
-        $('tkComment')?.addEventListener('input', (e) => { tkState.comment = e.target.value; _tkSaveDraftSoon(); });
 
         document.querySelectorAll('input[name=tkPrivacy]').forEach(el => el.addEventListener('change', (e) => {
             tkState.options.privacy_level = e.target.value;
@@ -24138,7 +24143,7 @@
         $('tkCover')?.addEventListener('input', (e) => { tkState.options.cover_timestamp_ms = Math.max(0, Number(e.target.value) || 0); _tkSaveDraftSoon(); });
         const tog = (id, key) => $(id)?.addEventListener('change', (e) => { tkState.options[key] = e.target.checked; _tkSaveDraft(); });
         tog('tkDuet', 'disable_duet');
-        tog('tkComment', 'disable_comment');
+        tog('tkDisableComment', 'disable_comment');
         tog('tkStitch', 'disable_stitch');
         tog('tkBrandContent', 'brand_content_toggle');
         tog('tkBrandOrganic', 'brand_organic_toggle');
@@ -24220,7 +24225,7 @@
 
     function _tkValidate() {
         if (!tkState.client) return 'Pick a client first.';
-        if (!tkState.profile) return 'This client has no upload-post.com profile mapping.';
+        if (!tkState.profile) return 'This client has no Post For Me account mapping — add a postforme_account_id in the Clients Info sheet.';
         if (!tkState.file) return 'Attach a video.';
         if (!tkState.title.trim()) return 'Add a caption.';
         if (tkState.title.length > 2200) return 'Caption is over the 2200-character limit.';
@@ -24234,15 +24239,13 @@
     }
 
     function _tkSubmit() {
-        // Re-resolve the profile from the freshest client map right before sending.
-        // The profile is derived purely from the selected client, but it gets
-        // resolved-and-cached early (on draft restore / client select). If that
+        // Re-resolve the account id from the freshest client map right before
+        // sending. It's derived purely from the selected client but gets
+        // resolved-and-cached early (on draft restore / client select); if that
         // happened before the Clients Info sheet finished loading (e.g. a cold
-        // load landing straight on this tab), tkState.profile froze to the
-        // fallback slug from wlNormalizeClient() — lowercased, spaces stripped —
-        // which almost never matches an upload-post.com profile name and earns a
-        // "Username not associated with any profile" rejection. Resolving again
-        // here picks up the sheet mapping now that data is in.
+        // load landing straight on this tab), tkState.profile would still be
+        // null. Resolving again here picks up the postforme_account_id now that
+        // the sheet data is in, so a valid mapping isn't missed.
         if (tkState.client) {
             const r = _tkResolveProfile(tkState.client);
             tkState.profile = r.profile;
@@ -24256,10 +24259,8 @@
         const scheduledAtUTC  = scheduledAtWall ? (_tkWallClockToUTC(scheduledAtWall, tkState.schedule.tz) || '') : '';
         const fd = new FormData();
         fd.append('clientName', tkState.client);
-        fd.append('profile', tkState.profile);
-        fd.append('profileSource', tkState.profileSource || 'fallback');
+        fd.append('socialAccountId', tkState.profile);          // Post For Me connected-account id (spc_…)
         fd.append('title', tkState.title);
-        fd.append('postComment', tkState.comment);
         fd.append('options', JSON.stringify(tkState.options));
         fd.append('scheduledAt', scheduledAtWall);              // wall-clock "YYYY-MM-DDTHH:MM"
         fd.append('scheduledAtUTC', scheduledAtUTC);            // unambiguous UTC ISO instant — use this in n8n
@@ -24310,7 +24311,6 @@
                 tkState.objectUrl = null;
                 tkState.fileMeta = null;
                 tkState.title = '';
-                tkState.comment = '';
                 tkState.progress = 0;
                 _tkClearDraft();
                 _tkRenderForm();
@@ -24399,8 +24399,8 @@
 
         const hidden = _tkLoadHidden();
         const visible = tkState.uploads.filter(r => !hidden.has(r.id));
-        const upcoming = visible.filter(r => ['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r)));
-        const recent   = visible.filter(r => !['queued', 'uploading', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
+        const upcoming = visible.filter(r => ['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r)));
+        const recent   = visible.filter(r => !['queued', 'uploading', 'processing', 'scheduled'].includes(_tkEffectiveStatus(r))).slice(0, 8);
 
         const itemHTML = (r) => {
             const when = r.scheduled_for
@@ -24446,7 +24446,7 @@
     }
 
     async function _tkCancelRow(id) {
-        showConfirm('Cancel upload?', 'This will remove the scheduled post from upload-post.com. The video file stays on your computer.', async () => {
+        showConfirm('Cancel upload?', 'This marks the upload as cancelled in your queue. If it was already scheduled in Post For Me you may also need to cancel it there. The video file stays on your computer.', async () => {
             try {
                 const r = await fetch(TIKTOK_UPLOAD_CANCEL_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
                 if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -24490,7 +24490,7 @@
     function _tkActiveUploadCount() {
         return (tkState.uploads || []).filter(r => {
             const s = _tkEffectiveStatus(r);
-            return s === 'queued' || s === 'uploading';
+            return s === 'queued' || s === 'uploading' || s === 'processing';
         }).length;
     }
     function _tkHasScheduled() {

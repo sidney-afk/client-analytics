@@ -1,0 +1,5251 @@
+{
+  "id": "Q4n1bagJYBkurEaI",
+  "name": "CLIENTS METRICS",
+  "active": true,
+  "isArchived": false,
+  "versionId": "c8f447b8-777c-4939-81fe-cdcfa281920a",
+  "activeVersionId": "c8f447b8-777c-4939-81fe-cdcfa281920a",
+  "triggerCount": 1,
+  "createdAt": "2026-03-12T21:04:15.586Z",
+  "updatedAt": "2026-05-31T19:15:20.154Z",
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Apify Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Instagram": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Instagram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify TikTok run": {
+      "main": [
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TikTok Dataset": {
+      "main": [
+        [
+          {
+            "node": "Aggregate TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate TikTok": {
+      "main": [
+        [
+          {
+            "node": "Has YouTube?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Instagram": {
+      "main": [
+        [
+          {
+            "node": "Has TikTok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has TikTok?": {
+      "main": [
+        [
+          {
+            "node": "Apify TikTok run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty TikTok",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empty TikTok": {
+      "main": [
+        [
+          {
+            "node": "Has YouTube?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has YouTube?": {
+      "main": [
+        [
+          {
+            "node": "YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty YouTube",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empty YouTube": {
+      "main": [
+        [
+          {
+            "node": "Merge Data3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data3": {
+      "main": [
+        [
+          {
+            "node": "Update Post Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Previous Rows": {
+      "main": [
+        [
+          {
+            "node": "Limit1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Diffs": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Post Tracking": {
+      "main": [
+        [
+          {
+            "node": "Read Post Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Post Tracking": {
+      "main": [
+        [
+          {
+            "node": "Compute Post Gains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Post Gains": {
+      "main": [
+        [
+          {
+            "node": "Split Post Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Post Tracking": {
+      "main": [
+        [
+          {
+            "node": "Limit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Post Rows": {
+      "main": [
+        [
+          {
+            "node": "Write Post Tracking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Gains": {
+      "main": [
+        [
+          {
+            "node": "Get Previous Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Write to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit": {
+      "main": [
+        [
+          {
+            "node": "Restore Gains",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit1": {
+      "main": [
+        [
+          {
+            "node": "Compute Diffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Fetch TikTok Dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Apify Instagram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Instagram1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Instagram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify TikTok run1": {
+      "main": [
+        [
+          {
+            "node": "Wait3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch TikTok Dataset1": {
+      "main": [
+        [
+          {
+            "node": "Aggregate TikTok1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YouTube1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write to Sheet1": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate TikTok1": {
+      "main": [
+        [
+          {
+            "node": "Has YouTube?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Instagram1": {
+      "main": [
+        [
+          {
+            "node": "Has TikTok?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has TikTok?1": {
+      "main": [
+        [
+          {
+            "node": "Apify TikTok run1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty TikTok1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empty TikTok1": {
+      "main": [
+        [
+          {
+            "node": "Has YouTube?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has YouTube?1": {
+      "main": [
+        [
+          {
+            "node": "YouTube1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Empty YouTube1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Empty YouTube1": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "Update Post Tracking1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Previous Rows1": {
+      "main": [
+        [
+          {
+            "node": "Limit3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Diffs1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Post Tracking1": {
+      "main": [
+        [
+          {
+            "node": "Read Post Tracking1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Post Tracking1": {
+      "main": [
+        [
+          {
+            "node": "Compute Post Gains1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Post Gains1": {
+      "main": [
+        [
+          {
+            "node": "Split Post Rows1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Post Tracking1": {
+      "main": [
+        [
+          {
+            "node": "Limit2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Post Rows1": {
+      "main": [
+        [
+          {
+            "node": "Write Post Tracking1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Restore Gains1": {
+      "main": [
+        [
+          {
+            "node": "Get Previous Rows1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Write to Sheet1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit2": {
+      "main": [
+        [
+          {
+            "node": "Restore Gains1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit3": {
+      "main": [
+        [
+          {
+            "node": "Compute Diffs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait3": {
+      "main": [
+        [
+          {
+            "node": "Fetch TikTok Dataset1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Apify YouTube Run",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "Merge Data3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify YouTube Run": {
+      "main": [
+        [
+          {
+            "node": "Apify Shorts Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify & Sum": {
+      "main": [
+        [
+          {
+            "node": "Merge Data3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Shorts Run": {
+      "main": [
+        [
+          {
+            "node": "Classify & Sum",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "626c45dc-b00b-4914-8172-4bba4b99903e",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1588658295,
+          "mode": "list",
+          "cachedResultName": "Clients Info",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1588658295"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a99a7105-305a-4f4c-a000-5cc9a7afd204",
+      "name": "Get row(s) in sheet"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "f3a68c76-9d20-4354-9e17-0ea38fceebdf",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"usernames\": [\"{{ $('Loop Over Items').item.json.instagram_handle }}\"],\n  \"resultsLimit\": 30\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        688,
+        16
+      ],
+      "id": "c73c34f6-8349-4d2f-8804-157558ac623f",
+      "name": "Apify Instagram",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?waitForFinish=120",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"profiles\": [\"{{ $('Loop Over Items').item.json.tiktok_handle }}\"],\n  \"resultsPerPage\": 30\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1360,
+        0
+      ],
+      "id": "4d478f96-2073-4eab-acb0-c7e15e7e7ca5",
+      "name": "Apify TikTok run"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Apify TikTok run').item.json.data.defaultDatasetId }}/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1856,
+        0
+      ],
+      "id": "a1f2d004-8e37-404e-84cd-316bf230fdec",
+      "name": "Fetch TikTok Dataset",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/channels?part=statistics&id={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2640,
+        -16
+      ],
+      "id": "270b067f-ca96-4611-bbc0-d1fa7f686e86",
+      "name": "YouTube"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 625659498,
+          "mode": "list",
+          "cachedResultName": "Metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ new Date().toISOString().split('T')[0] }}",
+            "client_name": "={{ $json.client_name }}",
+            "ig_followers": "={{ $json.ig_followers }}",
+            "ig_avg_likes": "={{ $json.ig_avg_likes }}",
+            "ig_avg_views": "={{ $json.ig_avg_views }}",
+            "tiktok_followers": "={{ $json.tiktok_followers }}",
+            "tiktok_avg_plays": "={{ $json.tiktok_avg_plays }}",
+            "yt_subscribers": "={{ $json.yt_subscribers }}",
+            "yt_total_views": "={{ $json.yt_total_views }}",
+            "ig_views_this_month": "={{ $json.ig_views_this_month }}",
+            "tiktok_plays_this_month": "={{ $json.tiktok_plays_this_month }}",
+            "ig_views_gained_today": "={{ $json.ig_views_gained_today }}",
+            "tiktok_plays_gained_today": "={{ $json.tiktok_plays_gained_today }}",
+            "yt_views_gained_today": "={{ $json.yt_views_gained_today }}",
+            "yt_shorts_views": "={{ $json.yt_shorts_views }}",
+            "yt_longs_views": "={{ $json.yt_longs_views }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_followers",
+              "displayName": "ig_followers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_avg_views",
+              "displayName": "ig_avg_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_avg_likes",
+              "displayName": "ig_avg_likes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_followers",
+              "displayName": "tiktok_followers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_avg_plays",
+              "displayName": "tiktok_avg_plays",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "yt_subscribers",
+              "displayName": "yt_subscribers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "yt_total_views",
+              "displayName": "yt_total_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_views_gained_today",
+              "displayName": "ig_views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_plays_gained_today",
+              "displayName": "tiktok_plays_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ig_views_this_month",
+              "displayName": "ig_views_this_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_plays_this_month",
+              "displayName": "tiktok_plays_this_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "yt_views_gained_today",
+              "displayName": "yt_views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "yt_shorts_views",
+              "displayName": "yt_shorts_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "yt_longs_views",
+              "displayName": "yt_longs_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4912,
+        -16
+      ],
+      "id": "c1974820-e658-497f-8d11-bb6d38966187",
+      "name": "Write to Sheet"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst followers = items[0]?.json?.authorMeta?.fans \n  ?? items[0]?.json?.authorMeta?.followers \n  ?? items[0]?.json?.fans \n  ?? 0;\nconst avgPlays = items.length > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0) / items.length) : 0;\nconst totalPostPlays = items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0);\n\nreturn [{ json: { tiktok_followers: followers, tiktok_avg_plays: avgPlays, tiktok_total_post_plays: totalPostPlays } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        -16
+      ],
+      "id": "47eed517-3ad3-4170-9c4f-2a11c2879dc6",
+      "name": "Aggregate TikTok"
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $input.first().json;\nconst posts = profile.latestPosts ?? [];\n\nconst viewsOf = (p) => p.videoPlayCount ?? p.videoViewCount ?? 0;\n\nconst followers = profile.followersCount ?? 0;\nconst avgLikes = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + (p.likesCount ?? 0), 0) / posts.length) : 0;\nconst avgViews = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + viewsOf(p), 0) / posts.length) : 0;\nconst totalPostViews = posts.reduce((sum, p) => sum + viewsOf(p), 0);\n\nreturn [{ json: { ig_followers: followers, ig_avg_likes: avgLikes, ig_avg_views: avgViews, ig_total_post_views: totalPostViews } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        928,
+        16
+      ],
+      "id": "2549ecb7-4b90-4aec-959a-4db062a8dfdf",
+      "name": "Aggregate Instagram"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+              "leftValue": "={{ $('Loop Over Items').item.json.tiktok_handle }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+              "leftValue": "={{ $('Loop Over Items').item.json.tiktok_handle }}",
+              "rightValue": "N/A",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1120,
+        16
+      ],
+      "id": "8190afda-af13-4713-b545-27f28cd0e54f",
+      "name": "Has TikTok?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+              "name": "tiktok_followers",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+              "name": "tiktok_avg_plays",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "3cdcd077-2ffd-43c8-92c3-b711940df5d1",
+              "name": "tiktok_total_post_plays",
+              "value": "0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1504,
+        272
+      ],
+      "id": "d09ce917-e0e3-4ad1-a946-705bbc76710e",
+      "name": "Empty TikTok"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+              "leftValue": "={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+              "leftValue": "={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+              "rightValue": "N/A",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2336,
+        256
+      ],
+      "id": "190a5615-ef10-4e7b-b67d-d2a42c68bb01",
+      "name": "Has YouTube?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+              "name": "yt_total_views",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+              "name": "yt_subscribers",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "379a0233-81ff-4d51-8caa-c7303cdd5dd1",
+              "name": "yt_shorts_views",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "d4ce7aab-f099-46ba-b592-4618f8685368",
+              "name": "yt_longs_views",
+              "value": "0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2720,
+        272
+      ],
+      "id": "11190740-3890-441b-8922-ae02d46e308d",
+      "name": "Empty YouTube"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79956819-956a-4f79-97f5-78ec016fd019",
+              "name": "yt_subscribers",
+              "value": "={{ $json.items[0].statistics.subscriberCount }}",
+              "type": "string"
+            },
+            {
+              "id": "5cc534d1-b0ec-4ea5-8310-b8280cc01b9f",
+              "name": "yt_total_views",
+              "value": "={{ $json.items[0].statistics.viewCount }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2848,
+        -16
+      ],
+      "id": "a9321b94-7604-428d-b5f6-a8ad9793b2e7",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const igData = $('Aggregate Instagram').item.json;\nconst client = $('Loop Over Items').item.json;\nconst ytData = $input.first().json;\n\nlet tiktokFollowers = 0, tiktokAvgPlays = 0, tiktokTotalPlays = 0;\ntry { tiktokFollowers = $('Aggregate TikTok').item.json.tiktok_followers ?? 0; } catch(e) {}\ntry { tiktokAvgPlays = $('Aggregate TikTok').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\ntry { tiktokTotalPlays = $('Aggregate TikTok').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n\nif (tiktokFollowers === 0) {\n  try { tiktokFollowers = $('Empty TikTok').item.json.tiktok_followers ?? 0; } catch(e) {}\n  try { tiktokAvgPlays = $('Empty TikTok').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\n  try { tiktokTotalPlays = $('Empty TikTok').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n}\n\nreturn [{ json: {\n  date: new Date().toISOString().split('T')[0],\n  client_name: client.client_name,\n  ig_followers: igData.ig_followers,\n  ig_avg_likes: igData.ig_avg_likes,\n  ig_avg_views: igData.ig_avg_views,\n  ig_total_post_views: igData.ig_total_post_views,\n  tiktok_followers: tiktokFollowers,\n  tiktok_avg_plays: tiktokAvgPlays,\n  tiktok_total_post_plays: tiktokTotalPlays,\n  yt_subscribers: ytData.yt_subscribers ?? 0,\n  yt_total_views: ytData.yt_total_views ?? 0,\n  yt_shorts_views: ytData.yt_shorts_views ?? '',\n  yt_longs_views: ytData.yt_longs_views ?? ''\n\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3872,
+        -16
+      ],
+      "id": "4c423ec4-2048-4016-a2f9-524e04ed29b9",
+      "name": "Merge Data3"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 625659498,
+          "mode": "list",
+          "cachedResultName": "Metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "client_name",
+              "lookupValue": "={{ $json.client_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4112,
+        -16
+      ],
+      "id": "9b933fe7-f4c6-4436-89d8-9468e2fc4d0c",
+      "name": "Get Previous Rows",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let allRows = [];\ntry { allRows = $('Get Previous Rows').all(); } catch(e) { allRows = []; }\n\nconst mergedData = $('Restore Gains').first().json;\n\nconst ig_views_gained_today = mergedData.ig_views_gained_today ?? 0;\nconst tiktok_plays_gained_today = mergedData.tiktok_plays_gained_today ?? 0;\n\nconst todayStr = new Date().toISOString().split('T')[0];\n\nlet prevIgViews = 0;\nlet prevTiktokPlays = 0;\nlet prevYtViews = 0;\n\nif (allRows.length > 0) {\n  const prevRows = allRows\n    .map(r => r.json)\n    .filter(r => r.date && r.date < todayStr)\n    .sort((a, b) => b.date.localeCompare(a.date));\n\n  if (prevRows.length > 0) {\n    prevIgViews = Number(prevRows[0].ig_views_this_month ?? 0);\n    prevTiktokPlays = Number(prevRows[0].tiktok_plays_this_month ?? 0);\n    prevYtViews = Number(prevRows[0].yt_total_views ?? 0);\n  }\n}\n\nconst ig_views_this_month = prevIgViews + ig_views_gained_today;\nconst tiktok_plays_this_month = prevTiktokPlays + tiktok_plays_gained_today;\nconst yt_views_gained_today = Math.max(0, Number(mergedData.yt_total_views ?? 0) - prevYtViews);\n\nreturn [{\n  json: {\n    ...mergedData,\n    ig_views_gained_today,\n    tiktok_plays_gained_today,\n    ig_views_this_month,\n    tiktok_plays_this_month,\n    yt_views_gained_today,\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4480,
+        -16
+      ],
+      "id": "29789f85-bdd0-47a0-99ab-7ba635056335",
+      "name": "Compute Diffs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const mergedData = $('Merge Data3').first().json;\nconst clientName = mergedData.client_name;\nconst hasTikTok = !!$('Loop Over Items').item.json.tiktok_handle;\n\nlet igPosts = [];\ntry {\n  const igProfile = $('Apify Instagram').first().json;\n  igPosts = igProfile.latestPosts ?? [];\n} catch(e) {}\n\nlet ttPosts = [];\nif (hasTikTok) {\n  try {\n    ttPosts = $('Fetch TikTok Dataset').all().map(i => i.json);\n  } catch(e) {}\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst rows = [];\n\nigPosts.forEach(p => {\n  const rawId = String(p.id ?? p.shortCode ?? '').trim();\n  if (!rawId) return;\n  const postId = 'ig_' + rawId; // prefix keeps Sheets from rounding long numeric IDs\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'instagram',\n    first_seen_date: today,\n    views_today: p.videoPlayCount ?? p.videoViewCount ?? 0,\n    timestamp: p.timestamp ?? ''\n  });\n});\n\nttPosts.forEach(p => {\n  const rawId = String(\n    p.id ??\n    p.webVideoUrl ??\n    p.videoUrl ??\n    p.shareUrl ??\n    ''\n  ).trim();\n  if (!rawId) return;\n  const postId = 'tt_' + rawId;\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'tiktok',\n    first_seen_date: today,\n    views_today: p.playCount ?? 0,\n    timestamp: p.createTime ? new Date(p.createTime * 1000).toISOString() : ''\n  });\n});\n\nreturn rows.map(r => ({ json: r }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4016,
+        -272
+      ],
+      "id": "71fb91aa-1d70-4df7-aaff-2d90ae88a155",
+      "name": "Update Post Tracking"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1225115683,
+          "mode": "list",
+          "cachedResultName": "PostTracking",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "client_name",
+              "lookupValue": "={{ $('Loop Over Items').item.json.client_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4240,
+        -272
+      ],
+      "id": "9d64601c-106d-4f9a-a251-630c889d613c",
+      "name": "Read Post Tracking",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let newPosts = [];\ntry { newPosts = $('Update Post Tracking').all().map(i => i.json); } catch(e) {}\n\nlet existingPosts = [];\ntry { existingPosts = $('Read Post Tracking').all().map(i => i.json); } catch(e) {}\n\nconst existingMap = {};\nexistingPosts.forEach(p => {\n  existingMap[String(p.post_id).trim()] = p;\n});\n\nlet ig_views_gained_today = 0;\nlet tiktok_plays_gained_today = 0;\n\nconst updatedRows = newPosts.map(p => {\n  const existing = existingMap[String(p.post_id).trim()];\n  const viewsYesterday = existing ? Number(existing.views_today ?? 0) : 0;\n  const viewsToday = Number(p.views_today ?? 0);\n  const isFirstDay = !existing;\n\n    // A post we've never tracked but that was published in the last ~2 days is\n  // genuinely new (its prior views were ~0), so its current views ARE this\n  // period's gain. An older post seen for the first time (e.g. it just\n  // scrolled into the latest-posts window) still gets 0 to avoid a false spike.\n  const publishedMs = Date.parse(p.timestamp || '');\n  const isBrandNew = publishedMs && publishedMs >= Date.now() - 2 * 86400 * 1000;\n  const gained = isFirstDay\n    ? (isBrandNew ? viewsToday : 0)\n    : Math.max(0, viewsToday - viewsYesterday);\n\n  if (p.platform === 'instagram') ig_views_gained_today += gained;\n  if (p.platform === 'tiktok') tiktok_plays_gained_today += gained;\n\n  return {\n    post_id: String(p.post_id).trim(),\n    client_name: p.client_name,\n    platform: p.platform,\n    first_seen_date: existing ? existing.first_seen_date : p.first_seen_date,\n    views_yesterday: viewsYesterday,\n    views_today: viewsToday,\n    views_gained_today: gained\n  };\n});\n\nreturn [{\n  json: {\n    updatedRows,\n    ig_views_gained_today,\n    tiktok_plays_gained_today\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4448,
+        -272
+      ],
+      "id": "bc5ecd4d-88da-4bfc-b304-2e0889b9b1c9",
+      "name": "Compute Post Gains"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1225115683,
+          "mode": "list",
+          "cachedResultName": "PostTracking",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_name": "={{ $json.client_name }}",
+            "post_id": "={{ $json.post_id }}",
+            "platform": "={{ $json.platform }}",
+            "first_seen_date": "={{ $json.first_seen_date }}",
+            "views_yesterday": "={{ $json.views_yesterday }}",
+            "views_today": "={{ $json.views_today }}",
+            "views_gained_today": "={{ $json.views_gained_today }}"
+          },
+          "matchingColumns": [
+            "post_id"
+          ],
+          "schema": [
+            {
+              "id": "post_id",
+              "displayName": "post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "platform",
+              "displayName": "platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "first_seen_date",
+              "displayName": "first_seen_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_yesterday",
+              "displayName": "views_yesterday",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_today",
+              "displayName": "views_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_gained_today",
+              "displayName": "views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        5040,
+        -272
+      ],
+      "id": "b27a5836-1e30-4cf5-804e-fe1e81c3f84e",
+      "name": "Write Post Tracking",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst gains = {\n  ig_views_gained_today: data.ig_views_gained_today,\n  tiktok_plays_gained_today: data.tiktok_plays_gained_today\n};\n\n// Pass gains forward via global context trick\n$execution.customData.set('ig_views_gained_today', String(gains.ig_views_gained_today));\n$execution.customData.set('tiktok_plays_gained_today', String(gains.tiktok_plays_gained_today));\n\nreturn data.updatedRows.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4720,
+        -272
+      ],
+      "id": "57cdf676-87dd-4276-b8d7-82b6ba840009",
+      "name": "Split Post Rows"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ig_views_gained_today = Number($execution.customData.get('ig_views_gained_today') ?? 0);\nconst tiktok_plays_gained_today = Number($execution.customData.get('tiktok_plays_gained_today') ?? 0);\nconst mergedData = $('Merge Data3').first().json;\n\nreturn [{ json: { ...mergedData, ig_views_gained_today, tiktok_plays_gained_today } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5568,
+        -272
+      ],
+      "id": "afba83e9-fe53-4590-bc92-681227d72df5",
+      "name": "Restore Gains"
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        4704,
+        -16
+      ],
+      "id": "278094be-d021-4288-b3ac-c9c90540bb90",
+      "name": "Wait",
+      "webhookId": "3d866331-13bf-4ce3-bc6d-9ce2ea5b9eec"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        5280,
+        -272
+      ],
+      "id": "ccd2127f-50b4-4a07-bfcf-66f25ca43a73",
+      "name": "Limit"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        4304,
+        -16
+      ],
+      "id": "c755a603-ec61-4d68-87b6-b03df8cdf9bb",
+      "name": "Limit1"
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1616,
+        0
+      ],
+      "id": "dfd20ef2-0d9c-422a-b461-bb66e1348b7f",
+      "name": "Wait2",
+      "webhookId": "93d724d1-5c2c-4808-8c73-5009393c151e"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -144,
+        1248
+      ],
+      "id": "ddc14897-7eed-4d54-9864-20b95c44df1e",
+      "name": "Schedule Trigger1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1588658295,
+          "mode": "list",
+          "cachedResultName": "Clients Info",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1588658295"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        64,
+        1248
+      ],
+      "id": "c6bec140-7848-4c0e-b249-64c0276ad85d",
+      "name": "Get row(s) in sheet1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        272,
+        1248
+      ],
+      "id": "d6266321-1b5a-42b7-a907-317ae090996f",
+      "name": "Loop Over Items1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"usernames\": [\"{{ $('Loop Over Items1').item.json.instagram_handle }}\"],\n  \"resultsLimit\": 30\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        544,
+        1264
+      ],
+      "id": "0718da56-8fd5-4e64-812a-ea867844ae39",
+      "name": "Apify Instagram1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?waitForFinish=120",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"profiles\": [\"{{ $('Loop Over Items1').item.json.tiktok_handle }}\"],\n  \"resultsPerPage\": 30\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        1248
+      ],
+      "id": "ff45a024-c8f1-4368-937a-11777ef44410",
+      "name": "Apify TikTok run1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "=https://api.apify.com/v2/datasets/{{ $('Apify TikTok run1').item.json.data.defaultDatasetId }}/items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1712,
+        1248
+      ],
+      "id": "57dfc545-f57a-4bae-8848-0f9f5c5e2fdd",
+      "name": "Fetch TikTok Dataset1",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 5000,
+      "disabled": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/youtube/v3/channels?part=statistics&id={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2496,
+        1232
+      ],
+      "id": "3ceca1bc-d103-4721-bc83-2f3608158239",
+      "name": "YouTube1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 625659498,
+          "mode": "list",
+          "cachedResultName": "Metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "date": "={{ new Date().toISOString().split('T')[0] }}",
+            "client_name": "={{ $json.client_name }}",
+            "ig_followers": "={{ $json.ig_followers }}",
+            "ig_avg_likes": "={{ $json.ig_avg_likes }}",
+            "ig_avg_views": "={{ $json.ig_avg_views }}",
+            "tiktok_followers": "={{ $json.tiktok_followers }}",
+            "tiktok_avg_plays": "={{ $json.tiktok_avg_plays }}",
+            "yt_subscribers": "={{ $json.yt_subscribers }}",
+            "yt_total_views": "={{ $json.yt_total_views }}",
+            "ig_views_this_month": "={{ $json.ig_views_this_month }}",
+            "tiktok_plays_this_month": "={{ $json.tiktok_plays_this_month }}",
+            "ig_views_gained_today": "={{ $json.ig_views_gained_today }}",
+            "tiktok_plays_gained_today": "={{ $json.tiktok_plays_gained_today }}",
+            "yt_views_gained_today": "={{ $json.yt_views_gained_today }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_followers",
+              "displayName": "ig_followers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_avg_views",
+              "displayName": "ig_avg_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_avg_likes",
+              "displayName": "ig_avg_likes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_followers",
+              "displayName": "tiktok_followers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tiktok_avg_plays",
+              "displayName": "tiktok_avg_plays",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "yt_subscribers",
+              "displayName": "yt_subscribers",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "yt_total_views",
+              "displayName": "yt_total_views",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ig_views_gained_today",
+              "displayName": "ig_views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_plays_gained_today",
+              "displayName": "tiktok_plays_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "ig_views_this_month",
+              "displayName": "ig_views_this_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tiktok_plays_this_month",
+              "displayName": "tiktok_plays_this_month",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "yt_views_gained_today",
+              "displayName": "yt_views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4192,
+        1232
+      ],
+      "id": "22b281e5-867f-4ec4-b2be-a8db62725f14",
+      "name": "Write to Sheet1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst followers = items[0]?.json?.authorMeta?.fans \n  ?? items[0]?.json?.authorMeta?.followers \n  ?? items[0]?.json?.fans \n  ?? 0;\nconst avgPlays = items.length > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0) / items.length) : 0;\nconst totalPostPlays = items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0);\n\nreturn [{ json: { tiktok_followers: followers, tiktok_avg_plays: avgPlays, tiktok_total_post_plays: totalPostPlays } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        1248
+      ],
+      "id": "38e92d69-3c04-4942-b448-126f74f0a63b",
+      "name": "Aggregate TikTok1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const profile = $input.first().json;\nconst posts = profile.latestPosts ?? [];\n\nconst viewsOf = (p) => p.videoPlayCount ?? p.videoViewCount ?? 0;\n\nconst followers = profile.followersCount ?? 0;\nconst avgLikes = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + (p.likesCount ?? 0), 0) / posts.length) : 0;\nconst avgViews = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + viewsOf(p), 0) / posts.length) : 0;\nconst totalPostViews = posts.reduce((sum, p) => sum + viewsOf(p), 0);\n\nreturn [{ json: { ig_followers: followers, ig_avg_likes: avgLikes, ig_avg_views: avgViews, ig_total_post_views: totalPostViews } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        1264
+      ],
+      "id": "8825290f-61f6-47e0-b14d-d58815df3624",
+      "name": "Aggregate Instagram1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+              "leftValue": "={{ $('Loop Over Items1').item.json.tiktok_handle }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+              "leftValue": "={{ $('Loop Over Items1').item.json.tiktok_handle }}",
+              "rightValue": "N/A",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        976,
+        1264
+      ],
+      "id": "185a46e4-903c-492d-9a62-015daee0d9ea",
+      "name": "Has TikTok?1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+              "name": "tiktok_followers",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+              "name": "tiktok_avg_plays",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "3cdcd077-2ffd-43c8-92c3-b711940df5d1",
+              "name": "tiktok_total_post_plays",
+              "value": "0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1360,
+        1520
+      ],
+      "id": "be3d3aea-7786-42d6-bc45-96db136f55b6",
+      "name": "Empty TikTok1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+              "leftValue": "={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+              "leftValue": "={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+              "rightValue": "N/A",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2192,
+        1504
+      ],
+      "id": "024cc2d4-f7bc-477b-9a79-2a0f0f440601",
+      "name": "Has YouTube?1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+              "name": "yt_total_views",
+              "value": "0",
+              "type": "string"
+            },
+            {
+              "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+              "name": "yt_subscribers",
+              "value": "0",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2576,
+        1520
+      ],
+      "id": "64164e80-72c4-4ef9-b8d4-f9746b6b8827",
+      "name": "Empty YouTube1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79956819-956a-4f79-97f5-78ec016fd019",
+              "name": "yt_subscribers",
+              "value": "={{ $json.items[0].statistics.subscriberCount }}",
+              "type": "string"
+            },
+            {
+              "id": "5cc534d1-b0ec-4ea5-8310-b8280cc01b9f",
+              "name": "yt_total_views",
+              "value": "={{ $json.items[0].statistics.viewCount }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2832,
+        1232
+      ],
+      "id": "55869cc8-1916-475a-91ce-be1259452aa2",
+      "name": "Edit Fields1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const igData = $('Aggregate Instagram1').item.json;\nconst client = $('Loop Over Items1').item.json;\nconst ytData = $input.first().json;\n\nlet tiktokFollowers = 0, tiktokAvgPlays = 0, tiktokTotalPlays = 0;\ntry { tiktokFollowers = $('Aggregate TikTok1').item.json.tiktok_followers ?? 0; } catch(e) {}\ntry { tiktokAvgPlays = $('Aggregate TikTok1').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\ntry { tiktokTotalPlays = $('Aggregate TikTok1').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n\nif (tiktokFollowers === 0) {\n  try { tiktokFollowers = $('Empty TikTok1').item.json.tiktok_followers ?? 0; } catch(e) {}\n  try { tiktokAvgPlays = $('Empty TikTok1').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\n  try { tiktokTotalPlays = $('Empty TikTok1').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n}\n\nreturn [{ json: {\n  date: new Date().toISOString().split('T')[0],\n  client_name: client.client_name,\n  ig_followers: igData.ig_followers,\n  ig_avg_likes: igData.ig_avg_likes,\n  ig_avg_views: igData.ig_avg_views,\n  ig_total_post_views: igData.ig_total_post_views,\n  tiktok_followers: tiktokFollowers,\n  tiktok_avg_plays: tiktokAvgPlays,\n  tiktok_total_post_plays: tiktokTotalPlays,\n  yt_subscribers: ytData.yt_subscribers ?? 0,\n  yt_total_views: ytData.yt_total_views ?? 0\n}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3152,
+        1232
+      ],
+      "id": "30717960-d4cf-4bb1-9c71-4d473cc1b7e4",
+      "name": "Merge Data",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 625659498,
+          "mode": "list",
+          "cachedResultName": "Metrics",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "client_name",
+              "lookupValue": "={{ $json.client_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3392,
+        1232
+      ],
+      "id": "d6f23396-b66f-40fb-a319-565725d2c034",
+      "name": "Get Previous Rows1",
+      "alwaysOutputData": true,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let allRows = [];\ntry { allRows = $('Get Previous Rows1').all(); } catch(e) { allRows = []; }\n\nconst mergedData = $('Restore Gains1').first().json;\n\nconst ig_views_gained_today = mergedData.ig_views_gained_today ?? 0;\nconst tiktok_plays_gained_today = mergedData.tiktok_plays_gained_today ?? 0;\n\nconst todayStr = new Date().toISOString().split('T')[0];\n\nlet prevIgViews = 0;\nlet prevTiktokPlays = 0;\nlet prevYtViews = 0;\n\nif (allRows.length > 0) {\n  const prevRows = allRows\n    .map(r => r.json)\n    .filter(r => r.date && r.date < todayStr)\n    .sort((a, b) => b.date.localeCompare(a.date));\n\n  if (prevRows.length > 0) {\n    prevIgViews = Number(prevRows[0].ig_views_this_month ?? 0);\n    prevTiktokPlays = Number(prevRows[0].tiktok_plays_this_month ?? 0);\n    prevYtViews = Number(prevRows[0].yt_total_views ?? 0);\n  }\n}\n\nconst ig_views_this_month = prevIgViews + ig_views_gained_today;\nconst tiktok_plays_this_month = prevTiktokPlays + tiktok_plays_gained_today;\nconst yt_views_gained_today = Math.max(0, Number(mergedData.yt_total_views ?? 0) - prevYtViews);\n\nreturn [{\n  json: {\n    ...mergedData,\n    ig_views_gained_today,\n    tiktok_plays_gained_today,\n    ig_views_this_month,\n    tiktok_plays_this_month,\n    yt_views_gained_today,\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3760,
+        1232
+      ],
+      "id": "232e8d01-abee-4530-9087-b49bcaa09178",
+      "name": "Compute Diffs1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const mergedData = $('Merge Data').first().json;\nconst clientName = mergedData.client_name;\nconst hasTikTok = !!$('Loop Over Items1').item.json.tiktok_handle;\n\nlet igPosts = [];\ntry {\n  const igProfile = $('Apify Instagram1').first().json;\n  igPosts = igProfile.latestPosts ?? [];\n} catch(e) {}\n\nlet ttPosts = [];\nif (hasTikTok) {\n  try {\n    ttPosts = $('Fetch TikTok Dataset1').all().map(i => i.json);\n  } catch(e) {}\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst rows = [];\n\nigPosts.forEach(p => {\n  const rawId = String(p.id ?? p.shortCode ?? '').trim();\n  if (!rawId) return;\n  const postId = 'ig_' + rawId; // prefix keeps Sheets from rounding long numeric IDs\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'instagram',\n    first_seen_date: today,\n    views_today: p.videoPlayCount ?? p.videoViewCount ?? 0,\n    timestamp: p.timestamp ?? ''\n  });\n});\n\nttPosts.forEach(p => {\n  const rawId = String(\n    p.id ??\n    p.webVideoUrl ??\n    p.videoUrl ??\n    p.shareUrl ??\n    ''\n  ).trim();\n  if (!rawId) return;\n  const postId = 'tt_' + rawId;\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'tiktok',\n    first_seen_date: today,\n    views_today: p.playCount ?? 0,\n    timestamp: p.createTime ? new Date(p.createTime * 1000).toISOString() : ''\n  });\n});\n\nreturn rows.map(r => ({ json: r }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3296,
+        976
+      ],
+      "id": "60513ca8-d3e8-47ff-b80b-bc082a9660b9",
+      "name": "Update Post Tracking1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1225115683,
+          "mode": "list",
+          "cachedResultName": "PostTracking",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "client_name",
+              "lookupValue": "={{ $('Loop Over Items1').item.json.client_name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3520,
+        976
+      ],
+      "id": "953e49a0-9afc-4d50-99d1-c231998919ac",
+      "name": "Read Post Tracking1",
+      "alwaysOutputData": true,
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let newPosts = [];\ntry { newPosts = $('Update Post Tracking1').all().map(i => i.json); } catch(e) {}\n\nlet existingPosts = [];\ntry { existingPosts = $('Read Post Tracking1').all().map(i => i.json); } catch(e) {}\n\nconst existingMap = {};\nexistingPosts.forEach(p => {\n  existingMap[String(p.post_id).trim()] = p;\n});\n\nlet ig_views_gained_today = 0;\nlet tiktok_plays_gained_today = 0;\n\nconst updatedRows = newPosts.map(p => {\n  const existing = existingMap[String(p.post_id).trim()];\n  const viewsYesterday = existing ? Number(existing.views_today ?? 0) : 0;\n  const viewsToday = Number(p.views_today ?? 0);\n  const isFirstDay = !existing;\n\n  // First time we see a post: gain = 0 (we don't know its prior history)\n  // Day 2+: compute real delta\n  const gained = isFirstDay ? 0 : Math.max(0, viewsToday - viewsYesterday);\n\n  if (p.platform === 'instagram') ig_views_gained_today += gained;\n  if (p.platform === 'tiktok') tiktok_plays_gained_today += gained;\n\n  return {\n    post_id: String(p.post_id).trim(),\n    client_name: p.client_name,\n    platform: p.platform,\n    first_seen_date: existing ? existing.first_seen_date : p.first_seen_date,\n    views_yesterday: viewsYesterday,\n    views_today: viewsToday,\n    views_gained_today: gained\n  };\n});\n\nreturn [{\n  json: {\n    updatedRows,\n    ig_views_gained_today,\n    tiktok_plays_gained_today\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3728,
+        976
+      ],
+      "id": "f36cd579-b6b4-43b9-a1da-8a1d7e6789f9",
+      "name": "Compute Post Gains1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+          "mode": "list",
+          "cachedResultName": "SYNCVIEW",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1225115683,
+          "mode": "list",
+          "cachedResultName": "PostTracking",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "client_name": "={{ $json.client_name }}",
+            "post_id": "={{ $json.post_id }}",
+            "platform": "={{ $json.platform }}",
+            "first_seen_date": "={{ $json.first_seen_date }}",
+            "views_yesterday": "={{ $json.views_yesterday }}",
+            "views_today": "={{ $json.views_today }}",
+            "views_gained_today": "={{ $json.views_gained_today }}"
+          },
+          "matchingColumns": [
+            "post_id"
+          ],
+          "schema": [
+            {
+              "id": "post_id",
+              "displayName": "post_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "client_name",
+              "displayName": "client_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "platform",
+              "displayName": "platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "first_seen_date",
+              "displayName": "first_seen_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_yesterday",
+              "displayName": "views_yesterday",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_today",
+              "displayName": "views_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "views_gained_today",
+              "displayName": "views_gained_today",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4320,
+        976
+      ],
+      "id": "99f248c6-882d-46f0-9a52-fb20fa2bcf02",
+      "name": "Write Post Tracking1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst gains = {\n  ig_views_gained_today: data.ig_views_gained_today,\n  tiktok_plays_gained_today: data.tiktok_plays_gained_today\n};\n\n// Pass gains forward via global context trick\n$execution.customData.set('ig_views_gained_today', String(gains.ig_views_gained_today));\n$execution.customData.set('tiktok_plays_gained_today', String(gains.tiktok_plays_gained_today));\n\nreturn data.updatedRows.map(r => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4000,
+        976
+      ],
+      "id": "59fb596a-082b-464f-9cff-30992cc0aee8",
+      "name": "Split Post Rows1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const ig_views_gained_today = Number($execution.customData.get('ig_views_gained_today') ?? 0);\nconst tiktok_plays_gained_today = Number($execution.customData.get('tiktok_plays_gained_today') ?? 0);\nconst mergedData = $('Merge Data').first().json;\n\nreturn [{ json: { ...mergedData, ig_views_gained_today, tiktok_plays_gained_today } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4848,
+        976
+      ],
+      "id": "2725569a-ea84-4b2f-8b6c-604cbbdbdc9a",
+      "name": "Restore Gains1",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "amount": 3
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3984,
+        1232
+      ],
+      "id": "8a202280-302e-4fe9-a233-673506c57352",
+      "name": "Wait1",
+      "webhookId": "3d866331-13bf-4ce3-bc6d-9ce2ea5b9eec",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        4560,
+        976
+      ],
+      "id": "72b442a2-454a-4123-a38b-404f65b75cc7",
+      "name": "Limit2",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        3584,
+        1232
+      ],
+      "id": "c1a3a156-cb8b-421f-b9aa-099dd6311e63",
+      "name": "Limit3",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1472,
+        1248
+      ],
+      "id": "38f9df1f-0c28-44f8-a6f6-7b9b803fe6a9",
+      "name": "Wait3",
+      "webhookId": "93d724d1-5c2c-4808-8c73-5009393c151e",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "f093dabc-6d45-46db-8725-53541a91a6d4",
+              "leftValue": "={{ $('Loop Over Items').item.json.client_name }}",
+              "rightValue": "Dr. Sonia Chopra",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3056,
+        -16
+      ],
+      "id": "3d9d5b73-1486-45a5-b2a5-421ec2d37b7e",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c145fdc4-42f3-4561-924c-10234544ec16",
+              "name": "yt_shorts_views",
+              "value": "\"\"",
+              "type": "string"
+            },
+            {
+              "id": "0c7c72bc-d4dd-4728-a6c9-2f7d0eced3cd",
+              "name": "yt_longs_views",
+              "value": "\"\"",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        3296,
+        0
+      ],
+      "id": "a55fb81c-0e3e-4720-81f8-c55e81a7daa3",
+      "name": "Edit Fields2"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"startUrls\": [\n    { \"url\": \"https://www.youtube.com/channel/{{ $('Loop Over Items').item.json.youtube_channel_id }}/videos\" }\n  ],\n  \"maxResults\": 50\n}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3248,
+        -208
+      ],
+      "id": "0379dd75-85e9-478a-bd9b-0634350ef10d",
+      "name": "Apify YouTube Run"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cutoffMs = Date.now() - 30 * 86400 * 1000;\nconst SONIA_CHANNEL = 'UC_caIBdFY1E_KhlWamMkl9A';\n\nfunction parseDate(s) {\n  if (!s) return NaN;\n  const abs = new Date(s).getTime();\n  if (!Number.isNaN(abs)) return abs;\n  const m = String(s).match(/(\\d+)\\s+(second|minute|hour|day|week|month|year)s?\\s+ago/i);\n  if (!m) return NaN;\n  const f = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };\n  return Date.now() - (+m[1]) * f[m[2].toLowerCase()] * 1000;\n}\n\nfunction sumViewsInWindow(allItems, requireChannelId) {\n  const seen = new Set();\n  let total = 0;\n  for (const it of allItems) {\n    const v = it.json;\n    if (v.id && seen.has(v.id)) continue;\n    if (v.id) seen.add(v.id);\n    if (requireChannelId && v.channelId !== requireChannelId) continue;\n    const t = parseDate(v.date);\n    if (!Number.isNaN(t) && t < cutoffMs) continue;\n    total += Number(v.viewCount ?? v.views ?? 0);\n  }\n  return total;\n}\n\nconst longs = sumViewsInWindow($('Apify YouTube Run').all(), SONIA_CHANNEL);\nconst shorts = sumViewsInWindow($('Apify Shorts Run').all(), SONIA_CHANNEL);\n\nconst ef = $('Edit Fields').first().json;\nreturn [{ json: {\n  yt_subscribers: ef.yt_subscribers,\n  yt_total_views: ef.yt_total_views,\n  yt_shorts_views: shorts,\n  yt_longs_views: longs,\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        -208
+      ],
+      "id": "0966a94f-fed8-45dc-8ef8-4769459d8fcd",
+      "name": "Classify & Sum"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apify.com/v2/acts/streamers~youtube-shorts-scraper/run-sync-get-dataset-items",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"channels\": [\"SoniaChopraDDS\"],\n  \"maxResultsShorts\": 30\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3488,
+        -208
+      ],
+      "id": "ff5f8558-0d1a-40d8-b534-00cbdaedf6b2",
+      "name": "Apify Shorts Run",
+      "onError": "continueErrorOutput"
+    }
+  ],
+  "activeVersion": {
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {}
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          0,
+          0
+        ],
+        "id": "626c45dc-b00b-4914-8172-4bba4b99903e",
+        "name": "Schedule Trigger"
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1588658295,
+            "mode": "list",
+            "cachedResultName": "Clients Info",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1588658295"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          208,
+          0
+        ],
+        "id": "a99a7105-305a-4f4c-a000-5cc9a7afd204",
+        "name": "Get row(s) in sheet"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          416,
+          0
+        ],
+        "id": "f3a68c76-9d20-4354-9e17-0ea38fceebdf",
+        "name": "Loop Over Items"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"usernames\": [\"{{ $('Loop Over Items').item.json.instagram_handle }}\"],\n  \"resultsLimit\": 30\n}",
+          "options": {
+            "timeout": 300000
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          688,
+          16
+        ],
+        "id": "c73c34f6-8349-4d2f-8804-157558ac623f",
+        "name": "Apify Instagram",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?waitForFinish=120",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"profiles\": [\"{{ $('Loop Over Items').item.json.tiktok_handle }}\"],\n  \"resultsPerPage\": 30\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1360,
+          0
+        ],
+        "id": "4d478f96-2073-4eab-acb0-c7e15e7e7ca5",
+        "name": "Apify TikTok run"
+      },
+      {
+        "parameters": {
+          "url": "=https://api.apify.com/v2/datasets/{{ $('Apify TikTok run').item.json.data.defaultDatasetId }}/items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1856,
+          0
+        ],
+        "id": "a1f2d004-8e37-404e-84cd-316bf230fdec",
+        "name": "Fetch TikTok Dataset",
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 5000,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "url": "=https://www.googleapis.com/youtube/v3/channels?part=statistics&id={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          2640,
+          -16
+        ],
+        "id": "270b067f-ca96-4611-bbc0-d1fa7f686e86",
+        "name": "YouTube"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 625659498,
+            "mode": "list",
+            "cachedResultName": "Metrics",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "date": "={{ new Date().toISOString().split('T')[0] }}",
+              "client_name": "={{ $json.client_name }}",
+              "ig_followers": "={{ $json.ig_followers }}",
+              "ig_avg_likes": "={{ $json.ig_avg_likes }}",
+              "ig_avg_views": "={{ $json.ig_avg_views }}",
+              "tiktok_followers": "={{ $json.tiktok_followers }}",
+              "tiktok_avg_plays": "={{ $json.tiktok_avg_plays }}",
+              "yt_subscribers": "={{ $json.yt_subscribers }}",
+              "yt_total_views": "={{ $json.yt_total_views }}",
+              "ig_views_this_month": "={{ $json.ig_views_this_month }}",
+              "tiktok_plays_this_month": "={{ $json.tiktok_plays_this_month }}",
+              "ig_views_gained_today": "={{ $json.ig_views_gained_today }}",
+              "tiktok_plays_gained_today": "={{ $json.tiktok_plays_gained_today }}",
+              "yt_views_gained_today": "={{ $json.yt_views_gained_today }}",
+              "yt_shorts_views": "={{ $json.yt_shorts_views }}",
+              "yt_longs_views": "={{ $json.yt_longs_views }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "date",
+                "displayName": "date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "client_name",
+                "displayName": "client_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_followers",
+                "displayName": "ig_followers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_avg_views",
+                "displayName": "ig_avg_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_avg_likes",
+                "displayName": "ig_avg_likes",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "tiktok_followers",
+                "displayName": "tiktok_followers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "tiktok_avg_plays",
+                "displayName": "tiktok_avg_plays",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "yt_subscribers",
+                "displayName": "yt_subscribers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "yt_total_views",
+                "displayName": "yt_total_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_views_gained_today",
+                "displayName": "ig_views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "tiktok_plays_gained_today",
+                "displayName": "tiktok_plays_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "ig_views_this_month",
+                "displayName": "ig_views_this_month",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "tiktok_plays_this_month",
+                "displayName": "tiktok_plays_this_month",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "yt_views_gained_today",
+                "displayName": "yt_views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "yt_shorts_views",
+                "displayName": "yt_shorts_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "yt_longs_views",
+                "displayName": "yt_longs_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4912,
+          -16
+        ],
+        "id": "c1974820-e658-497f-8d11-bb6d38966187",
+        "name": "Write to Sheet"
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst followers = items[0]?.json?.authorMeta?.fans \n  ?? items[0]?.json?.authorMeta?.followers \n  ?? items[0]?.json?.fans \n  ?? 0;\nconst avgPlays = items.length > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0) / items.length) : 0;\nconst totalPostPlays = items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0);\n\nreturn [{ json: { tiktok_followers: followers, tiktok_avg_plays: avgPlays, tiktok_total_post_plays: totalPostPlays } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2144,
+          -16
+        ],
+        "id": "47eed517-3ad3-4170-9c4f-2a11c2879dc6",
+        "name": "Aggregate TikTok"
+      },
+      {
+        "parameters": {
+          "jsCode": "const profile = $input.first().json;\nconst posts = profile.latestPosts ?? [];\n\nconst viewsOf = (p) => p.videoPlayCount ?? p.videoViewCount ?? 0;\n\nconst followers = profile.followersCount ?? 0;\nconst avgLikes = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + (p.likesCount ?? 0), 0) / posts.length) : 0;\nconst avgViews = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + viewsOf(p), 0) / posts.length) : 0;\nconst totalPostViews = posts.reduce((sum, p) => sum + viewsOf(p), 0);\n\nreturn [{ json: { ig_followers: followers, ig_avg_likes: avgLikes, ig_avg_views: avgViews, ig_total_post_views: totalPostViews } }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          928,
+          16
+        ],
+        "id": "2549ecb7-4b90-4aec-959a-4db062a8dfdf",
+        "name": "Aggregate Instagram"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+                "leftValue": "={{ $('Loop Over Items').item.json.tiktok_handle }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              },
+              {
+                "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+                "leftValue": "={{ $('Loop Over Items').item.json.tiktok_handle }}",
+                "rightValue": "N/A",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          1120,
+          16
+        ],
+        "id": "8190afda-af13-4713-b545-27f28cd0e54f",
+        "name": "Has TikTok?"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+                "name": "tiktok_followers",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+                "name": "tiktok_avg_plays",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "3cdcd077-2ffd-43c8-92c3-b711940df5d1",
+                "name": "tiktok_total_post_plays",
+                "value": "0",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1504,
+          272
+        ],
+        "id": "d09ce917-e0e3-4ad1-a946-705bbc76710e",
+        "name": "Empty TikTok"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+                "leftValue": "={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              },
+              {
+                "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+                "leftValue": "={{ $('Loop Over Items').item.json.youtube_channel_id }}",
+                "rightValue": "N/A",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          2336,
+          256
+        ],
+        "id": "190a5615-ef10-4e7b-b67d-d2a42c68bb01",
+        "name": "Has YouTube?"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+                "name": "yt_total_views",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+                "name": "yt_subscribers",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "379a0233-81ff-4d51-8caa-c7303cdd5dd1",
+                "name": "yt_shorts_views",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "d4ce7aab-f099-46ba-b592-4618f8685368",
+                "name": "yt_longs_views",
+                "value": "0",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2720,
+          272
+        ],
+        "id": "11190740-3890-441b-8922-ae02d46e308d",
+        "name": "Empty YouTube"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "79956819-956a-4f79-97f5-78ec016fd019",
+                "name": "yt_subscribers",
+                "value": "={{ $json.items[0].statistics.subscriberCount }}",
+                "type": "string"
+              },
+              {
+                "id": "5cc534d1-b0ec-4ea5-8310-b8280cc01b9f",
+                "name": "yt_total_views",
+                "value": "={{ $json.items[0].statistics.viewCount }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2848,
+          -16
+        ],
+        "id": "a9321b94-7604-428d-b5f6-a8ad9793b2e7",
+        "name": "Edit Fields"
+      },
+      {
+        "parameters": {
+          "jsCode": "const igData = $('Aggregate Instagram').item.json;\nconst client = $('Loop Over Items').item.json;\nconst ytData = $input.first().json;\n\nlet tiktokFollowers = 0, tiktokAvgPlays = 0, tiktokTotalPlays = 0;\ntry { tiktokFollowers = $('Aggregate TikTok').item.json.tiktok_followers ?? 0; } catch(e) {}\ntry { tiktokAvgPlays = $('Aggregate TikTok').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\ntry { tiktokTotalPlays = $('Aggregate TikTok').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n\nif (tiktokFollowers === 0) {\n  try { tiktokFollowers = $('Empty TikTok').item.json.tiktok_followers ?? 0; } catch(e) {}\n  try { tiktokAvgPlays = $('Empty TikTok').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\n  try { tiktokTotalPlays = $('Empty TikTok').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n}\n\nreturn [{ json: {\n  date: new Date().toISOString().split('T')[0],\n  client_name: client.client_name,\n  ig_followers: igData.ig_followers,\n  ig_avg_likes: igData.ig_avg_likes,\n  ig_avg_views: igData.ig_avg_views,\n  ig_total_post_views: igData.ig_total_post_views,\n  tiktok_followers: tiktokFollowers,\n  tiktok_avg_plays: tiktokAvgPlays,\n  tiktok_total_post_plays: tiktokTotalPlays,\n  yt_subscribers: ytData.yt_subscribers ?? 0,\n  yt_total_views: ytData.yt_total_views ?? 0,\n  yt_shorts_views: ytData.yt_shorts_views ?? '',\n  yt_longs_views: ytData.yt_longs_views ?? ''\n\n}}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3872,
+          -16
+        ],
+        "id": "4c423ec4-2048-4016-a2f9-524e04ed29b9",
+        "name": "Merge Data3"
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 625659498,
+            "mode": "list",
+            "cachedResultName": "Metrics",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "client_name",
+                "lookupValue": "={{ $json.client_name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4112,
+          -16
+        ],
+        "id": "9b933fe7-f4c6-4436-89d8-9468e2fc4d0c",
+        "name": "Get Previous Rows",
+        "alwaysOutputData": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let allRows = [];\ntry { allRows = $('Get Previous Rows').all(); } catch(e) { allRows = []; }\n\nconst mergedData = $('Restore Gains').first().json;\n\nconst ig_views_gained_today = mergedData.ig_views_gained_today ?? 0;\nconst tiktok_plays_gained_today = mergedData.tiktok_plays_gained_today ?? 0;\n\nconst todayStr = new Date().toISOString().split('T')[0];\n\nlet prevIgViews = 0;\nlet prevTiktokPlays = 0;\nlet prevYtViews = 0;\n\nif (allRows.length > 0) {\n  const prevRows = allRows\n    .map(r => r.json)\n    .filter(r => r.date && r.date < todayStr)\n    .sort((a, b) => b.date.localeCompare(a.date));\n\n  if (prevRows.length > 0) {\n    prevIgViews = Number(prevRows[0].ig_views_this_month ?? 0);\n    prevTiktokPlays = Number(prevRows[0].tiktok_plays_this_month ?? 0);\n    prevYtViews = Number(prevRows[0].yt_total_views ?? 0);\n  }\n}\n\nconst ig_views_this_month = prevIgViews + ig_views_gained_today;\nconst tiktok_plays_this_month = prevTiktokPlays + tiktok_plays_gained_today;\nconst yt_views_gained_today = Math.max(0, Number(mergedData.yt_total_views ?? 0) - prevYtViews);\n\nreturn [{\n  json: {\n    ...mergedData,\n    ig_views_gained_today,\n    tiktok_plays_gained_today,\n    ig_views_this_month,\n    tiktok_plays_this_month,\n    yt_views_gained_today,\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4480,
+          -16
+        ],
+        "id": "29789f85-bdd0-47a0-99ab-7ba635056335",
+        "name": "Compute Diffs"
+      },
+      {
+        "parameters": {
+          "jsCode": "const mergedData = $('Merge Data3').first().json;\nconst clientName = mergedData.client_name;\nconst hasTikTok = !!$('Loop Over Items').item.json.tiktok_handle;\n\nlet igPosts = [];\ntry {\n  const igProfile = $('Apify Instagram').first().json;\n  igPosts = igProfile.latestPosts ?? [];\n} catch(e) {}\n\nlet ttPosts = [];\nif (hasTikTok) {\n  try {\n    ttPosts = $('Fetch TikTok Dataset').all().map(i => i.json);\n  } catch(e) {}\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst rows = [];\n\nigPosts.forEach(p => {\n  const rawId = String(p.id ?? p.shortCode ?? '').trim();\n  if (!rawId) return;\n  const postId = 'ig_' + rawId; // prefix keeps Sheets from rounding long numeric IDs\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'instagram',\n    first_seen_date: today,\n    views_today: p.videoPlayCount ?? p.videoViewCount ?? 0,\n    timestamp: p.timestamp ?? ''\n  });\n});\n\nttPosts.forEach(p => {\n  const rawId = String(\n    p.id ??\n    p.webVideoUrl ??\n    p.videoUrl ??\n    p.shareUrl ??\n    ''\n  ).trim();\n  if (!rawId) return;\n  const postId = 'tt_' + rawId;\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'tiktok',\n    first_seen_date: today,\n    views_today: p.playCount ?? 0,\n    timestamp: p.createTime ? new Date(p.createTime * 1000).toISOString() : ''\n  });\n});\n\nreturn rows.map(r => ({ json: r }));\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4016,
+          -272
+        ],
+        "id": "71fb91aa-1d70-4df7-aaff-2d90ae88a155",
+        "name": "Update Post Tracking"
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1225115683,
+            "mode": "list",
+            "cachedResultName": "PostTracking",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "client_name",
+                "lookupValue": "={{ $('Loop Over Items').item.json.client_name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4240,
+          -272
+        ],
+        "id": "9d64601c-106d-4f9a-a251-630c889d613c",
+        "name": "Read Post Tracking",
+        "alwaysOutputData": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let newPosts = [];\ntry { newPosts = $('Update Post Tracking').all().map(i => i.json); } catch(e) {}\n\nlet existingPosts = [];\ntry { existingPosts = $('Read Post Tracking').all().map(i => i.json); } catch(e) {}\n\nconst existingMap = {};\nexistingPosts.forEach(p => {\n  existingMap[String(p.post_id).trim()] = p;\n});\n\nlet ig_views_gained_today = 0;\nlet tiktok_plays_gained_today = 0;\n\nconst updatedRows = newPosts.map(p => {\n  const existing = existingMap[String(p.post_id).trim()];\n  const viewsYesterday = existing ? Number(existing.views_today ?? 0) : 0;\n  const viewsToday = Number(p.views_today ?? 0);\n  const isFirstDay = !existing;\n\n    // A post we've never tracked but that was published in the last ~2 days is\n  // genuinely new (its prior views were ~0), so its current views ARE this\n  // period's gain. An older post seen for the first time (e.g. it just\n  // scrolled into the latest-posts window) still gets 0 to avoid a false spike.\n  const publishedMs = Date.parse(p.timestamp || '');\n  const isBrandNew = publishedMs && publishedMs >= Date.now() - 2 * 86400 * 1000;\n  const gained = isFirstDay\n    ? (isBrandNew ? viewsToday : 0)\n    : Math.max(0, viewsToday - viewsYesterday);\n\n  if (p.platform === 'instagram') ig_views_gained_today += gained;\n  if (p.platform === 'tiktok') tiktok_plays_gained_today += gained;\n\n  return {\n    post_id: String(p.post_id).trim(),\n    client_name: p.client_name,\n    platform: p.platform,\n    first_seen_date: existing ? existing.first_seen_date : p.first_seen_date,\n    views_yesterday: viewsYesterday,\n    views_today: viewsToday,\n    views_gained_today: gained\n  };\n});\n\nreturn [{\n  json: {\n    updatedRows,\n    ig_views_gained_today,\n    tiktok_plays_gained_today\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4448,
+          -272
+        ],
+        "id": "bc5ecd4d-88da-4bfc-b304-2e0889b9b1c9",
+        "name": "Compute Post Gains"
+      },
+      {
+        "parameters": {
+          "operation": "appendOrUpdate",
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1225115683,
+            "mode": "list",
+            "cachedResultName": "PostTracking",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "client_name": "={{ $json.client_name }}",
+              "post_id": "={{ $json.post_id }}",
+              "platform": "={{ $json.platform }}",
+              "first_seen_date": "={{ $json.first_seen_date }}",
+              "views_yesterday": "={{ $json.views_yesterday }}",
+              "views_today": "={{ $json.views_today }}",
+              "views_gained_today": "={{ $json.views_gained_today }}"
+            },
+            "matchingColumns": [
+              "post_id"
+            ],
+            "schema": [
+              {
+                "id": "post_id",
+                "displayName": "post_id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "client_name",
+                "displayName": "client_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "platform",
+                "displayName": "platform",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "first_seen_date",
+                "displayName": "first_seen_date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_yesterday",
+                "displayName": "views_yesterday",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_today",
+                "displayName": "views_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_gained_today",
+                "displayName": "views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          5040,
+          -272
+        ],
+        "id": "b27a5836-1e30-4cf5-804e-fe1e81c3f84e",
+        "name": "Write Post Tracking",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json;\nconst gains = {\n  ig_views_gained_today: data.ig_views_gained_today,\n  tiktok_plays_gained_today: data.tiktok_plays_gained_today\n};\n\n// Pass gains forward via global context trick\n$execution.customData.set('ig_views_gained_today', String(gains.ig_views_gained_today));\n$execution.customData.set('tiktok_plays_gained_today', String(gains.tiktok_plays_gained_today));\n\nreturn data.updatedRows.map(r => ({ json: r }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4720,
+          -272
+        ],
+        "id": "57cdf676-87dd-4276-b8d7-82b6ba840009",
+        "name": "Split Post Rows"
+      },
+      {
+        "parameters": {
+          "jsCode": "const ig_views_gained_today = Number($execution.customData.get('ig_views_gained_today') ?? 0);\nconst tiktok_plays_gained_today = Number($execution.customData.get('tiktok_plays_gained_today') ?? 0);\nconst mergedData = $('Merge Data3').first().json;\n\nreturn [{ json: { ...mergedData, ig_views_gained_today, tiktok_plays_gained_today } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          5568,
+          -272
+        ],
+        "id": "afba83e9-fe53-4590-bc92-681227d72df5",
+        "name": "Restore Gains"
+      },
+      {
+        "parameters": {
+          "amount": 3
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          4704,
+          -16
+        ],
+        "id": "278094be-d021-4288-b3ac-c9c90540bb90",
+        "name": "Wait",
+        "webhookId": "3d866331-13bf-4ce3-bc6d-9ce2ea5b9eec"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.limit",
+        "typeVersion": 1,
+        "position": [
+          5280,
+          -272
+        ],
+        "id": "ccd2127f-50b4-4a07-bfcf-66f25ca43a73",
+        "name": "Limit"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.limit",
+        "typeVersion": 1,
+        "position": [
+          4304,
+          -16
+        ],
+        "id": "c755a603-ec61-4d68-87b6-b03df8cdf9bb",
+        "name": "Limit1"
+      },
+      {
+        "parameters": {
+          "amount": 15
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1616,
+          0
+        ],
+        "id": "dfd20ef2-0d9c-422a-b461-bb66e1348b7f",
+        "name": "Wait2",
+        "webhookId": "93d724d1-5c2c-4808-8c73-5009393c151e"
+      },
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {}
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.3,
+        "position": [
+          -144,
+          1248
+        ],
+        "id": "ddc14897-7eed-4d54-9864-20b95c44df1e",
+        "name": "Schedule Trigger1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1588658295,
+            "mode": "list",
+            "cachedResultName": "Clients Info",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1588658295"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          64,
+          1248
+        ],
+        "id": "c6bec140-7848-4c0e-b249-64c0276ad85d",
+        "name": "Get row(s) in sheet1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "n8n-nodes-base.splitInBatches",
+        "typeVersion": 3,
+        "position": [
+          272,
+          1248
+        ],
+        "id": "d6266321-1b5a-42b7-a907-317ae090996f",
+        "name": "Loop Over Items1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/apify~instagram-profile-scraper/run-sync-get-dataset-items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"usernames\": [\"{{ $('Loop Over Items1').item.json.instagram_handle }}\"],\n  \"resultsLimit\": 30\n}",
+          "options": {
+            "timeout": 300000
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          544,
+          1264
+        ],
+        "id": "0718da56-8fd5-4e64-812a-ea867844ae39",
+        "name": "Apify Instagram1",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/clockworks~tiktok-profile-scraper/runs?waitForFinish=120",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"profiles\": [\"{{ $('Loop Over Items1').item.json.tiktok_handle }}\"],\n  \"resultsPerPage\": 30\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1216,
+          1248
+        ],
+        "id": "ff45a024-c8f1-4368-937a-11777ef44410",
+        "name": "Apify TikTok run1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "url": "=https://api.apify.com/v2/datasets/{{ $('Apify TikTok run1').item.json.data.defaultDatasetId }}/items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          1712,
+          1248
+        ],
+        "id": "57dfc545-f57a-4bae-8848-0f9f5c5e2fdd",
+        "name": "Fetch TikTok Dataset1",
+        "retryOnFail": true,
+        "maxTries": 2,
+        "waitBetweenTries": 5000,
+        "disabled": true,
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "url": "=https://www.googleapis.com/youtube/v3/channels?part=statistics&id={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          2496,
+          1232
+        ],
+        "id": "3ceca1bc-d103-4721-bc83-2f3608158239",
+        "name": "YouTube1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 625659498,
+            "mode": "list",
+            "cachedResultName": "Metrics",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "date": "={{ new Date().toISOString().split('T')[0] }}",
+              "client_name": "={{ $json.client_name }}",
+              "ig_followers": "={{ $json.ig_followers }}",
+              "ig_avg_likes": "={{ $json.ig_avg_likes }}",
+              "ig_avg_views": "={{ $json.ig_avg_views }}",
+              "tiktok_followers": "={{ $json.tiktok_followers }}",
+              "tiktok_avg_plays": "={{ $json.tiktok_avg_plays }}",
+              "yt_subscribers": "={{ $json.yt_subscribers }}",
+              "yt_total_views": "={{ $json.yt_total_views }}",
+              "ig_views_this_month": "={{ $json.ig_views_this_month }}",
+              "tiktok_plays_this_month": "={{ $json.tiktok_plays_this_month }}",
+              "ig_views_gained_today": "={{ $json.ig_views_gained_today }}",
+              "tiktok_plays_gained_today": "={{ $json.tiktok_plays_gained_today }}",
+              "yt_views_gained_today": "={{ $json.yt_views_gained_today }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "date",
+                "displayName": "date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "client_name",
+                "displayName": "client_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_followers",
+                "displayName": "ig_followers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_avg_views",
+                "displayName": "ig_avg_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_avg_likes",
+                "displayName": "ig_avg_likes",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "tiktok_followers",
+                "displayName": "tiktok_followers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "tiktok_avg_plays",
+                "displayName": "tiktok_avg_plays",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "yt_subscribers",
+                "displayName": "yt_subscribers",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "yt_total_views",
+                "displayName": "yt_total_views",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "ig_views_gained_today",
+                "displayName": "ig_views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "tiktok_plays_gained_today",
+                "displayName": "tiktok_plays_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "ig_views_this_month",
+                "displayName": "ig_views_this_month",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "tiktok_plays_this_month",
+                "displayName": "tiktok_plays_this_month",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "yt_views_gained_today",
+                "displayName": "yt_views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4192,
+          1232
+        ],
+        "id": "22b281e5-867f-4ec4-b2be-a8db62725f14",
+        "name": "Write to Sheet1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $input.all();\nconst followers = items[0]?.json?.authorMeta?.fans \n  ?? items[0]?.json?.authorMeta?.followers \n  ?? items[0]?.json?.fans \n  ?? 0;\nconst avgPlays = items.length > 0\n  ? Math.round(items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0) / items.length) : 0;\nconst totalPostPlays = items.reduce((sum, i) => sum + (i.json?.playCount ?? 0), 0);\n\nreturn [{ json: { tiktok_followers: followers, tiktok_avg_plays: avgPlays, tiktok_total_post_plays: totalPostPlays } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1920,
+          1248
+        ],
+        "id": "38e92d69-3c04-4942-b448-126f74f0a63b",
+        "name": "Aggregate TikTok1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const profile = $input.first().json;\nconst posts = profile.latestPosts ?? [];\n\nconst viewsOf = (p) => p.videoPlayCount ?? p.videoViewCount ?? 0;\n\nconst followers = profile.followersCount ?? 0;\nconst avgLikes = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + (p.likesCount ?? 0), 0) / posts.length) : 0;\nconst avgViews = posts.length > 0\n  ? Math.round(posts.reduce((sum, p) => sum + viewsOf(p), 0) / posts.length) : 0;\nconst totalPostViews = posts.reduce((sum, p) => sum + viewsOf(p), 0);\n\nreturn [{ json: { ig_followers: followers, ig_avg_likes: avgLikes, ig_avg_views: avgViews, ig_total_post_views: totalPostViews } }];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          784,
+          1264
+        ],
+        "id": "8825290f-61f6-47e0-b14d-d58815df3624",
+        "name": "Aggregate Instagram1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+                "leftValue": "={{ $('Loop Over Items1').item.json.tiktok_handle }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              },
+              {
+                "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+                "leftValue": "={{ $('Loop Over Items1').item.json.tiktok_handle }}",
+                "rightValue": "N/A",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          976,
+          1264
+        ],
+        "id": "185a46e4-903c-492d-9a62-015daee0d9ea",
+        "name": "Has TikTok?1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+                "name": "tiktok_followers",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+                "name": "tiktok_avg_plays",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "3cdcd077-2ffd-43c8-92c3-b711940df5d1",
+                "name": "tiktok_total_post_plays",
+                "value": "0",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          1360,
+          1520
+        ],
+        "id": "be3d3aea-7786-42d6-bc45-96db136f55b6",
+        "name": "Empty TikTok1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "6e949082-3ca7-4832-a302-7e68c5199959",
+                "leftValue": "={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty",
+                  "singleValue": true
+                }
+              },
+              {
+                "id": "752a4a6f-6b70-4330-835b-a87bbaa13575",
+                "leftValue": "={{ $('Loop Over Items1').item.json.youtube_channel_id }}",
+                "rightValue": "N/A",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "looseTypeValidation": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          2192,
+          1504
+        ],
+        "id": "024cc2d4-f7bc-477b-9a79-2a0f0f440601",
+        "name": "Has YouTube?1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "02ee741a-b132-40e0-a274-64f6e3811c7f",
+                "name": "yt_total_views",
+                "value": "0",
+                "type": "string"
+              },
+              {
+                "id": "a09358d5-932b-4fd1-bec9-a2a9c049764a",
+                "name": "yt_subscribers",
+                "value": "0",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2576,
+          1520
+        ],
+        "id": "64164e80-72c4-4ef9-b8d4-f9746b6b8827",
+        "name": "Empty YouTube1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "79956819-956a-4f79-97f5-78ec016fd019",
+                "name": "yt_subscribers",
+                "value": "={{ $json.items[0].statistics.subscriberCount }}",
+                "type": "string"
+              },
+              {
+                "id": "5cc534d1-b0ec-4ea5-8310-b8280cc01b9f",
+                "name": "yt_total_views",
+                "value": "={{ $json.items[0].statistics.viewCount }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          2832,
+          1232
+        ],
+        "id": "55869cc8-1916-475a-91ce-be1259452aa2",
+        "name": "Edit Fields1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const igData = $('Aggregate Instagram1').item.json;\nconst client = $('Loop Over Items1').item.json;\nconst ytData = $input.first().json;\n\nlet tiktokFollowers = 0, tiktokAvgPlays = 0, tiktokTotalPlays = 0;\ntry { tiktokFollowers = $('Aggregate TikTok1').item.json.tiktok_followers ?? 0; } catch(e) {}\ntry { tiktokAvgPlays = $('Aggregate TikTok1').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\ntry { tiktokTotalPlays = $('Aggregate TikTok1').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n\nif (tiktokFollowers === 0) {\n  try { tiktokFollowers = $('Empty TikTok1').item.json.tiktok_followers ?? 0; } catch(e) {}\n  try { tiktokAvgPlays = $('Empty TikTok1').item.json.tiktok_avg_plays ?? 0; } catch(e) {}\n  try { tiktokTotalPlays = $('Empty TikTok1').item.json.tiktok_total_post_plays ?? 0; } catch(e) {}\n}\n\nreturn [{ json: {\n  date: new Date().toISOString().split('T')[0],\n  client_name: client.client_name,\n  ig_followers: igData.ig_followers,\n  ig_avg_likes: igData.ig_avg_likes,\n  ig_avg_views: igData.ig_avg_views,\n  ig_total_post_views: igData.ig_total_post_views,\n  tiktok_followers: tiktokFollowers,\n  tiktok_avg_plays: tiktokAvgPlays,\n  tiktok_total_post_plays: tiktokTotalPlays,\n  yt_subscribers: ytData.yt_subscribers ?? 0,\n  yt_total_views: ytData.yt_total_views ?? 0\n}}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3152,
+          1232
+        ],
+        "id": "30717960-d4cf-4bb1-9c71-4d473cc1b7e4",
+        "name": "Merge Data",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 625659498,
+            "mode": "list",
+            "cachedResultName": "Metrics",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=625659498"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "client_name",
+                "lookupValue": "={{ $json.client_name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          3392,
+          1232
+        ],
+        "id": "d6f23396-b66f-40fb-a319-565725d2c034",
+        "name": "Get Previous Rows1",
+        "alwaysOutputData": true,
+        "disabled": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let allRows = [];\ntry { allRows = $('Get Previous Rows1').all(); } catch(e) { allRows = []; }\n\nconst mergedData = $('Restore Gains1').first().json;\n\nconst ig_views_gained_today = mergedData.ig_views_gained_today ?? 0;\nconst tiktok_plays_gained_today = mergedData.tiktok_plays_gained_today ?? 0;\n\nconst todayStr = new Date().toISOString().split('T')[0];\n\nlet prevIgViews = 0;\nlet prevTiktokPlays = 0;\nlet prevYtViews = 0;\n\nif (allRows.length > 0) {\n  const prevRows = allRows\n    .map(r => r.json)\n    .filter(r => r.date && r.date < todayStr)\n    .sort((a, b) => b.date.localeCompare(a.date));\n\n  if (prevRows.length > 0) {\n    prevIgViews = Number(prevRows[0].ig_views_this_month ?? 0);\n    prevTiktokPlays = Number(prevRows[0].tiktok_plays_this_month ?? 0);\n    prevYtViews = Number(prevRows[0].yt_total_views ?? 0);\n  }\n}\n\nconst ig_views_this_month = prevIgViews + ig_views_gained_today;\nconst tiktok_plays_this_month = prevTiktokPlays + tiktok_plays_gained_today;\nconst yt_views_gained_today = Math.max(0, Number(mergedData.yt_total_views ?? 0) - prevYtViews);\n\nreturn [{\n  json: {\n    ...mergedData,\n    ig_views_gained_today,\n    tiktok_plays_gained_today,\n    ig_views_this_month,\n    tiktok_plays_this_month,\n    yt_views_gained_today,\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3760,
+          1232
+        ],
+        "id": "232e8d01-abee-4530-9087-b49bcaa09178",
+        "name": "Compute Diffs1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const mergedData = $('Merge Data').first().json;\nconst clientName = mergedData.client_name;\nconst hasTikTok = !!$('Loop Over Items1').item.json.tiktok_handle;\n\nlet igPosts = [];\ntry {\n  const igProfile = $('Apify Instagram1').first().json;\n  igPosts = igProfile.latestPosts ?? [];\n} catch(e) {}\n\nlet ttPosts = [];\nif (hasTikTok) {\n  try {\n    ttPosts = $('Fetch TikTok Dataset1').all().map(i => i.json);\n  } catch(e) {}\n}\n\nconst today = new Date().toISOString().split('T')[0];\nconst rows = [];\n\nigPosts.forEach(p => {\n  const rawId = String(p.id ?? p.shortCode ?? '').trim();\n  if (!rawId) return;\n  const postId = 'ig_' + rawId; // prefix keeps Sheets from rounding long numeric IDs\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'instagram',\n    first_seen_date: today,\n    views_today: p.videoPlayCount ?? p.videoViewCount ?? 0,\n    timestamp: p.timestamp ?? ''\n  });\n});\n\nttPosts.forEach(p => {\n  const rawId = String(\n    p.id ??\n    p.webVideoUrl ??\n    p.videoUrl ??\n    p.shareUrl ??\n    ''\n  ).trim();\n  if (!rawId) return;\n  const postId = 'tt_' + rawId;\n  rows.push({\n    post_id: postId,\n    client_name: clientName,\n    platform: 'tiktok',\n    first_seen_date: today,\n    views_today: p.playCount ?? 0,\n    timestamp: p.createTime ? new Date(p.createTime * 1000).toISOString() : ''\n  });\n});\n\nreturn rows.map(r => ({ json: r }));\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3296,
+          976
+        ],
+        "id": "60513ca8-d3e8-47ff-b80b-bc082a9660b9",
+        "name": "Update Post Tracking1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1225115683,
+            "mode": "list",
+            "cachedResultName": "PostTracking",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+          },
+          "filtersUI": {
+            "values": [
+              {
+                "lookupColumn": "client_name",
+                "lookupValue": "={{ $('Loop Over Items1').item.json.client_name }}"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          3520,
+          976
+        ],
+        "id": "953e49a0-9afc-4d50-99d1-c231998919ac",
+        "name": "Read Post Tracking1",
+        "alwaysOutputData": true,
+        "disabled": true,
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "jsCode": "let newPosts = [];\ntry { newPosts = $('Update Post Tracking1').all().map(i => i.json); } catch(e) {}\n\nlet existingPosts = [];\ntry { existingPosts = $('Read Post Tracking1').all().map(i => i.json); } catch(e) {}\n\nconst existingMap = {};\nexistingPosts.forEach(p => {\n  existingMap[String(p.post_id).trim()] = p;\n});\n\nlet ig_views_gained_today = 0;\nlet tiktok_plays_gained_today = 0;\n\nconst updatedRows = newPosts.map(p => {\n  const existing = existingMap[String(p.post_id).trim()];\n  const viewsYesterday = existing ? Number(existing.views_today ?? 0) : 0;\n  const viewsToday = Number(p.views_today ?? 0);\n  const isFirstDay = !existing;\n\n  // First time we see a post: gain = 0 (we don't know its prior history)\n  // Day 2+: compute real delta\n  const gained = isFirstDay ? 0 : Math.max(0, viewsToday - viewsYesterday);\n\n  if (p.platform === 'instagram') ig_views_gained_today += gained;\n  if (p.platform === 'tiktok') tiktok_plays_gained_today += gained;\n\n  return {\n    post_id: String(p.post_id).trim(),\n    client_name: p.client_name,\n    platform: p.platform,\n    first_seen_date: existing ? existing.first_seen_date : p.first_seen_date,\n    views_yesterday: viewsYesterday,\n    views_today: viewsToday,\n    views_gained_today: gained\n  };\n});\n\nreturn [{\n  json: {\n    updatedRows,\n    ig_views_gained_today,\n    tiktok_plays_gained_today\n  }\n}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3728,
+          976
+        ],
+        "id": "f36cd579-b6b4-43b9-a1da-8a1d7e6789f9",
+        "name": "Compute Post Gains1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "operation": "appendOrUpdate",
+          "documentId": {
+            "__rl": true,
+            "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8",
+            "mode": "list",
+            "cachedResultName": "SYNCVIEW",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit?usp=drivesdk"
+          },
+          "sheetName": {
+            "__rl": true,
+            "value": 1225115683,
+            "mode": "list",
+            "cachedResultName": "PostTracking",
+            "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8/edit#gid=1225115683"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "client_name": "={{ $json.client_name }}",
+              "post_id": "={{ $json.post_id }}",
+              "platform": "={{ $json.platform }}",
+              "first_seen_date": "={{ $json.first_seen_date }}",
+              "views_yesterday": "={{ $json.views_yesterday }}",
+              "views_today": "={{ $json.views_today }}",
+              "views_gained_today": "={{ $json.views_gained_today }}"
+            },
+            "matchingColumns": [
+              "post_id"
+            ],
+            "schema": [
+              {
+                "id": "post_id",
+                "displayName": "post_id",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "client_name",
+                "displayName": "client_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true
+              },
+              {
+                "id": "platform",
+                "displayName": "platform",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "first_seen_date",
+                "displayName": "first_seen_date",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_yesterday",
+                "displayName": "views_yesterday",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_today",
+                "displayName": "views_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              },
+              {
+                "id": "views_gained_today",
+                "displayName": "views_gained_today",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "canBeUsedToMatch": true,
+                "removed": false
+              }
+            ],
+            "attemptToConvertTypes": false,
+            "convertFieldsToString": false
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.7,
+        "position": [
+          4320,
+          976
+        ],
+        "id": "99f248c6-882d-46f0-9a52-fb20fa2bcf02",
+        "name": "Write Post Tracking1",
+        "retryOnFail": true,
+        "waitBetweenTries": 5000,
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json;\nconst gains = {\n  ig_views_gained_today: data.ig_views_gained_today,\n  tiktok_plays_gained_today: data.tiktok_plays_gained_today\n};\n\n// Pass gains forward via global context trick\n$execution.customData.set('ig_views_gained_today', String(gains.ig_views_gained_today));\n$execution.customData.set('tiktok_plays_gained_today', String(gains.tiktok_plays_gained_today));\n\nreturn data.updatedRows.map(r => ({ json: r }));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4000,
+          976
+        ],
+        "id": "59fb596a-082b-464f-9cff-30992cc0aee8",
+        "name": "Split Post Rows1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "jsCode": "const ig_views_gained_today = Number($execution.customData.get('ig_views_gained_today') ?? 0);\nconst tiktok_plays_gained_today = Number($execution.customData.get('tiktok_plays_gained_today') ?? 0);\nconst mergedData = $('Merge Data').first().json;\n\nreturn [{ json: { ...mergedData, ig_views_gained_today, tiktok_plays_gained_today } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4848,
+          976
+        ],
+        "id": "2725569a-ea84-4b2f-8b6c-604cbbdbdc9a",
+        "name": "Restore Gains1",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "amount": 3
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          3984,
+          1232
+        ],
+        "id": "8a202280-302e-4fe9-a233-673506c57352",
+        "name": "Wait1",
+        "webhookId": "3d866331-13bf-4ce3-bc6d-9ce2ea5b9eec",
+        "disabled": true
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.limit",
+        "typeVersion": 1,
+        "position": [
+          4560,
+          976
+        ],
+        "id": "72b442a2-454a-4123-a38b-404f65b75cc7",
+        "name": "Limit2",
+        "disabled": true
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.limit",
+        "typeVersion": 1,
+        "position": [
+          3584,
+          1232
+        ],
+        "id": "c1a3a156-cb8b-421f-b9aa-099dd6311e63",
+        "name": "Limit3",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "amount": 15
+        },
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1.1,
+        "position": [
+          1472,
+          1248
+        ],
+        "id": "38f9df1f-0c28-44f8-a6f6-7b9b803fe6a9",
+        "name": "Wait3",
+        "webhookId": "93d724d1-5c2c-4808-8c73-5009393c151e",
+        "disabled": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "f093dabc-6d45-46db-8725-53541a91a6d4",
+                "leftValue": "={{ $('Loop Over Items').item.json.client_name }}",
+                "rightValue": "Dr. Sonia Chopra",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals",
+                  "name": "filter.operator.equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          3056,
+          -16
+        ],
+        "id": "3d9d5b73-1486-45a5-b2a5-421ec2d37b7e",
+        "name": "If"
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "c145fdc4-42f3-4561-924c-10234544ec16",
+                "name": "yt_shorts_views",
+                "value": "\"\"",
+                "type": "string"
+              },
+              {
+                "id": "0c7c72bc-d4dd-4728-a6c9-2f7d0eced3cd",
+                "name": "yt_longs_views",
+                "value": "\"\"",
+                "type": "string"
+              }
+            ]
+          },
+          "includeOtherFields": true,
+          "options": {}
+        },
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          3296,
+          0
+        ],
+        "id": "a55fb81c-0e3e-4720-81f8-c55e81a7daa3",
+        "name": "Edit Fields2"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/streamers~youtube-scraper/run-sync-get-dataset-items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"startUrls\": [\n    { \"url\": \"https://www.youtube.com/channel/{{ $('Loop Over Items').item.json.youtube_channel_id }}/videos\" }\n  ],\n  \"maxResults\": 50\n}\n",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          3248,
+          -208
+        ],
+        "id": "0379dd75-85e9-478a-bd9b-0634350ef10d",
+        "name": "Apify YouTube Run"
+      },
+      {
+        "parameters": {
+          "jsCode": "const cutoffMs = Date.now() - 30 * 86400 * 1000;\nconst SONIA_CHANNEL = 'UC_caIBdFY1E_KhlWamMkl9A';\n\nfunction parseDate(s) {\n  if (!s) return NaN;\n  const abs = new Date(s).getTime();\n  if (!Number.isNaN(abs)) return abs;\n  const m = String(s).match(/(\\d+)\\s+(second|minute|hour|day|week|month|year)s?\\s+ago/i);\n  if (!m) return NaN;\n  const f = { second: 1, minute: 60, hour: 3600, day: 86400, week: 604800, month: 2592000, year: 31536000 };\n  return Date.now() - (+m[1]) * f[m[2].toLowerCase()] * 1000;\n}\n\nfunction sumViewsInWindow(allItems, requireChannelId) {\n  const seen = new Set();\n  let total = 0;\n  for (const it of allItems) {\n    const v = it.json;\n    if (v.id && seen.has(v.id)) continue;\n    if (v.id) seen.add(v.id);\n    if (requireChannelId && v.channelId !== requireChannelId) continue;\n    const t = parseDate(v.date);\n    if (!Number.isNaN(t) && t < cutoffMs) continue;\n    total += Number(v.viewCount ?? v.views ?? 0);\n  }\n  return total;\n}\n\nconst longs = sumViewsInWindow($('Apify YouTube Run').all(), SONIA_CHANNEL);\nconst shorts = sumViewsInWindow($('Apify Shorts Run').all(), SONIA_CHANNEL);\n\nconst ef = $('Edit Fields').first().json;\nreturn [{ json: {\n  yt_subscribers: ef.yt_subscribers,\n  yt_total_views: ef.yt_total_views,\n  yt_shorts_views: shorts,\n  yt_longs_views: longs,\n}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3744,
+          -208
+        ],
+        "id": "0966a94f-fed8-45dc-8ef8-4769459d8fcd",
+        "name": "Classify & Sum"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.apify.com/v2/acts/streamers~youtube-shorts-scraper/run-sync-get-dataset-items",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpQueryAuth",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"channels\": [\"SoniaChopraDDS\"],\n  \"maxResultsShorts\": 30\n}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          3488,
+          -208
+        ],
+        "id": "ff5f8558-0d1a-40d8-b534-00cbdaedf6b2",
+        "name": "Apify Shorts Run",
+        "onError": "continueErrorOutput"
+      }
+    ],
+    "connections": {
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Get row(s) in sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get row(s) in sheet": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Apify Instagram",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify Instagram": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Instagram",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify TikTok run": {
+        "main": [
+          [
+            {
+              "node": "Wait2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch TikTok Dataset": {
+        "main": [
+          [
+            {
+              "node": "Aggregate TikTok",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "YouTube": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write to Sheet": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate TikTok": {
+        "main": [
+          [
+            {
+              "node": "Has YouTube?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate Instagram": {
+        "main": [
+          [
+            {
+              "node": "Has TikTok?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has TikTok?": {
+        "main": [
+          [
+            {
+              "node": "Apify TikTok run",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Empty TikTok",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Empty TikTok": {
+        "main": [
+          [
+            {
+              "node": "Has YouTube?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has YouTube?": {
+        "main": [
+          [
+            {
+              "node": "YouTube",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Empty YouTube",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Empty YouTube": {
+        "main": [
+          [
+            {
+              "node": "Merge Data3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Data3": {
+        "main": [
+          [
+            {
+              "node": "Update Post Tracking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Previous Rows": {
+        "main": [
+          [
+            {
+              "node": "Limit1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute Diffs": {
+        "main": [
+          [
+            {
+              "node": "Wait",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Post Tracking": {
+        "main": [
+          [
+            {
+              "node": "Read Post Tracking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Post Tracking": {
+        "main": [
+          [
+            {
+              "node": "Compute Post Gains",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute Post Gains": {
+        "main": [
+          [
+            {
+              "node": "Split Post Rows",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write Post Tracking": {
+        "main": [
+          [
+            {
+              "node": "Limit",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Post Rows": {
+        "main": [
+          [
+            {
+              "node": "Write Post Tracking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Restore Gains": {
+        "main": [
+          [
+            {
+              "node": "Get Previous Rows",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait": {
+        "main": [
+          [
+            {
+              "node": "Write to Sheet",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit": {
+        "main": [
+          [
+            {
+              "node": "Restore Gains",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit1": {
+        "main": [
+          [
+            {
+              "node": "Compute Diffs",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait2": {
+        "main": [
+          [
+            {
+              "node": "Fetch TikTok Dataset",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Trigger1": {
+        "main": [
+          [
+            {
+              "node": "Get row(s) in sheet1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get row(s) in sheet1": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Loop Over Items1": {
+        "main": [
+          [],
+          [
+            {
+              "node": "Apify Instagram1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify Instagram1": {
+        "main": [
+          [
+            {
+              "node": "Aggregate Instagram1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify TikTok run1": {
+        "main": [
+          [
+            {
+              "node": "Wait3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch TikTok Dataset1": {
+        "main": [
+          [
+            {
+              "node": "Aggregate TikTok1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "YouTube1": {
+        "main": [
+          [
+            {
+              "node": "Edit Fields1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write to Sheet1": {
+        "main": [
+          [
+            {
+              "node": "Loop Over Items1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate TikTok1": {
+        "main": [
+          [
+            {
+              "node": "Has YouTube?1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate Instagram1": {
+        "main": [
+          [
+            {
+              "node": "Has TikTok?1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has TikTok?1": {
+        "main": [
+          [
+            {
+              "node": "Apify TikTok run1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Empty TikTok1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Empty TikTok1": {
+        "main": [
+          [
+            {
+              "node": "Has YouTube?1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has YouTube?1": {
+        "main": [
+          [
+            {
+              "node": "YouTube1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Empty YouTube1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Empty YouTube1": {
+        "main": [
+          [
+            {
+              "node": "Merge Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields1": {
+        "main": [
+          [
+            {
+              "node": "Merge Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Data": {
+        "main": [
+          [
+            {
+              "node": "Update Post Tracking1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Previous Rows1": {
+        "main": [
+          [
+            {
+              "node": "Limit3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute Diffs1": {
+        "main": [
+          [
+            {
+              "node": "Wait1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update Post Tracking1": {
+        "main": [
+          [
+            {
+              "node": "Read Post Tracking1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Read Post Tracking1": {
+        "main": [
+          [
+            {
+              "node": "Compute Post Gains1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Compute Post Gains1": {
+        "main": [
+          [
+            {
+              "node": "Split Post Rows1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Write Post Tracking1": {
+        "main": [
+          [
+            {
+              "node": "Limit2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Split Post Rows1": {
+        "main": [
+          [
+            {
+              "node": "Write Post Tracking1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Restore Gains1": {
+        "main": [
+          [
+            {
+              "node": "Get Previous Rows1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait1": {
+        "main": [
+          [
+            {
+              "node": "Write to Sheet1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit2": {
+        "main": [
+          [
+            {
+              "node": "Restore Gains1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Limit3": {
+        "main": [
+          [
+            {
+              "node": "Compute Diffs1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Wait3": {
+        "main": [
+          [
+            {
+              "node": "Fetch TikTok Dataset1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "Apify YouTube Run",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Edit Fields2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Edit Fields2": {
+        "main": [
+          [
+            {
+              "node": "Merge Data3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify YouTube Run": {
+        "main": [
+          [
+            {
+              "node": "Apify Shorts Run",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Classify & Sum": {
+        "main": [
+          [
+            {
+              "node": "Merge Data3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Apify Shorts Run": {
+        "main": [
+          [
+            {
+              "node": "Classify & Sum",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  },
+  "tags": [],
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "parentFolderId": null,
+  "scopes": [
+    "execution:reveal",
+    "workflow:create",
+    "workflow:delete",
+    "workflow:disableRedaction",
+    "workflow:enableRedaction",
+    "workflow:execute",
+    "workflow:execute-chat",
+    "workflow:export",
+    "workflow:import",
+    "workflow:list",
+    "workflow:move",
+    "workflow:publish",
+    "workflow:read",
+    "workflow:share",
+    "workflow:unpublish",
+    "workflow:unshare",
+    "workflow:update"
+  ],
+  "canExecute": true
+}

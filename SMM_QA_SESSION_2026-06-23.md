@@ -59,6 +59,7 @@ cancelled card.**
 | **Captions** | guards: no-asset / non-Frame.io / already-has-caption (no webhook fired); **Cancel mid-flight** race (stubbed) | 10/10 ✅ (after fix) |
 | **Set all to… / Archive** | set-all moves all 3 components; locked (unlinked) video/graphic correctly skipped; single archive cross-surface (leaves Kasper); **multi-select bulk archive** | 10/10 ✅ |
 | **Drag-reorder + Undo** | reorder commit persists to the backend and survives reload; **Undo** restores the exact prior order and persists | 8/8 ✅ |
+| **Kasper Messages inbox** | internal SMM/team note surfaces in Kasper's Messages; Kasper reply threads + persists; replied card clears from the inbox and stays cleared (seen-stamp) | 7/7 ✅ |
 | **Concurrency** | two surfaces comment the same thread at once → **atomic merge, no lost message**; double-submit archive idempotent | 5/5 ✅ |
 | **Dates / timezone** | round-trip under `America/Argentina/Buenos_Aires`: month-edge, year-edge, **leap day 2028-02-29** stored exactly + rendered with no off-by-one | ✅ |
 | **Cross-surface settings** | client (fresh context) reads the same `enabled_platforms` as the shared settings row | ✅ |

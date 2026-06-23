@@ -58,6 +58,7 @@ cancelled card.**
 | **YouTube title review** | send title for review → **change the title** (live update, no strand/desync) → Kasper sees the new title; **remove YouTube mid-review** clears `title_status` and drops the card from Kasper | 13/13 ✅ |
 | **Captions** | guards: no-asset / non-Frame.io / already-has-caption (no webhook fired); **Cancel mid-flight** race (stubbed) | 10/10 ✅ (after fix) |
 | **Set all to… / Archive** | set-all moves all 3 components; locked (unlinked) video/graphic correctly skipped; single archive cross-surface (leaves Kasper); **multi-select bulk archive** | 10/10 ✅ |
+| **Drag-reorder + Undo** | reorder commit persists to the backend and survives reload; **Undo** restores the exact prior order and persists | 8/8 ✅ |
 | **Concurrency** | two surfaces comment the same thread at once → **atomic merge, no lost message**; double-submit archive idempotent | 5/5 ✅ |
 | **Dates / timezone** | round-trip under `America/Argentina/Buenos_Aires`: month-edge, year-edge, **leap day 2028-02-29** stored exactly + rendered with no off-by-one | ✅ |
 | **Cross-surface settings** | client (fresh context) reads the same `enabled_platforms` as the shared settings row | ✅ |
@@ -68,11 +69,12 @@ cancelled card.**
 
 ## Observations (not bugs, worth a look)
 
-- **No in-app "Undo" or un-archive for Archive.** Only drag-reorder has an Undo.
-  Archive shows a confirm ("kept/recoverable in the sheet") and removes the card,
-  but there's no Undo toast and no UI to un-archive — recovery is out-of-band.
-  CALENDAR-TEST-CATALOG §4.6/§9 list "Archive → Undo", so either the doc is ahead
-  of the app or the affordance was dropped. Flagging in case an Undo was intended.
+- **No in-app "Undo" or un-archive for Archive.** Drag-reorder has a working Undo
+  toast (verified), but **Archive does not** — it shows a confirm ("kept/
+  recoverable in the sheet") and removes the card, with no Undo toast and no UI to
+  un-archive (recovery is out-of-band). CALENDAR-TEST-CATALOG §4.6/§9 list "Archive
+  → Undo", so either the doc is ahead of the app or the affordance was dropped.
+  Flagging in case an Undo was intended for archive too.
 
 ## Linear artifacts (test, cleaned up)
 

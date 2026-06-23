@@ -19411,6 +19411,12 @@
     function _calCapJobSettle(job, status, data) {
         if (!job || !_calCapJobActive(job)) return;
         data = data || {};
+        // The user hit Cancel while this job was in flight: a backend result that
+        // finished racing the cancel must NOT sneak a caption onto the card. Honour
+        // the cancel and settle as 'cancelled', dropping any late caption. (If the
+        // cancel POST itself failed, _calCancelCaptionJob clears cancelRequested, so
+        // generation legitimately continues and this guard does not fire.)
+        if (job.cancelRequested && status !== 'cancelled') { status = 'cancelled'; data = {}; }
         job.status = status;
         job.settledAt = Date.now();
         job.error = data.error || '';

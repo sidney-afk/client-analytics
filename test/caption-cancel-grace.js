@@ -71,5 +71,12 @@ const pollSrc = grabFunc('_calCapJobsPoll');
 check('the poll force-settles via _calCapJobCancelExpired', /_calCapJobCancelExpired\s*\(/.test(pollSrc), true);
 check("the poll settles those jobs to 'cancelled'", /_calCapJobSettle\(\s*job\s*,\s*'cancelled'/.test(pollSrc), true);
 
+// Regression: a backend result that finishes racing the cancel must NOT sneak a
+// caption onto the card. _calCapJobSettle has to coerce a still-cancelRequested
+// job to 'cancelled' (and drop the late caption) before the apply block runs.
+const settleSrc = grabFunc('_calCapJobSettle');
+check('_calCapJobSettle honours cancelRequested (no late result sneaks in)',
+  /cancelRequested\s*&&\s*status\s*!==\s*'cancelled'/.test(settleSrc), true);
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll caption-cancel-grace checks passed.');

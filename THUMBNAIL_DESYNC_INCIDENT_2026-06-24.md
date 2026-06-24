@@ -113,14 +113,24 @@ same v2 change removed the last client-side net that used to mask these dropped 
    identifiers than requested, re-resolve the missing ones **individually** so a future
    dead ref *on a live card* can only ever drop itself — never its batch-mates.
 
-**Recommended follow-ups (touch production — pending go-ahead):**
-3. **Harden the `linear-issue-statuses` n8n webhook** so it can't silently swallow a
-   Linear error: skip only the missing aliases (or resolve so a bad id can't null the
-   batch), and **stop returning `ok:true` when Linear actually errored**. This is the
-   shared resolver; hardening it protects every caller, not just the reconciler.
+**Webhook hardening (DEPLOYED to live n8n — 2026-06-24):**
+3. **Hardened the `linear-issue-statuses` n8n webhook** (`GP8CSZDNcy5sGdFr`, node
+   *Fetch Issue Statuses*) so a dead id can't null a batch: it tries the one aliased query,
+   and on a poisoned/errored response falls back to resolving each id **individually, in
+   parallel** (bounded ~2 round-trips). It now returns the resolvable ids plus an additive
+   `missing` array, and only returns `ok:false` on a genuine Linear outage — never again on
+   a stale link. This is the shared resolver, so it protects every caller (not just the
+   reconciler), and because the reconciler on `main` calls it, **it fixes production
+   immediately, before PR #560 merges.** Verified live: the production batch that contained
+   GRA-6386 went from `0/50` to `47/50` resolved (the 3 genuinely-deleted ids reported in
+   `missing`). Before/after node code backed up in
+   `n8n-backups/linear-issue-statuses.2026-06-24.{pre,post}-poison-fix.Fetch-Issue-Statuses.js`.
+
+**Recommended follow-ups (still open):**
 4. **Data hygiene:** scrub the 289 dead Linear links off archived cards, and stop the QA
-   probes from leaving synthetic `SIDV-*/SAV-*/…` links behind. Lower priority once
-   live-only resolution lands, but it removes the latent hazard entirely.
+   probes from leaving synthetic `SIDV-*/SAV-*/…` links behind. Lower priority now that both
+   the webhook and the reconciler tolerate dead links, but it removes the latent hazard
+   entirely.
 5. **Watch the safety cap.** With resolution fixed, a future backlog of genuine drift
    could exceed `CAP=15` and abort a run. Today only 3 (benign) components drift, so it's
    fine — but worth an alert if `missing`/`corrections` ever spike.

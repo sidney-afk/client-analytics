@@ -1,9 +1,9 @@
 'use strict';
 /*
- * REPRO HARNESS — "I finished this card, why did it pop back into Waiting?"
- * (Kasper's intermittent review-tab bug.)
+ * REGRESSION GUARD — "I finished this card, why did it pop back into Waiting?"
+ * (Kasper's intermittent review-tab bug — reproduced here, then fixed.)
  *
- * Run:  node test/kasper-finish-refresh-popback.js
+ * Run:  node test/kasper-finish-refresh-popback.js   (exit 0 = fixed/holding)
  *
  * WHAT KASPER SEES. He works through the Review tab, hits "Finish reviewing" on
  * a card (it slides into "Tweaks pending"), and then — not every time, but
@@ -45,9 +45,12 @@
  *
  * Each scenario prints its timeline and ends in:
  *   ✓ STAYS  — card remains in "Tweaks pending" (correct)
- *   ✗ POPS   — card jumped back to "Waiting"     (the reported bug, reproduced)
- * Exit non-zero if ANY scenario reproduces the pop-back, so once we have a fix
- * this file flips to a green regression test.
+ *   ✗ POPS   — card jumped back to "Waiting"     (the bug — a REGRESSION if seen)
+ * Exits non-zero if ANY scenario pops the card back. Before the fix all three
+ * REPRO scenarios popped; the fix in _kasperIsFinished (only let a "Kasper
+ * Approval" component un-finish a card when the finish is SERVER-CONFIRMED, i.e.
+ * the global kasper_finished_at stamp is present — a stale local-only read can't)
+ * makes them STAY. If this ever goes red again, that fix has regressed.
  */
 const fs = require('fs');
 const path = require('path');
@@ -338,11 +341,11 @@ console.log('\nREPRO C    same race, graphic in flight → card comes back showi
 
 console.log('\n' + '─'.repeat(74));
 if (reproduced) {
-  console.log(`Reproduced the pop-back in ${reproduced} scenario(s). ✗`);
-  console.log('Root cause: _kasperIsFinished un-finishes a card whenever a refreshed snapshot');
-  console.log('shows ANY actionable component at "Kasper Approval" — checked ahead of, and');
-  console.log('regardless of, the durable finish stamp. A stale/pre-decision read (past the 30s');
-  console.log('local-prefer window, or out-bumped by a concurrent writer) is read as a fresh ask.');
+  console.log(`REGRESSION: the pop-back is back in ${reproduced} scenario(s). ✗`);
+  console.log('_kasperIsFinished un-finished a card on a "Kasper Approval" component that the');
+  console.log('finish stamp had NOT yet confirmed — i.e. a stale auto-refresh read was treated');
+  console.log('as a fresh ask. The guard is: only un-finish on a KA component when the global');
+  console.log('kasper_finished_at stamp is present (server-confirmed). That guard has regressed.');
   process.exit(1);
 }
-console.log('No pop-back reproduced — every finished card stayed in "Tweaks pending". ✓');
+console.log('Holding: every finished card stayed in "Tweaks pending" across the stale refreshes. ✓');

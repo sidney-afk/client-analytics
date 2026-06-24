@@ -17190,48 +17190,105 @@
         if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
         return u;
     }
+    /* A pasted "thumbnail" that points at a FOLDER of images rather than a
+       single image — e.g. a Story whose frames all live in one Drive/Dropbox
+       folder. There's no one image to preview, so (exactly like a Frame.io
+       link) we surface a click-to-open card — "Open folder" — instead of a
+       broken <img>. Conservative on purpose: only unmistakable folder URL
+       shapes match, so a single-image Drive *file* link is never mistaken for
+       a folder. Extend here if a new host's folder links turn up in the wild. */
+    function _calIsFolderLink(url) {
+        const u = String(url || '').trim();
+        if (!u) return false;
+        // Google Drive folders: /drive/folders/…, /drive/u/0/folders/… and the
+        // legacy /folderview?id=… form. (Drive FILE links — /file/d/, open?id=,
+        // uc?id= — resolve to an <img> in _calDeriveThumb and never reach here.)
+        if (/drive\.google\.com\/(?:drive\/)?(?:u\/\d+\/)?folders\//i.test(u)) return true;
+        if (/drive\.google\.com\/folderview\?/i.test(u)) return true;
+        // Dropbox shared folders (/sh/…, /scl/fo/…). Dropbox FILE links are
+        // /s/… or /scl/fi/… — deliberately excluded.
+        if (/(?:^|\.)dropbox\.com$/i.test(_calLinkHost(u)) && /\/(?:sh|scl\/fo)\//i.test(u)) return true;
+        return false;
+    }
+    function _calFolderOpenUrl(url) {
+        let u = String(url || '').trim();
+        if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+        return u;
+    }
     function _calDeriveThumbInfo(p) {
         const raw = String((p && (p.thumbnail_url || p.asset_url)) || '').trim();
         const url = _calDeriveThumb(p);
-        // When no direct image is derivable but the link is a Frame.io share/review
-        // link, surface a branded click-to-open card instead of the generic "no
-        // media" icon (Frame.io exposes no public image URL and blocks embedding,
-        // so a real inline preview isn't possible — see _calThumbFrameHtml).
+        // When no direct image is derivable but the thumbnail field is a
+        // click-to-open link, surface a branded card instead of the generic "no
+        // media" icon. Two kinds qualify:
+        //   · 'frame'  — a Frame.io share/review link (no public image URL, blocks
+        //                embedding, so a real inline preview is impossible), or
+        //   · 'folder' — a folder of images (e.g. a Story's frames); there's no
+        //                single image to preview, so we open the folder instead.
+        // Both render through _calThumbFrameHtml / _calReviewFrameHtml; frameKind
+        // drives the label ("Open thumbnail" vs "Open folder") and icon.
         // Only the ACTUAL thumbnail field qualifies: unlike the <img> derivation
         // above, this must never fall back to asset_url, or a card with a
         // Frame.io VIDEO and no thumbnail shows an "Open thumbnail" card that
         // opens the video.
         const thumbRaw = String((p && p.thumbnail_url) || '').trim();
-        const frame = (!url && thumbRaw && _calIsFrameLink(thumbRaw)) ? _calFrameOpenUrl(thumbRaw) : '';
-        return { url, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame };
+        let frame = '', frameKind = '';
+        if (!url && thumbRaw) {
+            if (_calIsFrameLink(thumbRaw)) { frame = _calFrameOpenUrl(thumbRaw); frameKind = 'frame'; }
+            else if (_calIsFolderLink(thumbRaw)) { frame = _calFolderOpenUrl(thumbRaw); frameKind = 'folder'; }
+        }
+        return { url, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw), frame, frameKind };
     }
     function _calFrameMarkSvg() {
         // Picture/thumbnail glyph — signals "this opens the image in Frame.io".
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M4 17l5-5 4 4 3-3 4 4"/></svg>`;
     }
-    function _calThumbFrameHtml(openUrl) {
-        const host = _calLinkHost(openUrl) || 'frame.io';
+    function _calFolderMarkSvg() {
+        // Folder glyph — signals "this opens a folder of images in a new tab".
+        return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.42.59l1 1a2 2 0 0 0 1.42.59H19a2 2 0 0 1 2 2v6.32a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    }
+    /* Label / glyph / hover text for a click-to-open thumbnail card, keyed by
+       the link KIND so the wording is identical on every surface (calendar
+       cards, client review, Kasper's queue). 'folder' → a folder of images;
+       anything else → a Frame.io thumbnail. */
+    function _calOpenCardMeta(kind) {
+        if (kind === 'folder') return { cta: 'Open folder', title: 'Open folder in a new tab', tip: 'Folder of images', badge: _calFolderMarkSvg() };
+        return { cta: 'Open thumbnail', title: 'Open thumbnail in Frame.io', tip: 'Frame.io thumbnail', badge: _calFrameMarkSvg() };
+    }
+    /* Small kind-aware "this is a click-to-open link, not an inline image" badge
+       for the COMPACT surfaces (month pill, week card, collapsed review/Kasper
+       strip). The surrounding control already opens the card/post, so this is a
+       hint glyph — its own click-through card lives on the expanded previews. */
+    function _calMiniLinkBadgeHtml(cls, kind) {
+        const meta = _calOpenCardMeta(kind);
+        return `<span class="${cls} is-frame" title="${_calEscAttr(meta.tip)}">${meta.badge}</span>`;
+    }
+    function _calThumbFrameHtml(openUrl, kind) {
+        const meta = _calOpenCardMeta(kind);
+        const host = _calLinkHost(openUrl) || (kind === 'folder' ? 'folder' : 'frame.io');
         const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
-        return `<a class="cal-thumb-frame" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open thumbnail in Frame.io">
-            <span class="cal-thumb-frame-badge">${_calFrameMarkSvg()}</span>
-            <span class="cal-thumb-frame-cta">${arrow}Open thumbnail</span>
+        return `<a class="cal-thumb-frame" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${_calEscAttr(meta.title)}">
+            <span class="cal-thumb-frame-badge">${meta.badge}</span>
+            <span class="cal-thumb-frame-cta">${arrow}${_calEsc(meta.cta)}</span>
             <span class="cal-thumb-frame-host">${_calEsc(host)} · opens in a new tab</span>
         </a>`;
     }
-    /* Branded "open in Frame.io" card for the EXPANDED review previews — the
-       client review panel and Kasper's hero/panel previews — where the
-       thumbnail component would otherwise try (and fail) to render a Frame.io
-       share link as a real <img>. Mirrors the calendar thumbnail treatment so
-       both the client and Kasper can click through to open the thumbnail in
-       Frame.io in a new tab. `variant === 'hero'` fills Kasper's tall 9/16
-       poster; otherwise it sizes to the smaller review-panel tile. */
-    function _calReviewFrameHtml(openUrl, variant) {
-        const host = _calLinkHost(openUrl) || 'frame.io';
+    /* Branded click-to-open card for the EXPANDED review previews — the client
+       review panel and Kasper's hero/panel previews — where the thumbnail
+       component would otherwise try (and fail) to render the link as a real
+       <img>. Mirrors the calendar thumbnail treatment so both the client and
+       Kasper can click through in a new tab. Used for Frame.io share links
+       (kind 'frame', the default) and folder-of-images links (kind 'folder');
+       the kind drives the label and icon. `variant === 'hero'` fills Kasper's
+       tall 9/16 poster; otherwise it sizes to the smaller review-panel tile. */
+    function _calReviewFrameHtml(openUrl, variant, kind) {
+        const meta = _calOpenCardMeta(kind);
+        const host = _calLinkHost(openUrl) || (kind === 'folder' ? 'folder' : 'frame.io');
         const arrow = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg>`;
         const cls = variant === 'hero' ? 'cal-review-frame is-hero' : 'cal-review-frame';
-        return `<a class="${cls}" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="Open thumbnail in Frame.io">
-            <span class="cal-review-frame-badge">${_calFrameMarkSvg()}</span>
-            <span class="cal-review-frame-cta">${arrow}Open thumbnail</span>
+        return `<a class="${cls}" href="${_calEscAttr(openUrl)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()" title="${_calEscAttr(meta.title)}">
+            <span class="cal-review-frame-badge">${meta.badge}</span>
+            <span class="cal-review-frame-cta">${arrow}${_calEsc(meta.cta)}</span>
             <span class="cal-review-frame-host">${_calEsc(host)} · opens in a new tab</span>
         </a>`;
     }
@@ -17240,7 +17297,7 @@
        placeholder icon. */
     function _calThumbMediaHtml(info, onerror) {
         if (info.url) return _calThumbImgTag(info, onerror);
-        if (info.frame) return _calThumbFrameHtml(info.frame);
+        if (info.frame) return _calThumbFrameHtml(info.frame, info.frameKind);
         return _calThumbIconHtml();
     }
     function _calThumbImgTag(info, onerror) {
@@ -18318,7 +18375,7 @@
         } else if (info.frame) {
             const existing = thumbDiv.querySelector('.cal-thumb-frame');
             if (existing && existing.getAttribute('href') === info.frame) return;
-            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame));
+            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
         } else if (thumbDiv.querySelector('img') || thumbDiv.querySelector('.cal-thumb-frame')) {
             _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
         }
@@ -18841,7 +18898,7 @@
         } else if (info.frame) {
             const existingFrame = thumbDiv.querySelector('.cal-thumb-frame');
             if (existingFrame && existingFrame.getAttribute('href') === info.frame) return;
-            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame));
+            _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
         } else if (existing || thumbDiv.querySelector('.cal-thumb-frame')) {
             _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
         }
@@ -18879,7 +18936,7 @@
         if (!info.url) {
             if (info.frame) {
                 const existingFrame = thumbDiv.querySelector('.cal-thumb-frame');
-                if (!existingFrame || existingFrame.getAttribute('href') !== info.frame) _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame));
+                if (!existingFrame || existingFrame.getAttribute('href') !== info.frame) _calSetThumbMedia(thumbDiv, _calThumbFrameHtml(info.frame, info.frameKind));
             } else if (thumbDiv.querySelector('img') || thumbDiv.querySelector('.cal-thumb-frame')) {
                 _calSetThumbMedia(thumbDiv, _calThumbIconHtml());
             }
@@ -20202,7 +20259,7 @@
         const thumb = info.url
             ? `<span class="cal-month-pill-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
             : info.frame
-                ? `<span class="cal-month-pill-thumb is-frame" title="Frame.io thumbnail">${_calFrameMarkSvg()}</span>`
+                ? _calMiniLinkBadgeHtml('cal-month-pill-thumb', info.frameKind)
                 : `<span class="cal-month-pill-thumb is-fallback">${_calThumbIconSvg()}</span>`;
         const id = _calEscAttr(p.id);
         const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
@@ -20339,7 +20396,7 @@
                                 const th = info.url
                                     ? `<span class="cal-week-card-thumb">${_calThumbImgTag(info, '_calOnMiniThumbError')}</span>`
                                     : info.frame
-                                        ? `<span class="cal-week-card-thumb is-frame" title="Frame.io thumbnail">${_calFrameMarkSvg()}</span>`
+                                        ? _calMiniLinkBadgeHtml('cal-week-card-thumb', info.frameKind)
                                         : `<span class="cal-week-card-thumb is-fallback">${_calThumbIconSvg()}</span>`;
                                 const id = _calEscAttr(p.id);
                                 const posted = String(p.status || '').toLowerCase() === 'posted' ? ' is-posted' : '';
@@ -20829,7 +20886,7 @@
         const thumbHtml = info.url
             ? `<img src="${_calEscAttr(info.url)}" alt="" onerror="this.style.display='none'">`
             : info.frame
-                ? `<span class="kcard-thumb-fallback is-frame" title="Frame.io thumbnail">${_calFrameMarkSvg()}</span>`
+                ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind)
                 : `<span class="kcard-thumb-fallback">${_calThumbIconSvg()}</span>`;
         // Weekday included so the client can place the date without doing
         // mental arithmetic ("Sat 21 Jun 2026" reads faster than "21 Jun 2026").
@@ -21056,12 +21113,17 @@
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
             const imgUrl = _calDeriveThumb(p);
-            // Frame.io share/review links expose no public image and block
-            // embedding, so they can't render as an <img> the way Drive links
-            // can. Surface the same branded click-to-open card used on the
-            // calendar thumbnails so the client can open it in Frame.io.
-            if (!imgUrl && _calIsFrameLink(raw)) {
-                return `<div class="cal-review-preview-thumb">${_calReviewFrameHtml(_calFrameOpenUrl(raw))}</div>`;
+            // Frame.io share/review links (no public image, block embedding) and
+            // folder-of-images links (a Story's frames — no single image to show)
+            // can't render as an <img> the way a Drive file link can. Surface the
+            // same branded click-to-open card used on the calendar thumbnails so
+            // the client can open it in a new tab.
+            if (!imgUrl) {
+                const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
+                if (linkKind) {
+                    const openUrl = linkKind === 'folder' ? _calFolderOpenUrl(raw) : _calFrameOpenUrl(raw);
+                    return `<div class="cal-review-preview-thumb">${_calReviewFrameHtml(openUrl, undefined, linkKind)}</div>`;
+                }
             }
             // Click opens a full-screen lightbox of the thumbnail rather
             // than the Drive sharing URL — the client shouldn't be jumping
@@ -26276,12 +26338,12 @@
         const thumbHtml = hasThumbUrl
             ? `<img loading="lazy" src="${_calEscAttr(thumbInfo.url)}"${thumbInfo.isDrive ? ' data-drive="1"' : ''} alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback','is-no-image');">`
             : thumbInfo.frame
-                ? `<span class="kcard-thumb-fallback is-frame" title="Frame.io thumbnail">${_calFrameMarkSvg()}</span>`
+                ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', thumbInfo.frameKind)
                 : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;
         const zoomBtnHtml = hasThumbUrl
             ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_kasperOpenLightbox('${_calEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>`
             : thumbInfo.frame
-                ? `<a class="kcard-thumb-zoom" href="${_calEscAttr(thumbInfo.frame)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="Open thumbnail in Frame.io"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg></a>`
+                ? `<a class="kcard-thumb-zoom" href="${_calEscAttr(thumbInfo.frame)}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" title="${_calEscAttr(_calOpenCardMeta(thumbInfo.frameKind).title)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/><path d="M9.5 2.5H13.5V6.5"/><path d="M13.5 2.5L7.5 8.5"/></svg></a>`
                 : '';
         const videoUrl = String(p.asset_url || '').trim();
         const smm = item.smm;
@@ -26439,12 +26501,17 @@
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
             const imgUrl = _calDeriveThumb(p);
-            // Frame.io links can't render as a real <img> (no public image,
-            // blocks embedding) and the lightbox can't show them either — give
-            // Kasper the same branded click-to-open card the client and
-            // calendar surfaces use so he can open it in Frame.io.
-            if (!imgUrl && _calIsFrameLink(raw)) {
-                return _calReviewFrameHtml(_calFrameOpenUrl(raw), 'hero');
+            // Frame.io links (no public image, block embedding) and folder-of-
+            // images links (a Story's frames) can't render as a real <img> and
+            // the lightbox can't show them either — give Kasper the same branded
+            // click-to-open card the client and calendar surfaces use so he can
+            // open it in a new tab.
+            if (!imgUrl) {
+                const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
+                if (linkKind) {
+                    const openUrl = linkKind === 'folder' ? _calFolderOpenUrl(raw) : _calFrameOpenUrl(raw);
+                    return _calReviewFrameHtml(openUrl, 'hero', linkKind);
+                }
             }
             const escPid = _calEscAttr(p.id);
             return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_kasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;

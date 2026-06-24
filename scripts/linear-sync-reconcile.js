@@ -91,17 +91,38 @@ async function fetchAllCards() {
   }
   return out;
 }
+async function postStatuses(slice) {
+  let last;
+  for (let a = 0; a < 3; a++) {
+    try { const j = await fetch(LINEAR_STATUSES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: slice }) }).then(r => r.json());
+      if (j && j.ok && j.statuses) return j.statuses; last = j; } catch (e) { last = { error: e.message }; }
+    await sleep(500 * (a + 1));
+  }
+  throw new Error('linear-issue-statuses failed: ' + JSON.stringify(last).slice(0, 120));
+}
+// Resolve every link to its Linear state. The shared `linear-issue-statuses` webhook
+// packs a batch into ONE aliased GraphQL query, and Linear nulls the ENTIRE response if
+// any single id doesn't exist (a deleted issue / stale link). The webhook can't tell that
+// apart from "no statuses" and returns {ok:true, statuses:{}} — so a single dead link
+// would silently blind every card in its batch (the 2026-06-24 thumbnail-drift incident).
+// Guard: any identifier a batch failed to return is retried INDIVIDUALLY, so a dead link
+// can only ever drop itself, never its batch-mates. (Caller passes LIVE links only — see
+// the main block — so in practice this fallback rarely fires.)
 async function resolveLinear(urls) {
   const uniq = [...new Set(urls.filter(Boolean))]; const statuses = {}; const C = 50;
   for (let i = 0; i < uniq.length; i += C) {
-    const slice = uniq.slice(i, i + C); let ok = false;
-    for (let a = 0; a < 3 && !ok; a++) {
-      try { const j = await fetch(LINEAR_STATUSES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issues: slice }) }).then(r => r.json());
-        if (j && j.ok && j.statuses) { Object.assign(statuses, j.statuses); ok = true; } } catch {}
-      if (!ok) await sleep(500 * (a + 1));
-    }
-    if (!ok) throw new Error('linear-issue-statuses failed @' + i); await sleep(100);
+    const slice = uniq.slice(i, i + C);
+    Object.assign(statuses, await postStatuses(slice));
+    await sleep(100);
   }
+  // Heal poisoned batches: re-resolve any requested id still missing, one link at a time.
+  const missing = uniq.filter(u => { const id = _calIdentFromUrl(u); return id && statuses[id] === undefined; });
+  let healed = 0;
+  for (const u of missing) {
+    try { const s = await postStatuses([u]); const before = Object.keys(statuses).length; Object.assign(statuses, s); if (Object.keys(statuses).length > before) healed++; } catch {}
+    await sleep(30);
+  }
+  if (missing.length) log(`  resolveLinear: ${missing.length} link(s) dropped by batch, ${healed} healed individually, ${missing.length - healed} genuinely unresolvable (deleted issue / stale link)`);
   return statuses;
 }
 
@@ -164,14 +185,19 @@ const log = (s) => { console.log(s); lines.push(s); };
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
   const cards = await fetchAllCards();
-  const urls = [];
-  for (const p of cards) { if (p.linear_issue_id) urls.push(p.linear_issue_id); if (p.graphic_linear_issue_id) urls.push(p.graphic_linear_issue_id); }
-  const statuses = await resolveLinear(urls);
-  log(`${cards.length} cards · ${new Set(urls).size} linked issues · ${Object.keys(statuses).length} Linear states · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
-
   const live = cards.filter(c => String(c.status || '').toLowerCase() !== 'archived');
   const archived = cards.length - live.length;
   const canonical = dedupeByLinearIssue(live);   // only ever act on the row the calendar shows
+
+  // Resolve Linear ONLY for the live cards we actually reconcile. Resolving archived
+  // cards' links was pure waste AND the source of batch poisoning: ~289 dead links live
+  // on archived cards (deleted issues + synthetic QA links), and one dead link nulls its
+  // whole 50-link batch (see resolveLinear + THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md),
+  // dropping the healthy live cards batched alongside it.
+  const urls = [];
+  for (const p of canonical) { if (p.linear_issue_id) urls.push(p.linear_issue_id); if (p.graphic_linear_issue_id) urls.push(p.graphic_linear_issue_id); }
+  const statuses = await resolveLinear(urls);
+  log(`${cards.length} cards · ${live.length} live · ${new Set(urls).size} live linked issues · ${Object.keys(statuses).length} Linear states · ledger ${fresh ? 'FRESH' : Object.keys(ledger).length + ' keys'}`);
   const corrections = []; let inSync = 0, unmapped = 0, missing = 0; const t = NOW();
   for (const card of canonical) {
     for (const comp of ['video', 'graphic']) {

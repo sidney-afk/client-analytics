@@ -79,3 +79,4 @@ p84_concurrent_double_approve.js
 p85_review_gate_enforcement.js
 # --- duplicate Linear-issue surfacing (never hide an active card) ---
 p86_hidden_owner_warns.js
+p87_resolve_on_route.js

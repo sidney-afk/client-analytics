@@ -724,6 +724,26 @@
         .confirm-box-check[hidden] { display: none; }
         .confirm-box-check input { cursor: pointer; }
 
+        /* Resolve-and-route chooser — wider, left-aligned (it can carry a
+           change-request checklist), with a corner ✕ and a 3-up route row. */
+        .resolve-dest-box { position: relative; max-width: 430px; text-align: left; }
+        .resolve-dest-box .confirm-box-title,
+        .resolve-dest-box .confirm-box-msg { text-align: left; }
+        .resolve-dest-close { position: absolute; top: 11px; right: 11px; width: 26px; height: 26px;
+            display: inline-flex; align-items: center; justify-content: center; padding: 0;
+            border: none; border-radius: 50%; background: var(--bg); color: var(--text-muted); cursor: pointer; }
+        .resolve-dest-close:hover { background: var(--border); color: var(--text-primary); }
+        .resolve-dest-close svg { width: 13px; height: 13px; }
+        .resolve-dest-checklist { display: flex; flex-direction: column; gap: 9px; margin: 0 0 18px;
+            max-height: 190px; overflow-y: auto; padding: 2px 2px 2px 0; }
+        .resolve-dest-checklist[hidden] { display: none; }
+        .resolve-dest-check { display: flex; align-items: flex-start; gap: 9px; font-size: 0.78rem;
+            color: var(--text-secondary); line-height: 1.4; cursor: pointer; }
+        .resolve-dest-check input { margin: 2px 0 0; cursor: pointer; flex-shrink: 0; }
+        .resolve-dest-check .rd-round { font-weight: 700; color: var(--text-primary); }
+        .resolve-dest-actions { flex-wrap: wrap; }
+        .resolve-dest-actions .brief-action-btn { flex: 1 1 auto; justify-content: center; }
+
         .brief-section-tabs {
             display: flex; gap: 0; overflow-x: auto; flex-wrap: nowrap;
             border-bottom: 2px solid var(--border); margin-bottom: 20px;
@@ -4056,17 +4076,34 @@
     </div>
 </div>
 
-<!-- Resolve-tweaks destination chooser. Shown when the SMM marks the last open
-     change-request on a component done: she picks whether the cleared work goes
-     to Kasper (internal) or straight to the client for approval. -->
-<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
-    <div class="confirm-box">
-        <div class="confirm-box-title">Tweaks resolved — where to next?</div>
-        <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
-        <div class="confirm-box-actions">
-            <button class="brief-action-btn" type="button" onclick="_calDismissResolveDest()">Cancel</button>
-            <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
-            <button class="brief-action-btn primary" type="button" id="resolveDestClient">Client approval</button>
+<!-- Resolve-and-route chooser. Opened when the SMM routes a component onward —
+     either by marking the last open change-request done (Notes modal) or by
+     approving it in the Review tab. It resolves the open change-requests she
+     ticks and routes the component to Kasper, the client, or straight to
+     Approved. The ✕ asks before closing so a stray click can't silently drop
+     the routing (and leave the change-requests half-handled). -->
+<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calResolveDestRequestClose()">
+    <div class="confirm-box resolve-dest-box">
+        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calResolveDestRequestClose()">
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
+        </button>
+        <div id="resolveDestMain">
+            <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+            <div class="confirm-box-msg" id="resolveDestMsg">Send this for approval.</div>
+            <div class="resolve-dest-checklist" id="resolveDestChecklist" hidden></div>
+            <div class="confirm-box-actions resolve-dest-actions">
+                <button class="brief-action-btn" type="button" id="resolveDestKasper">Kasper approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
+                <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
+            </div>
+        </div>
+        <div id="resolveDestDiscard" hidden>
+            <div class="confirm-box-title">Leave these open?</div>
+            <div class="confirm-box-msg">The change requests stay open and the post won’t move on — you can route it later.</div>
+            <div class="confirm-box-actions">
+                <button class="brief-action-btn" type="button" id="resolveDestKeep">Keep editing</button>
+                <button class="brief-action-btn primary" type="button" id="resolveDestDiscardYes">Discard &amp; close</button>
+            </div>
         </div>
     </div>
 </div>
@@ -21150,7 +21187,41 @@
         });
     }
 
+    /* Review-tab "Approve & send". When the SMM routes a component that still
+       carries open change-requests, resolve them as part of the send — otherwise
+       they linger in Notes demanding a second, redundant "mark done" (the exact
+       redundancy this addresses). The chooser lets her tick which are actually
+       handled (un-ticking any that aren't) and pick where it goes next: Kasper,
+       the client, or straight to Approved. With NO open change-requests it routes
+       directly, exactly as before — so status-only approvals are unchanged. The
+       client surface never resolves tweaks (_calCanResolveComment is SMM-only). */
     function _calReviewApprove(pid, comp, dest) {
+        const post = calState.posts.find(p => p.id === pid);
+        if (!post) return;
+        if (_calReviewMode() === 'smm' && _calCanResolveComment()) {
+            const open = _calOpenTweaksForComp(post, comp);
+            if (open.length) {
+                const key = pid + '|' + comp;
+                if (_calReviewState.saving[key]) return;
+                _calShowResolveDest({
+                    comp: comp,
+                    recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
+                    reason: _calResolveDestReason(post, comp),
+                    openTweaks: open,
+                    onChoose: (pickDest, ids) => {
+                        // Resolve the ticked change-requests, THEN run the real
+                        // approve with the picked destination — the tweaks JSON and
+                        // the status flip ride the same flush.
+                        _calResolveTweaksDone(post, comp, ids);
+                        _calReviewApplyApprove(pid, comp, pickDest);
+                    }
+                });
+                return;
+            }
+        }
+        _calReviewApplyApprove(pid, comp, dest);
+    }
+    function _calReviewApplyApprove(pid, comp, dest) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
         const key = pid + '|' + comp;
@@ -21178,7 +21249,7 @@
         // brand-new post) or straight to the client. Only a client approval
         // stamps the client_<comp>_approved_at sign-off timestamp.
         let approveTo = _CAL_REVIEW_CFG[mode].approveTo;
-        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : 'Kasper Approval';
+        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
         // Routing to Kasper means this component has now appeared in Kasper
         // review — record it on the post's cross-device kasper_seen column so
         // every device (each SMM, Kasper) treats it as no-longer-brand-new.
@@ -22320,8 +22391,9 @@
 
         if (deferToChooser) {
             // Chooser first; the resolve (mark-done) + status flip + refresh happen
-            // only on a pick. Cancel leaves the comment exactly as it was (open).
-            _calResolveLastTweak(pid, comp, mutate);
+            // only on a route pick. Closing leaves the comment exactly as it was
+            // (open) — the chooser owns the mark-done so cancel can't half-apply.
+            _calResolveLastTweak(pid, comp, rootId);
             return;
         }
         mutate();
@@ -22401,50 +22473,149 @@
         if (_calHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
         return 'This hasn’t been to Kasper yet.';
     }
+    /* Open (unresolved, undeleted) root change-requests on a component — the
+       ones a route-onward should offer to mark done. Plain conversation comments
+       (is_tweak false) are NOT change-requests and are never touched, so they
+       can't be silently hidden by a resolve. */
+    function _calOpenTweaksForComp(post, comp) {
+        if (!post) return [];
+        const list = _calCommentsFor(post, comp);
+        if (!Array.isArray(list)) return [];
+        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _calMsgIsTweak(c));
+    }
+    /* Mark the given root change-requests done on a component — stamp
+       done/done_by/done_at, bump the per-comment merge clock, and queue the
+       component's tweaks JSON for the next save. Only the ids passed are
+       touched, so the SMM's tick-selection in the chooser is honoured: an
+       un-ticked change-request stays open. Returns true if anything changed. */
+    function _calResolveTweaksDone(post, comp, ids) {
+        if (!post || !Array.isArray(ids) || !ids.length) return false;
+        const list = comp === 'video'
+            ? (Array.isArray(post.comments) ? post.comments.slice() : _calLoadComments(post))
+            : _calCommentsFor(post, comp).slice();
+        const want = new Set(ids);
+        const at = new Date().toISOString();
+        const by = _calCurrentAuthor();
+        let changed = false;
+        for (const c of list) {
+            if (c && !c.parent_id && want.has(c.id) && !c.done && !c.deleted) {
+                c.done = true; c.done_at = at; c.done_by = by; c.updated_at = at; changed = true;
+            }
+        }
+        if (!changed) return false;
+        _calSetCommentsFor(post, comp, list);
+        if (comp === 'video') post.comments = list;
+        _calPendingEdits[post.id] = Object.assign(_calPendingEdits[post.id] || {}, { [comp + '_tweaks']: _calStringifyComments(list) });
+        return true;
+    }
     function _calShowResolveDest(opts) {
         opts = opts || {};
         const overlay = document.getElementById('resolveDestOverlay');
+        const main = document.getElementById('resolveDestMain');
+        const discard = document.getElementById('resolveDestDiscard');
         const msg = document.getElementById('resolveDestMsg');
+        const checklist = document.getElementById('resolveDestChecklist');
         const kBtn = document.getElementById('resolveDestKasper');
         const cBtn = document.getElementById('resolveDestClient');
-        if (!overlay || !kBtn || !cBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client'); return; }
+        const aBtn = document.getElementById('resolveDestApprove');
+        const openTweaks = (Array.isArray(opts.openTweaks) ? opts.openTweaks : []).filter(Boolean);
+        // No overlay (e.g. a stripped DOM) → fall back to the recommended route and
+        // resolve everything, so the caller still completes.
+        if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
         const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        // The checklist earns its keep only when there's a genuine choice (2+
+        // open). With one, the single change-request is implied by the route, so
+        // we hide it and resolve that one — no extra friction.
+        if (checklist) {
+            if (openTweaks.length >= 2) {
+                checklist.innerHTML = openTweaks.map(t => {
+                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
+                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
+                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _calEscAttr(t.id) + '" checked>'
+                        + '<span><span class="rd-round">' + _calEsc(rd) + '</span> · ' + _calEsc(who) + ' — ' + _calEsc(short) + '</span></label>';
+                }).join('');
+                checklist.hidden = false;
+            } else {
+                checklist.innerHTML = '';
+                checklist.hidden = true;
+            }
+        }
+        const n = openTweaks.length;
+        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
+                   : n === 1 ? 'This change request will be marked done. '
+                   : '';
         const toKasper = opts.recommend === 'kasper';
-        if (msg) msg.textContent = 'All change requests on the ' + compLabel + ' are resolved. '
-            + (toKasper ? 'Send it to Kasper for approval — or straight to the client.'
-                        : 'Send it to the client for approval — or back to Kasper first.')
+        const toApproved = opts.recommend === 'approved';
+        if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
+            + (toApproved ? 'mark it approved — or to Kasper or the client first.'
+               : toKasper ? 'to Kasper for approval — or straight to the client.'
+                          : 'to the client for approval — or back to Kasper first.')
             + (opts.reason ? ' (' + opts.reason + ')' : '');
         // The recommended route is the primary (filled) button.
         kBtn.classList.toggle('primary', toKasper);
-        cBtn.classList.toggle('primary', !toKasper);
+        cBtn.classList.toggle('primary', !toKasper && !toApproved);
+        aBtn.classList.toggle('primary', toApproved);
+        // Which change-requests to resolve on a pick: the ticked rows, or — when
+        // the checklist is hidden (≤1 open) — every open one passed in.
+        const tickedIds = () => {
+            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
+            return Array.from(checklist.querySelectorAll('input[data-rd-id]'))
+                .filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
+        };
         _calResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
-        kBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('kasper'); };
-        cBtn.onclick = () => { const cb = _calResolveDestCb; _calDismissResolveDest(); if (cb) cb('client'); };
+        const pick = (dest) => { const cb = _calResolveDestCb; const ids = tickedIds(); _calDismissResolveDest(); if (cb) cb(dest, ids); };
+        kBtn.onclick = () => pick('kasper');
+        cBtn.onclick = () => pick('client');
+        aBtn.onclick = () => pick('approved');
+        // ✕ / backdrop → confirm before dropping the routing; Keep returns to the
+        // chooser, Discard closes without applying anything.
+        const keepBtn = document.getElementById('resolveDestKeep');
+        const discardYes = document.getElementById('resolveDestDiscardYes');
+        if (keepBtn) keepBtn.onclick = () => { if (discard) discard.hidden = true; if (main) main.hidden = false; };
+        if (discardYes) discardYes.onclick = () => _calDismissResolveDest();
+        if (main) main.hidden = false;
+        if (discard) discard.hidden = true;
         overlay.classList.add('active');
+    }
+    // ✕ / backdrop click: swap to the discard-confirm screen rather than closing
+    // outright. Closing is non-destructive (nothing is applied until a route is
+    // picked), but the confirm stops a stray click from losing the SMM's place.
+    function _calResolveDestRequestClose() {
+        const main = document.getElementById('resolveDestMain');
+        const discard = document.getElementById('resolveDestDiscard');
+        if (main) main.hidden = true;
+        if (discard) discard.hidden = false;
     }
     function _calDismissResolveDest() {
         const overlay = document.getElementById('resolveDestOverlay');
         if (overlay) overlay.classList.remove('active');
+        const main = document.getElementById('resolveDestMain');
+        const discard = document.getElementById('resolveDestDiscard');
+        if (main) main.hidden = false;
+        if (discard) discard.hidden = true;
         _calResolveDestCb = null;
     }
-    /* Called when the SMM clears the last open change-request on a component
-       (via mark-done or delete). Opens the destination chooser, then applies
-       the chosen sub-status and persists it (the flush also pushes the new
-       status to the linked Linear issue). Cancelling leaves the status
-       untouched — recoverable by reopening the thread. */
-    function _calResolveLastTweak(pid, comp, resolveComment) {
+    /* Called when the SMM clears the LAST open change-request on a component via
+       the Notes "mark done". It's the only one open, so the chooser shows no
+       checklist — just the route. The resolve (mark-done) + status flip are
+       DEFERRED into the route pick, so closing the chooser leaves the
+       change-request open — recoverable by reopening the thread. The flush also
+       pushes the new sub-status to the linked Linear issue. */
+    function _calResolveLastTweak(pid, comp, rootId) {
         const post = calState.posts.find(p => p.id === pid);
         if (!post) return;
+        const root = _calOpenTweaksForComp(post, comp).find(c => c.id === rootId);
         _calShowResolveDest({
             comp: comp,
             recommend: _calResolveDestRecommend(post, comp),
             reason: _calResolveDestReason(post, comp),
-            onChoose: (destPick) => {
-                // Mark the comment resolved NOW (deferred from _calToggleCommentDone
-                // so Cancel wouldn't lose it), THEN flip the sub-status to the pick,
-                // then persist + refresh once. Cancelling never reaches here, so the
-                // comment stays open.
-                if (typeof resolveComment === 'function') resolveComment();
+            openTweaks: root ? [root] : [],
+            onChoose: (destPick, ids) => {
+                // Resolve only on a pick (closing never reaches here), THEN flip
+                // the sub-status, then persist + refresh once.
+                _calResolveTweaksDone(post, comp, (ids && ids.length) ? ids : [rootId]);
                 _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
                 _calWatchNoteSave(pid);
                 _calRefreshCommentsBtn(pid);
@@ -22470,7 +22641,11 @@
         if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') {
             next = 'Tweaks Needed';
         } else if (trigger === 'smm_resolved_last') {
-            const target = (dest === 'kasper') ? 'Kasper Approval' : 'Client Approval';
+            // The SMM's explicit pick from the resolve chooser: Kasper re-review,
+            // the client, or straight to Approved (skips both re-reviews).
+            const target = (dest === 'kasper') ? 'Kasper Approval'
+                         : (dest === 'approved') ? 'Approved'
+                         : 'Client Approval';
             if (post[subKey] !== target) next = target;
         }
         if (!next) return false;

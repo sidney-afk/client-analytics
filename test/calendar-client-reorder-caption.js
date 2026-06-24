@@ -89,6 +89,23 @@ ok(/_calCapHookFonts\(\);/.test(INDEX) && /ro\.observe\(t\)/.test(INDEX),
    '_calAutosizeTextareas hooks fonts + observes each caption textarea');
 
 console.log('\n============================================================');
+console.log('D) CAPTION — focusing a caption disables the card drag');
+console.log('============================================================');
+// Selecting text inside the caption used to grab the whole card, because the
+// card is the HTML5 drag SOURCE (so the dragstart guard's e.target is the card,
+// not the textarea). Focusing a caption now clears the card's draggable attr.
+ok(/function _calOnCaptionFocus\(ta\) \{ _calCaptionDragLock\(ta, true\);/.test(INDEX),
+   'caption focus locks the card drag (_calCaptionDragLock(ta, true))');
+ok(/function _calOnCaptionBlur\(ta\)\s+\{ _calCaptionDragLock\(ta, false\);/.test(INDEX),
+   'caption blur restores the card drag (_calCaptionDragLock(ta, false))');
+ok(/function _calCaptionDragLock\(/.test(INDEX) &&
+   /card\.setAttribute\('draggable', 'false'\);/.test(INDEX),
+   '_calCaptionDragLock turns the card draggable attr off while focused');
+ok(/card\.dataset\.dragPrev = card\.getAttribute\('draggable'\)/.test(INDEX) &&
+   /card\.setAttribute\('draggable', card\.dataset\.dragPrev\);/.test(INDEX),
+   'it stashes + restores the pre-focus draggable value (blank/select-mode safe)');
+
+console.log('\n============================================================');
 console.log('SUMMARY');
 console.log('============================================================');
 console.log('  ' + (fail === 0 ? 'PASS ✅' : 'FAIL ❌') + '  (' + pass + ' passed, ' + fail + ' failed)');

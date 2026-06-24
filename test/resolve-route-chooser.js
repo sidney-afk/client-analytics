@@ -88,5 +88,17 @@ check('hides the checklist otherwise', /checklist\.hidden = true/.test(show), tr
 check('ticked ids = checked rows, or all open when the checklist is hidden',
   /checklist\.hidden\) return openTweaks\.map\(t => t\.id\)/.test(show), true);
 
+// ---- "Mark done — don't change the status" (resolve without routing) ----
+console.log('\n— "Mark done" escape: resolve the change-request without moving the status —');
+check('chooser markup has the no-route action', /id="resolveDestStay"/.test(overlay), true);
+check('the no-route action is NOT a fourth route button (it sits outside the route row)',
+  /resolve-dest-actions[\s\S]*?id="resolveDestApprove"[\s\S]*?<\/div>\s*<button[^>]*id="resolveDestStay"/.test(overlay), true);
+check('stay button resolves with dest "stay"', /resolveDestStay[\s\S]*?pick\('stay'\)/.test(show), true);
+const resolveLast = grabFunc('_calResolveLastTweak');
+check('Notes path resolves but SKIPS the status flip on "stay"',
+  /destPick !== 'stay'\) _calApplyAutoStatus/.test(resolveLast), true);
+check('Review path resolves but SKIPS the approve on "stay" (repaint only)',
+  /pickDest === 'stay'\)[\s\S]*?_calReviewRepaintCard[\s\S]*?\} else \{[\s\S]*?_calReviewApplyApprove/.test(approve), true);
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll resolve-route-chooser checks passed.');

@@ -743,6 +743,13 @@
         .resolve-dest-check .rd-round { font-weight: 700; color: var(--text-primary); }
         .resolve-dest-actions { flex-wrap: wrap; }
         .resolve-dest-actions .brief-action-btn { flex: 1 1 auto; justify-content: center; }
+        /* "Mark done — don't change the status": resolve without routing. A quiet
+           secondary action, set apart from the three send-routes (it isn't a
+           route — it's the absence of one). */
+        .resolve-dest-stay { display: block; width: 100%; margin: 12px 0 0; padding: 7px 8px;
+            border: none; background: none; font-family: inherit; font-size: 0.76rem; font-weight: 600;
+            color: var(--text-muted); cursor: pointer; text-align: center; border-radius: 8px; }
+        .resolve-dest-stay:hover { background: var(--bg); color: var(--text-secondary); }
 
         .brief-section-tabs {
             display: flex; gap: 0; overflow-x: auto; flex-wrap: nowrap;
@@ -4096,6 +4103,7 @@
                 <button class="brief-action-btn" type="button" id="resolveDestClient">Client approval</button>
                 <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
             </div>
+            <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Resolve the change request(s) without moving this to another stage">Mark done — don’t change the status</button>
         </div>
         <div id="resolveDestDiscard" hidden>
             <div class="confirm-box-title">Leave these open?</div>
@@ -21209,11 +21217,20 @@
                     reason: _calResolveDestReason(post, comp),
                     openTweaks: open,
                     onChoose: (pickDest, ids) => {
-                        // Resolve the ticked change-requests, THEN run the real
-                        // approve with the picked destination — the tweaks JSON and
-                        // the status flip ride the same flush.
+                        // Resolve the ticked change-requests. If the SMM chose
+                        // "don't change the status" (dest 'stay') it's a plain
+                        // mark-done — flush + repaint, no approve. Otherwise run the
+                        // real approve, so the tweaks JSON and the status flip ride
+                        // the same flush.
                         _calResolveTweaksDone(post, comp, ids);
-                        _calReviewApplyApprove(pid, comp, pickDest);
+                        if (pickDest === 'stay') {
+                            _calWatchNoteSave(pid);
+                            _calRefreshCommentsBtn(pid);
+                            _calUpdateCardStatusDisplay(pid);
+                            _calReviewRepaintCard(pid);
+                        } else {
+                            _calReviewApplyApprove(pid, comp, pickDest);
+                        }
                     }
                 });
                 return;
@@ -22569,6 +22586,11 @@
         kBtn.onclick = () => pick('kasper');
         cBtn.onclick = () => pick('client');
         aBtn.onclick = () => pick('approved');
+        // "Mark done — don't change the status": resolve the ticked change-requests
+        // but route nowhere (dest 'stay'). The same plain resolve every non-last
+        // comment already gets — just reachable for the last one too.
+        const stayBtn = document.getElementById('resolveDestStay');
+        if (stayBtn) stayBtn.onclick = () => pick('stay');
         // ✕ / backdrop → confirm before dropping the routing; Keep returns to the
         // chooser, Discard closes without applying anything.
         const keepBtn = document.getElementById('resolveDestKeep');
@@ -22614,9 +22636,10 @@
             openTweaks: root ? [root] : [],
             onChoose: (destPick, ids) => {
                 // Resolve only on a pick (closing never reaches here), THEN flip
-                // the sub-status, then persist + refresh once.
+                // the sub-status — unless the SMM chose "don't change the status"
+                // (dest 'stay'), in which case it's a plain mark-done, no routing.
                 _calResolveTweaksDone(post, comp, (ids && ids.length) ? ids : [rootId]);
-                _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                if (destPick !== 'stay') _calApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
                 _calWatchNoteSave(pid);
                 _calRefreshCommentsBtn(pid);
                 _calUpdateCardStatusDisplay(pid);

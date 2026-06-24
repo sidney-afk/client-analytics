@@ -20,6 +20,7 @@ const MEDIA = { thumbnail_url: 'https://via.placeholder.com/320x180.png', asset_
 const PIDA = 'p_rr_a_' + TS, TA = 'ta_' + TS;
 const PIDB = 'p_rr_b_' + TS, TB1 = 'tb1_' + TS, TB2 = 'tb2_' + TS;
 const PIDC = 'p_rr_c_' + TS, TC = 'tc_' + TS;
+const PIDD = 'p_rr_d_' + TS, TD = 'td_' + TS;
 
 async function cleanup(pid) {
   try { const r = await Q.rawRow(pid, 'caption_tweaks'); let a = []; try { a = JSON.parse(r.caption_tweaks || '[]'); } catch (e) {}
@@ -109,9 +110,28 @@ async function cleanup(pid) {
     S.ok((await isDone(PIDC, TC)) === false, 'C: discarding leaves the change-request OPEN (nothing applied)');
     S.ok(rC.caption_status === 'Tweaks Needed', 'C: discarding leaves the status unchanged');
 
+    // ─────────── D: "Mark done — don't change the status" (no route) ───────────
+    // Component already routed onward (Kasper Approval) but the comment lingers
+    // open — resolve it WITHOUT moving the status.
+    await Q.up(Object.assign({ id: PIDD, name: 'RR-D ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
+      video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Kasper Approval', status: 'Kasper Approval', kasper_seen: 'caption',
+      caption_tweaks: JSON.stringify([tweak(TD, 'CR delta ' + TS, 1)]) }, MEDIA));
+    await Q.pollRaw(PIDD, r => (r.caption_tweaks || '').includes(TD), 'caption_tweaks');
+    await Q.waitForPost(smm, PIDD, "p=>p.caption_status==='Kasper Approval'");
+    const od = await smm.evaluate((a) => {
+      try { openCalComments(a.pid); _calToggleCommentDone(a.id); } catch (e) { return 'ERR ' + e.message; }
+      const hasStay = !!document.getElementById('resolveDestStay');
+      if (hasStay) document.getElementById('resolveDestStay').click();
+      return { hasStay, active: document.getElementById('resolveDestOverlay').classList.contains('active') };
+    }, { pid: PIDD, id: TD });
+    S.ok(od && od.hasStay === true, 'D: chooser offers "Mark done — don’t change the status"');
+    let rD = await Q.pollRaw(PIDD, x => { let a = []; try { a = JSON.parse(x.caption_tweaks || '[]'); } catch (e) {} const c = a.find(y => y.id === TD); return c && c.done; }, 'caption_tweaks,caption_status', 15000);
+    S.ok((await isDone(PIDD, TD)) === true, 'D: it marks the change-request done');
+    S.ok(rD.caption_status === 'Kasper Approval', 'D: status is UNCHANGED (stays Kasper Approval)');
+
     S.ok(smm._errs.length === 0, 'no JS errors (' + JSON.stringify(smm._errs.slice(0, 4)) + ')');
   } finally {
-    await cleanup(PIDA); await cleanup(PIDB); await cleanup(PIDC);
+    await cleanup(PIDA); await cleanup(PIDB); await cleanup(PIDC); await cleanup(PIDD);
     await browser.close();
   }
   process.exit(S.done());

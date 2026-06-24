@@ -10771,7 +10771,11 @@
             if(!pins.includes(smState.client)){ pins.push(smState.client); _calSavePins(pins); }
         } else {
             let initial = null;
-            if(prefs.client && WL_CLIENT_NAMES.includes(prefs.client) && (pins.length === 0 || pins.includes(prefs.client))) initial = prefs.client;
+            // Same as the calendar: trust pins (the durable open-tabs list) over
+            // the sheet-driven WL_CLIENT_NAMES allowlist, which may not have
+            // loaded yet on the samples fast path — otherwise a sheet-only last
+            // client (e.g. one not in the hardcoded seed) is skipped on reopen.
+            if(prefs.client && pins.includes(prefs.client)) initial = prefs.client;
             else if(pins.length > 0) initial = pins[0];
             else if(prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
             smState.client = initial; smState.embedded = false; smState.mode = 'editor';
@@ -13091,7 +13095,20 @@
         return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video')
             + ' Linear issue as ' + g.names.join(', ')).join(' · ');
     }
-    function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => WL_CLIENT_NAMES.includes(n)) : []; } catch { return []; } }
+    /* The open client tabs (calendar AND samples) live here in localStorage and
+       ARE the persistence for "which tabs are open". We deliberately do NOT
+       filter against WL_CLIENT_NAMES on read: that allowlist is sheet-driven
+       (wlMergeClientsFromSheet) and only fills in AFTER fetchEssentials()
+       resolves, so on a refresh straight onto the calendar (the skipAwait fast
+       path) it still holds only the hardcoded seed list. Filtering here dropped
+       any sheet-only client's tab — one added via the Clients Info sheet rather
+       than the seed list, e.g. Alayna Belquist — on every reopen, so the tab
+       looked "not persistent"; worse, any add/remove/toggle while the allowlist
+       was still incomplete re-saved the filtered list and lost that tab for
+       good. Tabs are only ever written for real clients (every add path is
+       gated on wlIsAllowedClient), so the stored list is already trustworthy —
+       we just guard it's an array of non-empty strings. */
+    function _calGetPins() { try { const a = JSON.parse(localStorage.getItem(CAL_PINS_KEY) || '[]'); return Array.isArray(a) ? a.filter(n => typeof n === 'string' && n.trim()) : []; } catch { return []; } }
     function _calSavePins(arr) { try { localStorage.setItem(CAL_PINS_KEY, JSON.stringify(arr)); } catch {} }
     function calToggleClientPin(name) {
         const pins = _calGetPins();
@@ -13115,7 +13132,12 @@
         const pins  = _calGetPins();
         let initial = null;
         if (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) initial = _calFocusRequest.client;
-        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client) && (pins.length === 0 || pins.includes(prefs.client))) initial = prefs.client;
+        // Re-open on the client whose tab was last showing. Validate against
+        // pins (the durable open-tabs list) — NOT WL_CLIENT_NAMES — because the
+        // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
+        // path, so a sheet-only last client would otherwise be skipped here and
+        // a different tab (or none) would open on every refresh.
+        else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
         calState.client = initial;

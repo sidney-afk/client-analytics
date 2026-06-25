@@ -536,7 +536,16 @@ Linear paths, never the calendar's**.
 
 ---
 
-## 16. Open decisions (recommended defaults in **bold**)
+## 16. Decisions — CONFIRMED 2026-06-25
+
+> Confirmed: **full isolation / separate `sample_reviews` table** (#1), and the **mirror-the-calendar
+> defaults** for #2–#5 (one card with both Video + Thumbnail components; a dedicated Kasper "Samples"
+> section with a SAMPLE badge; the full review machine incl. For-SMM-Approval; the full client
+> approve/tweak loop). #6 (Linear issue-space disjointness + client-project routing) is an
+> **operational confirmation still pending** from the team. Long-term drift is managed by the living
+> **`SAMPLES_PARITY_LOG.md`** (fully-forked code, no shared core).
+
+Original options retained for the record (recommended defaults in **bold**):
 1. **Architecture: separate `sample_reviews` table + cloned Linear/review machinery (recommended)**
    vs. a `kind='sample'` discriminator on `calendar_posts`. *Trade-off:* the separate table **keeps the
    live calendar byte-identical** (your #1 fear) and respects "don't mix the two," at the cost of

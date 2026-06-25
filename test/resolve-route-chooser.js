@@ -100,5 +100,16 @@ check('Notes path resolves but SKIPS the status flip on "stay"',
 check('Review path resolves but SKIPS the approve on "stay" (repaint only)',
   /pickDest === 'stay'\)[\s\S]*?_calReviewRepaintCard[\s\S]*?\} else \{[\s\S]*?_calReviewApplyApprove/.test(approve), true);
 
+// ---- Review tab: ✕ just closes; no "don't change status" escape ----
+console.log('\n— Review-tab chooser: ✕ closes outright, and no status-stay option —');
+check('Review opens the chooser with fromReview:true', /openTweaks: open,\s*fromReview: true,/.test(approve), true);
+check('Notes opens the chooser with fromReview:false', /openTweaks: root \? \[root\] : \[\],\s*fromReview: false,/.test(resolveLast), true);
+check('chooser hides the "don\'t change status" option when fromReview', /stayBtn\.hidden = !!opts\.fromReview/.test(show), true);
+check('chooser confirms-on-close only for Notes (not Review)', /_calResolveDestConfirmClose = !opts\.fromReview/.test(show), true);
+const reqClose = grabFunc('_calResolveDestRequestClose');
+check('✕ closes outright when no confirm is wanted (Review)',
+  /!_calResolveDestConfirmClose\) \{ _calDismissResolveDest\(\); return; \}/.test(reqClose), true);
+check('CSS hides the stay button via [hidden]', /\.resolve-dest-stay\[hidden\] \{ display: none; \}/.test(INDEX), true);
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll resolve-route-chooser checks passed.');

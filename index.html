@@ -750,6 +750,7 @@
             border: none; background: none; font-family: inherit; font-size: 0.76rem; font-weight: 600;
             color: var(--text-muted); cursor: pointer; text-align: center; border-radius: 8px; }
         .resolve-dest-stay:hover { background: var(--bg); color: var(--text-secondary); }
+        .resolve-dest-stay[hidden] { display: none; }
 
         .brief-section-tabs {
             display: flex; gap: 0; overflow-x: auto; flex-wrap: nowrap;
@@ -21216,6 +21217,7 @@
                     recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
                     reason: _calResolveDestReason(post, comp),
                     openTweaks: open,
+                    fromReview: true,
                     onChoose: (pickDest, ids) => {
                         // Resolve the ticked change-requests. If the SMM chose
                         // "don't change the status" (dest 'stay') it's a plain
@@ -22476,6 +22478,10 @@
        has seen it before, default to the client; a component that's never been
        to Kasper defaults to Kasper. */
     let _calResolveDestCb = null;
+    // Whether the ✕ asks before closing. True for the Notes "mark done" flow
+    // (a stray click shouldn't lose the SMM's place); false for the Review-tab
+    // "Approve & send" flow, where ✕ just cancels the send and closes outright.
+    let _calResolveDestConfirmClose = false;
     function _calResolveDestRecommend(post, comp) {
         if (!post) return 'client';
         if (_calShowApprovedAfterTweaks(post, comp)) return 'client';
@@ -22588,11 +22594,16 @@
         aBtn.onclick = () => pick('approved');
         // "Mark done — don't change the status": resolve the ticked change-requests
         // but route nowhere (dest 'stay'). The same plain resolve every non-last
-        // comment already gets — just reachable for the last one too.
+        // comment already gets — just reachable for the last one too. Only offered
+        // from Notes: the Review tab's "Approve & send" is inherently a route, so
+        // a "don't change the status" escape doesn't belong there.
         const stayBtn = document.getElementById('resolveDestStay');
-        if (stayBtn) stayBtn.onclick = () => pick('stay');
-        // ✕ / backdrop → confirm before dropping the routing; Keep returns to the
-        // chooser, Discard closes without applying anything.
+        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        // ✕ behaviour: Notes confirms before closing (don't lose your place);
+        // the Review tab's ✕ just closes (cancels the send), nothing more.
+        _calResolveDestConfirmClose = !opts.fromReview;
+        // ✕ / backdrop → (Notes) confirm before dropping the routing; Keep returns
+        // to the chooser, Discard closes without applying anything.
         const keepBtn = document.getElementById('resolveDestKeep');
         const discardYes = document.getElementById('resolveDestDiscardYes');
         if (keepBtn) keepBtn.onclick = () => { if (discard) discard.hidden = true; if (main) main.hidden = false; };
@@ -22601,10 +22612,12 @@
         if (discard) discard.hidden = true;
         overlay.classList.add('active');
     }
-    // ✕ / backdrop click: swap to the discard-confirm screen rather than closing
-    // outright. Closing is non-destructive (nothing is applied until a route is
-    // picked), but the confirm stops a stray click from losing the SMM's place.
+    // ✕ / backdrop click. From the Review tab (no confirm) it just closes the
+    // popup — nothing more. From Notes it swaps to the discard-confirm screen so a
+    // stray click can't lose the SMM's place (closing is non-destructive either
+    // way — nothing is applied until a route is picked).
     function _calResolveDestRequestClose() {
+        if (!_calResolveDestConfirmClose) { _calDismissResolveDest(); return; }
         const main = document.getElementById('resolveDestMain');
         const discard = document.getElementById('resolveDestDiscard');
         if (main) main.hidden = true;
@@ -22634,6 +22647,7 @@
             recommend: _calResolveDestRecommend(post, comp),
             reason: _calResolveDestReason(post, comp),
             openTweaks: root ? [root] : [],
+            fromReview: false,
             onChoose: (destPick, ids) => {
                 // Resolve only on a pick (closing never reaches here), THEN flip
                 // the sub-status — unless the SMM chose "don't change the status"

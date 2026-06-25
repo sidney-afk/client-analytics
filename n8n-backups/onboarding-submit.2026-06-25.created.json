@@ -1,0 +1,70 @@
+{
+  "_snapshot_note": "Net-new workflow created 2026-06-25 for the SyncView centralized onboarding form. POST /webhook/onboarding-submit. Snapshot for the repo record / rollback (per the n8n-backups convention). Workflow id ljNY7CKYLKzMOACZ. NOT YET ACTIVE — see ONBOARDING_FORM.md 'Finish steps'.",
+  "id": "ljNY7CKYLKzMOACZ",
+  "name": "SyncView Onboarding — Submit",
+  "active": false,
+  "description": "POST /webhook/onboarding-submit. Body {submission}. Inserts the onboarding submission into Supabase client_onboarding (service role) and DMs Sidney on Slack. Supabase write gates the 200 so a submission is never silently lost.",
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Row", "type": "main", "index": 0 }]] },
+    "Build Row": { "main": [[{ "node": "Insert Submission", "type": "main", "index": 0 }]] },
+    "Insert Submission": { "main": [[{ "node": "Notify Sidney", "type": "main", "index": 0 }]] },
+    "Notify Sidney": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "onboarding-submit", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } }
+    },
+    {
+      "name": "Build Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst s = body.submission || {};\nconst email = String(s.email || '').trim();\nif (!email) throw new Error('email required');\nlet id = String(s.id || '').trim();\nif (!id) { id = 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }\nconst now = new Date().toISOString();\nconst row = {\n  id,\n  slug: String(s.slug || '').trim(),\n  first_name: String(s.first_name || '').trim(),\n  last_name: String(s.last_name || '').trim(),\n  email,\n  phone: String(s.phone || '').trim(),\n  ai_avatar: String(s.ai_avatar || '').trim(),\n  answers: (s.answers && typeof s.answers === 'object') ? s.answers : {},\n  status: 'submitted',\n  source: String(s.source || 'syncview-onboarding'),\n  created_at: String(s.created_at || now),\n  updated_at: now\n};\nreturn [{ json: row }];"
+      }
+    },
+    {
+      "name": "Insert Submission",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [440, 0],
+      "parameters": { "resource": "row", "operation": "create", "tableId": "client_onboarding", "dataToSend": "autoMapInputData" },
+      "onError": "stopWorkflow",
+      "_credential": "supabaseApi → 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT) — auto-linked correctly"
+    },
+    {
+      "name": "Notify Sidney",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [660, 0],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "authentication": "accessToken",
+        "select": "user",
+        "user": { "__rl": true, "mode": "id", "value": "U0ACW93FS30" },
+        "messageType": "text",
+        "text": "=🎉 *New onboarding form submitted!*\n\n*Name:* {{ $(\"Receive POST\").item.json.body.submission.first_name }} {{ $(\"Receive POST\").item.json.body.submission.last_name }}\n*Email:* {{ $(\"Receive POST\").item.json.body.submission.email }}\n*Phone:* {{ $(\"Receive POST\").item.json.body.submission.phone }}\n*AI Avatar:* {{ $(\"Receive POST\").item.json.body.submission.ai_avatar }}\n\nSaved to Supabase `client_onboarding` (id `{{ $(\"Build Row\").item.json.id }}`). Full answers + credentials are in that record.",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      },
+      "onError": "continueRegularOutput",
+      "_credential": "slackApi → auto-assigned 'Slack account 2' (7ARFU5TY2KplygNI). SWITCH to 'SyncView Bot' (qUlAcjdhd6EpKOTL) to match the existing Notion-intake notifier — the MCP setNodeCredential call could not complete in-session (permission-prompt error)."
+    },
+    {
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $(\"Build Row\").item.json.id } }}",
+        "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" } ] } }
+      }
+    }
+  ]
+}

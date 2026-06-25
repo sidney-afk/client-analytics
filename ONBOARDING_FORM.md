@@ -97,5 +97,26 @@ form is submitted" from the June 25 call. (A second auto-message after the onboa
   required-field validation, draft restore.
 - ✅ `onboarding-supabase-migration.sql` — committed; **run it once** in the Supabase SQL
   editor (project `uzltbbrjidmjwwfakwve`).
-- ⏳ n8n `onboarding-submit` webhook + Slack auto-post — the remaining backend wiring.
-  Until it exists, submit returns the graceful "saved on this device, try again" message.
+- 🟡 n8n `onboarding-submit` webhook — **created** (workflow id `ljNY7CKYLKzMOACZ`,
+  `POST /webhook/onboarding-submit`): `Receive POST → Build Row → Insert Submission
+  (Supabase, gate) → Notify Sidney (Slack DM) → Respond {ok}`. Snapshot in
+  `n8n-backups/onboarding-submit.2026-06-25.created.json`. Two small finish steps remain
+  (the MCP write/permission prompts errored out mid-session, so these are left for the n8n UI).
+
+### Finish steps (≈2 min, one time)
+
+1. **Run the SQL.** In the Supabase SQL editor (project `uzltbbrjidmjwwfakwve`), run
+   `onboarding-supabase-migration.sql` to create `client_onboarding`.
+2. **Fix the Slack credential.** Open workflow `ljNY7CKYLKzMOACZ` → **Notify Sidney** node →
+   switch the Slack credential from the auto-assigned **"Slack account 2"** to **"SyncView Bot"**
+   (`qUlAcjdhd6EpKOTL`) — same bot the existing Notion-intake notifier uses.
+3. **Activate** the workflow (toggle Active / publish).
+
+Until step 1 + 3 are done, the form's submit returns the graceful "saved on this device, try
+again" message — no data is lost. Because the Supabase insert is the gate (`onError:
+stopWorkflow`), a submission is never silently dropped: if the table is missing the webhook
+500s and the browser keeps the draft.
+
+### Second auto-message (later)
+The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the
+Fathom transcript + this form's answers). That's a separate workflow, not part of this form.

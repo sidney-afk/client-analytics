@@ -140,4 +140,36 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
   return p;
 }
 
-module.exports = { PW, launch, open, smm, client, up, reorder, supa, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER };
+// Seed/save a CALENDAR post via the live calendar-upsert-post webhook — used to
+// prove an unrelated calendar card NEVER appears in the samples sub-tab.
+function upCal(post) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: '' }); }
+// Read a calendar_posts row (or rows) back from Supabase REST.
+function supaCal(qs) {
+  const out = execSync(`curl -s ${_q(SUPA + '/rest/v1/calendar_posts?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', timeout: 60000 });
+  try { return JSON.parse(out); } catch { return []; }
+}
+
+// Kasper review surface for the SAMPLES sub-tab (M5a). Opens ?Kasper=1&sxr=1,
+// seeds the Kasper unlock (sessionStorage syncview_kasper_unlocked='ok',
+// KASPER_UNLOCK_KEY ~25553) + the auth flag, waits for the Kasper page, then
+// switches to the samples sub-tab via _kasperGotoTab('samples'). Returns the page.
+async function kasper(browser, opts) {
+  const ctx = await _ctx(browser, opts);
+  // Seed BOTH the auth flag (localStorage) and the Kasper unlock (sessionStorage)
+  // before any script runs, so the Kasper page mounts immediately on ?Kasper=1.
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
+    try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {}
+  });
+  const page = await ctx.newPage();
+  _capture(page);
+  await page.goto(ORIGIN + '/index.html?Kasper=1&sxr=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  // Wait for the Kasper view + the samples sub-tab handler to be wired.
+  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperRenderSamples === 'function', { timeout: 20000 }).catch(() => {});
+  // Switch to the samples sub-tab.
+  await page.evaluate(() => { try { window._kasperGotoTab('samples'); } catch (e) {} });
+  await page.waitForTimeout(800);
+  return page;
+}
+
+module.exports = { PW, launch, open, smm, client, kasper, up, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER };

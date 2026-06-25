@@ -3285,6 +3285,9 @@
         .cal-review-comment.is-new { background: rgba(234,88,12,0.07); border-left-color: #ea580c !important; border-radius: 0 6px 6px 0; padding-right: 8px; }
         /* "New reply" chip on a review-queue card. */
         .kcard-newreply-chip { display: inline-flex; align-items: center; font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 7px; border-radius: 99px; background: rgba(234,88,12,0.12); color: #c2410c; }
+        /* SAMPLE badge — purely presentational marker on Kasper's samples cards. */
+        .sxr-kasper-badge { display: inline-flex; align-items: center; font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.07em; padding: 2px 8px; border-radius: 99px; background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+        .sxr-kcard .kcard-line1 { gap: 8px; }
         .kasper-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .kasper-count-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 600; }
         .kasper-count-chip .kasper-count-num { background: var(--text-primary); color: var(--white); font-weight: 700; font-size: 0.72rem; padding: 2px 9px; border-radius: 99px; font-variant-numeric: tabular-nums; }
@@ -27155,6 +27158,15 @@
     const KASPER_SUBTABS = [
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
         { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
+        // SAMPLES (Review) — a DEDICATED Kasper sub-tab, gated behind _sxrEnabled()
+        // so with ?sxr OFF the Kasper page is byte-identical (the tab isn't even
+        // shown). Its own state slice (_kasperState.sxrSamples), its own renderer
+        // (_kasperRenderSamples), persisting ONLY via the _sxrKasper* handlers
+        // (→ sample-review-upsert). It never touches _kasperState.items /
+        // _kasperPersistPost / the calendar queue. (Plan §9.)
+        ...((typeof _sxrEnabled === 'function' && _sxrEnabled())
+            ? [{ key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="1.6"/><path d="M2.5 10.5l3-3 3 2.5 2.5-2 2.5 2"/><circle cx="6" cy="6" r="1.1"/></svg>' }]
+            : []),
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' }
     ];
@@ -27204,6 +27216,19 @@
         filmingError: null,
         filmingLoadedAt: 0,
         filmingExpanded: {},  // clientName -> true (month strip visible)
+        // ── SAMPLES (Review) sub-tab — its OWN isolated slice (Plan §9) ──
+        // NEVER reuse .items/.replies/.history/.dismissed/.closed (those carry the
+        // calendar's {video,graphic,caption} queue shape + persist via
+        // _kasperPersistPost). This slice holds sample_reviews rows only and
+        // persists exclusively through the _sxrKasper* handlers.
+        sxrSamples: {
+            items: [],          // [{ sample, client, slug, smm, _expanded, _drafts, _saving, _errors, _touchedComps }]
+            loading: false,
+            error: null,
+            lastLoaded: 0,
+            waitingCollapsed: false,
+            tweaksCollapsed: true,
+        },
     };
     const KASPER_HISTORY_KEY = 'syncview_kasper_approved_log_v1';
     const KASPER_HISTORY_CAP = 200;
@@ -27536,6 +27561,7 @@
     function _kasperRenderTab() {
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
+        if (_kasperState.tab === 'samples') return _kasperRenderSamples();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
     }
@@ -29178,6 +29204,554 @@
             if (ta) { try { ta.focus(); ta.setSelectionRange(_restore.start, _restore.end); } catch {} }
         }
     }
+
+    /* ═══════════════════════════════════════════════════════════════════════
+       KASPER × SAMPLES (Review) — M5a  (Plan §9)
+       ───────────────────────────────────────────────────────────────────────
+       A DEDICATED Kasper sub-tab that renders sample_reviews on Kasper's review
+       surface, marked with a presentational SAMPLE badge, driving the EXISTING
+       _sxrKasper* review handlers. ISOLATION CONTRACT:
+         • OWN state slice (_kasperState.sxrSamples) — never .items/.replies/etc.
+         • cross-client read of sample_reviews via the shared paginator
+           _calSupabaseFetchAllRows (MUST paginate — the (id,client) keyset is
+           required so a sample is never hidden once the table crosses 1000 rows).
+         • visibility = _sxrKasperVisible + the content gate (asset_url OR
+           thumbnail_url), partitioned Waiting vs Tweaks-pending via
+           _sxrKasperIsFinished.
+         • persistence funnels ONLY through _sxrKasperApproveComp /
+           _sxrKasperRequestTweakComp / _sxrKasperApproveAfterTweaksComp /
+           _sxrKasperFinish / _sxrKasperClose (→ sample-review-upsert). It NEVER
+           calls _kasperPersistPost, computeOverallStatus, _calPostKasperVisible,
+           or the calendar queue's {video,graphic,caption} transient maps.
+         • the SAMPLE marker is a literal in this renderer + lives in this slice,
+           so it can never flow into the calendar queue / any status/gate/merge.
+       The _sxrKasper* handlers resolve the row via _sxrFind (sxrState.cards) and
+       flush via _sxrFlushCardSave (sxrState.client). Because the Kasper page never
+       mounts the per-client SMM samples tab at the same time, we bridge by keeping
+       sxrState.cards = the loaded Kasper samples and pinning sxrState.client to the
+       acted-on row's client immediately before delegating (synchronous, before the
+       handler's flush awaits) — so each cross-client write targets the right slug.
+       v1 OMITS the URGENT ping (no synced Linear issue yet — M4) and the
+       Replies/Messages inbox union. */
+
+    const SXR_KASPER_COMP_LABELS = { video: 'Video', graphic: 'Thumbnail' };
+    /* Find a samples item in this slice by id. */
+    function _sxrKItem(pid) { return (_kasperState.sxrSamples.items || []).find(x => x && x.sample && String(x.sample.id) === String(pid)); }
+    /* Bridge: make the global _sxr* handlers see this card + this card's client
+       BEFORE delegating. _sxrFind reads sxrState.cards; _sxrFlushCardSave pins
+       sxrClientSlug(sxrState.client) as the upsert's client. Both are read
+       synchronously at the head of the handler, so setting them here is enough. */
+    function _sxrKBindFor(item) {
+        if (!item) return;
+        sxrState.cards = (_kasperState.sxrSamples.items || []).map(x => x.sample);
+        sxrState.client = item.client || item.slug;
+    }
+    /* Is a sample currently visible to Kasper (live, content-gated)? */
+    function _sxrKVisible(sample) {
+        if (!sample) return false;
+        if (!(String(sample.asset_url || '').trim() || String(sample.thumbnail_url || '').trim())) return false; // content gate
+        return _sxrKasperVisible(sample);
+    }
+    /* Which components on a sample are still awaiting Kasper's decision (at
+       Kasper Approval). Mirrors _kasperUndecidedComps, samples scope. */
+    function _sxrKUndecidedComps(sample) {
+        return SXR_COMPONENTS.filter(c => _sxrCompKasperVisible(sample, c) && _calNormStatus(sample[c + '_status'] || '') === 'Kasper Approval');
+    }
+
+    async function _kasperRenderSamples() {
+        const root = document.getElementById('kasperContent');
+        if (!root) return;
+        if (!(typeof _sxrEnabled === 'function' && _sxrEnabled())) {
+            // Belt-and-suspenders: the tab is only ever shown under ?sxr, but if
+            // it were reached otherwise, render nothing samples-specific.
+            root.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Samples (Review) is off.</div></div>`;
+            return;
+        }
+        const hasCached = _kasperState.sxrSamples.items.length > 0;
+        root.innerHTML = `
+            <span class="app-refresh-pill" id="kasperSamplesRefreshPill" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+            <div id="kasperSamplesBody">${hasCached ? '' : `<div class="kasper-loading"><div class="spinner"></div>Pulling samples waiting on Kasper…</div>`}</div>`;
+        if (hasCached) _kasperPaintSamples();
+        await _kasperLoadSamples();
+    }
+
+    /* Cross-client read of sample_reviews via the shared compound (id,client)
+       keyset paginator — never a flat limit, so the queue stays complete past
+       PostgREST's 1000-row cap. Falls back to the n8n sample-review-get only if
+       the Supabase read is unavailable. Groups by client, keeps only the
+       Kasper-visible + content-gated rows, decorates with SMM info. */
+    async function _kasperLoadSamples() {
+        const body = document.getElementById('kasperSamplesBody');
+        _kasperState.sxrSamples.loading = true;
+        _kasperState.sxrSamples.error = null;
+        const hasContent = _kasperState.sxrSamples.items.length > 0;
+        if (!hasContent && body) body.innerHTML = `<div class="kasper-loading"><div class="spinner"></div>Pulling samples waiting on Kasper…</div>`;
+        else { const pill = document.getElementById('kasperSamplesRefreshPill'); if (pill) pill.hidden = false; }
+        try {
+            // SMM map (reused) + the cross-client samples read in parallel.
+            const [smmMap, rows] = await Promise.all([
+                _kasperLoadSMMMap().catch(() => new Map()),
+                _sxrKasperFetchAllSamples(),
+            ]);
+            if (!Array.isArray(rows)) throw new Error('Samples: unexpected payload');
+            // Preserve open/draft state across refreshes.
+            const prevById = new Map((_kasperState.sxrSamples.items || []).map(x => [x.sample.id, x]));
+            const items = [];
+            for (const raw of rows) {
+                const sample = _sxrNormalize(raw);
+                if (_sxrIsArchived(sample)) continue;
+                if (!_sxrKVisible(sample)) continue;
+                const client = String(raw.client || '');
+                const slug = wlNormalizeClient(client);
+                const prev = prevById.get(sample.id);
+                items.push({
+                    sample,
+                    client: client || wlCanonicalClient(slug) || slug,
+                    slug,
+                    smm: (smmMap && smmMap.get(slug)) || null,
+                    _expanded: prev ? !!prev._expanded : false,
+                    _drafts:   prev ? Object.assign({ video: '', graphic: '' }, prev._drafts) : { video: '', graphic: '' },
+                    _saving:   { video: false, graphic: false },
+                    _errors:   { video: null,  graphic: null },
+                    _touchedComps: prev ? prev._touchedComps : new Set(),
+                    _threadOpen: prev ? prev._threadOpen : null,
+                });
+            }
+            items.sort((a, b) => String(a.client).localeCompare(String(b.client)) || String(a.sample.id).localeCompare(String(b.sample.id)));
+            _kasperState.sxrSamples.items = items;
+            // Keep the global _sxr* helpers' row source in sync so _sxrFind /
+            // _sxrFlushCardSave see exactly what Kasper is looking at.
+            sxrState.cards = items.map(x => x.sample);
+            _kasperState.sxrSamples.lastLoaded = Date.now();
+            _kasperPaintSamples();
+        } catch (e) {
+            _kasperState.sxrSamples.error = e && e.message ? e.message : String(e);
+            const b = document.getElementById('kasperSamplesBody');
+            if (b && !_kasperState.sxrSamples.items.length) b.innerHTML = `<div class="kasper-empty"><div class="kasper-empty-title">Couldn't load samples</div><div class="kasper-empty-sub">${_calEsc(_kasperState.sxrSamples.error)}</div></div>`;
+        } finally {
+            _kasperState.sxrSamples.loading = false;
+            const pill = document.getElementById('kasperSamplesRefreshPill');
+            if (pill) pill.hidden = true;
+        }
+    }
+
+    async function _sxrKasperFetchAllSamples() {
+        // Prefer the paginated Supabase REST read (cross-client, all rows). The
+        // compound (id,client) keyset paginator pages past the 1000-row cap.
+        if (_sxrReady && _sxrReady()) {
+            const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+            const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
+            try {
+                const rows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/sample_reviews?select=*', ctrl ? ctrl.signal : undefined);
+                if (Array.isArray(rows)) return rows;
+            } catch (e) {
+                console.warn('[Kasper×Samples] Supabase read failed — falling back to sample-review-get', e);
+            } finally { if (timer) clearTimeout(timer); }
+        }
+        // Fallback: n8n sample-review-get is per-client; fan out over the allowlist.
+        const out = [];
+        await Promise.all(WL_CLIENT_NAMES.map(async (client) => {
+            try {
+                const slug = wlNormalizeClient(client);
+                const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
+                const json = await resp.json();
+                const arr = (json && (json.samples || json.items || json.posts)) || [];
+                for (const r of arr) { if (r && !r.client) r.client = slug; out.push(r); }
+            } catch {}
+        }));
+        return out;
+    }
+
+    function _kasperPaintSamples() {
+        const body = document.getElementById('kasperSamplesBody');
+        if (!body) return;
+        // Don't wipe a textarea Kasper is typing in (shared guard with the queue).
+        const _ae = document.activeElement;
+        if (_ae && _ae.tagName === 'TEXTAREA' && _ae.closest && _ae.closest('#kasperContent')) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintSamples, 1200);
+            return;
+        }
+        if (_kasperPointerHeld) {
+            if (_kasperPaintRetry) clearTimeout(_kasperPaintRetry);
+            _kasperPaintRetry = setTimeout(_kasperPaintSamples, 200);
+            return;
+        }
+        const items = _kasperState.sxrSamples.items || [];
+        // Partition: Waiting = not yet finished; Tweaks pending = finished
+        // (handed to the SMM) but still in the queue (an unresolved Kasper tweak).
+        const waiting = [], tweaks = [];
+        for (const it of items) { (_sxrKasperIsFinished(it.sample) ? tweaks : waiting).push(it); }
+        const tabCount = document.querySelector('[data-kasper-count="samples"]');
+        if (tabCount) tabCount.textContent = String(waiting.length);
+        const waitingCollapsedCls = _kasperState.sxrSamples.waitingCollapsed ? ' collapsed' : '';
+        const waitingBodyHtml = waiting.length
+            ? `<div class="kasper-list">${waiting.map(_sxrKasperRenderCard).join('')}</div>`
+            : `<div class="kasper-empty">
+                <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg></div>
+                <div class="kasper-empty-title">No samples waiting</div>
+                <div class="kasper-empty-sub">No sample is waiting for your review right now.</div>
+            </div>`;
+        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${waitingCollapsedCls}" id="kasperSxrWaitingWrap">
+            <div class="kasper-history-head" onclick="_kasperToggleSxrWaiting()">
+                <span class="kasper-history-title">Samples waiting for your review</span>
+                <span class="kasper-history-count">${waiting.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${waitingBodyHtml}</div>
+        </div>`;
+        let tweaksHtml = '';
+        if (tweaks.length) {
+            const collapsedCls = _kasperState.sxrSamples.tweaksCollapsed ? ' collapsed' : '';
+            tweaksHtml = `<div class="kasper-history-wrap${collapsedCls}" id="kasperSxrTweaksWrap">
+                <div class="kasper-history-head" onclick="_kasperToggleSxrTweaks()">
+                    <span class="kasper-history-title">Sample tweaks pending</span>
+                    <span class="kasper-history-count">${tweaks.length}</span>
+                    <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+                </div>
+                <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(_sxrKasperRenderCard).join('')}</div></div>
+            </div>`;
+        }
+        const _thumbs = _kcardHarvestThumbs(body, 'data-kasper-sxr-pid');
+        body.innerHTML = waitingHtml + tweaksHtml;
+        _kcardRestoreThumbs(body, _thumbs, 'data-kasper-sxr-pid');
+    }
+    function _kasperToggleSxrWaiting() {
+        _kasperState.sxrSamples.waitingCollapsed = !_kasperState.sxrSamples.waitingCollapsed;
+        const wrap = document.getElementById('kasperSxrWaitingWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.sxrSamples.waitingCollapsed);
+    }
+    window._kasperToggleSxrWaiting = _kasperToggleSxrWaiting;
+    function _kasperToggleSxrTweaks() {
+        _kasperState.sxrSamples.tweaksCollapsed = !_kasperState.sxrSamples.tweaksCollapsed;
+        const wrap = document.getElementById('kasperSxrTweaksWrap');
+        if (wrap) wrap.classList.toggle('collapsed', _kasperState.sxrSamples.tweaksCollapsed);
+    }
+    window._kasperToggleSxrTweaks = _kasperToggleSxrTweaks;
+
+    /* Clone of _kasperRenderCard, scoped to samples. The SAMPLE badge is a
+       LITERAL here (purely presentational) — it lives only in this renderer +
+       the sxrSamples slice, so it can never reach any status/gate/merge. */
+    function _sxrKasperRenderCard(item) {
+        const s = item.sample;
+        const pid = s.id;
+        const title = String(s.name || '').trim() || 'Untitled sample';
+        const thumbUrl = _sxrDeriveThumb(s);
+        const hasThumbUrl = !!thumbUrl;
+        const thumbHtml = hasThumbUrl
+            ? `<img loading="lazy" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback','is-no-image');">`
+            : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;
+        const zoomBtnHtml = hasThumbUrl
+            ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_sxrKasperOpenLightbox('${_calEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>`
+            : '';
+        const videoUrl = String(s.asset_url || '').trim();
+        const smm = item.smm;
+        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
+        const slackTitle = smm && smm.name
+            ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`)
+            : 'Slack';
+        const slackBtn = (smm && smm.name)
+            ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_kasperOpenSlack('${_calEscAttr(item.slug)}')" title="${_calEscAttr(slackTitle)}">Slack</button>`
+            : '';
+        const smmHtml = smm && smm.name
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_calEsc(smm.name.charAt(0).toUpperCase())}</span>${_calEsc(smm.name)}${slackBtn}</span>`
+            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_calEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+        const watchBtn = videoUrl
+            ? `<a class="kcard-watch-btn" href="${_calEscAttr(videoUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>`
+            : `<span class="kcard-watch-btn is-disabled" title="No video URL on this sample"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>No video URL</span>`;
+        // Finish reviewing — same rule as the calendar: enabled once every
+        // component has had an explicit Kasper decision (none left at Kasper
+        // Approval). _sxrKasperFinish hands the card to the SMM.
+        const undecided = _sxrKUndecidedComps(s);
+        const canFinish = undecided.length === 0;
+        const isFinished = _sxrKasperIsFinished(s);
+        const finishTitle = canFinish
+            ? 'Finish reviewing — hand this sample to the SMM. Approved components go to the client; change requests move to "Tweaks pending".'
+            : 'Decide on the ' + undecided.map(c => SXR_KASPER_COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish.';
+        const doneBtn = isFinished
+            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM."><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Sent to SMM</button>`
+            : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_sxrKasperFinishCard('${_calEscAttr(pid)}')" title="${_calEscAttr(finishTitle)}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>Finish reviewing</button>`;
+        // SAMPLE badge — literal, presentational only.
+        const sampleBadge = `<span class="sxr-kasper-badge" data-sxr-sample-badge="1" title="This is a SAMPLE (not a scheduled calendar post).">SAMPLE</span>`;
+        const expandedHtml = item._expanded ? _sxrKasperRenderExpanded(item) : '';
+        return `<div class="kcard sxr-kcard${item._expanded ? ' expanded' : ''}" data-kasper-sxr-pid="${_calEscAttr(pid)}">
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperCloseCard('${_calEscAttr(pid)}')" title="Hide this sample. It stays hidden until the SMM sends it back to Kasper Approval." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_calEscAttr(pid)}')">
+                <div class="kcard-thumb${hasThumbUrl ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-line1">
+                        ${sampleBadge}
+                        <span class="kcard-client">${_calEsc(item.client)}</span>
+                        ${undecided.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecided.map(c => `<span class="kcard-comp-pill">${_calEsc(SXR_KASPER_COMP_LABELS[c])}</span>`).join('')}</span>` : ''}
+                    </div>
+                    <div class="kcard-title">${_calEsc(title)}</div>
+                    <div class="kcard-meta-row">${smmHtml}</div>
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${doneBtn}
+                    ${watchBtn}
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_calEscAttr(pid)}')" aria-label="${item._expanded ? 'Collapse' : 'Expand'} card"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${expandedHtml}
+        </div>`;
+    }
+
+    function _sxrKasperRenderExpanded(item) {
+        const s = item.sample;
+        const activeComps = SXR_COMPONENTS.filter(c => _sxrCompKasperVisible(s, c));
+        if (!activeComps.length) {
+            return `<div class="cal-review-body kasper-review-body"><div class="cal-empty" style="grid-column: 1 / -1; padding: 12px;">Nothing pending Kasper approval on this sample.</div></div>`;
+        }
+        const panels = activeComps.map(comp => _sxrKasperPanelHtml(item, comp)).join('');
+        const cols = activeComps.length;
+        return `<div class="cal-review-body kasper-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+    }
+
+    /* Read-only per-component preview, reusing the existing _sxr* derivation. */
+    function _sxrKasperPreviewHtml(s, comp) {
+        const playIco = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
+        const zoomIco = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg>`;
+        const thumbUrl = _sxrDeriveThumb(s);
+        if (comp === 'video') {
+            const url = String(s.asset_url || '').trim();
+            if (!url) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No video yet</span></div>`;
+            if (thumbUrl) return `<a class="kasper-hero-poster" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="kasper-hero-poster-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+            return `<a class="kasper-hero-poster kasper-hero-poster-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="kasper-hero-poster-overlay"><span class="kasper-hero-play">${playIco}</span><span class="kasper-hero-play-label">Open video</span></span></a>`;
+        }
+        // graphic
+        const raw = String(s.thumbnail_url || '').trim();
+        if (!raw) return `<div class="kasper-hero-poster kasper-hero-poster-empty"><span class="kasper-hero-play-label">No thumbnail yet</span></div>`;
+        const escPid = _calEscAttr(s.id);
+        return `<button type="button" class="kasper-hero-poster kasper-hero-poster-graphic" onclick="_sxrKasperOpenLightbox('${escPid}')" aria-label="Open thumbnail full screen" title="Open full size"><img class="kasper-hero-poster-fg" src="${_calEscAttr(thumbUrl || raw)}" alt="" onerror="this.parentElement.classList.add('kasper-hero-poster-empty');"><span class="kasper-hero-zoom-chip" aria-hidden="true">${zoomIco}</span></button>`;
+    }
+
+    function _sxrKasperRenderThread(item, comp, comments) {
+        if (!comments || !comments.length) return `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const row = (c) => {
+            const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+            const isResolved = !!c.done;
+            const resolvedBadge = isResolved ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>` : '';
+            return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
+                        ${resolvedBadge}
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+        };
+        const COLLAPSE_AT = 3;
+        const total = comments.length;
+        if (total <= COLLAPSE_AT) return comments.map(row).join('');
+        const escId = _calEscAttr(item.sample.id);
+        const escComp = _calEscAttr(comp);
+        const toggle = (label) => `<button type="button" class="cal-review-thread-toggle" onclick="_sxrKasperToggleThread('${escId}','${escComp}')">${label}</button>`;
+        if (item._threadOpen && item._threadOpen[comp]) return comments.map(row).join('') + toggle('Show less');
+        const hidden = total - COLLAPSE_AT;
+        return toggle(`Show ${hidden} earlier ${hidden === 1 ? 'message' : 'messages'}`) + comments.slice(total - COLLAPSE_AT).map(row).join('');
+    }
+    function _sxrKasperToggleThread(pid, comp) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        if (!item._threadOpen) item._threadOpen = {};
+        item._threadOpen[comp] = !item._threadOpen[comp];
+        _sxrKasperRepaintCard(pid);
+    }
+    window._sxrKasperToggleThread = _sxrKasperToggleThread;
+
+    function _sxrKasperPanelHtml(item, comp) {
+        const s = item.sample;
+        const escId = _calEscAttr(s.id);
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(s[comp + '_status'] || '');
+        const state = subStatus === 'Tweaks Needed' ? 'tweaks' : (subStatus === 'Approved' ? 'approved' : 'pending');
+        const inTweaks = state === 'tweaks';
+        const isApproved = state === 'approved';
+        const draft = (item._drafts && item._drafts[comp]) || '';
+        const saving = !!(item._saving && item._saving[comp]);
+        const err = (item._errors && item._errors[comp]) || '';
+        const comments = _sxrCommentsFor(s, comp).filter(c => c && !c.deleted && !c.hidden)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+        const hasDraft = !!draft.trim();
+        const approveEnabled = !saving && !hasDraft && !inTweaks && !isApproved;
+        const showApprove = !inTweaks && !isApproved;
+        const tweakEnabled = !saving && hasDraft;
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Add a note or request a change…';
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const previewHtml = _sxrKasperPreviewHtml(s, comp);
+        const threadHtml = _sxrKasperRenderThread(item, comp, comments);
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head">
+                <span class="cal-review-panel-title">${_calEsc(SXR_KASPER_COMP_LABELS[comp])}</span>
+                ${stateLabel ? `<span class="cal-review-panel-status">${_calEsc(stateLabel)}</span>` : ''}
+            </div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${showApprove ? `<div class="cal-review-approve-split">
+                <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${approveEnabled ? '' : 'disabled'} onclick="_sxrKasperApproveBtn('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+            </div>` : ''}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrKasperOnPanelDraftInput(this,'${escId}','${escComp}')">${_calEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-aat-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksBtn('${escId}','${escComp}')" title="Send these tweaks and pre-approve for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrKasperRequestTweakBtn('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+
+    function _sxrKasperOnPanelDraftInput(ta, pid, comp) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        if (!item._drafts) item._drafts = { video: '', graphic: '' };
+        item._drafts[comp] = ta.value;
+        const nowHasDraft = !!ta.value.trim();
+        const sel = window.CSS && CSS.escape ? CSS.escape(pid) : pid;
+        const card = document.querySelector('.sxr-kcard[data-kasper-sxr-pid="' + sel + '"]');
+        if (!card) return;
+        const saving = !!(item._saving && item._saving[comp]);
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]');
+        if (!panel) return;
+        panel.querySelectorAll('.cal-review-approve-btn').forEach(b => { b.disabled = saving || nowHasDraft; });
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn').forEach(b => { b.disabled = saving || !nowHasDraft; });
+    }
+    window._sxrKasperOnPanelDraftInput = _sxrKasperOnPanelDraftInput;
+
+    function _sxrKasperToggleCard(pid) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        item._expanded = !item._expanded;
+        _sxrKasperRepaintCard(pid);
+    }
+    window._sxrKasperToggleCard = _sxrKasperToggleCard;
+
+    function _sxrKasperRepaintCard(pid) {
+        const item = _sxrKItem(pid);
+        const el = document.querySelector('.sxr-kcard[data-kasper-sxr-pid="' + (window.CSS && CSS.escape ? CSS.escape(pid) : pid) + '"]');
+        if (!item || !el) return;
+        if (_kasperPointerHeld) { setTimeout(function () { _sxrKasperRepaintCard(pid); }, 200); return; }
+        let _restore = null;
+        const _a = document.activeElement;
+        if (_a && _a.tagName === 'TEXTAREA' && el.contains(_a)) {
+            _restore = { sig: _a.getAttribute('oninput') || '', start: _a.selectionStart, end: _a.selectionEnd };
+        }
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrKasperRenderCard(item);
+        const newEl = tmp.firstElementChild;
+        _kcardReuseThumbInto(el, newEl);
+        el.replaceWith(newEl);
+        if (_restore && _restore.sig) {
+            const ta = Array.from(newEl.querySelectorAll('textarea')).find(t => (t.getAttribute('oninput') || '') === _restore.sig);
+            if (ta) { try { ta.focus(); ta.setSelectionRange(_restore.start, _restore.end); } catch {} }
+        }
+    }
+
+    /* ── action handlers — thin wrappers over the EXISTING _sxrKasper* logic ──
+       Each binds sxrState (row + client) then delegates. The handler mutates the
+       in-memory row + persists via sample-review-upsert. We then re-check
+       visibility: a sample that left Kasper's purview drops out of the slice. */
+    function _sxrKasperDropIfGone(pid) {
+        const item = _sxrKItem(pid);
+        if (!item) return false;
+        if (!_sxrKVisible(item.sample)) {
+            _kasperState.sxrSamples.items = (_kasperState.sxrSamples.items || []).filter(x => x !== item);
+            sxrState.cards = (_kasperState.sxrSamples.items || []).map(x => x.sample);
+            return true;
+        }
+        return false;
+    }
+    async function _sxrKasperApproveBtn(pid, comp) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        if (item._saving && item._saving[comp]) return;
+        _kasperLastLocalWriteAt = Date.now();
+        item._saving[comp] = true; item._errors[comp] = null;
+        if (item._touchedComps) item._touchedComps.add(comp);
+        _sxrKBindFor(item);
+        const snap = _sxrKasperApproveComp(pid, comp);   // → Client Approval, persists
+        item._saving[comp] = false;
+        if (snap) showToast(SXR_KASPER_COMP_LABELS[comp] + ' approved — sent to client');
+        if (_sxrKasperDropIfGone(pid)) _kasperPaintSamples();
+        else _sxrKasperRepaintCard(pid);
+    }
+    window._sxrKasperApproveBtn = _sxrKasperApproveBtn;
+    async function _sxrKasperRequestTweakBtn(pid, comp) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        const body = String((item._drafts && item._drafts[comp]) || '').trim();
+        if (!body || (item._saving && item._saving[comp])) return;
+        _kasperLastLocalWriteAt = Date.now();
+        item._saving[comp] = true; item._errors[comp] = null;
+        if (item._touchedComps) item._touchedComps.add(comp);
+        _sxrKBindFor(item);
+        const okR = _sxrKasperRequestTweakComp(pid, comp, body);   // → Tweaks Needed, persists
+        item._saving[comp] = false;
+        if (okR) { if (item._drafts) item._drafts[comp] = ''; showToast(SXR_KASPER_COMP_LABELS[comp] + ' — change requested'); }
+        if (_sxrKasperDropIfGone(pid)) _kasperPaintSamples();
+        else _sxrKasperRepaintCard(pid);
+    }
+    window._sxrKasperRequestTweakBtn = _sxrKasperRequestTweakBtn;
+    async function _sxrKasperApproveAfterTweaksBtn(pid, comp) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        const body = String((item._drafts && item._drafts[comp]) || '').trim();
+        if (!body || (item._saving && item._saving[comp])) return;
+        _kasperLastLocalWriteAt = Date.now();
+        item._saving[comp] = true; item._errors[comp] = null;
+        if (item._touchedComps) item._touchedComps.add(comp);
+        _sxrKBindFor(item);
+        const okR = _sxrKasperApproveAfterTweaksComp(pid, comp, body);   // → Tweaks Needed + pre-clear, persists
+        item._saving[comp] = false;
+        if (okR) { if (item._drafts) item._drafts[comp] = ''; showToast(SXR_KASPER_COMP_LABELS[comp] + ' — tweaks sent, pre-cleared for client'); }
+        if (_sxrKasperDropIfGone(pid)) _kasperPaintSamples();
+        else _sxrKasperRepaintCard(pid);
+    }
+    window._sxrKasperApproveAfterTweaksBtn = _sxrKasperApproveAfterTweaksBtn;
+    function _sxrKasperFinishCard(pid) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        _kasperLastLocalWriteAt = Date.now();
+        _sxrKBindFor(item);
+        _sxrKasperFinish(pid);   // stamps kasper_finished_at when there are unresolved tweaks
+        // Finishing moves the card to "Tweaks pending" (if tweaks) or it simply
+        // leaves the queue (clean approve already routed). Repaint both buckets.
+        _kasperPaintSamples();
+        showToast('Finished reviewing — sent to the SMM');
+    }
+    window._sxrKasperFinishCard = _sxrKasperFinishCard;
+    function _sxrKasperCloseCard(pid) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        _kasperLastLocalWriteAt = Date.now();
+        _sxrKBindFor(item);
+        _sxrKasperClose(pid);   // stamps kasper_closed_at
+        _kasperState.sxrSamples.items = (_kasperState.sxrSamples.items || []).filter(x => x !== item);
+        sxrState.cards = (_kasperState.sxrSamples.items || []).map(x => x.sample);
+        _kasperPaintSamples();
+    }
+    window._sxrKasperCloseCard = _sxrKasperCloseCard;
+
+    /* Samples lightbox — reuse the existing Kasper lightbox overlay element. */
+    function _sxrKasperOpenLightbox(pid) {
+        const item = _sxrKItem(pid);
+        if (!item) return;
+        const url = _sxrDeriveThumb(item.sample);
+        if (!url) return;
+        const ovl = document.getElementById('kasperLightbox');
+        if (!ovl) return;
+        const img = ovl.querySelector('img');
+        img.src = url;
+        ovl.classList.add('open');
+    }
+    window._sxrKasperOpenLightbox = _sxrKasperOpenLightbox;
+
+    window._kasperRenderSamples = _kasperRenderSamples;
+    window._kasperLoadSamples = _kasperLoadSamples;
 
 
     /* Save a post to the calendar sheet via the existing upsert webhook.

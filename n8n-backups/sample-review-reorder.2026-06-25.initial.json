@@ -1,0 +1,58 @@
+{
+  "id": "XOT7IDFGxTwOUCCP",
+  "name": "Sample Review — Reorder",
+  "active": false,
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "description": "POST /webhook/sample-review-reorder. Body {client, items[{id,order_index}]}. Per-row Supabase update of sample_reviews order_index (match client+id); unknown ids skipped (no insert). Responds {ok, updated}.",
+  "nodes": [
+    {
+      "id": "9780b3ca-d7a6-479f-8174-5982c8f1e571",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "sample-review-reorder", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } },
+      "webhookId": "4d7eabf8-a01b-4e76-8182-5ca6b59f35b7"
+    },
+    {
+      "id": "6f6de219-7995-4dae-a1e8-828bc271222a",
+      "name": "Fan Out Reorder Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nif (!client) throw new Error('client required');\nconst items = Array.isArray(body.items) ? body.items : [];\nif (items.length === 0) throw new Error('items[] required');\nreturn items.map(it => {\n  const id = String(it.id || '').trim();\n  if (!id) throw new Error('every item needs an id');\n  const order_index = Number(it.order_index);\n  if (!Number.isFinite(order_index)) throw new Error('every item needs a numeric order_index');\n  return { json: { client, id, order_index: String(order_index) } };\n});" }
+    },
+    {
+      "id": "392facd3-fbb2-4103-9ef4-dd11c64b6566",
+      "name": "Update Order Index",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, 0],
+      "parameters": { "resource": "row", "operation": "update", "tableId": "sample_reviews", "filterType": "manual", "matchType": "allFilters", "filters": { "conditions": [{ "keyName": "client", "condition": "eq", "keyValue": "={{ $json.client }}" }, { "keyName": "id", "condition": "eq", "keyValue": "={{ $json.id }}" }] }, "dataToSend": "defineBelow", "fieldsUi": { "fieldValues": [{ "fieldId": "order_index", "fieldValue": "={{ $json.order_index }}" }] } },
+      "onError": "stopWorkflow",
+      "credentials": { "supabaseApi": { "id": "XdBpJ6Xk8PMpZXXT", "name": "Supabase - SyncView Calendar" } }
+    },
+    {
+      "id": "3565870a-b611-4a02-ad5e-4c56e5d6ea67",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const items = $('Fan Out Reorder Items').all();\nreturn [{ json: { ok: true, updated: items.length } }];" }
+    },
+    {
+      "id": "9023c2de-1d9d-47f0-bf0f-e8d5a195c2f2",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 0],
+      "parameters": { "respondWith": "firstIncomingItem", "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } } }
+    }
+  ],
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Fan Out Reorder Items", "type": "main", "index": 0 }]] },
+    "Fan Out Reorder Items": { "main": [[{ "node": "Update Order Index", "type": "main", "index": 0 }]] },
+    "Update Order Index": { "main": [[{ "node": "Wrap Response", "type": "main", "index": 0 }]] },
+    "Wrap Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  }
+}

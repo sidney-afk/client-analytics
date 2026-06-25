@@ -319,7 +319,7 @@ reverse (the `autoMapInputData` mirror errors on an unknown column and the whole
   hide_creative_direction, linear_issue_id, graphic_linear_issue_id, video_status, graphic_status,
   video_tweaks, graphic_tweaks, client_video_approved_at, client_graphic_approved_at,
   kasper_approved_at, kasper_approved_by, kasper_seen, kasper_approved_after_tweaks,
-  kasper_finished_at, kasper_closed_at`. **MANDATORY guards (data-loss):** phantom-row, read-fail
+  kasper_finished_at, kasper_closed_at, thumb_rev, created_at`. **MANDATORY guards (data-loss):** phantom-row, read-fail
   `{ok:false}`, `comments_base_at` conflict over samples SCALAR_FIELDS, atomic
   `sample_review_merge_comments` over the two tweak columns, strip-tweaks-before-scalar-mirror, same
   ISO `updated_at` to every store, mirror **fail-loud** (no Sheet backstop). **KEEP** `__CLEAR_LINK__`

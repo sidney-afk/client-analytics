@@ -45,11 +45,11 @@ check('has a Kasper route button',  /id="resolveDestKasper"/.test(overlay), true
 check('has a Client route button',  /id="resolveDestClient"/.test(overlay), true);
 check('has an Approve route button (new third route)', /id="resolveDestApprove"/.test(overlay), true);
 check('has a ✕ close button',       /id="resolveDestClose"/.test(overlay), true);
-check('has the discard-confirm screen (Keep editing / Discard)',
-  /id="resolveDestDiscard"/.test(overlay) && /id="resolveDestKeep"/.test(overlay) && /id="resolveDestDiscardYes"/.test(overlay), true);
 check('has a change-request checklist container', /id="resolveDestChecklist"/.test(overlay), true);
 check('the old Cancel button is gone', /onclick="_calDismissResolveDest\(\)">Cancel</.test(overlay), false);
-check('✕ / backdrop route through the close-confirm', /_calResolveDestRequestClose\(\)/.test(overlay), true);
+check('no discard-confirm screen — ✕ just closes (same in both tabs)', /id="resolveDestDiscard"/.test(overlay), false);
+check('✕ button just dismisses the chooser', /id="resolveDestClose"[\s\S]*?onclick="_calDismissResolveDest\(\)"/.test(overlay), true);
+check('backdrop click just dismisses the chooser', /if\(event\.target===this\)_calDismissResolveDest\(\)/.test(overlay), true);
 
 // ---- status mapping: Approve → Approved ----
 console.log('\n— status mapping: Approve → Approved —');
@@ -100,15 +100,16 @@ check('Notes path resolves but SKIPS the status flip on "stay"',
 check('Review path resolves but SKIPS the approve on "stay" (repaint only)',
   /pickDest === 'stay'\)[\s\S]*?_calReviewRepaintCard[\s\S]*?\} else \{[\s\S]*?_calReviewApplyApprove/.test(approve), true);
 
-// ---- Review tab: ✕ just closes; no "don't change status" escape ----
-console.log('\n— Review-tab chooser: ✕ closes outright, and no status-stay option —');
+// ---- ✕ closes outright in BOTH tabs; "don't change status" stays Notes-only ----
+console.log('\n— ✕ closes outright everywhere; the status-stay option is Notes-only —');
 check('Review opens the chooser with fromReview:true', /openTweaks: open,\s*fromReview: true,/.test(approve), true);
 check('Notes opens the chooser with fromReview:false', /openTweaks: root \? \[root\] : \[\],\s*fromReview: false,/.test(resolveLast), true);
-check('chooser hides the "don\'t change status" option when fromReview', /stayBtn\.hidden = !!opts\.fromReview/.test(show), true);
-check('chooser confirms-on-close only for Notes (not Review)', /_calResolveDestConfirmClose = !opts\.fromReview/.test(show), true);
-const reqClose = grabFunc('_calResolveDestRequestClose');
-check('✕ closes outright when no confirm is wanted (Review)',
-  /!_calResolveDestConfirmClose\) \{ _calDismissResolveDest\(\); return; \}/.test(reqClose), true);
+check('chooser hides the "don\'t change status" option when fromReview (Review)', /stayBtn\.hidden = !!opts\.fromReview/.test(show), true);
+check('no close-confirm machinery remains (_calResolveDestRequestClose removed)', /_calResolveDestRequestClose/.test(INDEX), false);
+check('no confirm-on-close flag remains (_calResolveDestConfirmClose removed)', /_calResolveDestConfirmClose/.test(INDEX), false);
+const dismiss = grabFunc('_calDismissResolveDest');
+check('_calDismissResolveDest just removes .active (no discard screen toggle)',
+  /classList\.remove\('active'\)/.test(dismiss) && !/resolveDestDiscard/.test(dismiss), true);
 check('CSS hides the stay button via [hidden]', /\.resolve-dest-stay\[hidden\] \{ display: none; \}/.test(INDEX), true);
 
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }

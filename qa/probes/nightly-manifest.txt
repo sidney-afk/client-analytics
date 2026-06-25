@@ -34,6 +34,8 @@ p48_schedule_post_archive.js
 p53_kasper_finish_handoff.js
 p54_kasper_undo_close.js
 p55_kasper_comment.js
+# stale auto-refresh must not un-finish a card (browser-driven, hermetic — scripts the read)
+p87_kasper_finish_stale_refresh.js
 p71_full_pipeline_capstone.js
 # --- pagination / isolation / reconcile / realtime ---
 p46_pagination_fix.js

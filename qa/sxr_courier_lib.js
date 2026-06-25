@@ -94,8 +94,15 @@ function _capture(page) {
   page.on('console', m => { if (m.type() === 'error') page._errs.push('[console.error] ' + m.text()); });
   page.on('pageerror', e => page._errs.push('[pageerror] ' + (e && e.message)));
 }
-// App-level errors only (ignore placeholder-image 503s etc.).
-function appErrs(page) { return (page._errs || []).filter(e => /supabase|synchrosocial|sxr|_sxr|TypeError|ReferenceError|is not a function/.test(e)); }
+// App-level errors only. Ignore placeholder-image 503s AND the realtime-WS
+// connection failure — under the courier the Supabase realtime WebSocket can't
+// be tunneled (the app falls back to its REST load), so that error is expected
+// environmental noise here, NOT an app bug. (In open-egress envs it won't fire.)
+function appErrs(page) {
+  return (page._errs || []).filter(e =>
+    /supabase|synchrosocial|sxr|_sxr|TypeError|ReferenceError|is not a function/.test(e) &&
+    !/realtime\/v1\/websocket|WebSocket connection .* failed|ERR_CONNECTION_CLOSED.*realtime/i.test(e));
+}
 
 async function _ctx(browser, opts) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...(opts || {}) });

@@ -33,7 +33,13 @@ const KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';
 const HOOKS = 'https://synchrosocial.app.n8n.cloud/webhook';
 const SXR_UPSERT = HOOKS + '/sample-review-upsert';
 const SXR_REORDER = HOOKS + '/sample-review-reorder';
-const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net)/;
+// Hosts the courier tunnels for the page (Node -> proxy -> host works; the
+// browser's own egress does not). docs.google.com is included so the CLIENT
+// SHARE surface boots: its router does `await fetchEssentials()` (Metrics +
+// Clients Info Google-Sheet CSVs) BEFORE resolving ?c=…&v=sample-reviews, so
+// without tunneling the sheet the client-link branch throws and the surface
+// never mounts. (Analytics CSV is read-only seed data; safe to tunnel.)
+const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com)/;
 const COURIER = process.env.SXR_COURIER !== '0';  // on by default; 0 in open-egress envs
 const TMP = process.env.SXR_TMP || '/tmp/qa';
 try { fs.mkdirSync(TMP, { recursive: true }); } catch {}

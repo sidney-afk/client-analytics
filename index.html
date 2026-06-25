@@ -13265,12 +13265,17 @@
             const cdHtml = (!hideCd && cd.trim())
                 ? `<div class="sxr-card-cd">${_calEsc(cd.trim())}</div>`
                 : '';
+            // Per-component REVIEW affordance (M5b): Approve / Request-change at
+            // Client Approval, "changes requested" at Tweaks Needed, read-only
+            // status otherwise. Fields stay non-editable; only this panel acts.
+            const reviewHtml = _sxrClientReviewBodyHtml(s);
             return `<div class="sxr-card" data-sxr-id="${id}">
                 <div class="sxr-card-thumb">${thumbHtml}</div>
                 <div class="sxr-card-meta">
                     <div class="sxr-card-name" title="${_calEscAttr(name)}">${_calEsc(name)}</div>
                     <div class="sxr-card-pills">${pills}</div>
                     ${cdHtml}
+                    <div class="sxr-client-review" data-sxr-client-review="${id}">${reviewHtml}</div>
                     <div class="sxr-card-foot">${_sxrCommentsBtnHtml(s, s.id)}</div>
                 </div>
             </div>`;
@@ -14556,6 +14561,249 @@
         }).join('');
     }
 
+    /* ══════════════════════════════════════════════════════════════════
+       CLIENT REVIEW SURFACE (M5b) — `_sxrClient*` render
+       ──────────────────────────────────────────────────────────────────
+       The client-share card (`_isClientLink`) stays read-only for FIELDS but
+       gains a per-component REVIEW affordance, cloned from the calendar's
+       client review panel (_calReviewPanelHtml / _calReviewCardBody client
+       mode) and restricted to video+graphic.
+
+       The render-gating predicate _sxrClientCompActive mirrors
+       _calReviewComponentActive (client mode): a component is client-actionable
+       ONLY at Client Approval (approve / request-change) or Tweaks Needed (the
+       client's own pending request → "changes requested" + the thread). For
+       ANY other status (In Progress / For SMM Approval / Kasper Approval /
+       Approved) the read-only status pill shows with NO client action.
+
+       Client posture is HARDCODED (no collaborative mode): the client sees
+       in-review + finished items, cannot edit fields / suggest / create — only
+       approve or request a change on a Client-Approval component. The
+       handler-level guards in _sxrClientApproveComp / _sxrClientRequestTweakComp
+       (M3b) are the real enforcement; this is the surface UI + gating.
+
+       Approve → _sxrClientApproveComp; Request change opens a small composer
+       (client-audience, is_tweak) → _sxrClientRequestTweakComp. Escapes EVERY
+       user value with _calEsc / _calEscAttr / _jsAttrArg — never _smEsc. */
+
+    /* Per-(card|comp) review draft / saving / error slice for the client
+       surface. Distinct from the calendar's _calReviewState (different DOM /
+       handlers). Used only on the _isClientLink surface. */
+    const _sxrClientReviewState = { drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+
+    /* The render-gating predicate. Mirror of _calReviewComponentActive(p,c,'client'):
+       actionable ONLY at Client Approval or Tweaks Needed. Never at In Progress /
+       For SMM Approval / Kasper Approval / Approved. (Unit-tested in
+       test/samples-client-surface.js.) */
+    function _sxrClientCompActive(sample, comp) {
+        const cs = _calNormStatus((sample && sample[comp + '_status']) || '');
+        return cs === 'Client Approval' || cs === 'Tweaks Needed';
+    }
+    /* Client posture constant — the calendar's _calIsClientReady MINUS collab
+       (no collaborative mode on the samples client surface). The client sees a
+       sample once any component is in-review (For SMM Approval and beyond) or
+       finished (Approved); brand-new / In-Progress-only samples stay hidden.
+       Mirrors _calIsClientReady's "above In Progress" gate; a constant stands in
+       for the collab flag. */
+    const _SXR_CLIENT_COLLAB = false;   // samples client surface: collab is never on
+    function _sxrIsClientReady(sample) {
+        if (!sample) return false;
+        if (_SXR_CLIENT_COLLAB) return true;
+        // Ready once at least one component has left "In Progress" (sent for any
+        // approval) — matching the calendar's in-review + finished visibility.
+        return SXR_COMPONENTS.some(c => _calNormStatus(sample[c + '_status'] || 'In Progress') !== 'In Progress');
+    }
+
+    /* The client review panel for one component. Clone of _calReviewPanelHtml
+       (client mode), restricted to video+graphic. Three render states:
+         • Approved  → a minimal "approved" line (terminal; no action).
+         • Client Approval → Approve + Request-change controls + thread.
+         • Tweaks Needed (client's own pending request) → "changes requested"
+           state + the (audience-gated) thread + a follow-up composer.
+       For any other status the panel is a read-only status line with no action
+       (callers only build a panel for components where _sxrClientCompActive is
+       true, EXCEPT Approved which renders the mini line — see the body). */
+    function _sxrClientReviewPanelHtml(sample, comp) {
+        const escId = _calEscAttr(sample.id);
+        const escComp = _calEscAttr(comp);
+        const subStatus = _calNormStatus(sample[comp + '_status'] || '');
+        const label = SXR_COMP_LABELS[comp] || comp;
+        // Terminal: Approved collapses to a single minimal line.
+        if (subStatus === 'Approved') {
+            const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+            return `<div class="cal-review-panel cal-review-panel-mini" data-sxr-cl-comp="${escComp}" data-state="approved">
+                <span class="cal-review-mini-icon">${checkIco}</span>
+                <span class="cal-review-mini-label">${_calEsc(label)} approved</span>
+                <span class="cal-review-mini-sub">Locked in</span>
+            </div>`;
+        }
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const state = inTweaks ? 'tweaks' : 'pending';
+        const draftKey = sample.id + '|' + comp;
+        const draft = _sxrClientReviewState.drafts[draftKey] || '';
+        const saving = !!_sxrClientReviewState.saving[draftKey];
+        const err = _sxrClientReviewState.errors[draftKey] || '';
+        const hasDraft = !!draft.trim();
+        // Approve is rendered while the client could in principle approve (the
+        // component is at Client Approval) — disabled while a tweak is being
+        // drafted or a tweak is already pending (Tweaks Needed). Mirrors the
+        // calendar's showApprove/approveEnabled.
+        const showApprove = subStatus === 'Client Approval';
+        const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
+        const tweakEnabled = !saving && hasDraft;
+        // Friendlier copy — no raw enums on the client surface.
+        const placeholder = inTweaks
+            ? 'The team is working on it. Anything else to add?'
+            : 'Request a change…';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        // Client-visible thread only — _sxrCommentsForView(…, true) hides
+        // internal/Kasper chatter. (Audience gating from M3a; never expose
+        // internal review notes.)
+        const comments = _sxrCommentsForView(sample, comp, true);
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+                return `<div class="cal-review-comment cal-cm-${c.role === 'client' ? 'client' : 'smm'}${c.parent_id ? ' is-reply' : ''}">
+                    <div class="cal-review-comment-head">
+                        <strong>${_calEsc(author)}</strong>
+                        <span class="cal-review-comment-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
+                    </div>
+                    <div class="cal-review-comment-body">${_calEsc(c.body || '')}</div>
+                </div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const statusPill = inTweaks
+            ? `<span class="cal-review-panel-status">${_calEsc('Changes requested')}</span>`
+            : '';
+        const previewHtml = _sxrClientReviewPreview(sample, comp);
+        const approveControl = showApprove
+            ? `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_sxrClientReviewApprove(${_jsAttrArg(sample.id)},'${escComp}')">${checkIco}Approve ${_calEsc(label.toLowerCase())}</button>`
+            : '';
+        return `<div class="cal-review-panel" data-sxr-cl-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head">
+                <span class="cal-review-panel-title">${_calEsc(label)}</span>
+                <div class="cal-review-panel-head-right">${statusPill}</div>
+            </div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${approveControl}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_calEscAttr(placeholder)}" data-sxr-cl-draft="${escId}|${escComp}" oninput="_sxrClientReviewOnDraftInput(this,${_jsAttrArg(sample.id)},'${escComp}')">${_calEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrClientReviewRequestChange(${_jsAttrArg(sample.id)},'${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_calEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+    /* Read-only status line for a component the client can't act on (not at
+       Client Approval / Tweaks Needed / Approved). Friendly copy, no enums. */
+    function _sxrClientReadonlyLineHtml(sample, comp) {
+        const escComp = _calEscAttr(comp);
+        const label = SXR_COMP_LABELS[comp] || comp;
+        const cs = _calNormStatus(sample[comp + '_status'] || 'In Progress');
+        // Everything from In Progress through Kasper Approval reads as "in
+        // progress" to the client — they only get an actionable surface at
+        // Client Approval (handled above).
+        const sub = 'The team is still working on this.';
+        const clockIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 1.5"/></svg>`;
+        return `<div class="cal-review-panel cal-review-panel-mini" data-sxr-cl-comp="${escComp}" data-state="readonly">
+            <span class="cal-review-mini-icon">${clockIco}</span>
+            <span class="cal-review-mini-label">${_calEsc(label)} in progress</span>
+            <span class="cal-review-mini-sub">${_calEsc(sub)}</span>
+        </div>`;
+    }
+    /* The client review preview for one component — a clone of
+       _calReviewComponentPreview (video tile / thumbnail), samples scope. */
+    function _sxrClientReviewPreview(sample, comp) {
+        if (comp === 'video') {
+            const url = String(sample.asset_url || '').trim();
+            if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
+            const thumbUrl = _sxrDeriveThumb(sample);
+            if (!thumbUrl) {
+                return `<a class="cal-review-video-tile cal-review-video-tile-blank" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+            }
+            return `<a class="cal-review-video-tile" href="${_calEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video"><img class="cal-review-video-bg" src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'"><span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+        }
+        // graphic / thumbnail
+        const raw = String(sample.thumbnail_url || '').trim();
+        if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+        const imgUrl = _sxrDeriveThumb(sample);
+        if (!imgUrl) {
+            const linkKind = _calIsFrameLink(raw) ? 'frame' : (_calIsFolderLink(raw) ? 'folder' : '');
+            if (linkKind) {
+                const openUrl = linkKind === 'folder' ? _calFolderOpenUrl(raw) : _calFrameOpenUrl(raw);
+                return `<div class="cal-review-preview-thumb">${_calReviewFrameHtml(openUrl, undefined, linkKind)}</div>`;
+            }
+        }
+        return `<div class="cal-review-preview-thumb"><a class="cal-review-preview-thumb-btn" href="${_calEscAttr(raw)}" target="_blank" rel="noopener" aria-label="Open thumbnail"><img src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></a></div>`;
+    }
+    /* The full client review body for a card. For each component:
+         • actionable (Client Approval / Tweaks Needed) → the review panel;
+         • Approved → the minimal approved line;
+         • anything else → a read-only "in progress" line.
+       Returns '' when there's nothing worth showing (no component has left
+       In Progress) so a brand-new card stays a plain read-only card. */
+    function _sxrClientReviewBodyHtml(sample) {
+        if (!_sxrIsClientReady(sample)) return '';
+        const panels = SXR_COMPONENTS.map(comp => {
+            if (_sxrClientCompActive(sample, comp)) return _sxrClientReviewPanelHtml(sample, comp);
+            if (_calNormStatus(sample[comp + '_status'] || '') === 'Approved') return _sxrClientReviewPanelHtml(sample, comp);
+            return _sxrClientReadonlyLineHtml(sample, comp);
+        }).join('');
+        return `<div class="cal-review-body sxr-client-review-body" style="grid-template-columns: repeat(${SXR_COMPONENTS.length}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
+    }
+    /* Toggle the two action buttons in place as the client types — no full
+       repaint per keystroke (mirror _calReviewOnDraftInput). */
+    function _sxrClientReviewOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp;
+        _sxrClientReviewState.drafts[key] = ta.value;
+        const hasDraft = !!ta.value.trim();
+        const card = ta.closest('.sxr-card');
+        if (!card) return;
+        const panel = card.querySelector('.cal-review-panel[data-sxr-cl-comp="' + comp + '"]');
+        if (!panel) return;
+        panel.querySelectorAll('.cal-review-tweak-btn').forEach(b => { b.disabled = !hasDraft || !!_sxrClientReviewState.saving[key]; });
+        panel.querySelectorAll('.cal-review-approve-btn').forEach(b => { b.disabled = hasDraft || !!_sxrClientReviewState.saving[key]; });
+    }
+    /* Approve → the shipping M3b handler (hard surface guard inside it). */
+    function _sxrClientReviewApprove(pid, comp) {
+        const key = pid + '|' + comp;
+        if (_sxrClientReviewState.saving[key]) return;
+        _sxrClientReviewState.saving[key] = true;
+        try { _sxrClientApproveComp(pid, comp); }
+        finally { _sxrClientReviewState.saving[key] = false; }
+        _sxrClientRepaintReview(pid);
+    }
+    /* Request change → the shipping M3b handler (client-audience, is_tweak).
+       Reads the panel draft, clears it on success. */
+    function _sxrClientReviewRequestChange(pid, comp) {
+        const key = pid + '|' + comp;
+        const body = String(_sxrClientReviewState.drafts[key] || '').trim();
+        if (!body || _sxrClientReviewState.saving[key]) return;
+        _sxrClientReviewState.saving[key] = true;
+        let okFlip = false;
+        try { okFlip = _sxrClientRequestTweakComp(pid, comp, body) !== false; }
+        finally { _sxrClientReviewState.saving[key] = false; }
+        if (okFlip) _sxrClientReviewState.drafts[key] = '';
+        _sxrClientRepaintReview(pid);
+    }
+    /* Repaint just the client review body of a card after an approve / request —
+       reuses the rendered HTML, keeps the rest of the (read-only) card intact. */
+    function _sxrClientRepaintReview(pid) {
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const card = document.querySelector(`.sxr-card[data-sxr-id="${sel}"]`);
+        if (!card) return;
+        const host = card.querySelector('[data-sxr-client-review]');
+        if (!host) return;
+        host.innerHTML = _sxrClientReviewBodyHtml(sample);
+        // Keep the read-only status pills in step with the new sub-status.
+        _sxrRefreshCardPills(pid);
+    }
+
     /* ── optimistic field-patch save (M2) ───────────────────────────
        A faithful clone of the calendar's _calOnFieldInput/Blur →
        _calPendingEdits/_calSaveTimers → _calFlushCardSave path, re-pointed to
@@ -14594,6 +14842,26 @@
     /* Free-text fields that are persisted but must never trigger a thumb bump
        or a Linear surface — just plain text patches. */
     function _sxrClientFieldEditBlocked() { return _isClientLink; }
+    /* The ONLY columns a CLIENT link may ever write — the review-action surface
+       (M5b): a per-component approve / request-change. A client can flip a
+       component's status, stamp its own approval, and append a client-audience
+       change-request comment; nothing else. Every FIELD column (name / urls /
+       creative_direction / hide / links / order) is deliberately ABSENT, so a
+       field edit from a client link still never reaches the backend — the
+       non-editability invariant holds at the persist layer, not just the UI.
+       _sxrClientWriteAllowed(edits) is true only when EVERY pending key is in
+       this set (a mixed patch is refused wholesale). */
+    const _SXR_CLIENT_WRITE_COLS = new Set([
+        'video_status', 'graphic_status', 'status',
+        'client_video_approved_at', 'client_graphic_approved_at',
+        'kasper_approved_at',                 // stale-approval clear may ride along
+        'video_tweaks', 'graphic_tweaks',     // the change-request comment columns
+        'updated_at',
+    ]);
+    function _sxrClientWriteAllowed(edits) {
+        const keys = Object.keys(edits || {});
+        return keys.length > 0 && keys.every(k => _SXR_CLIENT_WRITE_COLS.has(k));
+    }
     function _sxrFind(pid) { return (sxrState.cards || []).find(c => String(c.id) === String(pid)); }
     function _sxrOnFieldInput(el) {
         if (_sxrClientFieldEditBlocked()) return;   // read-only on a client link — never persist
@@ -14673,9 +14941,14 @@
         _sxrFlushCardSave(pid);
     }
     async function _sxrFlushCardSave(pid) {
-        if (_sxrClientFieldEditBlocked()) return;   // belt-and-suspenders: never write from a client link
         const edits = _sxrPendingEdits[pid];
         if (!edits || !Object.keys(edits).length) return;
+        // On a CLIENT link the persist surface is the review action ONLY: a
+        // write proceeds iff every pending column is a client-writable review
+        // column (status / approval stamp / change-request comment). A field
+        // edit (name / url / cd / link / order) is refused at the persist layer
+        // — the non-editability invariant, enforced here not just in the UI.
+        if (_isClientLink && !_sxrClientWriteAllowed(edits)) return;
         // Pin the destination client BEFORE any await — a debounced save queued
         // while the user switched tabs must NOT resolve calClientSlug to a
         // different client and leak the edit into another client's tab.

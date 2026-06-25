@@ -3987,6 +3987,21 @@
         .sxr-cm-send:disabled { opacity:0.4; cursor:default; }
         .sxr-cm-send svg { width:15px; height:15px; }
 
+        /* M3b — actionable status pills, the per-component status menu, the
+           change-request badge + resolve action, and the resolve chooser. */
+        .sxr-pill-btn { border:none; cursor:pointer; font-family:inherit; }
+        .sxr-pill-btn:hover { filter:brightness(0.94); box-shadow:0 0 0 1.5px rgba(0,0,0,0.12); }
+        .sxr-status-menu { position:fixed; z-index:99999; min-width:200px; padding:5px; background:var(--white); border-radius:11px; box-shadow:0 10px 30px rgba(0,0,0,0.18); display:flex; flex-direction:column; gap:2px; }
+        .sxr-status-menu .cal-fld-status-opt { display:flex; align-items:center; width:100%; padding:8px 11px; border:0; border-radius:7px; background:transparent; color:var(--text-secondary); font-family:inherit; font-size:0.7rem; font-weight:800; letter-spacing:0.045em; text-transform:uppercase; text-align:left; cursor:pointer; transition:filter 0.1s; }
+        .sxr-status-menu .cal-fld-status-opt:hover { filter:brightness(0.94); }
+        .sxr-status-menu .cal-fld-status-opt.is-active { box-shadow:inset 0 0 0 1.5px currentColor; }
+        .sxr-cm-tweak-badge { font-size:0.58rem; font-weight:800; letter-spacing:0.04em; text-transform:uppercase; padding:2px 7px; border-radius:999px; background:#fdba74; color:#7c2d12; }
+        .sxr-cm-tweak-badge.is-done { background:#dcfce7; color:#166534; }
+        .sxr-cm-row.is-tweak { background:rgba(253,186,116,0.08); }
+        .sxr-cm-row.is-tweak.is-done { background:transparent; }
+        .sxr-cm-resolve { color:#15803d; font-weight:800; }
+        .sxr-cm-resolve:hover { background:rgba(34,197,94,0.12); color:#166534; }
+
         .sm-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:4px; flex-wrap:wrap; }
         .sm-section-title { font-size:1.45rem; font-weight:800; letter-spacing:-0.025em; }
         .sm-section-sub { font-size:0.8rem; color:var(--text-secondary); margin-top:2px; }
@@ -13235,12 +13250,9 @@
         const thumbHtml = thumbUrl
             ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
             : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
-        const pills = SXR_COMPONENTS.map(c => {
-            const cs = _calNormStatus(s[c + '_status'] || 'In Progress');
-            const slug = _sxrStatusSlug(cs);
-            const label = SXR_COMP_LABELS[c] + ': ' + cs;
-            return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
-        }).join('');
+        // Per-component status pills. On the SMM surface they are ACTIONABLE
+        // (click → status menu); on a client link, a read-only display. M3b.
+        const pills = _sxrPillsHtml(s);
         const hideCd = String(s.hide_creative_direction || '').trim().toUpperCase() === 'TRUE';
         const cd = String(s.creative_direction || '');
 
@@ -13515,6 +13527,7 @@
     let _sxrOpenCommentsPid = null;
     let _sxrComposeComp = 'video';     // which component a NEW root targets
     let _sxrComposeAudience = 'internal'; // SMM: who sees a NEW root (client toggle absent)
+    let _sxrComposeMode = 'comment';   // M3b: a NEW root is a 'comment' or a 'request-change' (is_tweak)
     let _sxrReplyTarget = null;        // root id being replied to, or null
     const _sxrReplyDrafts = Object.create(null);
     let _sxrRootDraft = '';
@@ -13536,6 +13549,7 @@
         _sxrRootDraft = '';
         _sxrComposeComp = 'video';
         _sxrComposeAudience = 'internal';
+        _sxrComposeMode = 'comment';
         _sxrNotesMarkSeen(pid);            // opening = caught up; clears the unread dot
         const ovl = document.getElementById('sxrCommentsOverlay');
         if (!ovl) return;
@@ -13569,6 +13583,16 @@
         _sxrComposeAudience = (aud === 'client') ? 'client' : 'internal';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="audience"]');
         if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+    }
+    /* M3b — a NEW root is a plain comment or a change-request (is_tweak). A
+       change-request flips its component to Tweaks Needed on submit. The
+       picker re-renders the composer so the send button + placeholder update. */
+    function _sxrSetComposeMode(mode) {
+        _sxrComposeMode = (mode === 'request-change') ? 'request-change' : 'comment';
+        const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="mode"]');
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === _sxrComposeMode));
+        const send = document.querySelector('#sxrCommentsModal .sxr-cm-send');
+        if (send) send.title = _sxrComposeMode === 'request-change' ? 'Request change (Enter)' : 'Send (Enter)';
     }
     function _sxrFindCompForCommentId(sample, commentId) {
         for (const c of SXR_COMPONENTS) {
@@ -13673,6 +13697,20 @@
         const body = (_sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
         if (!body) return;
         const parentId = _sxrReplyTarget;
+        // M3b: a NEW root in 'request-change' mode is a change-request (is_tweak)
+        // that flips its component to Tweaks Needed; replies are always plain.
+        if (!parentId && _sxrComposeMode === 'request-change') {
+            const comp = (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0) ? _sxrComposeComp : 'video';
+            const role = _sxrCommentRole();
+            // role 'kasper' is only ever set by the Kasper section's handlers, so
+            // a request from this composer is smm (internal) or client.
+            _sxrRequestTweak(pid, comp, body, role, _sxrCurrentAuthor(), (role === 'client') ? 'client' : _sxrComposeAudience, false);
+            _sxrRootDraft = '';
+            _sxrComposeMode = 'comment';
+            _sxrRenderCommentsModal();
+            setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = 0; }, 0);
+            return;
+        }
         _sxrAppendComment(pid, parentId, body);
         if (parentId) delete _sxrReplyDrafts[parentId];
         else _sxrRootDraft = '';
@@ -13713,18 +13751,30 @@
         const delBtn = _sxrCanDeleteComment(c)
             ? `<button class="sxr-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
             : '';
-        return `<div class="sxr-cm-row${isReply ? ' is-reply' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
+        // M3b — a change-request (is_tweak) root carries a "Tweak #N" badge; an
+        // OPEN one (not done) gets a "Mark done" action on the SMM surface that
+        // opens the resolve chooser (deferred resolve + route). A done one shows
+        // a muted "Done" pill. Plain comments / replies are unaffected.
+        const isTweakRoot = !isReply && _sxrMsgIsTweak(c);
+        const tweakBadge = isTweakRoot
+            ? `<span class="sxr-cm-tweak-badge${c.done ? ' is-done' : ''}" title="${c.done ? 'Change request — resolved' : 'Change request — needs a fix'}">${c.done ? 'Done' : ('Tweak' + (c.round ? ' #' + c.round : ''))}</span>`
+            : '';
+        const doneBtn = (isTweakRoot && !c.done && !_isClientLink)
+            ? `<button class="sxr-cm-action sxr-cm-resolve" type="button" onclick="_sxrResolveLastTweak(${_jsAttrArg(_sxrOpenCommentsPid)}, '${comp}', ${_jsAttrArg(c.id)})" title="Mark done — choose where this goes next">✓<span>Mark done</span></button>`
+            : '';
+        return `<div class="sxr-cm-row${isReply ? ' is-reply' : ''}${isTweakRoot ? ' is-tweak' : ''}${(isTweakRoot && c.done) ? ' is-done' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
             <div class="sxr-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
             <div class="sxr-cm-body-col">
                 <div class="sxr-cm-head-line">
                     <span class="sxr-cm-author">${_calEsc(author)}</span>
+                    ${tweakBadge}
                     ${lock}
                     <span class="sxr-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
                     ${compLabel}
                 </div>
                 <div class="sxr-cm-row-body">${_calEsc(c.body || '')}</div>
             </div>
-            <div class="sxr-cm-actions">${replyBtn}${delBtn}</div>
+            <div class="sxr-cm-actions">${doneBtn}${replyBtn}${delBtn}</div>
         </div>`;
     }
     function _sxrComposerHtml(sample) {
@@ -13762,10 +13812,22 @@
                 </div>
             </div>`
             : '';
+        // M3b — Comment vs Request change on a NEW root (a change-request flips
+        // the component to Tweaks Needed). On a reply it's always a comment.
+        const modeToggle = !isReply
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="mode" role="group" aria-label="Comment or request a change">
+                <span class="sxr-cm-seg-cap">This is a…</span>
+                <div class="sxr-cm-seg">
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'comment' ? ' is-active' : ''}" data-mode="comment" onclick="_sxrSetComposeMode('comment')" title="A note — does not change the status.">Comment</button>
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'request-change' ? ' is-active' : ''}" data-mode="request-change" onclick="_sxrSetComposeMode('request-change')" title="A change request — flips this component to Tweaks Needed.">Request change</button>
+                </div>
+            </div>`
+            : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
         return `<div class="sxr-cm-composer-wrap">
             ${replyingTo}
             ${compPicker}
+            ${modeToggle}
             ${audienceToggle}
             <div class="sxr-cm-composer">
                 <div class="sxr-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
@@ -13812,6 +13874,683 @@
             ${_sxrComposerHtml(sample)}`;
         const ta = document.getElementById('sxrCommentComposer');
         if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
+    }
+
+    /* ============================================================
+       REVIEW STATE MACHINE (M3b) — `_sxr*`  status transitions
+       ──────────────────────────────────────────────────────────────────
+       A FAITHFUL fork of the calendar's review machinery (status menu /
+       resolve chooser / Kasper handlers / client review handlers / stale-
+       approval clearing), restricted to TWO components (video, graphic) and
+       carrying every documented preventive rule (SAMPLES_V2_PLAN.md §12):
+         • Statuses reuse CAL_STATUSES/CAL_PRIORITY/_calNormStatus; overall =
+           computeSampleOverallStatus (worst-of video+graphic). Terminal =
+           Approved + Archived — NO Scheduled/Posted short-circuits.
+         • Every mutating handler is idempotent (an in-flight guard so a
+           double-click yields ONE effect), persists via the M2 field-level
+           _sxrFlushCardSave (never a whole row, comments_base_at:''), and
+           carries a handler-level _isClientLink / surface-status guard (a
+           guard, NOT just UI hiding — the 732b2b4 fix).
+         • Comments are the M3a objects EXTENDED with is_tweak / round / done /
+           done_at / done_by (a tweak flips its component to Tweaks Needed; the
+           card stays reviewable while an unresolved tweak exists).
+         • The resolve chooser clones _calShowResolveDest/_calApplyAutoStatus/
+           _calResolveLastTweak exactly (3 routes, recommended primary; "mark
+           done — don't change status"; non-destructive X-close; selective
+           resolve when >1 open; resolve deferred into the pick) — keeping the
+           hard-won fixes f302624/d57594c/95ecf90/80d376b.
+         • Kasper-role handlers are BUILT here for M5 to render+call; the
+           global Finish/Close hand-off writes kasper_finished_at /
+           kasper_closed_at cross-device, with the server-confirmed re-surface
+           rule judged by message created_at (the 028cbd7/b5e73f5 fix).
+         • Recompute overall over EXACTLY video+graphic on every transition,
+           run _sxrClearStaleApprovals, and persist. NO Linear push (that is
+           M4); the Kasper PAGE section is M5 (handlers only here). */
+
+    /* The samples status vocabulary: the calendar's set MINUS the publishing-
+       only states (Scheduled / Posted). Terminal = Approved + Archived. */
+    const SXR_STATUSES = ['In Progress', 'For SMM Approval', 'Kasper Approval', 'Client Approval', 'Tweaks Needed', 'Approved'];
+    /* Is a comment a change-request (is_tweak true) vs a plain note? Mirrors
+       _calMsgIsTweak: an untagged legacy message is treated as a tweak so a
+       pre-M3b row can't hide an open change-request (defensive; samples only
+       ever write the explicit boolean). */
+    function _sxrMsgIsTweak(c) {
+        if (!c) return false;
+        if (typeof c.is_tweak === 'boolean') return c.is_tweak;
+        return true;
+    }
+    /* Revision number for a NEW change-request on a component — the Nth tweak,
+       counting existing (undeleted) change-requests on the same component. */
+    function _sxrNextTweakRound(sample, comp) {
+        const list = _sxrCommentsFor(sample, comp);
+        if (!Array.isArray(list)) return 1;
+        return list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1;
+    }
+    /* Open (unresolved, undeleted, ROOT) change-requests on a component — the
+       ones a route-onward offers to mark done. Plain comments are never
+       touched. Clone of _calOpenTweaksForComp. */
+    function _sxrOpenTweaksForComp(sample, comp) {
+        if (!sample) return [];
+        const list = _sxrCommentsFor(sample, comp);
+        if (!Array.isArray(list)) return [];
+        return list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _sxrMsgIsTweak(c));
+    }
+    /* Does the sample carry ANY unresolved Kasper change-request? (Drives the
+       Kasper finish hand-off + the "stays reviewable" rule.) */
+    function _sxrCompHasUnresolvedKasperTweak(sample, comp) {
+        const list = _sxrCommentsFor(sample, comp);
+        if (!Array.isArray(list)) return false;
+        return list.some(x => x && x.role === 'kasper' && _sxrMsgIsTweak(x) && !x.done && !x.deleted);
+    }
+    function _sxrHasUnresolvedKasperTweak(sample) {
+        return SXR_COMPONENTS.some(c => _sxrCompHasUnresolvedKasperTweak(sample, c));
+    }
+    /* Newest message CREATED-AT across both components (ignores tombstones and
+       later updated_at bumps). A resolve/edit bumps updated_at to now; that
+       must NOT read as a brand-new ask for the finish/close re-surface logic —
+       the 028cbd7/b5e73f5 fix: judge a fresh ask by created_at, not
+       updated_at. Clone of _calLatestMsgCreatedAt. */
+    function _sxrLatestMsgCreatedAt(sample) {
+        let max = '';
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsFor(sample, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted) continue;
+                const t = String(m.created_at || '');
+                if (t > max) max = t;
+            }
+        }
+        return max;
+    }
+
+    /* ── stale-approval clearing (clone of _calClearStaleApprovals, 2 comps) ──
+       On ANY sub-status drop below Client Approval, clear that component's
+       client_<comp>_approved_at; clear kasper_approved_at when NOTHING is
+       at/above Client Approval. Terminal "above" set for samples is
+       {Client Approval, Approved} — no Scheduled/Posted. `pending` is the
+       _sxrPendingEdits[pid] bucket so cleared values ride the next flush. */
+    function _sxrClearStaleApprovals(sample, pending) {
+        if (!sample) return;
+        const above = new Set(['Client Approval', 'Approved']);
+        SXR_COMPONENTS.forEach(c => {
+            const sub = _calNormStatus(sample[c + '_status'] || '');
+            const stampKey = 'client_' + c + '_approved_at';
+            if (!above.has(sub) && sample[stampKey]) {
+                sample[stampKey] = '';
+                if (pending) pending[stampKey] = '';
+            }
+        });
+        if (sample.kasper_approved_at) {
+            const anyAbove = SXR_COMPONENTS.some(c => above.has(_calNormStatus(sample[c + '_status'] || '')));
+            if (!anyAbove) {
+                sample.kasper_approved_at = '';
+                if (pending) pending.kasper_approved_at = '';
+            }
+        }
+    }
+
+    /* ── kasper_seen / approved-after-tweaks CSV bookkeeping (2 comps) ──
+       Cross-device CSV columns shaped like the calendar's. A component is
+       recorded "seen by Kasper" when it routes to Kasper Approval; the
+       approved-after-tweaks flag marks a component Kasper pre-cleared. */
+    function _sxrRecordKasperSeen(sample, comp) {
+        const set = new Set(String(sample.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean));
+        set.add(comp);
+        const csv = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+        sample.kasper_seen = csv;
+        return csv;
+    }
+    function _sxrHasBeenToKasper(sample, comp) {
+        if (!sample) return false;
+        if (String(sample.kasper_seen || '').split(',').map(s => s.trim()).indexOf(comp) !== -1) return true;
+        const cs = _calNormStatus(sample[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved') return true;
+        const list = _sxrCommentsFor(sample, comp) || [];
+        return list.some(c => c && c.role === 'kasper');
+    }
+    function _sxrRecordApprovedAfterTweaks(sample, comp) {
+        const set = new Set(String(sample.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        set.add(comp);
+        const csv = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+        sample.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    function _sxrClearApprovedAfterTweaks(sample, comp) {
+        const set = new Set(String(sample.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return sample.kasper_approved_after_tweaks || '';
+        set.delete(comp);
+        const csv = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+        sample.kasper_approved_after_tweaks = csv;
+        return csv;
+    }
+    function _sxrShowApprovedAfterTweaks(sample, comp) {
+        const set = new Set(String((sample && sample.kasper_approved_after_tweaks) || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return false;
+        const cs = _calNormStatus((sample && sample[comp + '_status']) || 'In Progress');
+        return cs !== 'Approved';
+    }
+
+    /* ── per-component status helpers shared by the transitions ──
+       Recompute overall over EXACTLY video+graphic, clear stale approvals, and
+       queue the patch onto _sxrPendingEdits. Always a FIELD-LEVEL patch. */
+    function _sxrApplySubStatus(sample, comp, next, extra) {
+        const subKey = comp + '_status';
+        sample[subKey] = next;
+        sample.status = computeSampleOverallStatus(sample);
+        sample.updated_at = new Date().toISOString();
+        const pid = sample.id;
+        const pend = _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [subKey]: next, status: sample.status }, extra || {});
+        _sxrClearStaleApprovals(sample, pend);
+        return pend;
+    }
+    /* Mark the given root change-requests done on a component (stamp
+       done/done_by/done_at + fresh updated_at) and queue the tweaks JSON.
+       Only the passed ids are touched — the SMM's tick-selection is honoured.
+       Clone of _calResolveTweaksDone. */
+    function _sxrResolveTweaksDone(sample, comp, ids) {
+        if (!sample || !Array.isArray(ids) || !ids.length) return false;
+        const list = _sxrCommentsFor(sample, comp).slice();
+        const want = new Set(ids);
+        const at = new Date().toISOString();
+        const by = _sxrCurrentAuthor();
+        let changed = false;
+        for (const c of list) {
+            if (c && !c.parent_id && want.has(c.id) && !c.done && !c.deleted) {
+                c.done = true; c.done_at = at; c.done_by = by; c.updated_at = at; changed = true;
+            }
+        }
+        if (!changed) return false;
+        _sxrSetCommentsFor(sample, comp, list);
+        if (!_sxrPendingEdits[sample.id]) _sxrPendingEdits[sample.id] = {};
+        _sxrPendingEdits[sample.id][comp + '_tweaks'] = _sxrStringifyComments(list);
+        return true;
+    }
+
+    /* ── auto-status transitions (clone of _calApplyAutoStatus, 2 comps) ──
+       Drives the tweak-resolution + client-change-request flips. Terminal
+       guard: NEVER bounce a terminal (Approved) card backward through
+       client_added — but a client adding a change to a non-Approved component
+       still flips it to Tweaks Needed. For 'smm_resolved_last' the dest is the
+       SMM's explicit chooser pick (kasper | client | approved). */
+    function _sxrApplyAutoStatus(pid, trigger, comp, dest) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        const which = comp || 'video';
+        const subKey = which + '_status';
+        const cur = _calNormStatus(sample[subKey] || 'In Progress');
+        let next = null;
+        if (trigger === 'client_added') {
+            if (cur !== 'Tweaks Needed') next = 'Tweaks Needed';
+        } else if (trigger === 'smm_resolved_last') {
+            const target = (dest === 'kasper') ? 'Kasper Approval'
+                         : (dest === 'approved') ? 'Approved'
+                         : 'Client Approval';
+            if (cur !== target) next = target;
+        }
+        if (!next) return false;
+        const extra = {};
+        if (next === 'Kasper Approval') extra.kasper_seen = _sxrRecordKasperSeen(sample, which);
+        _sxrApplySubStatus(sample, which, next, extra);
+        return true;
+    }
+
+    /* ── the resolve chooser (clone of _calShowResolveDest, samples DOM) ──
+       Three routes (Kasper / Client / Approved, recommended one primary) +
+       "Mark done — don't change status" (stay) + a non-destructive X-close.
+       Selective resolve when >1 open; the resolve is DEFERRED into the pick
+       (closing leaves the change-requests open). Uses the samples-isolated
+       #sxrResolveDestOverlay so it never touches the calendar's overlay. */
+    let _sxrResolveDestCb = null;
+    function _sxrResolveDestRecommend(sample, comp) {
+        if (!sample) return 'client';
+        if (_sxrShowApprovedAfterTweaks(sample, comp)) return 'client';
+        if (_sxrHasBeenToKasper(sample, comp)) return 'client';
+        return 'kasper';
+    }
+    function _sxrResolveDestReason(sample, comp) {
+        if (!sample) return '';
+        if (_sxrShowApprovedAfterTweaks(sample, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_sxrHasBeenToKasper(sample, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
+    function _sxrShowResolveDest(opts) {
+        opts = opts || {};
+        const overlay = document.getElementById('sxrResolveDestOverlay');
+        const msg = document.getElementById('sxrResolveDestMsg');
+        const checklist = document.getElementById('sxrResolveDestChecklist');
+        const kBtn = document.getElementById('sxrResolveDestKasper');
+        const cBtn = document.getElementById('sxrResolveDestClient');
+        const aBtn = document.getElementById('sxrResolveDestApprove');
+        const openTweaks = (Array.isArray(opts.openTweaks) ? opts.openTweaks : []).filter(Boolean);
+        // No overlay (stripped DOM) → fall back to the recommended route and
+        // resolve everything, so the caller still completes (the f302624 path).
+        if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
+        const compLabel = String(SXR_COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        // The checklist earns its keep only with a genuine choice (2+ open).
+        if (checklist) {
+            if (openTweaks.length >= 2) {
+                checklist.innerHTML = openTweaks.map(t => {
+                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
+                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
+                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _calEscAttr(t.id) + '" checked>'
+                        + '<span><span class="rd-round">' + _calEsc(rd) + '</span> · ' + _calEsc(who) + ' — ' + _calEsc(short) + '</span></label>';
+                }).join('');
+                checklist.hidden = false;
+            } else {
+                checklist.innerHTML = '';
+                checklist.hidden = true;
+            }
+        }
+        const n = openTweaks.length;
+        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
+                   : n === 1 ? 'This change request will be marked done. '
+                   : '';
+        const toKasper = opts.recommend === 'kasper';
+        const toApproved = opts.recommend === 'approved';
+        if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
+            + (toApproved ? 'mark it approved — or to Kasper or the client first.'
+               : toKasper ? 'to Kasper for approval — or straight to the client.'
+                          : 'to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
+        kBtn.classList.toggle('primary', toKasper);
+        cBtn.classList.toggle('primary', !toKasper && !toApproved);
+        aBtn.classList.toggle('primary', toApproved);
+        const tickedIds = () => {
+            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
+            return Array.from(checklist.querySelectorAll('input[data-rd-id]'))
+                .filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
+        };
+        _sxrResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
+        const pick = (dest) => { const cb = _sxrResolveDestCb; const ids = tickedIds(); _sxrDismissResolveDest(); if (cb) cb(dest, ids); };
+        kBtn.onclick = () => pick('kasper');
+        cBtn.onclick = () => pick('client');
+        aBtn.onclick = () => pick('approved');
+        const stayBtn = document.getElementById('sxrResolveDestStay');
+        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        overlay.classList.add('active');
+    }
+    // ✕ / backdrop click just closes the chooser — non-destructive (nothing is
+    // applied until a route is picked), so no confirm is needed.
+    function _sxrDismissResolveDest() {
+        const overlay = document.getElementById('sxrResolveDestOverlay');
+        if (overlay) overlay.classList.remove('active');
+        _sxrResolveDestCb = null;
+    }
+    /* The SMM clears the LAST open change-request on a component via Notes
+       "mark done": the resolve (mark-done) + status flip are DEFERRED into the
+       route pick, so closing the chooser leaves the change-request open
+       (recoverable). Clone of _calResolveLastTweak. */
+    function _sxrResolveLastTweak(pid, comp, rootId) {
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const root = _sxrOpenTweaksForComp(sample, comp).find(c => c.id === rootId);
+        _sxrShowResolveDest({
+            comp: comp,
+            recommend: _sxrResolveDestRecommend(sample, comp),
+            reason: _sxrResolveDestReason(sample, comp),
+            openTweaks: root ? [root] : [],
+            fromReview: false,
+            onChoose: (destPick, ids) => {
+                _sxrResolveTweaksDone(sample, comp, (ids && ids.length) ? ids : [rootId]);
+                if (destPick !== 'stay') _sxrApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                _sxrFlushCardSave(pid);
+                _sxrRefreshCommentsBtn(pid);
+                _sxrRefreshCardPills(pid);
+                _sxrCaptureModalDrafts();
+                _sxrRenderCommentsModal();
+            }
+        });
+    }
+
+    /* ── change-request entry point (SMM/Kasper/client; M3a comment + flip) ──
+       Appends a is_tweak:true comment to a component's thread, flips the
+       component to Tweaks Needed, recomputes overall, clears stale approvals
+       and persists via the M2 path. The card STAYS reviewable. Idempotent via
+       an in-flight guard keyed on (pid|comp). Handler-level surface guard: a
+       CLIENT may request a change ONLY on a component at Client Approval or
+       Tweaks Needed (the 732b2b4 fix). */
+    const _sxrReviewInFlight = Object.create(null);
+    function _sxrReviewKey(pid, comp) { return pid + '|' + comp; }
+    function _sxrRequestTweak(pid, comp, body, role, author, audience, approveAfterTweaks) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        body = String(body == null ? '' : body).trim();
+        if (!body) return false;
+        const key = _sxrReviewKey(pid, comp);
+        if (_sxrReviewInFlight[key]) return false;   // idempotent: one effect per double-click
+        // Handler-level surface guard: a client can only act on a component on
+        // THEIR review surface (Client Approval / Tweaks Needed), never one in
+        // internal review. Guards the direct-call path, not just the UI.
+        if (_isClientLink) {
+            const cur = String(sample[comp + '_status'] || '').trim().toLowerCase();
+            if (cur !== 'client approval' && cur !== 'tweaks needed') return false;
+        }
+        _sxrReviewInFlight[key] = true;
+        const list = _sxrCommentsFor(sample, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _sxrMintCommentId(),
+            parent_id: null,
+            author: author || _sxrCurrentAuthor(),
+            role: role || _sxrCommentRole(),
+            is_tweak: true,
+            audience: (role === 'client') ? 'client' : 'internal',
+            round: _sxrNextTweakRound(sample, comp),
+            body: body,
+            created_at: _now,
+            updated_at: _now,
+            done: false, done_at: '', done_by: '',
+        });
+        _sxrSetCommentsFor(sample, comp, list);
+        // Kasper's pre-clear bookkeeping (only set when he requests it).
+        if (role === 'kasper') {
+            if (approveAfterTweaks) _sxrRecordApprovedAfterTweaks(sample, comp);
+            else _sxrClearApprovedAfterTweaks(sample, comp);
+        }
+        const extra = { [comp + '_tweaks']: _sxrStringifyComments(list) };
+        if (role === 'kasper') extra.kasper_approved_after_tweaks = sample.kasper_approved_after_tweaks || '';
+        _sxrApplySubStatus(sample, comp, 'Tweaks Needed', extra);
+        _sxrRefreshCommentsBtn(pid);
+        _sxrRefreshCardPills(pid);
+        _sxrGuardedFlush(pid, key);
+        return true;
+    }
+
+    /* ── plain review comment (no status flip; mirrors _calReviewComment) ── */
+    function _sxrReviewComment(pid, comp, body, role, author) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        body = String(body == null ? '' : body).trim();
+        if (!body) return false;
+        const r = role || _sxrCommentRole();
+        const list = _sxrCommentsFor(sample, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({
+            id: _sxrMintCommentId(), parent_id: null,
+            author: author || _sxrCurrentAuthor(), role: r, is_tweak: false,
+            audience: (r === 'client') ? 'client' : 'internal',
+            body: body, created_at: _now, updated_at: _now,
+            done: false, done_at: '', done_by: '',
+        });
+        _sxrSetCommentsFor(sample, comp, list);
+        sample.updated_at = _now;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][comp + '_tweaks'] = _sxrStringifyComments(list);
+        _sxrFlushCardSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+        return true;
+    }
+
+    /* ── CLIENT review surface handlers (clone of _calReviewApprove/Apply) ──
+       A client may act ONLY on a component at Client Approval or Tweaks Needed
+       (hard handler-level guard, not UI hiding). client approve → Approved +
+       client_<comp>_approved_at; client request-change → Tweaks Needed (via
+       _sxrRequestTweak). Idempotent via the in-flight guard. */
+    /* Release a review in-flight guard once the M2 flush SETTLES — so a
+       same-tick double-click (or a re-entrant call) is a true no-op for the
+       whole duration of the write, not just the synchronous body. The flush is
+       fire-and-forget; we chain a settle handler so the lock spans the network
+       round-trip exactly like the calendar's _calReviewState.saving[key]. */
+    function _sxrGuardedFlush(pid, key) {
+        Promise.resolve(_sxrFlushCardSave(pid)).catch(() => {}).then(() => { _sxrReviewInFlight[key] = false; });
+    }
+    function _sxrClientApproveComp(pid, comp) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        const key = _sxrReviewKey(pid, comp);
+        if (_sxrReviewInFlight[key]) return false;
+        // Hard surface guard (732b2b4): only a component the client owns.
+        const cur = String(sample[comp + '_status'] || '').trim().toLowerCase();
+        if (cur !== 'client approval' && cur !== 'tweaks needed') return false;
+        _sxrReviewInFlight[key] = true;
+        const _now = new Date().toISOString();
+        _sxrApplySubStatus(sample, comp, 'Approved', { ['client_' + comp + '_approved_at']: _now });
+        sample['client_' + comp + '_approved_at'] = _now;
+        _sxrRefreshCardPills(pid);
+        _sxrGuardedFlush(pid, key);
+        return true;
+    }
+    function _sxrClientRequestTweakComp(pid, comp, body) {
+        // role 'client' makes the change-request client-visible + applies the
+        // surface guard inside _sxrRequestTweak.
+        return _sxrRequestTweak(pid, comp, body, 'client', _sxrCurrentAuthor(), 'client', false);
+    }
+
+    /* ── KASPER-role handlers (M5 renders + calls these; built+tested now) ──
+       Each operates DIRECTLY on the sample row (not the calendar's
+       _kasperState machinery), persists via the M2 _sxrFlushCardSave, and is
+       idempotent (the (pid|comp) in-flight guard). They are deliberately
+       independent of the Kasper PAGE (M5) so M5 only renders + calls them. */
+
+    /* Kasper Approval → Client Approval. Stamps kasper_approved_at/_by + a
+       snapshot (on the in-memory row) so _sxrKasperUndoApprove can restore. */
+    function _sxrKasperApproveComp(pid, comp) {
+        const sample = _sxrFind(pid);
+        if (!sample) return null;
+        const key = _sxrReviewKey(pid, comp);
+        if (_sxrReviewInFlight[key]) return null;   // idempotent: a same-tick / in-flight double-approve is one effect
+        _sxrReviewInFlight[key] = true;
+        const subKey = comp + '_status';
+        const snapshot = {
+            [subKey]: sample[subKey],
+            status: sample.status,
+            kasper_approved_at: sample.kasper_approved_at,
+            kasper_approved_by: sample.kasper_approved_by,
+            kasper_seen: sample.kasper_seen,
+        };
+        _sxrRecordKasperSeen(sample, comp);
+        const at = sample.kasper_approved_at || new Date().toISOString();
+        const by = sample.kasper_approved_by || 'Kasper';
+        sample.kasper_approved_at = at;
+        sample.kasper_approved_by = by;
+        _sxrApplySubStatus(sample, comp, 'Client Approval', {
+            kasper_approved_at: at, kasper_approved_by: by, kasper_seen: sample.kasper_seen,
+        });
+        _sxrRefreshCardPills(pid);
+        _sxrGuardedFlush(pid, key);
+        return snapshot;
+    }
+    /* Kasper Approval → Tweaks Needed (a Kasper change-request). */
+    function _sxrKasperRequestTweakComp(pid, comp, body) {
+        return _sxrRequestTweak(pid, comp, body, 'kasper', 'Kasper', 'internal', false);
+    }
+    /* Kasper requests a tweak he pre-clears for the client (records
+       kasper_approved_after_tweaks; the component still flips to Tweaks
+       Needed). Skip the re-Kasper round on resolve. */
+    function _sxrKasperApproveAfterTweaksComp(pid, comp, body) {
+        return _sxrRequestTweak(pid, comp, body, 'kasper', 'Kasper', 'internal', true);
+    }
+    /* Compensating undo: Client Approval → Kasper Approval, restoring the
+       snapshot the approve returned. */
+    function _sxrKasperUndoApprove(pid, comp, snapshot) {
+        const sample = _sxrFind(pid);
+        if (!sample || !snapshot) return false;
+        const key = _sxrReviewKey(pid, comp);
+        if (_sxrReviewInFlight[key]) return false;
+        _sxrReviewInFlight[key] = true;
+        const subKey = comp + '_status';
+        sample[subKey] = snapshot[subKey] != null ? snapshot[subKey] : 'Kasper Approval';
+        sample.kasper_approved_at = snapshot.kasper_approved_at || '';
+        sample.kasper_approved_by = snapshot.kasper_approved_by || '';
+        sample.kasper_seen = snapshot.kasper_seen != null ? snapshot.kasper_seen : sample.kasper_seen;
+        sample.status = computeSampleOverallStatus(sample);
+        sample.updated_at = new Date().toISOString();
+        const pend = _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, {
+            [subKey]: sample[subKey], status: sample.status,
+            kasper_approved_at: sample.kasper_approved_at,
+            kasper_approved_by: sample.kasper_approved_by,
+            kasper_seen: sample.kasper_seen,
+        });
+        _sxrClearStaleApprovals(sample, pend);
+        _sxrRefreshCardPills(pid);
+        _sxrGuardedFlush(pid, key);
+        return true;
+    }
+    /* ── the global Kasper hand-off (Finish / Close) ──
+       Cross-device stamps that ride the verified upsert echo + realtime.
+       _sxrKasperFinish: if no unresolved tweaks → clean approve (no stamp
+       needed — already routed); else hand off to the SMM, stamping
+       kasper_finished_at = the latest message CREATED-AT (the "seen up to
+       here" basis, so a later reply re-surfaces it — judged by created_at NOT
+       updated_at, the 028cbd7/b5e73f5 fix). _sxrKasperClose: a plain hide,
+       stamping kasper_closed_at = now. Both persist via the M2 field patch. */
+    function _sxrKasperFinish(pid) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        if (_sxrHasUnresolvedKasperTweak(sample)) {
+            const stamp = _sxrLatestMsgCreatedAt(sample) || new Date().toISOString();
+            sample.kasper_finished_at = stamp;
+            sample.updated_at = new Date().toISOString();
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            _sxrPendingEdits[pid].kasper_finished_at = stamp;
+            _sxrFlushCardSave(pid);
+        }
+        // No unresolved tweaks → a clean approve; the components already carry
+        // their decisions (Client Approval), nothing to stamp here.
+        return true;
+    }
+    function _sxrKasperClose(pid) {
+        const sample = _sxrFind(pid);
+        if (!sample) return false;
+        const at = new Date().toISOString();
+        sample.kasper_closed_at = at;
+        sample.updated_at = at;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid].kasper_closed_at = at;
+        _sxrFlushCardSave(pid);
+        return true;
+    }
+    /* Is a sample "finished" / "closed" for Kasper right now? GLOBAL +
+       cross-device via the persisted stamp. A fresh ask re-surfaces it:
+         • finished: an actionable component back at Kasper Approval (only when
+           SERVER-CONFIRMED — the stamp present on this row; the 028cbd7 fix),
+           or a message CREATED after the finish stamp.
+         • closed: a message created after the close stamp. */
+    function _sxrKasperIsFinished(sample) {
+        if (!sample) return false;
+        const stampedAt = String(sample.kasper_finished_at || '');
+        if (!stampedAt) return false;
+        const anyKA = SXR_COMPONENTS.some(c => _calNormStatus(sample[c + '_status'] || '') === 'Kasper Approval');
+        if (anyKA) return false;                                  // fresh ask: server-confirmed KA component
+        const latest = _sxrLatestMsgCreatedAt(sample);           // created-at basis
+        if (latest && latest > stampedAt) return false;          // reply since he finished
+        return true;
+    }
+    function _sxrKasperIsClosed(sample) {
+        if (!sample) return false;
+        const closedAt = String(sample.kasper_closed_at || '');
+        if (!closedAt) return false;
+        const latest = _sxrLatestMsgCreatedAt(sample);
+        if (latest && latest > closedAt) return false;
+        return true;
+    }
+    /* Is a sample visible on Kasper's queue? A component at Kasper Approval,
+       or one flipped to Tweaks Needed but still carrying an unresolved Kasper
+       tweak (the re-review hand-off). An unlinked thumbnail isn't reviewable.
+       Clone of _calCompKasperVisible (samples scope). */
+    function _sxrCompKasperVisible(sample, comp) {
+        if (comp === 'graphic' && !String(sample.graphic_linear_issue_id || '').trim()) return false;
+        const cs = _calNormStatus(sample[comp + '_status'] || '');
+        if (cs === 'Kasper Approval') return true;
+        if (cs === 'Tweaks Needed' && _sxrCompHasUnresolvedKasperTweak(sample, comp)) return true;
+        return false;
+    }
+    function _sxrKasperVisible(sample) {
+        if (!sample) return false;
+        if (_sxrIsArchived(sample)) return false;
+        if (_sxrKasperIsFinished(sample) || _sxrKasperIsClosed(sample)) return false;
+        return SXR_COMPONENTS.some(c => _sxrCompKasperVisible(sample, c));
+    }
+
+    /* ── SMM per-component status menu (actionable pills on the SMM surface) ──
+       Clone of the calendar's _calStatusPick / status menu, scoped to the 2
+       components + the samples status set. SMM-only (a client uses the review
+       handlers). The progression In Progress → submit → For SMM Approval →
+       send-to-Kasper → Kasper Approval is just the menu's ordered options;
+       routing to Kasper records kasper_seen. */
+    let _sxrOpenStatusMenu = null;
+    function _sxrCloseStatusMenu() {
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.el && _sxrOpenStatusMenu.el.parentNode) {
+            _sxrOpenStatusMenu.el.parentNode.removeChild(_sxrOpenStatusMenu.el);
+        }
+        _sxrOpenStatusMenu = null;
+        document.removeEventListener('click', _sxrStatusMenuOutside, true);
+    }
+    function _sxrStatusMenuOutside(e) {
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.el && !_sxrOpenStatusMenu.el.contains(e.target)
+            && !(_sxrOpenStatusMenu.trigger && _sxrOpenStatusMenu.trigger.contains(e.target))) {
+            _sxrCloseStatusMenu();
+        }
+    }
+    function _sxrOpenStatusMenuFor(event, pid, comp, triggerEl) {
+        if (event) { event.stopPropagation(); event.preventDefault(); }
+        if (_isClientLink) return;   // SMM-only control
+        const menuKey = pid + '|' + comp;
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.key === menuKey) { _sxrCloseStatusMenu(); return; }
+        _sxrCloseStatusMenu();
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const cur = _calNormStatus(sample[comp + '_status'] || 'In Progress');
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu sxr-status-menu';
+        menu.innerHTML = SXR_STATUSES.map(st => {
+            const slug = _sxrStatusSlug(st);
+            const isCur = st === cur;
+            return `<button type="button" class="cal-fld-status-opt cal-fld-status-${slug}${isCur ? ' is-active' : ''}" onclick="_sxrStatusPick(${_jsAttrArg(pid)}, ${_jsAttrArg(st)}, ${_jsAttrArg(comp)})">${_calEsc(st)}</button>`;
+        }).join('');
+        document.body.appendChild(menu);
+        const r = (triggerEl || (event && event.currentTarget) || document.body).getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = (r.bottom + 4) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 220)) + 'px';
+        menu.style.zIndex = '99999';
+        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger: triggerEl || (event && event.currentTarget) };
+        setTimeout(() => document.addEventListener('click', _sxrStatusMenuOutside, true), 0);
+    }
+    function _sxrStatusPick(pid, status, comp) {
+        if (_isClientLink) return;   // SMM-only (client review uses the review handlers)
+        _sxrCloseStatusMenu();
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const key = comp + '_status';
+        const next = _calNormStatus(status);
+        if (_calNormStatus(sample[key] || 'In Progress') === next) return;
+        const extra = {};
+        if (next === 'Kasper Approval') extra.kasper_seen = _sxrRecordKasperSeen(sample, comp);
+        _sxrApplySubStatus(sample, comp, next, extra);
+        _sxrFlushCardSave(pid);
+        _sxrRefreshCardPills(pid);
+    }
+    /* Repaint just a card's status pills in place (after an in-place transition)
+       without a full grid re-render, so the pill colour + label track the new
+       sub-statuses. */
+    function _sxrRefreshCardPills(pid) {
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const wrap = document.querySelector(`.sxr-card[data-sxr-id="${sel}"] .sxr-card-pills`);
+        if (!wrap) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrPillsHtml(sample);
+        wrap.innerHTML = tmp.innerHTML;
+    }
+    /* The per-component status pills HTML. On the SMM surface they are
+       ACTIONABLE (a click opens the status menu); on a client link they are a
+       read-only display. Extracted so _sxrRefreshCardPills can re-render them
+       in place. */
+    function _sxrPillsHtml(s) {
+        return SXR_COMPONENTS.map(c => {
+            const cs = _calNormStatus(s[c + '_status'] || 'In Progress');
+            const slug = _sxrStatusSlug(cs);
+            const label = SXR_COMP_LABELS[c] + ': ' + cs;
+            if (_isClientLink) {
+                return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
+            }
+            return `<button type="button" class="cal-review-sub-pill sxr-pill-btn cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label + ' — click to change')}" onclick="_sxrOpenStatusMenuFor(event, ${_jsAttrArg(s.id)}, '${c}', this)">${_calEsc(label)}</button>`;
+        }).join('');
     }
 
     /* ── optimistic field-patch save (M2) ───────────────────────────
@@ -14178,6 +14917,24 @@
             <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>
             <div class="sxr-cm-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
                 <div class="sxr-cm-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
+            </div>
+            <div class="confirm-overlay" id="sxrResolveDestOverlay" onclick="if(event.target===this)_sxrDismissResolveDest()">
+                <div class="confirm-box resolve-dest-box">
+                    <button type="button" class="resolve-dest-close" id="sxrResolveDestClose" aria-label="Close" title="Close" onclick="_sxrDismissResolveDest()">
+                        <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
+                    </button>
+                    <div id="sxrResolveDestMain">
+                        <div class="confirm-box-title">Tweaks resolved — where to next?</div>
+                        <div class="confirm-box-msg" id="sxrResolveDestMsg">Send this for approval.</div>
+                        <div class="resolve-dest-checklist" id="sxrResolveDestChecklist" hidden></div>
+                        <div class="confirm-box-actions resolve-dest-actions">
+                            <button class="brief-action-btn" type="button" id="sxrResolveDestKasper">Kasper approval</button>
+                            <button class="brief-action-btn" type="button" id="sxrResolveDestClient">Client approval</button>
+                            <button class="brief-action-btn" type="button" id="sxrResolveDestApprove">Approve</button>
+                        </div>
+                        <button type="button" class="resolve-dest-stay" id="sxrResolveDestStay" title="Resolve the change request(s) without moving this to another stage">Mark done — don’t change the status</button>
+                    </div>
+                </div>
             </div>`;
         if (!(_isClientLink && sxrState.embedded)) _sxrRenderTabs();
     }

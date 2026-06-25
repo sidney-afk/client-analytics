@@ -95,7 +95,7 @@ keep them in lock-step (see `SAMPLES_V2_PLAN.md` §13).
 
 | Date | Calendar change (commit / PR) | Affected registry entry | Mirror? | Samples action | Status |
 |---|---|---|---|---|---|
-| 2026-06-25 | Samples v2 backend created (Phase 1) | sample_reviews / events / merge / status-at | — | initial build | Done |
+| 2026-06-25 | Samples v2 FE M3b — review state machine forked | computeOverallStatus / _calClearStaleApprovals / _calApplyAutoStatus / _calShowResolveDest / _calResolveLastTweak / _calReviewApprove+Apply / _calReviewRequestTweak / _kasperApprove/RequestTweak/ApproveAfterTweaks/UndoApprove/Finish/Close + _calStatusPick | Forked into `_sxr*` over video+graphic (no caption/title; terminal Approved+Archived; NO Scheduled/Posted). Kept the f302624/d57594c/95ecf90/80d376b resolve-chooser fixes + the 028cbd7/b5e73f5 created-at finish rule + the 732b2b4 handler-level surface guard. NO Linear push (M4); Kasper PAGE render (M5) — handlers only. | initial build | Done |
 | _add new rows here, newest first_ | | | | | |
 
 ---

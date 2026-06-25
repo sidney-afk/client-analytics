@@ -3915,10 +3915,77 @@
         .sxr-dir-toggle:hover { background:var(--bg); color:var(--text-primary); }
         .sxr-dir-toggle svg { width:12px; height:12px; flex:none; }
         .sxr-dir-toggle.is-hidden { background:#fef3c7; color:#92400e; border-color:transparent; }
-        .sxr-card-foot { display:flex; align-items:center; justify-content:flex-end; min-height:18px; }
+        .sxr-card-foot { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:18px; }
         .sxr-card-saving { font-size:0.66rem; font-weight:700; color:var(--text-muted); }
         .sxr-card-saving.is-saved { color:#16a34a; }
         .sxr-card-saving.is-error { color:var(--dn,#c0392b); cursor:pointer; }
+
+        /* ── Notes button + comment thread modal (M3a) ── */
+        .sxr-notes-wrap { display:inline-flex; }
+        .sxr-notes-btn { display:inline-flex; align-items:center; gap:5px; position:relative; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:999px; padding:3px 9px; font-family:inherit; font-size:0.66rem; font-weight:700; cursor:pointer; transition:all 0.14s; }
+        .sxr-notes-btn:hover { background:var(--bg); color:var(--text-primary); }
+        .sxr-notes-btn svg { width:13px; height:13px; flex:none; }
+        .sxr-notes-btn.has-notes { color:var(--text-primary); }
+        .sxr-notes-count { font-variant-numeric:tabular-nums; min-width:0.8em; text-align:center; }
+        .sxr-notes-btn:not(.has-notes) .sxr-notes-count { display:none; }
+        .sxr-notes-dot { position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:#ef4444; border:1.5px solid var(--white); }
+        .sxr-notes-btn.has-unread { border-color:#fca5a5; }
+
+        .sxr-cm-overlay { position:fixed; inset:0; z-index:1200; display:none; align-items:flex-end; justify-content:center; background:rgba(17,17,17,0.42); backdrop-filter:blur(2px); }
+        .sxr-cm-overlay.open { display:flex; }
+        @media (min-width:640px){ .sxr-cm-overlay { align-items:center; } }
+        .sxr-cm-modal { background:var(--white); width:100%; max-width:480px; max-height:86vh; display:flex; flex-direction:column; border-radius:16px 16px 0 0; overflow:hidden; box-shadow:0 -8px 40px rgba(0,0,0,0.2); }
+        @media (min-width:640px){ .sxr-cm-modal { border-radius:16px; max-height:80vh; box-shadow:0 12px 50px rgba(0,0,0,0.28); } }
+        .sxr-cm-head { display:flex; align-items:flex-start; gap:10px; padding:15px 16px 12px; border-bottom:1px solid var(--border); }
+        .sxr-cm-head-text { flex:1; min-width:0; }
+        .sxr-cm-head-text h3 { font-size:0.98rem; font-weight:800; color:var(--text-primary); margin:0; }
+        .sxr-cm-head-text p { font-size:0.76rem; color:var(--text-muted); margin:2px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sxr-cm-close { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:none; border:none; background:transparent; color:var(--text-muted); border-radius:8px; cursor:pointer; }
+        .sxr-cm-close:hover { background:var(--bg); color:var(--text-primary); }
+        .sxr-cm-close svg { width:14px; height:14px; }
+        .sxr-cm-feed { flex:1; overflow-y:auto; padding:6px 0; }
+        .sxr-cm-feed-inner { display:flex; flex-direction:column; gap:2px; padding:8px 14px; }
+        .sxr-cm-empty { text-align:center; color:var(--text-muted); font-size:0.8rem; padding:34px 16px; }
+        .sxr-cm-empty-title { font-weight:800; color:var(--text-secondary); margin-bottom:4px; }
+        .sxr-cm-thread { padding:8px 0; border-bottom:1px solid var(--bg); }
+        .sxr-cm-thread:last-child { border-bottom:none; }
+        .sxr-cm-row { display:flex; align-items:flex-start; gap:9px; padding:6px 4px; border-radius:9px; }
+        .sxr-cm-row:hover .sxr-cm-actions { opacity:1; }
+        .sxr-cm-row.is-reply { margin-left:30px; }
+        .sxr-cm-avatar { flex:none; width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:0.76rem; font-weight:800; color:#fff; }
+        .sxr-cm-avatar.is-smm { background:#6c5ce7; }
+        .sxr-cm-avatar.is-client { background:#0ea5e9; }
+        .sxr-cm-body-col { flex:1; min-width:0; }
+        .sxr-cm-head-line { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+        .sxr-cm-author { font-size:0.78rem; font-weight:700; color:var(--text-primary); }
+        .sxr-cm-time { font-size:0.68rem; color:var(--text-muted); }
+        .sxr-cm-lock { display:inline-flex; color:#92400e; }
+        .sxr-cm-lock svg { width:12px; height:12px; }
+        .sxr-cm-comp-label { margin-left:auto; font-size:0.58rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; padding:2px 6px; border-radius:999px; }
+        .sxr-cm-comp-video { background:#ede9fe; color:#6d28d9; }
+        .sxr-cm-comp-graphic { background:#dcfce7; color:#15803d; }
+        .sxr-cm-row-body { font-size:0.82rem; color:var(--text-primary); line-height:1.45; white-space:pre-wrap; word-break:break-word; margin-top:2px; }
+        .sxr-cm-actions { display:flex; align-items:center; gap:2px; opacity:0; transition:opacity 0.12s; flex:none; }
+        .sxr-cm-action { display:inline-flex; align-items:center; gap:3px; border:none; background:transparent; color:var(--text-muted); border-radius:6px; padding:3px 6px; font-family:inherit; font-size:0.66rem; font-weight:700; cursor:pointer; }
+        .sxr-cm-action span { display:none; }
+        .sxr-cm-action:hover { background:var(--bg); color:var(--text-primary); }
+        .sxr-cm-action.is-danger:hover { background:rgba(239,68,68,0.1); color:#dc2626; }
+        .sxr-cm-action svg { width:13px; height:13px; }
+        .sxr-cm-composer-wrap { border-top:1px solid var(--border); padding:10px 14px 12px; display:flex; flex-direction:column; gap:8px; background:var(--white); }
+        .sxr-cm-replying-to { font-size:0.72rem; color:var(--text-secondary); display:flex; align-items:center; gap:6px; }
+        .sxr-cm-cancel-reply { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border:none; background:var(--bg); color:var(--text-muted); border-radius:5px; cursor:pointer; }
+        .sxr-cm-seg-group { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+        .sxr-cm-seg-cap { font-size:0.64rem; font-weight:800; color:var(--text-muted); letter-spacing:0.04em; text-transform:uppercase; }
+        .sxr-cm-seg { display:inline-flex; background:var(--bg); border-radius:999px; padding:2px; gap:2px; }
+        .sxr-cm-seg-btn { display:inline-flex; align-items:center; gap:4px; border:none; background:transparent; color:var(--text-secondary); border-radius:999px; padding:3px 10px; font-family:inherit; font-size:0.68rem; font-weight:700; cursor:pointer; transition:all 0.12s; }
+        .sxr-cm-seg-btn svg { width:11px; height:11px; }
+        .sxr-cm-seg-btn.is-active { background:var(--white); color:var(--text-primary); box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+        .sxr-cm-composer { display:flex; align-items:flex-end; gap:8px; }
+        .sxr-cm-composer textarea { flex:1; min-width:0; font-family:inherit; font-size:0.82rem; line-height:1.45; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:8px 10px; resize:none; max-height:160px; box-sizing:border-box; }
+        .sxr-cm-composer textarea:focus { outline:none; border-color:var(--accent,#6c5ce7); background:var(--white); }
+        .sxr-cm-send { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; flex:none; border:none; background:var(--accent,#6c5ce7); color:#fff; border-radius:10px; cursor:pointer; transition:opacity 0.12s; }
+        .sxr-cm-send:disabled { opacity:0.4; cursor:default; }
+        .sxr-cm-send svg { width:15px; height:15px; }
 
         .sm-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:4px; flex-wrap:wrap; }
         .sm-section-title { font-size:1.45rem; font-weight:800; letter-spacing:-0.025em; }
@@ -13101,6 +13168,12 @@
         r.creative_direction = String(r.creative_direction == null ? '' : r.creative_direction);
         r.linear_issue_id = String(r.linear_issue_id == null ? '' : r.linear_issue_id);
         r.graphic_linear_issue_id = String(r.graphic_linear_issue_id == null ? '' : r.graphic_linear_issue_id);
+        // M3a — coerce the two comment columns and drop any stale parsed cache so
+        // the authoritative *_tweaks string is the single source of truth on every
+        // (re)load. _sxrCommentsFor re-parses lazily from the string.
+        r.video_tweaks = String(r.video_tweaks == null ? '' : r.video_tweaks);
+        r.graphic_tweaks = String(r.graphic_tweaks == null ? '' : r.graphic_tweaks);
+        delete r._video_comments; delete r._graphic_comments;
         return r;
     }
     function _sxrIsArchived(s) { return String((s && s.status) || '').trim().toLowerCase() === 'archived'; }
@@ -13183,6 +13256,7 @@
                     <div class="sxr-card-name" title="${_calEscAttr(name)}">${_calEsc(name)}</div>
                     <div class="sxr-card-pills">${pills}</div>
                     ${cdHtml}
+                    <div class="sxr-card-foot">${_sxrCommentsBtnHtml(s, s.id)}</div>
                 </div>
             </div>`;
         }
@@ -13203,6 +13277,7 @@
                 ${_sxrUrlFieldHtml(s.id, 'linear_issue_id', s.linear_issue_id, 'Video Linear sub-issue URL')}
                 ${_sxrUrlFieldHtml(s.id, 'graphic_linear_issue_id', s.graphic_linear_issue_id, 'Graphic Linear sub-issue URL')}
                 <div class="sxr-card-foot">
+                    ${_sxrCommentsBtnHtml(s, s.id)}
                     ${s._saveError
                         ? `<button type="button" class="sxr-card-saving is-error" data-sxr-saving="${id}" onclick="_sxrRetrySave('${id}')" title="${_calEscAttr(typeof s._saveError === 'string' ? s._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
                         : `<span class="sxr-card-saving" data-sxr-saving="${id}" hidden></span>`}
@@ -13232,6 +13307,511 @@
     function _sxrDirToggleHtml(rawId, hidden) {
         const id = _calEscAttr(rawId);
         return `<button type="button" class="sxr-dir-toggle${hidden ? ' is-hidden' : ''}" data-sxr-pid="${id}" onclick="_sxrToggleDir(this)" title="${hidden ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it'}">${_sxrEyeIconSvg(hidden)}<span>${hidden ? 'Hidden from client' : 'Visible to client'}</span></button>`;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       PER-COMPONENT COMMENT SUBSYSTEM (M3a) — `_sxrComment*`
+       ──────────────────────────────────────────────────────────────────
+       Plain comment threads on the two components (video, graphic), cloned
+       from the calendar's comment machinery (_calCommentsFor / _calMsgAudience
+       / _calCommentsForView / _calStringifyComments) but namespaced and scoped
+       to samples. Storage is the `video_tweaks` / `graphic_tweaks` JSON columns
+       (a JSON array of comment objects). PERSIST rides the verified M2 save path
+       (_sxrFlushCardSave): the upsert webhook atomically merges those two columns
+       server-side, so concurrent threads stay safe; the realtime echo + the
+       server merge keep them converged.
+
+       A comment object:
+         { id, parent_id (null=root | else the ROOT it replies to),
+           author, role ('smm' | 'client'; 'kasper' is set by the Kasper
+           section later), body, audience ('internal' | 'client'),
+           created_at, updated_at, deleted (tombstone) }
+       (is_tweak / done / round are M3b — deliberately OMITTED here: M3a is
+       plain comments, no status-flip / resolve / change-request.)
+
+       Escapes EVERY user value with _calEsc (text) / _calEscAttr (attributes) /
+       _jsAttrArg (inline onclick args) — never _smEsc. body + author are sinks. */
+
+    /* Parse a *_tweaks JSON cell into a comment array (defensive — never throws,
+       drops anything without an id). No legacy-plaintext seeding: samples are a
+       new stack, the columns only ever hold the JSON array this code writes. */
+    function _sxrParseComments(raw) {
+        const s = String(raw == null ? '' : raw).trim();
+        if (!s || s[0] !== '[') return [];
+        try { const a = JSON.parse(s); return Array.isArray(a) ? a.filter(c => c && c.id) : []; }
+        catch { return []; }
+    }
+    /* Read the comment array for a component off a sample row. Prefers the
+       already-parsed in-memory array (kept in sync by _sxrSetCommentsFor); falls
+       back to parsing the *_tweaks column. video → video_tweaks, graphic →
+       graphic_tweaks. */
+    function _sxrCommentsFor(sample, comp) {
+        if (!sample) return [];
+        const c = (comp === 'graphic') ? 'graphic' : 'video';
+        const parsedKey = '_' + c + '_comments';
+        if (Array.isArray(sample[parsedKey])) return sample[parsedKey];
+        const arr = _sxrParseComments(sample[c + '_tweaks']);
+        sample[parsedKey] = arr;
+        return arr;
+    }
+    /* Wire-string form of a comment array (empty string when there are none, to
+       match the calendar so a cleared thread persists as '' not '[]'). */
+    function _sxrStringifyComments(arr) {
+        const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : [];
+        return list.length ? JSON.stringify(list) : '';
+    }
+    /* Write a component's comment array back onto a row, keeping BOTH the parsed
+       array and the *_tweaks wire-string in sync (a background reload re-parses
+       from the string, so a freshly added comment survives a repaint before the
+       upsert has even reached the server). */
+    function _sxrSetCommentsFor(sample, comp, arr) {
+        if (!sample) return;
+        const c = (comp === 'graphic') ? 'graphic' : 'video';
+        const list = Array.isArray(arr) ? arr : [];
+        sample['_' + c + '_comments'] = list;
+        sample[c + '_tweaks'] = _sxrStringifyComments(list);
+    }
+    /* Per-message audience — who may see the thread.
+         · SMM-authored (role 'smm') → 'internal' by default (an SMM note NEVER
+           leaks to the client unless explicitly tagged audience:'client').
+         · client-authored (role 'client') → 'client' by default.
+         · an UNTAGGED legacy/team message defaults to 'internal' (belt-and-braces
+           so a mis-saved SMM note can't surface on the client).
+       An explicit audience always wins. A thread's audience lives on its ROOT;
+       a REPLY inherits its root's audience (resolved in _sxrCommentsForView). */
+    function _sxrMsgAudience(c) {
+        if (!c) return 'client';
+        if (c.audience === 'internal' || c.audience === 'client') return c.audience;
+        return (c.role === 'client') ? 'client' : 'internal';
+    }
+    /* Render-side view of a component's thread. Always drops tombstones. On the
+       CLIENT surface (isClient) it additionally hides any root whose audience is
+       'internal' (AND every reply under it, via root-audience inheritance) and
+       HARD-HIDES any role==='kasper' message — the client can never see internal
+       review chatter or Kasper authorship even on a mis-tagged thread. The SMM
+       surface sees everything (minus tombstones). Save/update paths keep using
+       _sxrCommentsFor (unfiltered) — we hide from this one view, never drop. */
+    function _sxrCommentsForView(sample, comp, isClient) {
+        let list = _sxrCommentsFor(sample, comp);
+        if (!Array.isArray(list)) return [];
+        list = list.filter(c => c && !c.deleted);
+        if (!isClient) return list;
+        // Resolve each message to its thread-root so a reply inherits the root's
+        // audience (replies point at the root via parent_id).
+        const byId = new Map();
+        for (const c of list) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => {
+            const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c;
+            return _sxrMsgAudience(root);
+        };
+        return list.filter(c => {
+            if (!c) return false;
+            if (c.role === 'kasper') return false;      // never expose Kasper authorship
+            return rootAudience(c) === 'client';        // only client-addressed threads
+        });
+    }
+    /* Roots (newest first) and replies (oldest first, nested) for the modal. */
+    function _sxrCommentRoots(list) {
+        return list.filter(c => c && !c.parent_id && !c.deleted)
+            .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    }
+    function _sxrCommentReplies(list, rootId) {
+        return list.filter(c => c && c.parent_id === rootId && !c.deleted)
+            .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+    }
+    /* Author + role for the CURRENT surface. SMM authors as 'Synchro Social'
+       (role smm) on the internal surface; a client link authors as the client
+       name (role client). Role comes from _isClientLink — the same gate that
+       blocks SMM-only actions. */
+    function _sxrCommentRole() { return _isClientLink ? 'client' : 'smm'; }
+    function _sxrCurrentAuthor() {
+        if (_isClientLink) return sxrState.client ? String(sxrState.client) : 'Client';
+        return 'Synchro Social';
+    }
+    function _sxrMintCommentId() { return 'sc_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    function _sxrFmtCommentTime(iso) {
+        const t = Date.parse(iso || '');
+        if (!isFinite(t)) return '';
+        const mins = Math.round((Date.now() - t) / 60000);
+        if (mins < 1) return 'just now';
+        if (mins < 60) return mins + 'm ago';
+        const hrs = Math.round(mins / 60);
+        if (hrs < 24) return hrs + 'h ago';
+        const days = Math.round(hrs / 24);
+        if (days < 7) return days + 'd ago';
+        return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+    function _sxrAvatarInitial(name, role) {
+        const s = String(name || '').trim();
+        if (s) return s.charAt(0).toUpperCase();
+        return role === 'client' ? 'C' : 'S';
+    }
+
+    /* ── unread / count (the Notes button) ──────────────────────────
+       Per-(card,component)? No — keyed per card like the calendar: opening any
+       component's thread on a card stamps it seen. The seen map is a
+       syncview_sxrSeen_v1-style { cardId: lastSeenISO } map (per-device — a
+       browser is a single role, SMM or client). A card is "unread" when a
+       message the viewer can SEE, that they didn't write, is newer than the
+       stamp. Count = visible, undeleted messages across both components. */
+    const SXR_NOTES_SEEN_KEY = 'syncview_sxrSeen_v1';
+    let _sxrNotesSeenMap = null;
+    function _sxrNotesSeenLoad() {
+        if (_sxrNotesSeenMap) return _sxrNotesSeenMap;
+        try { _sxrNotesSeenMap = JSON.parse(localStorage.getItem(SXR_NOTES_SEEN_KEY) || '{}') || {}; }
+        catch { _sxrNotesSeenMap = {}; }
+        return _sxrNotesSeenMap;
+    }
+    function _sxrNotesGetSeen(pid) { return _sxrNotesSeenLoad()[pid] || ''; }
+    function _sxrNotesMarkSeen(pid, ts) {
+        if (!pid) return;
+        const m = _sxrNotesSeenLoad();
+        m[pid] = ts || new Date().toISOString();
+        try { localStorage.setItem(SXR_NOTES_SEEN_KEY, JSON.stringify(m)); } catch {}
+    }
+    function _sxrNotesCount(sample) {
+        if (!sample) return 0;
+        let n = 0;
+        for (const c of SXR_COMPONENTS) n += _sxrCommentsForView(sample, c, _isClientLink).length;
+        return n;
+    }
+    function _sxrHasUnreadNotes(sample) {
+        if (!sample) return false;
+        const myRole = _sxrCommentRole();
+        const seen = _sxrNotesGetSeen(sample.id);
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsForView(sample, c, _isClientLink);
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue;   // skip my own
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    /* The Notes button for a card footer — count + unread dot, like the
+       calendar's _calCommentsBtnHtml. */
+    function _sxrCommentsBtnHtml(sample, rawId) {
+        const id = _calEscAttr(rawId);
+        const n = _sxrNotesCount(sample);
+        const unread = _sxrHasUnreadNotes(sample);
+        const cls = (n > 0 ? ' has-notes' : '') + (unread ? ' has-unread' : '');
+        const tip = unread ? 'New messages — open Notes' : (n > 0 ? n + ' note' + (n === 1 ? '' : 's') : 'Notes');
+        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        return `<span class="sxr-notes-wrap" data-sxr-notes-wrap="${id}"><button type="button" class="sxr-notes-btn${cls}" data-sxr-notes-btn="${id}" onclick="openSxrComments(${_jsAttrArg(rawId)})" title="${_calEscAttr(tip)}">${ico}<span class="sxr-notes-label">Notes</span>${unread ? '<span class="sxr-notes-dot" aria-label="New messages"></span>' : ''}<span class="sxr-notes-count">${n}</span></button></span>`;
+    }
+    function _sxrRefreshCommentsBtn(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const wrap = document.querySelector(`.sxr-notes-wrap[data-sxr-notes-wrap="${sel}"]`);
+        if (!wrap) return;
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrCommentsBtnHtml(sample, pid);
+        if (tmp.firstElementChild) wrap.replaceWith(tmp.firstElementChild);
+    }
+
+    /* ── the thread modal (per-card, both components in one feed) ──── */
+    let _sxrOpenCommentsPid = null;
+    let _sxrComposeComp = 'video';     // which component a NEW root targets
+    let _sxrComposeAudience = 'internal'; // SMM: who sees a NEW root (client toggle absent)
+    let _sxrReplyTarget = null;        // root id being replied to, or null
+    const _sxrReplyDrafts = Object.create(null);
+    let _sxrRootDraft = '';
+    function _sxrCaptureModalDrafts() {
+        const root = document.getElementById('sxrCommentsModal');
+        if (!root) return;
+        const composer = root.querySelector('#sxrCommentComposer');
+        if (composer) {
+            if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = composer.value;
+            else _sxrRootDraft = composer.value;
+        }
+    }
+    function openSxrComments(pid) {
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        _sxrOpenCommentsPid = pid;
+        _sxrReplyTarget = null;
+        for (const k of Object.keys(_sxrReplyDrafts)) delete _sxrReplyDrafts[k];
+        _sxrRootDraft = '';
+        _sxrComposeComp = 'video';
+        _sxrComposeAudience = 'internal';
+        _sxrNotesMarkSeen(pid);            // opening = caught up; clears the unread dot
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _sxrRenderCommentsModal();
+        setTimeout(() => {
+            const feed = document.getElementById('sxrCommentsFeed');
+            if (feed) feed.scrollTop = 0;   // newest roots are at the top
+            const ta = document.getElementById('sxrCommentComposer');
+            if (ta) ta.focus();
+        }, 30);
+    }
+    function closeSxrComments() {
+        _sxrCaptureModalDrafts();
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        const pid = _sxrOpenCommentsPid;
+        _sxrOpenCommentsPid = null;
+        _sxrReplyTarget = null;
+        if (pid) { _sxrNotesMarkSeen(pid); _sxrRefreshCommentsBtn(pid); }
+    }
+    function _sxrSetComposeComp(comp) {
+        _sxrComposeComp = (SXR_COMPONENTS.indexOf(comp) >= 0) ? comp : 'video';
+        const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="comp"]');
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
+    }
+    function _sxrSetComposeAudience(aud) {
+        if (_isClientLink) return;        // a client can NEVER set audience
+        _sxrComposeAudience = (aud === 'client') ? 'client' : 'internal';
+        const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="audience"]');
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+    }
+    function _sxrFindCompForCommentId(sample, commentId) {
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsFor(sample, c);
+            if (Array.isArray(list) && list.some(x => x && x.id === commentId)) return c;
+        }
+        return 'video';
+    }
+    function _sxrBeginReply(rootId) {
+        _sxrCaptureModalDrafts();
+        _sxrReplyTarget = rootId || null;
+        const feed = document.getElementById('sxrCommentsFeed');
+        const prev = feed ? feed.scrollTop : null;
+        _sxrRenderCommentsModal();
+        const feed2 = document.getElementById('sxrCommentsFeed');
+        if (feed2 && prev != null) feed2.scrollTop = prev;
+    }
+    /* Append a comment — the ONLY mutating entry point, so the client-link guard
+       lives here too. A client may post (role client, audience client) but can
+       never set audience=internal and never authors on the internal surface.
+       Persists by appending locally then routing through _sxrFlushCardSave with
+       the component's *_tweaks in the patch (the M2 save path; comments_base_at
+       stays ''). */
+    function _sxrAppendComment(pid, parentId, body) {
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        body = String(body == null ? '' : body).trim();
+        if (!body) return;
+        const role = _sxrCommentRole();
+        // A reply inherits the parent's component; a root targets the picked one.
+        const comp = parentId
+            ? _sxrFindCompForCommentId(sample, parentId)
+            : (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0 ? _sxrComposeComp : 'video');
+        const arr = _sxrCommentsFor(sample, comp).slice();
+        const _now = new Date().toISOString();
+        const isRoot = !parentId;
+        const msg = {
+            id: _sxrMintCommentId(),
+            parent_id: parentId || null,
+            author: _sxrCurrentAuthor(),
+            role: role,
+            body: body,
+            created_at: _now,
+            updated_at: _now
+        };
+        // Audience lives on the ROOT; a reply inherits it (the view filter
+        // resolves a reply's audience from its root). A client root is always
+        // audience:'client' (a client can never post internal). An SMM root takes
+        // the composer's audience pick (default internal).
+        if (isRoot) {
+            msg.audience = (role === 'client') ? 'client' : _sxrComposeAudience;
+        }
+        arr.push(msg);
+        _sxrSetCommentsFor(sample, comp, arr);
+        // Persist via the verified M2 save path: queue the *_tweaks patch + flush.
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][comp + '_tweaks'] = _sxrStringifyComments(arr);
+        _sxrFlushCardSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+    }
+    /* Delete a comment = TOMBSTONE (deleted:true + fresh updated_at), never a
+       bare removal — so the delete propagates through the server merge / realtime
+       and a stale copy can't resurrect it. SMM may delete anything; a client may
+       delete only their own. Deleting a root cascades into its replies. */
+    function _sxrCanDeleteComment(c) {
+        if (!c) return false;
+        return _sxrCommentRole() === 'smm' || c.role === 'client';
+    }
+    function _sxrDeleteComment(commentId) {
+        const pid = _sxrOpenCommentsPid;
+        if (!pid) return;
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const comp = _sxrFindCompForCommentId(sample, commentId);
+        const arr = _sxrCommentsFor(sample, comp).slice();
+        const target = arr.find(c => c.id === commentId);
+        if (!target || !_sxrCanDeleteComment(target)) return;
+        const isRoot = !target.parent_id;
+        const msg = isRoot
+            ? "This deletes the message and every reply in this thread. This can't be undone."
+            : "Delete this reply? This can't be undone.";
+        showConfirm('Delete note?', msg, () => {
+            const _at = new Date().toISOString();
+            const next = arr.map(c => (
+                (c.id === commentId || c.parent_id === commentId)
+                    ? Object.assign({}, c, { deleted: true, updated_at: _at })
+                    : c
+            ));
+            _sxrSetCommentsFor(sample, comp, next);
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            _sxrPendingEdits[pid][comp + '_tweaks'] = _sxrStringifyComments(next);
+            _sxrFlushCardSave(pid);
+            _sxrRefreshCommentsBtn(pid);
+            _sxrCaptureModalDrafts();
+            _sxrRenderCommentsModal();
+        }, 'Delete');
+    }
+    function _sxrSubmitComposer() {
+        const pid = _sxrOpenCommentsPid;
+        if (!pid) return;
+        _sxrCaptureModalDrafts();
+        const body = (_sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
+        if (!body) return;
+        const parentId = _sxrReplyTarget;
+        _sxrAppendComment(pid, parentId, body);
+        if (parentId) delete _sxrReplyDrafts[parentId];
+        else _sxrRootDraft = '';
+        _sxrReplyTarget = null;
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = 0; }, 0);
+    }
+    function _sxrAutosizeComposer(ta) {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, 160) + 'px';
+    }
+    function _sxrOnComposerInput(ta) {
+        _sxrAutosizeComposer(ta);
+        if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
+        else _sxrRootDraft = ta.value;
+        const wrap = ta.closest('.sxr-cm-composer');
+        const sendBtn = wrap && wrap.querySelector('.sxr-cm-send');
+        if (sendBtn) sendBtn.disabled = !ta.value.trim();
+    }
+    function _sxrOnComposerKey(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sxrSubmitComposer(); }
+        else if (e.key === 'Escape' && _sxrReplyTarget) { e.preventDefault(); _sxrBeginReply(null); }
+    }
+    function _sxrCommentRowHtml(c, isReply, comp) {
+        const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
+        const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+        const initial = _sxrAvatarInitial(author, c.role);
+        // Component label sits top-right on a root; the lock marks an internal
+        // thread on the SMM surface (the client never sees an internal thread).
+        const compLabel = (!isReply && comp) ? `<span class="sxr-cm-comp-label sxr-cm-comp-${comp}">${_calEsc(SXR_COMP_LABELS[comp] || comp)}</span>` : '';
+        const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal')
+            ? `<span class="sxr-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
+            : '';
+        const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
+        const rootId = isReply ? c.parent_id : c.id;
+        const replyBtn = `<button class="sxr-cm-action" type="button" onclick="_sxrBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const delBtn = _sxrCanDeleteComment(c)
+            ? `<button class="sxr-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            : '';
+        return `<div class="sxr-cm-row${isReply ? ' is-reply' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
+            <div class="sxr-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
+            <div class="sxr-cm-body-col">
+                <div class="sxr-cm-head-line">
+                    <span class="sxr-cm-author">${_calEsc(author)}</span>
+                    ${lock}
+                    <span class="sxr-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
+                    ${compLabel}
+                </div>
+                <div class="sxr-cm-row-body">${_calEsc(c.body || '')}</div>
+            </div>
+            <div class="sxr-cm-actions">${replyBtn}${delBtn}</div>
+        </div>`;
+    }
+    function _sxrComposerHtml(sample) {
+        const role = _sxrCommentRole();
+        const author = _sxrCurrentAuthor();
+        const initial = _sxrAvatarInitial(author, role);
+        const roleCls = role === 'client' ? 'is-client' : 'is-smm';
+        const isReply = !!_sxrReplyTarget;
+        const target = isReply ? SXR_COMPONENTS.flatMap(c => _sxrCommentsFor(sample, c)).find(c => c && c.id === _sxrReplyTarget) : null;
+        const draft = isReply ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '');
+        const placeholder = isReply
+            ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
+            : (role === 'client' ? 'Message your Synchro Social team…' : (_sxrComposeAudience === 'client' ? 'Message to the client…' : 'Internal note (team only)…'));
+        const replyingTo = isReply && target
+            ? `<div class="sxr-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="sxr-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+            : '';
+        // Component picker on a fresh root (replies inherit their thread's comp).
+        const compPicker = !isReply
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="sxr-cm-seg-cap">About the…</span>
+                <div class="sxr-cm-seg">${SXR_COMPONENTS.map(c =>
+                    `<button type="button" class="sxr-cm-seg-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(SXR_COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(SXR_COMP_LABELS[c] || c)}</button>`
+                ).join('')}</div>
+            </div>`
+            : '';
+        const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
+        // SMM picks who can see a NEW root; the client has no toggle (everything
+        // they post is shared with them by nature, audience always 'client').
+        const audienceToggle = (!isReply && role !== 'client')
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="audience" role="group" aria-label="Who can see this note">
+                <span class="sxr-cm-seg-cap">Who sees this?</span>
+                <div class="sxr-cm-seg">
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — the client never sees it.">${lockIco}Team only</button>
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
+                </div>
+            </div>`
+            : '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        return `<div class="sxr-cm-composer-wrap">
+            ${replyingTo}
+            ${compPicker}
+            ${audienceToggle}
+            <div class="sxr-cm-composer">
+                <div class="sxr-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
+                <textarea id="sxrCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_calEsc(draft)}</textarea>
+                <div class="sxr-cm-composer-actions">
+                    <button class="sxr-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                </div>
+            </div>
+        </div>`;
+    }
+    function _sxrRenderCommentsModal() {
+        const pid = _sxrOpenCommentsPid;
+        const modal = document.getElementById('sxrCommentsModal');
+        if (!modal || !pid) return;
+        const sample = _sxrFind(pid);
+        if (!sample) { closeSxrComments(); return; }
+        // One feed, both components' threads, newest roots first.
+        const threads = SXR_COMPONENTS.flatMap(comp => {
+            const list = _sxrCommentsForView(sample, comp, _isClientLink);
+            if (!Array.isArray(list) || !list.length) return [];
+            return _sxrCommentRoots(list).map(root => ({ comp, list, root }));
+        }).sort((a, b) => String(b.root.created_at || '').localeCompare(String(a.root.created_at || '')));
+        const renderThread = (entry) => {
+            const replies = _sxrCommentReplies(entry.list, entry.root.id);
+            return `<div class="sxr-cm-thread" data-sxr-thread="${_calEscAttr(entry.root.id)}">
+                ${_sxrCommentRowHtml(entry.root, false, entry.comp)}
+                ${replies.map(r => _sxrCommentRowHtml(r, true, entry.comp)).join('')}
+            </div>`;
+        };
+        const emptyMsg = `<div class="sxr-cm-empty"><div class="sxr-cm-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
+        const feedHtml = threads.length ? threads.map(renderThread).join('') : emptyMsg;
+        const sampleName = _calEsc(String(sample.name || '').trim() || 'Untitled sample');
+        modal.innerHTML = `
+            <div class="sxr-cm-head">
+                <div class="sxr-cm-head-text">
+                    <h3 id="sxrCommentsTitle">Notes</h3>
+                    <p>${sampleName}</p>
+                </div>
+                <button class="sxr-cm-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            <div class="sxr-cm-feed" id="sxrCommentsFeed">
+                <div class="sxr-cm-feed-inner">${feedHtml}</div>
+            </div>
+            ${_sxrComposerHtml(sample)}`;
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
     }
 
     /* ── optimistic field-patch save (M2) ───────────────────────────
@@ -13595,7 +14175,10 @@
             <div class="sxr-toolbar">
                 <div class="sxr-toolbar-left">${leftHtml}</div>
             </div>
-            <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>`;
+            <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>
+            <div class="sxr-cm-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+                <div class="sxr-cm-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
+            </div>`;
         if (!(_isClientLink && sxrState.embedded)) _sxrRenderTabs();
     }
 

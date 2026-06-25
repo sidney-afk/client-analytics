@@ -3868,6 +3868,30 @@
 
         /* body / strip */
         .sm-body { padding-top:18px; }
+
+        /* ── Samples (Review) tab — `_sxr*` (M1, fully isolated, read-only) ── */
+        .sxr-view { padding:0 4px; }
+        .sxr-loader, .sxr-empty { display:flex; align-items:center; justify-content:center; gap:10px; min-height:240px; color:var(--text-muted); font-size:0.9rem; }
+        .sxr-toolbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:8px 0 4px; flex-wrap:wrap; }
+        .sxr-embed-title strong { font-size:1.1rem; font-weight:800; color:var(--text-primary); display:block; }
+        .sxr-embed-title span { font-size:0.78rem; color:var(--text-secondary); }
+        .sxr-tabs { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+        .sxr-tabs-empty { font-size:0.82rem; color:var(--text-muted); }
+        .sxr-tab { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px solid var(--border); background:var(--white); border-radius:99px; font-size:0.8rem; font-weight:700; color:var(--text-secondary); cursor:pointer; }
+        .sxr-tab:hover { border-color:#cfcfcb; }
+        .sxr-tab.active { background:hsl(var(--tab-h,250),70%,96%); border-color:hsl(var(--tab-h,250),50%,72%); color:hsl(var(--tab-h,250),45%,32%); }
+        .sxr-tab-dot { width:8px; height:8px; border-radius:99px; background:hsl(var(--tab-h,250),60%,55%); flex:0 0 auto; }
+        .sxr-body { padding-top:14px; }
+        .sxr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; padding-bottom:30px; }
+        .sxr-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+        .sxr-card-thumb { width:100%; aspect-ratio:16/10; background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); }
+        .sxr-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+        .sxr-card-thumb-fallback { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
+        .sxr-card-meta { padding:11px 13px 13px; display:flex; flex-direction:column; gap:8px; }
+        .sxr-card-name { font-size:0.86rem; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+        .sxr-card-pills { display:flex; flex-wrap:wrap; gap:6px; }
+        .sxr-card-cd { font-size:0.76rem; color:var(--text-secondary); line-height:1.4; white-space:pre-wrap; max-height:5.6em; overflow:hidden; }
+
         .sm-section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin-bottom:4px; flex-wrap:wrap; }
         .sm-section-title { font-size:1.45rem; font-weight:800; letter-spacing:-0.025em; }
         .sm-section-sub { font-size:0.8rem; color:var(--text-secondary); margin-top:2px; }
@@ -4164,6 +4188,10 @@
         <a class="header-nav-btn" id="navSamples" href="#samples" onclick="if(_modClick(event))return;event.preventDefault();navTo('samples')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
             Samples
+        </a>
+        <a class="header-nav-btn" id="navSampleReviews" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 8.5L7.2 10.2L10.8 6.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Samples (Review)
         </a>
         <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
@@ -11395,6 +11423,8 @@
         if (navCal) navCal.classList.toggle('active', page === 'calendar');
         const navSamp = document.getElementById('navSamples');
         if (navSamp) navSamp.classList.toggle('active', page === 'samples');
+        const navSxr = document.getElementById('navSampleReviews');
+        if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews');
         const navTk = document.getElementById('navTiktokUpload');
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
@@ -11419,6 +11449,8 @@
         // Phase 2: drop the Samples Supabase realtime subscription when leaving.
         if (page !== 'samples' && typeof _smV2Teardown === 'function') _smV2Teardown();
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _wlV2Teardown();
+        // Samples (Review): drop its own realtime subscription when leaving.
+        if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown();
 
         const state = {nav: page, client: null};
         const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
@@ -11453,6 +11485,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderSamplesView();
             mountSamplesView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'sample-reviews') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSampleReviewsView();
+            mountSampleReviews();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'tiktok-upload') {
             pageTop.style.display = 'none';
@@ -12831,6 +12868,383 @@
        the same conflict from re-firing the dialog on every 30 s poll
        until either the user re-saves (refresh) or the entry ages out. */
     const _calConflictNotified = new Set();
+
+    /* ============================================================
+       SAMPLES (REVIEW) MODULE — "Samples v2" / `_sxr*`  (Milestone 1)
+       A THIRD, fully-isolated stack beside the live calendar (`_cal*`)
+       and the old samples module (`_sm*`). It NEVER mutates calState,
+       smState, or any `_cal*`/`_sm*` function — it only READS shared,
+       generic helpers (the supabase-js loader + client singleton, the
+       compound-keyset paginator, the slug normalizer, the escapers and
+       the per-client tab pins). See SAMPLES_V2_PLAN.md / SAMPLES_PARITY_LOG.md.
+       Gated behind ?sxr=1, DEFAULT-OFF: with the flag off NOTHING here
+       runs and ZERO Supabase/n8n calls happen on the samples-review path.
+       M1 scope: mount + load over Supabase realtime + a READ-ONLY card list.
+       (Editable card, review lifecycle, Linear FE layer and the Kasper
+       section are later milestones — deliberately not built here.)
+       ============================================================ */
+    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
+    const SXR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+    const SXR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
+    const SXR_SUPA_TABLE  = 'sample_reviews';
+    /* The two reviewed components. NEVER caption/title — samples are
+       worst-of(video, graphic) only. Kept flat + frozen so nothing can
+       accidentally splice a third component in. */
+    const SXR_COMPONENTS  = ['video', 'graphic'];
+    const SXR_COMP_LABELS = { video: 'Video', graphic: 'Thumbnail' };
+    /* Sticky per-browser flag, mirroring the calendar's ?v2 pattern but
+       defaulting OFF: ?sxr=1 turns it on (and stores syncview_sxr_on),
+       ?sxr=0 force-off (syncview_sxr_off). No param → respect the sticky,
+       else OFF. */
+    const SXR_ON_KEY      = 'syncview_sxr_on';
+    const SXR_OFF_KEY     = 'syncview_sxr_off';
+    const SXR_CACHE_PREFIX = 'syncview_sxrCache_v1:';
+    const SXR_RT_DEBOUNCE_MS = 350;
+    const SXR_RT_SELF_ECHO_MS = 4000;
+
+    /* sxrState — this module's ENTIRE mutable surface. Never touch calState/smState. */
+    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false };
+    let _sxrLinkClient = null;     // client locked in via a ?c=…&v=sample-reviews share link
+    let _sxrFocusRequest = null;   // {client, cardId} from a #sample-reviews/<slug>/<id> deep link
+
+    function sxrClientSlug(name) { return wlNormalizeClient(name); }
+
+    /* ── flag / readiness (DEFAULT-OFF) ─────────────────────────── */
+    let _sxrFlagCache = null;
+    function _sxrEnabled() {
+        if (_sxrFlagCache !== null) return _sxrFlagCache;
+        let on = false; // default OFF
+        try {
+            const q = new URLSearchParams(location.search).get('sxr');
+            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY, '1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
+            else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY, '1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
+            else { on = (localStorage.getItem(SXR_ON_KEY) === '1' && localStorage.getItem(SXR_OFF_KEY) !== '1'); }
+        } catch { on = false; }
+        _sxrFlagCache = on;
+        return on;
+    }
+    function _sxrReady() {
+        return _sxrEnabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY;
+    }
+
+    /* ── status math (samples analogs — video+graphic ONLY) ─────── */
+    /* Worst-of (lowest CAL_PRIORITY) across SXR_COMPONENTS. Reuses the
+       calendar's CAL_PRIORITY/CAL_STATUSES/_calNormStatus (pure string
+       logic) but NEVER references caption/title. */
+    function computeSampleOverallStatus(sample) {
+        if (!sample) return 'In Progress';
+        const subs = SXR_COMPONENTS.map(c => _calNormStatus(sample[c + '_status'] || 'In Progress'));
+        return subs.reduce((acc, s) => (CAL_PRIORITY[s] != null && CAL_PRIORITY[acc] != null && CAL_PRIORITY[s] < CAL_PRIORITY[acc]) ? s : acc, 'Posted');
+    }
+    /* Components active for a sample on the review/queue surfaces. Flat
+       ['video','graphic'] — samples have no conditional component (unlike the
+       calendar's YouTube title). */
+    function _sxrComponentsFor(sample) { return SXR_COMPONENTS.slice(); }
+    function _sxrStatusSlug(s) { return String(s || 'In Progress').toLowerCase().replace(/\s+/g, '-'); }
+
+    /* ── realtime runtime `_sxrV2*` (cloned from `_calV2*`, default-OFF) ──
+       REUSES `_calV2LoadLib` / `_calV2Client` (same Supabase project + key)
+       and `_calSupabaseFetchAllRows` (compound (id,client) paginator). Owns
+       its OWN channel (`sxr-<slug>`), table (sample_reviews), self-echo
+       window and teardown — never touches the calendar's runtime state. */
+    let _sxrV2DebugCache = null;
+    function _sxrV2DebugOn() {
+        if (_sxrV2DebugCache !== null) return _sxrV2DebugCache;
+        try { _sxrV2DebugCache = new URLSearchParams(location.search).get('v2debug') === '1'; } catch { _sxrV2DebugCache = false; }
+        return _sxrV2DebugCache;
+    }
+    function _sxrV2Log() {
+        try {
+            if (!_sxrV2DebugOn()) return;
+            const a = ['[sxrV2 ' + new Date().toISOString().slice(11, 23) + ']'];
+            for (let i = 0; i < arguments.length; i++) a.push(arguments[i]);
+            console.log.apply(console, a);
+        } catch (e) {}
+    }
+    function _sxrV2Ready() { return _sxrReady(); }
+    /* Read one client's sample_reviews from Supabase REST via the shared
+       compound-keyset paginator (select=* includes id AND client, as it
+       requires). On ANY failure, fall back to the sample-review-get webhook
+       so a Supabase hiccup can't blank the tab. */
+    async function _sxrV2FetchCards(slug, signal) {
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_SUPA_TABLE + '?select=*&client=eq.' + encodeURIComponent(slug);
+        try {
+            const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
+            return { ok: true, items: rows };
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            console.warn('[Samples v2] Supabase read failed — falling back to n8n sample-review-get', e);
+            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            return resp.json();
+        }
+    }
+    let _sxrV2Channel = null;
+    let _sxrV2SubSlug = null;
+    let _sxrV2RtTimer = null;
+    let _sxrV2RtPending = false;       // a realtime change arrived mid-load → service it after, don't drop it
+    let _sxrV2SubscribedOnce = false;  // tell the FIRST subscribe apart from a reconnect (catch-up)
+    let _sxrLastLocalWriteAt = 0;      // when we last saved locally — used to ignore the realtime echo of our own write
+    async function _sxrV2EnsureSubscribed(slug) {
+        if (!_sxrV2Ready() || !slug) return;
+        if (_sxrV2SubSlug === slug && _sxrV2Channel) return;
+        _sxrV2Teardown();
+        const client = await _calV2Client();   // REUSED singleton — same project/key
+        if (!client) return;
+        if (sxrClientSlug(sxrState.client) !== slug) return; // client switched during lib load
+        _sxrV2SubSlug = slug;
+        _sxrV2SubscribedOnce = false;
+        try {
+            _sxrV2Channel = client
+                .channel('sxr-' + slug)
+                .on('postgres_changes', { event: '*', schema: 'public', table: SXR_SUPA_TABLE, filter: 'client=eq.' + slug }, () => _sxrV2OnRealtimeChange(slug))
+                .subscribe((status) => {
+                    _sxrV2Log('subscribe status:', status, '| slug:', slug, '| is re-subscribe:', _sxrV2SubscribedOnce);
+                    if (status === 'SUBSCRIBED') {
+                        // A *re*-subscribe means the socket had dropped and woke
+                        // up; realtime doesn't replay missed rows, so pull one
+                        // catch-up snapshot. Skip the FIRST subscribe (the load
+                        // that opened this channel is already current).
+                        if (_sxrV2SubscribedOnce) _sxrV2OnRealtimeChange(slug);
+                        _sxrV2SubscribedOnce = true;
+                    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+                        console.warn('[Samples v2] realtime status:', status);
+                    }
+                });
+        } catch (e) {
+            console.warn('[Samples v2] realtime subscribe failed', e);
+            _sxrV2Channel = null; _sxrV2SubSlug = null;
+        }
+    }
+    function _sxrV2OnRealtimeChange(slug) {
+        _sxrV2Log('realtime event for slug:', slug, '| currently viewing:', sxrClientSlug(sxrState.client));
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        if (_sxrV2RtTimer) clearTimeout(_sxrV2RtTimer);
+        _sxrV2RtTimer = setTimeout(function tick() {
+            _sxrV2RtTimer = null;
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            // Coalesce the echo of our OWN just-made write (M1 has no writes yet,
+            // but the self-echo window is kept so later milestones inherit it).
+            const sinceLocal = Date.now() - _sxrLastLocalWriteAt;
+            if (sinceLocal < SXR_RT_SELF_ECHO_MS) { _sxrV2Log('realtime: suppressed as self-echo; re-arming'); _sxrV2RtTimer = setTimeout(tick, SXR_RT_SELF_ECHO_MS - sinceLocal); return; }
+            // A load is already running — defer, don't drop. loadSxrCards's tail
+            // re-services the pending flag once it's free.
+            if (sxrState.loading) { _sxrV2Log('realtime: deferred (load in flight)'); _sxrV2RtPending = true; return; }
+            _sxrV2Log('realtime: triggering background reload from Supabase');
+            loadSxrCards(slug, { background: true });
+        }, SXR_RT_DEBOUNCE_MS);
+    }
+    function _sxrV2Teardown() {
+        if (_sxrV2RtTimer) { clearTimeout(_sxrV2RtTimer); _sxrV2RtTimer = null; }
+        if (_sxrV2Channel) {
+            try {
+                if (typeof _calV2Client === 'function') {
+                    // Remove via the shared client singleton if it's been created.
+                    if (typeof _sxrV2Channel.unsubscribe === 'function') _sxrV2Channel.unsubscribe();
+                } else if (typeof _sxrV2Channel.unsubscribe === 'function') { _sxrV2Channel.unsubscribe(); }
+            } catch {}
+        }
+        _sxrV2Channel = null; _sxrV2SubSlug = null;
+    }
+    /* Debug hook for the M1 probe — mirrors window.calV2Status. */
+    window.sxrV2Status = function () {
+        return { flag: _sxrEnabled(), ready: _sxrReady(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_sxrV2Channel, slug: _sxrV2SubSlug };
+    };
+
+    /* ── local-storage cache (cache-first paint) ────────────────── */
+    function _sxrCacheKey(slug) { return SXR_CACHE_PREFIX + slug; }
+    function _sxrCacheRead(slug) {
+        try { const a = JSON.parse(localStorage.getItem(_sxrCacheKey(slug)) || '[]'); return Array.isArray(a) ? a : []; } catch { return []; }
+    }
+    function _sxrCacheWrite(slug, cards) {
+        try { localStorage.setItem(_sxrCacheKey(slug), JSON.stringify(cards || [])); } catch {}
+    }
+
+    /* ── normalize / sort ───────────────────────────────────────── */
+    /* Keep a row's fields as-is (read-only M1) but coerce the two link/url
+       fields to strings so the renderer never trips on null. */
+    function _sxrNormalize(row) {
+        const r = Object.assign({}, row);
+        r.id = String(r.id == null ? '' : r.id);
+        r.name = String(r.name == null ? '' : r.name);
+        r.asset_url = String(r.asset_url == null ? '' : r.asset_url);
+        r.thumbnail_url = String(r.thumbnail_url == null ? '' : r.thumbnail_url);
+        return r;
+    }
+    function _sxrIsArchived(s) { return String((s && s.status) || '').trim().toLowerCase() === 'archived'; }
+    function _sxrSortCards(cards) {
+        return cards.slice().sort((a, b) => {
+            const d = Number(a.order_index || 0) - Number(b.order_index || 0);
+            if (d) return d;
+            return String(a.id).localeCompare(String(b.id)); // stable id tiebreaker
+        });
+    }
+
+    /* ── thumbnail derivation (own, isolated — no _calThumbRev coupling) ── */
+    function _sxrDeriveThumb(s) {
+        const u = String((s && (s.thumbnail_url || s.asset_url)) || '').trim();
+        if (!u) return '';
+        let m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/);
+        if (m) return `https://img.youtube.com/vi/${m[1]}/hqdefault.jpg`;
+        m = u.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?id=)([A-Za-z0-9_-]+)/);
+        if (m) {
+            let out = `https://drive.google.com/thumbnail?id=${m[1]}&sz=w320`;
+            const rev = (s && s.thumb_rev) || (s && s.updated_at);
+            if (rev) out += '&_r=' + encodeURIComponent(rev);
+            return out;
+        }
+        if (/\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(u)) {
+            let out = u;
+            const rev = (s && s.thumb_rev) || (s && s.updated_at);
+            if (rev) out += (out.includes('?') ? '&' : '?') + '_r=' + encodeURIComponent(rev);
+            return out;
+        }
+        return '';
+    }
+    function _sxrThumbIconSvg() {
+        return `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
+    }
+
+    /* ── read-only card render (M1) ─────────────────────────────── */
+    /* A simple read-only card: thumbnail + name + a status pill per
+       component (video, graphic), colored with the calendar's read-only
+       sub-pill palette (cal-review-sub-pill / cal-fld-status-<slug>).
+       Creative-direction shown when not hidden (cheap nice-to-have). */
+    function _sxrRenderCard(s) {
+        const thumbUrl = _sxrDeriveThumb(s);
+        const thumbHtml = thumbUrl
+            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
+            : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
+        const name = String(s.name || '').trim() || 'Untitled sample';
+        const pills = SXR_COMPONENTS.map(c => {
+            const cs = _calNormStatus(s[c + '_status'] || 'In Progress');
+            const slug = _sxrStatusSlug(cs);
+            const label = SXR_COMP_LABELS[c] + ': ' + cs;
+            return `<span class="cal-review-sub-pill cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label)}">${_calEsc(label)}</span>`;
+        }).join('');
+        const hideCd = String(s.hide_creative_direction || '').trim().toUpperCase() === 'TRUE';
+        const cd = String(s.creative_direction || '').trim();
+        const cdHtml = (!hideCd && cd)
+            ? `<div class="sxr-card-cd">${_calEsc(cd)}</div>`
+            : '';
+        return `<div class="sxr-card" data-sxr-id="${_calEscAttr(s.id)}">
+            <div class="sxr-card-thumb">${thumbHtml}</div>
+            <div class="sxr-card-meta">
+                <div class="sxr-card-name" title="${_calEscAttr(name)}">${_calEsc(name)}</div>
+                <div class="sxr-card-pills">${pills}</div>
+                ${cdHtml}
+            </div>
+        </div>`;
+    }
+
+    /* ── entry points / mount ───────────────────────────────────── */
+    function renderSampleReviewsView() {
+        return `<div class="sxr-view" id="sxrView">${_sxrLoaderHtml()}</div>`;
+    }
+    function _sxrLoaderHtml() {
+        return `<div class="sxr-loader"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`;
+    }
+    function mountSampleReviews() {
+        _sxrV2Teardown(); // clear any stale realtime channel before (re)mount
+        if (!_sxrEnabled()) { const v = document.getElementById('sxrView'); if (v) v.innerHTML = '<div class="sxr-loader"><span>Samples (Review) is off.</span></div>'; return; }
+        const pins = _calGetPins(); // READ-ONLY
+        if (_isClientLink && _sxrLinkClient) {
+            sxrState.client = _sxrLinkClient; sxrState.embedded = true;
+        } else if (_sxrFocusRequest && _sxrFocusRequest.client && WL_CLIENT_NAMES.includes(_sxrFocusRequest.client)) {
+            sxrState.client = _sxrFocusRequest.client; sxrState.embedded = false;
+        } else {
+            let initial = null;
+            if (pins.length > 0) initial = pins[0];
+            sxrState.client = initial; sxrState.embedded = false;
+        }
+        _sxrFocusRequest = null;
+        sxrState.cards = []; sxrState.error = null; sxrState.loading = false;
+        _sxrRenderShell();
+        if (sxrState.client) loadSxrCards(sxrClientSlug(sxrState.client)); else _sxrRenderBody();
+    }
+
+    function _sxrRenderShell() {
+        const view = document.getElementById('sxrView');
+        if (!view) return;
+        const leftHtml = (_isClientLink && sxrState.embedded)
+            ? `<div class="sxr-embed-title"><strong>${_calEsc(sxrState.client || '')}</strong><span>Sample reviews</span></div>`
+            : `<div class="sxr-tabs" id="sxrTabs"></div>`;
+        view.innerHTML = `
+            <div class="sxr-toolbar">
+                <div class="sxr-toolbar-left">${leftHtml}</div>
+            </div>
+            <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>`;
+        if (!(_isClientLink && sxrState.embedded)) _sxrRenderTabs();
+    }
+
+    function _sxrRenderTabs() {
+        const el = document.getElementById('sxrTabs');
+        if (!el) return;
+        const pins = _calGetPins(); // READ-ONLY reuse of the per-client tab pins
+        const active = sxrState.client;
+        if (!pins.length) { el.innerHTML = `<div class="sxr-tabs-empty">Pin a client in the Calendar or Samples tab to review its samples here.</div>`; return; }
+        el.innerHTML = pins.map(name => {
+            const isA = name === active;
+            return `<button type="button" class="sxr-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSxrTabClick(${_jsAttrArg(name)})"><span class="sxr-tab-dot"></span><span>${_calEsc(name)}</span></button>`;
+        }).join('');
+    }
+    function onSxrTabClick(name) {
+        if (!name || name === sxrState.client) return;
+        sxrState.client = name; sxrState.cards = []; sxrState.error = null;
+        _sxrRenderShell();
+        loadSxrCards(sxrClientSlug(name));
+    }
+
+    function _sxrRenderBody() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        if (!sxrState.client) { body.innerHTML = `<div class="sxr-empty">Select a client to review its samples.</div>`; return; }
+        if (sxrState.loading && !sxrState.cards.length) { body.innerHTML = _sxrLoaderHtml(); return; }
+        if (sxrState.error && !sxrState.cards.length) { body.innerHTML = `<div class="sxr-empty">Couldn't load samples right now. ${_calEsc(String(sxrState.error))}</div>`; return; }
+        if (!sxrState.cards.length) { body.innerHTML = `<div class="sxr-empty">No samples for ${_calEsc(sxrState.client || '')} yet.</div>`; return; }
+        body.innerHTML = `<div class="sxr-grid">${_sxrSortCards(sxrState.cards).map(_sxrRenderCard).join('')}</div>`;
+    }
+
+    async function loadSxrCards(slug, opts) {
+        opts = opts || {};
+        const bg = !!opts.background;
+        if (!_sxrReady()) { sxrState.loading = false; _sxrRenderBody(); return; }
+        const client = sxrState.client;
+        if (!client) { sxrState.cards = []; _sxrRenderBody(); return; }
+        slug = slug || sxrClientSlug(client);
+        // Cache-first paint (skip archived).
+        if (!opts.skipCache && !bg) {
+            const cached = _sxrCacheRead(slug);
+            if (cached && cached.length) {
+                sxrState.cards = cached.map(_sxrNormalize).filter(s => !_sxrIsArchived(s));
+                sxrState.loading = false; _sxrRenderBody();
+            }
+        }
+        if (!bg) { sxrState.loading = !sxrState.cards.length; if (sxrState.loading) _sxrRenderBody(); }
+        sxrState.error = null;
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 15000);
+            const data = await _sxrV2FetchCards(slug, ctrl.signal);
+            clearTimeout(timer);
+            const rows = Array.isArray(data) ? data : (data.items || data.posts || data.samples || []);
+            if (sxrClientSlug(sxrState.client) !== slug) return; // switched mid-flight
+            sxrState.cards = (rows || []).map(_sxrNormalize).filter(s => !_sxrIsArchived(s));
+            sxrState.loading = false; sxrState.error = null;
+            _sxrCacheWrite(slug, sxrState.cards);
+            _sxrRenderBody();
+            // Open (or re-point) the realtime subscription for this client.
+            if (_sxrV2Ready()) {
+                _sxrV2EnsureSubscribed(slug);
+                if (_sxrV2RtPending) { _sxrV2RtPending = false; _sxrV2OnRealtimeChange(slug); }
+            }
+        } catch (e) {
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            sxrState.loading = false;
+            if (!sxrState.cards.length) sxrState.error = (e && e.name === 'AbortError') ? 'timed out' : 'offline';
+            _sxrRenderBody();
+        }
+    }
+
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
@@ -23316,7 +23730,7 @@
         // refreshes (or arrives) directly on one of these we kick off
         // fetchAll in the background so the page paints immediately instead
         // of blocking on the analytics roundtrip.
-        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'tiktok-upload'];
+        const FAST_TABS = ['linear', 'workload', 'calendar', 'samples', 'templates', 'tiktok-upload', 'sample-reviews'];
 
         function _applyAllDataDependentChrome() {
             try {
@@ -23360,6 +23774,7 @@
             const hashIsFastTab = FAST_TABS.includes(hashRaw)
                 || hashRaw.startsWith('calendar/')
                 || hashRaw.startsWith('samples/')
+                || hashRaw.startsWith('sample-reviews/')
                 || hashRaw.startsWith('templates/');
             const fallbackFast = !hashRaw && !stateClient && FAST_TABS.includes(stateNav || savedNav);
             // Kasper has no analytics dependency — every sub-tab fetches its own
@@ -23378,6 +23793,7 @@
             // the calendar paints fast.
             const isClientCalendarLink = !!qp.get('c') && qp.get('v') === 'calendar';
             const isClientSamplesLink = !!qp.get('c') && qp.get('v') === 'samples';
+            const isClientSampleReviewsLink = !!qp.get('c') && qp.get('v') === 'sample-reviews' && (typeof _sxrEnabled === 'function' && _sxrEnabled());
             // Make the boot loader honest about what's actually loading. The
             // analytics data only matters for the analytics view, so don't
             // claim "Loading analytics…" when the visitor is refreshing
@@ -23387,6 +23803,7 @@
                 || hashRaw === 'calendar' || hashRaw.startsWith('calendar/');
             if (_landingIsCalendar) _setBootLoadingText('Loading content calendar…');
             else if (isClientSamplesLink || hashRaw === 'samples' || hashRaw.startsWith('samples/')) _setBootLoadingText('Loading content samples…');
+            else if (isClientSampleReviewsLink || hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/')) _setBootLoadingText('Loading sample reviews…');
             else if (_kasperHashLanding) _setBootLoadingText('Loading Kasper…');
 
             if (isClientCalendarLink) {
@@ -23475,6 +23892,48 @@
                 // Unknown client — fall through to the regular path.
             }
 
+            // Client share link for Samples (Review): ?c=<name>&v=sample-reviews[&t=<token>].
+            // Gated behind the ?sxr flag (isClientSampleReviewsLink folds it in), so
+            // with the flag off this never runs. Mirrors the samples share fast-path,
+            // reusing clientMap.client_review_token READ-ONLY.
+            if (isClientSampleReviewsLink) {
+                fetchExtras().then(_applyAllDataDependentChrome, err => {
+                    console.warn('[SyncView] background fetchExtras failed', err);
+                });
+                await fetchEssentials();
+                await Promise.resolve();
+                _resumePendingBriefPolling();
+                _applyAllDataDependentChrome();
+                const clientNames = [...new Set(allData.map(r => r.client_name))];
+                const clientFromQuery = decodeURIComponent(qp.get('c'));
+                const _sxrLink = clientNames.includes(clientFromQuery)
+                    ? clientFromQuery
+                    : (wlIsAllowedClient(clientFromQuery) ? wlCanonicalClient(clientFromQuery) : null);
+                if (_sxrLink) {
+                    const expectedToken = String(clientMap[_sxrLink]?.client_review_token || '').trim();
+                    const tParam = String(qp.get('t') || '').trim();
+                    if (expectedToken && tParam !== expectedToken) {
+                        document.querySelector('header.header').style.display = 'none';
+                        document.getElementById('pageTop').style.display = 'none';
+                        document.getElementById('content').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+                            <div style="font-size:1.15rem;font-weight:700;color:#111;">This link isn't valid</div>
+                            <div style="font-size:0.9rem;color:#777;max-width:380px;line-height:1.45;">Please ask your social media manager for an updated link.</div>
+                        </div>`;
+                        return;
+                    }
+                    if (!expectedToken) {
+                        console.warn('[SyncView] No client_review_token set for "' + clientFromQuery + '" — sample-reviews link is unguarded.');
+                    }
+                    document.getElementById('selectorWrap').style.display = 'none';
+                    document.getElementById('pageSub').style.display = 'none';
+                    document.querySelector('header.header').style.display = 'none';
+                    _sxrLinkClient = _sxrLink;
+                    navTo('sample-reviews', false);
+                    return;
+                }
+                // Unknown client — fall through to the regular path.
+            }
+
             // Kasper unlock must run BEFORE the skipAwait branch so the nav
             // button is visible regardless of which navigation path init()
             // takes. Previously this lived after the fast-path return, so
@@ -23506,6 +23965,16 @@
                     if(navKp) navKp.style.display='';
                 }
             }catch(e){}
+
+            // Samples (Review) tab — DEFAULT-OFF. Reveal the nav button only when
+            // the ?sxr flag/sticky is on (mirrors the Kasper reveal above). With
+            // the flag off this stays hidden and ZERO samples-review code runs.
+            try {
+                if (typeof _sxrEnabled === 'function' && _sxrEnabled()) {
+                    const navSxr = document.getElementById('navSampleReviews');
+                    if (navSxr) navSxr.style.display = '';
+                }
+            } catch (e) {}
 
             const dataPromise = fetchAll();
             dataPromise.then(_applyAllDataDependentChrome, () => {});
@@ -23549,6 +24018,14 @@
                     const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
                     if (match) _smFocusRequest = { client: match, cardId: cardId || null };
                     navTo('samples', false);
+                } else if (hashRaw.startsWith('sample-reviews/')) {
+                    const rest = hashRaw.slice('sample-reviews/'.length);
+                    const sl = rest.indexOf('/');
+                    const slug = sl >= 0 ? rest.slice(0, sl) : rest;
+                    const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
+                    const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
+                    if (match) _sxrFocusRequest = { client: match, cardId: cardId || null };
+                    navTo('sample-reviews', false);
                 } else if (hashRaw.startsWith('templates/')) {
                     // Templates name lookup needs allData — wait for it before
                     // setting the selected client, but mount the tab now.
@@ -23662,6 +24139,7 @@
             if(hash==='workload'){navTo(hash,false);return;}
             if(hash==='calendar'){navTo(hash,false);return;}
             if(hash==='samples'){navTo(hash,false);return;}
+            if(hash==='sample-reviews'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
@@ -23688,10 +24166,19 @@
                 if(match){_smFocusRequest={client:match,cardId:cardId||null};}
                 navTo('samples',false);return;
             }
+            if(hash.startsWith('sample-reviews/')){
+                const rest=hash.slice('sample-reviews/'.length);
+                const sl=rest.indexOf('/');
+                const slug=sl>=0?rest.slice(0,sl):rest;
+                const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
+                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug);
+                if(match){_sxrFocusRequest={client:match,cardId:cardId||null};}
+                navTo('sample-reviews',false);return;
+            }
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='sample-reviews'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;

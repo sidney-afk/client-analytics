@@ -4088,11 +4088,11 @@
      either by marking the last open change-request done (Notes modal) or by
      approving it in the Review tab. It resolves the open change-requests she
      ticks and routes the component to Kasper, the client, or straight to
-     Approved. The ✕ asks before closing so a stray click can't silently drop
-     the routing (and leave the change-requests half-handled). -->
-<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calResolveDestRequestClose()">
+     Approved. The ✕ (and a backdrop click) just close it — closing is
+     non-destructive, since nothing is applied until a route is picked. -->
+<div class="confirm-overlay" id="resolveDestOverlay" onclick="if(event.target===this)_calDismissResolveDest()">
     <div class="confirm-box resolve-dest-box">
-        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calResolveDestRequestClose()">
+        <button type="button" class="resolve-dest-close" id="resolveDestClose" aria-label="Close" title="Close" onclick="_calDismissResolveDest()">
             <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg>
         </button>
         <div id="resolveDestMain">
@@ -4105,14 +4105,6 @@
                 <button class="brief-action-btn" type="button" id="resolveDestApprove">Approve</button>
             </div>
             <button type="button" class="resolve-dest-stay" id="resolveDestStay" title="Resolve the change request(s) without moving this to another stage">Mark done — don’t change the status</button>
-        </div>
-        <div id="resolveDestDiscard" hidden>
-            <div class="confirm-box-title">Leave these open?</div>
-            <div class="confirm-box-msg">The change requests stay open and the post won’t move on — you can route it later.</div>
-            <div class="confirm-box-actions">
-                <button class="brief-action-btn" type="button" id="resolveDestKeep">Keep editing</button>
-                <button class="brief-action-btn primary" type="button" id="resolveDestDiscardYes">Discard &amp; close</button>
-            </div>
         </div>
     </div>
 </div>
@@ -22478,10 +22470,6 @@
        has seen it before, default to the client; a component that's never been
        to Kasper defaults to Kasper. */
     let _calResolveDestCb = null;
-    // Whether the ✕ asks before closing. True for the Notes "mark done" flow
-    // (a stray click shouldn't lose the SMM's place); false for the Review-tab
-    // "Approve & send" flow, where ✕ just cancels the send and closes outright.
-    let _calResolveDestConfirmClose = false;
     function _calResolveDestRecommend(post, comp) {
         if (!post) return 'client';
         if (_calShowApprovedAfterTweaks(post, comp)) return 'client';
@@ -22534,8 +22522,6 @@
     function _calShowResolveDest(opts) {
         opts = opts || {};
         const overlay = document.getElementById('resolveDestOverlay');
-        const main = document.getElementById('resolveDestMain');
-        const discard = document.getElementById('resolveDestDiscard');
         const msg = document.getElementById('resolveDestMsg');
         const checklist = document.getElementById('resolveDestChecklist');
         const kBtn = document.getElementById('resolveDestKasper');
@@ -22599,37 +22585,13 @@
         // a "don't change the status" escape doesn't belong there.
         const stayBtn = document.getElementById('resolveDestStay');
         if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
-        // ✕ behaviour: Notes confirms before closing (don't lose your place);
-        // the Review tab's ✕ just closes (cancels the send), nothing more.
-        _calResolveDestConfirmClose = !opts.fromReview;
-        // ✕ / backdrop → (Notes) confirm before dropping the routing; Keep returns
-        // to the chooser, Discard closes without applying anything.
-        const keepBtn = document.getElementById('resolveDestKeep');
-        const discardYes = document.getElementById('resolveDestDiscardYes');
-        if (keepBtn) keepBtn.onclick = () => { if (discard) discard.hidden = true; if (main) main.hidden = false; };
-        if (discardYes) discardYes.onclick = () => _calDismissResolveDest();
-        if (main) main.hidden = false;
-        if (discard) discard.hidden = true;
         overlay.classList.add('active');
     }
-    // ✕ / backdrop click. From the Review tab (no confirm) it just closes the
-    // popup — nothing more. From Notes it swaps to the discard-confirm screen so a
-    // stray click can't lose the SMM's place (closing is non-destructive either
-    // way — nothing is applied until a route is picked).
-    function _calResolveDestRequestClose() {
-        if (!_calResolveDestConfirmClose) { _calDismissResolveDest(); return; }
-        const main = document.getElementById('resolveDestMain');
-        const discard = document.getElementById('resolveDestDiscard');
-        if (main) main.hidden = true;
-        if (discard) discard.hidden = false;
-    }
+    // ✕ / backdrop click just closes the chooser — closing is non-destructive
+    // (nothing is applied until a route is picked), so no confirm is needed.
     function _calDismissResolveDest() {
         const overlay = document.getElementById('resolveDestOverlay');
         if (overlay) overlay.classList.remove('active');
-        const main = document.getElementById('resolveDestMain');
-        const discard = document.getElementById('resolveDestDiscard');
-        if (main) main.hidden = false;
-        if (discard) discard.hidden = true;
         _calResolveDestCb = null;
     }
     /* Called when the SMM clears the LAST open change-request on a component via

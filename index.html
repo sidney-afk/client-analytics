@@ -26319,7 +26319,20 @@
         const stampedAt = _kasperFinishedAt(post);
         const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
-        if (_kasperUndecidedComps(post).length > 0) return false;        // fresh ask: actionable KA
+        // A component back at Kasper Approval re-surfaces the card as a genuine
+        // "fresh ask" — but ONLY when the finish is SERVER-CONFIRMED (the global
+        // kasper_finished_at stamp is present on this row). A card's writes are
+        // serialized: the finish upsert is chained after every component decision
+        // (_kasperPersistPost), so a server row that carries the stamp necessarily
+        // carries those decisions too — a KA component on it is therefore a real
+        // re-route by the SMM. When the card is held finished on the LOCAL flag
+        // ALONE (the finish hasn't echoed back yet), a KA component is just the
+        // pre-decision status the store hasn't caught up on; a background
+        // auto-refresh that ingests that stale read must NOT drag the card back to
+        // "Waiting". That was the intermittent bug Kasper hit — a finished card
+        // popping back, showing whichever component the refresh caught mid-write.
+        // (Reply-based re-surface below is unaffected and still works either way.)
+        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: actionable KA (server-confirmed)
         const seen = stampedAt || _kasperGetSeenAt(post.id);             // global stamp, else local seen
         const latest = _calLatestMsgCreatedAt(post);                     // created-at: a resolve/edit bump is NOT a new ask
         if (seen && latest && latest > seen) return false;               // reply since he finished

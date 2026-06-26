@@ -11720,10 +11720,14 @@
     ];
 
     const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
+    const OB_VID = 'onboarding-video/';
+    // [key, name, desc, imageUrl, videoUrl] — videoUrl wins when set (a short clip); else image; else "soon".
     const OB_SUBTITLE_TYPES = [
-      ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'7663e79a-4126-4774-b5ed-34b2094192a5.jpg'],
-      ['boxed','Boxed banner','Text sits on a solid block.', SC_THUMB+'3e08ff7a-1b49-42c9-8fe8-532d07c778a6.jpg'],
-      ['minimal','Minimal','Small, thin, understated.', SC_THUMB+'69244920-d7c1-470f-b7c6-b90d0cf4077c.jpg'],
+      ['native','Native captions','Clean white text with a soft outline — the simple TikTok / Reels look.', SC_THUMB+'7663e79a-4126-4774-b5ed-34b2094192a5.jpg', ''],
+      ['boxed','Boxed banner','Text sits on a solid colour block.', SC_THUMB+'3e08ff7a-1b49-42c9-8fe8-532d07c778a6.jpg', ''],
+      ['minimal','Minimal','Small, thin, understated.', SC_THUMB+'69244920-d7c1-470f-b7c6-b90d0cf4077c.jpg', ''],
+      ['wordbyword','Word-by-word','Each word pops onto the screen as it\'s spoken.', '', ''],
+      ['highlight','Animated highlight','Words light up in colour in time with the voice.', '', ''],
     ];
     // AI "which look" examples (ⓘ → full-screen frame)
     const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
@@ -11788,19 +11792,21 @@
 
     function _obSubtitles(){
       const cards = OB_SUBTITLE_TYPES.map(t=>{
-        const thumb = t[3]
-          ? '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[3]+'" aria-label="View example full screen"><img src="'+t[3]+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span></button>'
-          : '<div class="ob-sub-thumb ob-sub-noimg">—</div>';
+        let thumb;
+        if(t[4]) thumb = '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[4]+'" aria-label="Play example full screen"><video src="'+t[4]+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic">▶</span></button>';
+        else if(t[3]) thumb = '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[3]+'" aria-label="View example full screen"><img src="'+t[3]+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span></button>';
+        else thumb = '<div class="ob-sub-thumb ob-sub-noimg">soon</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
         return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+thumb+'</div>';
       }).join('');
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
         '<div class="ob-help">Pick the style you like. Tap an example to see it full screen.</div>'+
         '<div class="ob-sub-grid" data-ob-radio="subtitle_style">'+cards+'</div></div>'+
+        _obField({id:'subtitle_refs', label:'Subtitle references (optional)', help:'Seen a subtitle style you love somewhere? Paste the link(s) here.', type:'textarea', rows:2, placeholder:'Paste any links…'})+
         _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
     }
 
-    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', exclusive:'none', options:OB_BROLL_OPTS }); }
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Tick any that fit — picking both Stock and AI is totally fine if you\'d like a mix.', type:'multiselect', exclusive:'none', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
@@ -11873,7 +11879,7 @@
           _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
           _obField({id:'overall_approach', label:'Overall feel', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_APPROACH_OPTS}),
           _obField({id:'brand_tone', label:'Brand tone', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_TONE_OPTS}),
-          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', type:'textarea', rows:2}),
+          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Also the place for any style preference the options above didn\'t cover — anything we should keep in mind for every video.', type:'textarea', rows:2}),
           _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s4', n:'4', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
@@ -11883,6 +11889,7 @@
         { id:'s5', n:'5', title:'Goals', fields:[
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
           _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
+          _obField({id:'questions', label:'Questions or anything unclear?', help:'If none of the options above fit what you had in mind, or you\'re unsure about anything, ask away here.', type:'textarea'}),
         ]},
         { id:'s6', n:'6', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
           '<div class="ob-q"><div class="ob-info-panel">Prefer not to type passwords here? You can share them securely through <b>LastPass</b> to <b>house@synchrosocial.com</b> — we get access without the passwords ever being visible. Otherwise, just fill in what you can below.</div></div>',
@@ -12046,8 +12053,9 @@
 
     function _obZoom(url){
       let ov=document.getElementById('obZoom');
-      if(!ov){ ov=document.createElement('div'); ov.id='obZoom'; ov.className='ob-zoom-ov'; ov.addEventListener('click',()=>ov.classList.remove('show')); document.body.appendChild(ov); }
-      ov.innerHTML='<img src="'+_obEsc(url)+'" alt="Example"><span class="ob-zoom-x">✕</span>';
+      if(!ov){ ov=document.createElement('div'); ov.id='obZoom'; ov.className='ob-zoom-ov'; ov.addEventListener('click',()=>{ ov.classList.remove('show'); ov.innerHTML=''; }); document.body.appendChild(ov); }
+      const isVid=/\.(mp4|webm|mov|m4v)(\?|$)/i.test(url);
+      ov.innerHTML=(isVid?'<video src="'+_obEsc(url)+'" controls autoplay loop playsinline></video>':'<img src="'+_obEsc(url)+'" alt="Example">')+'<span class="ob-zoom-x">✕</span>';
       ov.classList.add('show');
     }
 
@@ -12210,12 +12218,12 @@
       .ob-sub-name{ font-size:0.84rem; font-weight:600; }
       .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
       .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
-      .ob-sub-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
-      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.1rem; cursor:default; }
+      .ob-sub-thumb img,.ob-sub-thumb video{ width:100%; height:100%; object-fit:cover; display:block; }
+      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; cursor:default; }
       .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }
       .ob-zoom-ov{ position:fixed; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
       .ob-zoom-ov.show{ display:flex; }
-      .ob-zoom-ov img{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.4); }
+      .ob-zoom-ov img,.ob-zoom-ov video{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.4); }
       .ob-zoom-x{ position:fixed; top:18px; right:22px; color:#fff; font-size:1.4rem; opacity:0.8; }
       .ob-toggle-q{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
       .ob-switch{ position:relative; display:inline-block; width:44px; height:26px; flex-shrink:0; cursor:pointer; }

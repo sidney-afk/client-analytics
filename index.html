@@ -25347,6 +25347,11 @@
         if (acct) {
             // Privacy
             const privOpts = _ttpPrivacyOptions();
+            // While the app is unaudited, SELF_ONLY is the ONLY allowed option (TikTok
+            // forces private), so auto-select it — otherwise the locked dropdown stays
+            // on its empty placeholder and submit can never enable. When audited and
+            // multiple options exist, we keep "no default" (the compliance rule).
+            if (!TTP_APP_AUDITED && !opts.privacy_level && privOpts.length === 1 && privOpts[0] === 'SELF_ONLY') opts.privacy_level = 'SELF_ONLY';
             const privacyChosen = opts.privacy_level && privOpts.includes(opts.privacy_level);
             let privacyInner;
             if (ttpState.creatorInfoLoading) {

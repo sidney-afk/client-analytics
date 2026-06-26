@@ -3890,8 +3890,24 @@
         .sxr-tab:hover { border-color:#cfcfcb; }
         .sxr-tab.active { background:hsl(var(--tab-h,250),70%,96%); border-color:hsl(var(--tab-h,250),50%,72%); color:hsl(var(--tab-h,250),45%,32%); }
         .sxr-tab-dot { width:8px; height:8px; border-radius:99px; background:hsl(var(--tab-h,250),60%,55%); flex:0 0 auto; }
+        .sxr-tab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:99px; background:#ec4899; color:#fff; font-size:0.62rem; font-weight:800; }
+        .sxr-tab-x { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:99px; color:var(--text-muted); font-size:0.95rem; line-height:1; opacity:0; transition:opacity 0.12s, background 0.12s; }
+        .sxr-tab:hover .sxr-tab-x { opacity:0.75; }
+        .sxr-tab-x:hover { opacity:1; background:rgba(0,0,0,0.08); }
+        .sxr-tab-add-wrap { position:relative; display:inline-flex; }
+        .sxr-tab-add { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; border:1px dashed var(--border); background:transparent; border-radius:99px; color:var(--text-muted); font-family:inherit; font-size:0.78rem; font-weight:700; cursor:pointer; }
+        .sxr-tab-add:hover { color:var(--text-primary); border-color:#aaa; }
+        .sxr-tab-add svg { width:14px; height:14px; }
+        .sxr-tab-add-panel { position:absolute; top:calc(100% + 6px); left:0; z-index:120; min-width:200px; max-height:300px; overflow-y:auto; background:var(--white); border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 22px rgba(0,0,0,0.12); padding:5px; }
+        .sxr-tab-add-panel[hidden] { display:none; }
+        .sxr-tab-add-item { display:block; width:100%; text-align:left; padding:8px 10px; border:0; background:transparent; border-radius:7px; font-family:inherit; font-size:0.8rem; color:var(--text-primary); cursor:pointer; }
+        .sxr-tab-add-item:hover { background:var(--bg); }
+        .sxr-tab-add-empty { padding:10px; font-size:0.78rem; color:var(--text-muted); }
         .sxr-body { padding-top:14px; }
         .sxr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; padding-bottom:30px; }
+        #sxrBody[data-zoom="s"] .sxr-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
+        #sxrBody[data-zoom="l"] .sxr-grid { grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); }
+        .sxr-zoom { flex:0 0 auto; }
         .sxr-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
         .sxr-card-thumb { width:100%; aspect-ratio:16/10; background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); }
         .sxr-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
@@ -13836,7 +13852,24 @@
     const SXR_RT_SELF_ECHO_MS = 4000;
 
     /* sxrState — this module's ENTIRE mutable surface. Never touch calState/smState. */
-    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false };
+    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false, zoom: (function () { try { return localStorage.getItem('syncview_sxr_zoom') || 'm'; } catch (e) { return 'm'; } })() };
+    const SXR_ZOOM_LEVELS = ['s', 'm', 'l'];
+    function _sxrApplyZoom() {
+        const body = document.getElementById('sxrBody');
+        if (body) body.dataset.zoom = sxrState.zoom || 'm';
+        const i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        const out = document.getElementById('sxrZoomOut'), inb = document.getElementById('sxrZoomIn');
+        if (out) out.disabled = i <= 0;
+        if (inb) inb.disabled = i >= SXR_ZOOM_LEVELS.length - 1;
+    }
+    function _sxrZoom(delta) {
+        let i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        if (i < 0) i = 1;
+        i = Math.max(0, Math.min(SXR_ZOOM_LEVELS.length - 1, i + delta));
+        sxrState.zoom = SXR_ZOOM_LEVELS[i];
+        try { localStorage.setItem('syncview_sxr_zoom', sxrState.zoom); } catch (e) {}
+        _sxrApplyZoom();
+    }
     let _sxrLinkClient = null;     // client locked in via a ?c=…&v=sample-reviews share link
     let _sxrFocusRequest = null;   // {client, cardId} from a #sample-reviews/<slug>/<id> deep link
 
@@ -14047,6 +14080,55 @@
     function _sxrThumbIconSvg() {
         return `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
     }
+    /* The thumbnail markup for a card (img + fallback icon). Extracted so an
+       in-place media-edit refresh and the initial render share one source. */
+    function _sxrThumbHtml(s) {
+        const thumbUrl = _sxrDeriveThumb(s);
+        return thumbUrl
+            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
+            : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
+    }
+    /* Repaint a card's thumbnail IN PLACE after a media link edit — bump the
+       cache-bust token and re-derive, so the editing browser sees the new image
+       immediately (without waiting for a full grid repaint). Clone of
+       _calForceThumbRefresh's intent. */
+    function _sxrForceThumbRefresh(pid) {
+        const card = _sxrFind(pid);
+        if (!card) return;
+        card.thumb_rev = _sxrBumpThumbRev(pid);
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const thumb = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${sel}"] .sxr-card-thumb`);
+        if (thumb) thumb.innerHTML = _sxrThumbHtml(card);
+    }
+    /* Harvest already-decoded thumbnail <img>s before a grid rebuild and re-insert
+       them after, keyed by id + cache-buster-agnostic src base — so a background
+       repaint doesn't tear down + re-decode every thumbnail (the per-repaint
+       flash). Clone of _calHarvestThumbs / _calRestoreThumbs. */
+    function _sxrHarvestThumbs() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return null;
+        const map = new Map();
+        body.querySelectorAll('.sxr-card[data-sxr-id] .sxr-card-thumb img').forEach(img => {
+            if (!img.complete || img.naturalWidth === 0) return;
+            const card = img.closest('.sxr-card');
+            const id = card && card.getAttribute('data-sxr-id');
+            const src = img.getAttribute('src') || '';
+            if (id && src) map.set(id + '|' + _calThumbSrcBase(src), img);
+        });
+        return map;
+    }
+    function _sxrRestoreThumbs(map) {
+        if (!map || map.size === 0) return;
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        body.querySelectorAll('.sxr-card[data-sxr-id] .sxr-card-thumb img').forEach(newImg => {
+            const card = newImg.closest('.sxr-card');
+            const id = card && card.getAttribute('data-sxr-id');
+            const src = newImg.getAttribute('src') || '';
+            const saved = map.get(id + '|' + _calThumbSrcBase(src));
+            if (saved) newImg.replaceWith(saved);
+        });
+    }
 
     /* ── card render (M2 — editable for the SMM, read-only on a client link) ──
        Thumbnail (derived from the media links) + the per-component status pills
@@ -14074,10 +14156,7 @@
         // calendar's is-blank card). Derived from the id so the .map(_sxrRenderCard)
         // call site can't shadow it with the array index.
         const isBlank = _sxrIsBlankId(s.id);
-        const thumbUrl = _sxrDeriveThumb(s);
-        const thumbHtml = thumbUrl
-            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
-            : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
+        const thumbHtml = _sxrThumbHtml(s);
         // Per-component status pills. On the SMM surface they are ACTIONABLE
         // (click → status menu); on a client link, a read-only display. M3b.
         const pills = _sxrPillsHtml(s);
@@ -14112,13 +14191,13 @@
             <button class="sxr-card-del" type="button" onclick="archiveSxrCard('${id}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="sxr-card-thumb">${thumbHtml}</div>
             <div class="sxr-card-meta">
-                <input class="sxr-input sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEscAttr(s.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)">
+                <input class="sxr-input sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEscAttr(s.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">
                 <div class="sxr-card-pills">${pills}</div>
                 ${_sxrUrlFieldHtml(s.id, 'asset_url', s.asset_url, 'Video URL (Frame.io / Drive)')}
                 ${_sxrUrlFieldHtml(s.id, 'thumbnail_url', s.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
                 <div class="sxr-fld">
                     <div class="sxr-fld-label sxr-dir-head"><span>Creative direction</span>${_sxrDirToggleHtml(s.id, hideCd)}</div>
-                    <textarea class="sxr-textarea" rows="3" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)">${_calEsc(cd)}</textarea>
+                    <textarea class="sxr-textarea" rows="3" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">${_calEsc(cd)}</textarea>
                 </div>
                 ${_sxrUrlFieldHtml(s.id, 'linear_issue_id', s.linear_issue_id, 'Video Linear sub-issue URL')}
                 ${_sxrUrlFieldHtml(s.id, 'graphic_linear_issue_id', s.graphic_linear_issue_id, 'Graphic Linear sub-issue URL')}
@@ -14141,7 +14220,7 @@
             ? `<button type="button" class="sxr-url-open" onclick="_sxrOpenUrl(this)" title="Open in a new tab">${_sxrExtLinkSvg()}</button>`
             : '';
         return `<div class="sxr-url-row" data-sxr-fld-wrap="${fld}">
-            <input class="sxr-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEscAttr(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)">
+            <input class="sxr-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEscAttr(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">
             ${open}
         </div>`;
     }
@@ -15374,6 +15453,7 @@
         const tmp = document.createElement('div');
         tmp.innerHTML = _sxrPillsHtml(sample);
         wrap.innerHTML = tmp.innerHTML;
+        _sxrUpdateBadge();   // keep the "awaiting SMM" tab count live
     }
     /* The per-component status pills HTML. On the SMM surface they are
        ACTIONABLE (a click opens the status menu); on a client link they are a
@@ -15719,6 +15799,25 @@
         return keys.length > 0 && keys.every(k => _SXR_CLIENT_WRITE_COLS.has(k));
     }
     function _sxrFind(pid) { return (sxrState.cards || []).find(c => String(c.id) === String(pid)); }
+    /* Capture the pre-edit value on focus so Escape can revert to it. */
+    function _sxrOnFieldFocus(el) { try { el.dataset.sxrOrig = el.value; } catch (e) {} }
+    /* Keyboard contract on the editable card fields: Enter commits (blur) on
+       single-line inputs; Escape reverts to the pre-edit value and cancels the
+       save. Clone of _calLinearKey's intent, extended to revert. */
+    function _sxrOnFieldKey(e, el) {
+        if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); el.blur(); return; }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld;
+            const orig = el.dataset.sxrOrig != null ? el.dataset.sxrOrig : '';
+            el.value = orig;
+            const card = _sxrFind(pid);
+            if (card && fld) card[fld] = orig;
+            if (pid && fld && _sxrPendingEdits[pid]) { delete _sxrPendingEdits[pid][fld]; if (!Object.keys(_sxrPendingEdits[pid]).length) delete _sxrPendingEdits[pid]; }
+            el.dataset.sxrCancel = '1';
+            el.blur();
+        }
+    }
     function _sxrOnFieldInput(el) {
         if (_sxrClientFieldEditBlocked()) return;   // read-only on a client link — never persist
         const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld, val = el.value;
@@ -15731,6 +15830,7 @@
     }
     function _sxrOnFieldBlur(el) {
         if (_sxrClientFieldEditBlocked()) return;
+        if (el.dataset.sxrCancel === '1') { delete el.dataset.sxrCancel; return; }   // Escape cancelled this edit
         const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld, val = el.value;
         if (!pid || !fld) return;
         const card = _sxrFind(pid); if (card) card[fld] = val;
@@ -15750,6 +15850,9 @@
                 }
             }
         }
+        // Repaint the thumbnail in place the instant a media link blurs, so the
+        // editing browser sees the new image without waiting for a full repaint.
+        if (fld === 'asset_url' || fld === 'thumbnail_url') _sxrForceThumbRefresh(pid);
         _sxrFlushCardSave(pid);
     }
     function _sxrOnTextareaInput(el) {
@@ -16470,11 +16573,13 @@
         const ids = Array.from(strip.querySelectorAll('.sxr-card.is-editable')).map(c => c.getAttribute('data-sxr-id'));
         if (!ids.length) return;
         const items = [];
+        const prevOrder = new Map();   // id → pre-drag order_index, for failure rollback + undo
         let changed = false;
         ids.forEach((id, i) => {
             const card = _sxrFind(id);
             const newOrder = i + 1;
             if (card) {
+                prevOrder.set(String(id), Number(card.order_index || 0));
                 if (Number(card.order_index || 0) !== newOrder) changed = true;
                 card.order_index = newOrder;   // local optimistic order (no updated_at bump)
             }
@@ -16483,15 +16588,27 @@
         if (!changed) return;
         _sxrRecordReorderOptimistic(items);
         try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
+        persistSxrReorder(items, slug, prevOrder);
+    }
+    /* Restore a pre-drag order (Undo after a successful reorder, or rollback after
+       a failed one) through the same persist funnel. Clone of _calUndoReorder. */
+    function _sxrUndoReorder(prevOrder, slug) {
+        if (!prevOrder || !prevOrder.size) return;
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        const items = [];
+        prevOrder.forEach((ord, id) => { const c = _sxrFind(id); if (c) c.order_index = ord; items.push({ id, order_index: ord }); });
+        _sxrRecordReorderOptimistic(items);
+        try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
+        _sxrRenderBody();
         persistSxrReorder(items, slug);
     }
     let _sxrReorderInFlight = false;
     let _sxrReorderPending = null;
-    async function persistSxrReorder(items, slug) {
+    async function persistSxrReorder(items, slug, prevOrder) {
         if (slug == null) slug = sxrClientSlug(sxrState.client);
         // Serialize + coalesce: a drag made while a write is in flight is held
         // and run after it, so the final stored order matches the last action.
-        if (_sxrReorderInFlight) { _sxrReorderPending = { items, slug }; return; }
+        if (_sxrReorderInFlight) { _sxrReorderPending = { items, slug, prevOrder }; return; }
         _sxrReorderInFlight = true;
         _sxrLastLocalWriteAt = Date.now();   // treat as a local write (defer the echo reload)
         try {
@@ -16502,6 +16619,9 @@
             const json = await resp.json();
             if (!json || !json.ok) throw new Error('reorder failed');
             _sxrLastLocalWriteAt = Date.now();
+            if (prevOrder && prevOrder.size && typeof showToast === 'function') {
+                showToast('New order saved', { actionLabel: 'Undo', onAction: () => _sxrUndoReorder(prevOrder, slug) });
+            }
         } catch (e) {
             console.warn('[Samples v2] reorder failed', e);
             // Drop the optimistic guard for the ids this write tried to set (only
@@ -16511,14 +16631,22 @@
                 const ro = _sxrReorderOptimistic.get(String(id));
                 if (ro && ro.order_index === Number(order_index)) _sxrReorderOptimistic.delete(String(id));
             });
-            if (typeof showToast === 'function') showToast('Couldn’t save the new order — try again.');
+            // Roll back the optimistic order_index + repaint so the dropped card
+            // snaps back to its real position instead of lingering wrong until the
+            // next server reload. Clone of persistCalReorder's catch rollback.
+            if (prevOrder && prevOrder.size && sxrClientSlug(sxrState.client) === slug) {
+                prevOrder.forEach((ord, id) => { const c = _sxrFind(id); if (c) c.order_index = ord; });
+                try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
+                _sxrRenderBody();
+            }
+            if (typeof showToast === 'function') showToast('Couldn’t save the new order — reverted. Try again.');
         } finally {
             _sxrReorderInFlight = false;
             if (_sxrReorderPending) {
                 const next = _sxrReorderPending;
                 _sxrReorderPending = null;
                 _sxrRecordReorderOptimistic(next.items);
-                persistSxrReorder(next.items, next.slug);
+                persistSxrReorder(next.items, next.slug, next.prevOrder);
             }
         }
     }
@@ -16528,11 +16656,21 @@
         return `<div class="sxr-view" id="sxrView">${_sxrLoaderHtml()}</div>`;
     }
     function _sxrLoaderHtml() {
-        return `<div class="sxr-loader"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`;
+        return `<div class="sxr-loader" role="status" aria-label="Loading"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`;
+    }
+    /* Grow every card textarea (creative direction) to fit its saved content on
+       render — without this a long creative_direction paints clipped at rows=3
+       until focused. Mirrors _calAutosizeTextareas; same math as _sxrOnTextareaInput. */
+    function _sxrAutosizeTextareas(root) {
+        (root || document).querySelectorAll('.sxr-textarea').forEach(t => {
+            t.style.height = 'auto';
+            t.style.height = Math.max(t.scrollHeight, parseInt(getComputedStyle(t).minHeight) || 0) + 2 + 'px';
+        });
     }
     function mountSampleReviews() {
         _sxrV2Teardown(); // clear any stale realtime channel before (re)mount
         if (!_sxrEnabled()) { const v = document.getElementById('sxrView'); if (v) v.innerHTML = '<div class="sxr-loader"><span>Samples (Review) is off.</span></div>'; return; }
+        _sxrWireDeferredRender();
         const pins = _calGetPins(); // READ-ONLY
         if (_isClientLink && _sxrLinkClient) {
             sxrState.client = _sxrLinkClient; sxrState.embedded = true;
@@ -16573,6 +16711,11 @@
             ? `<div class="sxr-toolbar-right">
                     <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
                     <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards(sxrClientSlug(sxrState.client),{skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    <div class="cal-zoom sxr-zoom" id="sxrZoomCtl" title="Card size">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                        <button type="button" id="sxrZoomOut" onclick="_sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                        <button type="button" id="sxrZoomIn" onclick="_sxrZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                    </div>
                     <button type="button" class="sxr-share-btn" onclick="_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg><span>Share</span></button>
                 </div>`
             : '';
@@ -16604,18 +16747,38 @@
                 </div>
             </div>`;
         if (!(_isClientLink && sxrState.embedded)) _sxrRenderTabs();
+        _sxrApplyZoom();
     }
 
+    /* Count of the ACTIVE client's samples with a component awaiting SMM sign-off
+       (For SMM Approval) — the at-a-glance "how many need me" badge. */
+    function _sxrApprovalBadgeCount() {
+        return (sxrState.cards || []).reduce((n, s) => n + (SXR_COMPONENTS.some(c => _calNormStatus(s[c + '_status'] || '') === 'For SMM Approval') ? 1 : 0), 0);
+    }
+    function _sxrUpdateBadge() {
+        const el = document.querySelector('#sxrTabs .sxr-tab.active');
+        if (!el) return;
+        const count = _sxrApprovalBadgeCount();
+        let badge = el.querySelector('.sxr-tab-badge');
+        if (count > 0) {
+            if (!badge) { badge = document.createElement('span'); badge.className = 'sxr-tab-badge'; el.insertBefore(badge, el.querySelector('.sxr-tab-x')); }
+            badge.textContent = String(count);
+        } else if (badge) badge.remove();
+    }
     function _sxrRenderTabs() {
         const el = document.getElementById('sxrTabs');
         if (!el) return;
-        const pins = _calGetPins(); // READ-ONLY reuse of the per-client tab pins
+        const pins = _calGetPins(); // shared per-client tab pins (now writable from here too)
         const active = sxrState.client;
-        if (!pins.length) { el.innerHTML = `<div class="sxr-tabs-empty">Pin a client in the Calendar or Samples tab to review its samples here.</div>`; return; }
-        el.innerHTML = pins.map(name => {
+        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>`;
+        const tabsHtml = pins.map(name => {
             const isA = name === active;
-            return `<button type="button" class="sxr-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSxrTabClick(${_jsAttrArg(name)})"><span class="sxr-tab-dot"></span><span>${_calEsc(name)}</span></button>`;
+            const count = isA ? _sxrApprovalBadgeCount() : 0;
+            const badge = count > 0 ? `<span class="sxr-tab-badge">${count}</span>` : '';
+            return `<button type="button" class="sxr-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSxrTabClick(${_jsAttrArg(name)})"><span class="sxr-tab-dot"></span><span>${_calEsc(name)}</span>${badge}<span class="sxr-tab-x" title="Remove client" onclick="event.stopPropagation();onSxrTabRemove(${_jsAttrArg(name)})">×</span></button>`;
         }).join('');
+        const addHtml = `<div class="sxr-tab-add-wrap"><button type="button" class="sxr-tab-add" onclick="onSxrTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sxr-tab-add-panel" id="sxrTabAddPanel" hidden></div></div>`;
+        el.innerHTML = tabsHtml + addHtml;
     }
     function onSxrTabClick(name) {
         if (!name || name === sxrState.client) return;
@@ -16623,7 +16786,64 @@
         _sxrRenderShell();
         loadSxrCards(sxrClientSlug(name));
     }
+    function onSxrTabRemove(name) {
+        const pins = _calGetPins().filter(n => n !== name);
+        _calSavePins(pins);
+        if (sxrState.client === name) {
+            const next = pins[0] || null;
+            sxrState.client = next; sxrState.cards = []; sxrState.error = null;
+            _sxrRenderShell();
+            if (next) loadSxrCards(sxrClientSlug(next)); else _sxrRenderBody();
+        } else _sxrRenderTabs();
+    }
+    function _sxrTabAddOutside(e) {
+        if (!e.target.closest('.sxr-tab-add-wrap')) { const p = document.getElementById('sxrTabAddPanel'); if (p) p.hidden = true; document.removeEventListener('mousedown', _sxrTabAddOutside); }
+    }
+    function onSxrTabAddClick(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('sxrTabAddPanel');
+        if (!panel) return;
+        if (!panel.hidden) { panel.hidden = true; document.removeEventListener('mousedown', _sxrTabAddOutside); return; }
+        const pins = _calGetPins();
+        const all = (typeof WL_CLIENT_NAMES !== 'undefined' && Array.isArray(WL_CLIENT_NAMES)) ? WL_CLIENT_NAMES : [];
+        const avail = all.filter(n => !pins.includes(n)).sort((a, b) => String(a).localeCompare(String(b)));
+        panel.innerHTML = avail.length
+            ? avail.map(n => `<button type="button" class="sxr-tab-add-item" onclick="onSxrTabAddPick(${_jsAttrArg(n)})">${_calEsc(n)}</button>`).join('')
+            : `<div class="sxr-tab-add-empty">All clients added</div>`;
+        panel.hidden = false;
+        setTimeout(() => document.addEventListener('mousedown', _sxrTabAddOutside), 0);
+    }
+    function onSxrTabAddPick(name) {
+        const p = document.getElementById('sxrTabAddPanel'); if (p) p.hidden = true;
+        document.removeEventListener('mousedown', _sxrTabAddOutside);
+        if (!name) return;
+        const pins = _calGetPins();
+        if (!pins.includes(name)) { pins.push(name); _calSavePins(pins); }
+        sxrState.client = name; sxrState.cards = []; sxrState.error = null;
+        _sxrRenderShell();
+        loadSxrCards(sxrClientSlug(name));
+    }
 
+    /* Deferred-render-on-blur: a background realtime change that lands while the
+       SMM is typing in a card is dropped by the editing-guard above, then replayed
+       once focus leaves the field — so other cards' updates aren't lost. Clone of
+       _calSchedulePendingRender / _calMaybeRunPendingRender + the focusout flush. */
+    let _sxrPendingBackgroundRender = false;
+    let _sxrFocusoutWired = false;
+    function _sxrMaybeRunPendingRender() {
+        if (!_sxrPendingBackgroundRender) return;
+        const ae = document.activeElement;
+        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && ae.matches('input, textarea')) return;
+        _sxrPendingBackgroundRender = false;
+        _sxrRenderBody();
+    }
+    function _sxrWireDeferredRender() {
+        if (_sxrFocusoutWired) return;
+        _sxrFocusoutWired = true;
+        document.addEventListener('focusout', (e) => {
+            if (e.target && e.target.closest && e.target.closest('#sxrBody .sxr-card.is-editable')) setTimeout(_sxrMaybeRunPendingRender, 60);
+        });
+    }
     function _sxrRenderBody() {
         const body = document.getElementById('sxrBody');
         if (!body) return;
@@ -16638,7 +16858,7 @@
         // realtime reload mid-edit would otherwise lose the caret / typed text
         // (the pending save still holds it; we just skip the repaint until blur).
         const ae = document.activeElement;
-        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && (ae.matches('input, textarea'))) return;
+        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && (ae.matches('input, textarea'))) { _sxrPendingBackgroundRender = true; return; }
         if (!sxrState.cards.length) {
             // Empty: the SMM gets an "Add the first sample" hero (so the surface is
             // usable from zero); a client share link gets read-only text.
@@ -16647,8 +16867,15 @@
                 : `<div class="sxr-empty">No samples for ${_calEsc(sxrState.client || '')} yet.</div>`;
             return;
         }
+        // Harvest decoded thumbnails + capture scroll so a background repaint
+        // doesn't re-decode every image (flicker) or jump the page to the top.
+        const harvested = _sxrHarvestThumbs();
+        const scrollY0 = window.scrollY;
         const cardsHtml = _sxrSortCards(sxrState.cards).map(_sxrRenderCard).join('');
         body.innerHTML = `<div class="sxr-grid">${cardsHtml}${canAdd ? _sxrAddTileHtml(false) : ''}</div>`;
+        _sxrRestoreThumbs(harvested);
+        if (scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
+        _sxrAutosizeTextareas(body);
         _sxrWireDrag();
     }
     /* The Add-sample affordance — an "Add the first sample" hero when the grid is

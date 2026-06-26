@@ -17377,11 +17377,14 @@
         setTimeout(() => { if (card) card.classList.remove('sxr-card-focus'); }, 2200);
     }
 
-    /* Copy a client-facing link to these sample reviews (?c=…&v=sample-reviews —
-       the surface already routes/consumes it). Clone of calCopyShareLink. */
+    /* Copy a client-facing link to these sample reviews. Carries ?sxr=1 because
+       Samples (Review) is still DEFAULT-OFF — without the flag the client-link
+       route (_sxrEnabled gate) won't mount the surface for a fresh client and
+       realtime never activates. (Harmless once samples flips default-on.)
+       Clone of calCopyShareLink. */
     function _sxrCopyShareLink() {
         if (!sxrState.client) return;
-        const url = `${location.origin}${location.pathname}?c=${encodeURIComponent(sxrState.client)}&v=sample-reviews`;
+        const url = `${location.origin}${location.pathname}?sxr=1&c=${encodeURIComponent(sxrState.client)}&v=sample-reviews`;
         navigator.clipboard.writeText(url).then(
             () => showToast('Client link copied to clipboard'),
             () => showToast("Couldn't copy the link")
@@ -17727,6 +17730,33 @@
             _sxrSetRefreshing(false);
         }
     }
+
+    /* Tab-return / focus catch-up — a faithful clone of the calendar's
+       _calRefreshOnReturn. A backgrounded tab's realtime WebSocket suspends and
+       Supabase does NOT replay the rows it missed, so realtime alone leaves the
+       samples surface stale after an app/tab switch. On every tab return (or
+       window focus / bfcache restore) we fire ONE throttled background reload
+       from Supabase, which catches up everything missed — exactly how the
+       calendar stays live. Event-driven (no polling); a mid-edit repaint is
+       deferred by _sxrRenderBody's own guard until the user blurs out. */
+    let _sxrLastReturnLoad = 0;
+    const SXR_RETURN_REFRESH_MIN_MS = 4000;
+    function _sxrRefreshOnReturn() {
+        if (document.visibilityState === 'hidden') return;
+        if (!_sxrReady() || !sxrState.client) return;
+        // Only when the samples surface is actually mounted (skips other tabs).
+        if (!document.getElementById('sxrBody')) return;
+        const slug = sxrClientSlug(sxrState.client);
+        if (!slug) return;
+        const now = Date.now();
+        if (now - _sxrLastReturnLoad < SXR_RETURN_REFRESH_MIN_MS) return;
+        if (sxrState.loading) return;
+        _sxrLastReturnLoad = now;
+        loadSxrCards(slug, { background: true });
+    }
+    document.addEventListener('visibilitychange', _sxrRefreshOnReturn);
+    window.addEventListener('focus', _sxrRefreshOnReturn);
+    window.addEventListener('pageshow', _sxrRefreshOnReturn);
 
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */

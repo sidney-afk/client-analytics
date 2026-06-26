@@ -14264,6 +14264,10 @@
         _sxrRefreshCommentsBtn(pid);
         _sxrRefreshCardPills(pid);
         _sxrGuardedFlush(pid, key);
+        // Mirror the change-request onto the editor's Linear issue (their only
+        // inbox). video/graphic only; a no-op when the component isn't linked.
+        const _linUrl = _sxrLinearUrlFor(sample, comp);
+        if (_linUrl) _sxrPostLinearComment(_linUrl, body, author || _sxrCurrentAuthor());
         return true;
     }
 
@@ -14960,6 +14964,15 @@
         delete _sxrPendingEdits[pid];
         let _releaseSave;
         _sxrSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
+        // Consume the single-shot Linear-push suppressors for this card (set by
+        // a status we just ADOPTED from Linear) BEFORE the async write, so the
+        // success path knows not to echo that status straight back to Linear.
+        const _suppressAll = _sxrNoLinearPush.has(pid);
+        const _suppressVideo = _suppressAll || _sxrNoLinearPush.has(pid + '|video');
+        const _suppressGraphic = _suppressAll || _sxrNoLinearPush.has(pid + '|graphic');
+        _sxrNoLinearPush.delete(pid);
+        _sxrNoLinearPush.delete(pid + '|video');
+        _sxrNoLinearPush.delete(pid + '|graphic');
         let prevSnapshot = null;
         try {
             const idx = (sxrState.cards || []).findIndex(c => String(c.id) === String(pid));
@@ -15018,6 +15031,39 @@
             _sxrCacheWrite(_saveSlug, sxrState.cards);
             const ok = _sxrFind(pid); if (ok && ok._saveError) delete ok._saveError;
             _sxrSetCardStatus(pid, 'saved');
+            // Record this successful local write so the next background reload
+            // can tell a stale Linear round-trip (server reverts/echoes a
+            // sub-status) from a genuine cross-actor change (Kasper approving).
+            _sxrLocalRecentSaves.set(pid, Date.now());
+            _sxrRecentSaveFields.set(pid, {
+                wrote: { video_status: post.video_status, graphic_status: post.graphic_status },
+                base: prevSnapshot ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status } : {}
+            });
+            const savedRow = _sxrFind(pid);
+            if (savedRow) {
+                // Outbound push: a changed sub-status goes to ITS linked issue
+                // (video→video issue, graphic→graphic issue, never the overall).
+                // Suppressed for a status we just adopted from Linear.
+                if ('video_status' in edits && !_suppressVideo) {
+                    const u = String(savedRow.linear_issue_id || '').trim();
+                    if (u) _sxrPushStatusToLinear(u, savedRow.video_status);
+                }
+                if ('graphic_status' in edits && !_suppressGraphic) {
+                    const u = String(savedRow.graphic_linear_issue_id || '').trim();
+                    if (u) _sxrPushStatusToLinear(u, savedRow.graphic_status);
+                }
+                // Point-adoption: a freshly-SET link adopts that issue's current
+                // status (empty = a clear, skipped). Fired post-save so the
+                // adopt's own follow-up write rides the suppression set.
+                if ('linear_issue_id' in edits) {
+                    const u = String(savedRow.linear_issue_id || '').trim();
+                    if (u) _sxrSyncStatusFromLinear(pid, u, 'video');
+                }
+                if ('graphic_linear_issue_id' in edits) {
+                    const u = String(savedRow.graphic_linear_issue_id || '').trim();
+                    if (u) _sxrSyncStatusFromLinear(pid, u, 'graphic');
+                }
+            }
         } catch (e) {
             console.warn('[Samples v2] save failed', e);
             _sxrSetCardStatus(pid, 'error', e && e.message);
@@ -15040,6 +15086,249 @@
             if (_sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
         }
     }
+
+    /* ════════════════════════════════════════════════════════════════════
+       M4 — LINEAR STATUS SYNC (front-end). A faithful fork of the calendar's
+       Linear FE layer into _sxr*, over video+graphic ONLY. The three Linear
+       webhooks (set-status, add-comment, sub-issues) are GENERIC — keyed only
+       by Linear issue id, no table — so we REUSE the same URLs
+       (LINEAR_SET_STATUS_URL / LINEAR_ADD_COMMENT_URL / LINEAR_SUBISSUES_URL)
+       and the generic mapper _calMapLinearStatusStrict, inheriting the 06-24
+       poison fix and the cadence fixes for free. The ONLY re-pointed state is
+       a SEPARATE durable-outbox localStorage key + the data source (sxrState /
+       SXR_COMPONENTS / computeSampleOverallStatus). Every calendar guard is
+       mirrored 1:1:
+         • per-issue serialize+coalesce push   (_sxrPushStatusToLinear)
+         • single-shot suppression set          (_sxrNoLinearPush) — breaks the
+           inbound→outbound echo loop, consumed in _sxrFlushCardSave
+         • durable retry outbox                 (syncview_sxr_linear_outbox_v1)
+         • point-adoption on a fresh link       (_sxrSyncStatusFromLinear)
+         • stale-regress / recent-save guard    (_sxrIsStaleLinearRegress +
+           _sxrLocalRecentSaves/_sxrRecentSaveFields + _sxrRecentSaveReconcile
+           + _sxrReassertLinearStatus) hooked into loadSxrCards' bg merge
+         • tweak comment to the editor's issue  (_sxrPostLinearComment)
+       Samples never reach the calendar-only 'Scheduled'/'Posted' states, so
+       both the push and the adopt path reject them. All of this is dormant
+       under ?sxr OFF (no _sxr code runs; the outbox key stays empty). */
+
+    // ---- durable outbox (SEPARATE key so a sample push never replays through
+    //      the calendar's queue) -------------------------------------------
+    const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
+    const SXR_LINEAR_OUTBOX_MAX_ATTEMPTS = 6;
+    const SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _sxrLinearOutboxTimer = null;
+    function _sxrLinearOutboxRead() {
+        try { const raw = localStorage.getItem(SXR_LINEAR_OUTBOX_KEY); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; } catch { return []; }
+    }
+    function _sxrLinearOutboxWrite(a) {
+        try { localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(a || [])); } catch {}
+    }
+    function _sxrLinearOutboxEnqueue(kind, payload, errMsg) {
+        const items = _sxrLinearOutboxRead();
+        items.push({
+            id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)),
+            kind: kind,          // 'status' | 'comment'
+            payload: payload,    // {issue, status} or {issue, body, author}
+            attempts: 0, lastError: errMsg || '', lastAttempt: 0, queuedAt: Date.now(),
+        });
+        _sxrLinearOutboxWrite(items);
+        _sxrLinearOutboxScheduleRetry();
+    }
+    function _sxrLinearOutboxScheduleRetry() {
+        if (_sxrLinearOutboxTimer) return;
+        _sxrLinearOutboxTimer = setTimeout(() => { _sxrLinearOutboxTimer = null; _sxrLinearOutboxFlush(); }, SXR_LINEAR_OUTBOX_RETRY_MS);
+    }
+    async function _sxrLinearOutboxFlush() {
+        const items = _sxrLinearOutboxRead();
+        if (!items.length) return;
+        const remaining = [];
+        for (const it of items) {
+            if (it.attempts >= SXR_LINEAR_OUTBOX_MAX_ATTEMPTS) { remaining.push(it); continue; }
+            const url = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+            try {
+                const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it.payload || {}) });
+                let ok = resp && resp.ok;
+                try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                it.attempts += 1; it.lastError = (e && e.message) ? e.message : String(e); it.lastAttempt = Date.now(); remaining.push(it);
+            }
+        }
+        _sxrLinearOutboxWrite(remaining);
+        if (remaining.some(it => it.attempts < SXR_LINEAR_OUTBOX_MAX_ATTEMPTS)) _sxrLinearOutboxScheduleRetry();
+    }
+    window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n + ' queued sample Linear pushes'; };
+    window.peekSxrLinearOutbox = function () { return _sxrLinearOutboxRead(); };
+
+    // ---- outbound push (per-issue serialize + coalesce) ------------------
+    const _sxrLinearPushChain = Object.create(null);
+    const _sxrLinearPushLatest = Object.create(null);
+    function _sxrPushStatusToLinear(issueUrl, status) {
+        const url = String(issueUrl || '').trim();
+        const st = String(status || '').trim();
+        if (!url || !st) return;
+        // Samples never reach these states; never leak them to a Linear issue.
+        if (st === 'Scheduled' || st === 'Posted' || st === 'Archived') return;
+        _sxrLinearPushLatest[url] = st;
+        const run = async () => {
+            if (_sxrLinearPushLatest[url] !== st) return;   // superseded by a newer push
+            const payload = { issue: url, status: st };
+            try {
+                const resp = await fetch(LINEAR_SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                let ok = resp && resp.ok;
+                try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Samples] Linear status push failed — queued for retry', e);
+                _sxrLinearOutboxEnqueue('status', payload, (e && e.message) ? e.message : String(e));
+            }
+        };
+        _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
+    }
+
+    // ---- re-assert (heal forward when a stale regress is refused) --------
+    const _sxrLinearReassertAt = new Map();
+    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
+    function _sxrReassertLinearStatus(sample, comp) {
+        if (!sample || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? sample.graphic_linear_issue_id : sample.linear_issue_id) || '').trim();
+        if (!url) return;
+        const st = _calNormStatus(sample[comp + '_status'] || '');
+        if (!st) return;
+        const key = url + '|' + st;
+        const now = Date.now();
+        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
+        _sxrLinearReassertAt.set(key, now);
+        _sxrV2Log('RECONCILE re-assert to Linear →', sample.id, '|', comp, ':', st, '| url:', url);
+        _sxrPushStatusToLinear(url, st);
+    }
+
+    // ---- tweak comment to the editor's Linear issue (their only inbox) ---
+    function _sxrLinearUrlFor(sample, comp) {
+        if (!sample) return '';
+        return String((comp === 'graphic' ? sample.graphic_linear_issue_id : sample.linear_issue_id) || '').trim();
+    }
+    function _sxrPostLinearComment(issueUrl, body, author) {
+        const url = String(issueUrl || '').trim();
+        const txt = String(body || '').trim();
+        if (!url || !txt) return;
+        const payload = { issue: url, body: txt, author: String(author || _sxrCurrentAuthor() || 'SyncView') };
+        (async () => {
+            try {
+                const resp = await fetch(LINEAR_ADD_COMMENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                let ok = resp && resp.ok;
+                try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch {}
+                if (!ok) throw new Error('http ' + (resp && resp.status));
+            } catch (e) {
+                console.warn('[Samples] Linear comment post failed — queued for retry', e);
+                _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) ? e.message : String(e));
+            }
+        })();
+    }
+
+    // ---- suppression set (single-shot; breaks inbound→outbound echo) -----
+    const _sxrNoLinearPush = new Set();
+
+    // ---- point-adoption on a fresh link ---------------------------------
+    /* When a Linear link is committed/moved, grab that issue's CURRENT status
+       so a just-linked sample immediately reflects where the editor has it.
+       Suppresses the outbound echo of the adopted status (_sxrNoLinearPush).
+       Rejects parent issues and the calendar-only Scheduled/Posted states. */
+    async function _sxrSyncStatusFromLinear(pid, issueUrl, comp) {
+        const which = (comp === 'graphic') ? 'graphic' : 'video';
+        let mapped;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: issueUrl }) });
+            const json = await resp.json();
+            if (!json.ok || !json.parent) return;
+            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            if (subs.length) return;   // a PARENT issue — never adopt a parent's status onto a sample
+            mapped = _calMapLinearStatusStrict(json.parent.status);
+        } catch (e) { return; }
+        if (mapped === 'Scheduled' || mapped === 'Posted') mapped = null;   // unreachable for samples
+        const sample = _sxrFind(pid);
+        if (!sample || !mapped) return;
+        const subKey = which + '_status';
+        const current = _calNormStatus(sample[subKey] || '');
+        if (current === mapped) return;
+        sample[subKey] = mapped;
+        sample.status = computeSampleOverallStatus(sample);
+        _sxrNoLinearPush.add(pid);
+        _sxrNoLinearPush.add(pid + '|' + which);
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][subKey] = mapped;
+        _sxrPendingEdits[pid].status = sample.status;
+        _sxrClearStaleApprovals(sample, _sxrPendingEdits[pid]);
+        _sxrFlushCardSave(pid);
+        _sxrRefreshCardPills(pid);
+    }
+
+    // ---- stale-regress / recent-save merge protection -------------------
+    /* The samples background reload (loadSxrCards bg) replaces a row wholesale.
+       Within the conflict window after a local save, that would let a STALE
+       Linear status-sync round-trip knock a fresh approval back. These mirror
+       _calLocalRecentSaves/_calRecentSaveFields/_calRecentSaveReconcile/
+       _calIsStaleLinearRegress 1:1, restricted to video+graphic. The samples
+       ABOVE set is { Client Approval, Approved } only (no Scheduled/Posted). */
+    const _sxrLocalRecentSaves = new Map();   // id -> ts of last local save
+    const _sxrRecentSaveFields = new Map();   // id -> { wrote:{...}, base:{...} }
+    const SXR_CONFLICT_WINDOW_MS = 90 * 1000;
+    function _sxrReconcileHasGenuineTweak(fp, lp, comp) {
+        const fc = _sxrCommentsFor(fp, comp);
+        if (!Array.isArray(fc) || !fc.length) return false;
+        const lById = new Map();
+        const lc = _sxrCommentsFor(lp, comp);
+        if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
+        return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
+    }
+    function _sxrIsStaleLinearRegress(lp, fp, comp, rsf) {
+        if (!lp || !fp || !rsf) return false;
+        if (comp !== 'video' && comp !== 'graphic') return false;
+        const f = comp + '_status';
+        const sv = fp[f];
+        if (sv == null) return false;
+        const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+        const base = rsf.base ? rsf.base[f] : undefined;
+        if (sv === wrote || sv === base) return false;
+        const ABOVE = { 'Client Approval': 1, 'Approved': 1 };
+        if (!(ABOVE[_calNormStatus(wrote)] && !ABOVE[_calNormStatus(sv)])) return false;
+        return !_sxrReconcileHasGenuineTweak(fp, lp, comp);
+    }
+    /* Given our local row `lp`, the freshly-fetched server row `fp`, and what we
+       last wrote/based (`rsf`), return a COPY of `lp` with any sub-status the
+       server moved to a genuinely NEW value adopted — but only when the server
+       row is strictly newer. A value equal to what we wrote (our echo) or its
+       pre-save base (a stale round-trip) is NOT adopted. A stale Linear regress
+       is held back (the caller re-asserts it). Returns null = keep `lp`. */
+    function _sxrRecentSaveReconcile(lp, fp, rsf) {
+        if (!lp || !fp || !rsf) return null;
+        const lT = Date.parse(lp.updated_at || '');
+        const fT = Date.parse(fp.updated_at || '');
+        if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
+        let merged = null;
+        for (const comp of SXR_COMPONENTS) {
+            const f = comp + '_status';
+            const sv = fp[f];
+            if (sv == null) continue;
+            const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+            const base = rsf.base ? rsf.base[f] : undefined;
+            if (sv !== wrote && sv !== base) {
+                if (_sxrIsStaleLinearRegress(lp, fp, comp, rsf)) { _sxrV2Log('RECONCILE keep LOCAL (stale Linear regress) →', fp.id, '|', f, ':', lp[f], 'vs server', sv); continue; }
+                if (!merged) merged = Object.assign({}, lp);
+                merged[f] = sv;
+                _sxrV2Log('RECONCILE adopt remote →', fp.id, '|', f, ':', lp[f], '→', sv);
+            }
+        }
+        if (merged) merged.status = computeSampleOverallStatus(merged);
+        return merged;
+    }
+
+    // ---- boot: flush any queued sample pushes on load + on window focus ---
+    try {
+        const _sxrBootOutboxFlush = () => { if (_sxrLinearOutboxRead().length) _sxrLinearOutboxFlush(); };
+        _sxrBootOutboxFlush();
+        window.addEventListener('focus', _sxrBootOutboxFlush);
+    } catch {}
 
     /* ── reorder (M2 — clone of persistCalReorder + the drag wiring) ──
        Posts {client, items:[{id,order_index}]} to SXR_REORDER_URL. Reorder does
@@ -15283,9 +15572,24 @@
                 const local = sxrState.cards || [];
                 fresh = fresh.map(srv => {
                     const id = String(srv.id);
-                    if (_sxrSaveInFlight[id] || _sxrPendingEdits[id]) {
-                        const cur = local.find(c => String(c.id) === id);
-                        if (cur) return cur;
+                    const cur = local.find(c => String(c.id) === id);
+                    if (!cur) return srv;
+                    // A pending / in-flight edit always wins — the save's own
+                    // echo adopts the server row once it lands.
+                    if (_sxrSaveInFlight[id] || _sxrPendingEdits[id]) return cur;
+                    // Recent-save protection (the Kasper→SMM clobber + stale
+                    // Linear regress fix). Within the conflict window, only
+                    // adopt a server sub-status that is genuinely NEW (another
+                    // actor); KEEP — and re-assert to Linear — a stale Linear
+                    // round-trip that would regress a fresh approval.
+                    if (_sxrLocalRecentSaves.has(id) && (Date.now() - _sxrLocalRecentSaves.get(id)) < SXR_CONFLICT_WINDOW_MS) {
+                        const rsf = _sxrRecentSaveFields.get(id);
+                        if (rsf) SXR_COMPONENTS.forEach(comp => {
+                            const f = comp + '_status';
+                            if (srv[f] != null && srv[f] !== cur[f] && _sxrIsStaleLinearRegress(cur, srv, comp, rsf)) _sxrReassertLinearStatus(cur, comp);
+                        });
+                        const merged = _sxrRecentSaveReconcile(cur, srv, rsf);
+                        return merged || cur;
                     }
                     return srv;
                 });

@@ -44,6 +44,30 @@ const COURIER = process.env.SXR_COURIER !== '0';  // on by default; 0 in open-eg
 const TMP = process.env.SXR_TMP || '/tmp/qa';
 try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 
+// ---- Linear webhook MOCK (M4) ----------------------------------------------
+// The samples FE pushes statuses / comments to the GENERIC Linear webhooks
+// (linear-set-status / linear-add-comment / linear-subissues / -issue-statuses).
+// A real-browser probe must NEVER let those reach live Linear — that would
+// mutate a real editor's issue. So we ALWAYS intercept the linear-* webhook
+// paths in the page, RECORD the payload (for assertions), and fulfil a stub
+// {ok:true} — independently of the courier (which still tunnels the sample-
+// review-* webhooks to the LIVE backend on the same host). linear-subissues
+// (point-adoption) returns a probe-configurable parent status.
+const LINEAR_HOOK = /\/webhook\/(linear-set-status|linear-add-comment|linear-subissues|linear-issue-statuses)\b/;
+const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
+const SUBISSUES_RESP_FILE = `${TMP}/linear_subissues_resp.json`;
+function resetLinearCalls() { try { fs.unlinkSync(LINEAR_CALLS_FILE); } catch {} }
+function linearCalls() {
+  try { return fs.readFileSync(LINEAR_CALLS_FILE, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); }
+  catch { return []; }
+}
+// Configure what linear-subissues returns next (point-adoption source status).
+function setSubissuesResp(obj) { try { fs.writeFileSync(SUBISSUES_RESP_FILE, JSON.stringify(obj || {})); } catch {} }
+function _subissuesResp() {
+  try { return JSON.parse(fs.readFileSync(SUBISSUES_RESP_FILE, 'utf8')); }
+  catch { return { ok: true, parent: { status: 'Kasper Approval', identifier: 'VID-1' }, subIssues: [] }; }
+}
+
 let _seq = 0;
 function _q(a) { return `'${String(a).replace(/'/g, "'\\''")}'`; }
 
@@ -85,8 +109,17 @@ function _courierFetch(method, url, headers, postData) {
   let head = '';
   try { head = execSync('curl ' + args.map(_q).join(' '), { encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 }); }
   catch (e) { return { status: 502, ctype: 'text/plain', body: Buffer.from('courier-failed: ' + (e.message || '')) }; }
-  const codes = head.match(/HTTP\/[\d.]+\s+(\d+)/g) || [];
-  const status = codes.length ? parseInt(codes[codes.length - 1].match(/(\d+)/)[1]) : 200;
+  // Parse the LAST status line's 3-digit code. Capture the code that follows
+  // the HTTP version + whitespace — NOT the first digit run, which on an HTTP/2
+  // response ("HTTP/2 200") is the version "2", not "200". Getting this wrong
+  // makes resp.ok false in the page → the FE flush throws into its catch (a
+  // silent console.warn), so the page's post-save success path never runs even
+  // though the backend curl persisted fine. (Backend-state assertions still
+  // pass; page-side assertions — e.g. M4's Linear push — would not.)
+  const re = /HTTP\/[\d.]+\s+(\d{3})\b/g;
+  let _m, _last = null;
+  while ((_m = re.exec(head)) !== null) _last = _m[1];
+  const status = _last ? parseInt(_last, 10) : 200;
   const ct = (head.match(/content-type:\s*([^\r\n]+)/i) || [])[1];
   const body = fs.existsSync(bodyFile) ? fs.readFileSync(bodyFile) : Buffer.from('');
   return { status, ctype: (ct || 'application/json').trim(), body };
@@ -113,14 +146,26 @@ function appErrs(page) {
 async function _ctx(browser, opts) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...(opts || {}) });
   await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
-  if (COURIER) {
-    await ctx.route('**/*', async (route) => {
-      const req = route.request();
-      if (!EXT.test(req.url())) return route.continue();
-      const r = _courierFetch(req.method(), req.url(), req.headers(), req.postData());
-      await route.fulfill({ status: r.status, contentType: r.ctype, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: r.body });
-    });
-  }
+  // Always install the route: it MOCKS the linear-* webhooks (never live) and,
+  // when the courier is on, tunnels every OTHER backend host to live via Node.
+  await ctx.route('**/*', async (route) => {
+    const req = route.request();
+    const url = req.url();
+    // 1) Linear webhooks → MOCK + capture (never reach real Linear).
+    const lh = url.match(LINEAR_HOOK);
+    if (lh) {
+      let payload = null; try { payload = JSON.parse(req.postData() || 'null'); } catch {}
+      try { fs.appendFileSync(LINEAR_CALLS_FILE, JSON.stringify({ path: lh[1], payload, at: Date.now() }) + '\n'); } catch {}
+      const body = (lh[1] === 'linear-subissues') ? _subissuesResp() : { ok: true };
+      return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(body) });
+    }
+    // 2) Other backend hosts → courier to live (when the courier is on).
+    if (COURIER && EXT.test(url)) {
+      const r = _courierFetch(req.method(), url, req.headers(), req.postData());
+      return route.fulfill({ status: r.status, contentType: r.ctype, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: r.body });
+    }
+    return route.continue();
+  });
   return ctx;
 }
 async function open(browser, urlPath, opts) {
@@ -178,4 +223,4 @@ async function kasper(browser, opts) {
   return page;
 }
 
-module.exports = { PW, launch, open, smm, client, kasper, up, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER };
+module.exports = { PW, launch, open, smm, client, kasper, up, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };

@@ -3947,6 +3947,29 @@
         .sxr-url-open { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:none; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; }
         .sxr-url-open:hover { background:var(--bg); color:var(--text-primary); }
         .sxr-url-open svg { width:13px; height:13px; }
+        /* Linear sub-issue slots */
+        .sxr-linear-row { display:flex; flex-direction:column; gap:4px; }
+        .sxr-linear-btn { display:inline-flex; align-items:center; gap:7px; flex:1; min-width:0; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:8px; padding:6px 9px; font-family:inherit; font-size:0.72rem; font-weight:700; cursor:pointer; text-decoration:none; text-align:left; }
+        .sxr-linear-btn svg { width:13px; height:13px; flex:none; }
+        .sxr-linear-btn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .sxr-linear-btn.is-linked { background:#ecedfb; border-color:#c7caf3; color:#5e6ad2; }
+        .sxr-linear-btn.is-linked.sxr-linear-graphic { background:#fbe7fe; border-color:#f0c4f7; color:#c026d3; }
+        .sxr-linear-btn.is-linked:hover { filter:brightness(0.97); }
+        .sxr-linear-warn { background:#fff7ed; border-color:#fed7aa; color:#ea580c; }
+        .sxr-linear-warn:hover { background:#ffedd5; }
+        .sxr-linear-row { position:relative; }
+        .sxr-linear-edit { position:absolute; top:5px; right:5px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:0; background:rgba(255,255,255,0.7); color:inherit; cursor:pointer; opacity:0.7; }
+        .sxr-linear-edit:hover { opacity:1; background:rgba(255,255,255,0.95); }
+        .sxr-linear-edit svg { width:12px; height:12px; }
+        .sxr-linear-input { font-size:0.74rem; }
+        .sxr-linear-parent-warn { font-size:0.66rem; font-weight:700; color:#ea580c; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:4px 7px; }
+        .sxr-link-conflict { display:flex; flex-direction:column; gap:6px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:7px 9px; }
+        .sxr-link-conflict-msg { font-size:0.7rem; font-weight:600; color:#9a3412; }
+        .sxr-link-conflict-actions { display:flex; gap:7px; }
+        .sxr-link-conflict-move, .sxr-link-conflict-cancel { border:0; border-radius:7px; padding:4px 10px; font-family:inherit; font-size:0.7rem; font-weight:700; cursor:pointer; }
+        .sxr-link-conflict-move { background:#5e6ad2; color:#fff; }
+        .sxr-link-conflict-cancel { background:var(--white); border:1px solid var(--border); color:var(--text-secondary); }
+        .sxr-dupe-warn { font-size:0.66rem; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:5px 8px; }
         .sxr-dir-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
         .sxr-dir-toggle { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:999px; padding:3px 9px; font-family:inherit; font-size:0.6rem; font-weight:700; letter-spacing:0.01em; text-transform:none; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
         .sxr-dir-toggle:hover { background:var(--bg); color:var(--text-primary); }
@@ -14186,6 +14209,8 @@
         }
 
         // ── editable (SMM) ──
+        const dupePeers = isBlank ? [] : _sxrLinkDuplicatePeers(s);
+        const dupeWarn = dupePeers.length ? `<div class="sxr-dupe-warn">⚠ ${_calEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link.</div>` : '';
         return `<div class="sxr-card is-editable${isBlank ? ' is-blank' : ''}" data-sxr-id="${id}" draggable="${isBlank ? 'false' : 'true'}">
             ${isBlank ? '' : `<span class="sxr-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="sxr-card-del" type="button" onclick="archiveSxrCard('${id}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
@@ -14199,8 +14224,9 @@
                     <div class="sxr-fld-label sxr-dir-head"><span>Creative direction</span>${_sxrDirToggleHtml(s.id, hideCd)}</div>
                     <textarea class="sxr-textarea" rows="3" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">${_calEsc(cd)}</textarea>
                 </div>
-                ${_sxrUrlFieldHtml(s.id, 'linear_issue_id', s.linear_issue_id, 'Video Linear sub-issue URL')}
-                ${_sxrUrlFieldHtml(s.id, 'graphic_linear_issue_id', s.graphic_linear_issue_id, 'Graphic Linear sub-issue URL')}
+                ${dupeWarn}
+                ${_sxrLinearFieldHtml(s.id, 'video', s.linear_issue_id)}
+                ${_sxrLinearFieldHtml(s.id, 'graphic', s.graphic_linear_issue_id)}
                 <div class="sxr-card-foot">
                     ${_sxrCommentsBtnHtml(s, s.id)}
                     ${s._saveError
@@ -14232,6 +14258,191 @@
     function _sxrDirToggleHtml(rawId, hidden) {
         const id = _calEscAttr(rawId);
         return `<button type="button" class="sxr-dir-toggle${hidden ? ' is-hidden' : ''}" data-sxr-pid="${id}" onclick="_sxrToggleDir(this)" title="${hidden ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it'}">${_sxrEyeIconSvg(hidden)}<span>${hidden ? 'Hidden from client' : 'Visible to client'}</span></button>`;
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       LINEAR SUB-ISSUE SLOTS (Tier 3 parity) — `_sxrLinear*` / `_sxrLink*`
+       ──────────────────────────────────────────────────────────────────
+       The two Linear link slots get the full calendar treatment: a dedicated
+       icon-button UI (linked → open + edit-pencil; unlinked → orange "link it"
+       warn), commit-on-blur with a FORMAT guard + a VID/GRA COMPONENT guard + a
+       paste-time UNIQUENESS guard, a move-to-another-card CONFLICT dialog, a
+       render-time DUPLICATE-warning banner, and a PARENT-issue banner. Faithful
+       clone of the calendar _calLinear / _calLink / _calMoveLink machinery,
+       scoped to sxrState.cards.
+       REUSES the generic _calIdentFromUrl. Linear uniqueness matters because the
+       status sync/push assume one card per issue. */
+    const SXR_COMP_FLD = { video: 'linear_issue_id', graphic: 'graphic_linear_issue_id' };
+    const _sxrParentLinks = new Set();   // Linear idents known to be PARENT issues (no sub-status to adopt)
+    let _sxrPendingLinkMove = Object.create(null);
+    function _sxrLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
+    function _sxrLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+    function _sxrLinearRowSel(pid, which) { const k = pid + '|' + which; return `[data-sxr-linear-row="${(window.CSS && CSS.escape) ? CSS.escape(k) : k}"]`; }
+    function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
+    function _sxrLinearFieldHtml(rawId, which, val) {
+        const id = _calEscAttr(rawId);
+        const u = String(val || '').trim();
+        const label = which === 'graphic' ? 'Thumbnail sub-issue' : 'Video sub-issue';
+        const compCls = ' sxr-linear-' + which;
+        const ident = _calIdentFromUrl(u);
+        const isParent = !!(ident && _sxrParentLinks.has(ident));
+        let inner;
+        if (u) {
+            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+            inner = `<a class="sxr-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open ${_calEscAttr(label.toLowerCase())} in Linear">${_sxrLinearSvg()}<span>${_calEsc(label)}${ident ? ': ' + _calEsc(ident) : ''}</span></a><button class="sxr-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${id}','${which}')" title="Change the linked ${_calEscAttr(label.toLowerCase())}">${pencil}</button>`;
+        } else {
+            inner = `<button class="sxr-linear-btn sxr-linear-warn${compCls}" type="button" onclick="_sxrLinearEdit('${id}','${which}')" title="Link the ${_calEscAttr(label.toLowerCase())}">${_sxrLinearSvg()}<span>Link the ${_calEsc(label.toLowerCase())}</span></button>`;
+        }
+        const parentWarn = isParent ? `<div class="sxr-linear-parent-warn">Parent issue linked — link the sub-issue instead.</div>` : '';
+        return `<div class="sxr-linear-row" data-sxr-linear-row="${id}|${which}">${inner}${parentWarn}</div>`;
+    }
+    function _sxrLinearEdit(pid, comp) {
+        if (_isClientLink) return;
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+        if (!row) return;
+        const sample = _sxrFind(pid);
+        const cur = sample ? String(sample[SXR_COMP_FLD[which]] || '') : '';
+        const ph = which === 'graphic' ? 'Paste the GRA (graphic) sub-issue link…' : 'Paste the VID (video) sub-issue link…';
+        row.innerHTML = `<input class="sxr-input sxr-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${_calEscAttr(pid)}','${which}')" onblur="_sxrLinearCommit(this,'${_calEscAttr(pid)}','${which}')">`;
+        const inp = row.querySelector('input');
+        if (inp) { inp.focus(); inp.select(); }
+    }
+    function _sxrLinearKey(e, pid, comp) {
+        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
+    }
+    function _sxrRestoreLinearRow(pid, which) {
+        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+        if (!row) return;
+        const sample = _sxrFind(pid);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrLinearFieldHtml(pid, which, sample ? sample[SXR_COMP_FLD[which]] : '');
+        const fresh = tmp.firstElementChild;
+        if (fresh && row.parentNode) row.parentNode.replaceChild(fresh, row);
+    }
+    function _sxrLinearCommit(input, pid, comp) {
+        const which = comp === 'graphic' ? 'graphic' : 'video';
+        const fld = SXR_COMP_FLD[which];
+        const cancelled = input.dataset.cancel === '1';
+        const val = input.value.trim();
+        const sample = _sxrFind(pid);
+        const cur = sample ? String(sample[fld] || '') : '';
+        const changed = !cancelled && val !== cur;
+        const applyCommit = (value) => {
+            if (sample) sample[fld] = value;
+            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+            _sxrPendingEdits[pid][fld] = value;   // a cleared slot rides the __CLEAR_LINK__ sentinel in the flush
+            _sxrFlushCardSave(pid);               // point-adoption fires from the flush success
+            if (value) try { _sxrArchivedRemove(sxrClientSlug(sxrState.client), [value]); } catch (e) {}
+            _sxrRenderBody();
+        };
+        if (!changed) { _sxrRestoreLinearRow(pid, which); return; }
+        if (val) {
+            // (1) Format guard — the slot holds a Linear sub-issue link and nothing else.
+            const ident = _calIdentFromUrl(val);
+            const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
+            if (!looksLinear || !ident) {
+                showNotify('That isn’t a Linear link', 'Paste a Linear sub-issue URL like https://linear.app/your-team/issue/' + _sxrLinearExpectPrefix(which) + '-123. What you entered has no Linear issue id, so it wasn’t saved.');
+                _sxrRestoreLinearRow(pid, which); return;
+            }
+            // (2) Component guard — VIDEO slot wants VID-, GRAPHIC slot wants GRA-.
+            const prefix = ident.split('-')[0];
+            const want = _sxrLinearExpectPrefix(which);
+            if ((prefix === 'GRA' || prefix === 'VID') && prefix !== want) {
+                const isG = prefix === 'GRA';
+                showConfirm('Wrong slot for this link?', 'That looks like a ' + (isG ? 'GRAPHIC (GRA-)' : 'VIDEO (VID-)') + ' sub-issue, but you’re setting the ' + (which === 'graphic' ? 'GRAPHIC' : 'VIDEO') + ' link. Use it here anyway?', () => applyCommit(val), 'Use it anyway');
+                return;
+            }
+            // (3) Uniqueness guard — already on another live card → offer to move.
+            const conflict = _sxrLinkConflict(val, pid);
+            if (conflict) { _sxrShowLinkConflict(pid, which, val, conflict); return; }
+        }
+        applyCommit(val);   // val may be '' → an intentional clear
+    }
+    function _sxrLinkConflict(link, selfPid) {
+        const key = _sxrLinkKey(link);
+        if (!key) return null;
+        let archived = null; try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
+        for (const s of (sxrState.cards || [])) {
+            if (!s || String(s.id) === String(selfPid)) continue;
+            if (String(s.status || '').toLowerCase() === 'archived') continue;
+            if (archived && _sxrIsArchivedRef(s, archived)) continue;
+            if (_sxrLinkKey(s.linear_issue_id) === key || _sxrLinkKey(s.graphic_linear_issue_id) === key) return s;
+        }
+        return null;
+    }
+    function _sxrShowLinkConflict(pid, which, val, conflict) {
+        _sxrPendingLinkMove[pid] = { which, val, oldPid: conflict.id };
+        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+        if (!row) return;
+        const nm = String(conflict.name || '').trim() || 'Untitled sample';
+        row.innerHTML = `<div class="sxr-link-conflict"><span class="sxr-link-conflict-msg">This Linear sub-issue is already linked to “${_calEsc(nm)}”.</span><span class="sxr-link-conflict-actions"><button type="button" class="sxr-link-conflict-move" onclick="_sxrMoveLinkConfirm('${_calEscAttr(pid)}')">Move it here</button><button type="button" class="sxr-link-conflict-cancel" onclick="_sxrLinkConflictCancel('${_calEscAttr(pid)}','${which}')">Cancel</button></span></div>`;
+    }
+    function _sxrLinkConflictCancel(pid, which) {
+        delete _sxrPendingLinkMove[pid];
+        _sxrRestoreLinearRow(pid, which || 'video');
+    }
+    function _sxrMoveLinkConfirm(pid) {
+        const mv = _sxrPendingLinkMove[pid];
+        if (!mv) return;
+        delete _sxrPendingLinkMove[pid];
+        _sxrMoveLink(mv.oldPid, pid, mv.which, mv.val);
+    }
+    /* Clear the OLD card's slot and AWAIT that write before setting the new card —
+       the upsert's duplicate-link guard strips an incoming link another live row
+       still owns, so the order is load-bearing. Clone of _calMoveLink. */
+    async function _sxrMoveLink(oldPid, newPid, which, val) {
+        if (_isClientLink) return;
+        const slug = sxrClientSlug(sxrState.client);
+        const key = _sxrLinkKey(val);
+        const newFld = SXR_COMP_FLD[which];
+        const oldSample = _sxrFind(oldPid);
+        if (oldSample) {
+            let cleared = false;
+            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(f => {
+                if (_sxrLinkKey(oldSample[f]) === key) {
+                    oldSample[f] = '';
+                    if (!_sxrPendingEdits[oldPid]) _sxrPendingEdits[oldPid] = {};
+                    _sxrPendingEdits[oldPid][f] = '';
+                    cleared = true;
+                }
+            });
+            if (cleared) { _sxrRenderBody(); try { await _sxrFlushCardSave(oldPid); } catch (e) {} }
+        }
+        const newSample = _sxrFind(newPid);
+        if (newSample) newSample[newFld] = val;
+        if (!_sxrPendingEdits[newPid]) _sxrPendingEdits[newPid] = {};
+        _sxrPendingEdits[newPid][newFld] = val;
+        _sxrFlushCardSave(newPid);
+        if (val) try { _sxrArchivedRemove(slug, [val]); } catch (e) {}
+        _sxrRenderBody();
+    }
+    /* Render-time duplicate-warning peers, grouped by which slot collides. Clone
+       of _calLinkDuplicatePeers / _calDupeWarnText (calls the graphic "thumbnail"). */
+    function _sxrLinkDuplicatePeers(sample) {
+        if (!sample) return [];
+        let archived = null; try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
+        const isArch = (s) => String((s && s.status) || '').toLowerCase() === 'archived' || !!(archived && _sxrIsArchivedRef(s, archived));
+        if (isArch(sample)) return [];
+        const vKey = _sxrLinkKey(sample.linear_issue_id), gKey = _sxrLinkKey(sample.graphic_linear_issue_id);
+        if (!vKey && !gKey) return [];
+        const vPeers = new Set(), gPeers = new Set();
+        for (const s of (sxrState.cards || [])) {
+            if (!s || String(s.id) === String(sample.id) || isArch(s)) continue;
+            const nm = String(s.name || '').trim() || 'Untitled sample';
+            const pv = _sxrLinkKey(s.linear_issue_id), pg = _sxrLinkKey(s.graphic_linear_issue_id);
+            if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
+            if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
+        }
+        const out = [];
+        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
+        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
+        return out;
+    }
+    function _sxrDupeWarnText(groups) {
+        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -16425,7 +16636,14 @@
             const json = await resp.json();
             if (!json.ok || !json.parent) return;
             const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
-            if (subs.length) return;   // a PARENT issue — never adopt a parent's status onto a sample
+            const ident = _calIdentFromUrl(issueUrl);
+            if (subs.length) {
+                // A PARENT issue — never adopt its status; flag it so the card
+                // surfaces the "link the sub-issue instead" banner.
+                if (ident && !_sxrParentLinks.has(ident)) { _sxrParentLinks.add(ident); _sxrRenderBody(); }
+                return;
+            }
+            if (ident) _sxrParentLinks.delete(ident);
             mapped = _calMapLinearStatusStrict(json.parent.status);
         } catch (e) { return; }
         if (mapped === 'Scheduled' || mapped === 'Posted') mapped = null;   // unreachable for samples

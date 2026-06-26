@@ -85,18 +85,30 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
       ok(!!media, 'pasting video + thumbnail URLs persists to the backend row', JSON.stringify(media));
     }
 
-    // ── 5) Paste a Linear sub-issue link → persist (commit-guard once Tier 3 lands). ──
+    // ── 5) Link a Linear sub-issue via the dedicated slot UI (Tier 3): click the
+    //    "Link the video sub-issue" button → fill the input → blur (commit guards). ──
     if (realId) {
+      // Neutralise point-adoption: return the card's current default status so the
+      // post-link adopt is a no-op and doesn't race the status step below.
+      Q.setSubissuesResp({ ok: true, parent: { status: 'In Progress', identifier: 'VID-1' }, subIssues: [] });
+      const opened = await page.evaluate((rid) => {
+        const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${rid}"]`);
+        const btn = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-btn');
+        if (btn) { btn.click(); return true; } return false;
+      }, realId);
+      ok(opened, 'the video Linear slot is a dedicated link button (not a plain URL field)');
+      await page.waitForTimeout(250);
       await page.evaluate((o) => {
         const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.rid}"]`);
-        const i = card && card.querySelector('.sxr-input[data-sxr-fld="linear_issue_id"]');
+        const i = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-input');
         if (i) { i.focus(); i.value = o.l; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); }
       }, { rid: realId, l: LINEAR_URL });
       const lk = await Q.poll(() => {
         const r = Q.supa('id=eq.' + encodeURIComponent(realId) + '&client=eq.sidneylaruel&select=linear_issue_id');
         const x = Array.isArray(r) && r[0]; return (x && String(x.linear_issue_id || '').includes('VID-9')) ? x : false;
       }, 20000);
-      ok(!!lk, 'pasting a Linear video sub-issue link persists', JSON.stringify(lk));
+      ok(!!lk, 'linking a Linear video sub-issue (with format guard) persists', JSON.stringify(lk));
+      await page.waitForTimeout(1500);   // let any adoption settle before the status step
     }
 
     // ── 6) Click a status pill → menu → pick → persists. ──

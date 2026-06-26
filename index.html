@@ -3941,6 +3941,21 @@
         .sxr-card.sxr-card-current { box-shadow:-3px 0 0 0 #5e6ad2 inset, 0 1px 3px rgba(0,0,0,0.05); }
         .sxr-card.sxr-card-focus { animation:sxrFocusPulse 2.2s ease; }
         @keyframes sxrFocusPulse { 0%,100% { box-shadow:0 1px 3px rgba(0,0,0,0.05); } 18%,62% { box-shadow:0 0 0 3px rgba(94,106,210,0.45); } }
+        .sxr-select-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; flex:none; }
+        .sxr-select-btn:hover { color:var(--text-primary); border-color:#aaa; }
+        .sxr-select-btn.active { background:var(--text-primary); border-color:var(--text-primary); color:#fff; }
+        .sxr-select-btn svg { width:15px; height:15px; }
+        .sxr-card-selectable { cursor:pointer; }
+        .sxr-card-select-overlay { position:absolute; inset:0; z-index:10; display:flex; align-items:flex-start; justify-content:flex-end; padding:8px; }
+        .sxr-card-select-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:rgba(255,255,255,0.9); position:relative; }
+        .sxr-card-selected .sxr-card-select-check { background:#5e6ad2; border-color:#5e6ad2; }
+        .sxr-card-selected .sxr-card-select-check::after { content:''; position:absolute; left:6px; top:3px; width:5px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
+        .sxr-card-selected { outline:2px solid #5e6ad2; outline-offset:-2px; }
+        .sxr-select-bar { position:sticky; bottom:0; display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 16px; background:var(--white); border:1px solid var(--border); border-radius:12px; box-shadow:0 -2px 10px rgba(0,0,0,0.06); }
+        .sxr-select-count { font-size:0.82rem; font-weight:700; color:var(--text-secondary); flex:1; }
+        .sxr-select-archive { border:0; border-radius:8px; padding:7px 16px; background:#dc2626; color:#fff; font-family:inherit; font-size:0.8rem; font-weight:700; cursor:pointer; }
+        .sxr-select-archive:disabled { opacity:0.5; cursor:default; }
+        .sxr-select-cancel { border:1px solid var(--border); border-radius:8px; padding:7px 14px; background:var(--white); color:var(--text-secondary); font-family:inherit; font-size:0.8rem; font-weight:700; cursor:pointer; }
         .sxr-card.is-blank .sxr-card-grip, .sxr-card.is-blank .sxr-card-del { display:none; }
         .sxr-card-add { display:flex; align-items:center; justify-content:center; gap:8px; min-height:130px; border:2px dashed var(--border); border-radius:14px; background:transparent; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:700; font-size:0.8rem; transition:border-color 0.14s, background 0.14s, color 0.14s; }
         .sxr-card-add:hover { border-color:var(--text-primary); border-style:solid; background:var(--text-primary); color:#fff; }
@@ -13889,7 +13904,7 @@
     const SXR_RT_SELF_ECHO_MS = 4000;
 
     /* sxrState — this module's ENTIRE mutable surface. Never touch calState/smState. */
-    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false, zoom: (function () { try { return localStorage.getItem('syncview_sxr_zoom') || 'm'; } catch (e) { return 'm'; } })() };
+    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false, selectMode: false, selected: new Set(), lastSel: null, zoom: (function () { try { return localStorage.getItem('syncview_sxr_zoom') || 'm'; } catch (e) { return 'm'; } })() };
     const SXR_ZOOM_LEVELS = ['s', 'm', 'l'];
     function _sxrApplyZoom() {
         const body = document.getElementById('sxrBody');
@@ -14264,7 +14279,12 @@
         // ── editable (SMM) ──
         const dupePeers = isBlank ? [] : _sxrLinkDuplicatePeers(s);
         const dupeWarn = dupePeers.length ? `<div class="sxr-dupe-warn">⚠ ${_calEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link.</div>` : '';
-        return `<div class="sxr-card is-editable${isBlank ? ' is-blank' : ''}" data-sxr-id="${id}" draggable="${isBlank ? 'false' : 'true'}">
+        const selectMode = sxrState.selectMode && !_isClientLink;
+        const selectable = selectMode && !isBlank;
+        const selected = selectable && sxrState.selected.has(s.id);
+        const selectOverlay = selectable ? `<div class="sxr-card-select-overlay" onclick="_sxrCardSelectClick(event,'${id}')"><span class="sxr-card-select-check"></span></div>` : '';
+        return `<div class="sxr-card is-editable${isBlank ? ' is-blank' : ''}${selectable ? ' sxr-card-selectable' : ''}${selected ? ' sxr-card-selected' : ''}" data-sxr-id="${id}" draggable="${(isBlank || selectMode) ? 'false' : 'true'}">
+            ${selectOverlay}
             ${isBlank ? '' : `<span class="sxr-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
             <button class="sxr-card-del" type="button" onclick="archiveSxrCard('${id}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="sxr-card-thumb" onclick="_sxrThumbClick(event,'${id}')">${thumbHtml}</div>
@@ -16368,6 +16388,80 @@
             }
         }, 'Archive');
     }
+
+    /* ── Bulk multi-select archive (archive-only select bar) ──
+       Clone of the calendar's select-mode cluster, stripped to a single archive
+       action (the calendar's combined bar also carries color-tag + caption, both
+       EXCLUDED). Reuses _sxrArchiveOne + the _sxrArchived ledger. */
+    const SXR_BULK_ARCHIVE_CONCURRENCY = 6;
+    async function _sxrRunPooled(items, limit, fn) {
+        const results = new Array(items.length);
+        let next = 0;
+        async function worker() {
+            while (next < items.length) {
+                const i = next++;
+                try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
+                catch (e) { results[i] = { status: 'rejected', reason: e }; }
+            }
+        }
+        const n = Math.max(1, Math.min(limit, items.length));
+        await Promise.all(Array.from({ length: n }, () => worker()));
+        return results;
+    }
+    function _sxrToggleSelectMode() {
+        if (_isClientLink) return;   // multi-select archive is SMM-only
+        sxrState.selectMode = !sxrState.selectMode;
+        sxrState.selected = new Set();
+        sxrState.lastSel = null;
+        const btn = document.getElementById('sxrSelectBtn');
+        if (btn) btn.classList.toggle('active', sxrState.selectMode);
+        _sxrRenderBody();
+    }
+    function _sxrCardSelectClick(e, pid) {
+        e.preventDefault(); e.stopPropagation();
+        const order = Array.from(document.querySelectorAll('#sxrBody .sxr-card-selectable[data-sxr-id]')).map(el => el.getAttribute('data-sxr-id'));
+        if (e.shiftKey && sxrState.lastSel && sxrState.lastSel !== pid) {
+            const a = order.indexOf(sxrState.lastSel), b = order.indexOf(pid);
+            if (a >= 0 && b >= 0) { const lo = Math.min(a, b), hi = Math.max(a, b); for (let i = lo; i <= hi; i++) sxrState.selected.add(order[i]); }
+        } else {
+            if (sxrState.selected.has(pid)) sxrState.selected.delete(pid); else sxrState.selected.add(pid);
+        }
+        sxrState.lastSel = pid;
+        _sxrSyncSelectionUI();
+    }
+    function _sxrSyncSelectionUI() {
+        document.querySelectorAll('#sxrBody .sxr-card[data-sxr-id]').forEach(card => card.classList.toggle('sxr-card-selected', sxrState.selected.has(card.getAttribute('data-sxr-id'))));
+        const n = sxrState.selected.size;
+        const count = document.getElementById('sxrSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const archive = document.getElementById('sxrSelectArchive');
+        if (archive) archive.disabled = n === 0;
+    }
+    async function _sxrArchiveSelected() {
+        if (_isClientLink) return;
+        const ids = Array.from(sxrState.selected).filter(id => id && !_sxrIsBlankId(id));
+        if (!ids.length) return;
+        const slug = sxrClientSlug(sxrState.client);
+        showConfirm('Archive ' + ids.length + ' sample' + (ids.length === 1 ? '' : 's') + '?',
+            "They're removed for the client too but kept (archived) on our server, so they can always be recovered.",
+            async () => {
+                const idSet = new Set(ids.map(String));
+                const refsById = new Map();
+                (sxrState.cards || []).forEach(s => { if (idSet.has(String(s.id))) refsById.set(String(s.id), _sxrRefsForCard(s)); });
+                const allRefs = []; refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
+                _sxrArchivedAdd(slug, allRefs);
+                sxrState.cards = (sxrState.cards || []).filter(s => !idSet.has(String(s.id)));
+                sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null;
+                _sxrRenderBody();
+                try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
+                const results = await _sxrRunPooled(ids, SXR_BULK_ARCHIVE_CONCURRENCY, id => _sxrArchiveOne(id, slug));
+                const failedRefs = [];
+                results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(String(ids[i])); if (refs) refs.forEach(x => failedRefs.push(x)); } });
+                if (failedRefs.length) _sxrArchivedRemove(slug, failedRefs);
+                const failedCount = results.filter(r => r.status === 'rejected').length;
+                if (failedCount) { showNotify('Some samples were not archived', failedCount + ' of ' + ids.length + ' could not be archived — reloading.'); if (sxrClientSlug(sxrState.client) === slug) loadSxrCards(slug); }
+            }, 'Archive');
+    }
     async function _sxrFlushCardSave(pid) {
         const edits = _sxrPendingEdits[pid];
         if (!edits) return;   // an empty {} bucket (a _sxrRetrySave) is a forced full re-send, not a no-op
@@ -17052,6 +17146,7 @@
             ? `<div class="sxr-toolbar-right">
                     <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
                     <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards(sxrClientSlug(sxrState.client),{skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    <button type="button" class="sxr-select-btn${sxrState.selectMode ? ' active' : ''}" id="sxrSelectBtn" onclick="_sxrToggleSelectMode()" title="Select multiple samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>
                     <div class="cal-zoom sxr-zoom" id="sxrZoomCtl" title="Card size">
                         <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
                         <button type="button" id="sxrZoomOut" onclick="_sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
@@ -17218,7 +17313,10 @@
         const scrollY0 = window.scrollY;
         const sorted = _sxrSortCards(sxrState.cards);
         const cardsHtml = sorted.map(_sxrRenderCard).join('');
-        body.innerHTML = `<div class="sxr-grid">${cardsHtml}${canAdd ? _sxrAddTileHtml(false) : ''}</div>`;
+        const selectBar = (sxrState.selectMode && !_isClientLink)
+            ? `<div class="sxr-select-bar"><span class="sxr-select-count" id="sxrSelectCount">${sxrState.selected.size} selected</span><button type="button" class="sxr-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()"${sxrState.selected.size ? '' : ' disabled'}>Archive</button><button type="button" class="sxr-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
+            : '';
+        body.innerHTML = `<div class="sxr-grid">${cardsHtml}${(canAdd && !sxrState.selectMode) ? _sxrAddTileHtml(false) : ''}</div>${selectBar}`;
         _sxrRestoreThumbs(harvested);
         // "Up next": mark the first card not yet fully Approved so the SMM sees
         // what to work on next (no date dependency — keys off the review status).
@@ -17228,7 +17326,8 @@
         }
         if (scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
         _sxrAutosizeTextareas(body);
-        _sxrWireDrag();
+        if (sxrState.selectMode && !_isClientLink) _sxrSyncSelectionUI();
+        else _sxrWireDrag();
     }
     /* The Add-sample affordance — an "Add the first sample" hero when the grid is
        empty, a compact "+" tile in a populated grid. SMM-only (clones the

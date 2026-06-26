@@ -1,6 +1,39 @@
 # Samples (Review) ↔ Calendar SMM — Full Parity Plan
 
-> **Status: PLAN — awaiting approval. No feature code written yet.**
+> **Status: APPROVED + BUILT (2026-06-26).** All six tiers shipped behind `?sxr=1`
+> (default-OFF) on branch `claude/samples-review-parity-plan-ldyzh8`, front-end only,
+> validated by a cold-open "test like a human" journey probe + targeted + regression
+> probes (see "Implementation status" below). The plan/matrix/test-plan that follow
+> are the as-approved record.
+
+## Implementation status (what shipped)
+
+Built faithfully by cloning the calendar code into `_sxr*`, re-pointed to
+`sample_reviews` / `SXR_COMPONENTS`. **Entirely front-end** — no Supabase / n8n / RPC
+/ trigger change (the `sample-review-upsert` webhook already creates, archives, and
+honors `__CLEAR_LINK__`).
+
+| Tier | What | State | Lead test |
+|---|---|---|---|
+| 1 | Create lifecycle (hero + "+" tile + blank→promote + first-save-create + failed-create retention + fixed `_sxrRetrySave`); per-card archive X + `_sxrArchiveOne` + anti-resurrection ledger; toolbar Share / Refreshing / stale-retry / error-retry | ✅ | cold-open 16/16 |
+| 2 | In-place thumb repaint, render-time autosize, thumbnail harvest/restore, scrollY preserve, deferred-render-on-blur, reorder-failure rollback + Undo, field Enter/Escape, loader a11y; toolbar tab add/remove + "awaiting SMM" badge + 3-level zoom | ✅ | cold-open, m1, m2 |
+| 3 | Full Linear sub-issue slot clone — dedicated icon-button UI (linked/unlinked/warn + pencil), FORMAT + COMPONENT + UNIQUENESS commit guards, conflict dialog + move-to-another-card, render-time dupe banner, parent-issue banner | ✅ | sxr_linear_guards 5/5, b1 12/12, m4 15/15 |
+| 4+5 | Comments: `!c.hidden` filter, `_sxrWatchNoteSave`, comment-list union on echo + poll. Misc: copy-card-link, deep-link jump-to-card, up-next highlight, thumbnail lightbox + Drive-permission warning | ✅ | m3a 18/18 |
+| 6 | Bulk multi-select archive (archive-only select bar, shift-range, bounded concurrency, ledger reuse) | ✅ | sxr_bulk_archive 7/7 |
+
+**Deferred (lowest-value polish, by judgment):** the resolved-thread *history toggle*
+in the comments modal (the resolve lifecycle itself works; this only declutters the
+feed) and sessionStorage *root-draft persistence* across a full page reload (the
+in-memory draft already survives modal close/reopen within a session). Both are
+small, isolated follow-ups.
+
+New/updated probes: `qa/probes/sxr_cold_open_journey.js` (the litmus journey),
+`sxr_linear_guards.js`, `sxr_bulk_archive.js`; updated `sxr_b1`/cold-open for the new
+Linear slot UI. `test/*.js` unit suite green.
+
+---
+
+> **Original status line (as approved):** PLAN — awaiting approval. No feature code written yet.
 > Goal: bring the SMM-facing **Samples (Review)** surface (`_sxr*`, table `sample_reviews`,
 > route `#sample-reviews`, flag `?sxr=1` default-OFF) to FULL parity with the content-calendar
 > SMM surface (`_cal*`, `calendar_posts`) — same create, archive, link-pasting, status behavior,

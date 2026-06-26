@@ -24,11 +24,33 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 | Distinct interactions verified | 133 green (+ `sxr_c2` characterization, findings logged) |
 | PASS | 133 |
 | FAIL | 0 |
-| Bugs found (fixed) | 0 |
-| Bugs found (needs review) | 2 (BUG-1 status rollback, BUG-2 retry chip — save-failure path) |
+| Bugs found (fixed) | BUG-2 retry chip FIXED in the parity build (see batch below) |
+| Bugs found (needs review) | BUG-1 status rollback — re-characterized as a probe-snapshot artifact (no app defect) |
 
-`node test/run-all.js` (unit gate): **GREEN** (29 suites) — verified at start.
+`node test/run-all.js` (unit gate): **GREEN** — verified at start.
 Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS errors).
+
+---
+
+## Parity management-layer batch (2026-06-26) — the newly-built `?sxr=1` SMM affordances
+
+After the management-layer parity build (create / archive / toolbar / Linear-slot UI / edit-UX /
+comments / bulk — see `SAMPLES_PARITY_PLAN.md`), this batch drives the NEW affordances through the
+real UI. **BUG-2 (the `_sxrRetrySave` empty-bucket retry) was FIXED in that build** — the flush now
+treats an empty bucket as a forced whole-card re-send + a catch re-render surfaces the Retry button
+on a real blur; `sxr_create_edge` re-verifies Retry now persists. BUG-1 (in-memory status rollback)
+was a probe-snapshot artifact (snapshot captured AFTER `_sxrApplySubStatus` pre-mutated the row); the
+DB never received the failed status — no product defect.
+
+| Probe | Interaction | Result |
+|---|---|---|
+| `sxr_cold_open_journey` | Cold open → Add → fill → paste links (new slot UI + format guard) → status → comment → archive → no-resurrect | **16/16** |
+| `sxr_linear_guards` | Linear FORMAT guard rejects non-link; UNIQUENESS conflict dialog; MOVE relocates link (old cleared) | **5/5** |
+| `sxr_bulk_archive` | Select mode → pick 2/3 → Archive → removed + Archived + no-resurrect; 3rd stays | **7/7** |
+| `sxr_create_edge` | Empty blank never persists/promotes; failed first save retained w/ chip + no DB row; Retry persists | **6/6** |
+
+Prior-suite regression after the build (all green, 0 JS errors): a1 27, a2 15, a3 25, b1 12, b2 10,
+c1 19, c2 11, d1 14, f1 11, m1 5, m2 19, m3a 18, m3b 32, m4 15, m5a 12, m5b 16.
 
 ---
 

@@ -26,9 +26,9 @@ const rowOf = (id) => { const r = Q.supa('id=eq.' + encodeURIComponent(id) + '&c
     await page.waitForFunction((ids) => ids.every(id => document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${id}"]`)), [A, B], { timeout: 20000 }).catch(() => {});
 
     // ── 1) FORMAT guard: paste non-Linear text into B's video slot → rejected. ──
-    await page.evaluate((id) => { const b = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${id}"] .sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-btn`); if (b) b.click(); }, B);
+    await page.evaluate((id) => { const b = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${id}"] .cal-linear-pile .cal-linear-btn-video`); if (b) b.click(); }, B);
     await page.waitForTimeout(250);
-    await page.evaluate((id) => { const i = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${id}"] .sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-input`); if (i) { i.focus(); i.value = 'just a random note, not a link'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); } }, B);
+    await page.evaluate((id) => { const i = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${id}"] .cal-title-row .cal-linear-input`); if (i) { i.focus(); i.value = 'just a random note, not a link'; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); } }, B);
     await page.waitForTimeout(1500);
     const bAfterGarbage = rowOf(B);
     ok(bAfterGarbage && !String(bAfterGarbage.linear_issue_id || '').trim(), 'FORMAT guard: a non-Linear paste does NOT persist (slot stays empty)', JSON.stringify(bAfterGarbage));
@@ -37,12 +37,12 @@ const rowOf = (id) => { const r = Q.supa('id=eq.' + encodeURIComponent(id) + '&c
 
     // ── 2) UNIQUENESS: link A's VID into B's video slot → conflict dialog appears. ──
     await page.evaluate((o) => {
-      const btn = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.id}"] .sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-btn`);
+      const btn = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.id}"] .cal-linear-pile .cal-linear-btn-video`);
       if (btn) btn.click();
     }, { id: B });
     await page.waitForTimeout(250);
     await page.evaluate((o) => {
-      const i = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.id}"] .sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-input`);
+      const i = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.id}"] .cal-title-row .cal-linear-input`);
       if (i) { i.focus(); i.value = o.v; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); }
     }, { id: B, v: VID });
     await page.waitForTimeout(400);

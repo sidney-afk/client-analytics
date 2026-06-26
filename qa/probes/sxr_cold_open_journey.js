@@ -42,9 +42,9 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
       await page.waitForTimeout(450);
     }
     const blank = await page.evaluate(() => {
-      const inp = document.querySelector('#sxrBody .sxr-card.is-editable .sxr-name-input:not([data-sxr-promoted])');
-      const any = document.querySelector('#sxrBody .sxr-card.is-editable .sxr-name-input');
-      const t = any || inp;
+      // Target the BLANK card specifically (robust to any foreign live cards in
+      // the test client) — it's the only .is-blank card and holds its name input.
+      const t = document.querySelector('#sxrBody .sxr-card.is-editable.is-blank .sxr-name-input');
       return { exists: !!t, focused: !!(t && document.activeElement === t) };
     });
     ok(blank.exists, 'clicking Add inserts a blank editable card with a name input');
@@ -52,7 +52,7 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
 
     // ── 3) Type a name → first save promotes blank→real id AND creates the row. ──
     await page.evaluate((nm) => {
-      const inp = document.querySelector('#sxrBody .sxr-card.is-editable .sxr-name-input');
+      const inp = document.querySelector('#sxrBody .sxr-card.is-editable.is-blank .sxr-name-input');
       if (!inp) return;
       inp.focus(); inp.value = nm;
       inp.dispatchEvent(new Event('input', { bubbles: true }));
@@ -75,7 +75,7 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
     if (realId) {
       await page.evaluate((o) => {
         const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.rid}"]`);
-        const setFld = (f, v) => { const i = card && card.querySelector(`.sxr-input[data-sxr-fld="${f}"]`); if (i) { i.focus(); i.value = v; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); } };
+        const setFld = (f, v) => { const i = card && card.querySelector(`input[data-sxr-fld="${f}"]`); if (i) { i.focus(); i.value = v; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); } };
         setFld('asset_url', o.v); setFld('thumbnail_url', o.t);
       }, { rid: realId, v: VIDEO_URL, t: THUMB_URL });
       const media = await Q.poll(() => {
@@ -93,15 +93,18 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
       Q.setSubissuesResp({ ok: true, parent: { status: 'In Progress', identifier: 'VID-1' }, subIssues: [] });
       const opened = await page.evaluate((rid) => {
         const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${rid}"]`);
-        const btn = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-btn');
+        const btn = card && card.querySelector('.cal-linear-pile .cal-linear-btn-video');
         if (btn) { btn.click(); return true; } return false;
       }, realId);
       ok(opened, 'the video Linear slot is a dedicated link button (not a plain URL field)');
       await page.waitForTimeout(250);
       await page.evaluate((o) => {
         const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${o.rid}"]`);
-        const i = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|video"] .sxr-linear-input');
-        if (i) { i.focus(); i.value = o.l; i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new Event('blur', { bubbles: true })); }
+        const i = card && card.querySelector('.cal-title-row .cal-linear-input');
+        // Use a REAL blur() so document.activeElement is released — a synthetic
+        // 'blur' event leaves the input focused, which defers the post-commit
+        // re-render (the "don't repaint mid-edit" guard) and the trigger stays locked.
+        if (i) { i.focus(); i.value = o.l; i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); }
       }, { rid: realId, l: LINEAR_URL });
       const lk = await Q.poll(() => {
         const r = Q.supa('id=eq.' + encodeURIComponent(realId) + '&client=eq.sidneylaruel&select=linear_issue_id');
@@ -119,7 +122,7 @@ const sel = (rid, extra) => `#sxrBody .sxr-card[data-sxr-id="${rid}"]` + (extra 
       }, realId);
       await page.waitForTimeout(300);
       const picked = await page.evaluate(() => {
-        const opts = Array.from(document.querySelectorAll('.sxr-status-menu .cal-fld-status-opt'));
+        const opts = Array.from(document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item'));
         const target = opts.find(o => /For SMM Approval/i.test(o.textContent));
         if (target) { target.click(); return true; }
         return false;

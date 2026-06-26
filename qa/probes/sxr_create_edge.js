@@ -27,10 +27,11 @@ const rowByName = (n) => { const r = Q.supa('client=eq.sidneylaruel&name=eq.' + 
     // ── 1) Empty blank never persists / promotes. ──
     await page.evaluate(() => { const b = document.querySelector('#sxrBody .sxr-card-add'); if (b) b.click(); });
     await page.waitForTimeout(300);
-    const blankId = await page.evaluate(() => { const c = document.querySelector('#sxrBody .sxr-card.is-editable .sxr-name-input'); const card = c && c.closest('.sxr-card'); return card ? card.getAttribute('data-sxr-id') : null; });
+    // Target the BLANK card specifically (robust to any foreign live cards).
+    const blankId = await page.evaluate(() => { const c = document.querySelector('#sxrBody .sxr-card.is-editable.is-blank .sxr-name-input'); const card = c && c.closest('.sxr-card'); return card ? card.getAttribute('data-sxr-id') : null; });
     ok(blankId && blankId.indexOf('__sxrblank__') === 0, 'Add inserts a blank card with a __sxrblank__ id', String(blankId));
     // Blur the name without typing → the blank must not promote or write.
-    await page.evaluate(() => { const c = document.querySelector('#sxrBody .sxr-card.is-editable .sxr-name-input'); if (c) { c.focus(); c.blur(); } });
+    await page.evaluate(() => { const c = document.querySelector('#sxrBody .sxr-card.is-editable.is-blank .sxr-name-input'); if (c) { c.focus(); c.blur(); } });
     await page.waitForTimeout(1500);
     const stillBlank = await page.evaluate((bid) => !!document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${bid}"]`), blankId);
     ok(stillBlank, 'an empty blank stays a __sxrblank__ card (no promote, no DB write)');

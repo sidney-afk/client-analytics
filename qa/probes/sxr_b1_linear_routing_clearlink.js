@@ -76,13 +76,13 @@ async function cardReady(page, id, tries = 25) {
     // its input, then clear it + blur → _sxrLinearCommit('') → __CLEAR_LINK__.
     await page.evaluate((id) => {
       const card = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"]`);
-      const pencil = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|graphic"] .sxr-linear-edit');
+      const pencil = card && card.querySelector('.cal-linear-pile .cal-linear-link-wrap:has(.cal-linear-btn-graphic) .cal-linear-edit');
       if (pencil) pencil.click();
     }, id);
     await page.waitForTimeout(250);
     await page.evaluate((id) => {
       const card = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"]`);
-      const el = card && card.querySelector('.sxr-linear-row[data-sxr-linear-row$="|graphic"] .sxr-linear-input');
+      const el = card && card.querySelector('.cal-title-row .cal-linear-input');
       if (el) { el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('blur', { bubbles: true })); }
     }, id);
     const rClear = await waitRow(id, r => norm(r.graphic_linear_issue_id) === '', 20000);

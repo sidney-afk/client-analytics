@@ -36,23 +36,25 @@ client types, and clears it on a successful submit.
    - **Music** — genre checkboxes (Inspirational, Ambient, Lofi, Piano, Guitar, Synth,
      Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
      `onboarding-audio/<key>.mp3`.
-   - **Subtitles** — a card per style (Native captions, Boxed banner, Minimal, No
-     subtitles) with a real example frame you tap to view full-screen, + a "highlight
-     keywords" toggle.
-   - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is
-     exclusive).
-   - Colour & font preferences, overall feel + brand tone (custom dropdowns), always/never
-     notes, and an optional short sample clip of the client.
+   - **Subtitles** — a card per style (Native captions, Boxed banner, Minimal) with a real
+     example frame you tap to view full-screen, + a "highlight keywords" toggle.
+   - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is exclusive).
+   - Font preferences, overall feel + brand tone (multi-select chips, each with an exclusive
+     "Not sure — recommend for me" option that clears the rest), always/never notes, and an
+     optional short sample clip of the client.
 4. **Photos & source material** — both optional links (photos of you, content to pull from).
 5. **Goals** — what a win looks like, anything else.
-6. **AI avatar (optional)** — gated behind the "Want to add an AI avatar?" Yes/No question
-   (with an ⓘ explainer, no prices). When Yes: what to build the likeness from (reuses the
-   sample clip / photos if given), personality, look (talking-to-camera / podcast, each
-   with an ⓘ example frame), text-only-videos toggle (ⓘ explains avatar-in-background +
-   on-screen text), setting, framing, accessories (incl. an "Other" write-in), hair,
-   makeup, clothing, and the voice-clone capture script + recording link.
-7. **Account access** (last — most sensitive, highest drop-off) — IG / TikTok / FB /
-   LinkedIn / YouTube logins. These are the only fields the dashboard viewer strips.
+6. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
+   to share credentials securely via LastPass to `house@synchrosocial.com` instead of typing
+   them. These login fields are the only ones the dashboard viewer strips.
+7. **AI avatar (optional)** — last section. Gated behind the "Want to add an AI avatar?"
+   Yes/No question (**defaults to No**) with an ⓘ explainer that frames it as a separate
+   add-on — its own production system and pricing, handled directly with Casper (deliberately
+   no prices or firm promises). When Yes: what to build the likeness from (reuses the sample
+   clip / photos if given), personality, look (talking-to-camera / podcast, each with an ⓘ
+   example frame), text-only-videos toggle (ⓘ explains avatar-in-background + on-screen text),
+   setting, framing, accessories (incl. an "Other" write-in), hair, makeup, clothing, and the
+   voice-clone capture script + recording link.
 
 ### Example frames
 

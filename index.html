@@ -11733,9 +11733,23 @@
     const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
     const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
 
-    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['none','No B-roll'] ];
-    const OB_APPROACH_OPTS = [['polished','Polished & branded'],['raw','Raw & authentic'],['between','Somewhere in between'],['not_sure','Not sure — recommend for me']];
-    const OB_TONE_OPTS = [['professional','Professional'],['playful','Playful'],['inspirational','Inspirational'],['authoritative','Authoritative'],['friendly','Friendly'],['luxury','Luxury / premium'],['not_sure','Not sure — recommend for me']];
+    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['none','No B-roll'] ];
+
+    // Overall tone — [key, name, desc, imageUrl, videoUrl] (same shape as subtitle cards).
+    const OB_VIDEO_STYLES = [
+      ['soft','Soft','Gentle serif text, soft music, no extra footage.', '', ''],
+      ['clean','Clean','Simple text, clear teaching, easy to follow.', '', ''],
+      ['bold','Bold','Big heavy text, fast cuts, strong energy.', '', ''],
+      ['premium','Premium','Elegant look, nice b-roll, high-end feel.', '', ''],
+      ['calm','Calm','Quiet text, ambient music, slow and grounded.', '', ''],
+    ];
+    const OB_THUMB_STYLES = [
+      ['minimal','Minimal','Full photo, simple text, no clutter.', '', ''],
+      ['bold','Bold','Big all-caps text, dark bands, high contrast.', '', ''],
+      ['playful','Playful','Big casual text with one bright highlighted word, fun hooks.', '', ''],
+      ['editorial','Editorial','Elegant serif titles, magazine-cover feel.', '', ''],
+      ['premium','Premium','Warm, soft, upscale and elegant.', '', ''],
+    ];
 
     function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
 
@@ -11790,23 +11804,38 @@
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
-    function _obSubtitles(){
-      const cards = OB_SUBTITLE_TYPES.map(t=>{
+    // Shared selectable media cards (radio + name + description + image/video example).
+    function _obMediaCards(group, items){
+      return items.map(t=>{
         let thumb;
         if(t[4]) thumb = '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[4]+'" aria-label="Play example full screen"><video src="'+t[4]+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic">▶</span></button>';
         else if(t[3]) thumb = '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[3]+'" aria-label="View example full screen"><img src="'+t[3]+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span></button>';
         else thumb = '<div class="ob-sub-thumb ob-sub-noimg">soon</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+thumb+'</div>';
+        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="'+group+'" value="'+t[0]+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+thumb+'</div>';
       }).join('');
+    }
+
+    function _obSubtitles(){
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
         '<div class="ob-help">Pick the style you like. Tap an example to see it full screen.</div>'+
-        '<div class="ob-sub-grid" data-ob-radio="subtitle_style">'+cards+'</div></div>'+
+        '<div class="ob-sub-grid" data-ob-radio="subtitle_style">'+_obMediaCards('subtitle_style', OB_SUBTITLE_TYPES)+'</div></div>'+
         _obField({id:'subtitle_refs', label:'Subtitle references (optional)', help:'Seen a subtitle style you love somewhere? Paste the link(s) here.', type:'textarea', rows:2, placeholder:'Paste any links…'})+
         _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
     }
 
-    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Tick any that fit — picking both Stock and AI is totally fine if you\'d like a mix.', type:'multiselect', exclusive:'none', options:OB_BROLL_OPTS }); }
+    function _obVideoStyle(){
+      return '<div class="ob-q" data-ob-q="video_style"><label class="ob-label">Video style</label>'+
+        '<div class="ob-help">The overall look and feel of your videos. Tap an example to watch it.</div>'+
+        '<div class="ob-sub-grid" data-ob-radio="video_style">'+_obMediaCards('video_style', OB_VIDEO_STYLES)+'</div></div>';
+    }
+    function _obThumbStyle(){
+      return '<div class="ob-q" data-ob-q="thumbnail_style"><label class="ob-label">Thumbnail style</label>'+
+        '<div class="ob-help">The cover style for your videos. Tap an example to view it.</div>'+
+        '<div class="ob-sub-grid" data-ob-radio="thumbnail_style">'+_obMediaCards('thumbnail_style', OB_THUMB_STYLES)+'</div></div>';
+    }
+
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
@@ -11874,11 +11903,15 @@
           _obCreators(),
           _obClips(),
           _obMusic(),
+          _obField({id:'music_refs', label:'Music references', help:'Optional. Paste a Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
           _obSubtitles(),
           _obBroll(),
           _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
-          _obField({id:'overall_approach', label:'Overall feel', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_APPROACH_OPTS}),
-          _obField({id:'brand_tone', label:'Brand tone', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_TONE_OPTS}),
+          _obField({id:'text_prefs_image', label:'Reference image', help:'Optional. A Pinterest board, a Drive folder, a screenshot, anything showing fonts or lettering you like.', type:'url', placeholder:'https://…', driveNote:true}),
+          '<div class="ob-subhead">Overall tone</div>',
+          _obVideoStyle(),
+          _obThumbStyle(),
+          _obField({id:'overall_tone_ref', label:'Reference', help:'Optional. Paste a link to an image or a video that captures the vibe you want.', type:'url', placeholder:'https://…', driveNote:true}),
           _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Also the place for any style preference the options above didn\'t cover — anything we should keep in mind for every video.', type:'textarea', rows:2}),
           _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
@@ -12159,6 +12192,7 @@
       .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--text-primary); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
       .ob-sec-h h2{ font-size:1.14rem; font-weight:700; margin:0; letter-spacing:-0.01em; }
       .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
+      .ob-subhead{ font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:22px 0 12px; padding-top:16px; border-top:1px solid var(--border-light); }
       .ob-q{ margin:0 0 16px; }
       .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
       .ob-req{ color:var(--ig); margin-left:3px; }

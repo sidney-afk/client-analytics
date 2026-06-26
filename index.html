@@ -11908,15 +11908,14 @@
       ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'7663e79a-4126-4774-b5ed-34b2094192a5.jpg'],
       ['boxed','Boxed banner','Text sits on a solid block.', SC_THUMB+'3e08ff7a-1b49-42c9-8fe8-532d07c778a6.jpg'],
       ['minimal','Minimal','Small, thin, understated.', SC_THUMB+'69244920-d7c1-470f-b7c6-b90d0cf4077c.jpg'],
-      ['none','No subtitles','', ''],
     ];
     // AI "which look" examples (ⓘ → full-screen frame)
     const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
     const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['none','No B-roll'] ];
-    const OB_APPROACH_OPTS = ['Polished & branded','Raw & authentic','Somewhere in between','Not sure — recommend for me'];
-    const OB_TONE_OPTS = ['Professional','Playful','Inspirational','Authoritative','Friendly','Luxury / premium','Not sure — recommend for me'];
+    const OB_APPROACH_OPTS = [['polished','Polished & branded'],['raw','Raw & authentic'],['between','Somewhere in between'],['not_sure','Not sure — recommend for me']];
+    const OB_TONE_OPTS = [['professional','Professional'],['playful','Playful'],['inspirational','Inspirational'],['authoritative','Authoritative'],['friendly','Friendly'],['luxury','Luxury / premium'],['not_sure','Not sure — recommend for me']];
 
     function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
 
@@ -11933,7 +11932,8 @@
           f.options.map(o=>'<label class="ob-pill-opt"><input type="radio" name="'+f.id+'" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
       } else if(f.type==='multiselect'){
         const mx = f.max ? ' data-ob-max="'+f.max+'"' : '';
-        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+'>'+
+        const ex = f.exclusive ? ' data-ob-exclusive="'+_obEsc(f.exclusive)+'"' : '';
+        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+ex+'>'+
           f.options.map(o=>'<label class="ob-pill-opt"><input type="checkbox" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
       } else {
         const t = f.type==='email'?'email':(f.type==='tel'?'tel':(f.type==='url'?'url':'text'));
@@ -11984,7 +11984,7 @@
         _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
     }
 
-    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', options:OB_BROLL_OPTS }); }
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', exclusive:'none', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
@@ -12054,10 +12054,9 @@
           _obMusic(),
           _obSubtitles(),
           _obBroll(),
-          _obField({id:'color_prefs', label:'Colour preferences', help:'We usually go white or yellow subtitles, sometimes one accent colour.', type:'textarea', rows:2}),
           _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
-          _obField({id:'overall_approach', label:'Overall feel', type:'select', options:OB_APPROACH_OPTS}),
-          _obField({id:'brand_tone', label:'Brand tone', type:'select', options:OB_TONE_OPTS}),
+          _obField({id:'overall_approach', label:'Overall feel', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_APPROACH_OPTS}),
+          _obField({id:'brand_tone', label:'Brand tone', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_TONE_OPTS}),
           _obField({id:'dos_donts', label:'Anything we must always include, or never include?', type:'textarea', rows:2}),
           _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
@@ -12069,12 +12068,21 @@
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
           _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
         ]},
-        { id:'s6', n:'6', title:'AI avatar (optional)', isAi:true, fields:[
+        { id:'s6', n:'6', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
+          '<div class="ob-q"><div class="ob-info-panel">Prefer not to type passwords here? You can share them securely through <b>LastPass</b> to <b>house@synchrosocial.com</b> — we get access without the passwords ever being visible. Otherwise, just fill in what you can below.</div></div>',
+          _obField({id:'instagram', label:'Instagram login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
+          _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
+          _obField({id:'tiktok', label:'TikTok login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
+          _obField({id:'facebook', label:'Facebook login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
+          _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
+          _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
+        ]},
+        { id:'s7', n:'7', title:'AI avatar (optional)', isAi:true, fields:[
           '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
             '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
-            '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="What is an AI avatar">'+OB_INFO_SVG+'</button></div>'+
-            '<div class="ob-info-panel" id="obAiInfo" style="display:none">We build a lifelike version of you from a few photos and a short video, clone your voice, and generate videos in your style — so content keeps going out even when you can\'t film. You control how it looks and what it says.</div>'+
-            '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no"><span>No</span></label></div></div>',
+            '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="More about the AI avatar add-on">'+OB_INFO_SVG+'</button></div>'+
+            '<div class="ob-info-panel" id="obAiInfo" style="display:none">This is a separate add-on — its own production system and pricing, handled directly with Casper. Choosing &ldquo;Yes&rdquo; just flags your interest; Casper will walk you through how it works and the details.</div>'+
+            '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no" checked><span>No</span></label></div></div>',
           '<div id="obAiFields" class="ob-ai-fields" style="display:none">'+
             _obAiLikeness()+
             _obField({id:'ai_personality', label:'How would you describe your personality?', type:'textarea', required:true})+
@@ -12092,14 +12100,6 @@
               '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
               '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>'+
           '</div>',
-        ]},
-        { id:'s7', n:'7', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
-          _obField({id:'instagram', label:'Instagram login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
-          _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
-          _obField({id:'tiktok', label:'TikTok login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
-          _obField({id:'facebook', label:'Facebook login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
-          _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
-          _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
         ]},
       ];
     }
@@ -12139,11 +12139,12 @@
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
-        // B-roll exclusivity: "none" clears the others; picking another clears "none"
-        const bm = t.closest && t.closest('[data-ob-multi="broll"]');
-        if(bm && t.type==='checkbox' && t.checked){
-          if(t.value==='none'){ bm.querySelectorAll('input').forEach(i=>{ if(i.value!=='none') i.checked=false; }); }
-          else { const n=bm.querySelector('input[value="none"]'); if(n) n.checked=false; }
+        // Exclusive option: picking it clears the rest; picking anything else clears it.
+        const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
+        if(exm && t.type==='checkbox' && t.checked){
+          const exv = exm.getAttribute('data-ob-exclusive');
+          if(t.value===exv){ exm.querySelectorAll('input').forEach(i=>{ if(i.value!==exv) i.checked=false; }); }
+          else { const n=exm.querySelector('input[value="'+exv+'"]'); if(n) n.checked=false; }
         }
         // accessories "other" field
         const am = t.closest && t.closest('[data-ob-multi="ai_accessories"]');

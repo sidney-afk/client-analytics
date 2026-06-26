@@ -4388,7 +4388,7 @@
     const TTP_PENDING_KEY       = 'syncview_pendingTtpilot_v1';
     const TTP_HIDDEN_KEY        = 'syncview_hiddenTtpilot_v1';
     const TTP_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
-    const TTP_MAX_BYTES         = 1024 * 1024 * 1024; // 1 GB practical cap (TikTok allows up to 4 GB)
+    const TTP_MAX_BYTES         = 64 * 1024 * 1024; // 64 MB — single-chunk FILE_UPLOAD cap for the pilot (multi-chunk is a later enhancement)
     // Flip to true ONLY after TikTok approves the app audit. While false the app
     // is unaudited: TikTok forces every post to SELF_ONLY (private) and caps
     // active users — so the compose UI locks privacy to "Only me" and says so.
@@ -25609,6 +25609,8 @@
         fd.append('disclose_your_brand', String(!!(o.commercial && o.your_brand)));
         fd.append('disclose_branded_content', String(!!(o.commercial && o.branded_content)));
         fd.append('video_cover_timestamp_ms', String(Math.max(0, Number(o.cover_timestamp_ms) || 0)));
+        fd.append('mediaSize', String(ttpState.file.size));        // exact byte count for TikTok video/init
+        fd.append('mediaType', ttpState.file.type || 'video/mp4');
         fd.append('media', ttpState.file, ttpState.file.name);
 
         ttpState.submitting = true; ttpState.error = null; ttpState.progress = 0;

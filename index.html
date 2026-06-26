@@ -11731,8 +11731,8 @@
     const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['none','No B-roll'] ];
-    const OB_APPROACH_OPTS = ['Polished & branded','Raw & authentic','Somewhere in between','Not sure — recommend for me'];
-    const OB_TONE_OPTS = ['Professional','Playful','Inspirational','Authoritative','Friendly','Luxury / premium','Not sure — recommend for me'];
+    const OB_APPROACH_OPTS = [['polished','Polished & branded'],['raw','Raw & authentic'],['between','Somewhere in between'],['not_sure','Not sure — recommend for me']];
+    const OB_TONE_OPTS = [['professional','Professional'],['playful','Playful'],['inspirational','Inspirational'],['authoritative','Authoritative'],['friendly','Friendly'],['luxury','Luxury / premium'],['not_sure','Not sure — recommend for me']];
 
     function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
 
@@ -11749,7 +11749,8 @@
           f.options.map(o=>'<label class="ob-pill-opt"><input type="radio" name="'+f.id+'" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
       } else if(f.type==='multiselect'){
         const mx = f.max ? ' data-ob-max="'+f.max+'"' : '';
-        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+'>'+
+        const ex = f.exclusive ? ' data-ob-exclusive="'+_obEsc(f.exclusive)+'"' : '';
+        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+ex+'>'+
           f.options.map(o=>'<label class="ob-pill-opt"><input type="checkbox" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
       } else {
         const t = f.type==='email'?'email':(f.type==='tel'?'tel':(f.type==='url'?'url':'text'));
@@ -11800,7 +11801,7 @@
         _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
     }
 
-    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', options:OB_BROLL_OPTS }); }
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', exclusive:'none', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
@@ -11872,8 +11873,8 @@
           _obBroll(),
           _obField({id:'color_prefs', label:'Colour preferences', help:'We usually go white or yellow subtitles, sometimes one accent colour.', type:'textarea', rows:2}),
           _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
-          _obField({id:'overall_approach', label:'Overall feel', type:'select', options:OB_APPROACH_OPTS}),
-          _obField({id:'brand_tone', label:'Brand tone', type:'select', options:OB_TONE_OPTS}),
+          _obField({id:'overall_approach', label:'Overall feel', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_APPROACH_OPTS}),
+          _obField({id:'brand_tone', label:'Brand tone', help:'Pick one or more.', type:'multiselect', exclusive:'not_sure', options:OB_TONE_OPTS}),
           _obField({id:'dos_donts', label:'Anything we must always include, or never include?', type:'textarea', rows:2}),
           _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
@@ -11955,11 +11956,12 @@
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
-        // B-roll exclusivity: "none" clears the others; picking another clears "none"
-        const bm = t.closest && t.closest('[data-ob-multi="broll"]');
-        if(bm && t.type==='checkbox' && t.checked){
-          if(t.value==='none'){ bm.querySelectorAll('input').forEach(i=>{ if(i.value!=='none') i.checked=false; }); }
-          else { const n=bm.querySelector('input[value="none"]'); if(n) n.checked=false; }
+        // Exclusive option: picking it clears the rest; picking anything else clears it.
+        const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
+        if(exm && t.type==='checkbox' && t.checked){
+          const exv = exm.getAttribute('data-ob-exclusive');
+          if(t.value===exv){ exm.querySelectorAll('input').forEach(i=>{ if(i.value!==exv) i.checked=false; }); }
+          else { const n=exm.querySelector('input[value="'+exv+'"]'); if(n) n.checked=false; }
         }
         // accessories "other" field
         const am = t.closest && t.closest('[data-ob-multi="ai_accessories"]');

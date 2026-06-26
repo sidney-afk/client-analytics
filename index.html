@@ -14883,13 +14883,13 @@
     function _sxrSetComposeComp(comp) {
         _sxrComposeComp = (SXR_COMPONENTS.indexOf(comp) >= 0) ? comp : 'video';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="comp"]');
-        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
     }
     function _sxrSetComposeAudience(aud) {
         if (_isClientLink) return;        // a client can NEVER set audience
         _sxrComposeAudience = (aud === 'client') ? 'client' : 'internal';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="audience"]');
-        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
     }
     /* M3b — a NEW root is a plain comment or a change-request (is_tweak). A
        change-request flips its component to Tweaks Needed on submit. The
@@ -14897,8 +14897,8 @@
     function _sxrSetComposeMode(mode) {
         _sxrComposeMode = (mode === 'request-change') ? 'request-change' : 'comment';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="mode"]');
-        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === _sxrComposeMode));
-        const send = document.querySelector('#sxrCommentsModal .sxr-cm-send');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === _sxrComposeMode));
+        const send = document.querySelector('#sxrCommentsModal .cal-cm-send');
         if (send) send.title = _sxrComposeMode === 'request-change' ? 'Request change (Enter)' : 'Send (Enter)';
     }
     function _sxrFindCompForCommentId(sample, commentId) {
@@ -15033,8 +15033,8 @@
         _sxrAutosizeComposer(ta);
         if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
         else _sxrRootDraft = ta.value;
-        const wrap = ta.closest('.sxr-cm-composer');
-        const sendBtn = wrap && wrap.querySelector('.sxr-cm-send');
+        const wrap = ta.closest('.cal-cm-composer');
+        const sendBtn = wrap && wrap.querySelector('.cal-cm-send');
         if (sendBtn) sendBtn.disabled = !ta.value.trim();
     }
     function _sxrOnComposerKey(e) {
@@ -15042,46 +15042,50 @@
         else if (e.key === 'Escape' && _sxrReplyTarget) { e.preventDefault(); _sxrBeginReply(null); }
     }
     function _sxrCommentRowHtml(c, isReply, comp) {
+        // Faithful re-skin of the calendar's comment-row (renderRow in
+        // _calRenderCommentsModal) — same cal-cm-* markup, samples handlers.
         const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
         const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
         const initial = _sxrAvatarInitial(author, c.role);
-        // Component label sits top-right on a root; the lock marks an internal
-        // thread on the SMM surface (the client never sees an internal thread).
-        const compLabel = (!isReply && comp) ? `<span class="sxr-cm-comp-label sxr-cm-comp-${comp}">${_calEsc(SXR_COMP_LABELS[comp] || comp)}</span>` : '';
+        const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+        const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_calEsc(SXR_COMP_LABELS[comp] || comp)}</span>` : '';
         const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal')
-            ? `<span class="sxr-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
+            ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
+            : '';
+        // A change-request (is_tweak) root carries a "Tweak #N" tag right after
+        // the author; when resolved it also gets the "Resolved" done-tag.
+        const isTweakRoot = !isReply && _sxrMsgIsTweak(c);
+        const typeTag = isTweakRoot
+            ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
             : '';
         const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = `<button class="sxr-cm-action" type="button" onclick="_sxrBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
-        const delBtn = _sxrCanDeleteComment(c)
-            ? `<button class="sxr-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
-            : '';
-        // M3b — a change-request (is_tweak) root carries a "Tweak #N" badge; an
-        // OPEN one (not done) gets a "Mark done" action on the SMM surface that
-        // opens the resolve chooser (deferred resolve + route). A done one shows
-        // a muted "Done" pill. Plain comments / replies are unaffected.
-        const isTweakRoot = !isReply && _sxrMsgIsTweak(c);
-        const tweakBadge = isTweakRoot
-            ? `<span class="sxr-cm-tweak-badge${c.done ? ' is-done' : ''}" title="${c.done ? 'Change request — resolved' : 'Change request — needs a fix'}">${c.done ? 'Done' : ('Tweak' + (c.round ? ' #' + c.round : ''))}</span>`
-            : '';
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        // An OPEN tweak root gets "Mark done" on the SMM surface → the resolve
+        // chooser (deferred resolve + route).
         const doneBtn = (isTweakRoot && !c.done && !_isClientLink)
-            ? `<button class="sxr-cm-action sxr-cm-resolve" type="button" onclick="_sxrResolveLastTweak(${_jsAttrArg(_sxrOpenCommentsPid)}, '${comp}', ${_jsAttrArg(c.id)})" title="Mark done — choose where this goes next">✓<span>Mark done</span></button>`
+            ? `<button class="cal-cm-action" type="button" onclick="_sxrResolveLastTweak(${_jsAttrArg(_sxrOpenCommentsPid)}, '${comp}', ${_jsAttrArg(c.id)})" title="Mark done — choose where this goes next">${checkIco}<span>Mark done</span></button>`
             : '';
-        return `<div class="sxr-cm-row${isReply ? ' is-reply' : ''}${isTweakRoot ? ' is-tweak' : ''}${(isTweakRoot && c.done) ? ' is-done' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
-            <div class="sxr-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
-            <div class="sxr-cm-body-col">
-                <div class="sxr-cm-head-line">
-                    <span class="sxr-cm-author">${_calEsc(author)}</span>
-                    ${tweakBadge}
+        const delBtn = _sxrCanDeleteComment(c)
+            ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            : '';
+        const actions = (replyBtn || doneBtn || delBtn) ? `<div class="cal-cm-actions">${doneBtn}${replyBtn}${delBtn}</div>` : '';
+        return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
+            <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
+            <div class="cal-cm-body-col">
+                <div class="cal-cm-head-line">
+                    <span class="cal-cm-author">${_calEsc(author)}</span>
+                    ${typeTag}
                     ${lock}
-                    <span class="sxr-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
+                    <span class="cal-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
+                    ${doneTag}
                     ${compLabel}
                 </div>
-                <div class="sxr-cm-row-body">${_calEsc(c.body || '')}</div>
+                <div class="cal-cm-row-body">${_calEsc(c.body || '')}</div>
             </div>
-            <div class="sxr-cm-actions">${doneBtn}${replyBtn}${delBtn}</div>
+            ${actions}
         </div>`;
     }
     function _sxrComposerHtml(sample) {
@@ -15096,14 +15100,14 @@
             ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
             : (role === 'client' ? 'Message your Synchro Social team…' : (_sxrComposeAudience === 'client' ? 'Message to the client…' : 'Internal note (team only)…'));
         const replyingTo = isReply && target
-            ? `<div class="sxr-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="sxr-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+            ? `<div class="cal-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
             : '';
         // Component picker on a fresh root (replies inherit their thread's comp).
         const compPicker = !isReply
-            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
-                <span class="sxr-cm-seg-cap">About the…</span>
-                <div class="sxr-cm-seg">${SXR_COMPONENTS.map(c =>
-                    `<button type="button" class="sxr-cm-seg-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(SXR_COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(SXR_COMP_LABELS[c] || c)}</button>`
+            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="cal-cm-audience-cap">About the…</span>
+                <div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c =>
+                    `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(SXR_COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(SXR_COMP_LABELS[c] || c)}</button>`
                 ).join('')}</div>
             </div>`
             : '';
@@ -15111,36 +15115,36 @@
         // SMM picks who can see a NEW root; the client has no toggle (everything
         // they post is shared with them by nature, audience always 'client').
         const audienceToggle = (!isReply && role !== 'client')
-            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="audience" role="group" aria-label="Who can see this note">
-                <span class="sxr-cm-seg-cap">Who sees this?</span>
-                <div class="sxr-cm-seg">
-                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — the client never sees it.">${lockIco}Team only</button>
-                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
+            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="audience" role="group" aria-label="Who can see this note">
+                <span class="cal-cm-audience-cap">Who sees this?</span>
+                <div class="cal-cm-aud-seg">
+                    <button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — the client never sees it.">${lockIco}Team only</button>
+                    <button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
                 </div>
             </div>`
             : '';
         // M3b — Comment vs Request change on a NEW root (a change-request flips
         // the component to Tweaks Needed). On a reply it's always a comment.
         const modeToggle = !isReply
-            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="mode" role="group" aria-label="Comment or request a change">
-                <span class="sxr-cm-seg-cap">This is a…</span>
-                <div class="sxr-cm-seg">
-                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'comment' ? ' is-active' : ''}" data-mode="comment" onclick="_sxrSetComposeMode('comment')" title="A note — does not change the status.">Comment</button>
-                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'request-change' ? ' is-active' : ''}" data-mode="request-change" onclick="_sxrSetComposeMode('request-change')" title="A change request — flips this component to Tweaks Needed.">Request change</button>
+            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="mode" role="group" aria-label="Comment or request a change">
+                <span class="cal-cm-audience-cap">This is a…</span>
+                <div class="cal-cm-aud-seg">
+                    <button type="button" class="cal-cm-aud-btn${_sxrComposeMode === 'comment' ? ' is-active' : ''}" data-mode="comment" onclick="_sxrSetComposeMode('comment')" title="A note — does not change the status.">Comment</button>
+                    <button type="button" class="cal-cm-aud-btn${_sxrComposeMode === 'request-change' ? ' is-active' : ''}" data-mode="request-change" onclick="_sxrSetComposeMode('request-change')" title="A change request — flips this component to Tweaks Needed.">Request change</button>
                 </div>
             </div>`
             : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        return `<div class="sxr-cm-composer-wrap">
+        return `<div class="cal-cm-composer-wrap">
             ${replyingTo}
             ${compPicker}
             ${modeToggle}
             ${audienceToggle}
-            <div class="sxr-cm-composer">
-                <div class="sxr-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
+            <div class="cal-cm-composer">
+                <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="sxrCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_calEsc(draft)}</textarea>
-                <div class="sxr-cm-composer-actions">
-                    <button class="sxr-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                <div class="cal-cm-composer-actions">
+                    <button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
         </div>`;
@@ -15159,24 +15163,24 @@
         }).sort((a, b) => String(b.root.created_at || '').localeCompare(String(a.root.created_at || '')));
         const renderThread = (entry) => {
             const replies = _sxrCommentReplies(entry.list, entry.root.id);
-            return `<div class="sxr-cm-thread" data-sxr-thread="${_calEscAttr(entry.root.id)}">
+            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-sxr-thread="${_calEscAttr(entry.root.id)}">
                 ${_sxrCommentRowHtml(entry.root, false, entry.comp)}
                 ${replies.map(r => _sxrCommentRowHtml(r, true, entry.comp)).join('')}
             </div>`;
         };
-        const emptyMsg = `<div class="sxr-cm-empty"><div class="sxr-cm-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
+        const emptyMsg = `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
         const feedHtml = threads.length ? threads.map(renderThread).join('') : emptyMsg;
         const sampleName = _calEsc(String(sample.name || '').trim() || 'Untitled sample');
         modal.innerHTML = `
-            <div class="sxr-cm-head">
-                <div class="sxr-cm-head-text">
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text">
                     <h3 id="sxrCommentsTitle">Notes</h3>
                     <p>${sampleName}</p>
                 </div>
-                <button class="sxr-cm-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                <button class="cal-comments-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="sxr-cm-feed" id="sxrCommentsFeed">
-                <div class="sxr-cm-feed-inner">${feedHtml}</div>
+            <div class="cal-comments-feed" id="sxrCommentsFeed">
+                <div class="cal-comments-feed-inner">${feedHtml}</div>
             </div>
             ${_sxrComposerHtml(sample)}`;
         const ta = document.getElementById('sxrCommentComposer');
@@ -17430,8 +17434,8 @@
                 ${rightHtml}
             </div>
             <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>
-            <div class="sxr-cm-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
-                <div class="sxr-cm-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
+            <div class="cal-comments-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+                <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
             </div>
             <div class="sxr-lightbox" id="sxrLightbox" onclick="closeSxrLightbox()">
                 <img alt="" onclick="event.stopPropagation()">

@@ -20,9 +20,9 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 
 | Metric | Count |
 |---|---|
-| New probes written this run | 7 |
-| Distinct interactions verified | 122 (assertions) |
-| PASS | 122 |
+| New probes written this run | 8 |
+| Distinct interactions verified | 133 (assertions) |
+| PASS | 133 |
 | FAIL | 0 |
 | Bugs found (fixed) | 0 |
 | Bugs found (needs review) | 0 |
@@ -43,6 +43,7 @@ Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS error
 | 5 | 2026-06-26 | D | Client-share render-gating across full spectrum: Client-Approval→active panel; For-SMM/Kasper→read-only "in progress" mini line (no buttons); Approved→terminal (no buttons); all-In-Progress→no review body; no bound field editors leak; pills read-only; no grips; internal note hidden; cards not `.is-editable` | `sxr_d1_client_gating.js` | ✅ 14/14 | 4 seeded samples, live client surface |
 | 6 | 2026-06-26 | B | Linear routing+clear: graphic change→graphic issue only (video issue untouched, overall never pushed); non-status field change→no push; `__CLEAR_LINK__` clears the link in DB (not carried forward); clear fires no push | `sxr_b1_linear_routing_clearlink.js` | ✅ 12/12 | mocked+captured Linear; live DB read-back |
 | 7 | 2026-06-26 | B | Durable Linear outbox retry: page-route injects push `{ok:false}`→FE enqueues to `syncview_sxr_linear_outbox_v1` with `{issue,status}`+attempts; recover→`_sxrLinearOutboxFlush()` drains to empty + harness records the retried push | `sxr_b2_linear_outbox_retry.js` | ✅ 10/10 | real failure injection; localStorage outbox |
+| 8 | 2026-06-26 | F | Flag-off isolation: no `?sxr`→flag false, nav button hidden, no channel, 0 cards; `#sample-reviews` shows "is off." + loads zero cards (seeded sample absent); control `?sxr=1` reveals nav + flips flag | `sxr_f1_flag_off_isolation.js` | ✅ 11/11 | fresh context, default-off; live seed not loaded |
 
 ---
 
@@ -78,10 +79,10 @@ Matrix sections from the mission, with current status:
   audit events (a1). **TODO:** Kasper undo-approve + Finish/Close re-surface via UI; client
   request-change-only-when-valid edge; approve_after_tweaks pre-clear → SMM resolve skips Kasper;
   graphic-component lifecycle symmetry; concurrent SMM+Kasper on different comps.
-- **B) Samples Linear sync (mocked)** — m4 covers push/stale-regress/comment/point-adoption.
-  **TODO:** no-push for unchanged component (explicit), suppression of inbound→outbound echo,
-  durable outbox retry on push failure, `__CLEAR_LINK__` sentinel on link clear, link dedup/
-  conflict across two samples, graphic-issue push (video vs graphic routing).
+- **B) Samples Linear sync (mocked)** — ✅ m4 (video push/stale-regress/comment/point-adoption),
+  b1 (graphic routing, no-push-unchanged, non-status no-push, `__CLEAR_LINK__`), b2 (durable
+  outbox retry on real failure injection). **TODO:** suppression of inbound→outbound echo as a
+  standalone probe; link dedup/conflict across two samples; tweak-comment to graphic issue.
 - **C) SMM fields** — m2 (name/cd/thumb/hide/linear/reorder/client-RO) + c1 (open buttons,
   thumbnail derivation, autosize). **TODO:** Saving/Saved/error indicator + retry; optimistic
   save + rollback on forced failure; Linear link move to another card; comments audience gating
@@ -92,8 +93,9 @@ Matrix sections from the mission, with current status:
 - **E) Kasper surface** — m5a core. **TODO:** SAMPLE badge across queue pagination depth;
   Kasper approve/request/undo/finish/close persist via real Kasper card controls; calendar↔samples
   reverse isolation deeper.
-- **F) Isolation / flag-off** — **TODO (none yet):** ?sxr OFF hides nav + no _sxr runs;
-  calendar↔samples isolation; old samples module untouched.
+- **F) Isolation / flag-off** — ✅ f1 (flag default-off hides nav, no channel, 0 cards, "is off"
+  view, control flips on). **TODO:** calendar↔samples deeper isolation; OLD samples module
+  (`_sm*`) untouched while sxr runs.
 - **G) Realtime / multi-actor** — **TODO (none yet):** cross-tab push (routeWebSocket), self-echo
   window, field-level merge of concurrent patches, recent-save window protects a fresh approval.
 - **H) Everything else** — **TODO (none yet):** calendar review lifecycle/fields/Linear/drag/

@@ -1,0 +1,585 @@
+{
+  "id": "gPY5DL4D0n5nwius",
+  "name": "Sample Review — Upsert",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "description": "POST /webhook/sample-review-upsert. Body {client, sample, comments_base_at}. Guards (read-fail, phantom-row, comments_base_at conflict over SCALAR_FIELDS, __CLEAR_LINK__ + link carry-forward, 3-way comment merge). ALLOWED now includes thumb_rev + created_at; created_at defaulted to updated_at on CREATE only. Atomic sample_review_merge_comments RPC for the two tweak columns (Supabase service_role via supabaseApi cred). Fail-loud scalar mirror to sample_reviews. Best-effort append-only sample_review_events.",
+  "nodes": [
+    {
+      "id": "19a094ff-4ca3-46a1-ba28-be3ffe3ff68d",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        96
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sample-review-upsert",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "webhookId": "829097d2-9127-4551-999e-bbc41cb17541"
+    },
+    {
+      "id": "152edfbf-d8c1-44cb-8b46-2c7da7b2e13c",
+      "name": "Build Row From Patch",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ],
+      "parameters": {
+        "jsCode": "const ALLOWED = [\n  'order_index','name','asset_url','thumbnail_url','status','creative_direction','hide_creative_direction',\n  'linear_issue_id','graphic_linear_issue_id','video_status','graphic_status','video_tweaks','graphic_tweaks',\n  'client_video_approved_at','client_graphic_approved_at','kasper_approved_at','kasper_approved_by','kasper_seen',\n  'kasper_approved_after_tweaks','kasper_finished_at','kasper_closed_at','thumb_rev','created_at',\n];\nconst body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst client = String(body.client || '').trim();\nif (!client) throw new Error('client required');\nconst sample = body.sample || {};\nlet id = String(sample.id || '').trim();\nif (!id) {\n  id = 'sr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8);\n}\nconst row = { id, updated_at: new Date().toISOString() };\nfor (const k of ALLOWED) {\n  if (Object.prototype.hasOwnProperty.call(sample, k)) {\n    const v = sample[k];\n    row[k] = v == null ? '' : String(v);\n  }\n}\nconst baseAt = String(body.comments_base_at || '');\nreturn [{ json: { ...row, _client: client, _baseAt: baseAt } }];"
+      }
+    },
+    {
+      "id": "7dfa36e7-be84-4083-8c65-f9e8b24ca8c7",
+      "name": "Read Existing Row",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        96
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "sample_reviews",
+        "returnAll": false,
+        "limit": 1,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client",
+              "condition": "eq",
+              "keyValue": "={{ $('Build Row From Patch').first().json._client }}"
+            },
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $('Build Row From Patch').first().json.id }}"
+            }
+          ]
+        }
+      },
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "id": "fc8f16d1-bd1b-448e-a342-9ec539ae697c",
+      "name": "Merge Comments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        96
+      ],
+      "parameters": {
+        "jsCode": "const incoming = $('Build Row From Patch').first().json;\nconst existingArr = $('Read Existing Row').all();\nconst existing = (existingArr[0] && existingArr[0].json) || {};\n\n// Read-failure guard: 'Read Existing Row' runs with onError: continueRegularOutput,\n// so a Supabase API failure is forwarded as an item whose .error (object) /\n// .json.error (string) is set instead of a real row. Return a clean, retryable\n// {ok:false} via the no-write path (Is Conflict -> Respond JSON).\nconst _readItem = existingArr[0] || {};\nif (_readItem.error || (_readItem.json && _readItem.json.error)) {\n  return [{ json: { _conflict: true, ok: false, id: incoming.id,\n    error: 'Not saved \\u2014 the sample store was briefly unavailable. Your text is kept; please try again in a moment.' } }];\n}\n\n// Phantom-row guard.\nconst existsAlready = !!(existing && existing.id);\nconst CONTENT_FIELDS = ['name','asset_url','thumbnail_url','creative_direction','video_tweaks','graphic_tweaks'];\nconst hasAnyContent = CONTENT_FIELDS.some(k => String(incoming[k] == null ? '' : incoming[k]).trim() !== '');\nif (!existsAlready && !hasAnyContent) {\n  throw new Error('phantom-row guard: refusing to create sample_reviews row id ' + incoming.id + ' because the row does not exist and the payload contains no substantive content fields. This is the misrouted-skeleton pattern.');\n}\n\nconst baseAt = String(incoming._baseAt || '');\nconst RETAIN_MS = 30*24*60*60*1000;\nconst nowMs = Date.now();\nfunction parse(s){ try { const a = JSON.parse(s == null ? '[]' : (String(s) || '[]')); return Array.isArray(a) ? a.filter(c => c && c.id) : []; } catch (e) { return []; } }\nfunction stamp(c){ return String((c && (c.updated_at || c.created_at)) || ''); }\nfunction mergeCell(existingStr, incomingStr){\n  const ex = parse(existingStr), inc = parse(incomingStr);\n  const incIds = new Set(inc.map(c => c.id));\n  const exById = new Map(ex.map(c => [c.id, c]));\n  const out = [];\n  for (const c of inc){ const e = exById.get(c.id); out.push(e && stamp(e) > stamp(c) ? e : c); }\n  for (const e of ex){\n    if (incIds.has(e.id)) continue;\n    if (e.deleted) { out.push(e); continue; }\n    const es = stamp(e);\n    if (!baseAt) { out.push(e); continue; }\n    if (es && es > baseAt) out.push(e);\n  }\n  const cutoff = nowMs - RETAIN_MS;\n  const kept = out.filter(function(c){ if (!c.deleted) return true; const t = Date.parse(c.updated_at || c.created_at || ''); return !(isFinite(t) && t < cutoff); });\n  return kept.length ? JSON.stringify(kept) : '';\n}\nconst row = Object.assign({}, incoming);\nfor (const col of ['video_tweaks','graphic_tweaks']){\n  if (Object.prototype.hasOwnProperty.call(incoming, col)) row[col] = mergeCell(existing[col], incoming[col]);\n}\n\n// Explicit link clear sentinel.\nconst CLEAR = '__CLEAR_LINK__';\nconst cleared = {};\nfor (const linkCol of ['graphic_linear_issue_id','linear_issue_id']){\n  if (Object.prototype.hasOwnProperty.call(incoming, linkCol)\n      && String(incoming[linkCol] == null ? '' : incoming[linkCol]).trim() === CLEAR) {\n    row[linkCol] = '';\n    cleared[linkCol] = true;\n  }\n}\n\n// Link-clobber carry-forward guard.\nfor (const linkCol of ['graphic_linear_issue_id','linear_issue_id']){\n  if (cleared[linkCol]) continue;\n  if (Object.prototype.hasOwnProperty.call(incoming, linkCol)\n      && String(incoming[linkCol] == null ? '' : incoming[linkCol]).trim() === ''\n      && String(existing[linkCol] == null ? '' : existing[linkCol]).trim() !== '') {\n    row[linkCol] = existing[linkCol];\n  }\n}\n\n// comments_base_at conflict guard.\nif (existsAlready && baseAt) {\n  const storedAt = String(existing.updated_at || '');\n  if (storedAt && storedAt > baseAt) {\n    const SCALAR_FIELDS = ['name','asset_url','thumbnail_url','status','video_status','graphic_status','creative_direction','linear_issue_id','graphic_linear_issue_id','kasper_approved_at'];\n    const changed = SCALAR_FIELDS.filter(k => Object.prototype.hasOwnProperty.call(incoming, k)\n      && String(row[k] == null ? '' : row[k]) !== String(existing[k] == null ? '' : existing[k]));\n    if (changed.length) {\n      return [{ json: { _conflict: true, ok: false, conflict: true, id: incoming.id,\n        error: 'Not saved: someone else updated this sample (' + changed.join(', ') + ') after your screen last loaded it. Refresh to see their version, then re-apply your change.' } }];\n    }\n  }\n}\n\nrow._conflict = false;\nreturn [{ json: row }];"
+      }
+    },
+    {
+      "id": "e5861f3b-ed32-4406-81e2-da16bba08dfd",
+      "name": "Is Conflict",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        96
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "conflict-flag",
+              "leftValue": "={{ $json._conflict === true }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9f9fe28e-1d2a-437a-86a1-08409fc7c68a",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        2912,
+        0
+      ],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "a2c8eff0-00a4-407c-9d8b-d2534e6d3d23",
+      "name": "Strip Routing",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        176
+      ],
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const j = $input.item.json;\nconst out = {};\nfor (const k of Object.keys(j)) {\n  if (k.charAt(0) === '_') continue;\n  out[k] = j[k];\n}\nreturn { json: out };"
+      }
+    },
+    {
+      "id": "7e7421ab-7b83-4bdf-8544-13893e5fca12",
+      "name": "Prep Mirror",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        176
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const client = $('Build Row From Patch').first().json._client;\nconst src = $('Strip Routing').first().json || {};\nconst existingArr = $('Read Existing Row').all();\nconst existing = (existingArr[0] && existingArr[0].json) || {};\nconst existsAlready = !!(existing && existing.id);\nconst COLS = ['id','order_index','name','asset_url','thumbnail_url','status','creative_direction','hide_creative_direction','linear_issue_id','graphic_linear_issue_id','video_status','graphic_status','video_tweaks','graphic_tweaks','client_video_approved_at','client_graphic_approved_at','kasper_approved_at','kasper_approved_by','kasper_seen','kasper_approved_after_tweaks','kasper_finished_at','kasper_closed_at','thumb_rev','created_at','updated_at'];\nconst row = { client };\nfor (const k of COLS) { if (src[k] !== undefined) row[k] = src[k]; }\n// Ensure every CREATE carries a created_at: when the row did not already exist\n// and the patch sent no created_at, default it to this write's updated_at so a\n// new row never has a null created_at. On an UPDATE we never write created_at\n// unless the patch explicitly sent one (it is not in SCALAR_FIELDS), so the\n// original created_at is preserved.\nif (!existsAlready && (row.created_at === undefined || String(row.created_at || '').trim() === '')) {\n  row.created_at = row.updated_at;\n}\nreturn [{ json: row }];"
+      }
+    },
+    {
+      "id": "eac55731-e00c-409b-8814-d9e0ffb00c94",
+      "name": "Row Existed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1568,
+        176
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "exists",
+              "leftValue": "={{ ($('Read Existing Row').first().json && $('Read Existing Row').first().json.id) ? true : false }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "068fcb2c-6bfc-4bf4-95fa-223864c43fb8",
+      "name": "Build RPC Args",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        32
+      ],
+      "parameters": {
+        "jsCode": "// Build the args for the atomic comment-merge RPC. Only include the *_tweaks\n// columns actually in this save (others -> function default null = untouched).\nconst r = ($('Prep Mirror').first() && $('Prep Mirror').first().json) || {};\nconst args = { p_client: r.client, p_id: r.id, p_base: '' };\nfor (const c of ['video','graphic']) {\n  const col = c + '_tweaks';\n  if (Object.prototype.hasOwnProperty.call(r, col)) args['p_' + c] = (r[col] == null ? '' : String(r[col]));\n}\nreturn [{ json: args }];"
+      }
+    },
+    {
+      "id": "6ff079c1-ab95-41c5-ac73-604026ea4cb8",
+      "name": "Call Merge RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2016,
+        32
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/rpc/sample_review_merge_comments",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "specifyHeaders": "keypair",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "id": "5e35d0d2-c1db-4e6a-9764-85a52709f7f9",
+      "name": "Strip Tweaks For Mirror",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        32
+      ],
+      "parameters": {
+        "jsCode": "// The atomic RPC already wrote the *_tweaks columns. The scalar mirror must NOT\n// touch them (whole-cell write is the lost-update race), so drop them here.\nconst r = Object.assign({}, ($('Prep Mirror').first() && $('Prep Mirror').first().json) || {});\nfor (const k of ['video_tweaks','graphic_tweaks']) delete r[k];\nreturn [{ json: r }];"
+      }
+    },
+    {
+      "id": "e7968a12-7a2a-4c69-bdfe-96c6cc56a7d9",
+      "name": "Mirror Update",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        32
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "update",
+        "tableId": "sample_reviews",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client",
+              "condition": "eq",
+              "keyValue": "={{ $json.client }}"
+            },
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "dataToSend": "autoMapInputData"
+      },
+      "onError": "stopWorkflow",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "id": "7347576c-3e98-4902-9ea0-1bed80887ce8",
+      "name": "Mirror Create",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2464,
+        320
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "sample_reviews",
+        "dataToSend": "autoMapInputData"
+      },
+      "onError": "stopWorkflow",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    },
+    {
+      "id": "bb578fac-da5c-4dfc-9b50-7828ed89030c",
+      "name": "Wrap Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        80
+      ],
+      "parameters": {
+        "jsCode": "const sample = $('Strip Routing').first().json || {};\nreturn [{ json: { ok: true, sample } }];"
+      }
+    },
+    {
+      "id": "15f6c382-f4a4-4103-bebf-9e60b0281a7d",
+      "name": "Diff & Insert Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        272
+      ],
+      "parameters": {
+        "jsCode": "// Diff incoming patch vs the Read-Existing-Row snapshot and emit one\n// sample_review_events row per meaningful change. Best-effort.\nconst inc = ($('Strip Routing').first() && $('Strip Routing').first().json) || {};\nconst patch = ($('Build Row From Patch').first() && $('Build Row From Patch').first().json) || {};\nconst client = String(patch._client || '');\nconst existingArr = $('Read Existing Row').all();\nconst existing = (existingArr[0] && existingArr[0].json) || {};\nconst existsAlready = !!(existing && existing.id);\nconst sampleId = String(inc.id || patch.id || '');\nconst actor = String((patch && patch.kasper_approved_by) || '');\nconst nowIso = new Date().toISOString();\nconst has = (k) => Object.prototype.hasOwnProperty.call(patch, k);\nconst sv = (o,k) => String(o && o[k] == null ? '' : o[k]);\nconst events = [];\nfunction ev(action, extra){\n  events.push(Object.assign({ client, sample_id: sampleId, ts: nowIso, actor: actor || null, role: null, action, source: 'ui', created_at: nowIso }, extra || {}));\n}\n\nif (!existsAlready) {\n  ev('create', { component: null, from_status: sv(existing,'status'), to_status: sv(inc,'status') || null });\n} else {\n  if (has('status') && sv(inc,'status') !== sv(existing,'status')) {\n    if (String(sv(inc,'status')).toLowerCase() === 'archived') {\n      ev('archive', { component: null, from_status: sv(existing,'status'), to_status: sv(inc,'status') });\n    } else {\n      ev('status_change', { component: null, from_status: sv(existing,'status'), to_status: sv(inc,'status') });\n    }\n  }\n}\nfor (const comp of ['video','graphic']) {\n  const col = comp + '_status';\n  if (has(col) && sv(inc,col) !== sv(existing,col)) {\n    ev('status_change', { component: comp, from_status: sv(existing,col), to_status: sv(inc,col) });\n  }\n}\nif (has('client_video_approved_at') && sv(inc,'client_video_approved_at') && sv(inc,'client_video_approved_at') !== sv(existing,'client_video_approved_at')) {\n  ev('approve_video', { component: 'video', role: 'client' });\n}\nif (has('client_graphic_approved_at') && sv(inc,'client_graphic_approved_at') && sv(inc,'client_graphic_approved_at') !== sv(existing,'client_graphic_approved_at')) {\n  ev('approve_graphic', { component: 'graphic', role: 'client' });\n}\nif (has('kasper_approved_at') && sv(inc,'kasper_approved_at') && sv(inc,'kasper_approved_at') !== sv(existing,'kasper_approved_at')) {\n  ev('kasper_approve', { component: null, role: 'kasper' });\n}\nif (has('kasper_finished_at') && sv(inc,'kasper_finished_at') && sv(inc,'kasper_finished_at') !== sv(existing,'kasper_finished_at')) {\n  ev('kasper_finish', { component: null, role: 'kasper' });\n}\nif (has('kasper_closed_at') && sv(inc,'kasper_closed_at') && sv(inc,'kasper_closed_at') !== sv(existing,'kasper_closed_at')) {\n  ev('kasper_close', { component: null, role: 'kasper' });\n}\nfor (const pair of [['video','linear_issue_id'],['graphic','graphic_linear_issue_id']]) {\n  const comp = pair[0], col = pair[1];\n  if (!has(col)) continue;\n  const before = sv(existing,col), after = sv(inc,col);\n  if (after === before) continue;\n  if (after && !before) ev('link_set', { component: comp, payload: { to: after } });\n  else if (!after && before) ev('link_clear', { component: comp, payload: { from: before } });\n  else ev('link_set', { component: comp, payload: { from: before, to: after } });\n}\nfunction ids(s){ try { const a = JSON.parse(s == null ? '[]' : (String(s) || '[]')); return Array.isArray(a) ? a.filter(c => c && c.id && !c.deleted).map(c => String(c.id)) : []; } catch(e){ return []; } }\nfor (const pair of [['video','video_tweaks'],['graphic','graphic_tweaks']]) {\n  const comp = pair[0], col = pair[1];\n  if (!has(col)) continue;\n  const before = new Set(ids(existing[col]));\n  const after = ids(inc[col]);\n  const added = after.filter(x => !before.has(x));\n  if (added.length) ev('comment_add', { component: comp, payload: { added } });\n}\n\nif (!events.length) return [];\nreturn events.map(e => ({ json: e }));"
+      }
+    },
+    {
+      "id": "810c09ed-5f15-4a40-aa22-c38bf2a53e75",
+      "name": "Insert Event",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2912,
+        272
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "create",
+        "tableId": "sample_review_events",
+        "dataToSend": "autoMapInputData"
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Receive POST": {
+      "main": [
+        [
+          {
+            "node": "Build Row From Patch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Row From Patch": {
+      "main": [
+        [
+          {
+            "node": "Read Existing Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Row": {
+      "main": [
+        [
+          {
+            "node": "Merge Comments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Comments": {
+      "main": [
+        [
+          {
+            "node": "Is Conflict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Conflict": {
+      "main": [
+        [
+          {
+            "node": "Respond JSON",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Strip Routing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strip Routing": {
+      "main": [
+        [
+          {
+            "node": "Prep Mirror",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prep Mirror": {
+      "main": [
+        [
+          {
+            "node": "Row Existed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Row Existed?": {
+      "main": [
+        [
+          {
+            "node": "Build RPC Args",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mirror Create",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build RPC Args": {
+      "main": [
+        [
+          {
+            "node": "Call Merge RPC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call Merge RPC": {
+      "main": [
+        [
+          {
+            "node": "Strip Tweaks For Mirror",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strip Tweaks For Mirror": {
+      "main": [
+        [
+          {
+            "node": "Mirror Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mirror Update": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Diff & Insert Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mirror Create": {
+      "main": [
+        [
+          {
+            "node": "Wrap Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Diff & Insert Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wrap Response": {
+      "main": [
+        [
+          {
+            "node": "Respond JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Diff & Insert Event": {
+      "main": [
+        [
+          {
+            "node": "Insert Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -10,8 +10,11 @@ const TS = Date.now();
 const X = 'sr_mu_x_' + TS, Y = 'sr_mu_y_' + TS;   // X = In Progress (up-next), Y = Approved
 
 (async () => {
-  Q.up({ id: X, name: 'MU X ' + TS, asset_url: 'https://example.com/x.mp4', thumbnail_url: 'https://via.placeholder.com/320x180.png?mu=' + TS, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', order_index: '1', created_at: new Date().toISOString() });
-  Q.up({ id: Y, name: 'MU Y ' + TS, asset_url: 'https://example.com/y.mp4', thumbnail_url: 'https://via.placeholder.com/320x180.png', video_status: 'Approved', graphic_status: 'Approved', status: 'Approved', order_index: '2', created_at: new Date().toISOString() });
+  // X at order_index 0 so it sorts FIRST even when another probe's just-archived
+  // residue (order_index 1) hasn't finished propagating in a back-to-back run —
+  // otherwise the "first not-yet-Approved" assertion is flaky on the shared client.
+  Q.up({ id: X, name: 'MU X ' + TS, asset_url: 'https://example.com/x.mp4', thumbnail_url: 'https://via.placeholder.com/320x180.png?mu=' + TS, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', order_index: '0', created_at: new Date().toISOString() });
+  Q.up({ id: Y, name: 'MU Y ' + TS, asset_url: 'https://example.com/y.mp4', thumbnail_url: 'https://via.placeholder.com/320x180.png', video_status: 'Approved', graphic_status: 'Approved', status: 'Approved', order_index: '1', created_at: new Date().toISOString() });
 
   const browser = await Q.launch();
   let page;

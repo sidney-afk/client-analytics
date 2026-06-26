@@ -66,7 +66,7 @@ async function typeField(page, id, fld, v) {
     await page.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); return null; }; });
     const assetOpen = await page.evaluate((id) => {
       const wrap = document.querySelector(`.sxr-card[data-sxr-id="${id}"] [data-sxr-fld-wrap="asset_url"]`);
-      const btn = wrap ? wrap.querySelector('.sxr-url-open') : null;
+      const btn = wrap ? wrap.querySelector('.cal-link-pill-open') : null;
       if (!btn) return { had: false };
       btn.click();
       return { had: true, opened: window.__opened.slice() };
@@ -75,7 +75,7 @@ async function typeField(page, id, fld, v) {
     ok(assetOpen.opened && assetOpen.opened[0] === YT, 'asset_url open button window.open(rawUrl)', assetOpen.opened);
 
     // thumbnail field has NO open button yet (empty).
-    const thumbBtnBefore = await page.evaluate((id) => !!document.querySelector(`.sxr-card[data-sxr-id="${id}"] [data-sxr-fld-wrap="thumbnail_url"] .sxr-url-open`), id);
+    const thumbBtnBefore = await page.evaluate((id) => !!document.querySelector(`.sxr-card[data-sxr-id="${id}"] [data-sxr-fld-wrap="thumbnail_url"] .cal-link-pill-open`), id);
     ok(thumbBtnBefore === false, 'thumbnail_url field has NO open button while empty', thumbBtnBefore);
 
     // ── 3) type a Drive URL into thumbnail → open button appears IN-PLACE,
@@ -85,7 +85,7 @@ async function typeField(page, id, fld, v) {
     const thumbBtnAfter = await page.evaluate((id) => {
       window.__opened = [];
       const wrap = document.querySelector(`.sxr-card[data-sxr-id="${id}"] [data-sxr-fld-wrap="thumbnail_url"]`);
-      const btn = wrap ? wrap.querySelector('.sxr-url-open') : null;
+      const btn = wrap ? wrap.querySelector('.cal-link-pill-open') : null;
       if (!btn) return { has: false };
       btn.click();
       return { has: true, opened: window.__opened.slice() };
@@ -124,24 +124,26 @@ async function typeField(page, id, fld, v) {
     }, id);
     ok(grew.ok && grew.h1 > grew.h0, 'creative_direction textarea autosized taller with content', grew);
 
-    // ── 6) open button disappears in-place when the URL field is cleared, reappears when set ──
-    //       (the reveal/hide lives in the blur handler — clear+blur, then set+blur) ──
+    // ── 6) the collapsed link-pill disappears in-place when the URL field is
+    //       cleared, and reappears when set again. The field's outerHTML is
+    //       replaced on each blur (calendar collapse behaviour), so re-query. ──
     const toggle = await page.evaluate((id) => {
-      const sel = `.sxr-card[data-sxr-id="${id}"] input[data-sxr-fld="thumbnail_url"]`;
-      const el = document.querySelector(sel);
-      const wrap = el.closest('.sxr-url-row');
+      const sel = () => document.querySelector(`.sxr-card[data-sxr-id="${id}"] input[data-sxr-fld="thumbnail_url"]`);
+      const hasPill = () => { const f = document.querySelector(`.sxr-card[data-sxr-id="${id}"] [data-sxr-fld-wrap="thumbnail_url"]`); return f ? !!f.querySelector('.cal-link-pill-open') : false; };
+      let el = sel();
       el.focus(); el.value = '';
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('blur', { bubbles: true }));
-      const afterClear = !!wrap.querySelector('.sxr-url-open');
+      const afterClear = hasPill();
+      el = sel();   // re-query — the field was re-rendered on blur
       el.focus(); el.value = 'https://example.com/again.png';
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('blur', { bubbles: true }));
-      const afterSet = !!wrap.querySelector('.sxr-url-open');
+      const afterSet = hasPill();
       return { afterClear, afterSet };
     }, id);
-    ok(toggle.afterClear === false, 'open button removed in-place when field cleared (+blur)', toggle);
-    ok(toggle.afterSet === true, 'open button restored in-place when field set again (+blur)', toggle);
+    ok(toggle.afterClear === false, 'link-pill removed in-place when field cleared (+blur)', toggle);
+    ok(toggle.afterSet === true, 'link-pill restored in-place when field set again (+blur)', toggle);
 
     ok(Q.appErrs(page).length === 0, 'no app JS errors', JSON.stringify(Q.appErrs(page).slice(0, 6)));
   } finally {

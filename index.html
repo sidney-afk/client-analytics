@@ -3904,20 +3904,23 @@
         .sxr-tab-add-item:hover { background:var(--bg); }
         .sxr-tab-add-empty { padding:10px; font-size:0.78rem; color:var(--text-muted); }
         .sxr-body { padding-top:14px; }
-        .sxr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; padding-bottom:30px; }
-        #sxrBody[data-zoom="s"] .sxr-grid { grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); }
-        #sxrBody[data-zoom="l"] .sxr-grid { grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); }
+        /* Samples mirror the content-calendar SMM strip: a horizontal scroll of
+           wide cards (not a grid of tiles), so the card markup can reuse the
+           calendar's --cal-card-w / --cal-thumb-h sizing verbatim. */
+        .sxr-grid { display:flex; gap:14px; overflow-x:auto; align-items:flex-start; padding:10px 4px 30px; min-height:320px; --cal-card-w:420px; --cal-thumb-h:184px; scrollbar-width:thin; }
+        .sxr-grid::after { content:''; flex:0 0 clamp(40px, 18vw, 400px); }
+        #sxrBody[data-zoom="s"] .sxr-grid { --cal-card-w:336px; --cal-thumb-h:148px; }
+        #sxrBody[data-zoom="l"] .sxr-grid { --cal-card-w:500px; --cal-thumb-h:230px; }
         .sxr-zoom { flex:0 0 auto; }
-        .sxr-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
-        .sxr-card-thumb { width:100%; aspect-ratio:16/10; background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); position:relative; }
-        .sxr-card-thumb img { cursor:zoom-in; }
+        .sxr-card { position:relative; flex:0 0 var(--cal-card-w, 420px); background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; transition:box-shadow 0.12s, border-color 0.12s; }
+        .sxr-card-thumb { width:100%; height:calc(var(--cal-thumb-h, 184px) + 16px); background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); position:relative; padding:8px 14px; box-sizing:border-box; flex-shrink:0; }
         .sxr-thumb-drivewarn { position:absolute; left:0; right:0; bottom:0; font-size:0.6rem; font-weight:700; color:#fff; background:rgba(234,88,12,0.92); padding:4px 6px; text-align:center; line-height:1.3; }
         .sxr-lightbox { position:fixed; inset:0; z-index:3000; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.82); padding:40px; }
         .sxr-lightbox.open { display:flex; }
         .sxr-lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.5); }
         .sxr-lightbox-close { position:absolute; top:20px; right:24px; width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,0.15); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
         .sxr-lightbox-close svg { width:18px; height:18px; }
-        .sxr-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
+        .sxr-card-thumb img { display:block; max-width:100%; max-height:var(--cal-thumb-h, 184px); width:auto; height:auto; object-fit:contain; object-position:center; border-radius:10px; box-shadow:0 10px 26px rgba(0,0,0,0.20); cursor:zoom-in; }
         .sxr-card-thumb-fallback { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
         .sxr-card-meta { padding:11px 13px 13px; display:flex; flex-direction:column; gap:8px; }
         .sxr-card-name { font-size:0.86rem; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
@@ -3934,10 +3937,11 @@
         .sxr-card.is-editable:hover .sxr-card-del { opacity:1; }
         .sxr-card-del:hover { background:var(--dn); color:#fff; }
         .sxr-card-del svg { width:12px; height:12px; display:block; }
-        .sxr-card-link { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:7px; border:1px solid var(--border); background:var(--white); color:var(--text-muted); cursor:pointer; flex:none; }
-        .sxr-card-link:hover { color:var(--text-primary); border-color:#aaa; }
-        .sxr-card-link.copied { color:#10b981; border-color:#6ee7b7; }
-        .sxr-card-link svg { width:13px; height:13px; }
+        .sxr-card-link { position:absolute; top:7px; left:37px; z-index:4; width:24px; height:24px; border-radius:6px; border:0; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.86); color:var(--text-muted); cursor:pointer; opacity:0; transition:opacity 0.14s, background 0.14s, color 0.14s; backdrop-filter:blur(3px); }
+        .sxr-card.is-editable:hover .sxr-card-link { opacity:1; }
+        .sxr-card-link:hover { color:var(--text-primary); }
+        .sxr-card-link.copied { background:#dcfce7; color:#15803d; opacity:1; }
+        .sxr-card-link svg { width:13px; height:13px; display:block; }
         .sxr-card.sxr-card-current { box-shadow:-3px 0 0 0 #5e6ad2 inset, 0 1px 3px rgba(0,0,0,0.05); }
         .sxr-card.sxr-card-focus { animation:sxrFocusPulse 2.2s ease; }
         @keyframes sxrFocusPulse { 0%,100% { box-shadow:0 1px 3px rgba(0,0,0,0.05); } 18%,62% { box-shadow:0 0 0 3px rgba(94,106,210,0.45); } }
@@ -3957,12 +3961,14 @@
         .sxr-select-archive:disabled { opacity:0.5; cursor:default; }
         .sxr-select-cancel { border:1px solid var(--border); border-radius:8px; padding:7px 14px; background:var(--white); color:var(--text-secondary); font-family:inherit; font-size:0.8rem; font-weight:700; cursor:pointer; }
         .sxr-card.is-blank .sxr-card-grip, .sxr-card.is-blank .sxr-card-del { display:none; }
-        .sxr-card-add { display:flex; align-items:center; justify-content:center; gap:8px; min-height:130px; border:2px dashed var(--border); border-radius:14px; background:transparent; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:700; font-size:0.8rem; transition:border-color 0.14s, background 0.14s, color 0.14s; }
+        .sxr-card-add { flex:0 0 auto; align-self:center; display:flex; align-items:center; justify-content:center; gap:8px; width:54px; height:54px; border:2px dashed var(--border); border-radius:13px; background:transparent; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:700; font-size:0.8rem; transition:border-color 0.14s, background 0.14s, color 0.14s; }
         .sxr-card-add:hover { border-color:var(--text-primary); border-style:solid; background:var(--text-primary); color:#fff; }
         .sxr-card-add svg { width:20px; height:20px; }
-        .sxr-card-add-hero { min-height:190px; flex-direction:column; gap:12px; }
+        .sxr-card-add-hero { width:auto; min-width:168px; height:168px; border-radius:18px; flex-direction:column; gap:12px; }
         .sxr-card-add-hero svg { width:32px; height:32px; }
-        .sxr-grid.is-empty { grid-template-columns:minmax(240px,360px); justify-content:center; padding-top:24px; }
+        .sxr-card-add-hero span { font-size:0.84rem; }
+        .sxr-grid.is-empty { justify-content:center; align-items:center; padding-top:24px; }
+        .sxr-grid.is-empty::after { content:none; }
         .sxr-retry-link { background:none; border:0; color:var(--ac); font-family:inherit; font-weight:700; font-size:inherit; cursor:pointer; text-decoration:underline; padding:0 0 0 4px; }
         .sxr-card.sxr-dragging { opacity:0.45; }
         .sxr-fld { display:flex; flex-direction:column; gap:5px; }
@@ -3970,7 +3976,9 @@
         .sxr-input, .sxr-textarea { width:100%; font-family:inherit; font-size:0.82rem; line-height:1.5; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 9px; resize:none; transition:border-color 0.12s, background 0.12s; box-sizing:border-box; }
         .sxr-input:focus, .sxr-textarea:focus { outline:none; border-color:var(--accent,#6c5ce7); background:var(--white); }
         .sxr-input::placeholder, .sxr-textarea::placeholder { color:var(--text-muted); }
-        .sxr-name-input { font-size:0.88rem; font-weight:700; color:var(--text-primary); }
+        /* The SMM name field reuses the calendar's borderless .cal-fld-name look;
+           .sxr-name-input stays only as a JS/probe hook (no conflicting style). */
+        .sxr-name-input { }
         .sxr-url-row { display:flex; align-items:center; gap:6px; }
         .sxr-url-row .sxr-input { flex:1; min-width:0; font-size:0.74rem; }
         .sxr-url-open { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:none; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; }
@@ -14189,7 +14197,13 @@
         card.thumb_rev = _sxrBumpThumbRev(pid);
         const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
         const thumb = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${sel}"] .sxr-card-thumb`);
-        if (thumb) thumb.innerHTML = _sxrThumbHtml(card);
+        if (!thumb) return;
+        // Replace ONLY the media — preserve the Linear pile + the "link the
+        // sub-issue" warn banner overlays (clone of _calSetThumbMedia). Without
+        // this an asset/thumbnail edit would wipe the Linear pile off the card.
+        const overlays = Array.from(thumb.children).filter(el => el.matches('.cal-linear-pile, .cal-thumb-linear-warn'));
+        thumb.innerHTML = _sxrThumbHtml(card);
+        overlays.forEach(el => thumb.appendChild(el));
     }
     /* Harvest already-decoded thumbnail <img>s before a grid rebuild and re-insert
        them after, keyed by id + cache-buster-agnostic src base — so a background
@@ -14276,53 +14290,96 @@
             </div>`;
         }
 
-        // ── editable (SMM) ──
+        // ── editable (SMM) — faithful clone of the calendar card (_calRenderInlineCard),
+        //    minus caption / CTA / date / platforms / color-tag. Reuses the calendar's
+        //    global cal-* CSS for the thumbnail, link pills, Linear pile, title row and
+        //    bottom sub-status rows + "Set all to…", so it renders pixel-identical. The
+        //    sxr-* alias classes + data-sxr-id stay as the JS/probe hooks. ──
         const dupePeers = isBlank ? [] : _sxrLinkDuplicatePeers(s);
-        const dupeWarn = dupePeers.length ? `<div class="sxr-dupe-warn">⚠ ${_calEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link.</div>` : '';
+        const dupeWarn = dupePeers.length ? `<div class="cal-dupe-warn">⚠ ${_calEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link.</div>` : '';
         const selectMode = sxrState.selectMode && !_isClientLink;
         const selectable = selectMode && !isBlank;
         const selected = selectable && sxrState.selected.has(s.id);
-        const selectOverlay = selectable ? `<div class="sxr-card-select-overlay" onclick="_sxrCardSelectClick(event,'${id}')"><span class="sxr-card-select-check"></span></div>` : '';
+        const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const selectOverlay = selectable ? `<div class="sxr-card-select-overlay" onclick="_sxrCardSelectClick(event,'${id}')"><span class="sxr-card-select-check">${selChk}</span></div>` : '';
+        // An unlinked card gets the calendar's orange "link the Linear sub-issue"
+        // banner across the top of the thumbnail (clicking it opens the link editor).
+        const needsLinear = !isBlank && !String(s.linear_issue_id || '').trim() && !String(s.graphic_linear_issue_id || '').trim();
+        const thumbWarn = needsLinear
+            ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${id}')" title="Link this sample to its Linear sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>`
+            : '';
         return `<div class="sxr-card is-editable${isBlank ? ' is-blank' : ''}${selectable ? ' sxr-card-selectable' : ''}${selected ? ' sxr-card-selected' : ''}" data-sxr-id="${id}" draggable="${(isBlank || selectMode) ? 'false' : 'true'}">
             ${selectOverlay}
             ${isBlank ? '' : `<span class="sxr-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
+            <button class="sxr-card-link" type="button" data-sxr-card-link="${id}" onclick="_sxrCopyCardLink(event,'${id}')" title="Copy a link to this sample"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>
             <button class="sxr-card-del" type="button" onclick="archiveSxrCard('${id}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="sxr-card-thumb" onclick="_sxrThumbClick(event,'${id}')">${thumbHtml}</div>
-            <div class="sxr-card-meta">
-                <input class="sxr-input sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEscAttr(s.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">
-                <div class="sxr-card-pills">${pills}</div>
-                ${_sxrUrlFieldHtml(s.id, 'asset_url', s.asset_url, 'Video URL (Frame.io / Drive)')}
-                ${_sxrUrlFieldHtml(s.id, 'thumbnail_url', s.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
+            <div class="sxr-card-thumb" onclick="_sxrThumbClick(event,'${id}')">${thumbWarn}${thumbHtml}${_sxrLinearPileHtml(s.id, s)}</div>
+            <div class="cal-card-body">
+                ${dupeWarn}
+                <div class="cal-title-row sxr-title-row" data-sxr-title-row="${id}">${_sxrTitleRowHtml(s.id, s)}</div>
+                ${_sxrLinkFieldHtml(s.id, 'thumbnail_url', s.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
+                ${_sxrLinkFieldHtml(s.id, 'asset_url', s.asset_url, 'Video URL (Frame.io / Drive)')}
                 <div class="sxr-fld">
                     <div class="sxr-fld-label sxr-dir-head"><span>Creative direction</span>${_sxrDirToggleHtml(s.id, hideCd)}</div>
-                    <textarea class="sxr-textarea" rows="3" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">${_calEsc(cd)}</textarea>
+                    <textarea class="sxr-textarea" rows="2" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">${_calEsc(cd)}</textarea>
                 </div>
-                ${dupeWarn}
-                ${_sxrLinearFieldHtml(s.id, 'video', s.linear_issue_id)}
-                ${_sxrLinearFieldHtml(s.id, 'graphic', s.graphic_linear_issue_id)}
                 <div class="sxr-card-foot">
                     ${_sxrCommentsBtnHtml(s, s.id)}
-                    ${isBlank ? '' : `<button type="button" class="sxr-card-link" data-sxr-card-link="${id}" onclick="_sxrCopyCardLink(event,'${id}')" title="Copy a link to this sample"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
                     ${s._saveError
                         ? `<button type="button" class="sxr-card-saving is-error" data-sxr-saving="${id}" onclick="_sxrRetrySave('${id}')" title="${_calEscAttr(typeof s._saveError === 'string' ? s._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
                         : `<span class="sxr-card-saving" data-sxr-saving="${id}" hidden></span>`}
                 </div>
+                <div class="cal-card-status-row">${_sxrStatusRowHtml(s.id, s)}</div>
             </div>
         </div>`;
     }
-    /* Inline URL editor — used for both media links (asset_url / thumbnail_url)
-       and the two plain Linear sub-issue link inputs. Persists on input
-       (debounced) + blur; the open button just launches the link. */
-    function _sxrUrlFieldHtml(rawId, fld, val, placeholder) {
+    /* Collapsed media-link pill — a faithful clone of the calendar's
+       _calLinkFieldHtml. When a URL is present the field collapses to an "open"
+       pill + an edit pencil (the raw input hides); empty shows the bare input.
+       Persists via the shared _sxrOnField* handlers; _sxrOnLinkBlur re-collapses
+       the field and force-refreshes the thumbnail. Reuses the calendar's global
+       .cal-link-field CSS so it looks identical. */
+    function _sxrLinkFieldHtml(rawId, fld, val, placeholder) {
         const id = _calEscAttr(rawId);
-        const v = String(val == null ? '' : val);
-        const open = v.trim()
-            ? `<button type="button" class="sxr-url-open" onclick="_sxrOpenUrl(this)" title="Open in a new tab">${_sxrExtLinkSvg()}</button>`
-            : '';
-        return `<div class="sxr-url-row" data-sxr-fld-wrap="${fld}">
-            <input class="sxr-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEscAttr(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">
-            ${open}
-        </div>`;
+        const v = String(val || '').trim();
+        const isThumb = fld === 'thumbnail_url';
+        const kind = isThumb ? 'thumb' : 'post';
+        const label = isThumb ? 'Thumbnail' : 'Video';
+        const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
+        const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
+        const input = `<input class="cal-link-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)" onfocus="_sxrOnFieldFocus(this)">`;
+        if (v) {
+            return `<div class="cal-link-field has-link cal-link-${kind}" data-sxr-wrap="${id}" data-sxr-fld-wrap="${fld}">
+                <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${id}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${id}','${fld}')" title="Edit link">${pencil}</button>
+                ${input}
+            </div>`;
+        }
+        return `<div class="cal-link-field cal-link-${kind}" data-sxr-wrap="${id}" data-sxr-fld-wrap="${fld}">${input}</div>`;
+    }
+    function _sxrLinkFieldSel(pid, fld) {
+        const e = (x) => (window.CSS && CSS.escape) ? CSS.escape(String(x)) : String(x);
+        return `.cal-link-field[data-sxr-wrap="${e(pid)}"][data-sxr-fld-wrap="${e(fld)}"]`;
+    }
+    function _sxrOnLinkInput(input) { _sxrOnFieldInput(input); }
+    function _sxrOnLinkBlur(input) {
+        _sxrOnFieldBlur(input);   // persist + (for a media field) force a thumbnail refresh
+        const field = input.closest('.cal-link-field');
+        if (!field) return;
+        field.outerHTML = _sxrLinkFieldHtml(input.dataset.sxrPid, input.dataset.sxrFld, input.value.trim(), input.placeholder);
+    }
+    function _sxrOpenLink(pid, fld) {
+        const input = document.querySelector(_sxrLinkFieldSel(pid, fld) + ' .cal-link-input');
+        const v = input ? input.value.trim() : '';
+        if (!v) return;
+        window.open(/^https?:\/\//i.test(v) ? v : 'https://' + v, '_blank', 'noopener,noreferrer');
+    }
+    function _sxrEditLink(pid, fld) {
+        const field = document.querySelector(_sxrLinkFieldSel(pid, fld));
+        if (!field) return;
+        field.classList.add('editing');
+        const input = field.querySelector('.cal-link-input');
+        if (input) { input.focus(); input.select(); }
     }
     function _sxrEyeIconSvg(hidden) {
         return hidden
@@ -14353,33 +14410,56 @@
     function _sxrLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
     function _sxrLinearRowSel(pid, which) { const k = pid + '|' + which; return `[data-sxr-linear-row="${(window.CSS && CSS.escape) ? CSS.escape(k) : k}"]`; }
     function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
-    function _sxrLinearFieldHtml(rawId, which, val) {
+    /* Linear sub-issue pile on the thumbnail — video (top) + graphic (bottom)
+       icon buttons stacked bottom-right of the thumb, exactly like the calendar
+       (_calLinearPileHtml). Linked → indigo open button + edit pencil; unlinked
+       on a real card → orange "link it" warn. stopPropagation so a click links/
+       opens Linear instead of opening the thumbnail lightbox. SMM-only. */
+    function _sxrLinearPileHtml(rawId, s) {
+        if (_isClientLink) return '';
+        const v = _sxrLinearSlotHtml(rawId, s.linear_issue_id, 'video');
+        const g = _sxrLinearSlotHtml(rawId, s.graphic_linear_issue_id, 'graphic');
+        if (!v && !g) return '';
         const id = _calEscAttr(rawId);
-        const u = String(val || '').trim();
-        const label = which === 'graphic' ? 'Thumbnail sub-issue' : 'Video sub-issue';
-        const compCls = ' sxr-linear-' + which;
-        const ident = _calIdentFromUrl(u);
-        const isParent = !!(ident && _sxrParentLinks.has(ident));
-        let inner;
+        return `<div class="cal-linear-slot cal-linear-pile" data-sxr-linear-slot="${id}" onclick="event.stopPropagation()">${v}${g}</div>`;
+    }
+    function _sxrLinearSlotHtml(rawId, url, which) {
+        if (_isClientLink) return '';
+        const id = _calEscAttr(rawId);
+        const u = String(url || '').trim();
+        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
+        const compCls = ' cal-linear-btn-' + which;
         if (u) {
             const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
+            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
             const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            inner = `<a class="sxr-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open ${_calEscAttr(label.toLowerCase())} in Linear">${_sxrLinearSvg()}<span>${_calEsc(label)}${ident ? ': ' + _calEsc(ident) : ''}</span></a><button class="sxr-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${id}','${which}')" title="Change the linked ${_calEscAttr(label.toLowerCase())}">${pencil}</button>`;
-        } else {
-            inner = `<button class="sxr-linear-btn sxr-linear-warn${compCls}" type="button" onclick="_sxrLinearEdit('${id}','${which}')" title="Link the ${_calEscAttr(label.toLowerCase())}">${_sxrLinearSvg()}<span>Link the ${_calEsc(label.toLowerCase())}</span></button>`;
+            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${id}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
         }
-        const parentWarn = isParent ? `<div class="sxr-linear-parent-warn">Parent issue linked — link the sub-issue instead.</div>` : '';
-        return `<div class="sxr-linear-row" data-sxr-linear-row="${id}|${which}">${inner}${parentWarn}</div>`;
+        const warn = !_sxrIsBlankId(rawId) ? ' cal-linear-btn-warn' : '';
+        return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${id}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
+    }
+    /* The title row holds the name input — the Linear buttons that sit here on
+       the calendar live on the thumbnail pile instead. Cloned from
+       _calTitleRowHtml minus the YouTube-title square (title-in-review excluded
+       for samples). A Linear-link EDIT (or a conflict prompt) temporarily swaps
+       this row's contents, then restores it. */
+    function _sxrTitleRowHtml(rawId, s) {
+        const id = _calEscAttr(rawId);
+        return `<input class="cal-fld-name sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEsc(s ? s.name : '')}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">`;
+    }
+    function _sxrTitleRowSel(pid) {
+        const e = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        return `[data-sxr-title-row="${e}"]`;
     }
     function _sxrLinearEdit(pid, comp) {
         if (_isClientLink) return;
         const which = comp === 'graphic' ? 'graphic' : 'video';
-        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+        const row = document.querySelector(_sxrTitleRowSel(pid));
         if (!row) return;
         const sample = _sxrFind(pid);
         const cur = sample ? String(sample[SXR_COMP_FLD[which]] || '') : '';
         const ph = which === 'graphic' ? 'Paste the GRA (graphic) sub-issue link…' : 'Paste the VID (video) sub-issue link…';
-        row.innerHTML = `<input class="sxr-input sxr-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${_calEscAttr(pid)}','${which}')" onblur="_sxrLinearCommit(this,'${_calEscAttr(pid)}','${which}')">`;
+        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${_calEscAttr(pid)}','${which}')" onblur="_sxrLinearCommit(this,'${_calEscAttr(pid)}','${which}')">`;
         const inp = row.querySelector('input');
         if (inp) { inp.focus(); inp.select(); }
     }
@@ -14387,14 +14467,11 @@
         if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
         else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
     }
-    function _sxrRestoreLinearRow(pid, which) {
-        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+    function _sxrRestoreLinearRow(pid) {
+        const row = document.querySelector(_sxrTitleRowSel(pid));
         if (!row) return;
         const sample = _sxrFind(pid);
-        const tmp = document.createElement('div');
-        tmp.innerHTML = _sxrLinearFieldHtml(pid, which, sample ? sample[SXR_COMP_FLD[which]] : '');
-        const fresh = tmp.firstElementChild;
-        if (fresh && row.parentNode) row.parentNode.replaceChild(fresh, row);
+        row.innerHTML = _sxrTitleRowHtml(pid, sample || { id: pid });
     }
     function _sxrLinearCommit(input, pid, comp) {
         const which = comp === 'graphic' ? 'graphic' : 'video';
@@ -14449,7 +14526,7 @@
     }
     function _sxrShowLinkConflict(pid, which, val, conflict) {
         _sxrPendingLinkMove[pid] = { which, val, oldPid: conflict.id };
-        const row = document.querySelector(_sxrLinearRowSel(pid, which));
+        const row = document.querySelector(_sxrTitleRowSel(pid));
         if (!row) return;
         const nm = String(conflict.name || '').trim() || 'Untitled sample';
         row.innerHTML = `<div class="sxr-link-conflict"><span class="sxr-link-conflict-msg">This Linear sub-issue is already linked to “${_calEsc(nm)}”.</span><span class="sxr-link-conflict-actions"><button type="button" class="sxr-link-conflict-move" onclick="_sxrMoveLinkConfirm('${_calEscAttr(pid)}')">Move it here</button><button type="button" class="sxr-link-conflict-cancel" onclick="_sxrLinkConflictCancel('${_calEscAttr(pid)}','${which}')">Cancel</button></span></div>`;
@@ -15717,6 +15794,21 @@
             _sxrCloseStatusMenu();
         }
     }
+    /* Position a portaled menu under (or flipped above) its trigger — clone of
+       the calendar's _calStatusToggleMenu / _calOpenSetAllMenu placement. */
+    function _sxrPositionMenu(menu, triggerEl) {
+        const rect = (triggerEl || document.body).getBoundingClientRect();
+        const menuW = Math.max(menu.offsetWidth, 200);
+        const menuH = menu.offsetHeight;
+        let left = rect.left;
+        const maxLeft = window.innerWidth - menuW - 10;
+        if (left > maxLeft) left = maxLeft;
+        if (left < 10) left = 10;
+        let top = rect.bottom + 6;
+        if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
+        menu.style.left = left + 'px';
+        menu.style.top = top + 'px';
+    }
     function _sxrOpenStatusMenuFor(event, pid, comp, triggerEl) {
         if (event) { event.stopPropagation(); event.preventDefault(); }
         if (_isClientLink) return;   // SMM-only control
@@ -15726,20 +15818,17 @@
         const sample = _sxrFind(pid);
         if (!sample) return;
         const cur = _calNormStatus(sample[comp + '_status'] || 'In Progress');
+        const trigger = triggerEl || (event && event.currentTarget);
         const menu = document.createElement('div');
-        menu.className = 'cal-fld-status-menu sxr-status-menu';
+        menu.className = 'cal-fld-status-menu';
         menu.innerHTML = SXR_STATUSES.map(st => {
             const slug = _sxrStatusSlug(st);
-            const isCur = st === cur;
-            return `<button type="button" class="cal-fld-status-opt cal-fld-status-${slug}${isCur ? ' is-active' : ''}" onclick="_sxrStatusPick(${_jsAttrArg(pid)}, ${_jsAttrArg(st)}, ${_jsAttrArg(comp)})">${_calEsc(st)}</button>`;
+            return `<button type="button" class="cal-fld-status-item cal-fld-status-${slug}${st === cur ? ' active' : ''}" onclick="_sxrStatusPick(${_jsAttrArg(pid)}, ${_jsAttrArg(st)}, ${_jsAttrArg(comp)})">${_calEsc(st)}</button>`;
         }).join('');
         document.body.appendChild(menu);
-        const r = (triggerEl || (event && event.currentTarget) || document.body).getBoundingClientRect();
-        menu.style.position = 'fixed';
-        menu.style.top = (r.bottom + 4) + 'px';
-        menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 220)) + 'px';
-        menu.style.zIndex = '99999';
-        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger: triggerEl || (event && event.currentTarget) };
+        _sxrPositionMenu(menu, trigger);
+        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger };
+        requestAnimationFrame(() => menu.classList.add('open'));
         setTimeout(() => document.addEventListener('click', _sxrStatusMenuOutside, true), 0);
     }
     function _sxrStatusPick(pid, status, comp) {
@@ -15756,18 +15845,26 @@
         _sxrFlushCardSave(pid);
         _sxrRefreshCardPills(pid);
     }
-    /* Repaint just a card's status pills in place (after an in-place transition)
-       without a full grid re-render, so the pill colour + label track the new
-       sub-statuses. */
+    /* Repaint a card's status surface in place (after an in-place transition)
+       without a full grid re-render, so the colours + labels track the new
+       sub-statuses. SMM cards repaint the bottom sub-status row; the read-only
+       client card repaints its inline pills. */
     function _sxrRefreshCardPills(pid) {
         const sample = _sxrFind(pid);
         if (!sample) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const wrap = document.querySelector(`.sxr-card[data-sxr-id="${sel}"] .sxr-card-pills`);
-        if (!wrap) return;
-        const tmp = document.createElement('div');
-        tmp.innerHTML = _sxrPillsHtml(sample);
-        wrap.innerHTML = tmp.innerHTML;
+        const card = document.querySelector(`.sxr-card[data-sxr-id="${sel}"]`);
+        if (card) {
+            const subRow = card.querySelector('.sxr-card-substatus-row');
+            if (subRow) {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = _sxrStatusRowHtml(pid, sample);
+                const fresh = tmp.firstElementChild;
+                if (fresh) subRow.replaceWith(fresh);
+            }
+            const pillWrap = card.querySelector('.sxr-card-pills');
+            if (pillWrap) pillWrap.innerHTML = _sxrPillsHtml(sample);
+        }
         _sxrUpdateBadge();   // keep the "awaiting SMM" tab count live
     }
     /* The per-component status pills HTML. On the SMM surface they are
@@ -15784,6 +15881,108 @@
             }
             return `<button type="button" class="cal-review-sub-pill sxr-pill-btn cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label + ' — click to change')}" onclick="_sxrOpenStatusMenuFor(event, ${_jsAttrArg(s.id)}, '${c}', this)">${_calEsc(label)}</button>`;
         }).join('');
+    }
+
+    /* The SMM card's bottom status block — a faithful clone of the calendar's
+       cal-card-substatus-row: a "Set all to…" pill on top, then one coloured
+       sub-status trigger per component (Video / Thumbnail), each opening the
+       status menu (_sxrOpenStatusMenuFor). Reuses the calendar's global
+       .cal-fld-substatus / .cal-fld-setall CSS so it looks identical.
+       NOTE: unlike the calendar (which locks an unlinked video/graphic trigger
+       because caption is always its settable escape hatch), samples has NO
+       caption — so locking would leave a brand-new, not-yet-linked sample with
+       NOTHING settable. The status must stay changeable, so the triggers are
+       always actionable here; the Linear status push simply no-ops until the
+       sub-issue is linked (see _sxrLinearUrlFor). */
+    function _sxrStatusRowHtml(rawId, s) {
+        if (_isClientLink) return '';
+        const id = _calEscAttr(rawId);
+        const subs = SXR_COMPONENTS.map(c => {
+            const cs = _calNormStatus(s[c + '_status'] || 'In Progress');
+            const slug = _sxrStatusSlug(cs);
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}" data-val="${_calEscAttr(cs)}" data-sxr-substatus-pid="${id}" data-sxr-substatus-comp="${c}">
+                <button type="button" class="cal-fld-substatus-trigger sxr-pill-btn cal-fld-status-${slug}" data-sxr-comp-pill="${c}" onclick="_sxrOpenStatusMenuFor(event, ${_jsAttrArg(rawId)}, '${c}', this)">
+                    <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
+                    <span class="cal-fld-substatus-comp">${_calEsc(SXR_COMP_LABELS[c])}</span>
+                    <span class="cal-fld-substatus-label">${_calEsc(cs)}</span>
+                </button>
+            </div>`;
+        }).join('');
+        const setAll = `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${id}',this)" title="Set both statuses to the same value">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
+            <span class="cal-fld-setall-label">Set all to…</span>
+            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
+        </button>`;
+        return `<div class="cal-card-substatus-row sxr-card-substatus-row">${setAll}${subs}</div>`;
+    }
+    /* "Set all to…" — set both components to one status at once. Mirrors the
+       always-actionable trigger policy above: both components are settable
+       regardless of whether their Linear sub-issue is linked (the status push
+       no-ops for an unlinked component). Clone of _calOpenSetAllMenu /
+       _calSetAllStatus, scoped to the two sample components. */
+    function _sxrSetAllSettable(sample, comp) {
+        return !!sample && SXR_COMPONENTS.indexOf(comp) !== -1;
+    }
+    const _SXR_SETALL_TERMINAL = new Set(['Approved']);
+    function _sxrSetAllSkipKey(status) { return 'sxr-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-'); }
+    function _sxrOpenSetAllMenu(event, pid, triggerEl) {
+        if (event) { event.stopPropagation(); event.preventDefault(); }
+        if (_isClientLink) return;
+        const menuKey = pid + '|__setall__';
+        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.key === menuKey) { _sxrCloseStatusMenu(); return; }
+        _sxrCloseStatusMenu();
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(sample, c));
+        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
+        const headLabel = skipped.length
+            ? `Apply to ${settable.map(c => SXR_COMP_LABELS[c]).join(', ') || '—'} — ${skipped.map(c => SXR_COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
+            : 'Apply to both components';
+        const menu = document.createElement('div');
+        menu.className = 'cal-fld-status-menu';
+        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
+            + SXR_STATUSES.map(st => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(st)}" onclick="_sxrSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(st)}')">${_calEsc(st)}</button>`).join('');
+        document.body.appendChild(menu);
+        _sxrPositionMenu(menu, triggerEl);
+        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger: triggerEl };
+        requestAnimationFrame(() => menu.classList.add('open'));
+        setTimeout(() => document.addEventListener('click', _sxrStatusMenuOutside, true), 0);
+    }
+    function _sxrSetAllStatus(pid, status) {
+        if (_isClientLink) return;
+        _sxrCloseStatusMenu();
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(sample, c));
+        if (!settable.length) {
+            showNotify('Nothing to set', 'Neither component on this card can be updated yet — link the Linear sub-issues first.');
+            return;
+        }
+        const next = _calNormStatus(status);
+        const apply = (dontAskAgain) => {
+            if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch (e) {} }
+            let changed = false;
+            for (const c of settable) {
+                if (_calNormStatus(sample[c + '_status'] || 'In Progress') === next) continue;
+                const extra = {};
+                if (next === 'Kasper Approval') extra.kasper_seen = _sxrRecordKasperSeen(sample, c);
+                _sxrApplySubStatus(sample, c, next, extra);
+                changed = true;
+            }
+            if (!changed) return;   // every settable component already at this status
+            _sxrRenderBody();
+            _sxrFlushCardSave(pid);
+        };
+        let skip = false;
+        try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch (e) {}
+        if (_SXR_SETALL_TERMINAL.has(next) && !skip) {
+            const settableLabel = settable.map(c => SXR_COMP_LABELS[c]).join(', ');
+            const skippedLabel = SXR_COMPONENTS.filter(c => !settable.includes(c)).map(c => SXR_COMP_LABELS[c]).join(' and ');
+            const msg = `Set ${settableLabel} to "${status}".` + (skippedLabel ? ` (${skippedLabel} not linked to Linear — skipped.)` : '');
+            showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
+        } else {
+            apply(false);
+        }
     }
 
     /* ══════════════════════════════════════════════════════════════════

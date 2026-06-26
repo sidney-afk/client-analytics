@@ -112,8 +112,10 @@ function openTweakCount(id, comp) {
 
     ok(Q.appErrs(page).length === 0, 'no app JS errors', JSON.stringify(Q.appErrs(page).slice(0, 6)));
   } finally {
-    Q.up({ id, status: 'Archived' });
-    await browser.close();
+    // Close the browser BEFORE archiving so no trailing debounced flush can
+    // re-save the row after the archive; then verify the archive stuck.
+    try { await browser.close(); } catch {}
+    Q.archiveSafe(id);
   }
   console.log(`PROBE sxr_a3_resolve_route_chooser: pass=${pass} fail=${fail} ` + (fail ? 'FAIL' : 'OK'));
   process.exit(fail ? 1 : 0);

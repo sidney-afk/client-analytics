@@ -7324,7 +7324,205 @@
     }
 
     /* ── View renderers ─────────────────────────────────────────────────── */
+    /* ============================================================
+       ONBOARDING VIEWER  (Templates tab → "Onboarding" sub-tab)
+       Lists submissions from the centralized onboarding form and shows the
+       editor/designer-relevant sections of each. Reads a service-role n8n
+       webhook (onboarding-list) which has ALREADY stripped the account
+       credentials, so no passwords ever reach this public dashboard.
+       Namespaced _obv* / OBV_*. Inline handlers are global (matches the
+       templates tab's _tpl* pattern).
+       ============================================================ */
+    const ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-list';
+    let _tplTab = 'templates';            // 'templates' | 'onboarding'
+    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvSelected = null, _obvLoadedAt = 0;
+
+    const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
+    const OBV_SUB = { native:'Native captions', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
+    const OBV_FRAMING = { closeup:'Close-up', mid:'Mid-shot', wide:'Wide', mixed:'Mixed' };
+    const OBV_CLOTHING = { formal:'Formal / suit', smart_casual:'Smart casual', casual:'Casual', streetwear:'Streetwear', athletic:'Activewear', branded:'Branded merch', elegant:'Elegant' };
+    const OBV_PODCAST = { studio:'Studio desk with mics', lounge:'Casual lounge', office:'Office / bookshelf', minimal:'Plain backdrop' };
+
+    function _obvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function _obvRerender(){ try{ navTo('templates', false); }catch(e){} }
+
+    function _obvSetTab(tab){
+      _tplTab = tab;
+      if (tab === 'onboarding') { _templatesSelected = null; }
+      _obvSelected = null;
+      _obvRerender();
+      if (tab === 'onboarding') _obvEnsureLoaded();
+    }
+    function _obvOpen(id){ _obvSelected = id; _obvRerender(); }
+    function _obvBack(){ _obvSelected = null; _obvRerender(); }
+    function _obvRefresh(){ _obvSubs = null; _obvSelected = null; _obvRerender(); _obvEnsureLoaded(true); }
+
+    function _obvEnsureLoaded(force){
+      if (_obvLoading) return;
+      if (_obvSubs && !force) return;
+      _obvLoading = true; _obvError = '';
+      fetch(ONBOARDING_LIST_URL + '?_t=' + Date.now(), { method:'GET' })
+        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .then(d=>{ _obvSubs = Array.isArray(d) ? d : (d.submissions || []); _obvLoadedAt = Date.now(); })
+        .catch(e=>{ _obvError = e.message || 'load failed'; _obvSubs = _obvSubs || []; })
+        .finally(()=>{ _obvLoading = false; if (_tplTab==='onboarding') _obvRerender(); });
+    }
+
+    function _obvToggle(){
+      return `<div class="obv-toggle">
+        <button class="obv-tab ${_tplTab==='templates'?'active':''}" onclick="_obvSetTab('templates')">Templates</button>
+        <button class="obv-tab ${_tplTab==='onboarding'?'active':''}" onclick="_obvSetTab('onboarding')">Onboarding</button>
+      </div>`;
+    }
+
+    function renderOnboardingInbox(){
+      _obvInjectStyles();
+      const top = `<div class="obv-wrap"><div class="obv-head">${_obvToggle()}<button class="obv-refresh" onclick="_obvRefresh()" title="Refresh">↻</button></div>`;
+      if (_obvSelected){
+        const sub = (_obvSubs||[]).find(s=>s.id===_obvSelected);
+        return top + (sub ? _obvDetail(sub) : `<div class="obv-empty">Submission not found.</div>`) + `</div>`;
+      }
+      let body;
+      if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
+      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If the onboarding-list webhook isn't active yet, activate it in n8n.</small></div>`;
+      else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
+      else body = `<div class="obv-list">` + _obvSubs.map(_obvCard).join('') + `</div>`;
+      return top + body + `</div>`;
+    }
+
+    function _obvFmtDate(iso){ if(!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+
+    function _obvCard(s){
+      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Untitled';
+      const ai = (s.ai_avatar==='yes') ? `<span class="obv-badge">AI avatar</span>` : '';
+      return `<button class="obv-card" onclick="_obvOpen('${_obvEsc(s.id)}')">
+        <div class="obv-card-main"><div class="obv-card-name">${_obvEsc(name)}</div>
+        <div class="obv-card-sub">${_obvEsc(s.email||'')}</div></div>
+        <div class="obv-card-meta">${ai}<span class="obv-card-date">${_obvEsc(_obvFmtDate(s.created_at))}</span></div>
+      </button>`;
+    }
+
+    // value helpers for the detail view
+    function _obvText(a,k){ const v=a[k]; return (v==null||v==='')?'':String(v); }
+    function _obvLink(v){ if(!v) return ''; const u=String(v); const safe=_obvEsc(u); const href = /^https?:\/\//i.test(u) ? safe : ('https://'+safe); return `<a href="${href}" target="_blank" rel="noopener">${safe}</a>`; }
+    function _obvRow(label, valueHtml){ if(!valueHtml) return ''; return `<div class="obv-row"><div class="obv-row-l">${_obvEsc(label)}</div><div class="obv-row-v">${valueHtml}</div></div>`; }
+    function _obvList(arr, map){ if(!Array.isArray(arr)||!arr.length) return ''; return _obvEsc(arr.map(x=>(map&&map[x])||x).join(', ')); }
+
+    function _obvDetail(s){
+      const a = s.answers || {};
+      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Submission';
+      // creators
+      let creators='';
+      for(let i=1;i<=5;i++){ const link=a['creator'+i+'_link'], copy=a['creator'+i+'_copy']; if(link||copy){ creators += `<div class="obv-creator">${_obvLink(link)}${copy?(' — '+_obvEsc(copy)):''}</div>`; } }
+
+      const brand = [
+        _obvRow('Brand guidelines', _obvLink(_obvText(a,'brand_guidelines'))),
+        _obvRow('Ideal customer', _obvEsc(_obvText(a,'ideal_customer'))),
+        _obvRow('Pain points', _obvEsc(_obvText(a,'pain_points'))),
+        _obvRow('Desired outcomes', _obvEsc(_obvText(a,'desired_outcomes'))),
+        _obvRow('Process', _obvEsc(_obvText(a,'process'))),
+      ].join('');
+
+      const style = [
+        creators ? _obvRow('Creators', creators) : '',
+        _obvRow('Clips they like', _obvLink(_obvText(a,'clips_you_like'))),
+        _obvRow('Music', _obvList(a.music, OBV_GENRE)),
+        _obvRow('Subtitles', _obvEsc(OBV_SUB[a.subtitle_style]||a.subtitle_style||'') + (a.highlight_keywords?' · highlight keywords':'')),
+        _obvRow('B-roll', _obvList(a.broll, {stock:'Stock footage',ai:'AI-generated',none:'No B-roll'})),
+        _obvRow('Colours', _obvEsc(_obvText(a,'color_prefs'))),
+        _obvRow('Text / fonts', _obvEsc(_obvText(a,'text_prefs'))),
+        _obvRow('Overall feel', _obvEsc(_obvText(a,'overall_approach'))),
+        _obvRow('Brand tone', _obvEsc(_obvText(a,'brand_tone'))),
+        _obvRow('Always / never', _obvEsc(_obvText(a,'dos_donts'))),
+        _obvRow('Sample clip', _obvLink(_obvText(a,'sample_clip'))),
+      ].join('');
+
+      const assets = [
+        _obvRow('Photos', _obvLink(_obvText(a,'photos_link'))),
+        _obvRow('Source material', _obvLink(_obvText(a,'source_material'))),
+      ].join('');
+
+      const goals = [
+        _obvRow('Success looks like', _obvEsc(_obvText(a,'success'))),
+        _obvRow('Anything else', _obvEsc(_obvText(a,'anything_else'))),
+      ].join('');
+
+      let ai='';
+      if (s.ai_avatar==='yes'){
+        const likeness = a.ai_use_existing==='yes' ? 'Use the clip/photos shared above' : (_obvLink(_obvText(a,'ai_new_likeness')) || '');
+        ai = [
+          _obvRow('Build from', likeness),
+          _obvRow('Personality', _obvEsc(_obvText(a,'ai_personality'))),
+          _obvRow('Look', _obvList(a.ai_content_style, {talking_head:'Talking to camera',podcast:'Podcast style'})),
+          _obvRow('Text-only videos', a.ai_text_driven?_obvEsc(a.ai_text_driven==='yes'?'Yes':'No'):''),
+          _obvRow('Setting', _obvEsc(_obvText(a,'ai_setting'))),
+          _obvRow('Podcast setting', _obvEsc(OBV_PODCAST[a.ai_podcast_setting]||_obvText(a,'ai_podcast_setting'))),
+          _obvRow('Framing', _obvEsc(OBV_FRAMING[a.ai_framing]||_obvText(a,'ai_framing'))),
+          _obvRow('Accessories', _obvList(a.ai_accessories)),
+          _obvRow('Hair', _obvEsc(_obvText(a,'ai_hair'))),
+          _obvRow('Makeup', _obvEsc(_obvText(a,'ai_makeup'))),
+          _obvRow('Clothing', _obvList(a.ai_clothing, OBV_CLOTHING)),
+          _obvRow('Voice recording', _obvLink(_obvText(a,'ai_voice_link'))),
+        ].join('');
+      }
+
+      const sec = (title, inner) => inner ? `<div class="obv-sec"><div class="obv-sec-t">${title}</div>${inner}</div>` : '';
+      return `<div class="obv-detail">
+        <button class="obv-back" onclick="_obvBack()">← All submissions</button>
+        <div class="obv-detail-head"><div class="obv-detail-name">${_obvEsc(name)}</div>
+          <div class="obv-detail-meta">${_obvEsc(s.email||'')} · ${_obvEsc(_obvFmtDate(s.created_at))}${s.ai_avatar==='yes'?' · <b>AI avatar</b>':''}</div></div>
+        ${sec('Brand &amp; audience', brand)}
+        ${sec('Style', style)}
+        ${sec('Photos &amp; source', assets)}
+        ${sec('Goals', goals)}
+        ${sec('AI avatar', ai)}
+      </div>`;
+    }
+
+    function mountOnboardingInbox(){ if (_tplTab==='onboarding') _obvEnsureLoaded(); }
+
+    function _obvInjectStyles(){
+      if (document.getElementById('obvStyles')) return;
+      const css = `
+      .obv-wrap{ max-width:720px; margin:0 auto; padding:8px 0 60px; }
+      .obv-head{ display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+      .obv-toggle{ display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:11px; padding:3px; gap:2px; }
+      .obv-tab{ font-family:'Plus Jakarta Sans',sans-serif; font-size:0.82rem; font-weight:600; padding:7px 18px; border:none; border-radius:8px; cursor:pointer; color:var(--text-muted); background:transparent; transition:all 0.13s; }
+      .obv-tab:hover{ color:var(--text-secondary); }
+      .obv-tab.active{ background:var(--white); color:var(--text-primary); box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+      .obv-refresh{ margin-left:auto; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; font-size:0.95rem; }
+      .obv-refresh:hover{ color:var(--text-primary); border-color:var(--text-muted); }
+      .obv-empty{ text-align:center; color:var(--text-muted); font-size:0.9rem; padding:50px 20px; line-height:1.6; }
+      .obv-list{ display:flex; flex-direction:column; gap:8px; }
+      .obv-card{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; background:var(--white); border:1px solid var(--border); border-radius:12px; padding:13px 16px; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; transition:all 0.12s; }
+      .obv-card:hover{ border-color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+      .obv-card-name{ font-size:0.92rem; font-weight:700; color:var(--text-primary); }
+      .obv-card-sub{ font-size:0.78rem; color:var(--text-secondary); margin-top:1px; }
+      .obv-card-meta{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+      .obv-card-date{ font-size:0.76rem; color:var(--text-muted); }
+      .obv-badge{ font-size:0.66rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ig); background:var(--ig-light); border-radius:99px; padding:3px 9px; }
+      .obv-detail{ }
+      .obv-back{ font-family:'Plus Jakarta Sans',sans-serif; font-size:0.82rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; margin-bottom:14px; }
+      .obv-back:hover{ color:var(--text-primary); }
+      .obv-detail-head{ margin-bottom:18px; }
+      .obv-detail-name{ font-size:1.35rem; font-weight:800; letter-spacing:-0.02em; }
+      .obv-detail-meta{ font-size:0.82rem; color:var(--text-secondary); margin-top:3px; }
+      .obv-sec{ background:var(--white); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+      .obv-sec-t{ font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:10px; }
+      .obv-row{ display:grid; grid-template-columns:140px 1fr; gap:12px; padding:7px 0; border-top:1px solid var(--border-light); font-size:0.86rem; }
+      .obv-row:first-child{ border-top:none; }
+      .obv-row-l{ color:var(--text-secondary); font-weight:600; }
+      .obv-row-v{ color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
+      .obv-row-v a{ color:var(--ig); text-decoration:none; word-break:break-all; }
+      .obv-creator{ margin-bottom:3px; }
+      @media(max-width:560px){ .obv-row{ grid-template-columns:1fr; gap:2px; } }
+      `;
+      const st = document.createElement('style'); st.id='obvStyles'; st.textContent=css; document.head.appendChild(st);
+    }
+
     function renderTemplatesView() {
+        _obvInjectStyles();
+        if (_tplTab === 'onboarding') return renderOnboardingInbox();
         if (_templatesSelected) return renderClientTemplate(_templatesSelected);
         return renderTemplatesIndex();
     }
@@ -7338,6 +7536,7 @@
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
         return `<div class="tpl-index-centered">
             ${banner}${errBanner}
+            <div style="display:flex;justify-content:center;margin-bottom:20px;">${_obvToggle()}</div>
             <div class="tpl-index-title">Client Templates</div>
             <div class="tpl-index-sub">Fonts, colors, references, and preferences — one place for all of them.</div>
             <div class="search-bar-wrap" id="tplSearchWrap">
@@ -7827,6 +8026,7 @@
     function mountTemplatesView() {
         const root = document.getElementById('content');
         if (!root) return;
+        mountOnboardingInbox();
         // Render the "My Clients" pinned section if the index page is showing.
         if (!_templatesSelected && document.getElementById('tplPinsArea')) _tplRenderPins();
         const fields = root.querySelectorAll('[data-tpl-field]');

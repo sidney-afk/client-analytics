@@ -20,12 +20,12 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 
 | Metric | Count |
 |---|---|
-| New probes written this run | 8 |
-| Distinct interactions verified | 133 (assertions) |
+| New probes written this run | 9 |
+| Distinct interactions verified | 133 green (+ `sxr_c2` characterization, findings logged) |
 | PASS | 133 |
 | FAIL | 0 |
 | Bugs found (fixed) | 0 |
-| Bugs found (needs review) | 0 |
+| Bugs found (needs review) | 2 (BUG-1 status rollback, BUG-2 retry chip — save-failure path) |
 
 `node test/run-all.js` (unit gate): **GREEN** (29 suites) — verified at start.
 Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS errors).
@@ -44,12 +44,44 @@ Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS error
 | 6 | 2026-06-26 | B | Linear routing+clear: graphic change→graphic issue only (video issue untouched, overall never pushed); non-status field change→no push; `__CLEAR_LINK__` clears the link in DB (not carried forward); clear fires no push | `sxr_b1_linear_routing_clearlink.js` | ✅ 12/12 | mocked+captured Linear; live DB read-back |
 | 7 | 2026-06-26 | B | Durable Linear outbox retry: page-route injects push `{ok:false}`→FE enqueues to `syncview_sxr_linear_outbox_v1` with `{issue,status}`+attempts; recover→`_sxrLinearOutboxFlush()` drains to empty + harness records the retried push | `sxr_b2_linear_outbox_retry.js` | ✅ 10/10 | real failure injection; localStorage outbox |
 | 8 | 2026-06-26 | F | Flag-off isolation: no `?sxr`→flag false, nav button hidden, no channel, 0 cards; `#sample-reviews` shows "is off." + loads zero cards (seeded sample absent); control `?sxr=1` reveals nav + flips flag | `sxr_f1_flag_off_isolation.js` | ✅ 11/11 | fresh context, default-off; live seed not loaded |
+| 9 | 2026-06-26 | C | Optimistic save funnel: success persists + non-error chip; forced-failure stamps `_saveError` + never writes DB; free-text retained (not rolled back); recovery via re-edit. **Found BUG-1 (status rollback ineffective) + BUG-2 (Retry chip no-op)** — see BUGS section | `sxr_c2_save_indicator_rollback.js` | ⚠️ findings logged | first run surfaced both bugs; final green re-run blocked by env resource limits at session end (Chromium spawns killed, exit 144) |
 
 ---
 
+## BUGS — NEEDS REVIEW (samples save-failure path, found by `sxr_c2`)
+
+Both surface only when a `sample-review-upsert` write FAILS (forced in the probe via a
+page-level route returning `{ok:false}`). Neither corrupts data — a failed write never
+reaches the DB — but the failure-recovery UX is degraded. Filed for human review rather
+than auto-patched because they touch the core `_sxrFlushCardSave` save funnel (live-app
+risk); the fixes are small and localized.
+
+- **BUG-1 — optimistic STATUS change is not rolled back on save failure.**
+  Repro: SMM clicks a status pill → save fails. Expected: the pill reverts (rollback).
+  Actual: the component keeps the new sub-status in the in-memory row even though the DB
+  never got it (probe confirmed DB stays `In Progress` while the card shows `Kasper
+  Approval`). Root cause: `_sxrStatusPick`→`_sxrApplySubStatus` MUTATES `sxrState.cards[idx]`
+  *before* `_sxrFlushCardSave` runs, so the flush captures `prevSnapshot` from the
+  already-mutated row; the catch's `_SXR_ROLLBACK_FIELDS` rollback then restores the *new*
+  value (a no-op). NB: the calendar's `_calStatusPick` pre-mutates the same way, so this may
+  be intended (reconciled by the next background reload via the recent-save window) — needs
+  a design call. Suggested fix if unintended: snapshot the row BEFORE `_sxrApplySubStatus`,
+  or pass the pre-value into the rollback.
+- **BUG-2 — the "Save failed · Retry" chip is a no-op.**
+  Repro: a save fails → the error chip renders → click it. Expected: re-attempt the write.
+  Actual: nothing re-persists (probe confirmed the DB is unchanged after the retry click).
+  Root cause: `_sxrRetrySave` sets an EMPTY `_sxrPendingEdits[pid] = {}` and calls
+  `_sxrFlushCardSave`, which early-returns on `!Object.keys(edits).length` (samples send a
+  field-level patch keyed on `edits`). The calendar's `_calFlushCardSave` instead re-sends
+  the FULL row, so `_calRetrySave`'s empty bucket still resends everything. Worse, the retry
+  click first calls `_sxrSetCardStatus(pid,'saving')`, so the chip can stick on "Saving…".
+  Recovery DOES work by re-editing the field (re-queues a real patch) — probe verified.
+  Suggested fix: have `_sxrRetrySave` re-queue the card's persistable columns (or have the
+  flush re-send the full row when `_saveError` is set), mirroring the calendar.
+
 ## BUGS FOUND
 
-_No product bugs yet._ (4 probe-side bugs were found and fixed during authoring:
+_No data-integrity bugs._ (4 probe-side bugs were found and fixed during authoring:
 a3 Stay-route race → per-round live-DB barrier; c1 open-button toggle expected on
 input but lives in the blur handler; d1 `window._isClientLink` is module-scoped +
 the active review composer `<textarea>` is not a field-editor leak. None indicate
@@ -84,9 +116,9 @@ Matrix sections from the mission, with current status:
   outbox retry on real failure injection). **TODO:** suppression of inbound→outbound echo as a
   standalone probe; link dedup/conflict across two samples; tweak-comment to graphic issue.
 - **C) SMM fields** — m2 (name/cd/thumb/hide/linear/reorder/client-RO) + c1 (open buttons,
-  thumbnail derivation, autosize). **TODO:** Saving/Saved/error indicator + retry; optimistic
-  save + rollback on forced failure; Linear link move to another card; comments audience gating
-  via UI (m3a is core); graphic Linear link paste/commit.
+  thumbnail derivation, autosize) + c2 (optimistic save funnel + failure rollback/retry —
+  surfaced BUG-1 & BUG-2). **TODO:** re-run c2 to green once env recovers; Linear link move to
+  another card; comments audience gating via UI (m3a is core); graphic Linear link paste/commit.
 - **D) Client share** — ✅ m5b (approve/request/guards) + d1 (render-gating spectrum, no-leak).
   **TODO:** Tweaks-Needed "changes requested" follow-up composer state on reload; persist-guard
   that a client write only touches review-action columns (payload-level).

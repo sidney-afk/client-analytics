@@ -80,6 +80,22 @@ function nodePost(url, obj) {
 }
 // Seed/save a sample via the live upsert webhook (the same write the FE makes).
 function up(sample, base) { return nodePost(SXR_UPSERT, { client: 'sidneylaruel', sample, comments_base_at: base || '' }); }
+// Archive a seed and VERIFY it stuck, re-archiving a few times. Heavy probes can
+// leave a trailing browser flush in-flight that lands AFTER an in-finally
+// archive and re-saves the row's status; close the browser BEFORE calling this,
+// then it confirms the row reads Archived (re-archiving if a late write clobbered).
+function archiveSafe(id, tries) {
+  tries = tries || 4;
+  for (let i = 0; i < tries; i++) {
+    try { up({ id, status: 'Archived' }); } catch {}
+    try {
+      const r = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
+    } catch {}
+    try { execSync('sleep 1.5'); } catch {}
+  }
+  return false;
+}
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
 // Read a sample_reviews row (or rows) back from Supabase REST.
 function supa(qs) {
@@ -223,4 +239,4 @@ async function kasper(browser, opts) {
   return page;
 }
 
-module.exports = { PW, launch, open, smm, client, kasper, up, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };
+module.exports = { PW, launch, open, smm, client, kasper, up, archiveSafe, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };

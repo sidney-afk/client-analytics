@@ -37,10 +37,10 @@ client types, and clears it on a successful submit.
      Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
      `onboarding-audio/<key>.mp3`.
    - **Subtitles** — a card per style: Native captions, Boxed banner, Minimal, Word-by-word,
-     Animated highlight. Each preview is **video-capable** (`OB_SUBTITLE_TYPES` 5th column =
-     `onboarding-video/<key>.mp4`); when no video/image is set the card shows a "soon"
-     placeholder. Tap a preview to play/view full-screen. Plus a free-text **subtitle
-     references** field (paste links to styles you like) and a "highlight keywords" toggle.
+     Animated highlight. Four play a short ~10s video preview (`onboarding-video/<key>.mp4`);
+     Boxed banner uses a static Sandcastles frame (no clip provided yet). Tap a preview to
+     play/view full-screen. Plus a free-text **subtitle references** field (paste links to
+     styles you like) and a "highlight keywords" toggle.
    - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is exclusive).
      It's multi-select, so ticking both Stock + AI expresses a mix.
    - Font preferences, overall feel + brand tone (multi-select chips, each with an exclusive
@@ -70,11 +70,17 @@ byte-sliced MP3 clips under `onboarding-audio/`.
 
 Subtitle previews are **video-capable**: each `OB_SUBTITLE_TYPES` row is
 `[key, name, desc, imageUrl, videoUrl]`. The renderer prefers `videoUrl` (a short clip,
-tap to play full-screen), falls back to `imageUrl`, then to a "soon" placeholder. Drop a
-clip at `onboarding-video/<key>.mp4` and set the 5th column to `OB_VID+'<key>.mp4'` — no
-other code change needed. The full-screen zoom (`_obZoom`) auto-detects video vs image by
-extension. Currently native/boxed/minimal use Sandcastles frames; word-by-word and animated
-highlight await clips.
+tap to play full-screen), falls back to `imageUrl`, then to a "soon" placeholder. The
+full-screen zoom (`_obZoom`) auto-detects video vs image by extension. To add/replace a
+clip, drop an mp4 at `onboarding-video/<key>.mp4` and set the 5th column to
+`OB_VID+'<key>.mp4'` — no other code change needed.
+
+The four hosted clips (`native`, `minimal`, `wordbyword`, `highlight`) were trimmed to
+~10s and downscaled to 480×854 H.264 (`yuv420p`, `+faststart`, audio stripped) from the
+client's originals — ~0.5–1 MB each (`onboarding-video/`). Boxed banner still uses a
+Sandcastles frame until a clip is supplied. (Encode recipe: `ffmpeg -ss 2 -i src.mp4 -t 10
+-vf scale=-2:854 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
+-movflags +faststart out.mp4`.)
 
 ## Data flow
 

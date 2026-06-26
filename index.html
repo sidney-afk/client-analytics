@@ -11878,6 +11878,11 @@
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
+    // Quiet reminder under fields where we expect a Drive/cloud upload link.
+    const OB_DRIVE_NOTE = '<div class="ob-drivenote">Make sure the link is shared so anyone with the link can open it.</div>';
+    const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
+    const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
+
     const OB_VOICE_SCRIPT = [
       "(Rising intonation, curious tone) <b>Have you ever stopped to wonder... why certain voices stay with you? Is it the warmth? The rhythm? Or something you simply can't explain? What if I told you — your voice is unlike anyone else's on the planet?</b>",
       "(Confident, declarative, steady pace) <b>My name is Jordan Calloway, and I've spent the last twelve years studying sound. The human voice carries more information than words alone. Every breath, every pause — it tells a story.</b>",
@@ -11886,23 +11891,20 @@
       "(Take your time — don't rush) <b>Here's what I know for certain...</b> (pause) <b>Your voice... is unique. It's you. What makes you you... is the very thing worth preserving.</b> (pause — then slowly) <b>So. Let's get started. Let's use this voice recording to clone your voice.</b>"
     ];
 
-    // Music genres distilled from the Synchro Music Drive folder. "Listen" opens
-    // that genre's folder. (Folders must be link-shared for external clients.)
-    // [key, label, Drive file id of a sample track] — streamed inline from the
-    // (already public) Synchro Music folder, not hosted in this repo.
+    // [key, label] — a ~15s preview clip per genre is hosted at
+    // onboarding-audio/<key>.mp3 (sliced from the Synchro Music library).
     const OB_MUSIC_GENRES = [
-      ['inspirational','Inspirational','152RPKe61ZtJtBUDO1r6CFlV5-juuc-Xt'],
-      ['ambient','Ambient / Cinematic','1Eo3q5Vvnjo4dN-WzxpNM4ZvddfFqHP3s'],
-      ['lofi','Lofi / Chill','1Qkj5Ql1O5ztnpuW-WUpsHjaoAds_A73i'],
-      ['piano','Emotional Piano','1KKGILct5M8JXDqfx-RBH1HvqVZ_4wQLS'],
-      ['guitar','Acoustic Guitar','1s03aCI60VtANSHtgKhtGsU9z2CWSfsra'],
-      ['synth','Synth','1TBqwG5RKTowP-Ic4Ny0wQhOeHvBXs5n9'],
-      ['spiritual','Spiritual','1UppYCTH_72T7EfmiaxfKBm_Z_PGP4E98'],
-      ['classical','Classical','1tCYEoyaf2_p-OjTYAXCUqMu1LfWZAI0y'],
-      ['trending','Trending / TikTok','1jzPYD4Y90v_WYNLk9LXvOeI6_-YTle1J'],
+      ['inspirational','Inspirational'],
+      ['ambient','Ambient / Cinematic'],
+      ['lofi','Lofi / Chill'],
+      ['piano','Emotional Piano'],
+      ['guitar','Acoustic Guitar'],
+      ['synth','Synth'],
+      ['spiritual','Spiritual'],
+      ['classical','Classical'],
+      ['trending','Trending / TikTok'],
     ];
 
-    // Subtitle base styles — pick one. Example = a real public reel frame.
     const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
     const OB_SUBTITLE_TYPES = [
       ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'3101099e-1480-4254-b73e-307db759a5cc.jpg'],
@@ -11911,20 +11913,12 @@
       ['none','No subtitles','', ''],
     ];
 
-    const OB_BROLL_OPTS = [
-      ['stock','Stock footage'],
-      ['ai','AI-generated'],
-      ['none','No B-roll'],
-    ];
-
+    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['none','No B-roll'] ];
     const OB_APPROACH_OPTS = ['Polished & branded','Raw & authentic','Somewhere in between','Not sure — recommend for me'];
     const OB_TONE_OPTS = ['Professional','Playful','Inspirational','Authoritative','Friendly','Luxury / premium','Not sure — recommend for me'];
 
-    function renderOnboardingView(){
-      return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>';
-    }
+    function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
 
-    // ---- field renderers ----
     function _obField(f){
       const req = f.required ? '<span class="ob-req">*</span>' : '';
       const help = f.help ? '<div class="ob-help">'+f.help+'</div>' : '';
@@ -11945,7 +11939,8 @@
         const t = f.type==='email'?'email':(f.type==='tel'?'tel':(f.type==='url'?'url':'text'));
         inner = '<input class="ob-input" type="'+t+'" data-ob="'+f.id+'" placeholder="'+_obEsc(f.placeholder||'')+'">';
       }
-      return '<div class="ob-q" data-ob-q="'+f.id+'"><label class="ob-label">'+_obEsc(f.label)+req+'</label>'+help+inner+'</div>';
+      const note = f.driveNote ? OB_DRIVE_NOTE : '';
+      return '<div class="ob-q" data-ob-q="'+f.id+'"><label class="ob-label">'+_obEsc(f.label)+req+'</label>'+help+inner+note+'</div>';
     }
 
     function _obToggle(id,label,help){
@@ -11957,28 +11952,28 @@
     function _obMusic(){
       const rows = OB_MUSIC_GENRES.map(g=>
         '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
-        '<button type="button" class="ob-play" data-ob-play="'+g[2]+'" aria-label="Play sample">▶</button></div>'
+        '<button type="button" class="ob-play" data-ob-play="'+g[0]+'" aria-label="Play sample">'+OB_PLAY_SVG+'</button></div>'
       ).join('');
       return '<div class="ob-q" data-ob-q="music"><label class="ob-label">Music</label>'+
-        '<div class="ob-help">Tick the vibes that fit you. Tap ▶ to hear a sample.</div>'+
+        '<div class="ob-help">Tick the vibes that fit you. Tap play to hear a sample.</div>'+
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
     function _obSubtitles(){
       const cards = OB_SUBTITLE_TYPES.map(t=>{
-        const img = t[3] ? '<div class="ob-sub-thumb" style="background-image:url(\''+t[3]+'\')"></div>' : '<div class="ob-sub-thumb ob-sub-noimg">—</div>';
+        const thumb = t[3]
+          ? '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[3]+'" aria-label="View example full screen"><img src="'+t[3]+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span></button>'
+          : '<div class="ob-sub-thumb ob-sub-noimg">—</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<label class="ob-sub-card">'+img+'<div class="ob-sub-body"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div></label>';
+        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</label>'+thumb+'</div>';
       }).join('');
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Pick the style you like.</div>'+
+        '<div class="ob-help">Pick the style you like. Tap an example to see it full screen.</div>'+
         '<div class="ob-sub-grid" data-ob-radio="subtitle_style">'+cards+'</div></div>'+
         _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
     }
 
-    function _obBroll(){
-      return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', options:OB_BROLL_OPTS });
-    }
+    function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', options:OB_BROLL_OPTS }); }
 
     function _obCreators(){
       const row = '<div class="ob-cr-row"><input class="ob-input ob-cr-link" data-ob="creator1_link" type="url" placeholder="Creator link">'+
@@ -11989,11 +11984,7 @@
         '<button type="button" class="ob-add" id="obAddCreator">+ Add another</button></div>';
     }
 
-    function _obAiLikeness(){
-      // Filled in dynamically by _obUpdateLikeness(): either "use what you shared"
-      // or "send a ~30s clip + photos".
-      return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>';
-    }
+    function _obAiLikeness(){ return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>'; }
 
     function _obSections(){
       return [
@@ -12023,11 +12014,11 @@
           _obField({id:'overall_approach', label:'Overall feel', type:'select', options:OB_APPROACH_OPTS}),
           _obField({id:'brand_tone', label:'Brand tone', type:'select', options:OB_TONE_OPTS}),
           _obField({id:'dos_donts', label:'Anything we must always include, or never include?', type:'textarea', rows:2}),
-          _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…'}),
+          _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s4', n:'4', title:'Photos & source material', fields:[
-          _obField({id:'photos_link', label:'Link to photos of you', help:'High-quality, ideally full-body. Set sharing to anyone-with-the-link.', type:'url', placeholder:'https://…'}),
-          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos, anything we can create from.', type:'url', placeholder:'https://…'}),
+          _obField({id:'photos_link', label:'Link to photos of you', help:'High-quality, ideally full-body.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos, anything we can create from.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s5', n:'5', title:'Goals', fields:[
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
@@ -12054,7 +12045,7 @@
             '<div class="ob-q" data-ob-q="ai_voice_link"><label class="ob-label">Voice recording<span class="ob-req">*</span></label>'+
               '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
               '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
-              '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…"></div>'+
+              '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>'+
           '</div>',
         ]},
         { id:'s7', n:'7', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
@@ -12070,8 +12061,7 @@
 
     function mountOnboardingView(){
       _obInjectStyles();
-      const card = document.getElementById('obCard');
-      if(!card) return;
+      const card = document.getElementById('obCard'); if(!card) return;
       const sections = _obSections();
       const head = '<div class="ob-headblock"><div class="ob-kicker">Synchro · Onboarding</div>'+
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
@@ -12081,37 +12071,28 @@
         const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
         return '<section class="ob-sec" id="'+s.id+'"><div class="ob-sec-h"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2></div>'+intro+s.fields.join('')+'</section>';
       }).join('');
-      const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div>'+
-        '<button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
+      const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div><button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
       card.innerHTML = head + rail + '<form id="obForm" autocomplete="off" novalidate>' + body + footer + '</form>';
-      // floating scroll-to-top
       if(!document.getElementById('obTop')){
         const b=document.createElement('button'); b.id='obTop'; b.className='ob-top'; b.type='button'; b.setAttribute('aria-label','Back to top'); b.innerHTML='↑';
         b.addEventListener('click', ()=>window.scrollTo({top:0,behavior:'smooth'}));
         document.body.appendChild(b);
-        window.addEventListener('scroll', _obToggleTop, {passive:true});
-        _obToggleTop();
+        window.addEventListener('scroll', _obToggleTop, {passive:true}); _obToggleTop();
       }
-      _obWire();
-      _obUpdateLikeness();
-      _obRestoreDraft();
+      _obWire(); _obUpdateLikeness(); _obRestoreDraft();
     }
 
     function _obToggleTop(){ const b=document.getElementById('obTop'); if(b) b.classList.toggle('show', window.scrollY>300); }
 
     function _obWire(){
-      const form = document.getElementById('obForm');
-      if(!form) return;
+      const form = document.getElementById('obForm'); if(!form) return;
       form.addEventListener('change', e=>{
         const t = e.target;
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
         const wrap = t.closest && t.closest('[data-ob-multi][data-ob-max]');
-        if(wrap && t.type==='checkbox'){
-          const max = parseInt(wrap.getAttribute('data-ob-max'),10);
-          if(wrap.querySelectorAll('input:checked').length>max){ t.checked=false; _obFlash('Up to '+max+'.'); }
-        }
+        if(wrap && t.type==='checkbox'){ const max=parseInt(wrap.getAttribute('data-ob-max'),10); if(wrap.querySelectorAll('input:checked').length>max){ t.checked=false; _obFlash('Up to '+max+'.'); } }
         _obSaveDraftDebounced();
       });
       form.addEventListener('input', e=>{
@@ -12119,22 +12100,19 @@
         if(id==='sample_clip' || id==='photos_link') _obUpdateLikeness();
         _obSaveDraftDebounced();
       });
-      form.addEventListener('click', e=>{ const b=e.target.closest && e.target.closest('.ob-play'); if(b){ e.preventDefault(); _obPlayMusic(b); } });
-      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{
-        const el=document.getElementById(b.getAttribute('data-ob-go')); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
-      }));
-      const ib=document.getElementById('obAiInfoBtn');
-      if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
-      const add=document.getElementById('obAddCreator');
-      if(add) add.addEventListener('click', _obAddCreatorRow);
-      const sb=document.getElementById('obSubmit');
-      if(sb) sb.addEventListener('click', _obSubmit);
+      form.addEventListener('click', e=>{
+        const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
+        const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
+      });
+      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{ const el=document.getElementById(b.getAttribute('data-ob-go')); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }));
+      const ib=document.getElementById('obAiInfoBtn'); if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
+      const add=document.getElementById('obAddCreator'); if(add) add.addEventListener('click', _obAddCreatorRow);
+      const sb=document.getElementById('obSubmit'); if(sb) sb.addEventListener('click', _obSubmit);
     }
 
     function _obAddCreatorRow(){
       const box=document.getElementById('obCreators'); if(!box) return;
-      const i=box.querySelectorAll('.ob-cr-row').length+1;
-      if(i>5){ _obFlash('That\'s plenty 🙂'); return; }
+      const i=box.querySelectorAll('.ob-cr-row').length+1; if(i>5){ _obFlash('That\'s plenty 🙂'); return; }
       const row=document.createElement('div'); row.className='ob-cr-row';
       row.innerHTML='<input class="ob-input ob-cr-link" data-ob="creator'+i+'_link" type="url" placeholder="Creator link">'+
         '<input class="ob-input ob-cr-el" data-ob="creator'+i+'_copy" type="text" placeholder="What to copy?">';
@@ -12143,18 +12121,14 @@
 
     function _obToggleAi(v){ const b=document.getElementById('obAiFields'); if(b) b.style.display=(v==='yes')?'block':'none'; }
     function _obTogglePodcast(){
-      const wrap=document.querySelector('[data-ob-multi="ai_content_style"]');
-      const q=document.querySelector('[data-ob-q="ai_podcast_setting"]'); if(!wrap||!q) return;
-      const podcast=!!Array.from(wrap.querySelectorAll('input:checked')).find(i=>i.value==='podcast');
-      q.style.display=podcast?'':'none';
+      const wrap=document.querySelector('[data-ob-multi="ai_content_style"]'); const q=document.querySelector('[data-ob-q="ai_podcast_setting"]'); if(!wrap||!q) return;
+      const podcast=!!Array.from(wrap.querySelectorAll('input:checked')).find(i=>i.value==='podcast'); q.style.display=podcast?'':'none';
     }
 
-    // ---- AI likeness: reuse what they shared, or ask for a 30s clip + photos ----
     function _obFieldVal(id){ const el=document.querySelector('[data-ob="'+id+'"]'); return el?el.value.trim():''; }
     function _obUpdateLikeness(){
       const wrap=document.getElementById('obAiLikenessWrap'); if(!wrap) return;
-      const hasClip=!!_obFieldVal('sample_clip'); const hasPhotos=!!_obFieldVal('photos_link');
-      const already=hasClip||hasPhotos;
+      const hasClip=!!_obFieldVal('sample_clip'); const hasPhotos=!!_obFieldVal('photos_link'); const already=hasClip||hasPhotos;
       const shared=[hasClip?'the clip':null, hasPhotos?'photos':null].filter(Boolean).join(' and ');
       let html='<label class="ob-label">What we\'ll build your avatar from</label>';
       if(already){
@@ -12162,45 +12136,43 @@
           '<div class="ob-radios" data-ob-radio="ai_use_existing"><label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="yes" data-ob="ai_use_existing"><span>Yes, use those</span></label>'+
           '<label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="no" data-ob="ai_use_existing"><span>No, I\'ll send new ones</span></label></div>'+
           '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
-          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…"></div>';
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>';
       } else {
         html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
-          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">';
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE;
       }
-      // preserve any typed new-likeness value across re-render
       const prev=_obFieldVal('ai_new_likeness'); const prevUse=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
       wrap.innerHTML=html;
       if(prev){ const e=wrap.querySelector('[data-ob="ai_new_likeness"]'); if(e) e.value=prev; }
       if(prevUse){ const r=wrap.querySelector('input[name="ai_use_existing"][value="'+prevUse+'"]'); if(r) r.checked=true; }
       _obUpdateLikenessVisibility();
     }
-    function _obUpdateLikenessVisibility(){
-      const n=document.getElementById('obAiNew'); if(!n) return;
-      const use=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
-      n.style.display=(use==='no')?'block':'none';
-    }
+    function _obUpdateLikenessVisibility(){ const n=document.getElementById('obAiNew'); if(!n) return; const use=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value; n.style.display=(use==='no')?'block':'none'; }
 
-    let _obFlashT=null;
-    function _obFlash(msg){
-      let el=document.getElementById('obFlash');
-      if(!el){ el=document.createElement('div'); el.id='obFlash'; el.className='ob-flash'; document.body.appendChild(el); }
-      el.textContent=msg; el.classList.add('show');
-      clearTimeout(_obFlashT); _obFlashT=setTimeout(()=>el.classList.remove('show'),1700);
-    }
-
-    // Inline music preview: stream a sample track from the public Synchro Music
-    // Drive (one <audio>, play/pause toggle, one at a time).
+    // ---- music preview (hosted local clips) ----
     let _obAudio=null, _obPlayingBtn=null;
-    function _obMusicUrl(id){ return 'https://drive.usercontent.google.com/download?id='+id+'&export=download&confirm=t'; }
-    function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.textContent='▶'; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
+    function _obMusicUrl(key){ return 'onboarding-audio/'+key+'.mp3'; }
+    function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.innerHTML=OB_PLAY_SVG; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
     function _obPlayMusic(btn){
-      if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); }
+      if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); _obAudio.addEventListener('error',_obResetPlay); }
       if(_obPlayingBtn===btn && !_obAudio.paused){ _obResetPlay(); return; }
       _obResetPlay();
       _obAudio.src=_obMusicUrl(btn.getAttribute('data-ob-play')); _obPlayingBtn=btn;
-      btn.textContent='⏸'; btn.classList.add('ob-playing');
+      btn.innerHTML=OB_PAUSE_SVG; btn.classList.add('ob-playing');
       const p=_obAudio.play(); if(p&&p.catch) p.catch(()=>{ _obResetPlay(); _obFlash('Could not play that sample'); });
     }
+
+    // ---- subtitle example lightbox ----
+    function _obZoom(url){
+      let ov=document.getElementById('obZoom');
+      if(!ov){ ov=document.createElement('div'); ov.id='obZoom'; ov.className='ob-zoom-ov'; ov.addEventListener('click',()=>ov.classList.remove('show')); document.body.appendChild(ov); }
+      ov.innerHTML='<img src="'+_obEsc(url)+'" alt="Subtitle example"><span class="ob-zoom-x">✕</span>';
+      ov.classList.add('show');
+    }
+
+    let _obFlashT=null;
+    function _obFlash(msg){ let el=document.getElementById('obFlash'); if(!el){ el=document.createElement('div'); el.id='obFlash'; el.className='ob-flash'; document.body.appendChild(el); } el.textContent=msg; el.classList.add('show'); clearTimeout(_obFlashT); _obFlashT=setTimeout(()=>el.classList.remove('show'),1700); }
+
     function _obSerialize(){
       const form=document.getElementById('obForm'); const out={};
       form.querySelectorAll('[data-ob]').forEach(el=>{ out[el.getAttribute('data-ob')]=el.value.trim(); });
@@ -12221,9 +12193,7 @@
         if(!d.ai_text_driven) miss.push('ai_text_driven');
         if(!d.ai_framing) miss.push('ai_framing');
         if(!d.ai_clothing||!d.ai_clothing.length) miss.push('ai_clothing');
-        // likeness: either reuse what was shared, or provide a new link
-        const okLikeness = (d.ai_use_existing==='yes') || !!d.ai_new_likeness;
-        if(!okLikeness) miss.push('ai_likeness');
+        if(!((d.ai_use_existing==='yes')||!!d.ai_new_likeness)) miss.push('ai_likeness');
       }
       return miss;
     }
@@ -12233,10 +12203,8 @@
       if(miss.length){
         err.style.display='block'; err.textContent='Please fill the highlighted fields ('+miss.length+' left).';
         document.querySelectorAll('.ob-q.ob-missing').forEach(q=>q.classList.remove('ob-missing'));
-        let first=null;
-        miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); if(!first) first=q; } });
-        if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
-        return;
+        let first=null; miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); if(!first) first=q; } });
+        if(first) first.scrollIntoView({behavior:'smooth',block:'center'}); return;
       }
       err.style.display='none';
       const btn=document.getElementById('obSubmit'); btn.disabled=true; btn.textContent='Submitting…';
@@ -12295,6 +12263,8 @@
       .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
       .ob-req{ color:var(--ig); margin-left:3px; }
       .ob-help{ font-size:0.78rem; line-height:1.45; color:var(--text-secondary); margin-bottom:8px; }
+      .ob-drivenote{ font-size:0.72rem; color:var(--text-muted); margin-top:5px; display:flex; align-items:center; gap:5px; }
+      .ob-drivenote::before{ content:'🔒'; font-size:0.7rem; }
       .ob-input{ width:100%; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); box-sizing:border-box; transition:border-color 0.13s; }
       .ob-input:focus{ outline:none; border-color:var(--text-primary); }
       .ob-ta{ resize:vertical; min-height:42px; line-height:1.5; }
@@ -12303,10 +12273,10 @@
       .ob-select-wrap::after{ content:''; position:absolute; right:15px; top:50%; width:9px; height:9px; border-right:2px solid var(--text-secondary); border-bottom:2px solid var(--text-secondary); transform:translateY(-70%) rotate(45deg); pointer-events:none; }
       .ob-select:hover{ border-color:var(--text-muted); }
       .ob-radios,.ob-checks{ display:flex; flex-wrap:wrap; gap:8px; }
-      .ob-pill-opt{ display:inline-flex; align-items:center; gap:7px; font-size:0.85rem; padding:9px 13px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.12s; }
-      .ob-pill-opt:hover{ border-color:var(--text-muted); }
-      .ob-pill-opt input{ accent-color:var(--text-primary); margin:0; }
-      .ob-pill-opt:has(input:checked){ border-color:var(--text-primary); background:var(--bg); font-weight:600; }
+      .ob-pill-opt{ display:inline-flex; align-items:center; font-size:0.85rem; padding:10px 16px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.13s; background:var(--white); user-select:none; position:relative; }
+      .ob-pill-opt:hover{ border-color:var(--text-muted); background:var(--bg); }
+      .ob-pill-opt input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-pill-opt:has(input:checked){ border-color:var(--text-primary); background:var(--text-primary); color:#fff; font-weight:600; }
       .ob-cr{ display:flex; flex-direction:column; gap:8px; }
       .ob-cr-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
       .ob-add{ margin-top:8px; font-family:inherit; font-size:0.8rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; }
@@ -12318,19 +12288,26 @@
       .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
       .ob-genre-pick input{ accent-color:var(--text-primary); margin:0; }
       .ob-genre-name{ font-weight:600; }
-      .ob-play{ flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); font-size:0.58rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.12s; }
+      .ob-play{ flex-shrink:0; width:27px; height:27px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:all 0.12s; }
+      .ob-play svg{ display:block; margin-left:1px; }
+      .ob-play.ob-playing svg{ margin-left:0; }
       .ob-play:hover{ border-color:var(--text-primary); }
       .ob-play.ob-playing{ background:var(--text-primary); color:#fff; border-color:var(--text-primary); }
       .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:9px; border:1.5px solid var(--border); border-radius:12px; cursor:pointer; transition:all 0.12s; }
-      .ob-sub-card:hover{ border-color:var(--text-muted); }
+      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:9px; border:1.5px solid var(--border); border-radius:12px; transition:all 0.12s; }
       .ob-sub-card:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
-      .ob-sub-thumb{ width:48px; height:64px; border-radius:7px; background-size:cover; background-position:center; flex-shrink:0; background-color:#eee; }
-      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.1rem; }
-      .ob-sub-body{ display:flex; flex-direction:column; gap:2px; min-width:0; }
-      .ob-sub-body input{ accent-color:var(--text-primary); margin:0 0 2px; }
+      .ob-sub-pick{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; cursor:pointer; }
+      .ob-sub-pick input{ accent-color:var(--text-primary); margin:0 0 2px; }
       .ob-sub-name{ font-size:0.84rem; font-weight:600; }
       .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
+      .ob-sub-thumb{ position:relative; width:54px; height:72px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
+      .ob-sub-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.1rem; cursor:default; }
+      .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }
+      .ob-zoom-ov{ position:fixed; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
+      .ob-zoom-ov.show{ display:flex; }
+      .ob-zoom-ov img{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.4); }
+      .ob-zoom-x{ position:fixed; top:18px; right:22px; color:#fff; font-size:1.4rem; opacity:0.8; }
       .ob-toggle-q{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
       .ob-switch{ position:relative; display:inline-block; width:44px; height:26px; flex-shrink:0; cursor:pointer; }
       .ob-switch input{ opacity:0; width:0; height:0; }

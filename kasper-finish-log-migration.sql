@@ -1,0 +1,47 @@
+-- ============================================================
+-- Calendar: add kasper_finish_log column
+-- Run in the Supabase SQL editor for project uzltbbrjidmjwwfakwve.
+-- Idempotent (safe to run more than once).
+--
+-- WHY: kasper_finished_at is a SINGLE, OVERWRITTEN timestamp — it only ever holds
+-- Kasper's MOST RECENT "Finish reviewing" click on a card. On its own it cannot
+-- reveal the fingerprint of the recurring review-card bug: a card he finished,
+-- that re-surfaced, and that he had to FINISH AGAIN hours later. (Worse: the stamp
+-- is set to the latest message time, so a re-finish with no new message rewrites it
+-- to the SAME value — completely invisible.) The full click history exists only in
+-- the n8n calendar-upsert-post execution log, which is not practically queryable.
+--
+-- kasper_finish_log is an APPEND-ONLY JSON array (text column, like graphic_tweaks)
+-- holding ONE entry per Finish click:
+--   { at, prev, gap_min, why, video_status, graphic_status,
+--     video_status_at, graphic_status_at }
+-- where `why` ∈ initial | new-message | status-reentered | refinish-no-change, and
+-- gap_min is minutes since the previous finish. The front end appends an entry on
+-- every Finish (see _kasperAppendFinishLog in index.html); it rides the normal
+-- calendar-upsert-post patch + Supabase realtime, exactly like kasper_finished_at.
+-- NOTE: it only captures clicks from the moment it is live — it cannot recover past
+-- ones.
+--
+-- ROLLOUT ORDER (important):
+--   1. Run THIS migration first (adds the column).
+--   2. Then add 'kasper_finish_log' to the ALLOWED array in the n8n
+--      "calendar-upsert-post" workflow's "Build Row From Patch" node.
+--   Doing step 2 before step 1 makes the Supabase mirror upsert (autoMapInputData)
+--   send an unknown column and error. The front end can ship anytime: until the
+--   column is allow-listed the upsert just drops the field (no-op).
+--
+-- AFTER it is live — every card Kasper finished more than once, with the gap
+-- between his last two clicks and why it came back:
+--
+--   select id, client, name,
+--          jsonb_array_length(kasper_finish_log::jsonb)            as finishes,
+--          (kasper_finish_log::jsonb -> -1 ->> 'gap_min')::int     as last_gap_min,
+--          kasper_finish_log::jsonb -> -1 ->> 'why'                as last_why
+--   from public.calendar_posts
+--   where kasper_finish_log is not null
+--     and jsonb_array_length(kasper_finish_log::jsonb) >= 2
+--   order by finishes desc;
+-- ============================================================
+
+alter table public.calendar_posts
+  add column if not exists kasper_finish_log text;

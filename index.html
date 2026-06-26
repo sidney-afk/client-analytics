@@ -33269,7 +33269,7 @@
        caption) that Kasper's row still carries a stale value for is NOT
        clobbered. (`status` is derived and handled separately from
        computeOverallStatus; comment cells are always sent and server-merged.) */
-    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at'];
+    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
     function _kasperPatchSnapshot(post) {
         const s = {};
         for (const k of KASPER_PATCH_SCALARS) s[k] = (post && post[k] != null) ? String(post[k]) : '';
@@ -33621,6 +33621,48 @@
         }
     }
 
+    /* Append one durable record per "Finish reviewing" click to kasper_finish_log
+       (a JSON array in a text column, like graphic_tweaks). kasper_finished_at is a
+       SINGLE OVERWRITTEN stamp, so on its own it can never show that a finished card
+       came back and was finished AGAIN later — the exact fingerprint of the recurring
+       review-card re-surface. (Worse: the stamp is the latest-message time, so a
+       re-finish with no new message rewrites it to the same value — invisible.) Each
+       entry records the click time, the gap since the previous finish, and a
+       best-effort cause: a component re-entered Kasper Approval after the last finish
+       (graphic_status_at/video_status_at advanced past it) → 'status-reentered'; a
+       newer message → 'new-message'. Called BEFORE kasper_finished_at is overwritten,
+       so `prev` is the prior finish. Capped at 50 entries. Additive + append-only;
+       rides the normal upsert patch (KASPER_PATCH_SCALARS). See
+       kasper-finish-log-migration.sql for the column + rollout order. */
+    function _kasperAppendFinishLog(post, stamp) {
+        if (!post) return;
+        let log = [];
+        try { const a = JSON.parse(post.kasper_finish_log || '[]'); if (Array.isArray(a)) log = a; } catch (e) { log = []; }
+        const prev = String(post.kasper_finished_at || '');
+        const nowIso = new Date().toISOString();
+        const gAt = String(post.graphic_status_at || '');
+        const vAt = String(post.video_status_at || '');
+        const msg = String(_calLatestMsgCreatedAt(post) || '');
+        let why = 'initial';
+        if (prev) {
+            if (msg && msg > prev) why = 'new-message';
+            else if ((gAt && gAt > prev) || (vAt && vAt > prev)) why = 'status-reentered';
+            else why = 'refinish-no-change';
+        }
+        log.push({
+            at: nowIso,
+            prev: prev || null,
+            gap_min: prev ? Math.round((Date.parse(nowIso) - Date.parse(prev)) / 60000) : null,
+            why: why,
+            video_status: post.video_status || null,
+            graphic_status: post.graphic_status || null,
+            video_status_at: vAt || null,
+            graphic_status_at: gAt || null
+        });
+        if (log.length > 50) log = log.slice(-50);
+        post.kasper_finish_log = JSON.stringify(log);
+    }
+
     /* "Finish reviewing" — Kasper's explicit "I'm done with this card" exit.
        The button is disabled until every component has an explicit decision
        (approve or request a change); a comment does NOT count, so a card he
@@ -33668,6 +33710,10 @@
             // until the SMM addresses it or a fresh ask supersedes it. Not logged
             // as Approved — it's a hand-off.
             const stamp = _calLatestMsgCreatedAt(post) || new Date().toISOString();
+            // Record THIS click durably before we overwrite the single stamp, so a
+            // re-finish hours later is visible (kasper_finish_log). Until the Supabase
+            // column + n8n allow-list are live the upsert silently drops it (harmless).
+            _kasperAppendFinishLog(post, stamp);
             post.kasper_finished_at = stamp;
             _kasperMarkSeenAt(pid, stamp);
             _kasperState.dismissed[pid] = true;

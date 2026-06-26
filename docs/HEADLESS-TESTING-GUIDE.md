@@ -245,6 +245,27 @@ node my_probe.js 2>&1 | tail -15
 ```
 
 ### Principles
+- **TEST LIKE A HUMAN — the rule that matters most.** For every surface, at least
+  ONE probe must start from a COLD OPEN (no backend seeding at all) and drive the
+  **primary user journey end-to-end through the real UI, exactly as a person
+  would**: open the tab, click the button that **CREATES** the thing, type into
+  the real inputs, paste the links, change the status by clicking the real
+  controls, then **archive/delete** it — all via real clicks and typed text,
+  never by calling a handler directly or inserting a row through the webhook.
+  Seeding via `up(...)` is fine to set up a *specific downstream state* you want
+  to test, but a suite that ONLY ever seeds has a fatal blind spot: it never
+  proves the feature is **usable from zero**.
+  > This is not hypothetical. The entire "Samples (Review)" tab shipped with no
+  > "Add sample" button (and no delete) because every single probe seeded rows
+  > through the webhook — so not one ever tried to *create* a sample the way a
+  > human does, and the empty, unusable starting state was invisible to the whole
+  > suite. The user found it by opening the tab once. A single cold-open smoke
+  > test would have caught it instantly.
+
+  **Litmus test:** if you deleted every `up(...)` / seed call from your probes,
+  could at least one still prove a user can CREATE, edit, and remove the thing
+  through the UI? If no, you have not tested the feature — you've tested its
+  internals. Write the cold-open journey probe FIRST, before the edge-case probes.
 - **Drive the app's own functions; assert on what the user can observe.** DOM
   text, `data-*` attributes, the backend row. Never assert on private internals —
   they change and they lie about user-visible behaviour.

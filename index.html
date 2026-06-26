@@ -34638,5 +34638,82 @@
         <div class="transcript-modal-body" id="transcriptModalBody"></div>
     </div>
 </div>
+
+<!-- ── App auto-update nudge ──────────────────────────────────────────────
+     SyncView is a single index.html on GitHub Pages with no build step, so a
+     browser tab left open keeps running whatever version it loaded — a new
+     deploy is NOT picked up until the page is reloaded. SMMs (and clients) keep
+     the tab open for days, so they can silently run stale code: e.g. a thumbnail
+     rendering change that shipped after they last loaded looks "broken" to them
+     while everyone on a fresh load sees it work. This polls the deployed file's
+     version token (the GitHub Pages ETag / Last-Modified, which changes on every
+     deploy) and, when it changes, offers a one-click reload. It NEVER force-
+     reloads — an SMM could be mid-edit — it just surfaces the option. -->
+<script>
+(function appUpdateNudge(){
+    // Only meaningful when served over HTTP from the deploy host. Skip file://
+    // (local opens) so unit/e2e harnesses and offline opens never poll or nudge.
+    if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+    var POLL_MS = 5 * 60 * 1000;          // re-check every 5 min (and on tab focus)
+    var baseline = null;                   // the version token this tab is running
+    function tokenOf(resp){ return resp.headers.get('etag') || resp.headers.get('last-modified') || ''; }
+    function check(){
+        if (document.hidden) return;       // don't poll a backgrounded tab
+        // HEAD the app's own URL (path only — strips any ?client=… share params)
+        // with no-store so we read the live deployed headers, not a cached copy.
+        fetch(location.pathname, { method: 'HEAD', cache: 'no-store' })
+            .then(function(resp){
+                if (!resp.ok) return;
+                var t = tokenOf(resp);
+                if (!t) return;                                   // host gave us nothing to compare
+                if (baseline === null) { baseline = t; return; } // first poll = the running version
+                if (t !== baseline && !document.getElementById('svUpdateBar')) showBar(t);
+            })
+            .catch(function(){});            // offline / transient — just try again next tick
+    }
+    function injectStyle(){
+        if (document.getElementById('svUpdateStyle')) return;
+        var s = document.createElement('style');
+        s.id = 'svUpdateStyle';
+        s.textContent =
+            '#svUpdateBar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:2147483000;'
+            + 'display:flex;align-items:center;gap:14px;max-width:calc(100vw - 32px);padding:11px 12px 11px 18px;'
+            + 'border-radius:12px;background:#111110;color:#fff;font-family:"Plus Jakarta Sans",system-ui,sans-serif;'
+            + 'font-size:0.84rem;font-weight:500;box-shadow:0 12px 36px rgba(0,0,0,0.30);animation:svUpIn .28s ease}'
+            + '@keyframes svUpIn{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}'
+            + '#svUpdateBar .sv-up-txt{line-height:1.3}'
+            + '#svUpdateBar button{font-family:inherit;cursor:pointer;border:none;border-radius:8px}'
+            + '#svUpdateBar .sv-up-reload{background:#fff;color:#111110;font-weight:700;font-size:0.8rem;padding:7px 15px;white-space:nowrap}'
+            + '#svUpdateBar .sv-up-reload:hover{background:#ececea}'
+            + '#svUpdateBar .sv-up-x{background:transparent;color:#b4b4ae;font-size:1.15rem;line-height:1;padding:2px 8px}'
+            + '#svUpdateBar .sv-up-x:hover{color:#fff}';
+        document.head.appendChild(s);
+    }
+    function showBar(t){
+        injectStyle();
+        var bar = document.createElement('div');
+        bar.id = 'svUpdateBar';
+        bar.setAttribute('role', 'status');
+        var msg = document.createElement('span');
+        msg.className = 'sv-up-txt';
+        msg.textContent = 'A new version of SyncView is available — reload to get the latest.';
+        var reload = document.createElement('button');
+        reload.type = 'button'; reload.className = 'sv-up-reload'; reload.textContent = 'Reload';
+        reload.addEventListener('click', function(){ location.reload(); });
+        var dismiss = document.createElement('button');
+        dismiss.type = 'button'; dismiss.className = 'sv-up-x'; dismiss.textContent = '×';
+        dismiss.setAttribute('aria-label', 'Dismiss');
+        // Dismiss = "I've seen this build" — adopt the new token so we only nudge
+        // again if a YET newer version ships, instead of re-popping every poll.
+        dismiss.addEventListener('click', function(){ baseline = t; bar.remove(); });
+        bar.appendChild(msg); bar.appendChild(reload); bar.appendChild(dismiss);
+        document.body.appendChild(bar);
+    }
+    setTimeout(check, 4000);               // capture the baseline shortly after load
+    setInterval(check, POLL_MS);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
+    window.addEventListener('focus', check);
+})();
+</script>
 </body>
 </html>

@@ -20,9 +20,9 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 
 | Metric | Count |
 |---|---|
-| New probes written this run | 2 |
-| Distinct interactions verified | 42 (assertions) |
-| PASS | 42 |
+| New probes written this run | 3 |
+| Distinct interactions verified | 67 (assertions) |
+| PASS | 67 |
 | FAIL | 0 |
 | Bugs found (fixed) | 0 |
 | Bugs found (needs review) | 0 |
@@ -38,6 +38,7 @@ Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS error
 |---|---|---|---|---|---|---|
 | 1 | 2026-06-26 | A | SMM pill menu: video full forward lifecycle (In Progress→For SMM→Kasper→Client→Approved) + overall worst-of + audit `status_change` rows per step + kasper_seen on Kasper-route + dynamic worst-of flip | `sxr_a1_smm_pill_lifecycle.js` | ✅ 27/27 | live DB read-back each step; overall never leaves 6-status set |
 | 2 | 2026-06-26 | A | Stale-approval clearing (client_*_approved_at on drop <Client Approval; kasper_approved_at only when nothing ≥ Client Approval) + same-tick double-approve idempotency (2nd call null, one transition) | `sxr_a2_stale_clear_and_idempotent.js` | ✅ 15/15 | live DB; in-flight guard returns null |
+| 3 | 2026-06-26 | A | SMM resolve chooser via real `#sxrResolveDestOverlay`: all 4 routes (Kasper→Kasper Approval+kasper_seen, Client→Client Approval, Approved→Approved, Stay→unchanged); tweak marked done each route; recommended=Client once seen by Kasper | `sxr_a3_resolve_route_chooser.js` | ✅ 25/25 | live DB; per-round Tweaks-Needed barrier |
 
 ---
 

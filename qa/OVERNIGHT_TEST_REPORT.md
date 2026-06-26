@@ -24,11 +24,37 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 | Distinct interactions verified | 133 green (+ `sxr_c2` characterization, findings logged) |
 | PASS | 133 |
 | FAIL | 0 |
-| Bugs found (fixed) | 0 |
-| Bugs found (needs review) | 2 (BUG-1 status rollback, BUG-2 retry chip — save-failure path) |
+| Bugs found (fixed) | BUG-2 retry chip FIXED in the parity build (see batch below) |
+| Bugs found (needs review) | BUG-1 status rollback — re-characterized as a probe-snapshot artifact (no app defect) |
 
-`node test/run-all.js` (unit gate): **GREEN** (29 suites) — verified at start.
+`node test/run-all.js` (unit gate): **GREEN** — verified at start.
 Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS errors).
+
+---
+
+## Parity management-layer batch (2026-06-26) — the newly-built `?sxr=1` SMM affordances
+
+After the management-layer parity build (create / archive / toolbar / Linear-slot UI / edit-UX /
+comments / bulk — see `SAMPLES_PARITY_PLAN.md`), this batch drives the NEW affordances through the
+real UI. **BUG-2 (the `_sxrRetrySave` empty-bucket retry) was FIXED in that build** — the flush now
+treats an empty bucket as a forced whole-card re-send + a catch re-render surfaces the Retry button
+on a real blur; `sxr_create_edge` re-verifies Retry now persists. BUG-1 (in-memory status rollback)
+was a probe-snapshot artifact (snapshot captured AFTER `_sxrApplySubStatus` pre-mutated the row); the
+DB never received the failed status — no product defect.
+
+| Probe | Interaction | Result |
+|---|---|---|
+| `sxr_cold_open_journey` | Cold open → Add → fill → paste links (new slot UI + format guard) → status → comment → archive → no-resurrect | **16/16** |
+| `sxr_linear_guards` | Linear FORMAT guard rejects non-link; UNIQUENESS conflict dialog; MOVE relocates link (old cleared) | **5/5** |
+| `sxr_bulk_archive` | Select mode → pick 2/3 → Archive → removed + Archived + no-resurrect; 3rd stays | **7/7** |
+| `sxr_create_edge` | Empty blank never persists/promotes; failed first save retained w/ chip + no DB row; Retry persists | **6/6** |
+| `sxr_reorder` | Drag-reorder persists order_index; a FAILED reorder rolls the on-screen order back | **4/4** |
+| `sxr_toolbar` | 3-level zoom (persists to localStorage); Share copies ?c=…&v=sample-reviews; tab add/remove | **8/8** |
+| `sxr_misc_ui` | deep-link jump-to-card focus/highlight; up-next marker (first not-Approved); copy-card-link; thumbnail lightbox | **5/5** |
+| `sxr_realtime_catchup` | (G) background reload adopts a cross-actor sub-status change; a pending local edit survives the reload; deferred-render-while-editing confirmed | **4/4** |
+
+Prior-suite regression after the build (all green, 0 JS errors): a1 27, a2 15, a3 25, b1 12, b2 10,
+c1 19, c2 11, d1 14, f1 11, m1 5, m2 19, m3a 18, m3b 32, m4 15, m5a 12, m5b 16.
 
 ---
 
@@ -67,7 +93,11 @@ risk); the fixes are small and localized.
   be intended (reconciled by the next background reload via the recent-save window) — needs
   a design call. Suggested fix if unintended: snapshot the row BEFORE `_sxrApplySubStatus`,
   or pass the pre-value into the rollback.
-- **BUG-2 — the "Save failed · Retry" chip is a no-op.**
+- **BUG-2 — the "Save failed · Retry" chip is a no-op. → FIXED (2026-06-26 parity build).**
+  `_sxrFlushCardSave` now treats an empty `edits` bucket as a forced WHOLE-CARD re-send
+  (mirroring the calendar), and the catch path now re-renders so the Retry button actually
+  surfaces on a real blur. `sxr_create_edge` re-verifies: a failed first save is retained with
+  the chip and clicking Retry after recovery persists. Original analysis retained below.
   Repro: a save fails → the error chip renders → click it. Expected: re-attempt the write.
   Actual: nothing re-persists (probe confirmed the DB is unchanged after the retry click).
   Root cause: `_sxrRetrySave` sets an EMPTY `_sxrPendingEdits[pid] = {}` and calls
@@ -128,7 +158,16 @@ Matrix sections from the mission, with current status:
 - **F) Isolation / flag-off** — ✅ f1 (flag default-off hides nav, no channel, 0 cards, "is off"
   view, control flips on). **TODO:** calendar↔samples deeper isolation; OLD samples module
   (`_sm*`) untouched while sxr runs.
-- **G) Realtime / multi-actor** — **TODO (none yet):** cross-tab push (routeWebSocket), self-echo
-  window, field-level merge of concurrent patches, recent-save window protects a fresh approval.
+- **G) Realtime / multi-actor** — ✅ background catch-up of a cross-actor sub-status change +
+  pending-edit-not-clobbered + deferred-render-while-editing (`sxr_realtime_catchup`). **TODO:**
+  routeWebSocket push event into `_sxrV2OnRealtimeChange`; recent-save window protects a fresh approval.
+- **Management layer (the 2026-06-26 parity build)** — ✅ **FULLY COVERED:** create lifecycle +
+  empty-blank/failed-create edges (`sxr_cold_open_journey`, `sxr_create_edge`); per-card + bulk
+  archive + ledger (`sxr_cold_open_journey`, `sxr_bulk_archive`); dedicated Linear slot UI +
+  format/component/uniqueness guards + conflict-move (`sxr_linear_guards`, `sxr_cold_open_journey`,
+  `sxr_b1`); reorder persist + failure-rollback (`sxr_reorder`); toolbar zoom/share/tab-add-remove
+  (`sxr_toolbar`); deep-link/up-next/copy-link/lightbox (`sxr_misc_ui`).
 - **H) Everything else** — **TODO (none yet):** calendar review lifecycle/fields/Linear/drag/
   comments, Kasper for calendar, client share for calendar, onboarding, TikTok pilot, templates.
+  *(Next sweep target — the Samples management layer that this build added is now exhaustively
+  covered; broaden to the rest of the app from here.)*

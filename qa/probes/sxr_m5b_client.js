@@ -51,10 +51,18 @@ async function withRow(page, id, fn) {
     });
   }, { id, fnStr: fn.toString() });
 }
+// The client surface is the calendar review LIST: collapsible
+// .cal-review-card[data-sxr-review-pid] kcards. They start COLLAPSED (calendar
+// parity), so once a card is present we click its strip to expand it — that's
+// what renders the per-component review panels the probe then drives.
 async function clientCardReady(page, id, tries = 25) {
   for (let i = 0; i < tries; i++) {
-    const f = await page.evaluate((id) => !!document.querySelector(`.sxr-card[data-sxr-id="${id}"]`), id);
-    if (f) return true;
+    const f = await page.evaluate((id) => !!document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`), id);
+    if (f) {
+      await page.evaluate((id) => { const c = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`); const s = c && c.querySelector('.kcard-strip'); if (c && s && !c.classList.contains('expanded')) s.click(); }, id);
+      await page.waitForTimeout(280);
+      return true;
+    }
     await page.waitForTimeout(900);
   }
   return false;
@@ -104,7 +112,7 @@ async function clientCardReady(page, id, tries = 25) {
       // is the read-only card shape: the client card has NO `is-editable` class
       // and NO drag grip (the SMM-only affordances).
       const roShape = await page.evaluate((id) => {
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
         return card ? { editable: card.classList.contains('is-editable'), grip: !!card.querySelector('.sxr-card-grip'), draggable: card.getAttribute('draggable') } : null;
       }, ids.approve);
       ok(roShape && roShape.editable === false && roShape.grip === false && roShape.draggable !== 'true',
@@ -112,7 +120,7 @@ async function clientCardReady(page, id, tries = 25) {
 
       // ── controls render for VIDEO (Client Approval) ──────────────────────
       const vp = await page.evaluate((id) => {
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
         if (!card) return null;
         const panel = card.querySelector('.cal-review-panel[data-sxr-cl-comp="video"]');
         const gline = card.querySelector('[data-sxr-cl-comp="graphic"]');
@@ -139,7 +147,7 @@ async function clientCardReady(page, id, tries = 25) {
 
       // ── click Approve on VIDEO (real rendered control) ───────────────────
       await page.evaluate((id) => {
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
         const btn = card && card.querySelector('.cal-review-panel[data-sxr-cl-comp="video"] .cal-review-approve-btn');
         if (btn) btn.click();
       }, ids.approve);
@@ -151,7 +159,7 @@ async function clientCardReady(page, id, tries = 25) {
       const reqReady = await clientCardReady(page, ids.tweak);
       ok(reqReady, 'second sample card present on the client surface', String(reqReady));
       await page.evaluate((id) => {
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
         const ta = card && card.querySelector('.cal-review-panel[data-sxr-cl-comp="video"] textarea[data-sxr-cl-draft]');
         if (ta) {
           ta.value = 'Please make the thumbnail brighter and bump the title size.';
@@ -160,7 +168,7 @@ async function clientCardReady(page, id, tries = 25) {
       }, ids.tweak);
       await page.waitForTimeout(200);
       await page.evaluate((id) => {
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
         const btn = card && card.querySelector('.cal-review-panel[data-sxr-cl-comp="video"] .cal-review-tweak-btn');
         if (btn) btn.click();
       }, ids.tweak);

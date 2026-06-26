@@ -1,0 +1,54 @@
+name: Samples ⇄ Linear status reconcile
+
+# Convergence backbone for the SAMPLES (Review) feature: catches any dropped
+# real-time sync event by periodically reconciling every linked sample-component
+# against its Linear issue (most-recent action wins). Mirrors the calendar
+# reconcile but runs an entirely separate script + ledger so the two never
+# interfere. See scripts/sample-linear-reconcile.js.
+#
+# NOTE: `schedule` triggers only fire from the repository's DEFAULT branch, so
+# this becomes live once merged to the default branch. Until then, run it by hand
+# from the Actions tab (workflow_dispatch) — leave "dry_run" on to preview.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only — report corrections without writing'
+        type: boolean
+        default: true
+      cap:
+        description: 'Safety cap: abort without writing if more than this many corrections'
+        default: '15'
+
+concurrency:
+  group: sample-linear-reconcile
+  cancel-in-progress: false      # let an in-flight run finish (and save its ledger)
+
+permissions:
+  contents: read
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4              # needs index.html for the canonical logic
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Restore reconcile ledger
+        uses: actions/cache@v4
+        with:
+          path: .sync-ledger
+          key: sample-linear-reconcile-ledger-${{ github.run_id }}
+          restore-keys: |
+            sample-linear-reconcile-ledger-
+      - name: Reconcile
+        env:
+          # schedule runs always apply; manual runs honor the dry_run input
+          APPLY: ${{ github.event_name == 'schedule' || github.event.inputs.dry_run != 'true' }}
+          CAP: ${{ github.event.inputs.cap || '15' }}
+        run: node scripts/sample-linear-reconcile.js

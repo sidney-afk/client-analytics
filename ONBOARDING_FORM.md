@@ -27,29 +27,40 @@ client types, and clears it on a successful submit.
 
 ## Sections (the approved question set)
 
-0. Welcome
-1. Basic Information
-2. Your Brand & Audience
-3. **Editing Direction & Style** (the new module)
-   - Reference creators (up to 5) + "clips you like"
-   - 7 style matrices — Music, Transitions, Subtitles, B-Roll, Animations, VFX/Colour,
-     Pacing — each a **Yes / No / Mix per option** grid with a **▶ Watch example** slot
-   - Visual identity (fonts, colours, typography, thumbnails)
-   - General direction (approach, tone, hard restrictions, must-haves, avoid)
-   - AI / stock usage grid (Preferred / Allowed / Not allowed)
-   - Sample video request (a short client clip so the first sample is real)
-4. Source Material & Photos
-5. Goals & Collaboration
-6. **AI Avatar Add-On** — hidden unless the gate question = "Yes, I'm in". Includes the
-   voice-clone capture script and all avatar-style questions.
-7. Account Access & Credentials (last — most sensitive, highest drop-off)
+1. **Basic info** — name, email, phone, who else to loop in, billing contact.
+2. **Your brand & audience** — brand-guidelines link, ideal customer, pain points,
+   desired outcomes, process.
+3. **Style** (the editing-direction module)
+   - **Creators for inspiration** + **clips you like** — repeatable rows (first row is
+     fixed, "+ Add another" adds a removable row with a subtle × ).
+   - **Music** — genre checkboxes (Inspirational, Ambient, Lofi, Piano, Guitar, Synth,
+     Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
+     `onboarding-audio/<key>.mp3`.
+   - **Subtitles** — a card per style (Native captions, Boxed banner, Minimal, No
+     subtitles) with a real example frame you tap to view full-screen, + a "highlight
+     keywords" toggle.
+   - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is
+     exclusive).
+   - Colour & font preferences, overall feel + brand tone (custom dropdowns), always/never
+     notes, and an optional short sample clip of the client.
+4. **Photos & source material** — both optional links (photos of you, content to pull from).
+5. **Goals** — what a win looks like, anything else.
+6. **AI avatar (optional)** — gated behind the "Want to add an AI avatar?" Yes/No question
+   (with an ⓘ explainer, no prices). When Yes: what to build the likeness from (reuses the
+   sample clip / photos if given), personality, look (talking-to-camera / podcast, each
+   with an ⓘ example frame), text-only-videos toggle (ⓘ explains avatar-in-background +
+   on-screen text), setting, framing, accessories (incl. an "Other" write-in), hair,
+   makeup, clothing, and the voice-clone capture script + recording link.
+7. **Account access** (last — most sensitive, highest drop-off) — IG / TikTok / FB /
+   LinkedIn / YouTube logins. These are the only fields the dashboard viewer strips.
 
-### ▶ Example clips (placeholder mechanism)
+### Example frames
 
-The style matrices were designed (per the call) to let clients preview each style. The
-clips don't exist yet, so each option shows **"▶ Example coming soon"**. To go live, add
-a URL to `OB_EXAMPLE_CLIPS` in `index.html` keyed by `` `${catKey}:${optValue}` `` (e.g.
-`'music:bold'`). No code change beyond filling the map.
+Subtitle styles and the two AI "look" options show a real reference frame sourced from
+Sandcastles thumbnails (public `storage.googleapis.com` URLs hard-coded in
+`OB_SUBTITLE_TYPES` / `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are byte-sliced
+MP3 clips committed under `onboarding-audio/`. To swap any of them, change the UUID / file —
+no other code change needed.
 
 ## Data flow
 

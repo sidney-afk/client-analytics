@@ -11694,6 +11694,8 @@
     const OB_DRIVE_NOTE = '<div class="ob-drivenote">Make sure the link is shared so anyone with the link can open it.</div>';
     const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
     const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
+    const OB_INFO_SVG = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="6.4" r="1.05" fill="currentColor"/><path d="M10 9.3v4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    function _obInfoBtn(attr){ return '<button type="button" class="ob-i" '+attr+'>'+OB_INFO_SVG+'</button>'; }
     const OB_TEXTONLY_INFO = 'Your avatar appears in the background (an expression or a pose) while the main message is text on screen — no one is talking.';
 
     const OB_VOICE_SCRIPT = [
@@ -11719,7 +11721,7 @@
 
     const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
     const OB_SUBTITLE_TYPES = [
-      ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'0aa4a945-cd8d-49c7-9b35-b85e235fa78c.jpg'],
+      ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'7663e79a-4126-4774-b5ed-34b2094192a5.jpg'],
       ['boxed','Boxed banner','Text sits on a solid block.', SC_THUMB+'3e08ff7a-1b49-42c9-8fe8-532d07c778a6.jpg'],
       ['minimal','Minimal','Small, thin, understated.', SC_THUMB+'69244920-d7c1-470f-b7c6-b90d0cf4077c.jpg'],
       ['none','No subtitles','', ''],
@@ -11790,7 +11792,7 @@
           ? '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+t[3]+'" aria-label="View example full screen"><img src="'+t[3]+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span></button>'
           : '<div class="ob-sub-thumb ob-sub-noimg">—</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</label>'+thumb+'</div>';
+        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+thumb+'</div>';
       }).join('');
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
         '<div class="ob-help">Pick the style you like. Tap an example to see it full screen.</div>'+
@@ -11804,14 +11806,14 @@
     function _obLook(){
       return '<div class="ob-q" data-ob-q="ai_content_style"><label class="ob-label">Which look do you prefer?<span class="ob-req">*</span></label>'+
         '<div class="ob-checks" data-ob-multi="ai_content_style">'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="talking_head"><span>Talking to camera</span></label><button type="button" class="ob-ex" data-ob-zoom="'+OB_LOOK_TALKING+'" aria-label="See example">ⓘ</button></span>'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="podcast"><span>Podcast style</span></label><button type="button" class="ob-ex" data-ob-zoom="'+OB_LOOK_PODCAST+'" aria-label="See example">ⓘ</button></span>'+
+          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="talking_head"><span>Talking to camera</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_TALKING+'" aria-label="See example"')+'</span>'+
+          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="podcast"><span>Podcast style</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_PODCAST+'" aria-label="See example"')+'</span>'+
         '</div></div>';
     }
 
     function _obTextDriven(){
       return '<div class="ob-q" data-ob-q="ai_text_driven"><label class="ob-label">Also make text-only videos (no speaking)?<span class="ob-req">*</span> '+
-        '<button type="button" class="ob-info-toggle" data-ob-info="textonly">ⓘ</button></label>'+
+        _obInfoBtn('data-ob-info="textonly" aria-label="What are text-only videos"')+'</label>'+
         '<div class="ob-info-panel" data-ob-info-panel="textonly" style="display:none">'+OB_TEXTONLY_INFO+'</div>'+
         '<div class="ob-radios" data-ob-radio="ai_text_driven"><label class="ob-pill-opt"><input type="radio" name="ai_text_driven" value="yes"><span>Yes</span></label>'+
         '<label class="ob-pill-opt"><input type="radio" name="ai_text_driven" value="no"><span>No</span></label></div></div>';
@@ -11825,20 +11827,21 @@
         '<input class="ob-input ob-other-field" data-ob="ai_accessories_other" type="text" placeholder="What accessory?" style="display:none;margin-top:8px"></div>';
     }
 
-    function _obRepRowHtml(rep){
-      if(rep==='creators') return '<div class="ob-rep-row ob-rep-creators"><input class="ob-input" data-rep="creators" data-rep-k="link" type="url" placeholder="Creator link"><input class="ob-input" data-rep="creators" data-rep-k="copy" type="text" placeholder="What to copy?"><button type="button" class="ob-rep-x" aria-label="Remove">×</button></div>';
-      return '<div class="ob-rep-row ob-rep-clips"><input class="ob-input" data-rep="clips" data-rep-k="link" type="url" placeholder="Paste a link"><button type="button" class="ob-rep-x" aria-label="Remove">×</button></div>';
+    function _obRepRowHtml(rep, first){
+      const x = first ? '' : '<button type="button" class="ob-rep-x" aria-label="Remove row">×</button>';
+      if(rep==='creators') return '<div class="ob-rep-row"><input class="ob-input" data-rep="creators" data-rep-k="link" type="url" placeholder="Creator link"><input class="ob-input" data-rep="creators" data-rep-k="copy" type="text" placeholder="What to copy?">'+x+'</div>';
+      return '<div class="ob-rep-row"><input class="ob-input" data-rep="clips" data-rep-k="link" type="url" placeholder="Paste a link">'+x+'</div>';
     }
     function _obCreators(){
       return '<div class="ob-q" data-ob-q="creators"><label class="ob-label">Creators for inspiration</label>'+
         '<div class="ob-help">Anyone whose style you\'d like us to borrow from.</div>'+
-        '<div class="ob-rep" id="obCreators">'+_obRepRowHtml('creators')+'</div>'+
+        '<div class="ob-rep" id="obCreators">'+_obRepRowHtml('creators', true)+'</div>'+
         '<button type="button" class="ob-add" data-rep-add="creators">+ Add another</button></div>';
     }
     function _obClips(){
       return '<div class="ob-q" data-ob-q="clips"><label class="ob-label">Clips you like the look of</label>'+
         '<div class="ob-help">Paste links to videos whose editing you like.</div>'+
-        '<div class="ob-rep" id="obClips">'+_obRepRowHtml('clips')+'</div>'+
+        '<div class="ob-rep" id="obClips">'+_obRepRowHtml('clips', true)+'</div>'+
         '<button type="button" class="ob-add" data-rep-add="clips">+ Add another</button></div>';
     }
 
@@ -11885,7 +11888,7 @@
         { id:'s6', n:'6', title:'AI avatar (optional)', isAi:true, fields:[
           '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
             '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
-            '<button type="button" class="ob-info-toggle" id="obAiInfoBtn">ⓘ What\'s this?</button></div>'+
+            '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="What is an AI avatar">'+OB_INFO_SVG+'</button></div>'+
             '<div class="ob-info-panel" id="obAiInfo" style="display:none">We build a lifelike version of you from a few photos and a short video, clone your voice, and generate videos in your style — so content keeps going out even when you can\'t film. You control how it looks and what it says.</div>'+
             '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no"><span>No</span></label></div></div>',
           '<div id="obAiFields" class="ob-ai-fields" style="display:none">'+
@@ -11993,7 +11996,7 @@
 
     // ---- repeatable rows ----
     function _obRepAdd(rep){ const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont) return; if(cont.querySelectorAll('.ob-rep-row').length>=8){ _obFlash('That\'s plenty 🙂'); return; } cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); }
-    function _obRepRemove(x){ const row=x.closest('.ob-rep-row'); if(!row) return; const cont=row.parentElement; const rep=cont.id==='obCreators'?'creators':'clips'; row.remove(); if(!cont.querySelector('.ob-rep-row')) cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); _obSaveDraftDebounced(); }
+    function _obRepRemove(x){ const row=x.closest('.ob-rep-row'); if(!row) return; const cont=row.parentElement; const rep=cont.id==='obCreators'?'creators':'clips'; row.remove(); if(!cont.querySelector('.ob-rep-row')) cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, true)); _obSaveDraftDebounced(); }
 
     function _obAddCreatorRow(){ _obRepAdd('creators'); }
 
@@ -12113,7 +12116,7 @@
     function _obSaveDraft(){ try{ localStorage.setItem(OB_DRAFT_KEY, JSON.stringify(_obSerialize())); }catch(e){} }
     function _obRebuildRep(rep, arr){
       const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont||!Array.isArray(arr)||!arr.length) return;
-      cont.innerHTML=''; arr.forEach(o=>{ cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); const row=cont.lastElementChild; row.querySelectorAll('[data-rep-k]').forEach(inp=>{ const k=inp.getAttribute('data-rep-k'); if(o[k]!=null) inp.value=o[k]; }); });
+      cont.innerHTML=''; arr.forEach((o,i)=>{ cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, i===0)); const row=cont.lastElementChild; row.querySelectorAll('[data-rep-k]').forEach(inp=>{ const k=inp.getAttribute('data-rep-k'); if(o[k]!=null) inp.value=o[k]; }); });
     }
     function _obRestoreDraft(){
       let d=null; try{ d=JSON.parse(localStorage.getItem(OB_DRAFT_KEY)||'null'); }catch(e){}
@@ -12162,15 +12165,15 @@
       .ob-pill-opt:hover{ border-color:var(--text-muted); background:var(--bg); }
       .ob-pill-opt input{ position:absolute; opacity:0; width:0; height:0; }
       .ob-pill-opt:has(input:checked){ border-color:var(--text-primary); background:var(--text-primary); color:#fff; font-weight:600; }
-      .ob-ex{ width:22px; height:22px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-secondary); font-size:0.72rem; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
-      .ob-ex:hover{ border-color:var(--text-primary); color:var(--text-primary); }
+      .ob-i{ display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; width:20px; height:20px; padding:0; border:none; background:none; color:var(--text-muted); cursor:pointer; transition:color 0.12s; }
+      .ob-i:hover{ color:var(--text-primary); }
+      .ob-i svg{ display:block; }
       .ob-other-field{ }
       .ob-rep{ display:flex; flex-direction:column; gap:8px; }
-      .ob-rep-row{ display:grid; gap:8px; align-items:center; }
-      .ob-rep-creators{ grid-template-columns:1fr 1fr auto; }
-      .ob-rep-clips{ grid-template-columns:1fr auto; }
-      .ob-rep-x{ width:30px; height:30px; border-radius:8px; border:1.5px solid var(--border); background:var(--white); color:var(--text-muted); font-size:1.1rem; line-height:1; cursor:pointer; flex-shrink:0; }
-      .ob-rep-x:hover{ border-color:var(--dn); color:var(--dn); }
+      .ob-rep-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+      .ob-rep-row .ob-input{ flex:1 1 140px; min-width:0; }
+      .ob-rep-x{ flex-shrink:0; width:26px; height:26px; padding:0; border:none; background:none; color:var(--text-muted); font-size:1.25rem; line-height:1; cursor:pointer; border-radius:6px; transition:color 0.12s,background 0.12s; }
+      .ob-rep-x:hover{ color:var(--dn); background:var(--bg); }
       .ob-add{ margin-top:8px; font-family:inherit; font-size:0.8rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; }
       .ob-add:hover{ color:var(--text-primary); }
       .ob-cs{ position:relative; }
@@ -12194,13 +12197,18 @@
       .ob-play:hover{ border-color:var(--text-primary); }
       .ob-play.ob-playing{ background:var(--text-primary); color:#fff; border-color:var(--text-primary); }
       .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
-      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:9px; border:1.5px solid var(--border); border-radius:12px; transition:all 0.12s; }
+      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:10px 11px; border:1.5px solid var(--border); border-radius:12px; transition:all 0.12s; }
+      .ob-sub-card:hover{ border-color:var(--text-muted); }
       .ob-sub-card:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
-      .ob-sub-pick{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; cursor:pointer; }
-      .ob-sub-pick input{ accent-color:var(--text-primary); margin:0 0 2px; }
+      .ob-sub-pick{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; cursor:pointer; }
+      .ob-sub-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-sub-dot{ flex-shrink:0; width:18px; height:18px; border-radius:50%; border:1.6px solid var(--border); background:var(--white); position:relative; transition:all 0.12s; }
+      .ob-sub-card:has(input:checked) .ob-sub-dot{ border-color:var(--text-primary); }
+      .ob-sub-card:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--text-primary); }
+      .ob-sub-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
       .ob-sub-name{ font-size:0.84rem; font-weight:600; }
       .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
-      .ob-sub-thumb{ position:relative; width:54px; height:72px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
+      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
       .ob-sub-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
       .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.1rem; cursor:default; }
       .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }
@@ -12215,7 +12223,6 @@
       .ob-switch-track::before{ content:''; position:absolute; height:20px; width:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:0.18s; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
       .ob-switch input:checked + .ob-switch-track{ background:var(--text-primary); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
-      .ob-info-toggle{ font-family:inherit; font-size:0.78rem; font-weight:600; color:var(--ig); background:none; border:none; cursor:pointer; padding:0; }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
       .ob-ai-fields{ border-left:3px solid var(--border); padding-left:16px; margin-top:4px; }
       .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
@@ -12235,7 +12242,7 @@
       .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); font-size:1.1rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.13); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; }
       .ob-top.show{ opacity:1; pointer-events:auto; transform:translateY(0); }
       .ob-top:hover{ border-color:var(--text-muted); }
-      @media(max-width:560px){ .ob-card{ padding:24px 16px; } .ob-genres,.ob-sub-grid{ grid-template-columns:1fr; } .ob-rep-creators{ grid-template-columns:1fr auto; } .ob-rep-creators input[data-rep-k=copy]{ grid-column:1; } }
+      @media(max-width:560px){ .ob-card{ padding:24px 16px; } .ob-genres,.ob-sub-grid{ grid-template-columns:1fr; } }
       `;
       const st=document.createElement('style'); st.id='obStyles'; st.textContent=css; document.head.appendChild(st);
     }

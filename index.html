@@ -3926,6 +3926,8 @@
         .sxr-card-name { font-size:0.86rem; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
         .sxr-card-pills { display:flex; flex-wrap:wrap; gap:6px; }
         .sxr-card-cd { font-size:0.76rem; color:var(--text-secondary); line-height:1.4; white-space:pre-wrap; max-height:5.6em; overflow:hidden; }
+        /* Creative-direction note shown to the client at the top of an expanded review card. */
+        .sxr-review-cd { padding:14px 18px 0; font-size:0.84rem; color:var(--text-secondary); line-height:1.45; white-space:pre-wrap; }
 
         /* ── editable card (M2) ── */
         .sxr-card.is-editable { position:relative; }
@@ -16013,7 +16015,7 @@
     /* Per-(card|comp) review draft / saving / error slice for the client
        surface. Distinct from the calendar's _calReviewState (different DOM /
        handlers). Used only on the _isClientLink surface. */
-    const _sxrClientReviewState = { drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _sxrClientReviewState = { drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null), expanded: new Set() };
 
     /* The render-gating predicate. Mirror of _calReviewComponentActive(p,c,'client'):
        actionable ONLY at Client Approval or Tweaks Needed. Never at In Progress /
@@ -16178,13 +16180,87 @@
         }).join('');
         return `<div class="cal-review-body sxr-client-review-body" style="grid-template-columns: repeat(${SXR_COMPONENTS.length}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
     }
+    /* ── Client review SURFACE (clone of renderCalReview) ──────────────────
+       The client share link renders the calendar's review surface, NOT the SMM
+       card strip: a vertical list of COLLAPSIBLE kcard review cards. Each card
+       collapses to a compact strip (thumb + name + a plain-English "what you
+       need to do" line + the read-only status pills); clicking expands it to the
+       per-component review panels (_sxrClientReviewBodyHtml). Reuses the global
+       .cal-review-wrap / .cal-review-list / .kcard / .cal-review-card CSS. */
+    function _sxrReviewPendingLabel(sample) {
+        const awaiting = [], inFlight = [];
+        for (const c of SXR_COMPONENTS) {
+            const cs = _calNormStatus(sample[c + '_status'] || '');
+            if (cs === 'Client Approval') awaiting.push(c);
+            else if (cs === 'Tweaks Needed') inFlight.push(c);
+        }
+        if (!awaiting.length && !inFlight.length) return '';
+        const human = (list) => {
+            const labels = list.map(c => `<span class="kcard-pending-strong">${_calEsc(SXR_COMP_LABELS[c] || c)}</span>`);
+            if (labels.length === 1) return labels[0];
+            return labels.slice(0, -1).join(', ') + ' and ' + labels.slice(-1)[0];
+        };
+        const parts = [];
+        if (awaiting.length) parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + ' your review');
+        if (inFlight.length) parts.push("we're working on your tweaks for " + human(inFlight));
+        const joined = parts.join(' · ');
+        return joined.charAt(0).toUpperCase() + joined.slice(1);
+    }
+    function _sxrReviewCardHtml(sample) {
+        const pid = sample.id;
+        const escId = _calEscAttr(pid);
+        const expanded = _sxrClientReviewState.expanded.has(pid);
+        const thumbUrl = _sxrDeriveThumb(sample);
+        const thumbHtml = thumbUrl
+            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'">`
+            : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const pendingLabel = _sxrReviewPendingLabel(sample);
+        const compPills = _sxrPillsHtml(sample);   // read-only on a client link
+        const hideCd = String(sample.hide_creative_direction || '').trim().toUpperCase() === 'TRUE';
+        const cd = String(sample.creative_direction || '').trim();
+        const cdLine = (!hideCd && cd) ? `<div class="sxr-review-cd">${_calEsc(cd)}</div>` : '';
+        const body = expanded ? `<div class="sxr-review-expand">${cdLine}${_sxrClientReviewBodyHtml(sample)}</div>` : '';
+        const chev = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>`;
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-review-pid="${escId}">
+            <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
+                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-title">${_calEsc(sample.name || 'Untitled sample')}</div>
+                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
+                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}">${chev}</button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+    function _sxrReviewToggleCard(pid) {
+        if (_sxrClientReviewState.expanded.has(pid)) _sxrClientReviewState.expanded.delete(pid);
+        else _sxrClientReviewState.expanded.add(pid);
+        _sxrReviewRepaintCard(pid);
+    }
+    function _sxrReviewRepaintCard(pid) {
+        const sample = _sxrFind(pid);
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const el = document.querySelector(`.cal-review-card[data-sxr-review-pid="${sel}"]`);
+        if (!el || !sample) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrReviewCardHtml(sample);
+        if (tmp.firstElementChild) {
+            if (typeof _kcardReuseThumbInto === 'function') { try { _kcardReuseThumbInto(el, tmp.firstElementChild); } catch (e) {} }
+            el.replaceWith(tmp.firstElementChild);
+        }
+        _sxrUpdateBadge();
+    }
     /* Toggle the two action buttons in place as the client types — no full
        repaint per keystroke (mirror _calReviewOnDraftInput). */
     function _sxrClientReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _sxrClientReviewState.drafts[key] = ta.value;
         const hasDraft = !!ta.value.trim();
-        const card = ta.closest('.sxr-card');
+        const card = ta.closest('.cal-review-card');
         if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-sxr-cl-comp="' + comp + '"]');
         if (!panel) return;
@@ -16216,16 +16292,10 @@
     /* Repaint just the client review body of a card after an approve / request —
        reuses the rendered HTML, keeps the rest of the (read-only) card intact. */
     function _sxrClientRepaintReview(pid) {
-        const sample = _sxrFind(pid);
-        if (!sample) return;
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${sel}"]`);
-        if (!card) return;
-        const host = card.querySelector('[data-sxr-client-review]');
-        if (!host) return;
-        host.innerHTML = _sxrClientReviewBodyHtml(sample);
-        // Keep the read-only status pills in step with the new sub-status.
-        _sxrRefreshCardPills(pid);
+        // Client surface is the kcard review list — repaint the whole review
+        // card (keeps it expanded; the new sub-status + pills + pending label
+        // all re-render together). Mirrors _calReviewRepaintCard.
+        _sxrReviewRepaintCard(pid);
     }
 
     /* ── optimistic field-patch save (M2) ───────────────────────────
@@ -17497,7 +17567,7 @@
         // realtime reload mid-edit would otherwise lose the caret / typed text
         // (the pending save still holds it; we just skip the repaint until blur).
         const ae = document.activeElement;
-        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && (ae.matches('input, textarea'))) { _sxrPendingBackgroundRender = true; return; }
+        if (ae && ae.matches && ae.matches('input, textarea') && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable, #sxrBody .cal-review-card')) { _sxrPendingBackgroundRender = true; return; }
         if (!sxrState.cards.length) {
             // Empty: the SMM gets an "Add the first sample" hero (so the surface is
             // usable from zero); a client share link gets read-only text.
@@ -17506,11 +17576,25 @@
                 : `<div class="sxr-empty">No samples for ${_calEsc(sxrState.client || '')} yet.</div>`;
             return;
         }
+        const sorted = _sxrSortCards(sxrState.cards);
+        if (_isClientLink) {
+            // Client share — clone the calendar's review surface (renderCalReview):
+            // a vertical list of COLLAPSIBLE kcard review cards, NOT the SMM strip.
+            const ready = sorted.filter(s => !_sxrIsBlankId(s.id) && _sxrIsClientReady(s));
+            const scrollYc = window.scrollY;
+            if (!ready.length) {
+                body.innerHTML = `<div class="cal-review-wrap"><div class="cal-empty">Nothing to review right now — every sample is either fully approved or still being worked on.</div></div>`;
+                return;
+            }
+            body.innerHTML = `<div class="cal-review-wrap"><div class="cal-review-list">${ready.map(_sxrReviewCardHtml).join('')}</div></div>`;
+            _sxrAutosizeTextareas(body);
+            if (scrollYc != null) window.scrollTo({ top: scrollYc, behavior: 'instant' });
+            return;
+        }
         // Harvest decoded thumbnails + capture scroll so a background repaint
         // doesn't re-decode every image (flicker) or jump the page to the top.
         const harvested = _sxrHarvestThumbs();
         const scrollY0 = window.scrollY;
-        const sorted = _sxrSortCards(sxrState.cards);
         const cardsHtml = sorted.map(_sxrRenderCard).join('');
         const selectBar = (sxrState.selectMode && !_isClientLink)
             ? `<div class="sxr-select-bar"><span class="sxr-select-count" id="sxrSelectCount">${sxrState.selected.size} selected</span><button type="button" class="sxr-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()"${sxrState.selected.size ? '' : ' disabled'}>Archive</button><button type="button" class="sxr-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`

@@ -36,14 +36,20 @@ client types, and clears it on a successful submit.
    - **Music** — genre checkboxes (Inspirational, Ambient, Lofi, Piano, Guitar, Synth,
      Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
      `onboarding-audio/<key>.mp3`.
-   - **Subtitles** — a card per style (Native captions, Boxed banner, Minimal) with a real
-     example frame you tap to view full-screen, + a "highlight keywords" toggle.
+   - **Subtitles** — a card per style: Native captions, Boxed banner, Minimal, Word-by-word,
+     Animated highlight. Four play a short ~10s video preview (`onboarding-video/<key>.mp4`);
+     Boxed banner uses a static Sandcastles frame (no clip provided yet). Tap a preview to
+     play/view full-screen. Plus a free-text **subtitle references** field (paste links to
+     styles you like) and a "highlight keywords" toggle.
    - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is exclusive).
+     It's multi-select, so ticking both Stock + AI expresses a mix.
    - Font preferences, overall feel + brand tone (multi-select chips, each with an exclusive
-     "Not sure — recommend for me" option that clears the rest), always/never notes, and an
-     optional short sample clip of the client.
+     "Not sure — recommend for me" option that clears the rest), always/never notes (also the
+     catch-all for any style preference the options didn't cover), and an optional short
+     sample clip of the client.
 4. **Photos & source material** — both optional links (photos of you, content to pull from).
-5. **Goals** — what a win looks like, anything else.
+5. **Goals** — what a win looks like, anything else, and a free-text **questions /
+   clarifications** box for anything that didn't fit the options above.
 6. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
    to share credentials securely via LastPass to `house@synchrosocial.com` instead of typing
    them. These login fields are the only ones the dashboard viewer strips.
@@ -56,13 +62,25 @@ client types, and clears it on a successful submit.
    setting, framing, accessories (incl. an "Other" write-in), hair, makeup, clothing, and the
    voice-clone capture script + recording link.
 
-### Example frames
+### Example media
 
-Subtitle styles and the two AI "look" options show a real reference frame sourced from
-Sandcastles thumbnails (public `storage.googleapis.com` URLs hard-coded in
-`OB_SUBTITLE_TYPES` / `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are byte-sliced
-MP3 clips committed under `onboarding-audio/`. To swap any of them, change the UUID / file —
-no other code change needed.
+The two AI "look" options show a real reference frame from Sandcastles thumbnails (public
+`storage.googleapis.com` URLs in `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are
+byte-sliced MP3 clips under `onboarding-audio/`.
+
+Subtitle previews are **video-capable**: each `OB_SUBTITLE_TYPES` row is
+`[key, name, desc, imageUrl, videoUrl]`. The renderer prefers `videoUrl` (a short clip,
+tap to play full-screen), falls back to `imageUrl`, then to a "soon" placeholder. The
+full-screen zoom (`_obZoom`) auto-detects video vs image by extension. To add/replace a
+clip, drop an mp4 at `onboarding-video/<key>.mp4` and set the 5th column to
+`OB_VID+'<key>.mp4'` — no other code change needed.
+
+The four hosted clips (`native`, `minimal`, `wordbyword`, `highlight`) were trimmed to
+~10s and downscaled to 480×854 H.264 (`yuv420p`, `+faststart`, audio stripped) from the
+client's originals — ~0.5–1 MB each (`onboarding-video/`). Boxed banner still uses a
+Sandcastles frame until a clip is supplied. (Encode recipe: `ffmpeg -ss 2 -i src.mp4 -t 10
+-vf scale=-2:854 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
+-movflags +faststart out.mp4`.)
 
 ## Data flow
 

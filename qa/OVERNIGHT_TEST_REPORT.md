@@ -93,7 +93,11 @@ risk); the fixes are small and localized.
   be intended (reconciled by the next background reload via the recent-save window) — needs
   a design call. Suggested fix if unintended: snapshot the row BEFORE `_sxrApplySubStatus`,
   or pass the pre-value into the rollback.
-- **BUG-2 — the "Save failed · Retry" chip is a no-op.**
+- **BUG-2 — the "Save failed · Retry" chip is a no-op. → FIXED (2026-06-26 parity build).**
+  `_sxrFlushCardSave` now treats an empty `edits` bucket as a forced WHOLE-CARD re-send
+  (mirroring the calendar), and the catch path now re-renders so the Retry button actually
+  surfaces on a real blur. `sxr_create_edge` re-verifies: a failed first save is retained with
+  the chip and clicking Retry after recovery persists. Original analysis retained below.
   Repro: a save fails → the error chip renders → click it. Expected: re-attempt the write.
   Actual: nothing re-persists (probe confirmed the DB is unchanged after the retry click).
   Root cause: `_sxrRetrySave` sets an EMPTY `_sxrPendingEdits[pid] = {}` and calls
@@ -154,7 +158,16 @@ Matrix sections from the mission, with current status:
 - **F) Isolation / flag-off** — ✅ f1 (flag default-off hides nav, no channel, 0 cards, "is off"
   view, control flips on). **TODO:** calendar↔samples deeper isolation; OLD samples module
   (`_sm*`) untouched while sxr runs.
-- **G) Realtime / multi-actor** — **TODO (none yet):** cross-tab push (routeWebSocket), self-echo
-  window, field-level merge of concurrent patches, recent-save window protects a fresh approval.
+- **G) Realtime / multi-actor** — ✅ background catch-up of a cross-actor sub-status change +
+  pending-edit-not-clobbered + deferred-render-while-editing (`sxr_realtime_catchup`). **TODO:**
+  routeWebSocket push event into `_sxrV2OnRealtimeChange`; recent-save window protects a fresh approval.
+- **Management layer (the 2026-06-26 parity build)** — ✅ **FULLY COVERED:** create lifecycle +
+  empty-blank/failed-create edges (`sxr_cold_open_journey`, `sxr_create_edge`); per-card + bulk
+  archive + ledger (`sxr_cold_open_journey`, `sxr_bulk_archive`); dedicated Linear slot UI +
+  format/component/uniqueness guards + conflict-move (`sxr_linear_guards`, `sxr_cold_open_journey`,
+  `sxr_b1`); reorder persist + failure-rollback (`sxr_reorder`); toolbar zoom/share/tab-add-remove
+  (`sxr_toolbar`); deep-link/up-next/copy-link/lightbox (`sxr_misc_ui`).
 - **H) Everything else** — **TODO (none yet):** calendar review lifecycle/fields/Linear/drag/
   comments, Kasper for calendar, client share for calendar, onboarding, TikTok pilot, templates.
+  *(Next sweep target — the Samples management layer that this build added is now exhaustively
+  covered; broaden to the rest of the app from here.)*

@@ -48,6 +48,8 @@ DB never received the failed status — no product defect.
 | `sxr_linear_guards` | Linear FORMAT guard rejects non-link; UNIQUENESS conflict dialog; MOVE relocates link (old cleared) | **5/5** |
 | `sxr_bulk_archive` | Select mode → pick 2/3 → Archive → removed + Archived + no-resurrect; 3rd stays | **7/7** |
 | `sxr_create_edge` | Empty blank never persists/promotes; failed first save retained w/ chip + no DB row; Retry persists | **6/6** |
+| `sxr_reorder` | Drag-reorder persists order_index; a FAILED reorder rolls the on-screen order back | **4/4** |
+| `sxr_toolbar` | 3-level zoom (persists to localStorage); Share copies ?c=…&v=sample-reviews; tab add/remove | **8/8** |
 
 Prior-suite regression after the build (all green, 0 JS errors): a1 27, a2 15, a3 25, b1 12, b2 10,
 c1 19, c2 11, d1 14, f1 11, m1 5, m2 19, m3a 18, m3b 32, m4 15, m5a 12, m5b 16.

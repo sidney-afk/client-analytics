@@ -20,9 +20,9 @@ Or the whole new-probe set: `node qa/run-probes.js sxr_a1_smm_pill_lifecycle …
 
 | Metric | Count |
 |---|---|
-| New probes written this run | 4 |
-| Distinct interactions verified | 86 (assertions) |
-| PASS | 86 |
+| New probes written this run | 5 |
+| Distinct interactions verified | 100 (assertions) |
+| PASS | 100 |
 | FAIL | 0 |
 | Bugs found (fixed) | 0 |
 | Bugs found (needs review) | 0 |
@@ -40,12 +40,30 @@ Baseline infra check: `sxr_m1_render` PASS (courier → live backend, 0 JS error
 | 2 | 2026-06-26 | A | Stale-approval clearing (client_*_approved_at on drop <Client Approval; kasper_approved_at only when nothing ≥ Client Approval) + same-tick double-approve idempotency (2nd call null, one transition) | `sxr_a2_stale_clear_and_idempotent.js` | ✅ 15/15 | live DB; in-flight guard returns null |
 | 3 | 2026-06-26 | A | SMM resolve chooser via real `#sxrResolveDestOverlay`: all 4 routes (Kasper→Kasper Approval+kasper_seen, Client→Client Approval, Approved→Approved, Stay→unchanged); tweak marked done each route; recommended=Client once seen by Kasper | `sxr_a3_resolve_route_chooser.js` | ✅ 25/25 | live DB; per-round Tweaks-Needed barrier |
 | 4 | 2026-06-26 | C | Field/media interactions: YouTube→`<img>` derivation; asset+thumbnail open buttons `window.open(rawUrl)`; in-place open-button show/hide on blur; Drive derivation `?id=…&sz=w320&_r=`; direct-image `?_r=`; thumb_rev bump + `_r` cache-bust changes per media change; creative_direction autosize | `sxr_c1_fields_open_thumb.js` | ✅ 19/19 | live DB read-back; `_sxrDeriveThumb` on live row |
+| 5 | 2026-06-26 | D | Client-share render-gating across full spectrum: Client-Approval→active panel; For-SMM/Kasper→read-only "in progress" mini line (no buttons); Approved→terminal (no buttons); all-In-Progress→no review body; no bound field editors leak; pills read-only; no grips; internal note hidden; cards not `.is-editable` | `sxr_d1_client_gating.js` | ✅ 14/14 | 4 seeded samples, live client surface |
 
 ---
 
 ## BUGS FOUND
 
-_None yet._
+_No product bugs yet._ (4 probe-side bugs were found and fixed during authoring:
+a3 Stay-route race → per-round live-DB barrier; c1 open-button toggle expected on
+input but lives in the blur handler; d1 `window._isClientLink` is module-scoped +
+the active review composer `<textarea>` is not a field-editor leak. None indicate
+an app defect — the app behaved correctly in every case.)
+
+## OBSERVATIONS (not bugs — for product review)
+
+- **OBS-1 (client surface, In-Progress sample shell):** A sample with BOTH
+  components still at `In Progress` is not "client-ready" so its review BODY is
+  correctly suppressed (`_sxrClientReviewBodyHtml` returns ''). However the card
+  SHELL (thumbnail + name + read-only status pills showing "Video: In Progress /
+  Thumbnail: In Progress") still renders on the client share surface, because
+  `_sxrRenderBody` filters cards only by `archived`, not by `_sxrIsClientReady`.
+  No sensitive data leaks (pills are read-only; internal notes/fields are hidden),
+  but if the intent is that brand-new In-Progress-only samples are fully invisible
+  to the client, the grid filter would need `_sxrIsClientReady` too. Verified, not
+  fixed — flagging for product intent. Probe: `sxr_d1_client_gating.js`.
 
 ---
 
@@ -53,21 +71,28 @@ _None yet._
 
 Matrix sections from the mission, with current status:
 
-- **A) Lifecycle** — both comps (video/graphic), 3 actors, every transition; stale-approval
-  clearing; worst-of overall; kasper_seen/approved_after_tweaks; concurrent double-clicks;
-  audit events. _(in progress)_
-- **B) Samples Linear sync (mocked)** — push on change; no-push unchanged; suppression;
-  outbox retry; point-adoption; stale-regress; tweak-comment; __CLEAR_LINK__; link dedup.
-  _(m4 covers core; deeper edges pending)_
-- **C) SMM fields** — name, asset_url+open, thumbnail+open, creative-direction autosize,
-  hide eye, video/graphic Linear links (paste/blur/clear/move), status pills menu, comments,
-  drag-reorder, Saving/Saved/error/retry, optimistic+rollback, thumbnail derivation. _(m2 core)_
-- **D) Client share** — render-gating, approve/request-change per comp, fields non-editable,
-  internal notes hidden, persist-guard. _(m5b core)_
-- **E) Kasper surface** — sub-tab gated, SAMPLE badge, paginated queue, actions persist,
-  bidirectional isolation. _(m5a core)_
-- **F) Isolation / flag-off** — nav hidden, no _sxr code, calendar↔samples isolated.
-- **G) Realtime / multi-actor** — cross-tab push, self-echo window, field-level merge,
-  recent-save protection.
-- **H) Everything else** — calendar review lifecycle/fields/Linear/drag/comments, Kasper for
-  calendar, client share for calendar, onboarding, TikTok pilot, templates.
+- **A) Lifecycle** — ✅ SMM pill full forward walk (a1), worst-of overall (a1), stale-approval
+  clearing + same-tick idempotency (a2), resolve chooser all 4 routes (a3), kasper_seen (a1/a3),
+  audit events (a1). **TODO:** Kasper undo-approve + Finish/Close re-surface via UI; client
+  request-change-only-when-valid edge; approve_after_tweaks pre-clear → SMM resolve skips Kasper;
+  graphic-component lifecycle symmetry; concurrent SMM+Kasper on different comps.
+- **B) Samples Linear sync (mocked)** — m4 covers push/stale-regress/comment/point-adoption.
+  **TODO:** no-push for unchanged component (explicit), suppression of inbound→outbound echo,
+  durable outbox retry on push failure, `__CLEAR_LINK__` sentinel on link clear, link dedup/
+  conflict across two samples, graphic-issue push (video vs graphic routing).
+- **C) SMM fields** — m2 (name/cd/thumb/hide/linear/reorder/client-RO) + c1 (open buttons,
+  thumbnail derivation, autosize). **TODO:** Saving/Saved/error indicator + retry; optimistic
+  save + rollback on forced failure; Linear link move to another card; comments audience gating
+  via UI (m3a is core); graphic Linear link paste/commit.
+- **D) Client share** — ✅ m5b (approve/request/guards) + d1 (render-gating spectrum, no-leak).
+  **TODO:** Tweaks-Needed "changes requested" follow-up composer state on reload; persist-guard
+  that a client write only touches review-action columns (payload-level).
+- **E) Kasper surface** — m5a core. **TODO:** SAMPLE badge across queue pagination depth;
+  Kasper approve/request/undo/finish/close persist via real Kasper card controls; calendar↔samples
+  reverse isolation deeper.
+- **F) Isolation / flag-off** — **TODO (none yet):** ?sxr OFF hides nav + no _sxr runs;
+  calendar↔samples isolation; old samples module untouched.
+- **G) Realtime / multi-actor** — **TODO (none yet):** cross-tab push (routeWebSocket), self-echo
+  window, field-level merge of concurrent patches, recent-save window protects a fresh approval.
+- **H) Everything else** — **TODO (none yet):** calendar review lifecycle/fields/Linear/drag/
+  comments, Kasper for calendar, client share for calendar, onboarding, TikTok pilot, templates.

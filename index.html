@@ -26215,18 +26215,11 @@
             if (col && !col.dataset.everLoaded) col.innerHTML = `<div class="ttp-card"><h3>Recent posts</h3><div class="ttp-queue-empty">Couldn’t reach the queue webhook.<br><small>${_ttpEscape(e.message)}</small></div></div>`;
         }
     }
-    // Drive TikTok status/fetch (server-side) for in-flight rows, then merge.
+    // TikTok has no publish webhook, so post status is advanced server-side by
+    // the ttp-status-cron poller (creator's publish_id → status/fetch). The UI
+    // just re-reads the queue from ttp-list on each adaptive-poll tick.
     async function _ttpPollStatus() {
-        const inflight = (ttpState.uploads || []).filter(r => { const s = _ttpEffectiveStatus(r); return s === 'uploading' || s === 'processing'; }).map(r => r.id);
-        if (!inflight.length) { return _ttpFetchQueue(); }
-        try {
-            const r = await fetch(TTP_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: inflight }), signal: (AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined) });
-            if (!r.ok) throw new Error('HTTP ' + r.status);
-            const json = await r.json();
-            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
-            if (rows.length) ttpState.uploads = _ttpMergeUploads(ttpState.uploads, rows);
-            _ttpRenderQueue();
-        } catch (e) { /* keep prior rows; try again next tick */ }
+        return _ttpFetchQueue();
     }
     function _ttpRenderQueue() {
         const col = document.getElementById('ttpQueueCol');

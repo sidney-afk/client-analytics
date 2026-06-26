@@ -77,6 +77,16 @@ turn.**
 
 ## 3. The interaction matrix — cover ALL of it, then go deeper
 
+**START with the COLD-OPEN user journey for each surface, before any edge case.**
+The first probe for a surface must seed NOTHING: open the tab as a human, click
+the button that **CREATES** a sample, type/paste into the real inputs, change
+status via the real controls, then **archive/delete** it — all real clicks and
+typed text. Only AFTER that journey passes do you use `up(...)` seeding to set up
+specific downstream states for edge-case probes. (A suite that only ever seeds
+has a fatal blind spot — it can't prove the feature is usable from zero. That is
+exactly how the Samples tab shipped with no "Add" button. See
+`docs/HEADLESS-TESTING-GUIDE.md` §3 Principles.)
+
 Drive the REAL UI (clicks/typing/paste), then read back the live `sample_reviews`
 row to confirm persistence, and check `sample_review_events` for the audit trail.
 

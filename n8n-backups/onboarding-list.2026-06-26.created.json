@@ -1,0 +1,22 @@
+{
+  "_snapshot_note": "Net-new workflow created 2026-06-26 for the Templates→Onboarding dashboard viewer. GET /webhook/onboarding-list. Reads Supabase client_onboarding (service role), STRIPS the account-credential fields, returns {ok,count,submissions}. Workflow id slqt2zCDyIc7OAmY. NOT YET ACTIVE — activate it in n8n.",
+  "id": "slqt2zCDyIc7OAmY",
+  "name": "SyncView Onboarding — List",
+  "active": false,
+  "connections": {
+    "Receive GET": { "main": [[{ "node": "Get Submissions", "type": "main", "index": 0 }]] },
+    "Get Submissions": { "main": [[{ "node": "Strip Credentials", "type": "main", "index": 0 }]] },
+    "Strip Credentials": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    { "name": "Receive GET", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1, "position": [0, 0],
+      "parameters": { "httpMethod": "GET", "path": "onboarding-list", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } } },
+    { "name": "Get Submissions", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [220, 0],
+      "parameters": { "resource": "row", "operation": "getAll", "tableId": "client_onboarding", "returnAll": true, "orderBy": "created_at.desc" },
+      "_credential": "supabaseApi → 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT) — auto-linked" },
+    { "name": "Strip Credentials", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "const rows = $input.all().map(i => i.json);\nconst STRIP = ['instagram','instagram_backup','tiktok','facebook','linkedin','youtube'];\nconst subs = rows.filter(r => r && r.id).map(r => {\n  const a = (r.answers && typeof r.answers === 'object') ? Object.assign({}, r.answers) : {};\n  STRIP.forEach(k => { delete a[k]; });\n  return { id: r.id, slug: r.slug || '', first_name: r.first_name || '', last_name: r.last_name || '', email: r.email || '', ai_avatar: r.ai_avatar || '', status: r.status || '', created_at: r.created_at || '', answers: a };\n});\nreturn [{ json: { ok: true, count: subs.length, submissions: subs } }];" } },
+    { "name": "Respond JSON", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.5, "position": [660, 0],
+      "parameters": { "respondWith": "firstIncomingItem", "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" } ] } } } }
+  ]
+}

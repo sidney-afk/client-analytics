@@ -120,3 +120,18 @@ stopWorkflow`), a submission is never silently dropped: if the table is missing 
 ### Second auto-message (later)
 The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the
 Fathom transcript + this form's answers). That's a separate workflow, not part of this form.
+
+---
+
+## Viewing submissions in the dashboard (Templates → Onboarding)
+
+A new **Onboarding** sub-tab in the Templates tab lists submissions and shows each
+one's editor/designer-relevant sections (brand & audience, style, photos/source,
+goals, AI avatar). It reads `GET /webhook/onboarding-list` (workflow
+`slqt2zCDyIc7OAmY`), which fetches `client_onboarding` with the service-role
+credential and **strips the account-credential fields** before returning — so no
+passwords ever reach the public dashboard. Snapshot:
+`n8n-backups/onboarding-list.2026-06-26.created.json`.
+
+**One-time finish step:** activate workflow `slqt2zCDyIc7OAmY` in n8n (toggle Active).
+Until then, the Onboarding tab shows "couldn't load submissions".

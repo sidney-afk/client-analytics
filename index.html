@@ -356,6 +356,8 @@
            later code toggles display. */
         body.intake-mode .header { display: none !important; }
         body.intake-mode #linearFilmingPlansField { display: none !important; }
+        body.onboarding-mode .header { display: none !important; }
+        body.onboarding-mode #pageTop { display: none !important; }
         .view-tab-btn {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 7px 20px; border: none; border-radius: 8px;
@@ -4314,6 +4316,10 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
         </a>
+        <a class="header-nav-btn" id="navTiktokPilot" href="#tiktok-pilot" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-pilot')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="#22c55e"/></svg>
+            TikTok Pilot
+        </a>
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -4509,6 +4515,27 @@
     const TIKTOK_HIDDEN_KEY        = 'syncview_hiddenTiktokUploads_v1';
     const TIKTOK_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
     const TIKTOK_MAX_BYTES         = 287 * 1024 * 1024; // TikTok upload size limit
+
+    // ---- TikTok Pilot (gated first-party Direct Post) — unlocked via ?ttpilot=1 ----
+    // A separate, audit-compliant module that talks to FIRST-PARTY ttp-* n8n
+    // webhooks (OAuth + creator_info + Direct Post on SynchroSocial's OWN TikTok
+    // app credentials), kept fully isolated from the production Post-For-Me flow
+    // above. Nothing here touches the _tk* module or its webhooks.
+    const TTP_AUTH_INIT_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-auth-init';
+    const TTP_ACCOUNTS_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-accounts-list';
+    const TTP_CREATOR_INFO_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-creator-info';
+    const TTP_SUBMIT_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-submit';
+    const TTP_STATUS_URL        = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-status';
+    const TTP_LIST_URL          = 'https://synchrosocial.app.n8n.cloud/webhook/ttp-list';
+    const TTP_FORM_KEY          = 'syncview_ttpilotForm_v1';
+    const TTP_PENDING_KEY       = 'syncview_pendingTtpilot_v1';
+    const TTP_HIDDEN_KEY        = 'syncview_hiddenTtpilot_v1';
+    const TTP_OPTIMISTIC_TTL_MS = 5 * 60 * 1000; // drop unconfirmed local rows after 5 min
+    const TTP_MAX_BYTES         = 64 * 1024 * 1024; // 64 MB — single-chunk FILE_UPLOAD cap for the pilot (multi-chunk is a later enhancement)
+    // Flip to true ONLY after TikTok approves the app audit. While false the app
+    // is unaudited: TikTok forces every post to SELF_ONLY (private) and caps
+    // active users — so the compose UI locks privacy to "Only me" and says so.
+    const TTP_APP_AUDITED       = false;
 
     function getTabSummaryKey(name, briefType, tabId) { return `${name}__${briefType}__${tabId}`; }
 
@@ -7463,7 +7490,205 @@
     }
 
     /* ── View renderers ─────────────────────────────────────────────────── */
+    /* ============================================================
+       ONBOARDING VIEWER  (Templates tab → "Onboarding" sub-tab)
+       Lists submissions from the centralized onboarding form and shows the
+       editor/designer-relevant sections of each. Reads a service-role n8n
+       webhook (onboarding-list) which has ALREADY stripped the account
+       credentials, so no passwords ever reach this public dashboard.
+       Namespaced _obv* / OBV_*. Inline handlers are global (matches the
+       templates tab's _tpl* pattern).
+       ============================================================ */
+    const ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-list';
+    let _tplTab = 'templates';            // 'templates' | 'onboarding'
+    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvSelected = null, _obvLoadedAt = 0;
+
+    const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
+    const OBV_SUB = { native:'Native captions', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
+    const OBV_FRAMING = { closeup:'Close-up', mid:'Mid-shot', wide:'Wide', mixed:'Mixed' };
+    const OBV_CLOTHING = { formal:'Formal / suit', smart_casual:'Smart casual', casual:'Casual', streetwear:'Streetwear', athletic:'Activewear', branded:'Branded merch', elegant:'Elegant' };
+    const OBV_PODCAST = { studio:'Studio desk with mics', lounge:'Casual lounge', office:'Office / bookshelf', minimal:'Plain backdrop' };
+
+    function _obvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function _obvRerender(){ try{ navTo('templates', false); }catch(e){} }
+
+    function _obvSetTab(tab){
+      _tplTab = tab;
+      if (tab === 'onboarding') { _templatesSelected = null; }
+      _obvSelected = null;
+      _obvRerender();
+      if (tab === 'onboarding') _obvEnsureLoaded();
+    }
+    function _obvOpen(id){ _obvSelected = id; _obvRerender(); }
+    function _obvBack(){ _obvSelected = null; _obvRerender(); }
+    function _obvRefresh(){ _obvSubs = null; _obvSelected = null; _obvRerender(); _obvEnsureLoaded(true); }
+
+    function _obvEnsureLoaded(force){
+      if (_obvLoading) return;
+      if (_obvSubs && !force) return;
+      _obvLoading = true; _obvError = '';
+      fetch(ONBOARDING_LIST_URL + '?_t=' + Date.now(), { method:'GET' })
+        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+        .then(d=>{ _obvSubs = Array.isArray(d) ? d : (d.submissions || []); _obvLoadedAt = Date.now(); })
+        .catch(e=>{ _obvError = e.message || 'load failed'; _obvSubs = _obvSubs || []; })
+        .finally(()=>{ _obvLoading = false; if (_tplTab==='onboarding') _obvRerender(); });
+    }
+
+    function _obvToggle(){
+      return `<div class="obv-toggle">
+        <button class="obv-tab ${_tplTab==='templates'?'active':''}" onclick="_obvSetTab('templates')">Templates</button>
+        <button class="obv-tab ${_tplTab==='onboarding'?'active':''}" onclick="_obvSetTab('onboarding')">Onboarding</button>
+      </div>`;
+    }
+
+    function renderOnboardingInbox(){
+      _obvInjectStyles();
+      const top = `<div class="obv-wrap"><div class="obv-head">${_obvToggle()}<button class="obv-refresh" onclick="_obvRefresh()" title="Refresh">↻</button></div>`;
+      if (_obvSelected){
+        const sub = (_obvSubs||[]).find(s=>s.id===_obvSelected);
+        return top + (sub ? _obvDetail(sub) : `<div class="obv-empty">Submission not found.</div>`) + `</div>`;
+      }
+      let body;
+      if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
+      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If the onboarding-list webhook isn't active yet, activate it in n8n.</small></div>`;
+      else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
+      else body = `<div class="obv-list">` + _obvSubs.map(_obvCard).join('') + `</div>`;
+      return top + body + `</div>`;
+    }
+
+    function _obvFmtDate(iso){ if(!iso) return ''; const d = new Date(iso); if (isNaN(d)) return ''; return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }
+
+    function _obvCard(s){
+      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Untitled';
+      const ai = (s.ai_avatar==='yes') ? `<span class="obv-badge">AI avatar</span>` : '';
+      return `<button class="obv-card" onclick="_obvOpen('${_obvEsc(s.id)}')">
+        <div class="obv-card-main"><div class="obv-card-name">${_obvEsc(name)}</div>
+        <div class="obv-card-sub">${_obvEsc(s.email||'')}</div></div>
+        <div class="obv-card-meta">${ai}<span class="obv-card-date">${_obvEsc(_obvFmtDate(s.created_at))}</span></div>
+      </button>`;
+    }
+
+    // value helpers for the detail view
+    function _obvText(a,k){ const v=a[k]; return (v==null||v==='')?'':String(v); }
+    function _obvLink(v){ if(!v) return ''; const u=String(v); const safe=_obvEsc(u); const href = /^https?:\/\//i.test(u) ? safe : ('https://'+safe); return `<a href="${href}" target="_blank" rel="noopener">${safe}</a>`; }
+    function _obvRow(label, valueHtml){ if(!valueHtml) return ''; return `<div class="obv-row"><div class="obv-row-l">${_obvEsc(label)}</div><div class="obv-row-v">${valueHtml}</div></div>`; }
+    function _obvList(arr, map){ if(!Array.isArray(arr)||!arr.length) return ''; return _obvEsc(arr.map(x=>(map&&map[x])||x).join(', ')); }
+
+    function _obvDetail(s){
+      const a = s.answers || {};
+      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Submission';
+      // creators
+      let creators='';
+      for(let i=1;i<=5;i++){ const link=a['creator'+i+'_link'], copy=a['creator'+i+'_copy']; if(link||copy){ creators += `<div class="obv-creator">${_obvLink(link)}${copy?(' — '+_obvEsc(copy)):''}</div>`; } }
+
+      const brand = [
+        _obvRow('Brand guidelines', _obvLink(_obvText(a,'brand_guidelines'))),
+        _obvRow('Ideal customer', _obvEsc(_obvText(a,'ideal_customer'))),
+        _obvRow('Pain points', _obvEsc(_obvText(a,'pain_points'))),
+        _obvRow('Desired outcomes', _obvEsc(_obvText(a,'desired_outcomes'))),
+        _obvRow('Process', _obvEsc(_obvText(a,'process'))),
+      ].join('');
+
+      const style = [
+        creators ? _obvRow('Creators', creators) : '',
+        _obvRow('Clips they like', _obvLink(_obvText(a,'clips_you_like'))),
+        _obvRow('Music', _obvList(a.music, OBV_GENRE)),
+        _obvRow('Subtitles', _obvEsc(OBV_SUB[a.subtitle_style]||a.subtitle_style||'') + (a.highlight_keywords?' · highlight keywords':'')),
+        _obvRow('B-roll', _obvList(a.broll, {stock:'Stock footage',ai:'AI-generated',none:'No B-roll'})),
+        _obvRow('Colours', _obvEsc(_obvText(a,'color_prefs'))),
+        _obvRow('Text / fonts', _obvEsc(_obvText(a,'text_prefs'))),
+        _obvRow('Overall feel', _obvEsc(_obvText(a,'overall_approach'))),
+        _obvRow('Brand tone', _obvEsc(_obvText(a,'brand_tone'))),
+        _obvRow('Always / never', _obvEsc(_obvText(a,'dos_donts'))),
+        _obvRow('Sample clip', _obvLink(_obvText(a,'sample_clip'))),
+      ].join('');
+
+      const assets = [
+        _obvRow('Photos', _obvLink(_obvText(a,'photos_link'))),
+        _obvRow('Source material', _obvLink(_obvText(a,'source_material'))),
+      ].join('');
+
+      const goals = [
+        _obvRow('Success looks like', _obvEsc(_obvText(a,'success'))),
+        _obvRow('Anything else', _obvEsc(_obvText(a,'anything_else'))),
+      ].join('');
+
+      let ai='';
+      if (s.ai_avatar==='yes'){
+        const likeness = a.ai_use_existing==='yes' ? 'Use the clip/photos shared above' : (_obvLink(_obvText(a,'ai_new_likeness')) || '');
+        ai = [
+          _obvRow('Build from', likeness),
+          _obvRow('Personality', _obvEsc(_obvText(a,'ai_personality'))),
+          _obvRow('Look', _obvList(a.ai_content_style, {talking_head:'Talking to camera',podcast:'Podcast style'})),
+          _obvRow('Text-only videos', a.ai_text_driven?_obvEsc(a.ai_text_driven==='yes'?'Yes':'No'):''),
+          _obvRow('Setting', _obvEsc(_obvText(a,'ai_setting'))),
+          _obvRow('Podcast setting', _obvEsc(OBV_PODCAST[a.ai_podcast_setting]||_obvText(a,'ai_podcast_setting'))),
+          _obvRow('Framing', _obvEsc(OBV_FRAMING[a.ai_framing]||_obvText(a,'ai_framing'))),
+          _obvRow('Accessories', _obvList(a.ai_accessories)),
+          _obvRow('Hair', _obvEsc(_obvText(a,'ai_hair'))),
+          _obvRow('Makeup', _obvEsc(_obvText(a,'ai_makeup'))),
+          _obvRow('Clothing', _obvList(a.ai_clothing, OBV_CLOTHING)),
+          _obvRow('Voice recording', _obvLink(_obvText(a,'ai_voice_link'))),
+        ].join('');
+      }
+
+      const sec = (title, inner) => inner ? `<div class="obv-sec"><div class="obv-sec-t">${title}</div>${inner}</div>` : '';
+      return `<div class="obv-detail">
+        <button class="obv-back" onclick="_obvBack()">← All submissions</button>
+        <div class="obv-detail-head"><div class="obv-detail-name">${_obvEsc(name)}</div>
+          <div class="obv-detail-meta">${_obvEsc(s.email||'')} · ${_obvEsc(_obvFmtDate(s.created_at))}${s.ai_avatar==='yes'?' · <b>AI avatar</b>':''}</div></div>
+        ${sec('Brand &amp; audience', brand)}
+        ${sec('Style', style)}
+        ${sec('Photos &amp; source', assets)}
+        ${sec('Goals', goals)}
+        ${sec('AI avatar', ai)}
+      </div>`;
+    }
+
+    function mountOnboardingInbox(){ if (_tplTab==='onboarding') _obvEnsureLoaded(); }
+
+    function _obvInjectStyles(){
+      if (document.getElementById('obvStyles')) return;
+      const css = `
+      .obv-wrap{ max-width:720px; margin:0 auto; padding:8px 0 60px; }
+      .obv-head{ display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+      .obv-toggle{ display:inline-flex; background:var(--bg); border:1px solid var(--border); border-radius:11px; padding:3px; gap:2px; }
+      .obv-tab{ font-family:'Plus Jakarta Sans',sans-serif; font-size:0.82rem; font-weight:600; padding:7px 18px; border:none; border-radius:8px; cursor:pointer; color:var(--text-muted); background:transparent; transition:all 0.13s; }
+      .obv-tab:hover{ color:var(--text-secondary); }
+      .obv-tab.active{ background:var(--white); color:var(--text-primary); box-shadow:0 1px 2px rgba(0,0,0,0.06); }
+      .obv-refresh{ margin-left:auto; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; font-size:0.95rem; }
+      .obv-refresh:hover{ color:var(--text-primary); border-color:var(--text-muted); }
+      .obv-empty{ text-align:center; color:var(--text-muted); font-size:0.9rem; padding:50px 20px; line-height:1.6; }
+      .obv-list{ display:flex; flex-direction:column; gap:8px; }
+      .obv-card{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; background:var(--white); border:1px solid var(--border); border-radius:12px; padding:13px 16px; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; transition:all 0.12s; }
+      .obv-card:hover{ border-color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
+      .obv-card-name{ font-size:0.92rem; font-weight:700; color:var(--text-primary); }
+      .obv-card-sub{ font-size:0.78rem; color:var(--text-secondary); margin-top:1px; }
+      .obv-card-meta{ display:flex; align-items:center; gap:10px; flex-shrink:0; }
+      .obv-card-date{ font-size:0.76rem; color:var(--text-muted); }
+      .obv-badge{ font-size:0.66rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ig); background:var(--ig-light); border-radius:99px; padding:3px 9px; }
+      .obv-detail{ }
+      .obv-back{ font-family:'Plus Jakarta Sans',sans-serif; font-size:0.82rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; margin-bottom:14px; }
+      .obv-back:hover{ color:var(--text-primary); }
+      .obv-detail-head{ margin-bottom:18px; }
+      .obv-detail-name{ font-size:1.35rem; font-weight:800; letter-spacing:-0.02em; }
+      .obv-detail-meta{ font-size:0.82rem; color:var(--text-secondary); margin-top:3px; }
+      .obv-sec{ background:var(--white); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:12px; }
+      .obv-sec-t{ font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:10px; }
+      .obv-row{ display:grid; grid-template-columns:140px 1fr; gap:12px; padding:7px 0; border-top:1px solid var(--border-light); font-size:0.86rem; }
+      .obv-row:first-child{ border-top:none; }
+      .obv-row-l{ color:var(--text-secondary); font-weight:600; }
+      .obv-row-v{ color:var(--text-primary); white-space:pre-wrap; word-break:break-word; }
+      .obv-row-v a{ color:var(--ig); text-decoration:none; word-break:break-all; }
+      .obv-creator{ margin-bottom:3px; }
+      @media(max-width:560px){ .obv-row{ grid-template-columns:1fr; gap:2px; } }
+      `;
+      const st = document.createElement('style'); st.id='obvStyles'; st.textContent=css; document.head.appendChild(st);
+    }
+
     function renderTemplatesView() {
+        _obvInjectStyles();
+        if (_tplTab === 'onboarding') return renderOnboardingInbox();
         if (_templatesSelected) return renderClientTemplate(_templatesSelected);
         return renderTemplatesIndex();
     }
@@ -7477,6 +7702,7 @@
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
         return `<div class="tpl-index-centered">
             ${banner}${errBanner}
+            <div style="display:flex;justify-content:center;margin-bottom:20px;">${_obvToggle()}</div>
             <div class="tpl-index-title">Client Templates</div>
             <div class="tpl-index-sub">Fonts, colors, references, and preferences — one place for all of them.</div>
             <div class="search-bar-wrap" id="tplSearchWrap">
@@ -7966,6 +8192,7 @@
     function mountTemplatesView() {
         const root = document.getElementById('content');
         if (!root) return;
+        mountOnboardingInbox();
         // Render the "My Clients" pinned section if the index page is showing.
         if (!_templatesSelected && document.getElementById('tplPinsArea')) _tplRenderPins();
         const fields = root.querySelectorAll('[data-tpl-field]');
@@ -11524,6 +11751,7 @@
         // Client intake link locks the whole SPA to the Linear submission flow,
         // so every navigation (back button, restored hash, logo) lands on it.
         if (document.body.classList.contains('intake-mode')) page = 'linear';
+        if (document.body.classList.contains('onboarding-mode')) page = 'onboarding';
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
@@ -11542,6 +11770,8 @@
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
+        const navTtp = document.getElementById('navTiktokPilot');
+        if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -11551,6 +11781,8 @@
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
         if (page !== 'tiktok-upload' && typeof _tkTeardown === 'function') _tkTeardown();
+        // Same teardown for the gated first-party TikTok Pilot tab's poller.
+        if (page !== 'tiktok-pilot' && typeof _ttpTeardown === 'function') _ttpTeardown();
         // Same for Kasper review's 30 s background poller + visibility listeners.
         if (page !== 'kasper' && typeof _kasperTeardown === 'function') _kasperTeardown();
         // Phase 2: drop the calendar's Supabase realtime subscription when
@@ -11609,15 +11841,526 @@
             content.innerHTML = renderTiktokUploadView();
             mountTiktokUploadView();
             window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'tiktok-pilot') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderTiktokPilotView();
+            mountTiktokPilotView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'kasper') {
             pageTop.style.display = 'none';
             content.innerHTML = renderKasperView();
             mountKasperView();
             window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'onboarding') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderOnboardingView();
+            mountOnboardingView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
         } else {
             pageTop.style.display = '';
             render('all');
         }
+    }
+
+    /* ============================================================
+       CLIENT ONBOARDING MODULE  (standalone, private-link page)
+       Reachable ONLY via ?onboarding=<token> — never in the main nav.
+       Mirrors the ?intake=1 pattern: bypasses the staff password, hides
+       all workspace chrome, and locks the SPA to this one page.
+
+       Submit -> n8n webhook `onboarding-submit` (service-role) which writes
+       the SENSITIVE submission to Supabase `client_onboarding` (NO anon read)
+       and DMs Sidney on Slack. Namespaced _ob / OB_ / renderOnboardingView /
+       mountOnboardingView and fully decoupled from the dashboard data.
+       ============================================================ */
+    const ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-submit';
+    const OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
+    function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+
+    const OB_VOICE_SCRIPT = [
+      "(Rising intonation, curious tone) <b>Have you ever stopped to wonder... why certain voices stay with you? Is it the warmth? The rhythm? Or something you simply can't explain? What if I told you — your voice is unlike anyone else's on the planet?</b>",
+      "(Confident, declarative, steady pace) <b>My name is Jordan Calloway, and I've spent the last twelve years studying sound. The human voice carries more information than words alone. Every breath, every pause — it tells a story.</b>",
+      "(soft, reflective) <b>It started as simple curiosity.</b> (warm, smiling) <b>Then it became a passion — something I genuinely loved.</b> (heavier, honest) <b>But honestly? There were moments I almost gave up entirely.</b> (quiet, resolved) <b>And then... everything changed.</b>",
+      "(Crisp and precise — enunciate carefully) <b>On March 3rd, 2019, at exactly 11:47 AM, I recorded my first 500 samples. I worked alongside Dr. Priya Venkataraman</b> (PREE-yah Ven-kah-tah-RAH-man) <b>and a linguist named Søren Bloch</b> (SORE-en Block). <b>We used a technique called prosodic mapping — that's P-R-O-S-O-D-I-C — combined with phoneme segmentation. The result? A dataset of over 2.3 million voice fragments.</b>",
+      "(Take your time — don't rush) <b>Here's what I know for certain...</b> (pause) <b>Your voice... is unique. It's you. What makes you you... is the very thing worth preserving.</b> (pause — then slowly) <b>So. Let's get started. Let's use this voice recording to clone your voice.</b>"
+    ];
+
+    // Music genres distilled from the Synchro Music Drive folder. "Listen" opens
+    // that genre's folder. (Folders must be link-shared for external clients.)
+    // [key, label, Drive file id of a sample track] — streamed inline from the
+    // (already public) Synchro Music folder, not hosted in this repo.
+    const OB_MUSIC_GENRES = [
+      ['inspirational','Inspirational','152RPKe61ZtJtBUDO1r6CFlV5-juuc-Xt'],
+      ['ambient','Ambient / Cinematic','1Eo3q5Vvnjo4dN-WzxpNM4ZvddfFqHP3s'],
+      ['lofi','Lofi / Chill','1Qkj5Ql1O5ztnpuW-WUpsHjaoAds_A73i'],
+      ['piano','Emotional Piano','1KKGILct5M8JXDqfx-RBH1HvqVZ_4wQLS'],
+      ['guitar','Acoustic Guitar','1s03aCI60VtANSHtgKhtGsU9z2CWSfsra'],
+      ['synth','Synth','1TBqwG5RKTowP-Ic4Ny0wQhOeHvBXs5n9'],
+      ['spiritual','Spiritual','1UppYCTH_72T7EfmiaxfKBm_Z_PGP4E98'],
+      ['classical','Classical','1tCYEoyaf2_p-OjTYAXCUqMu1LfWZAI0y'],
+      ['trending','Trending / TikTok','1jzPYD4Y90v_WYNLk9LXvOeI6_-YTle1J'],
+    ];
+
+    // Subtitle base styles — pick one. Example = a real public reel frame.
+    const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
+    const OB_SUBTITLE_TYPES = [
+      ['native','Native captions','Clean white text, soft outline — the simple TikTok / Reels look.', SC_THUMB+'3101099e-1480-4254-b73e-307db759a5cc.jpg'],
+      ['boxed','Boxed banner','Text sits on a solid block.', SC_THUMB+'3e08ff7a-1b49-42c9-8fe8-532d07c778a6.jpg'],
+      ['minimal','Minimal','Small, thin, understated.', SC_THUMB+'69244920-d7c1-470f-b7c6-b90d0cf4077c.jpg'],
+      ['none','No subtitles','', ''],
+    ];
+
+    const OB_BROLL_OPTS = [
+      ['stock','Stock footage'],
+      ['ai','AI-generated'],
+      ['none','No B-roll'],
+    ];
+
+    const OB_APPROACH_OPTS = ['Polished & branded','Raw & authentic','Somewhere in between','Not sure — recommend for me'];
+    const OB_TONE_OPTS = ['Professional','Playful','Inspirational','Authoritative','Friendly','Luxury / premium','Not sure — recommend for me'];
+
+    function renderOnboardingView(){
+      return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>';
+    }
+
+    // ---- field renderers ----
+    function _obField(f){
+      const req = f.required ? '<span class="ob-req">*</span>' : '';
+      const help = f.help ? '<div class="ob-help">'+f.help+'</div>' : '';
+      let inner = '';
+      if(f.type==='textarea'){
+        inner = '<textarea class="ob-input ob-ta" data-ob="'+f.id+'" rows="'+(f.rows||3)+'" placeholder="'+_obEsc(f.placeholder||'')+'"></textarea>';
+      } else if(f.type==='select'){
+        inner = '<div class="ob-select-wrap"><select class="ob-input ob-select" data-ob="'+f.id+'"><option value="">Select…</option>'+
+          f.options.map(o=>{ const v=Array.isArray(o)?o[0]:o, l=Array.isArray(o)?o[1]:o; return '<option value="'+_obEsc(v)+'">'+_obEsc(l)+'</option>'; }).join('')+'</select></div>';
+      } else if(f.type==='radio'){
+        inner = '<div class="ob-radios" data-ob-radio="'+f.id+'">'+
+          f.options.map(o=>'<label class="ob-pill-opt"><input type="radio" name="'+f.id+'" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
+      } else if(f.type==='multiselect'){
+        const mx = f.max ? ' data-ob-max="'+f.max+'"' : '';
+        inner = '<div class="ob-checks" data-ob-multi="'+f.id+'"'+mx+'>'+
+          f.options.map(o=>'<label class="ob-pill-opt"><input type="checkbox" value="'+_obEsc(o[0])+'"><span>'+_obEsc(o[1])+'</span></label>').join('')+'</div>';
+      } else {
+        const t = f.type==='email'?'email':(f.type==='tel'?'tel':(f.type==='url'?'url':'text'));
+        inner = '<input class="ob-input" type="'+t+'" data-ob="'+f.id+'" placeholder="'+_obEsc(f.placeholder||'')+'">';
+      }
+      return '<div class="ob-q" data-ob-q="'+f.id+'"><label class="ob-label">'+_obEsc(f.label)+req+'</label>'+help+inner+'</div>';
+    }
+
+    function _obToggle(id,label,help){
+      const h = help ? '<div class="ob-help">'+help+'</div>' : '';
+      return '<div class="ob-q ob-toggle-q" data-ob-q="'+id+'"><div><label class="ob-label">'+_obEsc(label)+'</label>'+h+'</div>'+
+        '<label class="ob-switch"><input type="checkbox" data-ob-toggle="'+id+'"><span class="ob-switch-track"></span></label></div>';
+    }
+
+    function _obMusic(){
+      const rows = OB_MUSIC_GENRES.map(g=>
+        '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
+        '<button type="button" class="ob-play" data-ob-play="'+g[2]+'" aria-label="Play sample">▶</button></div>'
+      ).join('');
+      return '<div class="ob-q" data-ob-q="music"><label class="ob-label">Music</label>'+
+        '<div class="ob-help">Tick the vibes that fit you. Tap ▶ to hear a sample.</div>'+
+        '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
+    }
+
+    function _obSubtitles(){
+      const cards = OB_SUBTITLE_TYPES.map(t=>{
+        const img = t[3] ? '<div class="ob-sub-thumb" style="background-image:url(\''+t[3]+'\')"></div>' : '<div class="ob-sub-thumb ob-sub-noimg">—</div>';
+        const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
+        return '<label class="ob-sub-card">'+img+'<div class="ob-sub-body"><input type="radio" name="subtitle_style" value="'+t[0]+'"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div></label>';
+      }).join('');
+      return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
+        '<div class="ob-help">Pick the style you like.</div>'+
+        '<div class="ob-sub-grid" data-ob-radio="subtitle_style">'+cards+'</div></div>'+
+        _obToggle('highlight_keywords','Highlight keywords','Pop the key words in colour as they\'re spoken.');
+    }
+
+    function _obBroll(){
+      return _obField({ id:'broll', label:'B-roll', help:'Extra footage over your talking. Pick what you\'re open to.', type:'multiselect', options:OB_BROLL_OPTS });
+    }
+
+    function _obCreators(){
+      const row = '<div class="ob-cr-row"><input class="ob-input ob-cr-link" data-ob="creator1_link" type="url" placeholder="Creator link">'+
+        '<input class="ob-input ob-cr-el" data-ob="creator1_copy" type="text" placeholder="What to copy?"></div>';
+      return '<div class="ob-q" data-ob-q="creators"><label class="ob-label">Creators for inspiration</label>'+
+        '<div class="ob-help">Anyone whose style you\'d like us to borrow from.</div>'+
+        '<div class="ob-cr" id="obCreators">'+row+'</div>'+
+        '<button type="button" class="ob-add" id="obAddCreator">+ Add another</button></div>';
+    }
+
+    function _obAiLikeness(){
+      // Filled in dynamically by _obUpdateLikeness(): either "use what you shared"
+      // or "send a ~30s clip + photos".
+      return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>';
+    }
+
+    function _obSections(){
+      return [
+        { id:'s1', n:'1', title:'Basic info', fields:[
+          _obField({id:'first_name', label:'First name', type:'text', required:true}),
+          _obField({id:'last_name', label:'Last name', type:'text', required:true}),
+          _obField({id:'email', label:'Email', type:'email', required:true}),
+          _obField({id:'phone', label:'Phone', type:'tel', required:true}),
+          _obField({id:'comms_people', label:'Anyone else we should keep in the loop?', help:'Name + email.', type:'textarea', rows:2}),
+          _obField({id:'accounting_contact', label:'Billing contact', help:'Who we send invoices to.', type:'text'}),
+        ]},
+        { id:'s2', n:'2', title:'Your brand & audience', fields:[
+          _obField({id:'brand_guidelines', label:'Brand guidelines link', help:'Logos, colours, fonts — if you have them.', type:'url', placeholder:'https://…'}),
+          _obField({id:'ideal_customer', label:'Who is your ideal customer?', type:'textarea', required:true}),
+          _obField({id:'pain_points', label:'What problems do you solve for them?', type:'textarea', required:true}),
+          _obField({id:'desired_outcomes', label:'What results do you get them?', type:'textarea', required:true}),
+          _obField({id:'process', label:'How do you get them there?', type:'textarea', required:true}),
+        ]},
+        { id:'s3', n:'3', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
+          _obCreators(),
+          _obField({id:'clips_you_like', label:'Clips you like the look of', help:'Paste a link or two.', type:'url', placeholder:'https://…'}),
+          _obMusic(),
+          _obSubtitles(),
+          _obBroll(),
+          _obField({id:'color_prefs', label:'Colour preferences', help:'We usually go white or yellow subtitles, sometimes one accent colour.', type:'textarea', rows:2}),
+          _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
+          _obField({id:'overall_approach', label:'Overall feel', type:'select', options:OB_APPROACH_OPTS}),
+          _obField({id:'brand_tone', label:'Brand tone', type:'select', options:OB_TONE_OPTS}),
+          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', type:'textarea', rows:2}),
+          _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…'}),
+        ]},
+        { id:'s4', n:'4', title:'Photos & source material', fields:[
+          _obField({id:'photos_link', label:'Link to photos of you', help:'High-quality, ideally full-body. Set sharing to anyone-with-the-link.', type:'url', placeholder:'https://…'}),
+          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos, anything we can create from.', type:'url', placeholder:'https://…'}),
+        ]},
+        { id:'s5', n:'5', title:'Goals', fields:[
+          _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
+          _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
+        ]},
+        { id:'s6', n:'6', title:'AI avatar (optional)', isAi:true, fields:[
+          '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
+            '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
+            '<button type="button" class="ob-info-toggle" id="obAiInfoBtn">ⓘ What\'s this?</button></div>'+
+            '<div class="ob-info-panel" id="obAiInfo" style="display:none">We build a lifelike version of you from a few photos and a short video, clone your voice, and generate videos in your style — so content keeps going out even when you can\'t film. You control how it looks and what it says.</div>'+
+            '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no"><span>No</span></label></div></div>',
+          '<div id="obAiFields" class="ob-ai-fields" style="display:none">'+
+            _obAiLikeness()+
+            _obField({id:'ai_personality', label:'How would you describe your personality?', type:'textarea', required:true})+
+            _obField({id:'ai_content_style', label:'Which look do you prefer?', type:'multiselect', required:true, options:[['talking_head','Talking to camera'],['podcast','Podcast style']]})+
+            _obField({id:'ai_text_driven', label:'Also make text-only videos (no speaking)?', type:'radio', required:true, options:[['yes','Yes'],['no','No']]})+
+            _obField({id:'ai_setting', label:'What setting / background do you picture?', type:'textarea', rows:2, required:true})+
+            _obField({id:'ai_podcast_setting', label:'Podcast setting', type:'select', options:[['studio','Studio desk with mics'],['lounge','Casual lounge'],['office','Office / bookshelf'],['minimal','Plain backdrop']]})+
+            _obField({id:'ai_framing', label:'Camera framing', type:'select', required:true, options:[['closeup','Close-up'],['mid','Mid-shot'],['wide','Wide'],['mixed','Mixed']]})+
+            _obField({id:'ai_accessories', label:'Accessories', type:'multiselect', options:[['glasses','Glasses'],['watch','Watch'],['jewelry','Jewelry'],['hat','Hat'],['none','None']]})+
+            _obField({id:'ai_hair', label:'Hair', type:'text'})+
+            _obField({id:'ai_makeup', label:'Makeup', type:'text'})+
+            _obField({id:'ai_clothing', label:'Clothing (up to 3)', type:'multiselect', max:3, required:true, options:[['formal','Formal / suit'],['smart_casual','Smart casual'],['casual','Casual'],['streetwear','Streetwear'],['athletic','Activewear'],['branded','Branded merch'],['elegant','Elegant']]})+
+            '<div class="ob-q" data-ob-q="ai_voice_link"><label class="ob-label">Voice recording<span class="ob-req">*</span></label>'+
+              '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
+              '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
+              '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…"></div>'+
+          '</div>',
+        ]},
+        { id:'s7', n:'7', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
+          _obField({id:'instagram', label:'Instagram login', placeholder:'username / password', type:'text'}),
+          _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
+          _obField({id:'tiktok', label:'TikTok login', placeholder:'username / password', type:'text'}),
+          _obField({id:'facebook', label:'Facebook login', placeholder:'email / password', type:'text'}),
+          _obField({id:'linkedin', label:'LinkedIn login', placeholder:'email / password', type:'text'}),
+          _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
+        ]},
+      ];
+    }
+
+    function mountOnboardingView(){
+      _obInjectStyles();
+      const card = document.getElementById('obCard');
+      if(!card) return;
+      const sections = _obSections();
+      const head = '<div class="ob-headblock"><div class="ob-kicker">Synchro · Onboarding</div>'+
+        '<h1 class="ob-title">Let\'s set up your content</h1>'+
+        '<p class="ob-sub">Takes about 15 minutes. The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
+      const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
+      const body = sections.map(s=>{
+        const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
+        return '<section class="ob-sec" id="'+s.id+'"><div class="ob-sec-h"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2></div>'+intro+s.fields.join('')+'</section>';
+      }).join('');
+      const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div>'+
+        '<button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
+      card.innerHTML = head + rail + '<form id="obForm" autocomplete="off" novalidate>' + body + footer + '</form>';
+      // floating scroll-to-top
+      if(!document.getElementById('obTop')){
+        const b=document.createElement('button'); b.id='obTop'; b.className='ob-top'; b.type='button'; b.setAttribute('aria-label','Back to top'); b.innerHTML='↑';
+        b.addEventListener('click', ()=>window.scrollTo({top:0,behavior:'smooth'}));
+        document.body.appendChild(b);
+        window.addEventListener('scroll', _obToggleTop, {passive:true});
+        _obToggleTop();
+      }
+      _obWire();
+      _obUpdateLikeness();
+      _obRestoreDraft();
+    }
+
+    function _obToggleTop(){ const b=document.getElementById('obTop'); if(b) b.classList.toggle('show', window.scrollY>300); }
+
+    function _obWire(){
+      const form = document.getElementById('obForm');
+      if(!form) return;
+      form.addEventListener('change', e=>{
+        const t = e.target;
+        if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
+        if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
+        if(t.name==='ai_content_style'){ _obTogglePodcast(); }
+        const wrap = t.closest && t.closest('[data-ob-multi][data-ob-max]');
+        if(wrap && t.type==='checkbox'){
+          const max = parseInt(wrap.getAttribute('data-ob-max'),10);
+          if(wrap.querySelectorAll('input:checked').length>max){ t.checked=false; _obFlash('Up to '+max+'.'); }
+        }
+        _obSaveDraftDebounced();
+      });
+      form.addEventListener('input', e=>{
+        const id = e.target && e.target.getAttribute && e.target.getAttribute('data-ob');
+        if(id==='sample_clip' || id==='photos_link') _obUpdateLikeness();
+        _obSaveDraftDebounced();
+      });
+      form.addEventListener('click', e=>{ const b=e.target.closest && e.target.closest('.ob-play'); if(b){ e.preventDefault(); _obPlayMusic(b); } });
+      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{
+        const el=document.getElementById(b.getAttribute('data-ob-go')); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+      }));
+      const ib=document.getElementById('obAiInfoBtn');
+      if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
+      const add=document.getElementById('obAddCreator');
+      if(add) add.addEventListener('click', _obAddCreatorRow);
+      const sb=document.getElementById('obSubmit');
+      if(sb) sb.addEventListener('click', _obSubmit);
+    }
+
+    function _obAddCreatorRow(){
+      const box=document.getElementById('obCreators'); if(!box) return;
+      const i=box.querySelectorAll('.ob-cr-row').length+1;
+      if(i>5){ _obFlash('That\'s plenty 🙂'); return; }
+      const row=document.createElement('div'); row.className='ob-cr-row';
+      row.innerHTML='<input class="ob-input ob-cr-link" data-ob="creator'+i+'_link" type="url" placeholder="Creator link">'+
+        '<input class="ob-input ob-cr-el" data-ob="creator'+i+'_copy" type="text" placeholder="What to copy?">';
+      box.appendChild(row);
+    }
+
+    function _obToggleAi(v){ const b=document.getElementById('obAiFields'); if(b) b.style.display=(v==='yes')?'block':'none'; }
+    function _obTogglePodcast(){
+      const wrap=document.querySelector('[data-ob-multi="ai_content_style"]');
+      const q=document.querySelector('[data-ob-q="ai_podcast_setting"]'); if(!wrap||!q) return;
+      const podcast=!!Array.from(wrap.querySelectorAll('input:checked')).find(i=>i.value==='podcast');
+      q.style.display=podcast?'':'none';
+    }
+
+    // ---- AI likeness: reuse what they shared, or ask for a 30s clip + photos ----
+    function _obFieldVal(id){ const el=document.querySelector('[data-ob="'+id+'"]'); return el?el.value.trim():''; }
+    function _obUpdateLikeness(){
+      const wrap=document.getElementById('obAiLikenessWrap'); if(!wrap) return;
+      const hasClip=!!_obFieldVal('sample_clip'); const hasPhotos=!!_obFieldVal('photos_link');
+      const already=hasClip||hasPhotos;
+      const shared=[hasClip?'the clip':null, hasPhotos?'photos':null].filter(Boolean).join(' and ');
+      let html='<label class="ob-label">What we\'ll build your avatar from</label>';
+      if(already){
+        html+='<div class="ob-help">You already shared '+shared+' earlier — can we use that to build your avatar?</div>'+
+          '<div class="ob-radios" data-ob-radio="ai_use_existing"><label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="yes" data-ob="ai_use_existing"><span>Yes, use those</span></label>'+
+          '<label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="no" data-ob="ai_use_existing"><span>No, I\'ll send new ones</span></label></div>'+
+          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…"></div>';
+      } else {
+        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+          '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">';
+      }
+      // preserve any typed new-likeness value across re-render
+      const prev=_obFieldVal('ai_new_likeness'); const prevUse=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
+      wrap.innerHTML=html;
+      if(prev){ const e=wrap.querySelector('[data-ob="ai_new_likeness"]'); if(e) e.value=prev; }
+      if(prevUse){ const r=wrap.querySelector('input[name="ai_use_existing"][value="'+prevUse+'"]'); if(r) r.checked=true; }
+      _obUpdateLikenessVisibility();
+    }
+    function _obUpdateLikenessVisibility(){
+      const n=document.getElementById('obAiNew'); if(!n) return;
+      const use=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
+      n.style.display=(use==='no')?'block':'none';
+    }
+
+    let _obFlashT=null;
+    function _obFlash(msg){
+      let el=document.getElementById('obFlash');
+      if(!el){ el=document.createElement('div'); el.id='obFlash'; el.className='ob-flash'; document.body.appendChild(el); }
+      el.textContent=msg; el.classList.add('show');
+      clearTimeout(_obFlashT); _obFlashT=setTimeout(()=>el.classList.remove('show'),1700);
+    }
+
+    // Inline music preview: stream a sample track from the public Synchro Music
+    // Drive (one <audio>, play/pause toggle, one at a time).
+    let _obAudio=null, _obPlayingBtn=null;
+    function _obMusicUrl(id){ return 'https://drive.usercontent.google.com/download?id='+id+'&export=download&confirm=t'; }
+    function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.textContent='▶'; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
+    function _obPlayMusic(btn){
+      if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); }
+      if(_obPlayingBtn===btn && !_obAudio.paused){ _obResetPlay(); return; }
+      _obResetPlay();
+      _obAudio.src=_obMusicUrl(btn.getAttribute('data-ob-play')); _obPlayingBtn=btn;
+      btn.textContent='⏸'; btn.classList.add('ob-playing');
+      const p=_obAudio.play(); if(p&&p.catch) p.catch(()=>{ _obResetPlay(); _obFlash('Could not play that sample'); });
+    }
+    function _obSerialize(){
+      const form=document.getElementById('obForm'); const out={};
+      form.querySelectorAll('[data-ob]').forEach(el=>{ out[el.getAttribute('data-ob')]=el.value.trim(); });
+      form.querySelectorAll('[data-ob-radio]').forEach(g=>{ const n=g.getAttribute('data-ob-radio'); const s=g.querySelector('input:checked'); out[n]=s?s.value:''; });
+      form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const n=g.getAttribute('data-ob-multi'); out[n]=Array.from(g.querySelectorAll('input:checked')).map(i=>i.value); });
+      form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ out[t.getAttribute('data-ob-toggle')]=t.checked; });
+      return out;
+    }
+
+    function _obValidate(d){
+      const miss=[];
+      ['first_name','last_name','email','phone','ideal_customer','pain_points','desired_outcomes','process','success'].forEach(k=>{ if(!d[k]) miss.push(k); });
+      if(!d.subtitle_style) miss.push('subtitle_style');
+      if(d.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) miss.push('email');
+      if(d.ai_avatar==='yes'){
+        ['ai_personality','ai_setting','ai_voice_link'].forEach(k=>{ if(!d[k]) miss.push(k); });
+        if(!d.ai_content_style||!d.ai_content_style.length) miss.push('ai_content_style');
+        if(!d.ai_text_driven) miss.push('ai_text_driven');
+        if(!d.ai_framing) miss.push('ai_framing');
+        if(!d.ai_clothing||!d.ai_clothing.length) miss.push('ai_clothing');
+        // likeness: either reuse what was shared, or provide a new link
+        const okLikeness = (d.ai_use_existing==='yes') || !!d.ai_new_likeness;
+        if(!okLikeness) miss.push('ai_likeness');
+      }
+      return miss;
+    }
+
+    function _obSubmit(){
+      const err=document.getElementById('obErr'); const d=_obSerialize(); const miss=_obValidate(d);
+      if(miss.length){
+        err.style.display='block'; err.textContent='Please fill the highlighted fields ('+miss.length+' left).';
+        document.querySelectorAll('.ob-q.ob-missing').forEach(q=>q.classList.remove('ob-missing'));
+        let first=null;
+        miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); if(!first) first=q; } });
+        if(first) first.scrollIntoView({behavior:'smooth',block:'center'});
+        return;
+      }
+      err.style.display='none';
+      const btn=document.getElementById('obSubmit'); btn.disabled=true; btn.textContent='Submitting…';
+      const slug=(typeof wlNormalizeClient==='function')?wlNormalizeClient((d.first_name+' '+d.last_name).trim()):'';
+      const now=new Date().toISOString();
+      const submission={ id:_obId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:d.ai_avatar, answers:d, source:'syncview-onboarding', created_at:now, updated_at:now };
+      fetch(ONBOARDING_SUBMIT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ submission }) })
+        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({ok:true})); })
+        .then(()=>{ try{ localStorage.removeItem(OB_DRAFT_KEY); }catch(e){} _obThankYou(d); })
+        .catch(e=>{ btn.disabled=false; btn.textContent='Submit'; err.style.display='block'; err.textContent='Something went wrong sending the form — your answers are saved here, please try again.'; console.error('[onboarding] submit failed', e); });
+    }
+
+    function _obThankYou(d){
+      _obResetPlay();
+      const card=document.getElementById('obCard'); if(!card) return;
+      const t=document.getElementById('obTop'); if(t) t.remove();
+      card.innerHTML='<div class="ob-thanks"><div class="ob-thanks-ico">✓</div><h1>Thanks'+(d.first_name?(', '+_obEsc(d.first_name)):'')+'!</h1>'+
+        '<p>Your form is in — your team gets everything right away. You can close this page.</p></div>';
+      window.scrollTo({top:0,behavior:'instant'});
+    }
+
+    let _obDraftT=null;
+    function _obSaveDraftDebounced(){ clearTimeout(_obDraftT); _obDraftT=setTimeout(_obSaveDraft,600); }
+    function _obSaveDraft(){ try{ localStorage.setItem(OB_DRAFT_KEY, JSON.stringify(_obSerialize())); }catch(e){} }
+    function _obRestoreDraft(){
+      let d=null; try{ d=JSON.parse(localStorage.getItem(OB_DRAFT_KEY)||'null'); }catch(e){}
+      if(!d) return; const form=document.getElementById('obForm'); if(!form) return;
+      if(d.ai_avatar){ _obToggleAi(d.ai_avatar); }
+      _obUpdateLikeness();
+      form.querySelectorAll('[data-ob]').forEach(el=>{ const k=el.getAttribute('data-ob'); if(d[k]!=null && typeof d[k]!=='object') el.value=d[k]; });
+      form.querySelectorAll('[data-ob-radio]').forEach(g=>{ const v=d[g.getAttribute('data-ob-radio')]; if(v){ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; } });
+      form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
+      form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
+      _obUpdateLikeness(); _obTogglePodcast();
+    }
+
+    function _obInjectStyles(){
+      if(document.getElementById('obStyles')) return;
+      const css = `
+      body.onboarding-mode{ background:var(--bg); }
+      .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
+      .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+      .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
+      .ob-title{ font-size:1.6rem; font-weight:800; margin:8px 0 8px; letter-spacing:-0.02em; }
+      .ob-sub{ font-size:0.9rem; line-height:1.5; color:var(--text-secondary); margin:0; }
+      .ob-rail{ display:flex; flex-wrap:wrap; gap:6px; margin:20px 0 4px; }
+      .ob-rail-btn{ font-family:inherit; font-size:0.72rem; font-weight:600; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:6px 12px; cursor:pointer; transition:all 0.13s; }
+      .ob-rail-btn:hover{ color:var(--text-primary); border-color:var(--text-muted); }
+      .ob-sec{ padding:26px 0 4px; border-top:1px solid var(--border-light); margin-top:8px; }
+      .ob-sec:first-of-type{ border-top:none; }
+      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
+      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--text-primary); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
+      .ob-sec-h h2{ font-size:1.14rem; font-weight:700; margin:0; letter-spacing:-0.01em; }
+      .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
+      .ob-q{ margin:0 0 16px; }
+      .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
+      .ob-req{ color:var(--ig); margin-left:3px; }
+      .ob-help{ font-size:0.78rem; line-height:1.45; color:var(--text-secondary); margin-bottom:8px; }
+      .ob-input{ width:100%; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); box-sizing:border-box; transition:border-color 0.13s; }
+      .ob-input:focus{ outline:none; border-color:var(--text-primary); }
+      .ob-ta{ resize:vertical; min-height:42px; line-height:1.5; }
+      .ob-select-wrap{ position:relative; }
+      .ob-select{ appearance:none; -webkit-appearance:none; cursor:pointer; padding-right:38px; background:var(--white); }
+      .ob-select-wrap::after{ content:''; position:absolute; right:15px; top:50%; width:9px; height:9px; border-right:2px solid var(--text-secondary); border-bottom:2px solid var(--text-secondary); transform:translateY(-70%) rotate(45deg); pointer-events:none; }
+      .ob-select:hover{ border-color:var(--text-muted); }
+      .ob-radios,.ob-checks{ display:flex; flex-wrap:wrap; gap:8px; }
+      .ob-pill-opt{ display:inline-flex; align-items:center; gap:7px; font-size:0.85rem; padding:9px 13px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.12s; }
+      .ob-pill-opt:hover{ border-color:var(--text-muted); }
+      .ob-pill-opt input{ accent-color:var(--text-primary); margin:0; }
+      .ob-pill-opt:has(input:checked){ border-color:var(--text-primary); background:var(--bg); font-weight:600; }
+      .ob-cr{ display:flex; flex-direction:column; gap:8px; }
+      .ob-cr-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      .ob-add{ margin-top:8px; font-family:inherit; font-size:0.8rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; }
+      .ob-add:hover{ color:var(--text-primary); }
+      .ob-genres{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+      .ob-genre{ display:flex; align-items:center; gap:6px; padding:5px 7px 5px 12px; border:1.5px solid var(--border); border-radius:10px; transition:all 0.12s; }
+      .ob-genre:hover{ border-color:var(--text-muted); }
+      .ob-genre:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
+      .ob-genre-pick input{ accent-color:var(--text-primary); margin:0; }
+      .ob-genre-name{ font-weight:600; }
+      .ob-play{ flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); font-size:0.58rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.12s; }
+      .ob-play:hover{ border-color:var(--text-primary); }
+      .ob-play.ob-playing{ background:var(--text-primary); color:#fff; border-color:var(--text-primary); }
+      .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+      .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:9px; border:1.5px solid var(--border); border-radius:12px; cursor:pointer; transition:all 0.12s; }
+      .ob-sub-card:hover{ border-color:var(--text-muted); }
+      .ob-sub-card:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-sub-thumb{ width:48px; height:64px; border-radius:7px; background-size:cover; background-position:center; flex-shrink:0; background-color:#eee; }
+      .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:1.1rem; }
+      .ob-sub-body{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+      .ob-sub-body input{ accent-color:var(--text-primary); margin:0 0 2px; }
+      .ob-sub-name{ font-size:0.84rem; font-weight:600; }
+      .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
+      .ob-toggle-q{ display:flex; align-items:center; justify-content:space-between; gap:14px; }
+      .ob-switch{ position:relative; display:inline-block; width:44px; height:26px; flex-shrink:0; cursor:pointer; }
+      .ob-switch input{ opacity:0; width:0; height:0; }
+      .ob-switch-track{ position:absolute; inset:0; background:var(--border); border-radius:99px; transition:0.18s; }
+      .ob-switch-track::before{ content:''; position:absolute; height:20px; width:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:0.18s; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
+      .ob-switch input:checked + .ob-switch-track{ background:var(--text-primary); }
+      .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
+      .ob-info-toggle{ font-family:inherit; font-size:0.78rem; font-weight:600; color:var(--ig); background:none; border:none; cursor:pointer; padding:0; }
+      .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
+      .ob-ai-fields{ border-left:3px solid var(--border); padding-left:16px; margin-top:4px; }
+      .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
+      .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
+      .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
+      .ob-err{ font-size:0.83rem; color:var(--dn); background:var(--dn-bg); border:1px solid var(--dn); border-radius:9px; padding:10px 13px; margin-bottom:12px; }
+      .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:#fff; background:var(--text-primary); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
+      .ob-submit:hover{ opacity:0.88; } .ob-submit:disabled{ opacity:0.5; cursor:default; }
+      .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
+      .ob-q.ob-missing .ob-label{ color:var(--dn); }
+      .ob-thanks{ text-align:center; padding:40px 10px; }
+      .ob-thanks-ico{ width:54px; height:54px; border-radius:99px; background:var(--up-bg); color:var(--up); display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto 16px; }
+      .ob-thanks h1{ font-size:1.45rem; font-weight:800; margin:0 0 10px; }
+      .ob-thanks p{ font-size:0.92rem; line-height:1.55; color:var(--text-secondary); max-width:400px; margin:0 auto; }
+      .ob-flash{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--text-primary); color:#fff; font-size:0.82rem; font-weight:600; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:all 0.2s; z-index:9999; }
+      .ob-flash.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+      .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); font-size:1.1rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.13); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; }
+      .ob-top.show{ opacity:1; pointer-events:auto; transform:translateY(0); }
+      .ob-top:hover{ border-color:var(--text-muted); }
+      @media(max-width:560px){ .ob-card{ padding:24px 16px; } .ob-cr-row,.ob-genres,.ob-sub-grid{ grid-template-columns:1fr; } }
+      `;
+      const st=document.createElement('style'); st.id='obStyles'; st.textContent=css; document.head.appendChild(st);
     }
 
     /* ============================================================
@@ -26132,6 +26875,12 @@
         // failed and the nav button stayed hidden on every refresh).
         const KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked';
         let _kasperUnlocked = false;
+        // TikTok Pilot unlock state — declared alongside Kasper's (and early)
+        // for the same TDZ reason: the unlock block near the top of init()
+        // assigns _ttpUnlocked, and navTo's teardown reads it, before the
+        // _ttp* module further down the file has run its own declarations.
+        const TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked';
+        let _ttpUnlocked = false;
 
         async function init(){
         try{
@@ -26153,9 +26902,16 @@
             const _kasperSessionUnlocked = (() => { try { return sessionStorage.getItem(KASPER_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
             const _kasperHashLanding = (hashRaw === 'kasper' || hashRaw.startsWith('kasper/'))
                 && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
+            // Same fast-mount treatment for the gated TikTok Pilot tab — it has
+            // no analytics dependency (it talks to its own ttp-* webhooks), so a
+            // refresh straight onto #tiktok-pilot (when unlocked for this session)
+            // should mount immediately instead of flashing the analytics tab.
+            const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
+            const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
+                && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for the token)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -26344,6 +27100,19 @@
                     if (navSxr) navSxr.style.display = '';
                 }
             } catch (e) {}
+            // TikTok Pilot unlock — same hidden-tab pattern as Kasper. The gated
+            // first-party Direct-Post flow lives behind ?ttpilot=1 so the
+            // production Post-For-Me Upload tab stays the only visible TikTok tab
+            // until the new app passes TikTok's audit. ?ttpilot=1 sets a per-tab
+            // sessionStorage flag and reveals the nav button on every init path.
+            try{
+                if(qp.get('ttpilot')==='1') sessionStorage.setItem(TTP_UNLOCK_KEY,'ok');
+                if(sessionStorage.getItem(TTP_UNLOCK_KEY)==='ok'){
+                    _ttpUnlocked=true;
+                    const navTtp=document.getElementById('navTiktokPilot');
+                    if(navTtp) navTtp.style.display='';
+                }
+            }catch(e){}
 
             const dataPromise = fetchAll();
             dataPromise.then(_applyAllDataDependentChrome, () => {});
@@ -26414,6 +27183,8 @@
                         if (KASPER_SUBTABS.some(t => t.key === sub)) _kasperState.tab = sub;
                     }
                     navTo('kasper', false);
+                } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
+                    navTo('tiktok-pilot', false);
                 } else if (hashIsFastTab) {
                     navTo(hashRaw, false);
                 } else {
@@ -26511,6 +27282,7 @@
             if(hash==='sample-reviews'){navTo(hash,false);return;}
             if(hash==='templates'){navTo(hash,false);return;}
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
+            if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
@@ -26547,7 +27319,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='sample-reviews'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='sample-reviews'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
@@ -26570,8 +27342,22 @@
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
+    const _isOnboarding=(new URLSearchParams(location.search).get('onboarding')!==null);
     if(_isIntake){document.body.classList.add('intake-mode');}
-    if(_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
+    if(_isOnboarding){document.body.classList.add('onboarding-mode');}
+    if(_isOnboarding){
+        // Standalone onboarding form (?onboarding=…): no staff password and no
+        // dashboard data load. Hide all workspace chrome and mount only the
+        // onboarding page; navTo is locked to 'onboarding' so the link can't
+        // reach any other tab.
+        const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
+        const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
+        // Defer to a macrotask so the whole script finishes initializing its
+        // module-level bindings first — navTo() calls teardown fns that read
+        // `let`s declared later in the file, so calling it synchronously here
+        // would hit a temporal-dead-zone ReferenceError.
+        setTimeout(function(){ try{ navTo('onboarding', false); }catch(e){ console.error('[onboarding] mount failed', e); } }, 0);
+    } else if(_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
         if(_isIntake){
             // Client intake link (?intake=1): expose ONLY the Linear submission
             // flow. Bypass the staff password, hide all workspace chrome, and
@@ -26676,6 +27462,48 @@
     let _tkActiveXhr = null;
     let _tkMounted = false;   // true while the TikTok Upload view is on screen
     let _tkVisHooked = false; // one-time guard for the visibilitychange listener
+
+    // ---- TikTok Pilot state (isolated from tkState above) ----
+    // Declared here, alongside the _tk* runtime state, so the same early-init
+    // microtask guard (see the comment near init()'s skipAwait branch) protects
+    // _ttpTeardown from a TDZ on a direct refresh into the pilot tab.
+    const ttpState = {
+        client: null,
+        account: null,            // resolved { open_id, display_name, avatar_url } for the selected client
+        accounts: {},             // client_name -> { open_id, display_name, avatar_url, revoked_at }
+        accountsLoaded: false,
+        accountsError: null,
+        creatorInfo: null,        // creator_info snapshot driving the compliant compose UI
+        creatorInfoLoading: false,
+        creatorInfoError: null,
+        file: null,
+        fileMeta: null,           // {name,size,type} — persisted so we can warn after reload
+        objectUrl: null,
+        durationSec: null,        // probed from the <video>, checked vs max_video_post_duration_sec
+        title: '',
+        options: {
+            privacy_level: '',    // NO default — operator must explicitly pick (TikTok UX rule)
+            // Interaction toggles default OFF (unchecked) and must be turned on
+            // manually — TikTok's rule is "none should be checked by default".
+            // Sent to TikTok inverted: disable_comment = !allow_comment, etc.
+            allow_comment: false,
+            allow_duet: false,
+            allow_stitch: false,
+            commercial: false,    // commercial-content disclosure master toggle (off by default)
+            your_brand: false,
+            branded_content: false,
+            cover_timestamp_ms: 1000,
+        },
+        uploads: [],
+        submitting: false,
+        error: null,
+        progress: 0,
+    };
+    let _ttpPollTimer = null;
+    let _ttpSaveTimer = null;
+    let _ttpActiveXhr = null;
+    let _ttpMounted = false;
+    let _ttpVisHooked = false;
 
     function _tkInjectCSSOnce() {
         if (document.getElementById('tkUploadStyles')) return;
@@ -27715,6 +28543,801 @@
     window._tkCancelRow = _tkCancelRow;
     window._tkRetryRow = _tkRetryRow;
     window._tkDismissRow = _tkDismissRow;
+
+    /* ============================================================
+       TIKTOK PILOT MODULE  (gated: ?ttpilot=1 → #tiktok-pilot)
+       A FIRST-PARTY, audit-compliant "Connect + Direct Post" flow that
+       talks to our own ttp-* n8n webhooks (OAuth + creator_info + Direct
+       Post on SynchroSocial's OWN TikTok app), NOT Post For Me. Built as a
+       clean room next to the production _tk* module — shares no state, no
+       webhooks, no localStorage keys — so the live Upload tab is untouched.
+
+       Compliance (TikTok Direct Post UX rules), all driven by creator_info:
+         • privacy dropdown with NO default value (operator must pick)
+         • comment/duet/stitch OFF by default; greyed when the creator
+           disabled them account-wide
+         • commercial-disclosure off by default; branded content can't be
+           "Only me"
+         • neutral preview (no TikTok chrome/logos) + explicit "Post to TikTok"
+         • never shows "Posted" until TikTok status/fetch = PUBLISH_COMPLETE
+       While TTP_APP_AUDITED is false the app is unaudited, so privacy is
+       locked to SELF_ONLY (TikTok forces private until the audit passes).
+       ============================================================ */
+    const TTP_PRIVACY_LABELS = {
+        PUBLIC_TO_EVERYONE: 'Everyone',
+        MUTUAL_FOLLOW_FRIENDS: 'Friends',
+        FOLLOWER_OF_CREATOR: 'Followers',
+        SELF_ONLY: 'Only me',
+    };
+
+    function _ttpEscape(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+    function _ttpFormatBytes(n) {
+        if (!Number.isFinite(n) || n <= 0) return '0 B';
+        const u = ['B', 'KB', 'MB', 'GB'];
+        let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+        return `${n.toFixed(i === 0 ? 0 : 1)} ${u[i]}`;
+    }
+    function _ttpFmtDuration(sec) {
+        if (!Number.isFinite(sec) || sec <= 0) return '';
+        const m = Math.floor(sec / 60), s = Math.round(sec % 60);
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function _ttpInjectCSSOnce() {
+        if (document.getElementById('ttpStyles')) return;
+        const style = document.createElement('style');
+        style.id = 'ttpStyles';
+        // Base layout rules first, media queries AFTER (equal-specificity
+        // source-order rule — see the _tk drop-zone bug we learned from).
+        style.textContent = `
+        .ttp-page { max-width: 1240px; margin: 0 auto; padding: 24px 32px 80px; display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-rows: auto auto 1fr; gap: 20px 24px; align-items: start; }
+        .ttp-header { grid-column: 1; grid-row: 1; }
+        .ttp-banner { grid-column: 1 / -1; grid-row: 2; }
+        .ttp-form-col { grid-column: 1; grid-row: 3; }
+        .ttp-right-col { grid-column: 2; grid-row: 1 / span 3; }
+        @media (max-width: 1024px) {
+            .ttp-page { grid-template-columns: 1fr; }
+            .ttp-header { grid-column: 1; grid-row: 1; }
+            .ttp-banner { grid-column: 1; grid-row: 2; }
+            .ttp-form-col { grid-column: 1; grid-row: 3; }
+            .ttp-right-col { grid-column: 1; grid-row: 4; }
+        }
+        .ttp-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; color: var(--text-primary); display: flex; align-items: center; gap: 10px; }
+        .ttp-pilot-tag { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 99px; }
+        .ttp-sub { font-size: 0.86rem; color: var(--text-secondary); margin-top: 4px; }
+        .ttp-col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+        .ttp-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; }
+        .ttp-card h3 { margin: 0 0 14px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .ttp-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .ttp-row:last-child { margin-bottom: 0; }
+        .ttp-row > label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
+        .ttp-help { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
+        .ttp-select, .ttp-input { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); outline: none; transition: border-color 0.13s, background 0.13s; }
+        .ttp-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/></svg>"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+        .ttp-select:focus, .ttp-input:focus { border-color: #111110; background-color: var(--white); }
+        .ttp-select:disabled { opacity: 0.6; cursor: not-allowed; }
+        .ttp-account { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+        .ttp-account img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: #ddd; flex-shrink: 0; }
+        .ttp-account-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); }
+        .ttp-account-sub { font-size: 0.74rem; color: var(--text-secondary); margin-top: 2px; }
+        .ttp-account-ok { margin-left: auto; font-size: 0.72rem; font-weight: 700; color: #166534; background: #dcfce7; padding: 3px 9px; border-radius: 99px; flex-shrink: 0; }
+        .ttp-connect-cta { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding: 16px; border: 1.5px dashed var(--border); border-radius: 12px; background: var(--bg); }
+        .ttp-connect-text { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.4; }
+        .ttp-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; background: #111110; color: #fff; border: none; border-radius: 9px; font-family: inherit; font-size: 0.86rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .ttp-btn:hover { opacity: 0.88; }
+        .ttp-btn.ttp-btn-ghost { background: var(--white); color: var(--text-primary); border: 1px solid var(--border); }
+        .ttp-warn-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; background: #fef3c7; color: #92400e; border-radius: 99px; font-weight: 700; font-size: 0.72rem; }
+        .ttp-drop { position: relative; border: 1.8px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+        .ttp-drop:hover, .ttp-drop.ttp-drag { border-color: #111110; background: var(--white); }
+        .ttp-drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .ttp-drop-title { font-size: 0.92rem; font-weight: 700; color: var(--text-primary); }
+        .ttp-drop-sub { font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px; }
+        .ttp-file-card { display: flex; flex-direction: column; gap: 14px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg); }
+        .ttp-file-card video { width: 100%; max-width: 280px; aspect-ratio: 9/16; border-radius: 10px; background: #000; object-fit: contain; margin: 0 auto; }
+        .ttp-file-meta { display: flex; align-items: center; gap: 12px; }
+        .ttp-file-name { font-size: 0.9rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ttp-file-size { font-size: 0.76rem; color: var(--text-secondary); margin-top: 3px; }
+        .ttp-mini-btn { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: var(--white); border: 1px solid var(--border); border-radius: 7px; font-family: inherit; font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; }
+        .ttp-mini-btn:hover { color: var(--text-primary); border-color: #aaa; }
+        .ttp-counter { font-size: 0.7rem; color: var(--text-muted); text-align: right; margin-top: 4px; }
+        .ttp-counter.over { color: #dc2626; font-weight: 700; }
+        .ttp-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; font-size: 0.84rem; color: var(--text-primary); font-weight: 600; padding: 4px 0; }
+        .ttp-toggle.ttp-disabled { opacity: 0.5; cursor: not-allowed; }
+        .ttp-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+        .ttp-toggle-track { position: relative; width: 34px; height: 18px; border-radius: 9px; background: var(--border); transition: background 0.15s; flex-shrink: 0; }
+        .ttp-toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: left 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .ttp-toggle input:checked ~ .ttp-toggle-track { background: #16a34a; }
+        .ttp-toggle input:checked ~ .ttp-toggle-track .ttp-toggle-thumb { left: 18px; }
+        .ttp-toggle-meta { display: flex; flex-direction: column; gap: 1px; }
+        .ttp-toggle-meta small { font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+        .ttp-disclosure-box { margin-top: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+        .ttp-note { font-size: 0.74rem; color: var(--text-secondary); line-height: 1.4; padding: 8px 10px; background: var(--bg); border-radius: 8px; border-left: 3px solid #f59e0b; }
+        .ttp-note.ttp-note-info { border-left-color: #3b82f6; }
+        .ttp-submit-bar { display: flex; align-items: center; gap: 14px; padding: 14px 22px; background: var(--white); border: 1px solid var(--border); border-radius: 14px; position: sticky; bottom: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.06); }
+        .ttp-submit-btn { flex-shrink: 0; padding: 12px 28px; background: #111110; color: #fff; border: none; border-radius: 10px; font-family: inherit; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+        .ttp-submit-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .ttp-submit-btn:not(:disabled):hover { opacity: 0.88; }
+        .ttp-progress { flex: 1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+        .ttp-progress-bar { height: 100%; background: #16a34a; width: 0%; transition: width 0.2s; }
+        .ttp-error { color: #dc2626; font-size: 0.82rem; font-weight: 600; }
+        .ttp-app-banner { padding: 12px 16px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: 0.82rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        /* Neutral preview — deliberately NOT the TikTok feed (no For-You chrome,
+           no TikTok logo, no heart/comment/share rail). Just an honest preview. */
+        .ttp-preview-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px; }
+        .ttp-preview-card h3 { margin: 0 0 12px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .ttp-preview-frame { position: relative; aspect-ratio: 9/16; background: #000; border-radius: 12px; overflow: hidden; max-width: 240px; margin: 0 auto; border: 1px solid var(--border); }
+        .ttp-preview-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+        .ttp-preview-empty { position: absolute; inset: 0; display: grid; place-items: center; color: #888; font-size: 0.78rem; padding: 24px; text-align: center; }
+        .ttp-preview-caption { margin-top: 12px; font-size: 0.82rem; color: var(--text-primary); line-height: 1.4; white-space: pre-wrap; word-break: break-word; max-height: 96px; overflow: auto; }
+        .ttp-preview-caption.ttp-empty { color: var(--text-muted); font-style: italic; }
+        .ttp-preview-meta { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; font-size: 0.76rem; color: var(--text-secondary); }
+        .ttp-preview-meta div { display: flex; justify-content: space-between; gap: 10px; }
+        .ttp-preview-meta b { color: var(--text-primary); font-weight: 700; }
+        .ttp-queue-item { padding: 12px; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 8px; background: var(--white); }
+        .ttp-queue-item:last-child { margin-bottom: 0; }
+        .ttp-queue-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+        .ttp-queue-client { font-size: 0.84rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ttp-queue-title { font-size: 0.78rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .ttp-queue-actions { display: flex; gap: 6px; margin-top: 10px; }
+        .ttp-queue-error { font-size: 0.72rem; color: #991b1b; margin-top: 6px; padding: 6px 8px; background: #fee2e2; border-radius: 6px; }
+        .ttp-queue-empty { padding: 24px 12px; text-align: center; color: var(--text-muted); font-size: 0.82rem; }
+        .ttp-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 99px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; }
+        .ttp-pill.uploading, .ttp-pill.processing { background: #dbeafe; color: #1e40af; }
+        .ttp-pill.posted { background: #d1fae5; color: #065f46; }
+        .ttp-pill.failed { background: #fee2e2; color: #991b1b; }
+        `;
+        document.head.appendChild(style);
+    }
+
+    // ---- Account resolution + persistence (mirrors _tk's defensive patterns) ----
+    function _ttpResolveAccount(client) {
+        if (!client) return null;
+        const a = ttpState.accounts[client];
+        return (a && !a.revoked_at && a.open_id) ? a : null;
+    }
+    function _ttpLoadDraft() {
+        try {
+            const d = JSON.parse(localStorage.getItem(TTP_FORM_KEY) || 'null');
+            if (!d) return;
+            if (d.client && WL_CLIENT_NAMES.includes(d.client)) ttpState.client = d.client;
+            if (typeof d.title === 'string') ttpState.title = d.title;
+            if (d.options && typeof d.options === 'object') Object.assign(ttpState.options, d.options);
+            if (d.fileMeta && typeof d.fileMeta === 'object') ttpState.fileMeta = d.fileMeta;
+        } catch (e) {}
+    }
+    function _ttpSaveDraft() {
+        try {
+            localStorage.setItem(TTP_FORM_KEY, JSON.stringify({
+                client: ttpState.client, title: ttpState.title, options: ttpState.options,
+                fileMeta: ttpState.file ? { name: ttpState.file.name, size: ttpState.file.size, type: ttpState.file.type } : ttpState.fileMeta,
+            }));
+        } catch (e) {}
+    }
+    function _ttpSaveDraftSoon() { clearTimeout(_ttpSaveTimer); _ttpSaveTimer = setTimeout(_ttpSaveDraft, 400); }
+    function _ttpClearDraft() { try { localStorage.removeItem(TTP_FORM_KEY); } catch {} ttpState.fileMeta = null; }
+    function _ttpLoadPending() { try { return JSON.parse(localStorage.getItem(TTP_PENDING_KEY) || '[]'); } catch { return []; } }
+    function _ttpSavePending(list) { try { localStorage.setItem(TTP_PENDING_KEY, JSON.stringify(list.slice(0, 50))); } catch {} }
+    function _ttpLoadHidden() { try { return new Set(JSON.parse(localStorage.getItem(TTP_HIDDEN_KEY) || '[]')); } catch { return new Set(); } }
+    function _ttpSaveHidden(set) { try { localStorage.setItem(TTP_HIDDEN_KEY, JSON.stringify([...set].slice(0, 200))); } catch {} }
+    function _ttpPrunePending(rows) {
+        const cutoff = Date.now() - TTP_OPTIMISTIC_TTL_MS;
+        return rows.filter(r => {
+            if (!r.optimistic) return true;
+            const t = Date.parse(r.created_at || '');
+            return !Number.isFinite(t) || t > cutoff;
+        });
+    }
+    // Map TikTok's publish lifecycle to a UI pill. ONLY publish_complete = posted
+    // (we never optimistically claim success — the lesson from the _tk module).
+    function _ttpEffectiveStatus(r) {
+        const s = String(r.status || '').toLowerCase();
+        if (s === 'publish_complete' || s === 'posted') return 'posted';
+        if (s === 'failed') return 'failed';
+        if (s === 'uploading') return 'uploading';
+        return 'processing';
+    }
+    function _ttpMergeUploads(existing, incoming) {
+        const map = new Map();
+        for (const r of existing) map.set(r.id, r);
+        for (const r of incoming) {
+            const prev = map.get(r.id);
+            map.set(r.id, prev ? { ...prev, ...r, optimistic: r.optimistic && prev.optimistic } : r);
+        }
+        return [...map.values()].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+    }
+
+    // ---- Network: accounts / creator_info / connect / OAuth return ----
+    async function _ttpFetchAccounts() {
+        try {
+            const r = await fetch(TTP_ACCOUNTS_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const json = await r.json();
+            const rows = Array.isArray(json) ? json : (json.rows || json.accounts || []);
+            const map = {};
+            for (const a of rows) { if (a && a.client_name) map[a.client_name] = a; }
+            ttpState.accounts = map;
+            ttpState.accountsLoaded = true;
+            ttpState.accountsError = null;
+        } catch (e) {
+            ttpState.accountsError = e.message || 'Could not load connected accounts.';
+            ttpState.accountsLoaded = true;
+        }
+    }
+    function _ttpConnect(client) {
+        if (!client) { ttpState.error = 'Pick a client to connect first.'; _ttpRenderForm(); return; }
+        // Full-page redirect to our n8n auth-init webhook, which builds the
+        // TikTok authorize URL (holding client_key server-side) and 302s on.
+        // On return, ttp-auth-callback bounces back to ?connect=ok…#tiktok-pilot.
+        window.location.href = TTP_AUTH_INIT_URL + '?client=' + encodeURIComponent(client);
+    }
+    async function _ttpFetchCreatorInfo(client) {
+        if (!client || !_ttpResolveAccount(client)) { ttpState.creatorInfo = null; return; }
+        ttpState.creatorInfoLoading = true; ttpState.creatorInfoError = null;
+        _ttpRenderForm();
+        try {
+            const r = await fetch(TTP_CREATOR_INFO_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client }),
+                signal: (AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined),
+            });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const j = await r.json();
+            const ci = j && j.data ? j.data : j;
+            if (!ci || !Array.isArray(ci.privacy_level_options)) throw new Error('creator_info had no privacy options');
+            ttpState.creatorInfo = ci;
+            ttpState.creatorInfoError = null;
+            // Force interaction toggles off where the creator disabled them.
+            if (ci.comment_disabled) ttpState.options.allow_comment = false;
+            if (ci.duet_disabled) ttpState.options.allow_duet = false;
+            if (ci.stitch_disabled) ttpState.options.allow_stitch = false;
+        } catch (e) {
+            ttpState.creatorInfo = null;
+            ttpState.creatorInfoError = e.message || 'Could not load creator info from TikTok.';
+        } finally {
+            ttpState.creatorInfoLoading = false;
+            if (ttpState.client === client) _ttpRenderForm();
+        }
+    }
+    // Read the ?connect=ok|error&client=… params n8n bounced us back with,
+    // show a toast, refresh accounts, then strip the params from the URL.
+    function _ttpHandleConnectReturn() {
+        let qp; try { qp = new URLSearchParams(location.search); } catch { return; }
+        const connect = qp.get('connect');
+        if (!connect) return;
+        const client = qp.get('client') ? decodeURIComponent(qp.get('client')) : '';
+        if (connect === 'ok') {
+            if (client && WL_CLIENT_NAMES.includes(client)) ttpState.client = client;
+            if (typeof showNotify === 'function') showNotify('TikTok connected', client ? `${client}'s account is now linked.` : 'Account linked.');
+            _ttpFetchAccounts().then(() => { _ttpRenderForm(); if (ttpState.client) _ttpFetchCreatorInfo(ttpState.client); });
+        } else {
+            ttpState.error = 'TikTok connection failed or was cancelled. Please try again.';
+            if (typeof showNotify === 'function') showNotify('Connection failed', qp.get('error') || 'The TikTok connection did not complete.');
+        }
+        // Strip connect params but keep the #tiktok-pilot hash.
+        try {
+            qp.delete('connect'); qp.delete('client'); qp.delete('error');
+            const qs = qp.toString();
+            history.replaceState(history.state, '', location.pathname + (qs ? '?' + qs : '') + '#tiktok-pilot');
+        } catch (e) {}
+    }
+
+    // ---- Privacy option computation (compliance core) ----
+    // The dropdown options come from creator_info. While unaudited we lock to
+    // SELF_ONLY. Branded content can't be private, so it removes SELF_ONLY.
+    function _ttpPrivacyOptions() {
+        const ci = ttpState.creatorInfo;
+        let opts = (ci && Array.isArray(ci.privacy_level_options)) ? ci.privacy_level_options.slice() : [];
+        if (!TTP_APP_AUDITED) opts = opts.filter(o => o === 'SELF_ONLY');
+        if (!opts.length && !TTP_APP_AUDITED) opts = ['SELF_ONLY'];
+        if (ttpState.options.commercial && ttpState.options.branded_content) {
+            opts = opts.filter(o => o !== 'SELF_ONLY');
+        }
+        return opts;
+    }
+
+    function renderTiktokPilotView() {
+        _ttpInjectCSSOnce();
+        return `
+            <div class="ttp-page">
+                <div class="ttp-header">
+                    <div class="ttp-title">TikTok Pilot <span class="ttp-pilot-tag">First-party · gated</span></div>
+                    <div class="ttp-sub">Connect a client's TikTok account and Direct-Post to it — our own audited integration. Separate from the production Upload tab.</div>
+                </div>
+                ${TTP_APP_AUDITED ? '' : `<div class="ttp-banner"><div class="ttp-app-banner">⏳ App in review — TikTok keeps every post <b>Private (Only me)</b> and limits connected accounts until the audit is approved.</div></div>`}
+                <div class="ttp-col ttp-form-col" id="ttpFormCol"></div>
+                <div class="ttp-col ttp-right-col">
+                    <div id="ttpPreviewWrap"></div>
+                    <div id="ttpQueueCol"></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function _ttpRenderForm() {
+        const col = document.getElementById('ttpFormCol');
+        if (!col) return;
+        if (ttpState.client) ttpState.account = _ttpResolveAccount(ttpState.client);
+
+        const clientNames = [...WL_CLIENT_NAMES].sort((a, b) => a.localeCompare(b));
+        const acct = ttpState.account;
+        const ci = ttpState.creatorInfo;
+        const opts = ttpState.options;
+        const titleCount = (ttpState.title || '').length;
+        const titleOver = titleCount > 2200;
+
+        // ---- Client + connection card ----
+        let connectionCard;
+        if (!ttpState.client) {
+            connectionCard = `<div class="ttp-help">Pick a client to connect or post.</div>`;
+        } else if (acct) {
+            connectionCard = `
+                <div class="ttp-account">
+                    <img src="${_ttpEscape(acct.avatar_url || '')}" alt="" onerror="this.style.visibility='hidden'">
+                    <div>
+                        <div class="ttp-account-name">${_ttpEscape(acct.display_name || ttpState.client)}</div>
+                        <div class="ttp-account-sub">Connected TikTok account</div>
+                    </div>
+                    <span class="ttp-account-ok">✓ Connected</span>
+                </div>
+                <div style="margin-top:8px"><button class="ttp-mini-btn" onclick="_ttpConnect(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">Reconnect</button></div>`;
+        } else {
+            connectionCard = `
+                <div class="ttp-connect-cta">
+                    <div class="ttp-connect-text"><strong>${_ttpEscape(ttpState.client)}</strong> has no connected TikTok account yet. Connect it through TikTok's consent screen to post on their behalf.</div>
+                    <button class="ttp-btn" onclick="_ttpConnect(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">
+                        <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        Connect TikTok account
+                    </button>
+                </div>`;
+        }
+
+        // ---- Media card ----
+        let mediaCard;
+        if (ttpState.file) {
+            mediaCard = `
+                <div class="ttp-file-card">
+                    <video src="${_ttpEscape(ttpState.objectUrl)}" playsinline controls preload="metadata"></video>
+                    <div class="ttp-file-meta">
+                        <div style="flex:1;min-width:0">
+                            <div class="ttp-file-name">${_ttpEscape(ttpState.file.name)}</div>
+                            <div class="ttp-file-size">${_ttpFormatBytes(ttpState.file.size)}${ttpState.durationSec ? ' · ' + _ttpFmtDuration(ttpState.durationSec) : ''}</div>
+                        </div>
+                        <button class="ttp-mini-btn" onclick="_ttpReplaceFile()">Replace</button>
+                        <button class="ttp-mini-btn" onclick="_ttpClearFile()">Remove</button>
+                    </div>
+                </div>`;
+        } else {
+            const reattach = ttpState.fileMeta
+                ? `<div class="ttp-drop-sub" style="color:#92400e">Draft restored — re-attach <strong>${_ttpEscape(ttpState.fileMeta.name)}</strong> (${_ttpFormatBytes(ttpState.fileMeta.size)}).</div>`
+                : `<div class="ttp-drop-sub">MP4 or MOV · up to ${_ttpFormatBytes(TTP_MAX_BYTES)}</div>`;
+            mediaCard = `
+                <div class="ttp-drop" id="ttpDrop">
+                    <input type="file" id="ttpFile" accept="video/mp4,video/quicktime,video/*">
+                    <div class="ttp-drop-title">Drop a video here, or click to browse</div>
+                    ${reattach}
+                </div>`;
+        }
+
+        // ---- Compose (only meaningful once connected) ----
+        let composeCards = '';
+        if (acct) {
+            // Privacy
+            const privOpts = _ttpPrivacyOptions();
+            const privacyChosen = opts.privacy_level && privOpts.includes(opts.privacy_level);
+            let privacyInner;
+            if (ttpState.creatorInfoLoading) {
+                privacyInner = `<div class="ttp-help">Loading the creator's allowed options from TikTok…</div>`;
+            } else if (ttpState.creatorInfoError) {
+                privacyInner = `<div class="ttp-error">${_ttpEscape(ttpState.creatorInfoError)}</div><button class="ttp-mini-btn" style="margin-top:8px" onclick="_ttpFetchCreatorInfo(${JSON.stringify(ttpState.client).replace(/"/g,'&quot;')})">Retry</button>`;
+            } else if (!ci) {
+                privacyInner = `<div class="ttp-help">Select this client to load TikTok's settings.</div>`;
+            } else {
+                const lockedSelfOnly = !TTP_APP_AUDITED;
+                privacyInner = `
+                    <select class="ttp-select" id="ttpPrivacy" ${lockedSelfOnly ? 'disabled' : ''}>
+                        <option value="" ${privacyChosen ? '' : 'selected'} disabled>Select who can see this…</option>
+                        ${privOpts.map(o => `<option value="${o}" ${opts.privacy_level === o ? 'selected' : ''}>${_ttpEscape(TTP_PRIVACY_LABELS[o] || o)}</option>`).join('')}
+                    </select>
+                    ${lockedSelfOnly ? `<div class="ttp-help">Locked to “Only me” while the app is in review.</div>` : `<div class="ttp-help">No default — choose explicitly (TikTok requirement).</div>`}`;
+            }
+
+            // Interaction toggles (greyed when the creator disabled them)
+            const tog = (key, label, disabledFlag) => {
+                const off = !!(ci && disabledFlag);
+                const checked = !off && opts['allow_' + key];
+                return `
+                    <label class="ttp-toggle ${off ? 'ttp-disabled' : ''}">
+                        <input type="checkbox" id="ttpAllow_${key}" ${checked ? 'checked' : ''} ${off ? 'disabled' : ''}>
+                        <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
+                        <span class="ttp-toggle-meta">Allow ${label}${off ? `<small>Turned off by the creator</small>` : ''}</span>
+                    </label>`;
+            };
+            const interactionCard = ci ? `
+                <div class="ttp-card">
+                    <h3>Interactions</h3>
+                    <div class="ttp-help" style="margin-bottom:10px">Off by default — turn on the ones this post should allow.</div>
+                    ${tog('comment', 'comments', ci.comment_disabled)}
+                    ${tog('duet', 'Duet', ci.duet_disabled)}
+                    ${tog('stitch', 'Stitch', ci.stitch_disabled)}
+                </div>` : '';
+
+            // Commercial disclosure
+            const brandedLockedUnaudited = !TTP_APP_AUDITED;
+            const discCard = ci ? `
+                <div class="ttp-card">
+                    <h3>Commercial disclosure</h3>
+                    <label class="ttp-toggle">
+                        <input type="checkbox" id="ttpCommercial" ${opts.commercial ? 'checked' : ''}>
+                        <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
+                        <span class="ttp-toggle-meta">This content promotes a brand, product or service<small>Off by default</small></span>
+                    </label>
+                    ${opts.commercial ? `
+                        <div class="ttp-disclosure-box">
+                            <label class="ttp-toggle">
+                                <input type="checkbox" id="ttpYourBrand" ${opts.your_brand ? 'checked' : ''}>
+                                <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
+                                <span class="ttp-toggle-meta">Your brand<small>Promoting your own business</small></span>
+                            </label>
+                            <label class="ttp-toggle ${brandedLockedUnaudited ? 'ttp-disabled' : ''}">
+                                <input type="checkbox" id="ttpBranded" ${opts.branded_content ? 'checked' : ''} ${brandedLockedUnaudited ? 'disabled' : ''}>
+                                <span class="ttp-toggle-track"><span class="ttp-toggle-thumb"></span></span>
+                                <span class="ttp-toggle-meta">Branded content<small>${brandedLockedUnaudited ? 'Unavailable while the app is in review (can’t be private)' : 'A paid partnership — can’t be “Only me”'}</small></span>
+                            </label>
+                            ${opts.commercial && !opts.your_brand && !opts.branded_content ? `<div class="ttp-note">Pick at least one disclosure type, or turn the toggle off.</div>` : ''}
+                            ${opts.branded_content ? `<div class="ttp-note ttp-note-info">Branded content can only be public or friends — “Only me” is removed from the privacy options.</div>` : ''}
+                        </div>` : ''}
+                </div>` : '';
+
+            composeCards = `
+                <div class="ttp-card">
+                    <h3>Caption</h3>
+                    <div class="ttp-row">
+                        <textarea class="ttp-input" id="ttpTitle" placeholder="What this post is about — include hashtags here." rows="4" style="resize:vertical">${_ttpEscape(ttpState.title)}</textarea>
+                        <div class="ttp-counter ${titleOver ? 'over' : ''}">${titleCount} / 2200</div>
+                    </div>
+                </div>
+                <div class="ttp-card">
+                    <h3>Privacy</h3>
+                    <div class="ttp-row">${privacyInner}</div>
+                </div>
+                ${interactionCard}
+                ${discCard}`;
+        }
+
+        const errorBlock = ttpState.error ? `<div class="ttp-error" style="margin-bottom:12px">${_ttpEscape(ttpState.error)}</div>` : '';
+        const canSubmit = _ttpCanSubmit();
+
+        col.innerHTML = `
+            <div class="ttp-card">
+                <h3>Client</h3>
+                <div class="ttp-row">
+                    <select class="ttp-select" id="ttpClient">
+                        <option value="">Select a client…</option>
+                        ${clientNames.map(n => `<option value="${_ttpEscape(n)}" ${n === ttpState.client ? 'selected' : ''}>${_ttpEscape(n)}${_ttpResolveAccount(n) ? ' ✓' : ''}</option>`).join('')}
+                    </select>
+                    ${connectionCard}
+                </div>
+            </div>
+            <div class="ttp-card">
+                <h3>Media</h3>
+                ${mediaCard}
+            </div>
+            ${composeCards}
+            ${errorBlock}
+            <div class="ttp-submit-bar">
+                <button class="ttp-submit-btn" id="ttpSubmit" ${canSubmit ? '' : 'disabled'}>${ttpState.submitting ? 'Posting…' : 'Post to TikTok'}</button>
+                <div class="ttp-progress"><div class="ttp-progress-bar" id="ttpProgress" style="width:${ttpState.progress}%"></div></div>
+            </div>
+        `;
+        _ttpWireFormEvents();
+        _ttpRenderPreview();
+    }
+
+    function _ttpWireFormEvents() {
+        const $ = (id) => document.getElementById(id);
+        $('ttpClient')?.addEventListener('change', (e) => {
+            ttpState.client = e.target.value || null;
+            ttpState.account = _ttpResolveAccount(ttpState.client);
+            ttpState.creatorInfo = null; ttpState.creatorInfoError = null;
+            ttpState.error = null;
+            _ttpSaveDraft();
+            _ttpRenderForm();
+            if (ttpState.client && ttpState.account) _ttpFetchCreatorInfo(ttpState.client);
+        });
+
+        const fileInput = $('ttpFile'), drop = $('ttpDrop');
+        if (fileInput) fileInput.addEventListener('change', (e) => _ttpHandleFile(e.target.files?.[0]));
+        if (drop) {
+            ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('ttp-drag'); }));
+            ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('ttp-drag'); }));
+            drop.addEventListener('drop', (e) => _ttpHandleFile(e.dataTransfer?.files?.[0]));
+        }
+
+        $('ttpTitle')?.addEventListener('input', (e) => {
+            ttpState.title = e.target.value;
+            const c = document.querySelector('#ttpFormCol .ttp-counter');
+            if (c) { c.textContent = `${ttpState.title.length} / 2200`; c.classList.toggle('over', ttpState.title.length > 2200); }
+            const cap = document.getElementById('ttpPreviewCaption');
+            if (cap) { const t = ttpState.title.trim(); cap.textContent = t || 'Caption will appear here…'; cap.classList.toggle('ttp-empty', !t); }
+            const btn = $('ttpSubmit'); if (btn) btn.disabled = !_ttpCanSubmit();
+            _ttpSaveDraftSoon();
+        });
+
+        $('ttpPrivacy')?.addEventListener('change', (e) => { ttpState.options.privacy_level = e.target.value; _ttpSaveDraft(); _ttpRenderForm(); });
+        ['comment', 'duet', 'stitch'].forEach(k => {
+            $('ttpAllow_' + k)?.addEventListener('change', (e) => { ttpState.options['allow_' + k] = e.target.checked; _ttpSaveDraft(); _ttpRenderPreview(); const b = $('ttpSubmit'); if (b) b.disabled = !_ttpCanSubmit(); });
+        });
+        $('ttpCommercial')?.addEventListener('change', (e) => { ttpState.options.commercial = e.target.checked; if (!e.target.checked) { ttpState.options.your_brand = false; ttpState.options.branded_content = false; } _ttpSaveDraft(); _ttpRenderForm(); });
+        $('ttpYourBrand')?.addEventListener('change', (e) => { ttpState.options.your_brand = e.target.checked; _ttpSaveDraft(); _ttpRenderForm(); });
+        $('ttpBranded')?.addEventListener('change', (e) => {
+            ttpState.options.branded_content = e.target.checked;
+            // Branded content can't be private — drop a SELF_ONLY selection.
+            if (e.target.checked && ttpState.options.privacy_level === 'SELF_ONLY') ttpState.options.privacy_level = '';
+            _ttpSaveDraft(); _ttpRenderForm();
+        });
+        $('ttpSubmit')?.addEventListener('click', _ttpSubmit);
+    }
+
+    function _ttpRenderPreview() {
+        const wrap = document.getElementById('ttpPreviewWrap');
+        if (!wrap) return;
+        const caption = (ttpState.title || '').trim();
+        const acct = ttpState.account;
+        const priv = ttpState.options.privacy_level;
+        const privLabel = priv ? (TTP_PRIVACY_LABELS[priv] || priv) : '—';
+        const allow = [];
+        if (ttpState.options.allow_comment) allow.push('Comments');
+        if (ttpState.options.allow_duet) allow.push('Duet');
+        if (ttpState.options.allow_stitch) allow.push('Stitch');
+        wrap.innerHTML = `
+            <div class="ttp-preview-card">
+                <h3>Preview</h3>
+                <div class="ttp-preview-frame">
+                    ${ttpState.objectUrl
+                        ? `<video class="ttp-preview-video" src="${_ttpEscape(ttpState.objectUrl)}" autoplay muted loop playsinline></video>`
+                        : `<div class="ttp-preview-empty">Attach a video to preview the post.</div>`}
+                </div>
+                <div class="ttp-preview-caption ${caption ? '' : 'ttp-empty'}" id="ttpPreviewCaption">${caption ? _ttpEscape(caption) : 'Caption will appear here…'}</div>
+                <div class="ttp-preview-meta">
+                    <div><span>Account</span><b>${_ttpEscape(acct ? (acct.display_name || ttpState.client) : '—')}</b></div>
+                    <div><span>Privacy</span><b>${_ttpEscape(privLabel)}</b></div>
+                    <div><span>Interactions</span><b>${allow.length ? _ttpEscape(allow.join(', ')) : 'None'}</b></div>
+                    <div><span>Type</span><b>Direct post${(ttpState.options.commercial) ? ' · Disclosed' : ''}</b></div>
+                </div>
+            </div>`;
+    }
+
+    function _ttpHandleFile(file) {
+        if (!file) return;
+        if (!/^video\//.test(file.type) && !/\.(mp4|mov|m4v|webm)$/i.test(file.name)) { ttpState.error = 'That file does not look like a video.'; _ttpRenderForm(); return; }
+        if (file.size > TTP_MAX_BYTES) { ttpState.error = `Video is ${_ttpFormatBytes(file.size)} — over the ${_ttpFormatBytes(TTP_MAX_BYTES)} cap.`; _ttpRenderForm(); return; }
+        if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
+        ttpState.file = file;
+        ttpState.objectUrl = URL.createObjectURL(file);
+        ttpState.fileMeta = { name: file.name, size: file.size, type: file.type };
+        ttpState.durationSec = null;
+        ttpState.error = null;
+        _ttpSaveDraft();
+        _ttpRenderForm();
+        // Probe duration (checked against max_video_post_duration_sec at submit).
+        try {
+            const v = document.createElement('video');
+            v.preload = 'metadata';
+            v.onloadedmetadata = () => { ttpState.durationSec = Number.isFinite(v.duration) ? v.duration : null; const b = document.getElementById('ttpSubmit'); if (b) b.disabled = !_ttpCanSubmit(); };
+            v.src = ttpState.objectUrl;
+        } catch (e) {}
+    }
+    function _ttpReplaceFile() {
+        const ex = document.getElementById('ttpFile');
+        if (ex) { ex.click(); return; }
+        const t = document.createElement('input'); t.type = 'file'; t.accept = 'video/mp4,video/quicktime,video/*';
+        t.addEventListener('change', () => _ttpHandleFile(t.files?.[0])); t.click();
+    }
+    function _ttpClearFile() {
+        if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
+        ttpState.file = null; ttpState.objectUrl = null; ttpState.fileMeta = null; ttpState.durationSec = null;
+        _ttpSaveDraft(); _ttpRenderForm();
+    }
+
+    function _ttpValidate() {
+        if (!ttpState.client) return 'Pick a client first.';
+        if (!_ttpResolveAccount(ttpState.client)) return 'Connect this client’s TikTok account before posting.';
+        if (!ttpState.file) return 'Attach a video.';
+        if (!ttpState.title.trim()) return 'Add a caption.';
+        if (ttpState.title.length > 2200) return 'Caption is over the 2200-character limit.';
+        const privOpts = _ttpPrivacyOptions();
+        if (!ttpState.options.privacy_level) return 'Choose who can see this post.';
+        if (!privOpts.includes(ttpState.options.privacy_level)) return 'That privacy option isn’t allowed for this post — pick another.';
+        if (ttpState.options.commercial && !ttpState.options.your_brand && !ttpState.options.branded_content) return 'Pick at least one commercial-disclosure type, or turn disclosure off.';
+        if (ttpState.options.branded_content && ttpState.options.privacy_level === 'SELF_ONLY') return 'Branded content can’t be private — choose a public option.';
+        const ci = ttpState.creatorInfo;
+        if (ci && Number.isFinite(ci.max_video_post_duration_sec) && Number.isFinite(ttpState.durationSec) && ttpState.durationSec > ci.max_video_post_duration_sec + 0.5) {
+            return `Video is ${_ttpFmtDuration(ttpState.durationSec)} — this account’s limit is ${_ttpFmtDuration(ci.max_video_post_duration_sec)}.`;
+        }
+        return null;
+    }
+    function _ttpCanSubmit() { return !ttpState.submitting && !_ttpValidate(); }
+
+    function _ttpSubmit() {
+        // Re-resolve the account from the freshest accounts map right before
+        // sending (cold-load race lesson from the _tk module).
+        ttpState.account = _ttpResolveAccount(ttpState.client);
+        const err = _ttpValidate();
+        if (err) { ttpState.error = err; _ttpRenderForm(); return; }
+
+        const ci = ttpState.creatorInfo || {};
+        const o = ttpState.options;
+        // Honor creator-level disables defensively (the server re-checks too).
+        const disable_comment = ci.comment_disabled ? true : !o.allow_comment;
+        const disable_duet = ci.duet_disabled ? true : !o.allow_duet;
+        const disable_stitch = ci.stitch_disabled ? true : !o.allow_stitch;
+        const idempotencyKey = (crypto.randomUUID && crypto.randomUUID()) || `ttp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+        const fd = new FormData();
+        fd.append('client', ttpState.client);
+        fd.append('idempotencyKey', idempotencyKey);
+        fd.append('caption', ttpState.title);
+        fd.append('privacy_level', o.privacy_level);
+        fd.append('disable_comment', String(disable_comment));
+        fd.append('disable_duet', String(disable_duet));
+        fd.append('disable_stitch', String(disable_stitch));
+        fd.append('is_commercial', String(!!o.commercial));
+        fd.append('disclose_your_brand', String(!!(o.commercial && o.your_brand)));
+        fd.append('disclose_branded_content', String(!!(o.commercial && o.branded_content)));
+        fd.append('video_cover_timestamp_ms', String(Math.max(0, Number(o.cover_timestamp_ms) || 0)));
+        fd.append('mediaSize', String(ttpState.file.size));        // exact byte count for TikTok video/init
+        fd.append('mediaType', ttpState.file.type || 'video/mp4');
+        fd.append('media', ttpState.file, ttpState.file.name);
+
+        ttpState.submitting = true; ttpState.error = null; ttpState.progress = 0;
+        _ttpRenderForm();
+
+        const xhr = new XMLHttpRequest();
+        _ttpActiveXhr = xhr;
+        xhr.open('POST', TTP_SUBMIT_URL);
+        xhr.upload.onprogress = (e) => { if (!e.lengthComputable) return; ttpState.progress = Math.min(99, Math.round((e.loaded / e.total) * 100)); const bar = document.getElementById('ttpProgress'); if (bar) bar.style.width = ttpState.progress + '%'; };
+        xhr.onload = () => {
+            _ttpActiveXhr = null; ttpState.submitting = false;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                ttpState.progress = 100;
+                let resp = {}; try { resp = JSON.parse(xhr.responseText || '{}'); } catch {}
+                const row = {
+                    id: resp.id || idempotencyKey,
+                    client: ttpState.client,
+                    title: ttpState.title,
+                    privacy_level: o.privacy_level,
+                    publish_id: resp.publish_id || '',
+                    status: resp.status || 'processing',   // never 'posted' here — wait for status/fetch
+                    created_at: new Date().toISOString(),
+                    optimistic: true,
+                };
+                const pending = _ttpLoadPending().filter(r => r.id !== row.id);
+                pending.unshift(row); _ttpSavePending(pending);
+                ttpState.uploads = _ttpMergeUploads(ttpState.uploads, [row]);
+                if (ttpState.objectUrl) URL.revokeObjectURL(ttpState.objectUrl);
+                ttpState.file = null; ttpState.objectUrl = null; ttpState.fileMeta = null; ttpState.durationSec = null;
+                ttpState.title = ''; ttpState.progress = 0;
+                _ttpClearDraft();
+                _ttpRenderForm(); _ttpRenderQueue();
+                if (typeof showNotify === 'function') showNotify('Sent to TikTok', 'Processing — the post confirms once TikTok finishes publishing.');
+                Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll);
+            } else {
+                ttpState.progress = 0; ttpState.error = _ttpExplainError(xhr); _ttpRenderForm();
+            }
+        };
+        xhr.onerror = () => { _ttpActiveXhr = null; ttpState.submitting = false; ttpState.progress = 0; ttpState.error = 'Network error — could not reach n8n. Try again.'; _ttpRenderForm(); };
+        xhr.onabort = () => { _ttpActiveXhr = null; ttpState.submitting = false; ttpState.progress = 0; _ttpRenderForm(); };
+        xhr.send(fd);
+    }
+    function _ttpExplainError(xhr) {
+        try { const j = JSON.parse(xhr.responseText || '{}'); if (j.message) return 'Post failed: ' + j.message; if (j.error) return 'Post failed: ' + j.error; } catch {}
+        return `Post failed (HTTP ${xhr.status || 'no response'}). Check the ttp-submit workflow.`;
+    }
+
+    // ---- Queue + adaptive polling (visibility-aware; mirrors _tk) ----
+    async function _ttpFetchQueue() {
+        try {
+            const r = await fetch(TTP_LIST_URL + '?_t=' + Date.now(), { method: 'GET', signal: (AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined) });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            const json = await r.json();
+            const rows = Array.isArray(json) ? json : (json.rows || json.items || []);
+            const pruned = _ttpPrunePending(_ttpLoadPending());
+            ttpState.uploads = _ttpMergeUploads(pruned, rows);
+            const known = new Set(rows.map(r => r.id));
+            _ttpSavePending(pruned.filter(r => !known.has(r.id)));
+            _ttpRenderQueue();
+        } catch (e) {
+            const col = document.getElementById('ttpQueueCol');
+            if (col && !col.dataset.everLoaded) col.innerHTML = `<div class="ttp-card"><h3>Recent posts</h3><div class="ttp-queue-empty">Couldn’t reach the queue webhook.<br><small>${_ttpEscape(e.message)}</small></div></div>`;
+        }
+    }
+    // TikTok has no publish webhook, so post status is advanced server-side by
+    // the ttp-status-cron poller (creator's publish_id → status/fetch). The UI
+    // just re-reads the queue from ttp-list on each adaptive-poll tick.
+    async function _ttpPollStatus() {
+        return _ttpFetchQueue();
+    }
+    function _ttpRenderQueue() {
+        const col = document.getElementById('ttpQueueCol');
+        if (!col) return;
+        col.dataset.everLoaded = '1';
+        const hidden = _ttpLoadHidden();
+        const visible = (ttpState.uploads || []).filter(r => !hidden.has(r.id)).slice(0, 12);
+        const item = (r) => {
+            const status = _ttpEffectiveStatus(r);
+            const actions = [];
+            if (r.tiktok_url) actions.push(`<a class="ttp-mini-btn" href="${_ttpEscape(r.tiktok_url)}" target="_blank" rel="noopener">Open</a>`);
+            actions.push(`<button class="ttp-mini-btn" onclick="_ttpDismissRow(${JSON.stringify(String(r.id)).replace(/"/g,'&quot;')})">Dismiss</button>`);
+            return `
+                <div class="ttp-queue-item">
+                    <div class="ttp-queue-top">
+                        <div class="ttp-queue-client">${_ttpEscape(r.client || '—')}</div>
+                        <span class="ttp-pill ${status}">${_ttpEscape(status)}</span>
+                    </div>
+                    ${r.title ? `<div class="ttp-queue-title">${_ttpEscape(r.title)}</div>` : ''}
+                    ${r.fail_reason || r.error ? `<div class="ttp-queue-error">${_ttpEscape(r.fail_reason || r.error)}</div>` : ''}
+                    ${actions.length ? `<div class="ttp-queue-actions">${actions.join('')}</div>` : ''}
+                </div>`;
+        };
+        col.innerHTML = `<div class="ttp-card"><h3>Recent posts</h3>${visible.length ? visible.map(item).join('') : `<div class="ttp-queue-empty">No posts yet.</div>`}</div>`;
+    }
+    function _ttpDismissRow(id) {
+        _ttpSavePending(_ttpLoadPending().filter(p => p.id !== id));
+        const h = _ttpLoadHidden(); h.add(id); _ttpSaveHidden(h);
+        ttpState.uploads = ttpState.uploads.filter(r => r.id !== id);
+        _ttpRenderQueue();
+    }
+    function _ttpActiveUploadCount() { return (ttpState.uploads || []).filter(r => { const s = _ttpEffectiveStatus(r); return s === 'uploading' || s === 'processing'; }).length; }
+    function _ttpNextPollDelay() { return _ttpActiveUploadCount() > 0 ? 5000 : 0; }
+    function _ttpStopPolling() { if (_ttpPollTimer) { clearTimeout(_ttpPollTimer); _ttpPollTimer = null; } }
+    function _ttpScheduleNextPoll() {
+        _ttpStopPolling();
+        if (!_ttpMounted) return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!document.getElementById('ttpQueueCol')) return;
+        const delay = _ttpNextPollDelay();
+        if (delay <= 0) return;
+        _ttpPollTimer = setTimeout(() => { _ttpPollTimer = null; Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll); }, delay);
+    }
+
+    function mountTiktokPilotView() {
+        _ttpLoadDraft();
+        ttpState.uploads = _ttpPrunePending(_ttpLoadPending());
+        _ttpMounted = true;
+        _ttpRenderForm();
+        _ttpRenderQueue();
+        _ttpHandleConnectReturn();
+        // Load connected accounts, then heal the form + fetch creator_info.
+        Promise.resolve(_ttpFetchAccounts()).then(() => {
+            if (!_ttpMounted) return;
+            _ttpRenderForm();
+            if (ttpState.client && _ttpResolveAccount(ttpState.client)) _ttpFetchCreatorInfo(ttpState.client);
+        });
+        Promise.resolve(_ttpFetchQueue()).finally(_ttpScheduleNextPoll);
+        if (!_ttpVisHooked) {
+            _ttpVisHooked = true;
+            document.addEventListener('visibilitychange', () => {
+                if (!_ttpMounted) return;
+                if (document.visibilityState === 'visible') Promise.resolve(_ttpPollStatus()).finally(_ttpScheduleNextPoll);
+                else _ttpStopPolling();
+            });
+        }
+    }
+    function _ttpTeardown() {
+        _ttpMounted = false;
+        _ttpStopPolling();
+        if (ttpState.objectUrl) { URL.revokeObjectURL(ttpState.objectUrl); ttpState.objectUrl = null; }
+        if (ttpState.file) { ttpState.objectUrl = URL.createObjectURL(ttpState.file); }
+    }
+
+    // Expose handlers used by inline onclick="" so they survive rerenders.
+    window._ttpConnect = _ttpConnect;
+    window._ttpFetchCreatorInfo = _ttpFetchCreatorInfo;
+    window._ttpReplaceFile = _ttpReplaceFile;
+    window._ttpClearFile = _ttpClearFile;
+    window._ttpDismissRow = _ttpDismissRow;
 
     /* ============================================================
        KASPER REVIEW TAB

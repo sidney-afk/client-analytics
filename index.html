@@ -11504,16 +11504,18 @@
 
     // Music genres distilled from the Synchro Music Drive folder. "Listen" opens
     // that genre's folder. (Folders must be link-shared for external clients.)
+    // [key, label, Drive file id of a sample track] — streamed inline from the
+    // (already public) Synchro Music folder, not hosted in this repo.
     const OB_MUSIC_GENRES = [
-      ['inspirational','Inspirational','1R9Ai9vQE5K6Ab8QGQZ0O2NGr2zn28B0u'],
-      ['ambient','Ambient / Cinematic','1pYvtxCBurutHhGYBRKSffhVnylPnlbMu'],
-      ['lofi','Lofi / Chill','1wK2umJ9eC0TkfrxHLvaSD-zYxOe1FsP4'],
-      ['piano','Emotional Piano','1ORf3z61wt137Izm9OOYvhhZNYDiGk1uk'],
-      ['guitar','Acoustic Guitar','1TdR92Z1lF5kttx2mwD636IkJertbdg9z'],
-      ['synth','Synth','1dmQxH9VzIZSZFYSdYMBmtqRQ0RbgNHPp'],
-      ['spiritual','Spiritual','1f76__omM6VUQ2-rrVyqRXNAWHO3B-W1X'],
-      ['classical','Classical','1J1fYIwW6XJmrEaw0_LjQcIQPkf01JWXF'],
-      ['trending','Trending / TikTok','1hArPpIzL8Ndgevz0mqFOgz5w4pKvFoUf'],
+      ['inspirational','Inspirational','152RPKe61ZtJtBUDO1r6CFlV5-juuc-Xt'],
+      ['ambient','Ambient / Cinematic','1Eo3q5Vvnjo4dN-WzxpNM4ZvddfFqHP3s'],
+      ['lofi','Lofi / Chill','1Qkj5Ql1O5ztnpuW-WUpsHjaoAds_A73i'],
+      ['piano','Emotional Piano','1KKGILct5M8JXDqfx-RBH1HvqVZ_4wQLS'],
+      ['guitar','Acoustic Guitar','1s03aCI60VtANSHtgKhtGsU9z2CWSfsra'],
+      ['synth','Synth','1TBqwG5RKTowP-Ic4Ny0wQhOeHvBXs5n9'],
+      ['spiritual','Spiritual','1UppYCTH_72T7EfmiaxfKBm_Z_PGP4E98'],
+      ['classical','Classical','1tCYEoyaf2_p-OjTYAXCUqMu1LfWZAI0y'],
+      ['trending','Trending / TikTok','1jzPYD4Y90v_WYNLk9LXvOeI6_-YTle1J'],
     ];
 
     // Subtitle base styles — pick one. Example = a real public reel frame.
@@ -11570,11 +11572,11 @@
 
     function _obMusic(){
       const rows = OB_MUSIC_GENRES.map(g=>
-        '<label class="ob-genre"><input type="checkbox" value="'+g[0]+'"><span class="ob-genre-name">'+_obEsc(g[1])+'</span>'+
-        '<a class="ob-listen" href="https://drive.google.com/drive/folders/'+g[2]+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">▶ listen</a></label>'
+        '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
+        '<button type="button" class="ob-play" data-ob-play="'+g[2]+'" aria-label="Play sample">▶</button></div>'
       ).join('');
       return '<div class="ob-q" data-ob-q="music"><label class="ob-label">Music</label>'+
-        '<div class="ob-help">Tick the vibes that fit you.</div>'+
+        '<div class="ob-help">Tick the vibes that fit you. Tap ▶ to hear a sample.</div>'+
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
@@ -11733,6 +11735,7 @@
         if(id==='sample_clip' || id==='photos_link') _obUpdateLikeness();
         _obSaveDraftDebounced();
       });
+      form.addEventListener('click', e=>{ const b=e.target.closest && e.target.closest('.ob-play'); if(b){ e.preventDefault(); _obPlayMusic(b); } });
       document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{
         const el=document.getElementById(b.getAttribute('data-ob-go')); if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
       }));
@@ -11801,6 +11804,19 @@
       clearTimeout(_obFlashT); _obFlashT=setTimeout(()=>el.classList.remove('show'),1700);
     }
 
+    // Inline music preview: stream a sample track from the public Synchro Music
+    // Drive (one <audio>, play/pause toggle, one at a time).
+    let _obAudio=null, _obPlayingBtn=null;
+    function _obMusicUrl(id){ return 'https://drive.usercontent.google.com/download?id='+id+'&export=download&confirm=t'; }
+    function _obResetPlay(){ if(_obAudio){ try{_obAudio.pause();}catch(e){} } if(_obPlayingBtn){ _obPlayingBtn.textContent='▶'; _obPlayingBtn.classList.remove('ob-playing'); _obPlayingBtn=null; } }
+    function _obPlayMusic(btn){
+      if(!_obAudio){ _obAudio=new Audio(); _obAudio.addEventListener('ended',_obResetPlay); }
+      if(_obPlayingBtn===btn && !_obAudio.paused){ _obResetPlay(); return; }
+      _obResetPlay();
+      _obAudio.src=_obMusicUrl(btn.getAttribute('data-ob-play')); _obPlayingBtn=btn;
+      btn.textContent='⏸'; btn.classList.add('ob-playing');
+      const p=_obAudio.play(); if(p&&p.catch) p.catch(()=>{ _obResetPlay(); _obFlash('Could not play that sample'); });
+    }
     function _obSerialize(){
       const form=document.getElementById('obForm'); const out={};
       form.querySelectorAll('[data-ob]').forEach(el=>{ out[el.getAttribute('data-ob')]=el.value.trim(); });
@@ -11850,6 +11866,7 @@
     }
 
     function _obThankYou(d){
+      _obResetPlay();
       const card=document.getElementById('obCard'); if(!card) return;
       const t=document.getElementById('obTop'); if(t) t.remove();
       card.innerHTML='<div class="ob-thanks"><div class="ob-thanks-ico">✓</div><h1>Thanks'+(d.first_name?(', '+_obEsc(d.first_name)):'')+'!</h1>'+
@@ -11911,12 +11928,15 @@
       .ob-add{ margin-top:8px; font-family:inherit; font-size:0.8rem; font-weight:600; color:var(--text-secondary); background:none; border:none; cursor:pointer; padding:2px 0; }
       .ob-add:hover{ color:var(--text-primary); }
       .ob-genres{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
-      .ob-genre{ display:flex; align-items:center; gap:8px; font-size:0.85rem; padding:9px 12px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.12s; }
+      .ob-genre{ display:flex; align-items:center; gap:6px; padding:5px 7px 5px 12px; border:1.5px solid var(--border); border-radius:10px; transition:all 0.12s; }
       .ob-genre:hover{ border-color:var(--text-muted); }
       .ob-genre:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
-      .ob-genre input{ accent-color:var(--text-primary); margin:0; }
-      .ob-genre-name{ font-weight:600; flex:1; }
-      .ob-listen{ font-size:0.72rem; font-weight:600; color:var(--ig); text-decoration:none; flex-shrink:0; }
+      .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
+      .ob-genre-pick input{ accent-color:var(--text-primary); margin:0; }
+      .ob-genre-name{ font-weight:600; }
+      .ob-play{ flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); font-size:0.58rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all 0.12s; }
+      .ob-play:hover{ border-color:var(--text-primary); }
+      .ob-play.ob-playing{ background:var(--text-primary); color:#fff; border-color:var(--text-primary); }
       .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
       .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:9px; border:1.5px solid var(--border); border-radius:12px; cursor:pointer; transition:all 0.12s; }
       .ob-sub-card:hover{ border-color:var(--text-muted); }

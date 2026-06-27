@@ -11958,6 +11958,7 @@
     function _obSubgroup(title, color, fieldsHtml){
       const chev = '<svg class="ob-sg-chev" viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       return '<div class="ob-subgroup" style="--sg-rail:'+color+';--sg-dot:'+color+'">'+
+        '<span class="ob-rail" data-ob-rail role="button" tabindex="0" aria-label="Collapse or expand '+_obEsc(title)+'"></span>'+
         '<div class="ob-subhead" data-ob-collapse-sg role="button" tabindex="0"><span class="ob-sg-dot"></span><span class="ob-sg-title">'+_obEsc(title)+'</span>'+chev+'</div>'+
         '<div class="ob-sg-body"><div class="ob-sg-inner">'+fieldsHtml.join('')+'</div></div></div>';
     }
@@ -12080,6 +12081,7 @@
       const body = sections.map(s=>{
         const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
         return '<section class="ob-sec" id="'+s.id+'" style="--sec-rail:'+(s.c||'var(--ob-accent)')+'">'+
+          '<span class="ob-rail" data-ob-rail role="button" tabindex="0" aria-label="Collapse or expand '+_obEsc(s.title)+'"></span>'+
           '<div class="ob-sec-h" data-ob-collapse role="button" tabindex="0"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2>'+chev+'</div>'+
           '<div class="ob-sec-body"><div class="ob-sec-inner">'+intro+s.fields.join('')+'</div></div></section>';
       }).join('');
@@ -12130,6 +12132,7 @@
       form.addEventListener('click', e=>{
         const col = e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
         const sgh = e.target.closest && e.target.closest('[data-ob-collapse-sg]'); if(sgh){ const sg=sgh.closest('.ob-subgroup'); if(sg) _obToggleSubgroup(sg); return; }
+        const rail = e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); return; }
         const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
@@ -12145,7 +12148,8 @@
       form.addEventListener('keydown', e=>{
         if(e.key!=='Enter' && e.key!==' ') return;
         const col=e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ e.preventDefault(); const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
-        const sgh=e.target.closest && e.target.closest('[data-ob-collapse-sg]'); if(sgh){ e.preventDefault(); const sg=sgh.closest('.ob-subgroup'); if(sg) _obToggleSubgroup(sg); }
+        const sgh=e.target.closest && e.target.closest('[data-ob-collapse-sg]'); if(sgh){ e.preventDefault(); const sg=sgh.closest('.ob-subgroup'); if(sg) _obToggleSubgroup(sg); return; }
+        const rail=e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ e.preventDefault(); const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); }
       });
       const ib=document.getElementById('obAiInfoBtn'); if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
       const sb=document.getElementById('obSubmit'); if(sb) sb.addEventListener('click', _obSubmit);
@@ -12325,7 +12329,15 @@
          The 8 section hues form a calm blue->violet->magenta->rose gradient (all in the
          brand's purple family, never a rainbow); a section's sub-groups use analogous
          neighbours of its hue, so a section + its children read as one family. */
-      .ob-sec{ padding:24px 0 4px 20px; border-top:1px solid var(--border-light); border-left:3px solid var(--sec-rail, var(--border)); margin-top:10px; }
+      .ob-sec{ position:relative; padding:24px 0 4px 20px; border-top:1px solid var(--border-light); margin-top:10px; }
+      /* The coloured rail on the left is a clickable handle: click it to collapse/expand its
+         section (or sub-group). It widens + brightens on hover so it reads as interactive. */
+      .ob-rail{ position:absolute; left:0; top:0; bottom:0; width:14px; cursor:pointer; z-index:3; display:block; -webkit-tap-highlight-color:transparent; }
+      .ob-rail::before{ content:''; position:absolute; left:0; top:0; bottom:0; border-radius:0 3px 3px 0; transition:width 0.14s ease, filter 0.14s ease; }
+      .ob-sec > .ob-rail::before{ width:3px; background:var(--sec-rail, var(--border)); }
+      .ob-subgroup > .ob-rail::before{ width:2px; background:var(--sg-rail, var(--border)); }
+      .ob-rail:hover::before, .ob-rail:focus-visible::before{ width:6px; filter:brightness(1.25); }
+      .ob-rail:focus-visible{ outline:none; }
       .ob-sec:first-of-type{ border-top:none; }
       .ob-sec-h{ display:flex; align-items:center; gap:10px; margin:0 0 8px; padding:5px 8px 5px 4px; border-radius:10px; cursor:pointer; user-select:none; transition:background 0.13s; }
       .ob-sec-h:hover{ background:var(--bg); }
@@ -12341,7 +12353,7 @@
       .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
       /* Nested sub-groups: a thin coloured rail makes the Section -> group -> field
          hierarchy readable at a glance, kept low-key so it reads almost subconsciously. */
-      .ob-subgroup{ border-left:2px solid var(--sg-rail, var(--border)); padding-left:17px; margin:22px 0 6px; }
+      .ob-subgroup{ position:relative; padding-left:17px; margin:22px 0 6px; }
       .ob-subgroup + .ob-subgroup{ margin-top:18px; }
       .ob-subhead{ display:flex; align-items:center; gap:8px; font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:0 -8px 11px; padding:5px 8px; border-radius:8px; color:var(--text-primary); cursor:pointer; user-select:none; transition:background 0.13s; }
       .ob-subhead:hover{ background:var(--bg); }

@@ -82,16 +82,20 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
        for it. The toggle no longer swaps previews — both are always shown.
      - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / No B-roll.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
-     - **Music reference** + **Video reference** (paste links).
+     - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
+       **description** of the look they want (`video_reference` + `video_reference_desc`).
    - **── Thumbnail ──**
      - **Thumbnail style** — an interactive **live preview** picker (`_obThumbPicker`): a 9:16 preview
-       that swaps in place beside tight controls — **Font** (Bold / Native / Handwritten) × **Style**
+       that swaps in place beside tight controls — **Font** (Bold / Native / Elegant) × **Style**
        (Plain / Shadow / Stroke / Banner) × a **Highlight** toggle = 24 real renders of the same cover,
-       hosted in `thumbnail-styles/<font>-<style>[-hl].jpg`. Controls are clustered next to the preview so
-       the cursor barely moves; clicking any control swaps the preview instantly (all 24 preloaded). The
-       current trio auto-saves as `thumbnail_font` + `thumbnail_text_style` + `thumbnail_highlight` and
-       restores from the draft. (Replaced the old Elegant/Box/Bold Sandcastles cards.)
-     - **Thumbnail reference** (paste links/images).
+       hosted in `thumbnail-styles/<font>-<style>[-hl].jpg` (resized from the client's Drive originals).
+       Controls are clustered next to the preview so the cursor barely moves; clicking any control swaps
+       the preview instantly (all 24 preloaded). A **"Build my own thumbnail look"** toggle
+       (`thumbnail_build`, default on) lets a client opt out — switch it off and the picker hides
+       (we design it for them). The current trio auto-saves as `thumbnail_font` + `thumbnail_text_style`
+       + `thumbnail_highlight` and restores from the draft. (Replaced the old Elegant/Box/Bold cards.)
+     - **Thumbnail reference** — **links** *and* a free-text **description**
+       (`thumbnail_reference` + `thumbnail_reference_desc`).
    - **── Anything else ──** always/never notes (the do's & don'ts).
    - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
      reference, visual reference, font preference, font reference image, and "clips you like" were

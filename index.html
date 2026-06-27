@@ -11771,7 +11771,7 @@
     // Thumbnail text picker: Font (3) x Style (4) x Highlight (on/off) = 24 real renders,
     // hosted in thumbnail-styles/<font>-<style>[-hl].jpg. The client builds the combo live.
     const OB_TF = 'thumbnail-styles/';
-    const OB_THUMB_FONTS  = [ ['bold','Bold'], ['native','Native'], ['handwritten','Handwritten'] ];
+    const OB_THUMB_FONTS  = [ ['bold','Bold'], ['native','Native'], ['elegant','Elegant'] ];
     const OB_THUMB_TSTYLES = [ ['plain','Plain'], ['shadow','Shadow'], ['stroke','Stroke'], ['banner','Banner'] ];
     function _obThumbImg(font, style, hl){ return OB_TF + font + '-' + style + (hl ? '-hl' : '') + '.jpg'; }
     const OB_THUMB_DEFAULT = { font:'native', style:'plain', hl:false };
@@ -11869,20 +11869,30 @@
         opts.map(o=>'<button type="button" class="ob-seg-btn'+(o[0]===cur?' sel':'')+'" data-ob-tp-opt="'+group+':'+o[0]+'">'+_obEsc(o[1])+'</button>').join('')+'</div>';
       return '<div class="ob-q" data-ob-q="thumbnail">'+
         '<label class="ob-label">Thumbnail style</label>'+
-        '<div class="ob-help">Build your thumbnail look — pick a font and a style, and flip on a highlighted line. The preview updates as you go; whatever\'s showing is what we\'ll use.</div>'+
-        '<div class="ob-tp">'+
-          '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
-            '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
-            '<span class="ob-zoom-ic">⤢</span></button>'+
-          '<div class="ob-tp-ctrls">'+
-            '<div class="ob-tp-row"><span class="ob-tp-lbl">Font</span>'+seg('font', OB_THUMB_FONTS, d.font)+'</div>'+
-            '<div class="ob-tp-row"><span class="ob-tp-lbl">Style</span>'+seg('style', OB_THUMB_TSTYLES, d.style)+'</div>'+
-            '<div class="ob-tp-row ob-tp-hlrow"><span class="ob-tp-lbl">Highlight</span>'+
-              '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_highlight"'+(d.hl?' checked':'')+'><span class="ob-switch-track"></span></label></div>'+
+        '<div class="ob-toggle-q ob-tp-buildrow"><div><span class="ob-tp-buildlbl">Build my own thumbnail look</span>'+
+          '<div class="ob-help">Switch this off and we\'ll design the thumbnail for you.</div></div>'+
+          '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_build" checked><span class="ob-switch-track"></span></label></div>'+
+        '<div class="ob-tp-wrap" id="obThumbWrap">'+
+          '<div class="ob-help ob-tp-help">Pick a font and a style, and flip on a highlighted line — the preview updates as you go; whatever\'s showing is what we\'ll use.</div>'+
+          '<div class="ob-tp">'+
+            '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
+              '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
+              '<span class="ob-zoom-ic">⤢</span></button>'+
+            '<div class="ob-tp-ctrls">'+
+              '<div class="ob-tp-row"><span class="ob-tp-lbl">Font</span>'+seg('font', OB_THUMB_FONTS, d.font)+'</div>'+
+              '<div class="ob-tp-row"><span class="ob-tp-lbl">Style</span>'+seg('style', OB_THUMB_TSTYLES, d.style)+'</div>'+
+              '<div class="ob-tp-row ob-tp-hlrow"><span class="ob-tp-lbl">Highlight</span>'+
+                '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_highlight"'+(d.hl?' checked':'')+'><span class="ob-switch-track"></span></label></div>'+
+            '</div>'+
           '</div>'+
         '</div>'+
         '<input type="hidden" data-ob="thumbnail_font" value="'+d.font+'">'+
         '<input type="hidden" data-ob="thumbnail_text_style" value="'+d.style+'"></div>';
+    }
+    // Show/hide the picker based on the "build my own" toggle.
+    function _obThumbBuildSync(){
+      const t=document.querySelector('[data-ob-toggle="thumbnail_build"]'); const wrap=document.getElementById('obThumbWrap');
+      if(wrap) wrap.style.display = (!t || t.checked) ? '' : 'none';
     }
     // Reflect the current font/style/highlight into the preview, zoom target and selected buttons.
     function _obThumbSync(){
@@ -11999,11 +12009,13 @@
             _obBroll(),
             _obMusic(),
             _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
-            _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'video_reference', label:'Video reference — links (optional)', help:'Paste links to videos or reels whose look you like.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'video_reference_desc', label:'…or describe the video look you want (optional)', help:'In your own words — editing, captions, fonts, pacing, vibe.', type:'textarea', rows:2, placeholder:'Describe what you\'re going for…'}),
           ]),
           _obSubgroup('Thumbnail', '#a073e0', [
             _obThumbPicker(),
-            _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'thumbnail_reference', label:'Thumbnail reference — links (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+            _obField({id:'thumbnail_reference_desc', label:'…or describe the thumbnail you want (optional)', help:'In your own words — colours, text, style, mood.', type:'textarea', rows:2, placeholder:'Describe what you\'re going for…'}),
           ]),
           _obSubgroup('Anything else', '#c46fc6', [
             _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
@@ -12094,7 +12106,7 @@
         window.addEventListener('scroll', _obToggleTop, {passive:true}); _obToggleTop();
       }
       if(!_obDocClickBound){ document.addEventListener('click', _obDocClick); _obDocClickBound=true; }
-      _obWire(); _obThumbPreload(); _obThumbSync(); _obUpdateLikeness(); _obRestoreDraft();
+      _obWire(); _obThumbPreload(); _obThumbSync(); _obThumbBuildSync(); _obUpdateLikeness(); _obRestoreDraft();
     }
 
     function _obToggleTop(){ const b=document.getElementById('obTop'); if(b) b.classList.toggle('show', window.scrollY>300); }
@@ -12110,6 +12122,7 @@
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
         if(t.name==='subtitle_style'){ _obStyleSel('subtitle_style'); }
         if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_highlight'){ _obThumbSync(); }
+        if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_build'){ _obThumbBuildSync(); }
         // Exclusive option: picking it clears the rest; picking anything else clears it.
         const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
         if(exm && t.type==='checkbox' && t.checked){
@@ -12296,7 +12309,7 @@
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
       const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
-      _obStyleSel('subtitle_style'); _obThumbSync();
+      _obStyleSel('subtitle_style'); _obThumbSync(); _obThumbBuildSync();
       _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
     }
 
@@ -12446,6 +12459,8 @@
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:zoom-in; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
       /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
+      .ob-tp-buildrow{ margin-bottom:14px; }
+      .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }
       .ob-tp{ display:flex; gap:20px; align-items:flex-start; margin-top:4px; }
       .ob-tp-prev{ position:relative; flex:0 0 auto; width:186px; padding:0; border:none; background:var(--border-light); border-radius:13px; overflow:hidden; cursor:zoom-in; line-height:0; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
       .ob-tp-img{ width:186px; height:auto; display:block; transition:opacity 0.12s ease; }

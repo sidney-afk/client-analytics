@@ -73,8 +73,13 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** (paste links).
    - **── Thumbnail ──**
-     - **Thumbnail style** — single-select cards **Elegant / Box / Bold**, same Standard/+Highlight
-       preview layout (hot-linked Sandcastles covers) + the same gated `thumbnail_highlight` toggle.
+     - **Thumbnail style** — an interactive **live preview** picker (`_obThumbPicker`): a 9:16 preview
+       that swaps in place beside tight controls — **Font** (Bold / Native / Handwritten) × **Style**
+       (Plain / Shadow / Stroke / Banner) × a **Highlight** toggle = 24 real renders of the same cover,
+       hosted in `thumbnail-styles/<font>-<style>[-hl].jpg`. Controls are clustered next to the preview so
+       the cursor barely moves; clicking any control swaps the preview instantly (all 24 preloaded). The
+       current trio auto-saves as `thumbnail_font` + `thumbnail_text_style` + `thumbnail_highlight` and
+       restores from the draft. (Replaced the old Elegant/Box/Bold Sandcastles cards.)
      - **Thumbnail reference** (paste links/images).
    - **── Anything else ──** always/never notes (the do's & don'ts).
    - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
@@ -104,12 +109,12 @@ The two AI "look" options show a real reference frame from Sandcastles thumbnail
 `storage.googleapis.com` URLs in `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are
 byte-sliced MP3 clips under `onboarding-audio/`.
 
-The subtitle and thumbnail pickers share `_obStyleCards(group, items, isVideo)`. Each row is
-`[key, name, desc, standardMedia, highlightMedia]`. Cards render the standard media; the
-group's **Highlight** toggle (`subtitle_highlight` / `thumbnail_highlight`) calls
-`_obSwapHl(group, on)` which swaps every card's media + zoom target to its highlight variant
-(rows with an empty `highlightMedia`, e.g. Banner, stay put). The full-screen zoom
-(`_obZoom`) auto-detects video vs image by extension.
+The **subtitle** picker uses `_obStyleCards(group, items, isVideo)` — rows
+`[key, name, desc, standardMedia, highlightMedia]` rendered as cards showing the standard +
+`+highlight` previews side by side, with a gated `subtitle_highlight` toggle (`_obStyleSel`).
+The **thumbnail** picker is the separate live `_obThumbPicker` described above (preview + Font/Style/
+Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
+image by extension.
 
 - **Subtitle clips** — `onboarding-video/sub-{elegant,native,banner}.mp4` plus
   `sub-elegant-hl.mp4` / `sub-native-hl.mp4`. Trimmed to ~10s, 480×854 H.264
@@ -117,9 +122,12 @@ group's **Highlight** toggle (`subtitle_highlight` / `thumbnail_highlight`) call
   (Elegant=Chelsey, Native=Jesse, Banner=Lily; Elegant-hl=Danielle, Native-hl=Lisa).
   Reels are pulled with `yt-dlp` then cut: `ffmpeg -ss <t> -i src.mp4 -t 10 -vf scale=-2:854
   -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow -movflags +faststart out.mp4`.
-- **Thumbnail covers** — hot-linked Sandcastles URLs (no hosting): Elegant=Chelsey/Edward,
-  Box=David Kessler/Lisa, Bold=Doug/Baya (standard/highlight). The two AI "look" frames use
-  `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`. To swap any, change the UUID / mp4 — no other code change.
+- **Thumbnail styles** — 24 hosted renders under `thumbnail-styles/<font>-<style>[-hl].jpg`
+  (font ∈ bold/native/handwritten, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
+  Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to
+  800px-wide JPEG (~85 KB each, ~2 MB total) from the client's Drive originals. To swap the base or
+  add a font/style, drop in matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
+- The two AI "look" frames use `OB_LOOK_TALKING` / `OB_LOOK_PODCAST` (hot-linked Sandcastles URLs).
 
 ## Data flow
 

@@ -11918,11 +11918,13 @@
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['none','No B-roll'] ];
 
-    const OB_THUMB_STYLES = [
-      ['elegant','Elegant','Full photo, simple refined text.', SC_THUMB+'e26417f3-6869-402b-9a3a-195c3e2cb12d.jpg', SC_THUMB+'a939cb0f-4d7e-46fb-8c3e-08bbd9c59f71.jpg'],
-      ['box','Box','Text in a solid box.', SC_THUMB+'33ecb2e7-f7de-4cb1-b80b-dadf95be69d6.jpg', SC_THUMB+'72475872-3068-4bd4-bc78-057668fe0ae4.jpg'],
-      ['bold','Bold','Big heavy text on the image.', SC_THUMB+'73879215-1b66-4f07-a456-db8f4d5306a4.jpg', SC_THUMB+'6ece795b-a323-4fa4-8844-671fd036aa64.jpg'],
-    ];
+    // Thumbnail text picker: Font (3) x Style (4) x Highlight (on/off) = 24 real renders,
+    // hosted in thumbnail-styles/<font>-<style>[-hl].jpg. The client builds the combo live.
+    const OB_TF = 'thumbnail-styles/';
+    const OB_THUMB_FONTS  = [ ['bold','Bold'], ['native','Native'], ['handwritten','Handwritten'] ];
+    const OB_THUMB_TSTYLES = [ ['plain','Plain'], ['shadow','Shadow'], ['stroke','Stroke'], ['banner','Banner'] ];
+    function _obThumbImg(font, style, hl){ return OB_TF + font + '-' + style + (hl ? '-hl' : '') + '.jpg'; }
+    const OB_THUMB_DEFAULT = { font:'bold', style:'plain', hl:false };
 
     function renderOnboardingView(){ return '<div class="ob-wrap"><div class="ob-card" id="obCard"></div></div>'; }
 
@@ -12009,11 +12011,44 @@
         _obHlToggle('subtitle_highlight','Add highlighted keywords','An add-on: a key word pops in colour. Pick a style above to turn it on.');
     }
 
-    function _obThumbStyle(){
-      return '<div class="ob-q" data-ob-q="thumbnail_style"><label class="ob-label">Thumbnail style</label>'+
-        '<div class="ob-help">Pick the cover style. Each shows the standard look and the +highlight version. Tap a preview to view it.</div>'+
-        '<div class="ob-stgrid" data-ob-radio="thumbnail_style" data-ob-stylegroup="thumbnail_style">'+_obStyleCards('thumbnail_style', OB_THUMB_STYLES, false)+'</div></div>'+
-        _obHlToggle('thumbnail_highlight','Add highlighted keywords','An add-on: one key word in a bright colour. Pick a style above to turn it on.');
+    // Live thumbnail-text picker: a preview that swaps in place + tight controls beside it
+    // (font / style / highlight), so the cursor barely moves. The current trio is the saved pick.
+    function _obThumbPicker(){
+      const d = OB_THUMB_DEFAULT;
+      const seg = (group, opts, cur) => '<div class="ob-seg" data-ob-tp="'+group+'">'+
+        opts.map(o=>'<button type="button" class="ob-seg-btn'+(o[0]===cur?' sel':'')+'" data-ob-tp-opt="'+group+':'+o[0]+'">'+_obEsc(o[1])+'</button>').join('')+'</div>';
+      return '<div class="ob-q" data-ob-q="thumbnail">'+
+        '<label class="ob-label">Thumbnail style</label>'+
+        '<div class="ob-help">Build your thumbnail look — pick a font and a style, and flip on a highlighted line. The preview updates as you go; whatever\'s showing is what we\'ll use.</div>'+
+        '<div class="ob-tp">'+
+          '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
+            '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
+            '<span class="ob-zoom-ic">⤢</span></button>'+
+          '<div class="ob-tp-ctrls">'+
+            '<div class="ob-tp-row"><span class="ob-tp-lbl">Font</span>'+seg('font', OB_THUMB_FONTS, d.font)+'</div>'+
+            '<div class="ob-tp-row"><span class="ob-tp-lbl">Style</span>'+seg('style', OB_THUMB_TSTYLES, d.style)+'</div>'+
+            '<div class="ob-tp-row ob-tp-hlrow"><span class="ob-tp-lbl">Highlight</span>'+
+              '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_highlight"'+(d.hl?' checked':'')+'><span class="ob-switch-track"></span></label></div>'+
+          '</div>'+
+        '</div>'+
+        '<input type="hidden" data-ob="thumbnail_font" value="'+d.font+'">'+
+        '<input type="hidden" data-ob="thumbnail_text_style" value="'+d.style+'"></div>';
+    }
+    // Reflect the current font/style/highlight into the preview, zoom target and selected buttons.
+    function _obThumbSync(){
+      const fEl=document.querySelector('[data-ob="thumbnail_font"]'); const sEl=document.querySelector('[data-ob="thumbnail_text_style"]');
+      const hEl=document.querySelector('[data-ob-toggle="thumbnail_highlight"]'); const img=document.getElementById('obThumbImg');
+      if(!fEl||!sEl||!img) return;
+      const font=fEl.value||OB_THUMB_DEFAULT.font, style=sEl.value||OB_THUMB_DEFAULT.style, hl=!!(hEl&&hEl.checked);
+      const url=_obThumbImg(font,style,hl);
+      if(img.getAttribute('src')!==url) img.setAttribute('src',url);
+      const prev=img.closest('.ob-tp-prev'); if(prev) prev.setAttribute('data-ob-zoom',url);
+      document.querySelectorAll('[data-ob-tp="font"] .ob-seg-btn').forEach(b=>b.classList.toggle('sel', b.getAttribute('data-ob-tp-opt')==='font:'+font));
+      document.querySelectorAll('[data-ob-tp="style"] .ob-seg-btn').forEach(b=>b.classList.toggle('sel', b.getAttribute('data-ob-tp-opt')==='style:'+style));
+    }
+    // Preload every combo so the preview swaps with no flicker.
+    function _obThumbPreload(){
+      OB_THUMB_FONTS.forEach(f=>OB_THUMB_TSTYLES.forEach(s=>[false,true].forEach(hl=>{ const im=new Image(); im.src=_obThumbImg(f[0],s[0],hl); })));
     }
 
     // Enable a group's Highlight toggle only when a style with a highlight variant is selected.
@@ -12101,7 +12136,7 @@
             _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
           ]),
           _obSubgroup('Thumbnail', '#a073e0', [
-            _obThumbStyle(),
+            _obThumbPicker(),
             _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
           ]),
           _obSubgroup('Anything else', '#c46fc6', [
@@ -12192,7 +12227,7 @@
         window.addEventListener('scroll', _obToggleTop, {passive:true}); _obToggleTop();
       }
       if(!_obDocClickBound){ document.addEventListener('click', _obDocClick); _obDocClickBound=true; }
-      _obWire(); _obUpdateLikeness(); _obRestoreDraft();
+      _obWire(); _obThumbPreload(); _obThumbSync(); _obUpdateLikeness(); _obRestoreDraft();
     }
 
     function _obToggleTop(){ const b=document.getElementById('obTop'); if(b) b.classList.toggle('show', window.scrollY>300); }
@@ -12207,7 +12242,7 @@
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
         if(t.name==='subtitle_style'){ _obStyleSel('subtitle_style'); }
-        if(t.name==='thumbnail_style'){ _obStyleSel('thumbnail_style'); }
+        if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_highlight'){ _obThumbSync(); }
         // Exclusive option: picking it clears the rest; picking anything else clears it.
         const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
         if(exm && t.type==='checkbox' && t.checked){
@@ -12229,6 +12264,7 @@
       });
       form.addEventListener('click', e=>{
         const col = e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
+        const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
         const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
@@ -12386,7 +12422,7 @@
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
       const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
-      _obStyleSel('subtitle_style'); _obStyleSel('thumbnail_style');
+      _obStyleSel('subtitle_style'); _obThumbSync();
       _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
     }
 
@@ -12518,6 +12554,19 @@
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:zoom-in; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
+      /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
+      .ob-tp{ display:flex; gap:20px; align-items:flex-start; margin-top:4px; }
+      .ob-tp-prev{ position:relative; flex:0 0 auto; width:186px; padding:0; border:none; background:var(--border-light); border-radius:13px; overflow:hidden; cursor:zoom-in; line-height:0; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
+      .ob-tp-img{ width:186px; height:auto; display:block; transition:opacity 0.12s ease; }
+      .ob-tp-ctrls{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:15px; padding-top:2px; }
+      .ob-tp-row{ display:flex; flex-direction:column; gap:8px; }
+      .ob-tp-lbl{ font-size:0.74rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); }
+      .ob-tp-hlrow{ flex-direction:row; align-items:center; justify-content:flex-start; gap:14px; }
+      .ob-seg{ display:flex; flex-wrap:wrap; gap:6px; }
+      .ob-seg-btn{ font-family:inherit; font-size:0.82rem; font-weight:600; color:var(--text-secondary); background:var(--white); border:1.5px solid var(--border); border-radius:9px; padding:8px 13px; cursor:pointer; transition:all 0.12s; }
+      .ob-seg-btn:hover{ border-color:var(--text-muted); color:var(--text-primary); }
+      .ob-seg-btn.sel{ background:var(--ob-accent); border-color:var(--ob-accent); color:#fff; }
+      @media(max-width:560px){ .ob-tp{ flex-direction:column; align-items:center; } .ob-tp-ctrls{ width:100%; } }
       .ob-toggle-q.ob-disabled{ opacity:0.5; }
       .ob-toggle-q.ob-disabled .ob-switch{ pointer-events:none; }
       .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }

@@ -36,15 +36,19 @@ The body animates open/closed via a `grid-template-rows: 1fr → 0fr` transition
 a section from the top nav, or hitting a missing required field on submit, auto-expands the
 relevant section.
 
-The page leads with the **Synchro Social logo** (`synchro-social-logo.svg`, the purple
-infinity mark) given presence — a 90px mark with a soft purple glow — beside the brand
-name + "Client Onboarding" label. (The SVG is a clean recreation of the brand mark; swap
-in the official file at that path to replace it, no code change needed.)
+The page leads with the official **Synchro Social logo** (`synchro-social-logo.png` — the
+full infinity + wordmark lockup, a transparent PNG cropped tight) given presence with a soft
+purple glow, above a small "Client Onboarding" label.
 
-**Visual hierarchy** is conveyed with subtle colour: nested sub-groups inside a section
-(e.g. Style → *Video* / *Thumbnail* / *Anything else*, and the AI-avatar reveal) sit behind
-a thin coloured left rail with a small matching dot (`_obSubgroup(title, key, fields)` →
-`.ob-sg-{video,thumb,misc}`). The hues are low-saturation on purpose, so the
+**Visual hierarchy** is conveyed with colour. Every main section owns a hue — a coloured
+left rail plus its numbered badge (`--sec-rail`, set per section in `_obSections`). The eight
+section hues form a calm **blue → violet → magenta → rose** gradient — all in the brand's
+purple family, so it never reads as a rainbow. Within a section, sub-groups
+(`_obSubgroup(title, color, fields)`) sit behind a thinner, indented rail with a small dot, in
+an **analogous neighbour** of the parent section's hue — so a section and its children read as
+one family rather than clashing. Sub-groups exist in **Style** (Video / Thumbnail / Anything
+else) and in **AI avatar**, whose fields are grouped into *Your likeness → Personality &
+delivery → Scene & framing → Appearance → Voice*. The whole scheme is muted on purpose, so the
 Section → group → field nesting reads almost subconsciously rather than shouting.
 
 All controls are custom-styled and emoji-free: the music-genre checkboxes use a custom

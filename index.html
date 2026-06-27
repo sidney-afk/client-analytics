@@ -11883,14 +11883,16 @@
     function _obAiLikeness(){ return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>'; }
 
     // A nested group with a subtle coloured rail, so the eye reads the hierarchy
-    // (Section -> sub-group -> field) without it being loud. `key` picks the rail hue.
-    function _obSubgroup(title, key, fieldsHtml){
-      return '<div class="ob-subgroup ob-sg-'+key+'"><div class="ob-subhead"><span class="ob-sg-dot"></span>'+_obEsc(title)+'</div>'+fieldsHtml.join('')+'</div>';
+    // (Section -> sub-group -> field). `color` is an analogous neighbour of the
+    // parent section's colour, so a section + its sub-groups read as one family
+    // rather than a rainbow.
+    function _obSubgroup(title, color, fieldsHtml){
+      return '<div class="ob-subgroup" style="--sg-rail:'+color+';--sg-dot:'+color+'"><div class="ob-subhead"><span class="ob-sg-dot"></span>'+_obEsc(title)+'</div>'+fieldsHtml.join('')+'</div>';
     }
 
     function _obSections(){
       return [
-        { id:'s1', n:'1', title:'Basic info', fields:[
+        { id:'s1', n:'1', c:'#5f86df', title:'Basic info', fields:[
           _obField({id:'first_name', label:'First name', type:'text', required:true}),
           _obField({id:'last_name', label:'Last name', type:'text', required:true}),
           _obField({id:'email', label:'Email', type:'email', required:true}),
@@ -11898,43 +11900,43 @@
           _obField({id:'comms_people', label:'Anyone else we should keep in the loop?', help:'Name + email.', type:'textarea', rows:2}),
           _obField({id:'accounting_contact', label:'Billing contact', help:'Who we send invoices to.', type:'text'}),
         ]},
-        { id:'s2', n:'2', title:'Your brand & audience', fields:[
+        { id:'s2', n:'2', c:'#6f78e2', title:'Your brand & audience', fields:[
           _obField({id:'brand_guidelines', label:'Brand guidelines link', help:'Logos, colours, fonts — if you have them.', type:'url', placeholder:'https://…'}),
           _obField({id:'ideal_customer', label:'Who is your ideal customer?', type:'textarea', required:true}),
           _obField({id:'pain_points', label:'What problems do you solve for them?', type:'textarea', required:true}),
           _obField({id:'desired_outcomes', label:'What results do you get them?', type:'textarea', required:true}),
           _obField({id:'process', label:'How do you get them there?', type:'textarea', required:true}),
         ]},
-        { id:'s3', n:'3', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
+        { id:'s3', n:'3', c:'#8a6fe0', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
           _obCreators(),
-          _obSubgroup('Video', 'video', [
+          _obSubgroup('Video', '#6f8be8', [
             _obSubtitles(),
             _obBroll(),
             _obMusic(),
             _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
             _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
           ]),
-          _obSubgroup('Thumbnail', 'thumb', [
+          _obSubgroup('Thumbnail', '#a073e0', [
             _obThumbStyle(),
             _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
           ]),
-          _obSubgroup('Anything else', 'misc', [
+          _obSubgroup('Anything else', '#c46fc6', [
             _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
           ]),
         ]},
-        { id:'s4', n:'4', title:'Sample video', intro:'So your very first sample looks like your real videos — it\'s the single most useful thing you can give us.', fields:[
+        { id:'s4', n:'4', c:'#a063d8', title:'Sample video', intro:'So your very first sample looks like your real videos — it\'s the single most useful thing you can give us.', fields:[
           _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
-        { id:'s5', n:'5', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
+        { id:'s5', n:'5', c:'#b65fce', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
           _obField({id:'photos_link', label:'Link to photos of you', help:'A few clear, recent, high-quality photos.', type:'url', placeholder:'https://…', driveNote:true}),
           _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos — anything we can create from.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
-        { id:'s6', n:'6', title:'Goals', fields:[
+        { id:'s6', n:'6', c:'#c560bc', title:'Goals', fields:[
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
           _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
           _obField({id:'questions', label:'Questions or anything unclear?', help:'If none of the options above fit what you had in mind, or you\'re unsure about anything, ask away here.', type:'textarea'}),
         ]},
-        { id:'s7', n:'7', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
+        { id:'s7', n:'7', c:'#cf64a2', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
           '<div class="ob-q"><div class="ob-info-panel">Prefer not to type passwords here? You can share them securely through <b>LastPass</b> to <b>house@synchrosocial.com</b> — we get access without the passwords ever being visible. Otherwise, just fill in what you can below.</div></div>',
           _obField({id:'instagram', label:'Instagram login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
           _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
@@ -11943,28 +11945,38 @@
           _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
           _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
         ]},
-        { id:'s8', n:'8', title:'AI avatar (optional)', isAi:true, fields:[
+        { id:'s8', n:'8', c:'#d36f93', title:'AI avatar (optional)', isAi:true, fields:[
           '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
             '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
             '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="More about the AI avatar add-on">'+OB_INFO_SVG+'</button></div>'+
             '<div class="ob-info-panel" id="obAiInfo" style="display:none">This is a separate add-on — its own production system and pricing, handled directly with Casper. Choosing &ldquo;Yes&rdquo; just flags your interest; Casper will walk you through how it works and the details.</div>'+
             '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no" checked><span>No</span></label></div></div>',
           '<div id="obAiFields" class="ob-ai-fields" style="display:none">'+
-            _obAiLikeness()+
-            _obField({id:'ai_personality', label:'How would you describe your personality?', type:'textarea', required:true})+
-            _obLook()+
-            _obTextDriven()+
-            _obField({id:'ai_setting', label:'What setting / background do you picture?', type:'textarea', rows:2, required:true})+
-            _obField({id:'ai_podcast_setting', label:'Podcast setting', type:'select', options:[['studio','Studio desk with mics'],['lounge','Casual lounge'],['office','Office / bookshelf'],['minimal','Plain backdrop']]})+
-            _obField({id:'ai_framing', label:'Camera framing', type:'select', required:true, options:[['closeup','Close-up'],['mid','Mid-shot'],['wide','Wide'],['mixed','Mixed']]})+
-            _obAccessories()+
-            _obField({id:'ai_hair', label:'Hair', help:'How you\'d like the avatar\'s hair — e.g. short, long, tied back, natural, styled.', type:'text'})+
-            _obField({id:'ai_makeup', label:'Makeup', help:'The makeup look — e.g. natural, none, light, bold / glam.', type:'text'})+
-            _obField({id:'ai_clothing', label:'Clothing (up to 3)', type:'multiselect', max:3, required:true, options:[['formal','Formal / suit'],['smart_casual','Smart casual'],['casual','Casual'],['streetwear','Streetwear'],['athletic','Activewear'],['branded','Branded merch'],['elegant','Elegant']]})+
-            '<div class="ob-q" data-ob-q="ai_voice_link"><label class="ob-label">Voice recording<span class="ob-req">*</span></label>'+
-              '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
-              '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
-              '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>'+
+            _obSubgroup('Your likeness', '#c56fc0', [
+              _obAiLikeness(),
+            ])+
+            _obSubgroup('Personality & delivery', '#d16fa6', [
+              _obField({id:'ai_personality', label:'How would you describe your personality?', type:'textarea', required:true}),
+              _obLook(),
+              _obTextDriven(),
+            ])+
+            _obSubgroup('Scene & framing', '#db6f93', [
+              _obField({id:'ai_setting', label:'What setting / background do you picture?', type:'textarea', rows:2, required:true}),
+              _obField({id:'ai_podcast_setting', label:'Podcast setting', type:'select', options:[['studio','Studio desk with mics'],['lounge','Casual lounge'],['office','Office / bookshelf'],['minimal','Plain backdrop']]}),
+              _obField({id:'ai_framing', label:'Camera framing', type:'select', required:true, options:[['closeup','Close-up'],['mid','Mid-shot'],['wide','Wide'],['mixed','Mixed']]}),
+            ])+
+            _obSubgroup('Appearance', '#d3839f', [
+              _obField({id:'ai_hair', label:'Hair', help:'How you\'d like the avatar\'s hair — e.g. short, long, tied back, natural, styled.', type:'text'}),
+              _obField({id:'ai_makeup', label:'Makeup', help:'The makeup look — e.g. natural, none, light, bold / glam.', type:'text'}),
+              _obField({id:'ai_clothing', label:'Clothing (up to 3)', type:'multiselect', max:3, required:true, options:[['formal','Formal / suit'],['smart_casual','Smart casual'],['casual','Casual'],['streetwear','Streetwear'],['athletic','Activewear'],['branded','Branded merch'],['elegant','Elegant']]}),
+              _obAccessories(),
+            ])+
+            _obSubgroup('Voice', '#cc77bf', [
+              '<div class="ob-q" data-ob-q="ai_voice_link"><label class="ob-label">Voice recording<span class="ob-req">*</span></label>'+
+                '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
+                '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
+                '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>',
+            ])+
           '</div>',
         ]},
       ];
@@ -11975,15 +11987,15 @@
       const card = document.getElementById('obCard'); if(!card) return;
       const sections = _obSections();
       const head = '<div class="ob-headblock">'+
-        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.svg" alt="Synchro Social"></span>'+
-        '<span class="ob-brand-txt"><span class="ob-brand-name">Synchro Social</span><span class="ob-kicker">Client Onboarding</span></span></div>'+
+        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.png" alt="Synchro Social"></span>'+
+        '<span class="ob-kicker ob-brand-kicker">Client Onboarding</span></div>'+
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
         '<p class="ob-sub">Takes about 15 minutes. The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
       const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
       const chev = '<svg class="ob-sec-chev" viewBox="0 0 16 16" width="17" height="17" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const body = sections.map(s=>{
         const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
-        return '<section class="ob-sec" id="'+s.id+'">'+
+        return '<section class="ob-sec" id="'+s.id+'" style="--sec-rail:'+(s.c||'var(--ob-accent)')+'">'+
           '<div class="ob-sec-h" data-ob-collapse role="button" tabindex="0"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2>'+chev+'</div>'+
           '<div class="ob-sec-body"><div class="ob-sec-inner">'+intro+s.fields.join('')+'</div></div></section>';
       }).join('');
@@ -12060,7 +12072,7 @@
 
     function _obAddCreatorRow(){ _obRepAdd('creators'); }
 
-    function _obToggleAi(v){ const b=document.getElementById('obAiFields'); if(b) b.style.display=(v==='yes')?'block':'none'; }
+    function _obToggleAi(v){ const b=document.getElementById('obAiFields'); if(b) b.style.display=(v==='yes')?'block':'none'; if(v==='yes') _obTogglePodcast(); }
     function _obTogglePodcast(){
       const wrap=document.querySelector('[data-ob-multi="ai_content_style"]'); const q=document.querySelector('[data-ob-q="ai_podcast_setting"]'); if(!wrap||!q) return;
       const podcast=!!Array.from(wrap.querySelectorAll('input:checked')).find(i=>i.value==='podcast'); q.style.display=podcast?'':'none';
@@ -12209,23 +12221,26 @@
       .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
       .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
       .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
-      .ob-brand{ display:flex; align-items:center; gap:17px; margin-bottom:22px; }
+      .ob-brand{ display:flex; flex-direction:column; align-items:flex-start; gap:9px; margin-bottom:22px; }
       .ob-logo-wrap{ position:relative; flex-shrink:0; display:inline-flex; }
-      .ob-logo-wrap::after{ content:''; position:absolute; inset:-16px -12px; background:radial-gradient(closest-side, rgba(162,28,230,0.42), rgba(162,28,230,0) 76%); filter:blur(9px); z-index:-1; }
-      .ob-logo{ width:90px; height:auto; display:block; filter:drop-shadow(0 3px 14px rgba(162,28,230,0.45)); }
-      .ob-brand-txt{ display:flex; flex-direction:column; gap:3px; }
-      .ob-brand-name{ font-size:1.18rem; font-weight:800; letter-spacing:-0.01em; line-height:1.05; }
+      .ob-logo-wrap::after{ content:''; position:absolute; inset:-14px -18px; background:radial-gradient(closest-side, rgba(162,28,230,0.34), rgba(162,28,230,0) 74%); filter:blur(11px); z-index:-1; }
+      .ob-logo{ width:172px; height:auto; display:block; filter:drop-shadow(0 4px 16px rgba(162,28,230,0.38)); }
+      .ob-brand-kicker{ padding-left:2px; }
       .ob-title{ font-size:1.6rem; font-weight:800; margin:8px 0 8px; letter-spacing:-0.02em; }
       .ob-sub{ font-size:0.9rem; line-height:1.5; color:var(--text-secondary); margin:0; }
       .ob-rail{ display:flex; flex-wrap:wrap; gap:6px; margin:20px 0 4px; }
       .ob-rail-btn{ font-family:inherit; font-size:0.72rem; font-weight:600; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:6px 12px; cursor:pointer; transition:all 0.13s; }
       .ob-rail-btn:hover{ color:var(--text-primary); border-color:var(--text-muted); }
-      .ob-sec{ padding:26px 0 4px; border-top:1px solid var(--border-light); margin-top:8px; }
+      /* Each main section carries its own colour: a left rail + the numbered badge.
+         The 8 section hues form a calm blue->violet->magenta->rose gradient (all in the
+         brand's purple family, never a rainbow); a section's sub-groups use analogous
+         neighbours of its hue, so a section + its children read as one family. */
+      .ob-sec{ padding:24px 0 4px 20px; border-top:1px solid var(--border-light); border-left:3px solid var(--sec-rail, var(--border)); margin-top:10px; }
       .ob-sec:first-of-type{ border-top:none; }
-      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin:0 -8px 8px; padding:5px 8px; border-radius:10px; cursor:pointer; user-select:none; transition:background 0.13s; }
+      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin:0 0 8px; padding:5px 8px 5px 4px; border-radius:10px; cursor:pointer; user-select:none; transition:background 0.13s; }
       .ob-sec-h:hover{ background:var(--bg); }
       .ob-sec-h:focus-visible{ outline:2px solid var(--ob-accent); outline-offset:1px; }
-      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--ob-accent); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
+      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--sec-rail, var(--ob-accent)); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
       .ob-sec-h h2{ font-size:1.14rem; font-weight:700; margin:0; letter-spacing:-0.01em; }
       .ob-sec-chev{ margin-left:auto; color:var(--text-muted); flex-shrink:0; transition:transform 0.28s cubic-bezier(.4,0,.2,1); }
       .ob-sec-h:hover .ob-sec-chev{ color:var(--text-secondary); }
@@ -12239,10 +12254,7 @@
       .ob-subgroup{ border-left:2px solid var(--sg-rail, var(--border)); padding-left:17px; margin:22px 0 6px; }
       .ob-subgroup + .ob-subgroup{ margin-top:18px; }
       .ob-subhead{ display:flex; align-items:center; gap:8px; font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:0 0 13px; color:var(--text-primary); }
-      .ob-sg-dot{ width:7px; height:7px; border-radius:50%; background:var(--sg-dot, var(--text-muted)); flex-shrink:0; box-shadow:0 0 0 3px var(--sg-halo, transparent); }
-      .ob-sg-video{ --sg-rail:rgba(129,140,248,0.55); --sg-dot:#818cf8; --sg-halo:rgba(129,140,248,0.13); }
-      .ob-sg-thumb{ --sg-rail:rgba(45,191,168,0.5); --sg-dot:#2dbfa8; --sg-halo:rgba(45,191,168,0.12); }
-      .ob-sg-misc{ --sg-rail:rgba(212,170,110,0.5); --sg-dot:#d4aa6e; --sg-halo:rgba(212,170,110,0.12); }
+      .ob-sg-dot{ width:7px; height:7px; border-radius:50%; background:var(--sg-dot, var(--text-muted)); flex-shrink:0; }
       .ob-q{ margin:0 0 16px; }
       .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
       .ob-req{ color:var(--ig); margin-left:3px; }
@@ -12337,7 +12349,7 @@
       .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
-      .ob-ai-fields{ border-left:2px solid rgba(168,130,230,0.5); padding-left:17px; margin-top:8px; }
+      .ob-ai-fields{ margin-top:6px; }
       .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
       .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
       .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }

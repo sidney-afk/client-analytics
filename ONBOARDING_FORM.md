@@ -51,6 +51,12 @@ else) and in **AI avatar**, whose fields are grouped into *Your likeness → Per
 delivery → Scene & framing → Appearance → Voice*. The whole scheme is muted on purpose, so the
 Section → group → field nesting reads almost subconsciously rather than shouting.
 
+Sub-groups are **collapsible too** (expanded by default): their coloured header is a clickable
+`role="button"` row with a hover highlight and a rotating chevron (`_obToggleSubgroup`), animating
+the same `grid-template-rows` way the sections do. Overflow is kept hidden during the animation then
+restored to visible once expanded, so custom-select dropdowns inside a sub-group aren't clipped.
+Missing-field validation expands the enclosing sub-group as well as its section.
+
 All controls are custom-styled and emoji-free: the music-genre checkboxes use a custom
 `.ob-chk` box (indigo when checked) instead of the native control, and the "share the link"
 note uses a small inline lock **SVG** (no 🔒 emoji).

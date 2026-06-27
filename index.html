@@ -12070,47 +12070,53 @@
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
-    // Shared selectable media cards (radio + name + description + image/video example).
-    // Selectable style cards with a standard + highlight media variant. isVideo => <video>, else <img>.
-    // The linked Highlight toggle swaps each card's media between data-std and data-hl.
+    // Style cards: name+desc on top, then the standard + "+ highlight" previews below (both shown).
+    // The card's radio carries data-hashl so the group's Highlight toggle can enable on selection.
+    function _obStylePreview(url, isVideo, cap){
+      if(!url) return '';
+      const inner = isVideo
+        ? '<video src="'+url+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic">▶</span>'
+        : '<img src="'+url+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span>';
+      return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button><span class="ob-stp-cap">'+cap+'</span></div>';
+    }
     function _obStyleCards(group, items, isVideo){
       return items.map(t=>{
         const std=t[3]||'', hl=t[4]||'';
-        const inner = isVideo
-          ? '<video src="'+std+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic">▶</span>'
-          : '<img src="'+std+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span>';
-        const thumb = std
-          ? '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+std+'" data-std="'+std+'" data-hl="'+hl+'" aria-label="View example full screen">'+inner+'</button>'
-          : '<div class="ob-sub-thumb ob-sub-noimg">soon</div>';
+        const previews = '<div class="ob-stp-row">'+_obStylePreview(std, isVideo, 'Standard')+(hl?_obStylePreview(hl, isVideo, '+ Highlight'):'')+'</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<div class="ob-sub-card"><label class="ob-sub-pick"><input type="radio" name="'+group+'" value="'+t[0]+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+thumb+'</div>';
+        return '<div class="ob-stcard"><label class="ob-stcard-head"><input type="radio" name="'+group+'" value="'+t[0]+'" data-hashl="'+(hl?'1':'')+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+previews+'</div>';
       }).join('');
     }
 
+    // Highlight add-on toggle — rendered disabled; enabled once a style with a highlight variant is picked.
+    function _obHlToggle(id,label,help){
+      const h = help ? '<div class="ob-help">'+help+'</div>' : '';
+      return '<div class="ob-q ob-toggle-q ob-disabled" data-ob-q="'+id+'"><div><label class="ob-label">'+_obEsc(label)+'</label>'+h+'</div>'+
+        '<label class="ob-switch"><input type="checkbox" data-ob-toggle="'+id+'" disabled><span class="ob-switch-track"></span></label></div>';
+    }
+
     function _obSubtitles(){
-      return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitles<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Pick the caption style. Tap an example to play it.</div>'+
-        '<div class="ob-sub-grid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div></div>'+
-        _obToggle('subtitle_highlight','Add highlighted keywords','An add-on: pop a key word in colour, in time with the audio. (Tap the examples with this on to see it.)')+
-        _obField({id:'subtitle_refs', label:'Subtitle references (optional)', help:'Seen a caption style you love somewhere? Paste the link(s) here.', type:'textarea', rows:2, placeholder:'Paste any links…'});
+      return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
+        '<div class="ob-help">Pick the caption style. Each shows the standard look and the +highlight version. Tap a preview to play it.</div>'+
+        '<div class="ob-stgrid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div></div>'+
+        _obHlToggle('subtitle_highlight','Add highlighted keywords','An add-on: a key word pops in colour. Pick a style above to turn it on.');
     }
 
     function _obThumbStyle(){
       return '<div class="ob-q" data-ob-q="thumbnail_style"><label class="ob-label">Thumbnail style</label>'+
-        '<div class="ob-help">Pick the cover style. Tap an example to view it.</div>'+
-        '<div class="ob-sub-grid" data-ob-radio="thumbnail_style" data-ob-stylegroup="thumbnail_style">'+_obStyleCards('thumbnail_style', OB_THUMB_STYLES, false)+'</div></div>'+
-        _obToggle('thumbnail_highlight','Add highlighted keywords','An add-on: one key word in a bright colour. (Tap the examples with this on to see it.)');
+        '<div class="ob-help">Pick the cover style. Each shows the standard look and the +highlight version. Tap a preview to view it.</div>'+
+        '<div class="ob-stgrid" data-ob-radio="thumbnail_style" data-ob-stylegroup="thumbnail_style">'+_obStyleCards('thumbnail_style', OB_THUMB_STYLES, false)+'</div></div>'+
+        _obHlToggle('thumbnail_highlight','Add highlighted keywords','An add-on: one key word in a bright colour. Pick a style above to turn it on.');
     }
 
-    // Swap every card's media (and zoom target) in a style group to its standard or highlight variant.
-    function _obSwapHl(group, on){
-      const grid=document.querySelector('[data-ob-stylegroup="'+group+'"]'); if(!grid) return;
-      grid.querySelectorAll('.ob-sub-thumb[data-std]').forEach(btn=>{
-        const std=btn.getAttribute('data-std'), hl=btn.getAttribute('data-hl');
-        const use=(on && hl)?hl:std;
-        btn.setAttribute('data-ob-zoom', use);
-        const m=btn.querySelector('video,img'); if(m && m.getAttribute('src')!==use){ m.setAttribute('src', use); }
-      });
+    // Enable a group's Highlight toggle only when a style with a highlight variant is selected.
+    function _obStyleSel(group){
+      const sel=document.querySelector('input[name="'+group+'"]:checked');
+      const togId = group==='subtitle_style'?'subtitle_highlight':'thumbnail_highlight';
+      const tog=document.querySelector('[data-ob-toggle="'+togId+'"]'); if(!tog) return;
+      const hasHl = !!(sel && sel.getAttribute('data-hashl')==='1');
+      tog.disabled=!hasHl; if(!hasHl && tog.checked) tog.checked=false;
+      const wrap=tog.closest('.ob-toggle-q'); if(wrap) wrap.classList.toggle('ob-disabled', !hasHl);
     }
 
     function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
@@ -12151,13 +12157,6 @@
         '<div class="ob-rep" id="obCreators">'+_obRepRowHtml('creators', true)+'</div>'+
         '<button type="button" class="ob-add" data-rep-add="creators">+ Add another</button></div>';
     }
-    function _obClips(){
-      return '<div class="ob-q" data-ob-q="clips"><label class="ob-label">Clips you like the look of</label>'+
-        '<div class="ob-help">Paste links to videos whose editing you like.</div>'+
-        '<div class="ob-rep" id="obClips">'+_obRepRowHtml('clips', true)+'</div>'+
-        '<button type="button" class="ob-add" data-rep-add="clips">+ Add another</button></div>';
-    }
-
     function _obAiLikeness(){ return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>'; }
 
     function _obSections(){
@@ -12179,17 +12178,18 @@
         ]},
         { id:'s3', n:'3', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
           _obCreators(),
-          _obClips(),
-          _obMusic(),
-          _obField({id:'music_refs', label:'Music references', help:'Optional. Paste a Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
+          '<div class="ob-subhead">Video</div>',
           _obSubtitles(),
           _obBroll(),
-          _obField({id:'text_prefs', label:'Text / font preferences', help:'Any fonts or lettering you like (optional).', type:'textarea', rows:2}),
-          _obField({id:'text_prefs_image', label:'Reference image', help:'Optional. A Pinterest board, a Drive folder, a screenshot, anything showing fonts or lettering you like.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obMusic(),
+          _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+          '<div class="ob-subhead">Thumbnail</div>',
           _obThumbStyle(),
-          _obField({id:'overall_tone_ref', label:'Visual reference (optional)', help:'A link to an image or a video that captures the overall vibe you want.', type:'url', placeholder:'https://…', driveNote:true}),
-          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Also the place for any style preference the options above didn\'t cover — anything we should keep in mind for every video.', type:'textarea', rows:2}),
-          _obField({id:'sample_clip', label:'A short clip of you (optional but ideal)', help:'So your first sample looks like your real videos. Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+          '<div class="ob-subhead">Anything else</div>',
+          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
+          _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'We\'ll use this so your first sample looks like your real videos — record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s4', n:'4', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
           _obField({id:'photos_link', label:'Link to photos of you', help:'A few clear, recent, high-quality photos.', type:'url', placeholder:'https://…', driveNote:true}),
@@ -12271,9 +12271,8 @@
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
-        const tog = t.getAttribute && t.getAttribute('data-ob-toggle');
-        if(tog==='subtitle_highlight'){ _obSwapHl('subtitle_style', t.checked); }
-        if(tog==='thumbnail_highlight'){ _obSwapHl('thumbnail_style', t.checked); }
+        if(t.name==='subtitle_style'){ _obStyleSel('subtitle_style'); }
+        if(t.name==='thumbnail_style'){ _obStyleSel('thumbnail_style'); }
         // Exclusive option: picking it clears the rest; picking anything else clears it.
         const exm = t.closest && t.closest('[data-ob-multi][data-ob-exclusive]');
         if(exm && t.type==='checkbox' && t.checked){
@@ -12380,8 +12379,8 @@
       form.querySelectorAll('[data-ob-radio]').forEach(g=>{ const n=g.getAttribute('data-ob-radio'); const s=g.querySelector('input:checked'); out[n]=s?s.value:''; });
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const n=g.getAttribute('data-ob-multi'); out[n]=Array.from(g.querySelectorAll('input:checked')).map(i=>i.value); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ out[t.getAttribute('data-ob-toggle')]=t.checked; });
-      ['creators','clips'].forEach(rep=>{
-        const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont) return;
+      ['creators'].forEach(rep=>{
+        const cont=document.getElementById('obCreators'); if(!cont) return;
         const rows=[]; cont.querySelectorAll('.ob-rep-row').forEach(r=>{ const o={}; r.querySelectorAll('[data-rep-k]').forEach(inp=>{ o[inp.getAttribute('data-rep-k')]=inp.value.trim(); }); if(Object.keys(o).some(k=>o[k])) rows.push(o); });
         out[rep]=rows;
       });
@@ -12442,7 +12441,7 @@
     function _obRestoreDraft(){
       let d=null; try{ d=JSON.parse(localStorage.getItem(OB_DRAFT_KEY)||'null'); }catch(e){}
       if(!d) return; const form=document.getElementById('obForm'); if(!form) return;
-      _obRebuildRep('creators', d.creators); _obRebuildRep('clips', d.clips);
+      _obRebuildRep('creators', d.creators);
       if(d.ai_avatar){ _obToggleAi(d.ai_avatar); }
       _obUpdateLikeness();
       form.querySelectorAll('[data-ob]').forEach(el=>{ const k=el.getAttribute('data-ob'); if(d[k]!=null && typeof d[k]!=='object') el.value=d[k]; });
@@ -12450,7 +12449,7 @@
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
       const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
-      _obSwapHl('subtitle_style', !!d.subtitle_highlight); _obSwapHl('thumbnail_style', !!d.thumbnail_highlight);
+      _obStyleSel('subtitle_style'); _obStyleSel('thumbnail_style');
       _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
     }
 
@@ -12534,6 +12533,20 @@
       .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
       .ob-sub-thumb img,.ob-sub-thumb video{ width:100%; height:100%; object-fit:cover; display:block; }
       .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; cursor:default; }
+      .ob-stgrid{ display:flex; flex-direction:column; gap:10px; }
+      .ob-stcard{ border:1.5px solid var(--border); border-radius:12px; padding:12px 14px; transition:all 0.12s; }
+      .ob-stcard:hover{ border-color:var(--text-muted); }
+      .ob-stcard:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-stcard-head{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+      .ob-stcard-head input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-stcard:has(input:checked) .ob-sub-dot{ border-color:var(--text-primary); }
+      .ob-stcard:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--text-primary); }
+      .ob-stp-row{ display:flex; gap:14px; margin-top:11px; }
+      .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
+      .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:zoom-in; }
+      .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
+      .ob-toggle-q.ob-disabled{ opacity:0.5; }
+      .ob-toggle-q.ob-disabled .ob-switch{ pointer-events:none; }
       .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }
       .ob-zoom-ov{ position:fixed; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
       .ob-zoom-ov.show{ display:flex; }
@@ -12554,7 +12567,7 @@
       .ob-err{ font-size:0.83rem; color:var(--dn); background:var(--dn-bg); border:1px solid var(--dn); border-radius:9px; padding:10px 13px; margin-bottom:12px; }
       .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:#fff; background:var(--text-primary); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
       .ob-submit:hover{ opacity:0.88; } .ob-submit:disabled{ opacity:0.5; cursor:default; }
-      .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid,.ob-q.ob-missing .ob-cs-btn{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
+      .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid,.ob-q.ob-missing .ob-stgrid,.ob-q.ob-missing .ob-cs-btn{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
       .ob-q.ob-missing .ob-label{ color:var(--dn); }
       .ob-thanks{ text-align:center; padding:40px 10px; }
       .ob-thanks-ico{ width:54px; height:54px; border-radius:99px; background:var(--up-bg); color:var(--up); display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto 16px; }

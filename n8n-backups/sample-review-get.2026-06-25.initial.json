@@ -1,0 +1,58 @@
+{
+  "id": "EUGX35UmyUgSCjWD",
+  "name": "Sample Review — Get",
+  "active": false,
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "description": "GET /webhook/sample-review-get?client=<slug>. Reads Supabase sample_reviews where client=eq and returns {ok, items[]} sorted by order_index, with CORS * and no-store.",
+  "nodes": [
+    {
+      "id": "6253a91a-07b3-4e06-9c37-6da996dcfeb1",
+      "name": "Receive GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "GET", "path": "sample-review-get", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } },
+      "webhookId": "7a8aca78-b7db-47ef-8c2e-518991989ea0"
+    },
+    {
+      "id": "32f7e73a-385a-47a7-95df-2778c1357d22",
+      "name": "Resolve Client",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": { "jsCode": "const q = ($input.first() && $input.first().json && $input.first().json.query) || {};\nconst client = String(q.client || '').trim();\nif (!client) throw new Error('client query param required (e.g. ?client=sidneylaruel)');\nreturn [{ json: { client } }];" }
+    },
+    {
+      "id": "ea5dd058-70e5-4867-a1bd-3e4acc17cf26",
+      "name": "Read Sample Reviews",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, 0],
+      "parameters": { "resource": "row", "operation": "getAll", "tableId": "sample_reviews", "returnAll": true, "filterType": "manual", "matchType": "allFilters", "filters": { "conditions": [{ "keyName": "client", "condition": "eq", "keyValue": "={{ $('Resolve Client').first().json.client }}" }] } },
+      "alwaysOutputData": true,
+      "credentials": { "supabaseApi": { "id": "XdBpJ6Xk8PMpZXXT", "name": "Supabase - SyncView Calendar" } }
+    },
+    {
+      "id": "d1299ed4-5bec-4460-9d8a-3be74dfdc719",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 0],
+      "parameters": { "jsCode": "const items = $input.all();\nconst rows = items.map(it => it.json || {}).filter(r => r && r.id);\nrows.sort((a,b) => Number(a.order_index||0) - Number(b.order_index||0));\nreturn [{ json: { ok: true, items: rows } }];" }
+    },
+    {
+      "id": "14f63ad0-1316-4b7f-8099-54f8ee55c3ff",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [896, 0],
+      "parameters": { "respondWith": "firstIncomingItem", "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } } }
+    }
+  ],
+  "connections": {
+    "Receive GET": { "main": [[{ "node": "Resolve Client", "type": "main", "index": 0 }]] },
+    "Resolve Client": { "main": [[{ "node": "Read Sample Reviews", "type": "main", "index": 0 }]] },
+    "Read Sample Reviews": { "main": [[{ "node": "Build Response", "type": "main", "index": 0 }]] },
+    "Build Response": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  }
+}

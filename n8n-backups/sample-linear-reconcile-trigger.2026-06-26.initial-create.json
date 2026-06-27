@@ -1,0 +1,93 @@
+{
+  "id": "ZJOtYpQZj73DcBB1",
+  "name": "SyncView Samples — Linear Reconcile Trigger",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "id": "c063af36-be8e-4b51-a4a9-48f6add5d95d",
+      "name": "Every 10 min",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/repos/sidney-afk/client-analytics/actions/workflows/sample-linear-reconcile.yml/dispatches",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            },
+            {
+              "name": "User-Agent",
+              "value": "syncview-sample-reconcile-trigger"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"ref\":\"main\",\"inputs\":{\"dry_run\":\"false\"}}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "b2f061df-2d95-420a-a7d1-7600391924f5",
+      "name": "Trigger GitHub Reconciler",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "fygMapRRjtItIsaE",
+          "name": "GitHub PAT — reconcile"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 10 min": {
+      "main": [
+        [
+          {
+            "node": "Trigger GitHub Reconciler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "_snapshot": {
+    "takenAt": "2026-06-26",
+    "tag": "initial-create-inactive",
+    "note": "Backstop: every 10 min dispatches the GitHub sample-linear-reconcile.yml (apply). Clone of calendar AkiFmromoDkmsh39, dispatching by FILENAME. Created INACTIVE. Two manual steps before it works: (1) in the n8n UI attach the \"GitHub PAT — reconcile\" credential to the Trigger node (the MCP could not set generic header-auth automatically), (2) activate it AFTER sample-linear-reconcile.yml is on the default branch (until merged, the dispatch 404s)."
+  }
+}

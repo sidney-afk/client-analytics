@@ -36,6 +36,21 @@ The body animates open/closed via a `grid-template-rows: 1fr → 0fr` transition
 a section from the top nav, or hitting a missing required field on submit, auto-expands the
 relevant section.
 
+The page leads with the **Synchro Social logo** (`synchro-social-logo.svg`, the purple
+infinity mark) given presence — a 90px mark with a soft purple glow — beside the brand
+name + "Client Onboarding" label. (The SVG is a clean recreation of the brand mark; swap
+in the official file at that path to replace it, no code change needed.)
+
+**Visual hierarchy** is conveyed with subtle colour: nested sub-groups inside a section
+(e.g. Style → *Video* / *Thumbnail* / *Anything else*, and the AI-avatar reveal) sit behind
+a thin coloured left rail with a small matching dot (`_obSubgroup(title, key, fields)` →
+`.ob-sg-{video,thumb,misc}`). The hues are low-saturation on purpose, so the
+Section → group → field nesting reads almost subconsciously rather than shouting.
+
+All controls are custom-styled and emoji-free: the music-genre checkboxes use a custom
+`.ob-chk` box (indigo when checked) instead of the native control, and the "share the link"
+note uses a small inline lock **SVG** (no 🔒 emoji).
+
 ## Sections (the approved question set)
 
 1. **Basic info** — name, email, phone, who else to loop in, billing contact.

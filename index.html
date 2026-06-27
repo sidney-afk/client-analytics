@@ -11969,7 +11969,8 @@
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
-    const OB_DRIVE_NOTE = '<div class="ob-drivenote">Make sure the link is shared so anyone with the link can open it.</div>';
+    const OB_LOCK_SVG = '<svg class="ob-lock-ic" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3.1" y="7" width="9.8" height="6.4" rx="1.7" stroke="currentColor" stroke-width="1.25"/><path d="M5.4 7V5.1a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
+    const OB_DRIVE_NOTE = '<div class="ob-drivenote">'+OB_LOCK_SVG+'<span>Make sure the link is shared so anyone with the link can open it.</span></div>';
     const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
     const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
     const OB_INFO_SVG = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="6.4" r="1.05" fill="currentColor"/><path d="M10 9.3v4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
@@ -12062,7 +12063,7 @@
 
     function _obMusic(){
       const rows = OB_MUSIC_GENRES.map(g=>
-        '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
+        '<div class="ob-genre"><label class="ob-genre-pick"><input type="checkbox" value="'+g[0]+'"><span class="ob-chk"></span><span class="ob-genre-name">'+_obEsc(g[1])+'</span></label>'+
         '<button type="button" class="ob-play" data-ob-play="'+g[0]+'" aria-label="Play sample">'+OB_PLAY_SVG+'</button></div>'
       ).join('');
       return '<div class="ob-q" data-ob-q="music"><label class="ob-label">Music</label>'+
@@ -12159,6 +12160,12 @@
     }
     function _obAiLikeness(){ return '<div class="ob-q" data-ob-q="ai_likeness" id="obAiLikenessWrap"></div>'; }
 
+    // A nested group with a subtle coloured rail, so the eye reads the hierarchy
+    // (Section -> sub-group -> field) without it being loud. `key` picks the rail hue.
+    function _obSubgroup(title, key, fieldsHtml){
+      return '<div class="ob-subgroup ob-sg-'+key+'"><div class="ob-subhead"><span class="ob-sg-dot"></span>'+_obEsc(title)+'</div>'+fieldsHtml.join('')+'</div>';
+    }
+
     function _obSections(){
       return [
         { id:'s1', n:'1', title:'Basic info', fields:[
@@ -12178,17 +12185,20 @@
         ]},
         { id:'s3', n:'3', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
           _obCreators(),
-          '<div class="ob-subhead">Video</div>',
-          _obSubtitles(),
-          _obBroll(),
-          _obMusic(),
-          _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
-          _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
-          '<div class="ob-subhead">Thumbnail</div>',
-          _obThumbStyle(),
-          _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
-          '<div class="ob-subhead">Anything else</div>',
-          _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
+          _obSubgroup('Video', 'video', [
+            _obSubtitles(),
+            _obBroll(),
+            _obMusic(),
+            _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
+            _obField({id:'video_reference', label:'Video reference (optional)', help:'Paste links to videos or reels whose look you like — editing, captions, fonts, vibe.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+          ]),
+          _obSubgroup('Thumbnail', 'thumb', [
+            _obThumbStyle(),
+            _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
+          ]),
+          _obSubgroup('Anything else', 'misc', [
+            _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
+          ]),
         ]},
         { id:'s4', n:'4', title:'Sample video', intro:'So your very first sample looks like your real videos — it\'s the single most useful thing you can give us.', fields:[
           _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
@@ -12242,7 +12252,9 @@
       _obInjectStyles();
       const card = document.getElementById('obCard'); if(!card) return;
       const sections = _obSections();
-      const head = '<div class="ob-headblock"><div class="ob-kicker">Synchro · Onboarding</div>'+
+      const head = '<div class="ob-headblock">'+
+        '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.svg" alt="Synchro Social"></span>'+
+        '<span class="ob-brand-txt"><span class="ob-brand-name">Synchro Social</span><span class="ob-kicker">Client Onboarding</span></span></div>'+
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
         '<p class="ob-sub">Takes about 15 minutes. The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
       const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
@@ -12256,7 +12268,7 @@
       const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div><button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
       card.innerHTML = head + rail + '<form id="obForm" autocomplete="off" novalidate>' + body + footer + '</form>';
       if(!document.getElementById('obTop')){
-        const b=document.createElement('button'); b.id='obTop'; b.className='ob-top'; b.type='button'; b.setAttribute('aria-label','Back to top'); b.innerHTML='↑';
+        const b=document.createElement('button'); b.id='obTop'; b.className='ob-top'; b.type='button'; b.setAttribute('aria-label','Back to top'); b.innerHTML='<svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true"><path d="M8 12.5V4M4.5 7.5L8 4l3.5 3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         b.addEventListener('click', ()=>window.scrollTo({top:0,behavior:'smooth'}));
         document.body.appendChild(b);
         window.addEventListener('scroll', _obToggleTop, {passive:true}); _obToggleTop();
@@ -12321,7 +12333,7 @@
     function _obSyncSelects(){ document.querySelectorAll('.ob-cs').forEach(cs=>{ const h=cs.querySelector('input[type="hidden"][data-ob]'); if(!h||!h.value) return; const opt=cs.querySelector('[data-cs-value="'+CSS.escape(h.value)+'"]'); const v=cs.querySelector('[data-cs-val]'); if(opt&&v) v.textContent=opt.textContent; }); }
 
     // ---- repeatable rows ----
-    function _obRepAdd(rep){ const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont) return; if(cont.querySelectorAll('.ob-rep-row').length>=8){ _obFlash('That\'s plenty 🙂'); return; } cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); }
+    function _obRepAdd(rep){ const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont) return; if(cont.querySelectorAll('.ob-rep-row').length>=8){ _obFlash('That\'s plenty for now.'); return; } cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep)); }
     function _obRepRemove(x){ const row=x.closest('.ob-rep-row'); if(!row) return; const cont=row.parentElement; const rep=cont.id==='obCreators'?'creators':'clips'; row.remove(); if(!cont.querySelector('.ob-rep-row')) cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, true)); _obSaveDraftDebounced(); }
 
     function _obAddCreatorRow(){ _obRepAdd('creators'); }
@@ -12475,6 +12487,12 @@
       .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
       .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
       .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
+      .ob-brand{ display:flex; align-items:center; gap:17px; margin-bottom:22px; }
+      .ob-logo-wrap{ position:relative; flex-shrink:0; display:inline-flex; }
+      .ob-logo-wrap::after{ content:''; position:absolute; inset:-16px -12px; background:radial-gradient(closest-side, rgba(162,28,230,0.42), rgba(162,28,230,0) 76%); filter:blur(9px); z-index:-1; }
+      .ob-logo{ width:90px; height:auto; display:block; filter:drop-shadow(0 3px 14px rgba(162,28,230,0.45)); }
+      .ob-brand-txt{ display:flex; flex-direction:column; gap:3px; }
+      .ob-brand-name{ font-size:1.18rem; font-weight:800; letter-spacing:-0.01em; line-height:1.05; }
       .ob-title{ font-size:1.6rem; font-weight:800; margin:8px 0 8px; letter-spacing:-0.02em; }
       .ob-sub{ font-size:0.9rem; line-height:1.5; color:var(--text-secondary); margin:0; }
       .ob-rail{ display:flex; flex-wrap:wrap; gap:6px; margin:20px 0 4px; }
@@ -12494,13 +12512,21 @@
       .ob-sec.collapsed .ob-sec-body{ grid-template-rows:0fr; }
       .ob-sec-inner{ min-height:0; overflow:hidden; }
       .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
-      .ob-subhead{ font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:22px 0 12px; padding-top:16px; border-top:1px solid var(--border-light); }
+      /* Nested sub-groups: a thin coloured rail makes the Section -> group -> field
+         hierarchy readable at a glance, kept low-key so it reads almost subconsciously. */
+      .ob-subgroup{ border-left:2px solid var(--sg-rail, var(--border)); padding-left:17px; margin:22px 0 6px; }
+      .ob-subgroup + .ob-subgroup{ margin-top:18px; }
+      .ob-subhead{ display:flex; align-items:center; gap:8px; font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:0 0 13px; color:var(--text-primary); }
+      .ob-sg-dot{ width:7px; height:7px; border-radius:50%; background:var(--sg-dot, var(--text-muted)); flex-shrink:0; box-shadow:0 0 0 3px var(--sg-halo, transparent); }
+      .ob-sg-video{ --sg-rail:rgba(129,140,248,0.55); --sg-dot:#818cf8; --sg-halo:rgba(129,140,248,0.13); }
+      .ob-sg-thumb{ --sg-rail:rgba(45,191,168,0.5); --sg-dot:#2dbfa8; --sg-halo:rgba(45,191,168,0.12); }
+      .ob-sg-misc{ --sg-rail:rgba(212,170,110,0.5); --sg-dot:#d4aa6e; --sg-halo:rgba(212,170,110,0.12); }
       .ob-q{ margin:0 0 16px; }
       .ob-label{ display:block; font-size:0.88rem; font-weight:600; margin-bottom:5px; line-height:1.4; }
       .ob-req{ color:var(--ig); margin-left:3px; }
       .ob-help{ font-size:0.78rem; line-height:1.45; color:var(--text-secondary); margin-bottom:8px; }
-      .ob-drivenote{ font-size:0.72rem; color:var(--text-muted); margin-top:5px; display:flex; align-items:center; gap:5px; }
-      .ob-drivenote::before{ content:'🔒'; font-size:0.7rem; }
+      .ob-drivenote{ font-size:0.72rem; color:var(--text-muted); margin-top:6px; display:flex; align-items:center; gap:6px; }
+      .ob-lock-ic{ flex-shrink:0; opacity:0.9; }
       .ob-input{ width:100%; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); box-sizing:border-box; transition:border-color 0.13s; }
       .ob-input:focus{ outline:none; border-color:var(--ob-accent); box-shadow:0 0 0 3px rgba(99,102,241,0.22); }
       .ob-input::placeholder{ color:var(--text-muted); }
@@ -12535,7 +12561,12 @@
       .ob-genre:hover{ border-color:var(--text-muted); }
       .ob-genre:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
       .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
-      .ob-genre-pick input{ accent-color:var(--ob-accent); margin:0; }
+      .ob-genre-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-chk{ flex-shrink:0; width:19px; height:19px; border-radius:6px; border:1.6px solid var(--border); background:var(--white); position:relative; transition:all 0.13s; }
+      .ob-genre-pick:hover .ob-chk{ border-color:var(--text-muted); }
+      .ob-genre-pick input:checked + .ob-chk{ background:var(--ob-accent); border-color:var(--ob-accent); }
+      .ob-genre-pick input:checked + .ob-chk::after{ content:''; position:absolute; left:6px; top:2.5px; width:4px; height:8px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
+      .ob-genre-pick input:focus-visible + .ob-chk{ outline:2px solid var(--ob-accent); outline-offset:2px; }
       .ob-genre-name{ font-weight:600; }
       .ob-play{ flex-shrink:0; width:27px; height:27px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:all 0.12s; }
       .ob-play svg{ display:block; margin-left:1px; }
@@ -12584,7 +12615,7 @@
       .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
-      .ob-ai-fields{ border-left:3px solid var(--border); padding-left:16px; margin-top:4px; }
+      .ob-ai-fields{ border-left:2px solid rgba(168,130,230,0.5); padding-left:17px; margin-top:8px; }
       .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
       .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
       .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
@@ -12599,7 +12630,7 @@
       .ob-thanks p{ font-size:0.92rem; line-height:1.55; color:var(--text-secondary); max-width:400px; margin:0 auto; }
       .ob-flash{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ob-accent); color:#fff; font-size:0.82rem; font-weight:600; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:all 0.2s; z-index:9999; }
       .ob-flash.show{ opacity:1; transform:translateX(-50%) translateY(0); }
-      .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); font-size:1.1rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.13); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; }
+      .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.3); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; display:flex; align-items:center; justify-content:center; }
       .ob-top.show{ opacity:1; pointer-events:auto; transform:translateY(0); }
       .ob-top:hover{ border-color:var(--text-muted); }
       @media(max-width:560px){ .ob-card{ padding:24px 16px; } .ob-genres,.ob-sub-grid{ grid-template-columns:1fr; } }

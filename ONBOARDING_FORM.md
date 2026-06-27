@@ -30,26 +30,27 @@ client types, and clears it on a successful submit.
 1. **Basic info** — name, email, phone, who else to loop in, billing contact.
 2. **Your brand & audience** — brand-guidelines link, ideal customer, pain points,
    desired outcomes, process.
-3. **Style** (the editing-direction module)
-   - **Creators for inspiration** + **clips you like** — repeatable rows (first row is
-     fixed, "+ Add another" adds a removable row with a subtle × ).
-   - **Music** — genre checkboxes (Inspirational, Ambient, Lofi, Piano, Guitar, Synth,
-     Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
-     `onboarding-audio/<key>.mp3`.
-   - **Subtitles (caption style)** — single-select cards: **Elegant** (thin serif),
-     **Native** (clean bold sans), **Banner** (text in a bar). Each plays a real ~10s client
-     clip (`onboarding-video/sub-<key>.mp4`). An **Add highlighted keywords** toggle
-     (`subtitle_highlight`) flips Elegant/Native to their `-hl` clip (coloured keyword);
-     Banner has no highlight variant. Plus a free-text **subtitle references** field.
-   - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / No B-roll.
-   - **Thumbnail style** — single-select cards: **Elegant** / **Box** / **Bold**, each a real
-     client cover (hot-linked Sandcastles URLs). An **Add highlighted keywords** toggle
-     (`thumbnail_highlight`) flips each card standard ↔ +highlight cover.
-   - Font preferences + a font **reference image** link, an optional overall **visual
-     reference** link, always/never notes (catch-all for anything not covered), and an
-     optional short sample clip of the client.
-   - *(There is no "video editing style" picker — editing feel is captured by the B-roll +
-     Music answers, and on-screen captions can't be reliably categorised from a still.)*
+3. **Style** — split into clear **Video** and **Thumbnail** groups (via `.ob-subhead`s).
+   - **Creators for inspiration** — repeatable rows (kept; the one structured "who to copy" field).
+   - **── Video ──**
+     - **Subtitle style** — single-select cards **Elegant / Native / Banner**. Each card shows
+       its name + the **Standard** and **+ Highlight** previews side-by-side (real ~10s client
+       clips, `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). A separate **Add highlighted
+       keywords** toggle (`subtitle_highlight`) is **disabled until a style with a highlight
+       variant is selected** (`_obStyleSel`); Banner has no highlight, so the toggle stays off
+       for it. The toggle no longer swaps previews — both are always shown.
+     - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / No B-roll.
+     - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
+     - **Music reference** + **Video reference** (paste links).
+   - **── Thumbnail ──**
+     - **Thumbnail style** — single-select cards **Elegant / Box / Bold**, same Standard/+Highlight
+       preview layout (hot-linked Sandcastles covers) + the same gated `thumbnail_highlight` toggle.
+     - **Thumbnail reference** (paste links/images).
+   - **── Anything else ──** always/never notes + the **sample clip of you** (clearly named so it's
+     distinct from the photos / source-material links).
+   - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
+     reference, visual reference, font preference, font reference image, and "clips you like" were
+     folded in. *(No "video editing style" picker — editing feel is the B-roll + Music answers.)*
 4. **Photos & source material** — both optional links (photos of you, content to pull from).
 5. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.

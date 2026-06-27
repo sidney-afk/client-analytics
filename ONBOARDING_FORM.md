@@ -36,17 +36,20 @@ client types, and clears it on a successful submit.
    - **Music** — genre checkboxes (Inspirational, Ambient, Lofi, Piano, Guitar, Synth,
      Spiritual, Classical, Trending) each with a ▶ that plays a hosted ~20s preview from
      `onboarding-audio/<key>.mp3`.
-   - **Subtitles** — a card per style: Native captions, Boxed banner, Minimal, Word-by-word,
-     Animated highlight. Four play a short ~10s video preview (`onboarding-video/<key>.mp4`);
-     Boxed banner uses a static Sandcastles frame (no clip provided yet). Tap a preview to
-     play/view full-screen. Plus a free-text **subtitle references** field (paste links to
-     styles you like) and a "highlight keywords" toggle.
-   - **B-roll** — chips (Stock footage / AI-generated / No B-roll; "No B-roll" is exclusive).
-     It's multi-select, so ticking both Stock + AI expresses a mix.
-   - Font preferences, overall feel + brand tone (multi-select chips, each with an exclusive
-     "Not sure — recommend for me" option that clears the rest), always/never notes (also the
-     catch-all for any style preference the options didn't cover), and an optional short
-     sample clip of the client.
+   - **Subtitles (caption style)** — single-select cards: **Elegant** (thin serif),
+     **Native** (clean bold sans), **Banner** (text in a bar). Each plays a real ~10s client
+     clip (`onboarding-video/sub-<key>.mp4`). An **Add highlighted keywords** toggle
+     (`subtitle_highlight`) flips Elegant/Native to their `-hl` clip (coloured keyword);
+     Banner has no highlight variant. Plus a free-text **subtitle references** field.
+   - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / No B-roll.
+   - **Thumbnail style** — single-select cards: **Elegant** / **Box** / **Bold**, each a real
+     client cover (hot-linked Sandcastles URLs). An **Add highlighted keywords** toggle
+     (`thumbnail_highlight`) flips each card standard ↔ +highlight cover.
+   - Font preferences + a font **reference image** link, an optional overall **visual
+     reference** link, always/never notes (catch-all for anything not covered), and an
+     optional short sample clip of the client.
+   - *(There is no "video editing style" picker — editing feel is captured by the B-roll +
+     Music answers, and on-screen captions can't be reliably categorised from a still.)*
 4. **Photos & source material** — both optional links (photos of you, content to pull from).
 5. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.
@@ -68,19 +71,22 @@ The two AI "look" options show a real reference frame from Sandcastles thumbnail
 `storage.googleapis.com` URLs in `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are
 byte-sliced MP3 clips under `onboarding-audio/`.
 
-Subtitle previews are **video-capable**: each `OB_SUBTITLE_TYPES` row is
-`[key, name, desc, imageUrl, videoUrl]`. The renderer prefers `videoUrl` (a short clip,
-tap to play full-screen), falls back to `imageUrl`, then to a "soon" placeholder. The
-full-screen zoom (`_obZoom`) auto-detects video vs image by extension. To add/replace a
-clip, drop an mp4 at `onboarding-video/<key>.mp4` and set the 5th column to
-`OB_VID+'<key>.mp4'` — no other code change needed.
+The subtitle and thumbnail pickers share `_obStyleCards(group, items, isVideo)`. Each row is
+`[key, name, desc, standardMedia, highlightMedia]`. Cards render the standard media; the
+group's **Highlight** toggle (`subtitle_highlight` / `thumbnail_highlight`) calls
+`_obSwapHl(group, on)` which swaps every card's media + zoom target to its highlight variant
+(rows with an empty `highlightMedia`, e.g. Banner, stay put). The full-screen zoom
+(`_obZoom`) auto-detects video vs image by extension.
 
-The four hosted clips (`native`, `minimal`, `wordbyword`, `highlight`) were trimmed to
-~10s and downscaled to 480×854 H.264 (`yuv420p`, `+faststart`, audio stripped) from the
-client's originals — ~0.5–1 MB each (`onboarding-video/`). Boxed banner still uses a
-Sandcastles frame until a clip is supplied. (Encode recipe: `ffmpeg -ss 2 -i src.mp4 -t 10
--vf scale=-2:854 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
--movflags +faststart out.mp4`.)
+- **Subtitle clips** — `onboarding-video/sub-{elegant,native,banner}.mp4` plus
+  `sub-elegant-hl.mp4` / `sub-native-hl.mp4`. Trimmed to ~10s, 480×854 H.264
+  (`yuv420p`, `+faststart`, no audio), ~0.3–0.5 MB each, cut from real client reels
+  (Elegant=Chelsey, Native=Jesse, Banner=Lily; Elegant-hl=Danielle, Native-hl=Lisa).
+  Reels are pulled with `yt-dlp` then cut: `ffmpeg -ss <t> -i src.mp4 -t 10 -vf scale=-2:854
+  -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow -movflags +faststart out.mp4`.
+- **Thumbnail covers** — hot-linked Sandcastles URLs (no hosting): Elegant=Chelsey/Edward,
+  Box=David Kessler/Lisa, Bold=Doug/Baya (standard/highlight). The two AI "look" frames use
+  `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`. To swap any, change the UUID / mp4 — no other code change.
 
 ## Data flow
 

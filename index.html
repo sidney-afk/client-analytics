@@ -11911,18 +11911,20 @@
           _obField({id:'thumbnail_reference', label:'Thumbnail reference (optional)', help:'Paste links or images of thumbnails / covers you like (Pinterest, screenshots, etc.).', type:'textarea', rows:2, placeholder:'Paste any links…'}),
           '<div class="ob-subhead">Anything else</div>',
           _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
-          _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'We\'ll use this so your first sample looks like your real videos — record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
-        { id:'s4', n:'4', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
+        { id:'s4', n:'4', title:'Sample video', intro:'So your very first sample looks like your real videos — it\'s the single most useful thing you can give us.', fields:[
+          _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
+        ]},
+        { id:'s5', n:'5', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
           _obField({id:'photos_link', label:'Link to photos of you', help:'A few clear, recent, high-quality photos.', type:'url', placeholder:'https://…', driveNote:true}),
           _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos — anything we can create from.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
-        { id:'s5', n:'5', title:'Goals', fields:[
+        { id:'s6', n:'6', title:'Goals', fields:[
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
           _obField({id:'anything_else', label:'Anything else we should know?', type:'textarea'}),
           _obField({id:'questions', label:'Questions or anything unclear?', help:'If none of the options above fit what you had in mind, or you\'re unsure about anything, ask away here.', type:'textarea'}),
         ]},
-        { id:'s6', n:'6', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
+        { id:'s7', n:'7', title:'Account access', intro:'So we can publish for you. Stored securely.', fields:[
           '<div class="ob-q"><div class="ob-info-panel">Prefer not to type passwords here? You can share them securely through <b>LastPass</b> to <b>house@synchrosocial.com</b> — we get access without the passwords ever being visible. Otherwise, just fill in what you can below.</div></div>',
           _obField({id:'instagram', label:'Instagram login', help:'e.g. yourbrand / Mypassword123', placeholder:'username / password', type:'text'}),
           _obField({id:'instagram_backup', label:'Instagram backup code', help:'Settings → Security → Two-factor → Backup codes.', type:'text'}),
@@ -11931,7 +11933,7 @@
           _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
           _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
         ]},
-        { id:'s7', n:'7', title:'AI avatar (optional)', isAi:true, fields:[
+        { id:'s8', n:'8', title:'AI avatar (optional)', isAi:true, fields:[
           '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
             '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
             '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="More about the AI avatar add-on">'+OB_INFO_SVG+'</button></div>'+
@@ -11966,9 +11968,12 @@
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
         '<p class="ob-sub">Takes about 15 minutes. The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
       const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
+      const chev = '<svg class="ob-sec-chev" viewBox="0 0 16 16" width="17" height="17" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const body = sections.map(s=>{
         const intro = s.intro ? '<p class="ob-sec-intro">'+_obEsc(s.intro)+'</p>' : '';
-        return '<section class="ob-sec" id="'+s.id+'"><div class="ob-sec-h"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2></div>'+intro+s.fields.join('')+'</section>';
+        return '<section class="ob-sec" id="'+s.id+'">'+
+          '<div class="ob-sec-h" data-ob-collapse role="button" tabindex="0"><span class="ob-sec-n">'+s.n+'</span><h2>'+_obEsc(s.title)+'</h2>'+chev+'</div>'+
+          '<div class="ob-sec-body"><div class="ob-sec-inner">'+intro+s.fields.join('')+'</div></div></section>';
       }).join('');
       const footer = '<div class="ob-footer"><div class="ob-err" id="obErr" style="display:none"></div><button type="button" class="ob-submit" id="obSubmit">Submit</button></div>';
       card.innerHTML = head + rail + '<form id="obForm" autocomplete="off" novalidate>' + body + footer + '</form>';
@@ -12015,6 +12020,7 @@
         _obSaveDraftDebounced();
       });
       form.addEventListener('click', e=>{
+        const col = e.target.closest && e.target.closest('[data-ob-collapse]'); if(col){ const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
         const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
@@ -12025,7 +12031,8 @@
       });
       // sample_clip is a normal field — keep likeness in sync on its input
       const sc = form.querySelector('[data-ob="sample_clip"]'); if(sc) sc.addEventListener('input', _obUpdateLikeness);
-      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{ const el=document.getElementById(b.getAttribute('data-ob-go')); if(el) el.scrollIntoView({behavior:'smooth',block:'start'}); }));
+      document.querySelectorAll('[data-ob-go]').forEach(b=>b.addEventListener('click',()=>{ const el=document.getElementById(b.getAttribute('data-ob-go')); if(el){ el.classList.remove('collapsed'); el.scrollIntoView({behavior:'smooth',block:'start'}); } }));
+      form.addEventListener('keydown', e=>{ const col=e.target.closest && e.target.closest('[data-ob-collapse]'); if(col && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); const sec=col.closest('.ob-sec'); if(sec) sec.classList.toggle('collapsed'); } });
       const ib=document.getElementById('obAiInfoBtn'); if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
       const sb=document.getElementById('obSubmit'); if(sb) sb.addEventListener('click', _obSubmit);
     }
@@ -12130,7 +12137,7 @@
       if(miss.length){
         err.style.display='block'; err.textContent='Please fill the highlighted fields ('+miss.length+' left).';
         document.querySelectorAll('.ob-q.ob-missing').forEach(q=>q.classList.remove('ob-missing'));
-        let first=null; miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); if(!first) first=q; } });
+        let first=null; miss.forEach(k=>{ const q=document.querySelector('[data-ob-q="'+k+'"]'); if(q){ q.classList.add('ob-missing'); const sec=q.closest('.ob-sec'); if(sec) sec.classList.remove('collapsed'); if(!first) first=q; } });
         if(first) first.scrollIntoView({behavior:'smooth',block:'center'}); return;
       }
       err.style.display='none';
@@ -12178,7 +12185,15 @@
     function _obInjectStyles(){
       if(document.getElementById('obStyles')) return;
       const css = `
-      body.onboarding-mode{ background:var(--bg); }
+      body.onboarding-mode{
+        background:var(--bg);
+        /* Dark theme — scoped to the onboarding page only (the dashboard keeps :root light). */
+        --bg:#101216; --white:#181b21;
+        --text-primary:#eceef2; --text-secondary:#a4abb8; --text-muted:#6c7480;
+        --border:#2a2f39; --border-light:#21252d;
+        --ig:#f4708a; --up:#34d399; --up-bg:#11261d; --dn:#f87171; --dn-bg:#2a1619;
+        --ob-accent:#6366f1;
+      }
       .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
       .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
       .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
@@ -12189,9 +12204,17 @@
       .ob-rail-btn:hover{ color:var(--text-primary); border-color:var(--text-muted); }
       .ob-sec{ padding:26px 0 4px; border-top:1px solid var(--border-light); margin-top:8px; }
       .ob-sec:first-of-type{ border-top:none; }
-      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin-bottom:4px; }
-      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--text-primary); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
+      .ob-sec-h{ display:flex; align-items:center; gap:10px; margin:0 -8px 8px; padding:5px 8px; border-radius:10px; cursor:pointer; user-select:none; transition:background 0.13s; }
+      .ob-sec-h:hover{ background:var(--bg); }
+      .ob-sec-h:focus-visible{ outline:2px solid var(--ob-accent); outline-offset:1px; }
+      .ob-sec-n{ display:inline-flex; align-items:center; justify-content:center; width:23px; height:23px; border-radius:99px; background:var(--ob-accent); color:#fff; font-size:0.76rem; font-weight:700; flex-shrink:0; }
       .ob-sec-h h2{ font-size:1.14rem; font-weight:700; margin:0; letter-spacing:-0.01em; }
+      .ob-sec-chev{ margin-left:auto; color:var(--text-muted); flex-shrink:0; transition:transform 0.28s cubic-bezier(.4,0,.2,1); }
+      .ob-sec-h:hover .ob-sec-chev{ color:var(--text-secondary); }
+      .ob-sec.collapsed .ob-sec-chev{ transform:rotate(-90deg); }
+      .ob-sec-body{ display:grid; grid-template-rows:1fr; transition:grid-template-rows 0.3s cubic-bezier(.4,0,.2,1); }
+      .ob-sec.collapsed .ob-sec-body{ grid-template-rows:0fr; }
+      .ob-sec-inner{ min-height:0; overflow:hidden; }
       .ob-sec-intro{ font-size:0.85rem; line-height:1.5; color:var(--text-secondary); margin:2px 0 14px; }
       .ob-subhead{ font-size:0.95rem; font-weight:700; letter-spacing:-0.01em; margin:22px 0 12px; padding-top:16px; border-top:1px solid var(--border-light); }
       .ob-q{ margin:0 0 16px; }
@@ -12201,14 +12224,15 @@
       .ob-drivenote{ font-size:0.72rem; color:var(--text-muted); margin-top:5px; display:flex; align-items:center; gap:5px; }
       .ob-drivenote::before{ content:'🔒'; font-size:0.7rem; }
       .ob-input{ width:100%; font-family:inherit; font-size:0.9rem; color:var(--text-primary); padding:10px 13px; border:1.5px solid var(--border); border-radius:10px; background:var(--white); box-sizing:border-box; transition:border-color 0.13s; }
-      .ob-input:focus{ outline:none; border-color:var(--text-primary); }
+      .ob-input:focus{ outline:none; border-color:var(--ob-accent); box-shadow:0 0 0 3px rgba(99,102,241,0.22); }
+      .ob-input::placeholder{ color:var(--text-muted); }
       .ob-ta{ resize:vertical; min-height:42px; line-height:1.5; }
       .ob-radios,.ob-checks{ display:flex; flex-wrap:wrap; gap:8px; }
       .ob-opt-wrap{ display:inline-flex; align-items:center; gap:4px; }
       .ob-pill-opt{ display:inline-flex; align-items:center; font-size:0.85rem; padding:10px 16px; border:1.5px solid var(--border); border-radius:10px; cursor:pointer; transition:all 0.13s; background:var(--white); user-select:none; position:relative; }
       .ob-pill-opt:hover{ border-color:var(--text-muted); background:var(--bg); }
       .ob-pill-opt input{ position:absolute; opacity:0; width:0; height:0; }
-      .ob-pill-opt:has(input:checked){ border-color:var(--text-primary); background:var(--text-primary); color:#fff; font-weight:600; }
+      .ob-pill-opt:has(input:checked){ border-color:var(--ob-accent); background:var(--ob-accent); color:#fff; font-weight:600; }
       .ob-i{ display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; width:20px; height:20px; padding:0; border:none; background:none; color:var(--text-muted); cursor:pointer; transition:color 0.12s; }
       .ob-i:hover{ color:var(--text-primary); }
       .ob-i svg{ display:block; }
@@ -12231,38 +12255,38 @@
       .ob-genres{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
       .ob-genre{ display:flex; align-items:center; gap:6px; padding:5px 7px 5px 12px; border:1.5px solid var(--border); border-radius:10px; transition:all 0.12s; }
       .ob-genre:hover{ border-color:var(--text-muted); }
-      .ob-genre:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-genre:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
       .ob-genre-pick{ display:flex; align-items:center; gap:8px; flex:1; font-size:0.85rem; cursor:pointer; min-width:0; }
-      .ob-genre-pick input{ accent-color:var(--text-primary); margin:0; }
+      .ob-genre-pick input{ accent-color:var(--ob-accent); margin:0; }
       .ob-genre-name{ font-weight:600; }
       .ob-play{ flex-shrink:0; width:27px; height:27px; border-radius:50%; border:1.5px solid var(--border); background:var(--white); color:var(--text-primary); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; transition:all 0.12s; }
       .ob-play svg{ display:block; margin-left:1px; }
       .ob-play.ob-playing svg{ margin-left:0; }
-      .ob-play:hover{ border-color:var(--text-primary); }
-      .ob-play.ob-playing{ background:var(--text-primary); color:#fff; border-color:var(--text-primary); }
+      .ob-play:hover{ border-color:var(--ob-accent); }
+      .ob-play.ob-playing{ background:var(--ob-accent); color:#fff; border-color:var(--ob-accent); }
       .ob-sub-grid{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
       .ob-sub-card{ display:flex; gap:10px; align-items:center; padding:10px 11px; border:1.5px solid var(--border); border-radius:12px; transition:all 0.12s; }
       .ob-sub-card:hover{ border-color:var(--text-muted); }
-      .ob-sub-card:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-sub-card:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
       .ob-sub-pick{ display:flex; align-items:center; gap:10px; min-width:0; flex:1; cursor:pointer; }
       .ob-sub-pick input{ position:absolute; opacity:0; width:0; height:0; }
       .ob-sub-dot{ flex-shrink:0; width:18px; height:18px; border-radius:50%; border:1.6px solid var(--border); background:var(--white); position:relative; transition:all 0.12s; }
-      .ob-sub-card:has(input:checked) .ob-sub-dot{ border-color:var(--text-primary); }
-      .ob-sub-card:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--text-primary); }
+      .ob-sub-card:has(input:checked) .ob-sub-dot{ border-color:var(--ob-accent); }
+      .ob-sub-card:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--ob-accent); }
       .ob-sub-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
       .ob-sub-name{ font-size:0.84rem; font-weight:600; }
       .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
-      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:#eee; border:none; padding:0; cursor:zoom-in; }
+      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--border-light); border:none; padding:0; cursor:zoom-in; }
       .ob-sub-thumb img,.ob-sub-thumb video{ width:100%; height:100%; object-fit:cover; display:block; }
       .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; cursor:default; }
       .ob-stgrid{ display:flex; flex-direction:column; gap:10px; }
       .ob-stcard{ border:1.5px solid var(--border); border-radius:12px; padding:12px 14px; transition:all 0.12s; }
       .ob-stcard:hover{ border-color:var(--text-muted); }
-      .ob-stcard:has(input:checked){ border-color:var(--text-primary); background:var(--bg); }
+      .ob-stcard:has(input:checked){ border-color:var(--ob-accent); background:var(--bg); }
       .ob-stcard-head{ display:flex; align-items:center; gap:10px; cursor:pointer; }
       .ob-stcard-head input{ position:absolute; opacity:0; width:0; height:0; }
-      .ob-stcard:has(input:checked) .ob-sub-dot{ border-color:var(--text-primary); }
-      .ob-stcard:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--text-primary); }
+      .ob-stcard:has(input:checked) .ob-sub-dot{ border-color:var(--ob-accent); }
+      .ob-stcard:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--ob-accent); }
       .ob-stp-row{ display:flex; gap:14px; margin-top:11px; }
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:zoom-in; }
@@ -12279,7 +12303,7 @@
       .ob-switch input{ opacity:0; width:0; height:0; }
       .ob-switch-track{ position:absolute; inset:0; background:var(--border); border-radius:99px; transition:0.18s; }
       .ob-switch-track::before{ content:''; position:absolute; height:20px; width:20px; left:3px; top:3px; background:#fff; border-radius:50%; transition:0.18s; box-shadow:0 1px 2px rgba(0,0,0,0.2); }
-      .ob-switch input:checked + .ob-switch-track{ background:var(--text-primary); }
+      .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
       .ob-ai-fields{ border-left:3px solid var(--border); padding-left:16px; margin-top:4px; }
@@ -12287,7 +12311,7 @@
       .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
       .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
       .ob-err{ font-size:0.83rem; color:var(--dn); background:var(--dn-bg); border:1px solid var(--dn); border-radius:9px; padding:10px 13px; margin-bottom:12px; }
-      .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:#fff; background:var(--text-primary); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
+      .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:#fff; background:var(--ob-accent); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
       .ob-submit:hover{ opacity:0.88; } .ob-submit:disabled{ opacity:0.5; cursor:default; }
       .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid,.ob-q.ob-missing .ob-stgrid,.ob-q.ob-missing .ob-cs-btn{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
       .ob-q.ob-missing .ob-label{ color:var(--dn); }
@@ -12295,7 +12319,7 @@
       .ob-thanks-ico{ width:54px; height:54px; border-radius:99px; background:var(--up-bg); color:var(--up); display:flex; align-items:center; justify-content:center; font-size:1.7rem; margin:0 auto 16px; }
       .ob-thanks h1{ font-size:1.45rem; font-weight:800; margin:0 0 10px; }
       .ob-thanks p{ font-size:0.92rem; line-height:1.55; color:var(--text-secondary); max-width:400px; margin:0 auto; }
-      .ob-flash{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--text-primary); color:#fff; font-size:0.82rem; font-weight:600; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:all 0.2s; z-index:9999; }
+      .ob-flash{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px); background:var(--ob-accent); color:#fff; font-size:0.82rem; font-weight:600; padding:10px 18px; border-radius:99px; opacity:0; pointer-events:none; transition:all 0.2s; z-index:9999; }
       .ob-flash.show{ opacity:1; transform:translateX(-50%) translateY(0); }
       .ob-top{ position:fixed; bottom:22px; right:22px; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--white); color:var(--text-primary); font-size:1.1rem; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.13); opacity:0; pointer-events:none; transform:translateY(10px); transition:all 0.2s; z-index:9998; }
       .ob-top.show{ opacity:1; pointer-events:auto; transform:translateY(0); }

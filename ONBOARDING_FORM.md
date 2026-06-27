@@ -25,6 +25,17 @@ reachable only by knowing the link. Like `?intake=1`, this mode:
 The page autosaves a draft to `localStorage` (`syncview_onboarding_draft_v1`) as the
 client types, and clears it on a successful submit.
 
+The page is **dark-themed** — the dark palette is scoped to `body.onboarding-mode`
+(redefining `--bg`, `--white`, `--text-primary`, etc., plus a new `--ob-accent` indigo
+for selected states / the submit button), so the rest of the dashboard keeps its light
+`:root` theme untouched.
+
+Every section is **collapsible** (expanded by default). The numbered section header is a
+`role="button"` row with a rotating chevron; click it (or focus + Enter/Space) to toggle.
+The body animates open/closed via a `grid-template-rows: 1fr → 0fr` transition. Jumping to
+a section from the top nav, or hitting a missing required field on submit, auto-expands the
+relevant section.
+
 ## Sections (the approved question set)
 
 1. **Basic info** — name, email, phone, who else to loop in, billing contact.
@@ -46,18 +57,20 @@ client types, and clears it on a successful submit.
      - **Thumbnail style** — single-select cards **Elegant / Box / Bold**, same Standard/+Highlight
        preview layout (hot-linked Sandcastles covers) + the same gated `thumbnail_highlight` toggle.
      - **Thumbnail reference** (paste links/images).
-   - **── Anything else ──** always/never notes + the **sample clip of you** (clearly named so it's
-     distinct from the photos / source-material links).
+   - **── Anything else ──** always/never notes (the do's & don'ts).
    - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
      reference, visual reference, font preference, font reference image, and "clips you like" were
      folded in. *(No "video editing style" picker — editing feel is the B-roll + Music answers.)*
-4. **Photos & source material** — both optional links (photos of you, content to pull from).
-5. **Goals** — what a win looks like, anything else, and a free-text **questions /
+4. **Sample video** — its own section (it's the single most useful thing a client can give us, and
+   it isn't really a *style* choice): the **sample clip of you** (~30s talking to camera), clearly
+   named so it's distinct from the photos / source-material links.
+5. **Photos & source material** — both optional links (photos of you, content to pull from).
+6. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.
-6. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
+7. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
    to share credentials securely via LastPass to `house@synchrosocial.com` instead of typing
    them. These login fields are the only ones the dashboard viewer strips.
-7. **AI avatar (optional)** — last section. Gated behind the "Want to add an AI avatar?"
+8. **AI avatar (optional)** — last section. Gated behind the "Want to add an AI avatar?"
    Yes/No question (**defaults to No**) with an ⓘ explainer that frames it as a separate
    add-on — its own production system and pricing, handled directly with Casper (deliberately
    no prices or firm promises). When Yes: what to build the likeness from (reuses the sample
@@ -130,9 +143,9 @@ form is submitted" from the June 25 call. (A second auto-message after the onboa
 
 ## Status
 
-- ✅ Front-end page — built, renders, validates, autosaves, graceful submit-failure. Verified
-  in a headless browser (`?onboarding=test`): 7 sections, 7 style matrices, AI gate reveal,
-  required-field validation, draft restore.
+- ✅ Front-end page — dark-themed, built, renders, validates, autosaves, graceful submit-failure.
+  Verified in a headless browser (`?onboarding=test`): 8 collapsible sections, style pickers,
+  AI gate reveal, required-field validation (auto-expands collapsed sections), draft restore.
 - ✅ `onboarding-supabase-migration.sql` — committed; **run it once** in the Supabase SQL
   editor (project `uzltbbrjidmjwwfakwve`).
 - 🟡 n8n `onboarding-submit` webhook — **created** (workflow id `ljNY7CKYLKzMOACZ`,

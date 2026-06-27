@@ -36,9 +36,10 @@ The body animates open/closed via a `grid-template-rows: 1fr → 0fr` transition
 a section from the top nav, or hitting a missing required field on submit, auto-expands the
 relevant section.
 
-The page leads with the **Synchro Social logo** (`syncview-favicon.png`) given presence — a
-64px rounded mark with a soft purple glow that ties into the indigo accent — beside the
-brand name + "Client Onboarding" label.
+The page leads with the **Synchro Social logo** (`synchro-social-logo.svg`, the purple
+infinity mark) given presence — a 90px mark with a soft purple glow — beside the brand
+name + "Client Onboarding" label. (The SVG is a clean recreation of the brand mark; swap
+in the official file at that path to replace it, no code change needed.)
 
 **Visual hierarchy** is conveyed with subtle colour: nested sub-groups inside a section
 (e.g. Style → *Video* / *Thumbnail* / *Anything else*, and the AI-avatar reveal) sit behind

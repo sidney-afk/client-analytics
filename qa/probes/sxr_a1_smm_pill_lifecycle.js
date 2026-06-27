@@ -38,9 +38,9 @@ async function pickStatus(page, id, comp, status) {
   }, { id, comp });
   await page.waitForTimeout(180);
   return await page.evaluate((status) => {
-    const menu = document.querySelector('.cal-fld-status-menu');
+    const menu = document.querySelector('.sxr-status-menu');
     if (!menu) return { ok: false, reason: 'no menu opened' };
-    const opts = Array.from(menu.querySelectorAll('.cal-fld-status-item'));
+    const opts = Array.from(menu.querySelectorAll('.cal-fld-status-opt'));
     const opt = opts.find(b => b.textContent.trim() === status);
     if (!opt) return { ok: false, reason: 'no option', opts: opts.map(b => b.textContent.trim()) };
     opt.click();

@@ -42,14 +42,13 @@ const ok = (c, m, x) => { if (c) pass++; else fail++; console.log((c ? '  PASS '
     // Wait for the client surface to render our cards. (_isClientLink is module-
     // scoped, not on window; the client surface is proven by cards rendering
     // READ-ONLY — none carry the SMM's .is-editable class.)
-    // The client surface is the calendar review LIST: collapsible
-    // .cal-review-card[data-sxr-review-pid] kcards (NOT the SMM .sxr-card strip).
     let state = {};
     for (let i = 0; i < 30; i++) {
       state = await page.evaluate((ids) => {
-        const card = (id) => document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
+        const card = (id) => document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
+        const c = card(ids.active);
         return {
-          active: !!card(ids.active), inprog: !!card(ids.inprog), done: !!card(ids.done), hidden: !!card(ids.hidden),
+          active: !!c, inprog: !!card(ids.inprog), done: !!card(ids.done), hidden: !!card(ids.hidden),
           anyEditable: !!document.querySelector('.sxr-card.is-editable'),
         };
       }, ids);
@@ -57,22 +56,14 @@ const ok = (c, m, x) => { if (c) pass++; else fail++; console.log((c ? '  PASS '
       await page.waitForTimeout(900);
     }
     ok(state.active && state.inprog && state.done, 'in-review + finished samples all render on the client surface', state);
-    ok(state.hidden === false, 'an all-In-Progress sample is NOT client-ready (no review card at all)', state);
     ok(state.anyEditable === false, 'client cards are READ-ONLY (none carry the SMM .is-editable class)', state);
-
-    // Cards start collapsed (like the calendar) — expand the three rendered ones
-    // so their per-component review panels are in the DOM to inspect.
-    await page.evaluate((ids) => {
-      ['active', 'inprog', 'done'].forEach(k => { const s = document.querySelector(`.cal-review-card[data-sxr-review-pid="${ids[k]}"] .kcard-strip`); if (s) s.click(); });
-    }, ids);
-    await page.waitForTimeout(450);
 
     // ── per-card render state ──
     const view = await page.evaluate((ids) => {
       const panelInfo = (id) => {
-        const card = document.querySelector(`.cal-review-card[data-sxr-review-pid="${id}"]`);
+        const card = document.querySelector(`.sxr-card[data-sxr-id="${id}"]`);
         if (!card) return null;
-        const body = card.querySelector('.cal-review-body');
+        const body = card.querySelector('.sxr-client-review-body');
         const vp = card.querySelector('.cal-review-panel[data-sxr-cl-comp="video"]');
         const gp = card.querySelector('.cal-review-panel[data-sxr-cl-comp="graphic"]');
         const approveBtns = card.querySelectorAll('.cal-review-approve-btn').length;

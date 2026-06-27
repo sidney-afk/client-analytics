@@ -72,18 +72,9 @@ async function cardReady(page, id, tries = 25) {
     Q.resetLinearCalls();
     const beforeClear = rowOf(id);
     ok(beforeClear && norm(beforeClear.graphic_linear_issue_id) === GRA, 'graphic link is set before the clear', beforeClear && beforeClear.graphic_linear_issue_id);
-    // Tier-3 slot UI: click the edit pencil on the linked GRAPHIC slot to reveal
-    // its input, then clear it + blur → _sxrLinearCommit('') → __CLEAR_LINK__.
     await page.evaluate((id) => {
-      const card = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"]`);
-      const pencil = card && card.querySelector('.cal-linear-pile .cal-linear-link-wrap:has(.cal-linear-btn-graphic) .cal-linear-edit');
-      if (pencil) pencil.click();
-    }, id);
-    await page.waitForTimeout(250);
-    await page.evaluate((id) => {
-      const card = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"]`);
-      const el = card && card.querySelector('.cal-title-row .cal-linear-input');
-      if (el) { el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('blur', { bubbles: true })); }
+      const el = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"] input[data-sxr-fld="graphic_linear_issue_id"]`);
+      el.focus(); el.value = ''; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('blur', { bubbles: true }));
     }, id);
     const rClear = await waitRow(id, r => norm(r.graphic_linear_issue_id) === '', 20000);
     ok(rClear && norm(rClear.graphic_linear_issue_id) === '', 'clearing the link persists EMPTY via __CLEAR_LINK__ (not carried forward)', rClear && rClear.graphic_linear_issue_id);

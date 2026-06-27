@@ -3881,53 +3881,21 @@
         .sxr-embed-title strong { font-size:1.1rem; font-weight:800; color:var(--text-primary); display:block; }
         .sxr-embed-title span { font-size:0.78rem; color:var(--text-secondary); }
         .sxr-tabs { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-        .sxr-toolbar-right { display:flex; align-items:center; gap:10px; flex:0 0 auto; }
-        .sxr-share-btn { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:8px; padding:6px 11px; font-family:inherit; font-size:0.74rem; font-weight:700; cursor:pointer; transition:border-color 0.14s, color 0.14s; }
-        .sxr-share-btn:hover { color:var(--text-primary); border-color:#aaa; }
-        .sxr-share-btn svg { width:14px; height:14px; }
         .sxr-tabs-empty { font-size:0.82rem; color:var(--text-muted); }
         .sxr-tab { display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border:1px solid var(--border); background:var(--white); border-radius:99px; font-size:0.8rem; font-weight:700; color:var(--text-secondary); cursor:pointer; }
         .sxr-tab:hover { border-color:#cfcfcb; }
         .sxr-tab.active { background:hsl(var(--tab-h,250),70%,96%); border-color:hsl(var(--tab-h,250),50%,72%); color:hsl(var(--tab-h,250),45%,32%); }
         .sxr-tab-dot { width:8px; height:8px; border-radius:99px; background:hsl(var(--tab-h,250),60%,55%); flex:0 0 auto; }
-        .sxr-tab-badge { display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; border-radius:99px; background:#ec4899; color:#fff; font-size:0.62rem; font-weight:800; }
-        .sxr-tab-x { display:inline-flex; align-items:center; justify-content:center; width:15px; height:15px; border-radius:99px; color:var(--text-muted); font-size:0.95rem; line-height:1; opacity:0; transition:opacity 0.12s, background 0.12s; }
-        .sxr-tab:hover .sxr-tab-x { opacity:0.75; }
-        .sxr-tab-x:hover { opacity:1; background:rgba(0,0,0,0.08); }
-        .sxr-tab-add-wrap { position:relative; display:inline-flex; }
-        .sxr-tab-add { display:inline-flex; align-items:center; gap:6px; padding:7px 11px; border:1px dashed var(--border); background:transparent; border-radius:99px; color:var(--text-muted); font-family:inherit; font-size:0.78rem; font-weight:700; cursor:pointer; }
-        .sxr-tab-add:hover { color:var(--text-primary); border-color:#aaa; }
-        .sxr-tab-add svg { width:14px; height:14px; }
-        .sxr-tab-add-panel { position:absolute; top:calc(100% + 6px); left:0; z-index:120; min-width:200px; max-height:300px; overflow-y:auto; background:var(--white); border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 22px rgba(0,0,0,0.12); padding:5px; }
-        .sxr-tab-add-panel[hidden] { display:none; }
-        .sxr-tab-add-item { display:block; width:100%; text-align:left; padding:8px 10px; border:0; background:transparent; border-radius:7px; font-family:inherit; font-size:0.8rem; color:var(--text-primary); cursor:pointer; }
-        .sxr-tab-add-item:hover { background:var(--bg); }
-        .sxr-tab-add-empty { padding:10px; font-size:0.78rem; color:var(--text-muted); }
         .sxr-body { padding-top:14px; }
-        /* Samples mirror the content-calendar SMM strip: a horizontal scroll of
-           wide cards (not a grid of tiles), so the card markup can reuse the
-           calendar's --cal-card-w / --cal-thumb-h sizing verbatim. */
-        .sxr-grid { display:flex; gap:14px; overflow-x:auto; align-items:flex-start; padding:10px 4px 30px; min-height:320px; --cal-card-w:420px; --cal-thumb-h:184px; scrollbar-width:thin; }
-        .sxr-grid::after { content:''; flex:0 0 clamp(40px, 18vw, 400px); }
-        #sxrBody[data-zoom="s"] .sxr-grid { --cal-card-w:336px; --cal-thumb-h:148px; }
-        #sxrBody[data-zoom="l"] .sxr-grid { --cal-card-w:500px; --cal-thumb-h:230px; }
-        .sxr-zoom { flex:0 0 auto; }
-        .sxr-card { position:relative; flex:0 0 var(--cal-card-w, 420px); background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; transition:box-shadow 0.12s, border-color 0.12s; }
-        .sxr-card-thumb { width:100%; height:calc(var(--cal-thumb-h, 184px) + 16px); background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); position:relative; padding:8px 14px; box-sizing:border-box; flex-shrink:0; }
-        .sxr-thumb-drivewarn { position:absolute; left:0; right:0; bottom:0; font-size:0.6rem; font-weight:700; color:#fff; background:rgba(234,88,12,0.92); padding:4px 6px; text-align:center; line-height:1.3; }
-        .sxr-lightbox { position:fixed; inset:0; z-index:3000; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,0.82); padding:40px; }
-        .sxr-lightbox.open { display:flex; }
-        .sxr-lightbox img { max-width:90vw; max-height:90vh; border-radius:8px; box-shadow:0 10px 40px rgba(0,0,0,0.5); }
-        .sxr-lightbox-close { position:absolute; top:20px; right:24px; width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,0.15); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
-        .sxr-lightbox-close svg { width:18px; height:18px; }
-        .sxr-card-thumb img { display:block; max-width:100%; max-height:var(--cal-thumb-h, 184px); width:auto; height:auto; object-fit:contain; object-position:center; border-radius:10px; box-shadow:0 10px 26px rgba(0,0,0,0.20); cursor:zoom-in; }
+        .sxr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:16px; padding-bottom:30px; }
+        .sxr-card { background:var(--white); border:1px solid var(--border); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+        .sxr-card-thumb { width:100%; aspect-ratio:16/10; background:linear-gradient(155deg,#f7f7f5 0%,#e7e7e3 100%); display:flex; align-items:center; justify-content:center; overflow:hidden; color:var(--text-muted); }
+        .sxr-card-thumb img { width:100%; height:100%; object-fit:cover; display:block; }
         .sxr-card-thumb-fallback { display:flex; align-items:center; justify-content:center; width:100%; height:100%; }
         .sxr-card-meta { padding:11px 13px 13px; display:flex; flex-direction:column; gap:8px; }
         .sxr-card-name { font-size:0.86rem; font-weight:700; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
         .sxr-card-pills { display:flex; flex-wrap:wrap; gap:6px; }
         .sxr-card-cd { font-size:0.76rem; color:var(--text-secondary); line-height:1.4; white-space:pre-wrap; max-height:5.6em; overflow:hidden; }
-        /* Creative-direction note shown to the client at the top of an expanded review card. */
-        .sxr-review-cd { padding:14px 18px 0; font-size:0.84rem; color:var(--text-secondary); line-height:1.45; white-space:pre-wrap; }
 
         /* ── editable card (M2) ── */
         .sxr-card.is-editable { position:relative; }
@@ -3935,80 +3903,18 @@
         .sxr-card-grip { position:absolute; top:7px; left:7px; z-index:3; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:7px; background:rgba(255,255,255,0.86); color:var(--text-muted); cursor:grab; opacity:0; transition:opacity 0.14s; backdrop-filter:blur(3px); }
         .sxr-card.is-editable:hover .sxr-card-grip { opacity:0.85; }
         .sxr-card-grip svg { width:13px; height:13px; }
-        .sxr-card-del { position:absolute; top:7px; right:7px; z-index:4; width:24px; height:24px; border-radius:50%; border:0; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.86); color:var(--text-muted); cursor:pointer; opacity:0; transition:opacity 0.14s, background 0.14s, color 0.14s; backdrop-filter:blur(3px); }
-        .sxr-card.is-editable:hover .sxr-card-del { opacity:1; }
-        .sxr-card-del:hover { background:var(--dn); color:#fff; }
-        .sxr-card-del svg { width:12px; height:12px; display:block; }
-        .sxr-card-link { position:absolute; top:7px; left:37px; z-index:4; width:24px; height:24px; border-radius:6px; border:0; display:inline-flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.86); color:var(--text-muted); cursor:pointer; opacity:0; transition:opacity 0.14s, background 0.14s, color 0.14s; backdrop-filter:blur(3px); }
-        .sxr-card.is-editable:hover .sxr-card-link { opacity:1; }
-        .sxr-card-link:hover { color:var(--text-primary); }
-        .sxr-card-link.copied { background:#dcfce7; color:#15803d; opacity:1; }
-        .sxr-card-link svg { width:13px; height:13px; display:block; }
-        .sxr-card.sxr-card-current { box-shadow:-3px 0 0 0 #5e6ad2 inset, 0 1px 3px rgba(0,0,0,0.05); }
-        .sxr-card.sxr-card-focus { animation:sxrFocusPulse 2.2s ease; }
-        @keyframes sxrFocusPulse { 0%,100% { box-shadow:0 1px 3px rgba(0,0,0,0.05); } 18%,62% { box-shadow:0 0 0 3px rgba(94,106,210,0.45); } }
-        .sxr-select-btn { display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; flex:none; }
-        .sxr-select-btn:hover { color:var(--text-primary); border-color:#aaa; }
-        .sxr-select-btn.active { background:var(--text-primary); border-color:var(--text-primary); color:#fff; }
-        .sxr-select-btn svg { width:15px; height:15px; }
-        .sxr-card-selectable { cursor:pointer; }
-        .sxr-card-select-overlay { position:absolute; inset:0; z-index:10; display:flex; align-items:flex-start; justify-content:flex-end; padding:8px; }
-        .sxr-card-select-check { width:22px; height:22px; border-radius:50%; border:2px solid var(--border); background:rgba(255,255,255,0.9); position:relative; }
-        .sxr-card-selected .sxr-card-select-check { background:#5e6ad2; border-color:#5e6ad2; }
-        .sxr-card-selected .sxr-card-select-check::after { content:''; position:absolute; left:6px; top:3px; width:5px; height:9px; border:solid #fff; border-width:0 2px 2px 0; transform:rotate(45deg); }
-        .sxr-card-selected { outline:2px solid #5e6ad2; outline-offset:-2px; }
-        .sxr-select-bar { position:sticky; bottom:0; display:flex; align-items:center; gap:14px; margin-top:14px; padding:12px 16px; background:var(--white); border:1px solid var(--border); border-radius:12px; box-shadow:0 -2px 10px rgba(0,0,0,0.06); }
-        .sxr-select-count { font-size:0.82rem; font-weight:700; color:var(--text-secondary); flex:1; }
-        .sxr-select-archive { border:0; border-radius:8px; padding:7px 16px; background:#dc2626; color:#fff; font-family:inherit; font-size:0.8rem; font-weight:700; cursor:pointer; }
-        .sxr-select-archive:disabled { opacity:0.5; cursor:default; }
-        .sxr-select-cancel { border:1px solid var(--border); border-radius:8px; padding:7px 14px; background:var(--white); color:var(--text-secondary); font-family:inherit; font-size:0.8rem; font-weight:700; cursor:pointer; }
-        .sxr-card.is-blank .sxr-card-grip, .sxr-card.is-blank .sxr-card-del { display:none; }
-        .sxr-card-add { flex:0 0 auto; align-self:center; display:flex; align-items:center; justify-content:center; gap:8px; width:54px; height:54px; border:2px dashed var(--border); border-radius:13px; background:transparent; color:var(--text-muted); cursor:pointer; font-family:inherit; font-weight:700; font-size:0.8rem; transition:border-color 0.14s, background 0.14s, color 0.14s; }
-        .sxr-card-add:hover { border-color:var(--text-primary); border-style:solid; background:var(--text-primary); color:#fff; }
-        .sxr-card-add svg { width:20px; height:20px; }
-        .sxr-card-add-hero { width:auto; min-width:168px; height:168px; border-radius:18px; flex-direction:column; gap:12px; }
-        .sxr-card-add-hero svg { width:32px; height:32px; }
-        .sxr-card-add-hero span { font-size:0.84rem; }
-        .sxr-grid.is-empty { justify-content:center; align-items:center; padding-top:24px; }
-        .sxr-grid.is-empty::after { content:none; }
-        .sxr-retry-link { background:none; border:0; color:var(--ac); font-family:inherit; font-weight:700; font-size:inherit; cursor:pointer; text-decoration:underline; padding:0 0 0 4px; }
         .sxr-card.sxr-dragging { opacity:0.45; }
         .sxr-fld { display:flex; flex-direction:column; gap:5px; }
         .sxr-fld-label { font-size:0.6rem; font-weight:800; color:var(--text-muted); letter-spacing:0.07em; text-transform:uppercase; }
         .sxr-input, .sxr-textarea { width:100%; font-family:inherit; font-size:0.82rem; line-height:1.5; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:7px 9px; resize:none; transition:border-color 0.12s, background 0.12s; box-sizing:border-box; }
         .sxr-input:focus, .sxr-textarea:focus { outline:none; border-color:var(--accent,#6c5ce7); background:var(--white); }
         .sxr-input::placeholder, .sxr-textarea::placeholder { color:var(--text-muted); }
-        /* The SMM name field reuses the calendar's borderless .cal-fld-name look;
-           .sxr-name-input stays only as a JS/probe hook (no conflicting style). */
-        .sxr-name-input { }
+        .sxr-name-input { font-size:0.88rem; font-weight:700; color:var(--text-primary); }
         .sxr-url-row { display:flex; align-items:center; gap:6px; }
         .sxr-url-row .sxr-input { flex:1; min-width:0; font-size:0.74rem; }
         .sxr-url-open { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; flex:none; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; }
         .sxr-url-open:hover { background:var(--bg); color:var(--text-primary); }
         .sxr-url-open svg { width:13px; height:13px; }
-        /* Linear sub-issue slots */
-        .sxr-linear-row { display:flex; flex-direction:column; gap:4px; }
-        .sxr-linear-btn { display:inline-flex; align-items:center; gap:7px; flex:1; min-width:0; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:8px; padding:6px 9px; font-family:inherit; font-size:0.72rem; font-weight:700; cursor:pointer; text-decoration:none; text-align:left; }
-        .sxr-linear-btn svg { width:13px; height:13px; flex:none; }
-        .sxr-linear-btn span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .sxr-linear-btn.is-linked { background:#ecedfb; border-color:#c7caf3; color:#5e6ad2; }
-        .sxr-linear-btn.is-linked.sxr-linear-graphic { background:#fbe7fe; border-color:#f0c4f7; color:#c026d3; }
-        .sxr-linear-btn.is-linked:hover { filter:brightness(0.97); }
-        .sxr-linear-warn { background:#fff7ed; border-color:#fed7aa; color:#ea580c; }
-        .sxr-linear-warn:hover { background:#ffedd5; }
-        .sxr-linear-row { position:relative; }
-        .sxr-linear-edit { position:absolute; top:5px; right:5px; display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:6px; border:0; background:rgba(255,255,255,0.7); color:inherit; cursor:pointer; opacity:0.7; }
-        .sxr-linear-edit:hover { opacity:1; background:rgba(255,255,255,0.95); }
-        .sxr-linear-edit svg { width:12px; height:12px; }
-        .sxr-linear-input { font-size:0.74rem; }
-        .sxr-linear-parent-warn { font-size:0.66rem; font-weight:700; color:#ea580c; background:#fff7ed; border:1px solid #fed7aa; border-radius:6px; padding:4px 7px; }
-        .sxr-link-conflict { display:flex; flex-direction:column; gap:6px; background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:7px 9px; }
-        .sxr-link-conflict-msg { font-size:0.7rem; font-weight:600; color:#9a3412; }
-        .sxr-link-conflict-actions { display:flex; gap:7px; }
-        .sxr-link-conflict-move, .sxr-link-conflict-cancel { border:0; border-radius:7px; padding:4px 10px; font-family:inherit; font-size:0.7rem; font-weight:700; cursor:pointer; }
-        .sxr-link-conflict-move { background:#5e6ad2; color:#fff; }
-        .sxr-link-conflict-cancel { background:var(--white); border:1px solid var(--border); color:var(--text-secondary); }
-        .sxr-dupe-warn { font-size:0.66rem; font-weight:700; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:5px 8px; }
         .sxr-dir-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
         .sxr-dir-toggle { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); border-radius:999px; padding:3px 9px; font-family:inherit; font-size:0.6rem; font-weight:700; letter-spacing:0.01em; text-transform:none; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
         .sxr-dir-toggle:hover { background:var(--bg); color:var(--text-primary); }
@@ -13979,24 +13885,7 @@
     const SXR_RT_SELF_ECHO_MS = 4000;
 
     /* sxrState — this module's ENTIRE mutable surface. Never touch calState/smState. */
-    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false, selectMode: false, selected: new Set(), lastSel: null, zoom: (function () { try { return localStorage.getItem('syncview_sxr_zoom') || 'm'; } catch (e) { return 'm'; } })() };
-    const SXR_ZOOM_LEVELS = ['s', 'm', 'l'];
-    function _sxrApplyZoom() {
-        const body = document.getElementById('sxrBody');
-        if (body) body.dataset.zoom = sxrState.zoom || 'm';
-        const i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
-        const out = document.getElementById('sxrZoomOut'), inb = document.getElementById('sxrZoomIn');
-        if (out) out.disabled = i <= 0;
-        if (inb) inb.disabled = i >= SXR_ZOOM_LEVELS.length - 1;
-    }
-    function _sxrZoom(delta) {
-        let i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
-        if (i < 0) i = 1;
-        i = Math.max(0, Math.min(SXR_ZOOM_LEVELS.length - 1, i + delta));
-        sxrState.zoom = SXR_ZOOM_LEVELS[i];
-        try { localStorage.setItem('syncview_sxr_zoom', sxrState.zoom); } catch (e) {}
-        _sxrApplyZoom();
-    }
+    const sxrState = { client: null, cards: [], loading: false, error: null, embedded: false };
     let _sxrLinkClient = null;     // client locked in via a ?c=…&v=sample-reviews share link
     let _sxrFocusRequest = null;   // {client, cardId} from a #sample-reviews/<slug>/<id> deep link
 
@@ -14207,100 +14096,6 @@
     function _sxrThumbIconSvg() {
         return `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.3"/><path d="M3 17l5-4 4 3 4-5 5 6"/></svg>`;
     }
-    /* The thumbnail markup for a card (img + fallback icon). Extracted so an
-       in-place media-edit refresh and the initial render share one source. */
-    function _sxrThumbHtml(s) {
-        const thumbUrl = _sxrDeriveThumb(s);
-        return thumbUrl
-            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="_sxrOnThumbImgError(this)"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
-            : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
-    }
-    /* Thumbnail lightbox (click the image to enlarge) + a Drive-permission load
-       warning. Clone of _calOpenThumbLightbox / _calDriveWarnHtml's intent. */
-    function _sxrLightboxUrl(s) {
-        const t = _sxrDeriveThumb(s);
-        return t ? t.replace(/([?&])sz=w\d+/, '$1sz=w1200') : '';
-    }
-    function _sxrThumbClick(e, pid) {
-        if (e && e.target && e.target.tagName !== 'IMG') return;   // only the image opens it
-        _sxrOpenThumbLightbox(pid);
-    }
-    function _sxrOpenThumbLightbox(pid) {
-        const s = _sxrFind(pid);
-        if (!s) return;
-        const url = _sxrLightboxUrl(s);
-        if (!url) return;
-        const lb = document.getElementById('sxrLightbox');
-        if (!lb) return;
-        const img = lb.querySelector('img');
-        if (img) img.src = url;
-        lb.classList.add('open');
-    }
-    function closeSxrLightbox() {
-        const lb = document.getElementById('sxrLightbox');
-        if (lb) { lb.classList.remove('open'); const img = lb.querySelector('img'); if (img) img.src = ''; }
-    }
-    function _sxrOnThumbImgError(img) {
-        if (!img) return;
-        img.style.display = 'none';
-        const fb = img.nextElementSibling;
-        if (fb) fb.style.display = 'flex';
-        const wrap = img.closest('.sxr-card-thumb');
-        const src = img.getAttribute('src') || '';
-        if (/drive\.google\.com/.test(src) && wrap && !wrap.querySelector('.sxr-thumb-drivewarn')) {
-            const w = document.createElement('div');
-            w.className = 'sxr-thumb-drivewarn';
-            w.textContent = 'Thumbnail can’t load — set Drive sharing to “Anyone with the link”.';
-            wrap.appendChild(w);
-        }
-    }
-    /* Repaint a card's thumbnail IN PLACE after a media link edit — bump the
-       cache-bust token and re-derive, so the editing browser sees the new image
-       immediately (without waiting for a full grid repaint). Clone of
-       _calForceThumbRefresh's intent. */
-    function _sxrForceThumbRefresh(pid) {
-        const card = _sxrFind(pid);
-        if (!card) return;
-        card.thumb_rev = _sxrBumpThumbRev(pid);
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const thumb = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${sel}"] .sxr-card-thumb`);
-        if (!thumb) return;
-        // Replace ONLY the media — preserve the Linear pile + the "link the
-        // sub-issue" warn banner overlays (clone of _calSetThumbMedia). Without
-        // this an asset/thumbnail edit would wipe the Linear pile off the card.
-        const overlays = Array.from(thumb.children).filter(el => el.matches('.cal-linear-pile, .cal-thumb-linear-warn'));
-        thumb.innerHTML = _sxrThumbHtml(card);
-        overlays.forEach(el => thumb.appendChild(el));
-    }
-    /* Harvest already-decoded thumbnail <img>s before a grid rebuild and re-insert
-       them after, keyed by id + cache-buster-agnostic src base — so a background
-       repaint doesn't tear down + re-decode every thumbnail (the per-repaint
-       flash). Clone of _calHarvestThumbs / _calRestoreThumbs. */
-    function _sxrHarvestThumbs() {
-        const body = document.getElementById('sxrBody');
-        if (!body) return null;
-        const map = new Map();
-        body.querySelectorAll('.sxr-card[data-sxr-id] .sxr-card-thumb img').forEach(img => {
-            if (!img.complete || img.naturalWidth === 0) return;
-            const card = img.closest('.sxr-card');
-            const id = card && card.getAttribute('data-sxr-id');
-            const src = img.getAttribute('src') || '';
-            if (id && src) map.set(id + '|' + _calThumbSrcBase(src), img);
-        });
-        return map;
-    }
-    function _sxrRestoreThumbs(map) {
-        if (!map || map.size === 0) return;
-        const body = document.getElementById('sxrBody');
-        if (!body) return;
-        body.querySelectorAll('.sxr-card[data-sxr-id] .sxr-card-thumb img').forEach(newImg => {
-            const card = newImg.closest('.sxr-card');
-            const id = card && card.getAttribute('data-sxr-id');
-            const src = newImg.getAttribute('src') || '';
-            const saved = map.get(id + '|' + _calThumbSrcBase(src));
-            if (saved) newImg.replaceWith(saved);
-        });
-    }
 
     /* ── card render (M2 — editable for the SMM, read-only on a client link) ──
        Thumbnail (derived from the media links) + the per-component status pills
@@ -14323,12 +14118,10 @@
     function _sxrRenderCard(s) {
         const ro = _isClientLink;   // client share link → fully read-only card
         const id = _calEscAttr(s.id);
-        // A brand-new blank card (id "__sxrblank__N") renders without the grip /
-        // archive-X / drag until its first save promotes it (mirrors the
-        // calendar's is-blank card). Derived from the id so the .map(_sxrRenderCard)
-        // call site can't shadow it with the array index.
-        const isBlank = _sxrIsBlankId(s.id);
-        const thumbHtml = _sxrThumbHtml(s);
+        const thumbUrl = _sxrDeriveThumb(s);
+        const thumbHtml = thumbUrl
+            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" loading="lazy" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex';"><div class="sxr-card-thumb-fallback" style="display:none">${_sxrThumbIconSvg()}</div>`
+            : `<div class="sxr-card-thumb-fallback">${_sxrThumbIconSvg()}</div>`;
         // Per-component status pills. On the SMM surface they are ACTIONABLE
         // (click → status menu); on a client link, a read-only display. M3b.
         const pills = _sxrPillsHtml(s);
@@ -14346,7 +14139,7 @@
             // status otherwise. Fields stay non-editable; only this panel acts.
             const reviewHtml = _sxrClientReviewBodyHtml(s);
             return `<div class="sxr-card" data-sxr-id="${id}">
-                <div class="sxr-card-thumb" onclick="_sxrThumbClick(event,'${id}')">${thumbHtml}</div>
+                <div class="sxr-card-thumb">${thumbHtml}</div>
                 <div class="sxr-card-meta">
                     <div class="sxr-card-name" title="${_calEscAttr(name)}">${_calEsc(name)}</div>
                     <div class="sxr-card-pills">${pills}</div>
@@ -14357,96 +14150,43 @@
             </div>`;
         }
 
-        // ── editable (SMM) — faithful clone of the calendar card (_calRenderInlineCard),
-        //    minus caption / CTA / date / platforms / color-tag. Reuses the calendar's
-        //    global cal-* CSS for the thumbnail, link pills, Linear pile, title row and
-        //    bottom sub-status rows + "Set all to…", so it renders pixel-identical. The
-        //    sxr-* alias classes + data-sxr-id stay as the JS/probe hooks. ──
-        const dupePeers = isBlank ? [] : _sxrLinkDuplicatePeers(s);
-        const dupeWarn = dupePeers.length ? `<div class="cal-dupe-warn">⚠ ${_calEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link.</div>` : '';
-        const selectMode = sxrState.selectMode && !_isClientLink;
-        const selectable = selectMode && !isBlank;
-        const selected = selectable && sxrState.selected.has(s.id);
-        const selChk = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
-        const selectOverlay = selectable ? `<div class="sxr-card-select-overlay" onclick="_sxrCardSelectClick(event,'${id}')"><span class="sxr-card-select-check">${selChk}</span></div>` : '';
-        // An unlinked card gets the calendar's orange "link the Linear sub-issue"
-        // banner across the top of the thumbnail (clicking it opens the link editor).
-        const needsLinear = !isBlank && !String(s.linear_issue_id || '').trim() && !String(s.graphic_linear_issue_id || '').trim();
-        const thumbWarn = needsLinear
-            ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${id}')" title="Link this sample to its Linear sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>`
-            : '';
-        return `<div class="sxr-card is-editable${isBlank ? ' is-blank' : ''}${selectable ? ' sxr-card-selectable' : ''}${selected ? ' sxr-card-selected' : ''}" data-sxr-id="${id}" draggable="${(isBlank || selectMode) ? 'false' : 'true'}">
-            ${selectOverlay}
-            ${isBlank ? '' : `<span class="sxr-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
-            <button class="sxr-card-link" type="button" data-sxr-card-link="${id}" onclick="_sxrCopyCardLink(event,'${id}')" title="Copy a link to this sample"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>
-            <button class="sxr-card-del" type="button" onclick="archiveSxrCard('${id}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
-            <div class="sxr-card-thumb" onclick="_sxrThumbClick(event,'${id}')">${thumbWarn}${thumbHtml}${_sxrLinearPileHtml(s.id, s)}</div>
-            <div class="cal-card-body">
-                ${dupeWarn}
-                <div class="cal-title-row sxr-title-row" data-sxr-title-row="${id}">${_sxrTitleRowHtml(s.id, s)}</div>
-                ${_sxrLinkFieldHtml(s.id, 'thumbnail_url', s.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
-                ${_sxrLinkFieldHtml(s.id, 'asset_url', s.asset_url, 'Video URL (Frame.io / Drive)')}
+        // ── editable (SMM) ──
+        return `<div class="sxr-card is-editable" data-sxr-id="${id}" draggable="true">
+            <span class="sxr-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>
+            <div class="sxr-card-thumb">${thumbHtml}</div>
+            <div class="sxr-card-meta">
+                <input class="sxr-input sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEscAttr(s.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)">
+                <div class="sxr-card-pills">${pills}</div>
+                ${_sxrUrlFieldHtml(s.id, 'asset_url', s.asset_url, 'Video URL (Frame.io / Drive)')}
+                ${_sxrUrlFieldHtml(s.id, 'thumbnail_url', s.thumbnail_url, 'Thumbnail URL (Google Drive image)')}
                 <div class="sxr-fld">
                     <div class="sxr-fld-label sxr-dir-head"><span>Creative direction</span>${_sxrDirToggleHtml(s.id, hideCd)}</div>
-                    <textarea class="sxr-textarea" rows="2" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">${_calEsc(cd)}</textarea>
+                    <textarea class="sxr-textarea" rows="3" data-sxr-pid="${id}" data-sxr-fld="creative_direction" placeholder="What's the style / approach for this sample?" oninput="_sxrOnTextareaInput(this)" onblur="_sxrOnFieldBlur(this)">${_calEsc(cd)}</textarea>
                 </div>
+                ${_sxrUrlFieldHtml(s.id, 'linear_issue_id', s.linear_issue_id, 'Video Linear sub-issue URL')}
+                ${_sxrUrlFieldHtml(s.id, 'graphic_linear_issue_id', s.graphic_linear_issue_id, 'Graphic Linear sub-issue URL')}
                 <div class="sxr-card-foot">
                     ${_sxrCommentsBtnHtml(s, s.id)}
                     ${s._saveError
                         ? `<button type="button" class="sxr-card-saving is-error" data-sxr-saving="${id}" onclick="_sxrRetrySave('${id}')" title="${_calEscAttr(typeof s._saveError === 'string' ? s._saveError : 'Save failed')} — click to retry">Save failed · Retry</button>`
                         : `<span class="sxr-card-saving" data-sxr-saving="${id}" hidden></span>`}
                 </div>
-                <div class="cal-card-status-row">${_sxrStatusRowHtml(s.id, s)}</div>
             </div>
         </div>`;
     }
-    /* Collapsed media-link pill — a faithful clone of the calendar's
-       _calLinkFieldHtml. When a URL is present the field collapses to an "open"
-       pill + an edit pencil (the raw input hides); empty shows the bare input.
-       Persists via the shared _sxrOnField* handlers; _sxrOnLinkBlur re-collapses
-       the field and force-refreshes the thumbnail. Reuses the calendar's global
-       .cal-link-field CSS so it looks identical. */
-    function _sxrLinkFieldHtml(rawId, fld, val, placeholder) {
+    /* Inline URL editor — used for both media links (asset_url / thumbnail_url)
+       and the two plain Linear sub-issue link inputs. Persists on input
+       (debounced) + blur; the open button just launches the link. */
+    function _sxrUrlFieldHtml(rawId, fld, val, placeholder) {
         const id = _calEscAttr(rawId);
-        const v = String(val || '').trim();
-        const isThumb = fld === 'thumbnail_url';
-        const kind = isThumb ? 'thumb' : 'post';
-        const label = isThumb ? 'Thumbnail' : 'Video';
-        const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
-        const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-        const input = `<input class="cal-link-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEsc(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnLinkInput(this)" onblur="_sxrOnLinkBlur(this)" onfocus="_sxrOnFieldFocus(this)">`;
-        if (v) {
-            return `<div class="cal-link-field has-link cal-link-${kind}" data-sxr-wrap="${id}" data-sxr-fld-wrap="${fld}">
-                <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${id}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
-                <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${id}','${fld}')" title="Edit link">${pencil}</button>
-                ${input}
-            </div>`;
-        }
-        return `<div class="cal-link-field cal-link-${kind}" data-sxr-wrap="${id}" data-sxr-fld-wrap="${fld}">${input}</div>`;
-    }
-    function _sxrLinkFieldSel(pid, fld) {
-        const e = (x) => (window.CSS && CSS.escape) ? CSS.escape(String(x)) : String(x);
-        return `.cal-link-field[data-sxr-wrap="${e(pid)}"][data-sxr-fld-wrap="${e(fld)}"]`;
-    }
-    function _sxrOnLinkInput(input) { _sxrOnFieldInput(input); }
-    function _sxrOnLinkBlur(input) {
-        _sxrOnFieldBlur(input);   // persist + (for a media field) force a thumbnail refresh
-        const field = input.closest('.cal-link-field');
-        if (!field) return;
-        field.outerHTML = _sxrLinkFieldHtml(input.dataset.sxrPid, input.dataset.sxrFld, input.value.trim(), input.placeholder);
-    }
-    function _sxrOpenLink(pid, fld) {
-        const input = document.querySelector(_sxrLinkFieldSel(pid, fld) + ' .cal-link-input');
-        const v = input ? input.value.trim() : '';
-        if (!v) return;
-        window.open(/^https?:\/\//i.test(v) ? v : 'https://' + v, '_blank', 'noopener,noreferrer');
-    }
-    function _sxrEditLink(pid, fld) {
-        const field = document.querySelector(_sxrLinkFieldSel(pid, fld));
-        if (!field) return;
-        field.classList.add('editing');
-        const input = field.querySelector('.cal-link-input');
-        if (input) { input.focus(); input.select(); }
+        const v = String(val == null ? '' : val);
+        const open = v.trim()
+            ? `<button type="button" class="sxr-url-open" onclick="_sxrOpenUrl(this)" title="Open in a new tab">${_sxrExtLinkSvg()}</button>`
+            : '';
+        return `<div class="sxr-url-row" data-sxr-fld-wrap="${fld}">
+            <input class="sxr-input" type="url" data-sxr-pid="${id}" data-sxr-fld="${fld}" value="${_calEscAttr(v)}" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)">
+            ${open}
+        </div>`;
     }
     function _sxrEyeIconSvg(hidden) {
         return hidden
@@ -14456,211 +14196,6 @@
     function _sxrDirToggleHtml(rawId, hidden) {
         const id = _calEscAttr(rawId);
         return `<button type="button" class="sxr-dir-toggle${hidden ? ' is-hidden' : ''}" data-sxr-pid="${id}" onclick="_sxrToggleDir(this)" title="${hidden ? 'Hidden from the client — click to show it' : 'Visible to the client — click to hide it'}">${_sxrEyeIconSvg(hidden)}<span>${hidden ? 'Hidden from client' : 'Visible to client'}</span></button>`;
-    }
-
-    /* ══════════════════════════════════════════════════════════════════
-       LINEAR SUB-ISSUE SLOTS (Tier 3 parity) — `_sxrLinear*` / `_sxrLink*`
-       ──────────────────────────────────────────────────────────────────
-       The two Linear link slots get the full calendar treatment: a dedicated
-       icon-button UI (linked → open + edit-pencil; unlinked → orange "link it"
-       warn), commit-on-blur with a FORMAT guard + a VID/GRA COMPONENT guard + a
-       paste-time UNIQUENESS guard, a move-to-another-card CONFLICT dialog, a
-       render-time DUPLICATE-warning banner, and a PARENT-issue banner. Faithful
-       clone of the calendar _calLinear / _calLink / _calMoveLink machinery,
-       scoped to sxrState.cards.
-       REUSES the generic _calIdentFromUrl. Linear uniqueness matters because the
-       status sync/push assume one card per issue. */
-    const SXR_COMP_FLD = { video: 'linear_issue_id', graphic: 'graphic_linear_issue_id' };
-    const _sxrParentLinks = new Set();   // Linear idents known to be PARENT issues (no sub-status to adopt)
-    let _sxrPendingLinkMove = Object.create(null);
-    function _sxrLinearExpectPrefix(which) { return which === 'graphic' ? 'GRA' : 'VID'; }
-    function _sxrLinkKey(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
-    function _sxrLinearRowSel(pid, which) { const k = pid + '|' + which; return `[data-sxr-linear-row="${(window.CSS && CSS.escape) ? CSS.escape(k) : k}"]`; }
-    function _sxrLinearSvg() { return `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true"><path d="M1.2 61.5a48.8 48.8 0 0 0 37.3 37.3zM.1 46.8 53.2 99.9a49.3 49.3 0 0 0 9-1.4L1.5 37.8a49 49 0 0 0-1.4 9zM3.8 30.9 69.1 96.2a49.5 49.5 0 0 0 7-3.6L7.4 23.9a49.5 49.5 0 0 0-3.6 7zM12.3 19 81 87.7A50 50 0 1 0 12.3 19z"/></svg>`; }
-    /* Linear sub-issue pile on the thumbnail — video (top) + graphic (bottom)
-       icon buttons stacked bottom-right of the thumb, exactly like the calendar
-       (_calLinearPileHtml). Linked → indigo open button + edit pencil; unlinked
-       on a real card → orange "link it" warn. stopPropagation so a click links/
-       opens Linear instead of opening the thumbnail lightbox. SMM-only. */
-    function _sxrLinearPileHtml(rawId, s) {
-        if (_isClientLink) return '';
-        const v = _sxrLinearSlotHtml(rawId, s.linear_issue_id, 'video');
-        const g = _sxrLinearSlotHtml(rawId, s.graphic_linear_issue_id, 'graphic');
-        if (!v && !g) return '';
-        const id = _calEscAttr(rawId);
-        return `<div class="cal-linear-slot cal-linear-pile" data-sxr-linear-slot="${id}" onclick="event.stopPropagation()">${v}${g}</div>`;
-    }
-    function _sxrLinearSlotHtml(rawId, url, which) {
-        if (_isClientLink) return '';
-        const id = _calEscAttr(rawId);
-        const u = String(url || '').trim();
-        const label = which === 'graphic' ? 'graphic sub-issue' : 'video sub-issue';
-        const compCls = ' cal-linear-btn-' + which;
-        if (u) {
-            const href = /^https?:\/\//i.test(u) ? u : 'https://' + u;
-            const open = `<a class="cal-linear-btn is-linked${compCls}" href="${_calEscAttr(href)}" target="_blank" rel="noopener noreferrer" title="Open the linked Linear ${label}">${_sxrLinearSvg()}</a>`;
-            const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
-            return `<span class="cal-linear-link-wrap">${open}<button class="cal-linear-edit" type="button" tabindex="-1" onclick="_sxrLinearEdit('${id}','${which}')" title="Change the linked ${label}">${pencil}</button></span>`;
-        }
-        const warn = !_sxrIsBlankId(rawId) ? ' cal-linear-btn-warn' : '';
-        return `<button class="cal-linear-btn${warn}${compCls}" type="button" onclick="_sxrLinearEdit('${id}','${which}')" title="Link a Linear ${label}">${_sxrLinearSvg()}</button>`;
-    }
-    /* The title row holds the name input — the Linear buttons that sit here on
-       the calendar live on the thumbnail pile instead. Cloned from
-       _calTitleRowHtml minus the YouTube-title square (title-in-review excluded
-       for samples). A Linear-link EDIT (or a conflict prompt) temporarily swaps
-       this row's contents, then restores it. */
-    function _sxrTitleRowHtml(rawId, s) {
-        const id = _calEscAttr(rawId);
-        return `<input class="cal-fld-name sxr-name-input" type="text" data-sxr-pid="${id}" data-sxr-fld="name" value="${_calEsc(s ? s.name : '')}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)" onfocus="_sxrOnFieldFocus(this)" onkeydown="_sxrOnFieldKey(event,this)">`;
-    }
-    function _sxrTitleRowSel(pid) {
-        const e = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        return `[data-sxr-title-row="${e}"]`;
-    }
-    function _sxrLinearEdit(pid, comp) {
-        if (_isClientLink) return;
-        const which = comp === 'graphic' ? 'graphic' : 'video';
-        const row = document.querySelector(_sxrTitleRowSel(pid));
-        if (!row) return;
-        const sample = _sxrFind(pid);
-        const cur = sample ? String(sample[SXR_COMP_FLD[which]] || '') : '';
-        const ph = which === 'graphic' ? 'Paste the GRA (graphic) sub-issue link…' : 'Paste the VID (video) sub-issue link…';
-        row.innerHTML = `<input class="cal-linear-input" type="url" value="${_calEscAttr(cur)}" placeholder="${_calEscAttr(ph)}" onkeydown="_sxrLinearKey(event,'${_calEscAttr(pid)}','${which}')" onblur="_sxrLinearCommit(this,'${_calEscAttr(pid)}','${which}')">`;
-        const inp = row.querySelector('input');
-        if (inp) { inp.focus(); inp.select(); }
-    }
-    function _sxrLinearKey(e, pid, comp) {
-        if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
-        else if (e.key === 'Escape') { e.preventDefault(); e.target.dataset.cancel = '1'; e.target.blur(); }
-    }
-    function _sxrRestoreLinearRow(pid) {
-        const row = document.querySelector(_sxrTitleRowSel(pid));
-        if (!row) return;
-        const sample = _sxrFind(pid);
-        row.innerHTML = _sxrTitleRowHtml(pid, sample || { id: pid });
-    }
-    function _sxrLinearCommit(input, pid, comp) {
-        const which = comp === 'graphic' ? 'graphic' : 'video';
-        const fld = SXR_COMP_FLD[which];
-        const cancelled = input.dataset.cancel === '1';
-        const val = input.value.trim();
-        const sample = _sxrFind(pid);
-        const cur = sample ? String(sample[fld] || '') : '';
-        const changed = !cancelled && val !== cur;
-        const applyCommit = (value) => {
-            if (sample) sample[fld] = value;
-            if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
-            _sxrPendingEdits[pid][fld] = value;   // a cleared slot rides the __CLEAR_LINK__ sentinel in the flush
-            _sxrFlushCardSave(pid);               // point-adoption fires from the flush success
-            if (value) try { _sxrArchivedRemove(sxrClientSlug(sxrState.client), [value]); } catch (e) {}
-            _sxrRenderBody();
-        };
-        if (!changed) { _sxrRestoreLinearRow(pid, which); return; }
-        if (val) {
-            // (1) Format guard — the slot holds a Linear sub-issue link and nothing else.
-            const ident = _calIdentFromUrl(val);
-            const looksLinear = /^https?:\/\//i.test(val) && /(^|[./])linear\.app\//i.test(val);
-            if (!looksLinear || !ident) {
-                showNotify('That isn’t a Linear link', 'Paste a Linear sub-issue URL like https://linear.app/your-team/issue/' + _sxrLinearExpectPrefix(which) + '-123. What you entered has no Linear issue id, so it wasn’t saved.');
-                _sxrRestoreLinearRow(pid, which); return;
-            }
-            // (2) Component guard — VIDEO slot wants VID-, GRAPHIC slot wants GRA-.
-            const prefix = ident.split('-')[0];
-            const want = _sxrLinearExpectPrefix(which);
-            if ((prefix === 'GRA' || prefix === 'VID') && prefix !== want) {
-                const isG = prefix === 'GRA';
-                showConfirm('Wrong slot for this link?', 'That looks like a ' + (isG ? 'GRAPHIC (GRA-)' : 'VIDEO (VID-)') + ' sub-issue, but you’re setting the ' + (which === 'graphic' ? 'GRAPHIC' : 'VIDEO') + ' link. Use it here anyway?', () => applyCommit(val), 'Use it anyway');
-                return;
-            }
-            // (3) Uniqueness guard — already on another live card → offer to move.
-            const conflict = _sxrLinkConflict(val, pid);
-            if (conflict) { _sxrShowLinkConflict(pid, which, val, conflict); return; }
-        }
-        applyCommit(val);   // val may be '' → an intentional clear
-    }
-    function _sxrLinkConflict(link, selfPid) {
-        const key = _sxrLinkKey(link);
-        if (!key) return null;
-        let archived = null; try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
-        for (const s of (sxrState.cards || [])) {
-            if (!s || String(s.id) === String(selfPid)) continue;
-            if (String(s.status || '').toLowerCase() === 'archived') continue;
-            if (archived && _sxrIsArchivedRef(s, archived)) continue;
-            if (_sxrLinkKey(s.linear_issue_id) === key || _sxrLinkKey(s.graphic_linear_issue_id) === key) return s;
-        }
-        return null;
-    }
-    function _sxrShowLinkConflict(pid, which, val, conflict) {
-        _sxrPendingLinkMove[pid] = { which, val, oldPid: conflict.id };
-        const row = document.querySelector(_sxrTitleRowSel(pid));
-        if (!row) return;
-        const nm = String(conflict.name || '').trim() || 'Untitled sample';
-        row.innerHTML = `<div class="sxr-link-conflict"><span class="sxr-link-conflict-msg">This Linear sub-issue is already linked to “${_calEsc(nm)}”.</span><span class="sxr-link-conflict-actions"><button type="button" class="sxr-link-conflict-move" onclick="_sxrMoveLinkConfirm('${_calEscAttr(pid)}')">Move it here</button><button type="button" class="sxr-link-conflict-cancel" onclick="_sxrLinkConflictCancel('${_calEscAttr(pid)}','${which}')">Cancel</button></span></div>`;
-    }
-    function _sxrLinkConflictCancel(pid, which) {
-        delete _sxrPendingLinkMove[pid];
-        _sxrRestoreLinearRow(pid, which || 'video');
-    }
-    function _sxrMoveLinkConfirm(pid) {
-        const mv = _sxrPendingLinkMove[pid];
-        if (!mv) return;
-        delete _sxrPendingLinkMove[pid];
-        _sxrMoveLink(mv.oldPid, pid, mv.which, mv.val);
-    }
-    /* Clear the OLD card's slot and AWAIT that write before setting the new card —
-       the upsert's duplicate-link guard strips an incoming link another live row
-       still owns, so the order is load-bearing. Clone of _calMoveLink. */
-    async function _sxrMoveLink(oldPid, newPid, which, val) {
-        if (_isClientLink) return;
-        const slug = sxrClientSlug(sxrState.client);
-        const key = _sxrLinkKey(val);
-        const newFld = SXR_COMP_FLD[which];
-        const oldSample = _sxrFind(oldPid);
-        if (oldSample) {
-            let cleared = false;
-            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(f => {
-                if (_sxrLinkKey(oldSample[f]) === key) {
-                    oldSample[f] = '';
-                    if (!_sxrPendingEdits[oldPid]) _sxrPendingEdits[oldPid] = {};
-                    _sxrPendingEdits[oldPid][f] = '';
-                    cleared = true;
-                }
-            });
-            if (cleared) { _sxrRenderBody(); try { await _sxrFlushCardSave(oldPid); } catch (e) {} }
-        }
-        const newSample = _sxrFind(newPid);
-        if (newSample) newSample[newFld] = val;
-        if (!_sxrPendingEdits[newPid]) _sxrPendingEdits[newPid] = {};
-        _sxrPendingEdits[newPid][newFld] = val;
-        _sxrFlushCardSave(newPid);
-        if (val) try { _sxrArchivedRemove(slug, [val]); } catch (e) {}
-        _sxrRenderBody();
-    }
-    /* Render-time duplicate-warning peers, grouped by which slot collides. Clone
-       of _calLinkDuplicatePeers / _calDupeWarnText (calls the graphic "thumbnail"). */
-    function _sxrLinkDuplicatePeers(sample) {
-        if (!sample) return [];
-        let archived = null; try { archived = _sxrArchivedRefs(sxrClientSlug(sxrState.client)); } catch (e) {}
-        const isArch = (s) => String((s && s.status) || '').toLowerCase() === 'archived' || !!(archived && _sxrIsArchivedRef(s, archived));
-        if (isArch(sample)) return [];
-        const vKey = _sxrLinkKey(sample.linear_issue_id), gKey = _sxrLinkKey(sample.graphic_linear_issue_id);
-        if (!vKey && !gKey) return [];
-        const vPeers = new Set(), gPeers = new Set();
-        for (const s of (sxrState.cards || [])) {
-            if (!s || String(s.id) === String(sample.id) || isArch(s)) continue;
-            const nm = String(s.name || '').trim() || 'Untitled sample';
-            const pv = _sxrLinkKey(s.linear_issue_id), pg = _sxrLinkKey(s.graphic_linear_issue_id);
-            if (vKey && (pv === vKey || pg === vKey)) vPeers.add(nm);
-            if (gKey && (pv === gKey || pg === gKey)) gPeers.add(nm);
-        }
-        const out = [];
-        if (vPeers.size) out.push({ comp: 'video', names: [...vPeers] });
-        if (gPeers.size) out.push({ comp: 'graphic', names: [...gPeers] });
-        return out;
-    }
-    function _sxrDupeWarnText(groups) {
-        return groups.map(g => 'Same ' + (g.comp === 'graphic' ? 'thumbnail' : 'video') + ' Linear issue as ' + g.names.join(', ')).join(' · ');
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -14725,36 +14260,6 @@
         sample['_' + c + '_comments'] = list;
         sample[c + '_tweaks'] = _sxrStringifyComments(list);
     }
-    function _sxrCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
-    /* Union two comment lists by id for DISPLAY — newer-stamped wins, ids on one
-       side kept, tombstones preserved (the server upsert is authoritative for
-       deletes). Clone of _calMergeCommentLists / _calMergePostComments. Keeps a
-       comment added to another component mid-save (echo adopt) or from another
-       browser (poll) from being clobbered by a whole-cell row replace. */
-    function _sxrMergeCommentLists(a, b) {
-        const out = new Map();
-        const absorb = (list) => {
-            if (!Array.isArray(list)) return;
-            for (const c of list) { if (!c || !c.id) continue; const prev = out.get(c.id); if (!prev || _sxrCommentStamp(c) >= _sxrCommentStamp(prev)) out.set(c.id, c); }
-        };
-        absorb(a); absorb(b);
-        return Array.from(out.values());
-    }
-    function _sxrMergeCardComments(winner, other) {
-        if (!winner || !other) return winner;
-        SXR_COMPONENTS.forEach(comp => { _sxrSetCommentsFor(winner, comp, _sxrMergeCommentLists(_sxrCommentsFor(winner, comp), _sxrCommentsFor(other, comp))); });
-        return winner;
-    }
-    /* Await the flush after a note add/delete; if it failed while the Notes modal
-       is still open, tell the user the note isn't saved yet. Clone of _calWatchNoteSave. */
-    function _sxrWatchNoteSave(pid) {
-        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
-            const s = _sxrFind(pid);
-            if (s && s._saveError && _sxrOpenCommentsPid === pid) {
-                showNotify('Note not saved yet', 'Saving failed (' + s._saveError + '). Your note is still here and will be sent with the next save of this card — edit any field or use the Save-failed chip to retry. Don’t refresh before it saves.');
-            }
-        });
-    }
     /* Per-message audience — who may see the thread.
          · SMM-authored (role 'smm') → 'internal' by default (an SMM note NEVER
            leaks to the client unless explicitly tagged audience:'client').
@@ -14778,7 +14283,7 @@
     function _sxrCommentsForView(sample, comp, isClient) {
         let list = _sxrCommentsFor(sample, comp);
         if (!Array.isArray(list)) return [];
-        list = list.filter(c => c && !c.deleted && !c.hidden);
+        list = list.filter(c => c && !c.deleted);
         if (!isClient) return list;
         // Resolve each message to its thread-root so a reply inherits the root's
         // audience (replies point at the root via parent_id).
@@ -14796,11 +14301,11 @@
     }
     /* Roots (newest first) and replies (oldest first, nested) for the modal. */
     function _sxrCommentRoots(list) {
-        return list.filter(c => c && !c.parent_id && !c.deleted && !c.hidden)
+        return list.filter(c => c && !c.parent_id && !c.deleted)
             .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
     }
     function _sxrCommentReplies(list, rootId) {
-        return list.filter(c => c && c.parent_id === rootId && !c.deleted && !c.hidden)
+        return list.filter(c => c && c.parent_id === rootId && !c.deleted)
             .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
     }
     /* Author + role for the CURRENT surface. SMM authors as 'Synchro Social'
@@ -14948,13 +14453,13 @@
     function _sxrSetComposeComp(comp) {
         _sxrComposeComp = (SXR_COMPONENTS.indexOf(comp) >= 0) ? comp : 'video';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="comp"]');
-        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
     }
     function _sxrSetComposeAudience(aud) {
         if (_isClientLink) return;        // a client can NEVER set audience
         _sxrComposeAudience = (aud === 'client') ? 'client' : 'internal';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="audience"]');
-        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
     }
     /* M3b — a NEW root is a plain comment or a change-request (is_tweak). A
        change-request flips its component to Tweaks Needed on submit. The
@@ -14962,8 +14467,8 @@
     function _sxrSetComposeMode(mode) {
         _sxrComposeMode = (mode === 'request-change') ? 'request-change' : 'comment';
         const seg = document.querySelector('#sxrCommentsModal [data-sxr-cm-toggle="mode"]');
-        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === _sxrComposeMode));
-        const send = document.querySelector('#sxrCommentsModal .cal-cm-send');
+        if (seg) seg.querySelectorAll('.sxr-cm-seg-btn').forEach(b => b.classList.toggle('is-active', b.dataset.mode === _sxrComposeMode));
+        const send = document.querySelector('#sxrCommentsModal .sxr-cm-send');
         if (send) send.title = _sxrComposeMode === 'request-change' ? 'Request change (Enter)' : 'Send (Enter)';
     }
     function _sxrFindCompForCommentId(sample, commentId) {
@@ -15022,7 +14527,7 @@
         // Persist via the verified M2 save path: queue the *_tweaks patch + flush.
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrPendingEdits[pid][comp + '_tweaks'] = _sxrStringifyComments(arr);
-        _sxrWatchNoteSave(pid);
+        _sxrFlushCardSave(pid);
         _sxrRefreshCommentsBtn(pid);
     }
     /* Delete a comment = TOMBSTONE (deleted:true + fresh updated_at), never a
@@ -15056,7 +14561,7 @@
             _sxrSetCommentsFor(sample, comp, next);
             if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
             _sxrPendingEdits[pid][comp + '_tweaks'] = _sxrStringifyComments(next);
-            _sxrWatchNoteSave(pid);
+            _sxrFlushCardSave(pid);
             _sxrRefreshCommentsBtn(pid);
             _sxrCaptureModalDrafts();
             _sxrRenderCommentsModal();
@@ -15098,8 +14603,8 @@
         _sxrAutosizeComposer(ta);
         if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
         else _sxrRootDraft = ta.value;
-        const wrap = ta.closest('.cal-cm-composer');
-        const sendBtn = wrap && wrap.querySelector('.cal-cm-send');
+        const wrap = ta.closest('.sxr-cm-composer');
+        const sendBtn = wrap && wrap.querySelector('.sxr-cm-send');
         if (sendBtn) sendBtn.disabled = !ta.value.trim();
     }
     function _sxrOnComposerKey(e) {
@@ -15107,50 +14612,46 @@
         else if (e.key === 'Escape' && _sxrReplyTarget) { e.preventDefault(); _sxrBeginReply(null); }
     }
     function _sxrCommentRowHtml(c, isReply, comp) {
-        // Faithful re-skin of the calendar's comment-row (renderRow in
-        // _calRenderCommentsModal) — same cal-cm-* markup, samples handlers.
         const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
         const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
         const initial = _sxrAvatarInitial(author, c.role);
-        const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
-        const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_calEsc(SXR_COMP_LABELS[comp] || comp)}</span>` : '';
+        // Component label sits top-right on a root; the lock marks an internal
+        // thread on the SMM surface (the client never sees an internal thread).
+        const compLabel = (!isReply && comp) ? `<span class="sxr-cm-comp-label sxr-cm-comp-${comp}">${_calEsc(SXR_COMP_LABELS[comp] || comp)}</span>` : '';
         const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal')
-            ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
-            : '';
-        // A change-request (is_tweak) root carries a "Tweak #N" tag right after
-        // the author; when resolved it also gets the "Resolved" done-tag.
-        const isTweakRoot = !isReply && _sxrMsgIsTweak(c);
-        const typeTag = isTweakRoot
-            ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the card to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>`
+            ? `<span class="sxr-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>`
             : '';
         const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
-        const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
         const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
         const rootId = isReply ? c.parent_id : c.id;
-        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
-        // An OPEN tweak root gets "Mark done" on the SMM surface → the resolve
-        // chooser (deferred resolve + route).
-        const doneBtn = (isTweakRoot && !c.done && !_isClientLink)
-            ? `<button class="cal-cm-action" type="button" onclick="_sxrResolveLastTweak(${_jsAttrArg(_sxrOpenCommentsPid)}, '${comp}', ${_jsAttrArg(c.id)})" title="Mark done — choose where this goes next">${checkIco}<span>Mark done</span></button>`
-            : '';
+        const replyBtn = `<button class="sxr-cm-action" type="button" onclick="_sxrBeginReply(${_jsAttrArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
         const delBtn = _sxrCanDeleteComment(c)
-            ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
+            ? `<button class="sxr-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_jsAttrArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>`
             : '';
-        const actions = (replyBtn || doneBtn || delBtn) ? `<div class="cal-cm-actions">${doneBtn}${replyBtn}${delBtn}</div>` : '';
-        return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
-            <div class="cal-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
-            <div class="cal-cm-body-col">
-                <div class="cal-cm-head-line">
-                    <span class="cal-cm-author">${_calEsc(author)}</span>
-                    ${typeTag}
+        // M3b — a change-request (is_tweak) root carries a "Tweak #N" badge; an
+        // OPEN one (not done) gets a "Mark done" action on the SMM surface that
+        // opens the resolve chooser (deferred resolve + route). A done one shows
+        // a muted "Done" pill. Plain comments / replies are unaffected.
+        const isTweakRoot = !isReply && _sxrMsgIsTweak(c);
+        const tweakBadge = isTweakRoot
+            ? `<span class="sxr-cm-tweak-badge${c.done ? ' is-done' : ''}" title="${c.done ? 'Change request — resolved' : 'Change request — needs a fix'}">${c.done ? 'Done' : ('Tweak' + (c.round ? ' #' + c.round : ''))}</span>`
+            : '';
+        const doneBtn = (isTweakRoot && !c.done && !_isClientLink)
+            ? `<button class="sxr-cm-action sxr-cm-resolve" type="button" onclick="_sxrResolveLastTweak(${_jsAttrArg(_sxrOpenCommentsPid)}, '${comp}', ${_jsAttrArg(c.id)})" title="Mark done — choose where this goes next">✓<span>Mark done</span></button>`
+            : '';
+        return `<div class="sxr-cm-row${isReply ? ' is-reply' : ''}${isTweakRoot ? ' is-tweak' : ''}${(isTweakRoot && c.done) ? ' is-done' : ''}" data-sxr-cm-row="${_calEscAttr(c.id)}">
+            <div class="sxr-cm-avatar ${roleCls}">${_calEsc(initial)}</div>
+            <div class="sxr-cm-body-col">
+                <div class="sxr-cm-head-line">
+                    <span class="sxr-cm-author">${_calEsc(author)}</span>
+                    ${tweakBadge}
                     ${lock}
-                    <span class="cal-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
-                    ${doneTag}
+                    <span class="sxr-cm-time">${_calEsc(_sxrFmtCommentTime(c.created_at))}</span>
                     ${compLabel}
                 </div>
-                <div class="cal-cm-row-body">${_calEsc(c.body || '')}</div>
+                <div class="sxr-cm-row-body">${_calEsc(c.body || '')}</div>
             </div>
-            ${actions}
+            <div class="sxr-cm-actions">${doneBtn}${replyBtn}${delBtn}</div>
         </div>`;
     }
     function _sxrComposerHtml(sample) {
@@ -15165,14 +14666,14 @@
             ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…`
             : (role === 'client' ? 'Message your Synchro Social team…' : (_sxrComposeAudience === 'client' ? 'Message to the client…' : 'Internal note (team only)…'));
         const replyingTo = isReply && target
-            ? `<div class="cal-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
+            ? `<div class="sxr-cm-replying-to">Replying to <strong>${_calEsc(target.author || 'thread')}</strong> <button class="sxr-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>`
             : '';
         // Component picker on a fresh root (replies inherit their thread's comp).
         const compPicker = !isReply
-            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
-                <span class="cal-cm-audience-cap">About the…</span>
-                <div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c =>
-                    `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(SXR_COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(SXR_COMP_LABELS[c] || c)}</button>`
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about">
+                <span class="sxr-cm-seg-cap">About the…</span>
+                <div class="sxr-cm-seg">${SXR_COMPONENTS.map(c =>
+                    `<button type="button" class="sxr-cm-seg-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_calEscAttr(String(SXR_COMP_LABELS[c] || c).toLowerCase())}">${_calEsc(SXR_COMP_LABELS[c] || c)}</button>`
                 ).join('')}</div>
             </div>`
             : '';
@@ -15180,36 +14681,36 @@
         // SMM picks who can see a NEW root; the client has no toggle (everything
         // they post is shared with them by nature, audience always 'client').
         const audienceToggle = (!isReply && role !== 'client')
-            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="audience" role="group" aria-label="Who can see this note">
-                <span class="cal-cm-audience-cap">Who sees this?</span>
-                <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — the client never sees it.">${lockIco}Team only</button>
-                    <button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="audience" role="group" aria-label="Who can see this note">
+                <span class="sxr-cm-seg-cap">Who sees this?</span>
+                <div class="sxr-cm-seg">
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — the client never sees it.">${lockIco}Team only</button>
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button>
                 </div>
             </div>`
             : '';
         // M3b — Comment vs Request change on a NEW root (a change-request flips
         // the component to Tweaks Needed). On a reply it's always a comment.
         const modeToggle = !isReply
-            ? `<div class="cal-cm-audience" data-sxr-cm-toggle="mode" role="group" aria-label="Comment or request a change">
-                <span class="cal-cm-audience-cap">This is a…</span>
-                <div class="cal-cm-aud-seg">
-                    <button type="button" class="cal-cm-aud-btn${_sxrComposeMode === 'comment' ? ' is-active' : ''}" data-mode="comment" onclick="_sxrSetComposeMode('comment')" title="A note — does not change the status.">Comment</button>
-                    <button type="button" class="cal-cm-aud-btn${_sxrComposeMode === 'request-change' ? ' is-active' : ''}" data-mode="request-change" onclick="_sxrSetComposeMode('request-change')" title="A change request — flips this component to Tweaks Needed.">Request change</button>
+            ? `<div class="sxr-cm-seg-group" data-sxr-cm-toggle="mode" role="group" aria-label="Comment or request a change">
+                <span class="sxr-cm-seg-cap">This is a…</span>
+                <div class="sxr-cm-seg">
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'comment' ? ' is-active' : ''}" data-mode="comment" onclick="_sxrSetComposeMode('comment')" title="A note — does not change the status.">Comment</button>
+                    <button type="button" class="sxr-cm-seg-btn${_sxrComposeMode === 'request-change' ? ' is-active' : ''}" data-mode="request-change" onclick="_sxrSetComposeMode('request-change')" title="A change request — flips this component to Tweaks Needed.">Request change</button>
                 </div>
             </div>`
             : '';
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
-        return `<div class="cal-cm-composer-wrap">
+        return `<div class="sxr-cm-composer-wrap">
             ${replyingTo}
             ${compPicker}
             ${modeToggle}
             ${audienceToggle}
-            <div class="cal-cm-composer">
-                <div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
+            <div class="sxr-cm-composer">
+                <div class="sxr-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_calEsc(initial)}</div>
                 <textarea id="sxrCommentComposer" rows="1" placeholder="${_calEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_calEsc(draft)}</textarea>
-                <div class="cal-cm-composer-actions">
-                    <button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
+                <div class="sxr-cm-composer-actions">
+                    <button class="sxr-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button>
                 </div>
             </div>
         </div>`;
@@ -15228,24 +14729,24 @@
         }).sort((a, b) => String(b.root.created_at || '').localeCompare(String(a.root.created_at || '')));
         const renderThread = (entry) => {
             const replies = _sxrCommentReplies(entry.list, entry.root.id);
-            return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-sxr-thread="${_calEscAttr(entry.root.id)}">
+            return `<div class="sxr-cm-thread" data-sxr-thread="${_calEscAttr(entry.root.id)}">
                 ${_sxrCommentRowHtml(entry.root, false, entry.comp)}
                 ${replies.map(r => _sxrCommentRowHtml(r, true, entry.comp)).join('')}
             </div>`;
         };
-        const emptyMsg = `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
+        const emptyMsg = `<div class="sxr-cm-empty"><div class="sxr-cm-empty-title">No notes yet</div>Start the conversation — type below.</div>`;
         const feedHtml = threads.length ? threads.map(renderThread).join('') : emptyMsg;
         const sampleName = _calEsc(String(sample.name || '').trim() || 'Untitled sample');
         modal.innerHTML = `
-            <div class="cal-comments-head">
-                <div class="cal-comments-head-text">
+            <div class="sxr-cm-head">
+                <div class="sxr-cm-head-text">
                     <h3 id="sxrCommentsTitle">Notes</h3>
                     <p>${sampleName}</p>
                 </div>
-                <button class="cal-comments-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+                <button class="sxr-cm-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             </div>
-            <div class="cal-comments-feed" id="sxrCommentsFeed">
-                <div class="cal-comments-feed-inner">${feedHtml}</div>
+            <div class="sxr-cm-feed" id="sxrCommentsFeed">
+                <div class="sxr-cm-feed-inner">${feedHtml}</div>
             </div>
             ${_sxrComposerHtml(sample)}`;
         const ta = document.getElementById('sxrCommentComposer');
@@ -15865,21 +15366,6 @@
             _sxrCloseStatusMenu();
         }
     }
-    /* Position a portaled menu under (or flipped above) its trigger — clone of
-       the calendar's _calStatusToggleMenu / _calOpenSetAllMenu placement. */
-    function _sxrPositionMenu(menu, triggerEl) {
-        const rect = (triggerEl || document.body).getBoundingClientRect();
-        const menuW = Math.max(menu.offsetWidth, 200);
-        const menuH = menu.offsetHeight;
-        let left = rect.left;
-        const maxLeft = window.innerWidth - menuW - 10;
-        if (left > maxLeft) left = maxLeft;
-        if (left < 10) left = 10;
-        let top = rect.bottom + 6;
-        if (top + menuH > window.innerHeight - 10) top = Math.max(10, rect.top - menuH - 6);
-        menu.style.left = left + 'px';
-        menu.style.top = top + 'px';
-    }
     function _sxrOpenStatusMenuFor(event, pid, comp, triggerEl) {
         if (event) { event.stopPropagation(); event.preventDefault(); }
         if (_isClientLink) return;   // SMM-only control
@@ -15889,17 +15375,20 @@
         const sample = _sxrFind(pid);
         if (!sample) return;
         const cur = _calNormStatus(sample[comp + '_status'] || 'In Progress');
-        const trigger = triggerEl || (event && event.currentTarget);
         const menu = document.createElement('div');
-        menu.className = 'cal-fld-status-menu';
+        menu.className = 'cal-fld-status-menu sxr-status-menu';
         menu.innerHTML = SXR_STATUSES.map(st => {
             const slug = _sxrStatusSlug(st);
-            return `<button type="button" class="cal-fld-status-item cal-fld-status-${slug}${st === cur ? ' active' : ''}" onclick="_sxrStatusPick(${_jsAttrArg(pid)}, ${_jsAttrArg(st)}, ${_jsAttrArg(comp)})">${_calEsc(st)}</button>`;
+            const isCur = st === cur;
+            return `<button type="button" class="cal-fld-status-opt cal-fld-status-${slug}${isCur ? ' is-active' : ''}" onclick="_sxrStatusPick(${_jsAttrArg(pid)}, ${_jsAttrArg(st)}, ${_jsAttrArg(comp)})">${_calEsc(st)}</button>`;
         }).join('');
         document.body.appendChild(menu);
-        _sxrPositionMenu(menu, trigger);
-        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger };
-        requestAnimationFrame(() => menu.classList.add('open'));
+        const r = (triggerEl || (event && event.currentTarget) || document.body).getBoundingClientRect();
+        menu.style.position = 'fixed';
+        menu.style.top = (r.bottom + 4) + 'px';
+        menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 220)) + 'px';
+        menu.style.zIndex = '99999';
+        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger: triggerEl || (event && event.currentTarget) };
         setTimeout(() => document.addEventListener('click', _sxrStatusMenuOutside, true), 0);
     }
     function _sxrStatusPick(pid, status, comp) {
@@ -15916,27 +15405,18 @@
         _sxrFlushCardSave(pid);
         _sxrRefreshCardPills(pid);
     }
-    /* Repaint a card's status surface in place (after an in-place transition)
-       without a full grid re-render, so the colours + labels track the new
-       sub-statuses. SMM cards repaint the bottom sub-status row; the read-only
-       client card repaints its inline pills. */
+    /* Repaint just a card's status pills in place (after an in-place transition)
+       without a full grid re-render, so the pill colour + label track the new
+       sub-statuses. */
     function _sxrRefreshCardPills(pid) {
         const sample = _sxrFind(pid);
         if (!sample) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const card = document.querySelector(`.sxr-card[data-sxr-id="${sel}"]`);
-        if (card) {
-            const subRow = card.querySelector('.sxr-card-substatus-row');
-            if (subRow) {
-                const tmp = document.createElement('div');
-                tmp.innerHTML = _sxrStatusRowHtml(pid, sample);
-                const fresh = tmp.firstElementChild;
-                if (fresh) subRow.replaceWith(fresh);
-            }
-            const pillWrap = card.querySelector('.sxr-card-pills');
-            if (pillWrap) pillWrap.innerHTML = _sxrPillsHtml(sample);
-        }
-        _sxrUpdateBadge();   // keep the "awaiting SMM" tab count live
+        const wrap = document.querySelector(`.sxr-card[data-sxr-id="${sel}"] .sxr-card-pills`);
+        if (!wrap) return;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = _sxrPillsHtml(sample);
+        wrap.innerHTML = tmp.innerHTML;
     }
     /* The per-component status pills HTML. On the SMM surface they are
        ACTIONABLE (a click opens the status menu); on a client link they are a
@@ -15952,108 +15432,6 @@
             }
             return `<button type="button" class="cal-review-sub-pill sxr-pill-btn cal-fld-status-${slug}" data-sxr-comp-pill="${c}" title="${_calEscAttr(label + ' — click to change')}" onclick="_sxrOpenStatusMenuFor(event, ${_jsAttrArg(s.id)}, '${c}', this)">${_calEsc(label)}</button>`;
         }).join('');
-    }
-
-    /* The SMM card's bottom status block — a faithful clone of the calendar's
-       cal-card-substatus-row: a "Set all to…" pill on top, then one coloured
-       sub-status trigger per component (Video / Thumbnail), each opening the
-       status menu (_sxrOpenStatusMenuFor). Reuses the calendar's global
-       .cal-fld-substatus / .cal-fld-setall CSS so it looks identical.
-       NOTE: unlike the calendar (which locks an unlinked video/graphic trigger
-       because caption is always its settable escape hatch), samples has NO
-       caption — so locking would leave a brand-new, not-yet-linked sample with
-       NOTHING settable. The status must stay changeable, so the triggers are
-       always actionable here; the Linear status push simply no-ops until the
-       sub-issue is linked (see _sxrLinearUrlFor). */
-    function _sxrStatusRowHtml(rawId, s) {
-        if (_isClientLink) return '';
-        const id = _calEscAttr(rawId);
-        const subs = SXR_COMPONENTS.map(c => {
-            const cs = _calNormStatus(s[c + '_status'] || 'In Progress');
-            const slug = _sxrStatusSlug(cs);
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}" data-val="${_calEscAttr(cs)}" data-sxr-substatus-pid="${id}" data-sxr-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger sxr-pill-btn cal-fld-status-${slug}" data-sxr-comp-pill="${c}" onclick="_sxrOpenStatusMenuFor(event, ${_jsAttrArg(rawId)}, '${c}', this)">
-                    <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
-                    <span class="cal-fld-substatus-comp">${_calEsc(SXR_COMP_LABELS[c])}</span>
-                    <span class="cal-fld-substatus-label">${_calEsc(cs)}</span>
-                </button>
-            </div>`;
-        }).join('');
-        const setAll = `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${id}',this)" title="Set both statuses to the same value">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg>
-            <span class="cal-fld-setall-label">Set all to…</span>
-            <svg class="cal-fld-setall-chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg>
-        </button>`;
-        return `<div class="cal-card-substatus-row sxr-card-substatus-row">${setAll}${subs}</div>`;
-    }
-    /* "Set all to…" — set both components to one status at once. Mirrors the
-       always-actionable trigger policy above: both components are settable
-       regardless of whether their Linear sub-issue is linked (the status push
-       no-ops for an unlinked component). Clone of _calOpenSetAllMenu /
-       _calSetAllStatus, scoped to the two sample components. */
-    function _sxrSetAllSettable(sample, comp) {
-        return !!sample && SXR_COMPONENTS.indexOf(comp) !== -1;
-    }
-    const _SXR_SETALL_TERMINAL = new Set(['Approved']);
-    function _sxrSetAllSkipKey(status) { return 'sxr-skip-setall-confirm-' + String(status).toLowerCase().replace(/\s+/g, '-'); }
-    function _sxrOpenSetAllMenu(event, pid, triggerEl) {
-        if (event) { event.stopPropagation(); event.preventDefault(); }
-        if (_isClientLink) return;
-        const menuKey = pid + '|__setall__';
-        if (_sxrOpenStatusMenu && _sxrOpenStatusMenu.key === menuKey) { _sxrCloseStatusMenu(); return; }
-        _sxrCloseStatusMenu();
-        const sample = _sxrFind(pid);
-        if (!sample) return;
-        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(sample, c));
-        const skipped = SXR_COMPONENTS.filter(c => !settable.includes(c));
-        const headLabel = skipped.length
-            ? `Apply to ${settable.map(c => SXR_COMP_LABELS[c]).join(', ') || '—'} — ${skipped.map(c => SXR_COMP_LABELS[c]).join(' & ')} ${skipped.length === 1 ? 'is' : 'are'} not linked`
-            : 'Apply to both components';
-        const menu = document.createElement('div');
-        menu.className = 'cal-fld-status-menu';
-        menu.innerHTML = `<div class="cal-fld-setall-menu-head">${_calEsc(headLabel)}</div>`
-            + SXR_STATUSES.map(st => `<button type="button" class="cal-fld-status-item cal-fld-status-${_sxrStatusSlug(st)}" onclick="_sxrSetAllStatus('${_calEscAttr(pid)}','${_calEscAttr(st)}')">${_calEsc(st)}</button>`).join('');
-        document.body.appendChild(menu);
-        _sxrPositionMenu(menu, triggerEl);
-        _sxrOpenStatusMenu = { key: menuKey, el: menu, trigger: triggerEl };
-        requestAnimationFrame(() => menu.classList.add('open'));
-        setTimeout(() => document.addEventListener('click', _sxrStatusMenuOutside, true), 0);
-    }
-    function _sxrSetAllStatus(pid, status) {
-        if (_isClientLink) return;
-        _sxrCloseStatusMenu();
-        const sample = _sxrFind(pid);
-        if (!sample) return;
-        const settable = SXR_COMPONENTS.filter(c => _sxrSetAllSettable(sample, c));
-        if (!settable.length) {
-            showNotify('Nothing to set', 'Neither component on this card can be updated yet — link the Linear sub-issues first.');
-            return;
-        }
-        const next = _calNormStatus(status);
-        const apply = (dontAskAgain) => {
-            if (dontAskAgain) { try { localStorage.setItem(_sxrSetAllSkipKey(status), '1'); } catch (e) {} }
-            let changed = false;
-            for (const c of settable) {
-                if (_calNormStatus(sample[c + '_status'] || 'In Progress') === next) continue;
-                const extra = {};
-                if (next === 'Kasper Approval') extra.kasper_seen = _sxrRecordKasperSeen(sample, c);
-                _sxrApplySubStatus(sample, c, next, extra);
-                changed = true;
-            }
-            if (!changed) return;   // every settable component already at this status
-            _sxrRenderBody();
-            _sxrFlushCardSave(pid);
-        };
-        let skip = false;
-        try { skip = localStorage.getItem(_sxrSetAllSkipKey(status)) === '1'; } catch (e) {}
-        if (_SXR_SETALL_TERMINAL.has(next) && !skip) {
-            const settableLabel = settable.map(c => SXR_COMP_LABELS[c]).join(', ');
-            const skippedLabel = SXR_COMPONENTS.filter(c => !settable.includes(c)).map(c => SXR_COMP_LABELS[c]).join(' and ');
-            const msg = `Set ${settableLabel} to "${status}".` + (skippedLabel ? ` (${skippedLabel} not linked to Linear — skipped.)` : '');
-            showConfirm(`Set all to "${status}"?`, msg, apply, status, "Don't ask me again");
-        } else {
-            apply(false);
-        }
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -16084,7 +15462,7 @@
     /* Per-(card|comp) review draft / saving / error slice for the client
        surface. Distinct from the calendar's _calReviewState (different DOM /
        handlers). Used only on the _isClientLink surface. */
-    const _sxrClientReviewState = { drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null), expanded: new Set() };
+    const _sxrClientReviewState = { drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
 
     /* The render-gating predicate. Mirror of _calReviewComponentActive(p,c,'client'):
        actionable ONLY at Client Approval or Tweaks Needed. Never at In Progress /
@@ -16249,87 +15627,13 @@
         }).join('');
         return `<div class="cal-review-body sxr-client-review-body" style="grid-template-columns: repeat(${SXR_COMPONENTS.length}, minmax(0, 1fr));" onclick="event.stopPropagation();">${panels}</div>`;
     }
-    /* ── Client review SURFACE (clone of renderCalReview) ──────────────────
-       The client share link renders the calendar's review surface, NOT the SMM
-       card strip: a vertical list of COLLAPSIBLE kcard review cards. Each card
-       collapses to a compact strip (thumb + name + a plain-English "what you
-       need to do" line + the read-only status pills); clicking expands it to the
-       per-component review panels (_sxrClientReviewBodyHtml). Reuses the global
-       .cal-review-wrap / .cal-review-list / .kcard / .cal-review-card CSS. */
-    function _sxrReviewPendingLabel(sample) {
-        const awaiting = [], inFlight = [];
-        for (const c of SXR_COMPONENTS) {
-            const cs = _calNormStatus(sample[c + '_status'] || '');
-            if (cs === 'Client Approval') awaiting.push(c);
-            else if (cs === 'Tweaks Needed') inFlight.push(c);
-        }
-        if (!awaiting.length && !inFlight.length) return '';
-        const human = (list) => {
-            const labels = list.map(c => `<span class="kcard-pending-strong">${_calEsc(SXR_COMP_LABELS[c] || c)}</span>`);
-            if (labels.length === 1) return labels[0];
-            return labels.slice(0, -1).join(', ') + ' and ' + labels.slice(-1)[0];
-        };
-        const parts = [];
-        if (awaiting.length) parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + ' your review');
-        if (inFlight.length) parts.push("we're working on your tweaks for " + human(inFlight));
-        const joined = parts.join(' · ');
-        return joined.charAt(0).toUpperCase() + joined.slice(1);
-    }
-    function _sxrReviewCardHtml(sample) {
-        const pid = sample.id;
-        const escId = _calEscAttr(pid);
-        const expanded = _sxrClientReviewState.expanded.has(pid);
-        const thumbUrl = _sxrDeriveThumb(sample);
-        const thumbHtml = thumbUrl
-            ? `<img src="${_calEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'">`
-            : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
-        const pendingLabel = _sxrReviewPendingLabel(sample);
-        const compPills = _sxrPillsHtml(sample);   // read-only on a client link
-        const hideCd = String(sample.hide_creative_direction || '').trim().toUpperCase() === 'TRUE';
-        const cd = String(sample.creative_direction || '').trim();
-        const cdLine = (!hideCd && cd) ? `<div class="sxr-review-cd">${_calEsc(cd)}</div>` : '';
-        const body = expanded ? `<div class="sxr-review-expand">${cdLine}${_sxrClientReviewBodyHtml(sample)}</div>` : '';
-        const chev = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>`;
-        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-review-pid="${escId}">
-            <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
-                <div class="kcard-thumb">${thumbHtml}</div>
-                <div class="kcard-main">
-                    <div class="kcard-title">${_calEsc(sample.name || 'Untitled sample')}</div>
-                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
-                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
-                </div>
-                <div class="kcard-actions" onclick="event.stopPropagation();">
-                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}">${chev}</button>
-                </div>
-            </div>
-            ${body}
-        </div>`;
-    }
-    function _sxrReviewToggleCard(pid) {
-        if (_sxrClientReviewState.expanded.has(pid)) _sxrClientReviewState.expanded.delete(pid);
-        else _sxrClientReviewState.expanded.add(pid);
-        _sxrReviewRepaintCard(pid);
-    }
-    function _sxrReviewRepaintCard(pid) {
-        const sample = _sxrFind(pid);
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const el = document.querySelector(`.cal-review-card[data-sxr-review-pid="${sel}"]`);
-        if (!el || !sample) return;
-        const tmp = document.createElement('div');
-        tmp.innerHTML = _sxrReviewCardHtml(sample);
-        if (tmp.firstElementChild) {
-            if (typeof _kcardReuseThumbInto === 'function') { try { _kcardReuseThumbInto(el, tmp.firstElementChild); } catch (e) {} }
-            el.replaceWith(tmp.firstElementChild);
-        }
-        _sxrUpdateBadge();
-    }
     /* Toggle the two action buttons in place as the client types — no full
        repaint per keystroke (mirror _calReviewOnDraftInput). */
     function _sxrClientReviewOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp;
         _sxrClientReviewState.drafts[key] = ta.value;
         const hasDraft = !!ta.value.trim();
-        const card = ta.closest('.cal-review-card');
+        const card = ta.closest('.sxr-card');
         if (!card) return;
         const panel = card.querySelector('.cal-review-panel[data-sxr-cl-comp="' + comp + '"]');
         if (!panel) return;
@@ -16361,10 +15665,16 @@
     /* Repaint just the client review body of a card after an approve / request —
        reuses the rendered HTML, keeps the rest of the (read-only) card intact. */
     function _sxrClientRepaintReview(pid) {
-        // Client surface is the kcard review list — repaint the whole review
-        // card (keeps it expanded; the new sub-status + pills + pending label
-        // all re-render together). Mirrors _calReviewRepaintCard.
-        _sxrReviewRepaintCard(pid);
+        const sample = _sxrFind(pid);
+        if (!sample) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
+        const card = document.querySelector(`.sxr-card[data-sxr-id="${sel}"]`);
+        if (!card) return;
+        const host = card.querySelector('[data-sxr-client-review]');
+        if (!host) return;
+        host.innerHTML = _sxrClientReviewBodyHtml(sample);
+        // Keep the read-only status pills in step with the new sub-status.
+        _sxrRefreshCardPills(pid);
     }
 
     /* ── optimistic field-patch save (M2) ───────────────────────────
@@ -16388,32 +15698,6 @@
        rides the echo + realtime to every viewer. Own map — never _calThumbRev. */
     const _sxrThumbRev = Object.create(null);
     function _sxrBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _sxrThumbRev[pid] = t; return t; }
-    /* ── Create lifecycle (clone of the calendar's blank→promote machinery) ──
-       A new sample starts as a client-side blank card (id "__sxrblank__N") that
-       lives only in the DOM (not sxrState.cards). Its first content-bearing save
-       mints a real "sr_…" id and promotes the card IN PLACE — no full re-render,
-       so the user's focus/typing survive. Mirrors _calNextBlankId / _calIsBlankId
-       / _calMintId / _calBlankPost / _calFailedNewCards. */
-    let _sxrBlankSeq = 0;
-    function _sxrNextBlankId() { _sxrBlankSeq++; return '__sxrblank__' + _sxrBlankSeq; }
-    function _sxrIsBlankId(pid) { return typeof pid === 'string' && pid.startsWith('__sxrblank__'); }
-    function _sxrMintId() { return 'sr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
-    /* Brand-new cards whose first save FAILED: kept on screen with a Save-failed
-       chip (not deleted) and preserved through background polls, so a failed
-       create is a visible, retryable state. Mirrors _calFailedNewCards. */
-    const _sxrFailedNewCards = new Set();
-    /* Default field values for a brand-new sample. No caption/title/date/cta —
-       those are excluded. video/graphic start In Progress, so worst-of overall
-       is In Progress. */
-    function _sxrBlankSample() {
-        const maxOrder = (sxrState.cards || []).reduce((m, c) => Math.max(m, Number(c.order_index || 0)), 0);
-        return _sxrNormalize({
-            id: _sxrNextBlankId(), order_index: maxOrder + 1, name: '',
-            asset_url: '', thumbnail_url: '', creative_direction: '', hide_creative_direction: 'FALSE',
-            linear_issue_id: '', graphic_linear_issue_id: '',
-            status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress',
-        });
-    }
     /* The backend link-clear sentinel (sample-review-upsert honors it exactly
        as calendar-upsert-post does). A bare '' is carried-forward over by the
        upsert's link-clobber guard, so clearing a link must send this token. */
@@ -16452,25 +15736,6 @@
         return keys.length > 0 && keys.every(k => _SXR_CLIENT_WRITE_COLS.has(k));
     }
     function _sxrFind(pid) { return (sxrState.cards || []).find(c => String(c.id) === String(pid)); }
-    /* Capture the pre-edit value on focus so Escape can revert to it. */
-    function _sxrOnFieldFocus(el) { try { el.dataset.sxrOrig = el.value; } catch (e) {} }
-    /* Keyboard contract on the editable card fields: Enter commits (blur) on
-       single-line inputs; Escape reverts to the pre-edit value and cancels the
-       save. Clone of _calLinearKey's intent, extended to revert. */
-    function _sxrOnFieldKey(e, el) {
-        if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); el.blur(); return; }
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld;
-            const orig = el.dataset.sxrOrig != null ? el.dataset.sxrOrig : '';
-            el.value = orig;
-            const card = _sxrFind(pid);
-            if (card && fld) card[fld] = orig;
-            if (pid && fld && _sxrPendingEdits[pid]) { delete _sxrPendingEdits[pid][fld]; if (!Object.keys(_sxrPendingEdits[pid]).length) delete _sxrPendingEdits[pid]; }
-            el.dataset.sxrCancel = '1';
-            el.blur();
-        }
-    }
     function _sxrOnFieldInput(el) {
         if (_sxrClientFieldEditBlocked()) return;   // read-only on a client link — never persist
         const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld, val = el.value;
@@ -16483,7 +15748,6 @@
     }
     function _sxrOnFieldBlur(el) {
         if (_sxrClientFieldEditBlocked()) return;
-        if (el.dataset.sxrCancel === '1') { delete el.dataset.sxrCancel; return; }   // Escape cancelled this edit
         const pid = el.dataset.sxrPid, fld = el.dataset.sxrFld, val = el.value;
         if (!pid || !fld) return;
         const card = _sxrFind(pid); if (card) card[fld] = val;
@@ -16503,9 +15767,6 @@
                 }
             }
         }
-        // Repaint the thumbnail in place the instant a media link blurs, so the
-        // editing browser sees the new image without waiting for a full repaint.
-        if (fld === 'asset_url' || fld === 'thumbnail_url') _sxrForceThumbRefresh(pid);
         _sxrFlushCardSave(pid);
     }
     function _sxrOnTextareaInput(el) {
@@ -16552,257 +15813,9 @@
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);
     }
-    /* Insert a fresh blank card into the grid (DOM-only until its first save
-       promotes it) and focus its name input. Clone of addCalBlankCard. */
-    function addSxrBlankCard() {
-        if (_isClientLink) return;   // clients never create (no collaborative mode)
-        let grid = document.querySelector('#sxrBody .sxr-grid');
-        if (!grid) { _sxrRenderBody(); grid = document.querySelector('#sxrBody .sxr-grid'); }
-        if (!grid) return;
-        // Empty-state hero → become a populated grid: drop the hero (we re-add a
-        // compact "+" tile after the new card below).
-        grid.classList.remove('is-empty');
-        const existingAdd = grid.querySelector('.sxr-card-add');
-        if (existingAdd) existingAdd.remove();
-        const wrap = document.createElement('div');
-        wrap.innerHTML = _sxrRenderCard(_sxrBlankSample()).trim();
-        const card = wrap.firstChild;
-        if (!card) return;
-        grid.appendChild(card);
-        grid.insertAdjacentHTML('beforeend', _sxrAddTileHtml(false));
-        const nameInput = card.querySelector('.sxr-name-input');
-        if (nameInput) {
-            card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            setTimeout(() => nameInput.focus(), 80);
-        }
-    }
-    /* First-save promote: turn a blank card into a real one IN PLACE — rewrite
-       every attribute referencing the old blank pid, inject the grip + archive-X
-       the blank omitted, migrate pending edits, and wire drag. No full re-render,
-       so the user's focus/typing survive. Clone of _calPromoteBlankCard. */
-    function _sxrPromoteBlankCard(oldPid, newId) {
-        const body = document.getElementById('sxrBody');
-        if (!body) return;
-        const esc = (window.CSS && CSS.escape) ? CSS.escape(oldPid) : oldPid;
-        const blank = body.querySelector(`.sxr-card[data-sxr-id="${esc}"]`);
-        if (!blank) return;
-        blank.classList.remove('is-blank');
-        blank.setAttribute('draggable', 'true');
-        const oldEsc = oldPid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(oldEsc, 'g');
-        const walk = (el) => {
-            if (!el || !el.attributes) return;
-            for (let i = 0; i < el.attributes.length; i++) {
-                const a = el.attributes[i];
-                if (typeof a.value === 'string' && a.value.indexOf(oldPid) !== -1) el.setAttribute(a.name, a.value.replace(re, newId));
-            }
-            for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
-        };
-        walk(blank);
-        if (!blank.querySelector('.sxr-card-grip')) {
-            const grip = document.createElement('span');
-            grip.className = 'sxr-card-grip'; grip.title = 'Drag to reorder';
-            grip.innerHTML = '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>';
-            blank.insertBefore(grip, blank.firstChild);
-        }
-        if (!blank.querySelector('.sxr-card-del')) {
-            const del = document.createElement('button');
-            del.className = 'sxr-card-del'; del.type = 'button'; del.title = 'Archive';
-            del.addEventListener('click', () => archiveSxrCard(newId));
-            del.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
-            blank.insertBefore(del, blank.firstChild);
-        }
-        if (_sxrPendingEdits[oldPid]) {
-            _sxrPendingEdits[newId] = Object.assign(_sxrPendingEdits[newId] || {}, _sxrPendingEdits[oldPid]);
-            delete _sxrPendingEdits[oldPid];
-        }
-        _sxrWireDragOnCard(blank);
-    }
-
-    /* ── Per-card archive (front-end only — the upsert already archives) ──
-       The X on each editable card flips the row to status=Archived (so it drops
-       off the next load for every surface, but stays recoverable on the server).
-       A local "archive ledger" hides the row regardless of a still-in-flight
-       background poll/echo until the server confirms the Archived status —
-       without it, the upsert's own echo / a reconnect catch-up would resurrect a
-       just-archived card. Clone of _calArchived* + _calArchiveOne + archiveCalPost. */
-    function _sxrArchivedKey(slug) { return 'syncview_sxr_archived_v1_' + slug; }
-    const SXR_ARCHIVE_GRACE_MS = 60 * 1000;
-    function _sxrArchivedReadRaw(slug) {
-        if (!slug) return {};
-        try {
-            const raw = JSON.parse(localStorage.getItem(_sxrArchivedKey(slug)) || '{}');
-            if (Array.isArray(raw)) { const m = {}; raw.forEach(r => { if (r) m[String(r)] = 0; }); return m; }
-            return (raw && typeof raw === 'object') ? raw : {};
-        } catch { return {}; }
-    }
-    function _sxrArchivedWriteRaw(slug, obj) {
-        if (!slug) return;
-        try { localStorage.setItem(_sxrArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
-    }
-    function _sxrArchivedRefs(slug) { return slug ? new Set(Object.keys(_sxrArchivedReadRaw(slug))) : new Set(); }
-    function _sxrArchivedAdd(slug, refs) {
-        if (!slug || !refs || !refs.length) return;
-        const m = _sxrArchivedReadRaw(slug); const now = Date.now(); let changed = false;
-        refs.filter(Boolean).forEach(r => { const k = String(r); if (m[k] !== now) { m[k] = now; changed = true; } });
-        if (changed) _sxrArchivedWriteRaw(slug, m);
-    }
-    function _sxrArchivedRemove(slug, refs) {
-        if (!slug || !refs || !refs.length) return;
-        const m = _sxrArchivedReadRaw(slug); let changed = false;
-        refs.filter(Boolean).forEach(r => { const k = String(r); if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; } });
-        if (changed) _sxrArchivedWriteRaw(slug, m);
-    }
-    /* Self-heal: strip ledger refs for rows the server now reports LIVE (status
-       != Archived), but only once they're past the propagation grace window — so
-       a re-created sample (or an un-archive) isn't hidden forever. */
-    function _sxrCleanArchiveLedger(slug, rows) {
-        if (!slug || !rows || !rows.length) return;
-        const m = _sxrArchivedReadRaw(slug);
-        if (!Object.keys(m).length) return;
-        const cutoff = Date.now() - SXR_ARCHIVE_GRACE_MS;
-        let changed = false;
-        rows.forEach(r => {
-            if (!r || String((r.status || '')).toLowerCase() === 'archived') return;
-            const k = String(r.id);
-            const ts = m[k];
-            if (ts === undefined || ts > cutoff) return;
-            delete m[k]; changed = true;
-        });
-        if (changed) _sxrArchivedWriteRaw(slug, m);
-    }
-    function _sxrRefsForCard(s) { return s ? [s.id].filter(Boolean) : []; }
-    function _sxrIsArchivedRef(s, refs) { return !!(s && s.id && refs && refs.size && refs.has(String(s.id))); }
-
-    /* The single-card archive write: drop queued edits, wait out any in-flight
-       save so the Archived write lands strictly AFTER its full-row echo (or the
-       echo would resurrect the row), then POST status:Archived. Clone of
-       _calArchiveOne. */
-    async function _sxrArchiveOne(id, slug) {
-        const useSlug = slug || sxrClientSlug(sxrState.client);
-        delete _sxrPendingEdits[id];
-        _sxrFailedNewCards.delete(id);
-        const inflight = _sxrSaveInFlight[id];
-        if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await fetch(SXR_UPSERT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client: useSlug, sample: { id, status: 'Archived', updated_at: new Date().toISOString() } })
-        });
-        const json = await resp.json();
-        if (!json.ok) throw new Error(json.error || 'archive failed');
-        if (sxrClientSlug(sxrState.client) === useSlug) {
-            sxrState.cards = (sxrState.cards || []).filter(c => String(c.id) !== String(id));
-            try { _sxrCacheWrite(useSlug, sxrState.cards); } catch {}
-        }
-    }
-    /* The per-card X handler: confirm, pre-populate the ledger, optimistically
-       remove + repaint, then write; roll back ledger + cards on failure. Clone of
-       archiveCalPost. */
-    function archiveSxrCard(id) {
-        if (_isClientLink) return;   // archiving is SMM-only
-        if (!id || _sxrIsBlankId(id)) return;   // a never-saved blank is DOM-only — nothing to archive
-        const slug = sxrClientSlug(sxrState.client);
-        showConfirm('Archive this sample?', "It's removed for the client too but kept (archived) on our server, so it can always be recovered.", async () => {
-            const snapshot = (sxrState.cards || []).slice();
-            const target = _sxrFind(id);
-            const refs = target ? _sxrRefsForCard(target) : [id];
-            // Pre-populate the ledger so a poll racing the archive write can't
-            // resurrect this row. Rolled back on failure below.
-            _sxrArchivedAdd(slug, refs);
-            sxrState.cards = (sxrState.cards || []).filter(c => String(c.id) !== String(id));
-            _sxrRenderBody();
-            try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
-            try {
-                await _sxrArchiveOne(id, slug);
-            } catch (e) {
-                console.warn('[Samples v2] archive failed', e);
-                _sxrArchivedRemove(slug, refs);
-                if (sxrClientSlug(sxrState.client) === slug) {
-                    sxrState.cards = snapshot;
-                    _sxrRenderBody();
-                }
-                showNotify('Archive failed', (e && e.message) || 'Could not archive this sample — reloading.');
-                if (sxrClientSlug(sxrState.client) === slug) loadSxrCards(slug);
-            }
-        }, 'Archive');
-    }
-
-    /* ── Bulk multi-select archive (archive-only select bar) ──
-       Clone of the calendar's select-mode cluster, stripped to a single archive
-       action (the calendar's combined bar also carries color-tag + caption, both
-       EXCLUDED). Reuses _sxrArchiveOne + the _sxrArchived ledger. */
-    const SXR_BULK_ARCHIVE_CONCURRENCY = 6;
-    async function _sxrRunPooled(items, limit, fn) {
-        const results = new Array(items.length);
-        let next = 0;
-        async function worker() {
-            while (next < items.length) {
-                const i = next++;
-                try { results[i] = { status: 'fulfilled', value: await fn(items[i], i) }; }
-                catch (e) { results[i] = { status: 'rejected', reason: e }; }
-            }
-        }
-        const n = Math.max(1, Math.min(limit, items.length));
-        await Promise.all(Array.from({ length: n }, () => worker()));
-        return results;
-    }
-    function _sxrToggleSelectMode() {
-        if (_isClientLink) return;   // multi-select archive is SMM-only
-        sxrState.selectMode = !sxrState.selectMode;
-        sxrState.selected = new Set();
-        sxrState.lastSel = null;
-        const btn = document.getElementById('sxrSelectBtn');
-        if (btn) btn.classList.toggle('active', sxrState.selectMode);
-        _sxrRenderBody();
-    }
-    function _sxrCardSelectClick(e, pid) {
-        e.preventDefault(); e.stopPropagation();
-        const order = Array.from(document.querySelectorAll('#sxrBody .sxr-card-selectable[data-sxr-id]')).map(el => el.getAttribute('data-sxr-id'));
-        if (e.shiftKey && sxrState.lastSel && sxrState.lastSel !== pid) {
-            const a = order.indexOf(sxrState.lastSel), b = order.indexOf(pid);
-            if (a >= 0 && b >= 0) { const lo = Math.min(a, b), hi = Math.max(a, b); for (let i = lo; i <= hi; i++) sxrState.selected.add(order[i]); }
-        } else {
-            if (sxrState.selected.has(pid)) sxrState.selected.delete(pid); else sxrState.selected.add(pid);
-        }
-        sxrState.lastSel = pid;
-        _sxrSyncSelectionUI();
-    }
-    function _sxrSyncSelectionUI() {
-        document.querySelectorAll('#sxrBody .sxr-card[data-sxr-id]').forEach(card => card.classList.toggle('sxr-card-selected', sxrState.selected.has(card.getAttribute('data-sxr-id'))));
-        const n = sxrState.selected.size;
-        const count = document.getElementById('sxrSelectCount');
-        if (count) count.textContent = n + ' selected';
-        const archive = document.getElementById('sxrSelectArchive');
-        if (archive) archive.disabled = n === 0;
-    }
-    async function _sxrArchiveSelected() {
-        if (_isClientLink) return;
-        const ids = Array.from(sxrState.selected).filter(id => id && !_sxrIsBlankId(id));
-        if (!ids.length) return;
-        const slug = sxrClientSlug(sxrState.client);
-        showConfirm('Archive ' + ids.length + ' sample' + (ids.length === 1 ? '' : 's') + '?',
-            "They're removed for the client too but kept (archived) on our server, so they can always be recovered.",
-            async () => {
-                const idSet = new Set(ids.map(String));
-                const refsById = new Map();
-                (sxrState.cards || []).forEach(s => { if (idSet.has(String(s.id))) refsById.set(String(s.id), _sxrRefsForCard(s)); });
-                const allRefs = []; refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
-                _sxrArchivedAdd(slug, allRefs);
-                sxrState.cards = (sxrState.cards || []).filter(s => !idSet.has(String(s.id)));
-                sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null;
-                _sxrRenderBody();
-                try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
-                const results = await _sxrRunPooled(ids, SXR_BULK_ARCHIVE_CONCURRENCY, id => _sxrArchiveOne(id, slug));
-                const failedRefs = [];
-                results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(String(ids[i])); if (refs) refs.forEach(x => failedRefs.push(x)); } });
-                if (failedRefs.length) _sxrArchivedRemove(slug, failedRefs);
-                const failedCount = results.filter(r => r.status === 'rejected').length;
-                if (failedCount) { showNotify('Some samples were not archived', failedCount + ' of ' + ids.length + ' could not be archived — reloading.'); if (sxrClientSlug(sxrState.client) === slug) loadSxrCards(slug); }
-            }, 'Archive');
-    }
     async function _sxrFlushCardSave(pid) {
         const edits = _sxrPendingEdits[pid];
-        if (!edits) return;   // an empty {} bucket (a _sxrRetrySave) is a forced full re-send, not a no-op
+        if (!edits || !Object.keys(edits).length) return;
         // On a CLIENT link the persist surface is the review action ONLY: a
         // write proceeds iff every pending column is a client-writable review
         // column (status / approval stamp / change-request comment). A field
@@ -16830,70 +15843,33 @@
         _sxrNoLinearPush.delete(pid + '|video');
         _sxrNoLinearPush.delete(pid + '|graphic');
         let prevSnapshot = null;
-        let realId = pid;
-        let wasNewRow = false;
         try {
-            // CREATE: a brand-new blank card's first content-bearing save mints a
-            // real sr_ id and promotes the card in place (clone of the calendar's
-            // _calFlushCardSave blank branch). An empty blank never persists.
-            const isBlank = _sxrIsBlankId(pid);
-            const hasContent = Object.values(edits).some(v => String(v == null ? '' : v).trim() !== '');
-            if (isBlank && !hasContent) return;
-            if (isBlank) {
-                realId = _sxrMintId();
-                _sxrPromoteBlankCard(pid, realId);
-                // Edits made during this save land under the new id, so the lock
-                // must cover it too or the re-flush would race this request.
-                _sxrSaveInFlight[realId] = _sxrSaveInFlight[pid];
-            }
-            let post;
-            const idx = (sxrState.cards || []).findIndex(c => String(c.id) === String(realId));
-            prevSnapshot = idx >= 0 ? Object.assign({}, sxrState.cards[idx]) : null;
-            wasNewRow = idx < 0;
-            if (idx < 0) {
-                const blank = { id: realId, order_index: (sxrState.cards || []).reduce((m, c) => Math.max(m, Number(c.order_index || 0)), 0) + 1, name: '', asset_url: '', thumbnail_url: '', creative_direction: '', hide_creative_direction: 'FALSE', linear_issue_id: '', graphic_linear_issue_id: '', status: 'In Progress', video_status: 'In Progress', graphic_status: 'In Progress' };
-                post = _sxrNormalize(Object.assign(blank, edits));
-                post.status = computeSampleOverallStatus(post);
-                (sxrState.cards = sxrState.cards || []).push(post);
-            } else {
-                post = Object.assign({}, sxrState.cards[idx], edits);
-                sxrState.cards[idx] = post;
-            }
+            const idx = (sxrState.cards || []).findIndex(c => String(c.id) === String(pid));
+            if (idx < 0) return;   // M2 has no create flow (probe seeds via the webhook); editing an unknown row is a no-op
+            prevSnapshot = Object.assign({}, sxrState.cards[idx]);
+            const post = Object.assign({}, sxrState.cards[idx], edits);
+            sxrState.cards[idx] = post;
             post.updated_at = new Date().toISOString();
             // A media link changed → bump this card's thumb_rev so the new image
             // rides the echo + realtime. Only media links bump it.
-            if ('asset_url' in edits || 'thumbnail_url' in edits) post.thumb_rev = _sxrBumpThumbRev(realId);
+            if ('asset_url' in edits || 'thumbnail_url' in edits) post.thumb_rev = _sxrBumpThumbRev(pid);
             delete post._saveError;
-            _sxrSetCardStatus(realId, 'saving');
+            _sxrSetCardStatus(pid, 'saving');
 
-            let wirePost;
-            if (!wasNewRow && Object.keys(edits).length > 0) {
-                // FIELD-LEVEL patch — only the columns this edit touched.
-                wirePost = { id: post.id };
-                for (const k of Object.keys(edits)) { if (k === '_video_comments' || k === '_graphic_comments') continue; wirePost[k] = post[k]; }
-                if ('asset_url' in edits || 'thumbnail_url' in edits) wirePost.thumb_rev = post.thumb_rev;
-                // A cleared Linear link must reach the backend as the explicit
-                // __CLEAR_LINK__ sentinel, not a bare '' (the upsert carries the
-                // stored link forward over an empty string). Safe on a field-level
-                // patch: a link column is present only when actually edited.
-                ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
-                    if (Object.prototype.hasOwnProperty.call(wirePost, lk)
-                        && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
-                        wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
-                    }
-                });
-            } else {
-                // WHOLE-CARD send — a brand-new row, or a forced full re-send
-                // (_sxrRetrySave queues an empty bucket). Include the comment
-                // columns, strip transient helper keys. No clear-link sentinel:
-                // a new row has no stored link to carry forward.
-                wirePost = Object.assign({}, post);
-                wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
-                wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
-                delete wirePost._video_comments;
-                delete wirePost._graphic_comments;
-                delete wirePost._saveError;
-            }
+            // Build the FIELD-LEVEL patch — only the columns this edit touched.
+            const wirePost = { id: post.id };
+            for (const k of Object.keys(edits)) wirePost[k] = post[k];
+            if ('asset_url' in edits || 'thumbnail_url' in edits) wirePost.thumb_rev = post.thumb_rev;
+            // A cleared Linear link must reach the backend as the explicit
+            // __CLEAR_LINK__ sentinel, not a bare '' (the upsert carries the
+            // stored link forward over an empty string). Safe on a field-level
+            // patch: a link column is present only when actually edited.
+            ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
+                if (Object.prototype.hasOwnProperty.call(wirePost, lk)
+                    && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
+                    wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
+                }
+            });
 
             // Mark this as a local write so the realtime ECHO of it (arriving a
             // beat later) is recognised as ours and doesn't flicker the grid.
@@ -16908,35 +15884,31 @@
             const json = await resp.json();
             if (!json.ok) throw new Error(json.error || 'save failed');
             const saved = json.sample || json.post || wirePost;
-            _sxrFailedNewCards.delete(realId);
-            const i2 = (sxrState.cards || []).findIndex(c => String(c.id) === String(realId));
+            const i2 = (sxrState.cards || []).findIndex(c => String(c.id) === String(pid));
             if (i2 >= 0) {
                 // Merge the echo (a FIELD-LEVEL patch) onto the FULL local row
                 // FIRST, then re-normalize the MERGED row — never normalize the
                 // partial echo (it would invent absent columns).
                 const merged = _sxrNormalize(Object.assign({}, sxrState.cards[i2], saved));
-                // Union comment threads by id so a comment added to ANOTHER
-                // component while this save was in flight survives the echo adopt.
-                _sxrMergeCardComments(merged, sxrState.cards[i2]);
                 // Don't let this echo overwrite fields the user changed again
                 // while the save was in flight (queued for the next flush).
-                const queued = _sxrPendingEdits[realId];
+                const queued = _sxrPendingEdits[pid];
                 if (queued) for (const k in queued) merged[k] = sxrState.cards[i2][k];
                 sxrState.cards[i2] = merged;
             }
             _sxrLastLocalWriteAt = Date.now();   // refresh the self-echo window post-success
             _sxrCacheWrite(_saveSlug, sxrState.cards);
-            const ok = _sxrFind(realId); if (ok && ok._saveError) delete ok._saveError;
-            _sxrSetCardStatus(realId, 'saved');
+            const ok = _sxrFind(pid); if (ok && ok._saveError) delete ok._saveError;
+            _sxrSetCardStatus(pid, 'saved');
             // Record this successful local write so the next background reload
             // can tell a stale Linear round-trip (server reverts/echoes a
             // sub-status) from a genuine cross-actor change (Kasper approving).
-            _sxrLocalRecentSaves.set(realId, Date.now());
-            _sxrRecentSaveFields.set(realId, {
+            _sxrLocalRecentSaves.set(pid, Date.now());
+            _sxrRecentSaveFields.set(pid, {
                 wrote: { video_status: post.video_status, graphic_status: post.graphic_status },
                 base: prevSnapshot ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status } : {}
             });
-            const savedRow = _sxrFind(realId);
+            const savedRow = _sxrFind(pid);
             if (savedRow) {
                 // Outbound push: a changed sub-status goes to ITS linked issue
                 // (video→video issue, graphic→graphic issue, never the overall).
@@ -16954,24 +15926,18 @@
                 // adopt's own follow-up write rides the suppression set.
                 if ('linear_issue_id' in edits) {
                     const u = String(savedRow.linear_issue_id || '').trim();
-                    if (u) _sxrSyncStatusFromLinear(realId, u, 'video');
+                    if (u) _sxrSyncStatusFromLinear(pid, u, 'video');
                 }
                 if ('graphic_linear_issue_id' in edits) {
                     const u = String(savedRow.graphic_linear_issue_id || '').trim();
-                    if (u) _sxrSyncStatusFromLinear(realId, u, 'graphic');
+                    if (u) _sxrSyncStatusFromLinear(pid, u, 'graphic');
                 }
             }
         } catch (e) {
             console.warn('[Samples v2] save failed', e);
-            _sxrSetCardStatus(realId, 'error', e && e.message);
-            const iErr = (sxrState.cards || []).findIndex(c => String(c.id) === String(realId));
-            if (wasNewRow) {
-                // A brand-new sample whose first save failed is KEPT on screen
-                // (not deleted) and marked so the poll-merge preserves it — a
-                // failed create is a visible, retryable state, not a silent vanish.
-                _sxrFailedNewCards.add(realId);
-                if (iErr >= 0) sxrState.cards[iErr]._saveError = (e && e.message) || 'save failed';
-            } else if (iErr >= 0) {
+            _sxrSetCardStatus(pid, 'error', e && e.message);
+            const iErr = (sxrState.cards || []).findIndex(c => String(c.id) === String(pid));
+            if (iErr >= 0) {
                 const cur = sxrState.cards[iErr];
                 // Roll back structural fields the upsert failed to persist;
                 // free-text (name / creative_direction / URLs) keeps its
@@ -16983,20 +15949,10 @@
                 cur.updated_at = prevSnapshot ? (prevSnapshot.updated_at || cur.updated_at) : cur.updated_at;
                 cur._saveError = (e && e.message) || 'save failed';
             }
-            // Re-render so the persistent "Save failed · Retry" button surfaces
-            // (the DOM-only chip set by _sxrSetCardStatus is a <span>, not the
-            // retry button; the button is rendered from s._saveError). Mirrors the
-            // calendar's catch re-render. The is-editable focus guard in
-            // _sxrRenderBody skips it if the user is still typing in a field.
-            try { _sxrRenderBody(); } catch (e2) {}
         } finally {
             delete _sxrSaveInFlight[pid];
-            delete _sxrSaveInFlight[realId];
             if (_releaseSave) _releaseSave();
-            // Re-flush edits queued during this save — under the promoted realId
-            // first, then the original pid if it still has any.
-            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
-            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+            if (_sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
         }
     }
 
@@ -17155,14 +16111,7 @@
             const json = await resp.json();
             if (!json.ok || !json.parent) return;
             const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
-            const ident = _calIdentFromUrl(issueUrl);
-            if (subs.length) {
-                // A PARENT issue — never adopt its status; flag it so the card
-                // surfaces the "link the sub-issue instead" banner.
-                if (ident && !_sxrParentLinks.has(ident)) { _sxrParentLinks.add(ident); _sxrRenderBody(); }
-                return;
-            }
-            if (ident) _sxrParentLinks.delete(ident);
+            if (subs.length) return;   // a PARENT issue — never adopt a parent's status onto a sample
             mapped = _calMapLinearStatusStrict(json.parent.status);
         } catch (e) { return; }
         if (mapped === 'Scheduled' || mapped === 'Posted') mapped = null;   // unreachable for samples
@@ -17310,13 +16259,11 @@
         const ids = Array.from(strip.querySelectorAll('.sxr-card.is-editable')).map(c => c.getAttribute('data-sxr-id'));
         if (!ids.length) return;
         const items = [];
-        const prevOrder = new Map();   // id → pre-drag order_index, for failure rollback + undo
         let changed = false;
         ids.forEach((id, i) => {
             const card = _sxrFind(id);
             const newOrder = i + 1;
             if (card) {
-                prevOrder.set(String(id), Number(card.order_index || 0));
                 if (Number(card.order_index || 0) !== newOrder) changed = true;
                 card.order_index = newOrder;   // local optimistic order (no updated_at bump)
             }
@@ -17325,27 +16272,15 @@
         if (!changed) return;
         _sxrRecordReorderOptimistic(items);
         try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
-        persistSxrReorder(items, slug, prevOrder);
-    }
-    /* Restore a pre-drag order (Undo after a successful reorder, or rollback after
-       a failed one) through the same persist funnel. Clone of _calUndoReorder. */
-    function _sxrUndoReorder(prevOrder, slug) {
-        if (!prevOrder || !prevOrder.size) return;
-        if (sxrClientSlug(sxrState.client) !== slug) return;
-        const items = [];
-        prevOrder.forEach((ord, id) => { const c = _sxrFind(id); if (c) c.order_index = ord; items.push({ id, order_index: ord }); });
-        _sxrRecordReorderOptimistic(items);
-        try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
-        _sxrRenderBody();
         persistSxrReorder(items, slug);
     }
     let _sxrReorderInFlight = false;
     let _sxrReorderPending = null;
-    async function persistSxrReorder(items, slug, prevOrder) {
+    async function persistSxrReorder(items, slug) {
         if (slug == null) slug = sxrClientSlug(sxrState.client);
         // Serialize + coalesce: a drag made while a write is in flight is held
         // and run after it, so the final stored order matches the last action.
-        if (_sxrReorderInFlight) { _sxrReorderPending = { items, slug, prevOrder }; return; }
+        if (_sxrReorderInFlight) { _sxrReorderPending = { items, slug }; return; }
         _sxrReorderInFlight = true;
         _sxrLastLocalWriteAt = Date.now();   // treat as a local write (defer the echo reload)
         try {
@@ -17356,9 +16291,6 @@
             const json = await resp.json();
             if (!json || !json.ok) throw new Error('reorder failed');
             _sxrLastLocalWriteAt = Date.now();
-            if (prevOrder && prevOrder.size && typeof showToast === 'function') {
-                showToast('New order saved', { actionLabel: 'Undo', onAction: () => _sxrUndoReorder(prevOrder, slug) });
-            }
         } catch (e) {
             console.warn('[Samples v2] reorder failed', e);
             // Drop the optimistic guard for the ids this write tried to set (only
@@ -17368,22 +16300,14 @@
                 const ro = _sxrReorderOptimistic.get(String(id));
                 if (ro && ro.order_index === Number(order_index)) _sxrReorderOptimistic.delete(String(id));
             });
-            // Roll back the optimistic order_index + repaint so the dropped card
-            // snaps back to its real position instead of lingering wrong until the
-            // next server reload. Clone of persistCalReorder's catch rollback.
-            if (prevOrder && prevOrder.size && sxrClientSlug(sxrState.client) === slug) {
-                prevOrder.forEach((ord, id) => { const c = _sxrFind(id); if (c) c.order_index = ord; });
-                try { _sxrCacheWrite(slug, sxrState.cards); } catch {}
-                _sxrRenderBody();
-            }
-            if (typeof showToast === 'function') showToast('Couldn’t save the new order — reverted. Try again.');
+            if (typeof showToast === 'function') showToast('Couldn’t save the new order — try again.');
         } finally {
             _sxrReorderInFlight = false;
             if (_sxrReorderPending) {
                 const next = _sxrReorderPending;
                 _sxrReorderPending = null;
                 _sxrRecordReorderOptimistic(next.items);
-                persistSxrReorder(next.items, next.slug, next.prevOrder);
+                persistSxrReorder(next.items, next.slug);
             }
         }
     }
@@ -17393,21 +16317,11 @@
         return `<div class="sxr-view" id="sxrView">${_sxrLoaderHtml()}</div>`;
     }
     function _sxrLoaderHtml() {
-        return `<div class="sxr-loader" role="status" aria-label="Loading"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" aria-hidden="true" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`;
-    }
-    /* Grow every card textarea (creative direction) to fit its saved content on
-       render — without this a long creative_direction paints clipped at rows=3
-       until focused. Mirrors _calAutosizeTextareas; same math as _sxrOnTextareaInput. */
-    function _sxrAutosizeTextareas(root) {
-        (root || document).querySelectorAll('.sxr-textarea').forEach(t => {
-            t.style.height = 'auto';
-            t.style.height = Math.max(t.scrollHeight, parseInt(getComputedStyle(t).minHeight) || 0) + 2 + 'px';
-        });
+        return `<div class="sxr-loader"><svg width="26" height="26" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;opacity:0.4"><circle cx="14" cy="14" r="11" stroke="currentColor" stroke-width="2.5" stroke-dasharray="50 20"/></svg><span>Loading samples…</span></div>`;
     }
     function mountSampleReviews() {
         _sxrV2Teardown(); // clear any stale realtime channel before (re)mount
         if (!_sxrEnabled()) { const v = document.getElementById('sxrView'); if (v) v.innerHTML = '<div class="sxr-loader"><span>Samples (Review) is off.</span></div>'; return; }
-        _sxrWireDeferredRender();
         const pins = _calGetPins(); // READ-ONLY
         if (_isClientLink && _sxrLinkClient) {
             sxrState.client = _sxrLinkClient; sxrState.embedded = true;
@@ -17418,96 +16332,25 @@
             if (pins.length > 0) initial = pins[0];
             sxrState.client = initial; sxrState.embedded = false;
         }
-        // Honor a #sample-reviews/<slug>/<id> deep link: remember the card to
-        // focus/scroll/highlight once it loads (was previously discarded).
-        sxrState.focusCard = (_sxrFocusRequest && _sxrFocusRequest.cardId) || null;
         _sxrFocusRequest = null;
         sxrState.cards = []; sxrState.error = null; sxrState.loading = false;
         _sxrRenderShell();
         if (sxrState.client) loadSxrCards(sxrClientSlug(sxrState.client)); else _sxrRenderBody();
     }
-    /* After a load, scroll to + highlight the deep-linked card, or notify if it's
-       gone. Cleared after one shot. */
-    function _sxrApplyFocusCard() {
-        const fid = sxrState.focusCard;
-        if (!fid) return;
-        const exists = (sxrState.cards || []).some(c => String(c.id) === String(fid));
-        sxrState.focusCard = null;
-        if (!exists) { showNotify('Sample not found', 'That sample link points to a card that has been archived or removed.'); return; }
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(fid)) : String(fid);
-        const card = document.querySelector(`#sxrBody .sxr-card[data-sxr-id="${sel}"]`);
-        if (!card) return;
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.classList.add('sxr-card-focus');
-        setTimeout(() => { if (card) card.classList.remove('sxr-card-focus'); }, 2200);
-    }
 
-    /* Copy a client-facing link to these sample reviews. Carries ?sxr=1 because
-       Samples (Review) is still DEFAULT-OFF — without the flag the client-link
-       route (_sxrEnabled gate) won't mount the surface for a fresh client and
-       realtime never activates. (Harmless once samples flips default-on.)
-       Clone of calCopyShareLink. */
-    function _sxrCopyShareLink() {
-        if (!sxrState.client) return;
-        const url = `${location.origin}${location.pathname}?sxr=1&c=${encodeURIComponent(sxrState.client)}&v=sample-reviews`;
-        navigator.clipboard.writeText(url).then(
-            () => showToast('Client link copied to clipboard'),
-            () => showToast("Couldn't copy the link")
-        );
-    }
-    function _sxrSetRefreshing(on) { const el = document.getElementById('sxrRefreshing'); if (el) el.hidden = !on; }
-    function _sxrSetStaleNotice(on) { const el = document.getElementById('sxrStaleNotice'); if (el) el.hidden = !on; }
-    /* Per-card deep link: ?sxr=1#sample-reviews/<slug>/<cardId>. Clone of
-       _calCopyCardLink (flash a check on the button). */
-    function _sxrCopyCardLink(e, pid) {
-        if (e) { e.preventDefault(); e.stopPropagation(); }
-        if (!sxrState.client || !pid) return;
-        const slug = sxrClientSlug(sxrState.client);
-        const url = `${location.origin}${location.pathname}?sxr=1#sample-reviews/${slug}/${encodeURIComponent(pid)}`;
-        const sel = (window.CSS && CSS.escape) ? CSS.escape(String(pid)) : String(pid);
-        const btn = document.querySelector(`.sxr-card-link[data-sxr-card-link="${sel}"]`);
-        const flash = () => {
-            if (!btn) return;
-            const orig = btn.dataset.orig || btn.innerHTML;
-            btn.dataset.orig = orig; btn.classList.add('copied');
-            btn.innerHTML = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
-            setTimeout(() => { if (btn) { btn.classList.remove('copied'); btn.innerHTML = orig; } }, 1500);
-        };
-        navigator.clipboard.writeText(url).then(flash, () => showToast("Couldn't copy the link"));
-    }
     function _sxrRenderShell() {
         const view = document.getElementById('sxrView');
         if (!view) return;
         const leftHtml = (_isClientLink && sxrState.embedded)
             ? `<div class="sxr-embed-title"><strong>${_calEsc(sxrState.client || '')}</strong><span>Sample reviews</span></div>`
             : `<div class="sxr-tabs" id="sxrTabs"></div>`;
-        // SMM-only right zone: background-refresh indicators + the "Share with
-        // client" link generator (the surface already CONSUMES the link).
-        const rightHtml = (!_isClientLink && sxrState.client)
-            ? `<div class="sxr-toolbar-right">
-                    <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
-                    <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards(sxrClientSlug(sxrState.client),{skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
-                    <button type="button" class="sxr-select-btn${sxrState.selectMode ? ' active' : ''}" id="sxrSelectBtn" onclick="_sxrToggleSelectMode()" title="Select multiple samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>
-                    <div class="cal-zoom sxr-zoom" id="sxrZoomCtl" title="Card size">
-                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
-                        <button type="button" id="sxrZoomOut" onclick="_sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
-                        <button type="button" id="sxrZoomIn" onclick="_sxrZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
-                    </div>
-                    <button type="button" class="sxr-share-btn" onclick="_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg><span>Share</span></button>
-                </div>`
-            : '';
         view.innerHTML = `
             <div class="sxr-toolbar">
                 <div class="sxr-toolbar-left">${leftHtml}</div>
-                ${rightHtml}
             </div>
             <div class="sxr-body" id="sxrBody">${_sxrLoaderHtml()}</div>
-            <div class="cal-comments-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
-                <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
-            </div>
-            <div class="sxr-lightbox" id="sxrLightbox" onclick="closeSxrLightbox()">
-                <img alt="" onclick="event.stopPropagation()">
-                <button class="sxr-lightbox-close" type="button" onclick="closeSxrLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <div class="sxr-cm-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+                <div class="sxr-cm-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
             </div>
             <div class="confirm-overlay" id="sxrResolveDestOverlay" onclick="if(event.target===this)_sxrDismissResolveDest()">
                 <div class="confirm-box resolve-dest-box">
@@ -17528,38 +16371,18 @@
                 </div>
             </div>`;
         if (!(_isClientLink && sxrState.embedded)) _sxrRenderTabs();
-        _sxrApplyZoom();
     }
 
-    /* Count of the ACTIVE client's samples with a component awaiting SMM sign-off
-       (For SMM Approval) — the at-a-glance "how many need me" badge. */
-    function _sxrApprovalBadgeCount() {
-        return (sxrState.cards || []).reduce((n, s) => n + (SXR_COMPONENTS.some(c => _calNormStatus(s[c + '_status'] || '') === 'For SMM Approval') ? 1 : 0), 0);
-    }
-    function _sxrUpdateBadge() {
-        const el = document.querySelector('#sxrTabs .sxr-tab.active');
-        if (!el) return;
-        const count = _sxrApprovalBadgeCount();
-        let badge = el.querySelector('.sxr-tab-badge');
-        if (count > 0) {
-            if (!badge) { badge = document.createElement('span'); badge.className = 'sxr-tab-badge'; el.insertBefore(badge, el.querySelector('.sxr-tab-x')); }
-            badge.textContent = String(count);
-        } else if (badge) badge.remove();
-    }
     function _sxrRenderTabs() {
         const el = document.getElementById('sxrTabs');
         if (!el) return;
-        const pins = _calGetPins(); // shared per-client tab pins (now writable from here too)
+        const pins = _calGetPins(); // READ-ONLY reuse of the per-client tab pins
         const active = sxrState.client;
-        const plus = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="8" y1="3" x2="8" y2="13"/><line x1="3" y1="8" x2="13" y2="8"/></svg>`;
-        const tabsHtml = pins.map(name => {
+        if (!pins.length) { el.innerHTML = `<div class="sxr-tabs-empty">Pin a client in the Calendar or Samples tab to review its samples here.</div>`; return; }
+        el.innerHTML = pins.map(name => {
             const isA = name === active;
-            const count = isA ? _sxrApprovalBadgeCount() : 0;
-            const badge = count > 0 ? `<span class="sxr-tab-badge">${count}</span>` : '';
-            return `<button type="button" class="sxr-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSxrTabClick(${_jsAttrArg(name)})"><span class="sxr-tab-dot"></span><span>${_calEsc(name)}</span>${badge}<span class="sxr-tab-x" title="Remove client" onclick="event.stopPropagation();onSxrTabRemove(${_jsAttrArg(name)})">×</span></button>`;
+            return `<button type="button" class="sxr-tab${isA ? ' active' : ''}" style="--tab-h:${_calClientHue(name)}" onclick="onSxrTabClick(${_jsAttrArg(name)})"><span class="sxr-tab-dot"></span><span>${_calEsc(name)}</span></button>`;
         }).join('');
-        const addHtml = `<div class="sxr-tab-add-wrap"><button type="button" class="sxr-tab-add" onclick="onSxrTabAddClick(event)" title="Add client">${plus}${pins.length ? '' : '<span>Add client</span>'}</button><div class="sxr-tab-add-panel" id="sxrTabAddPanel" hidden></div></div>`;
-        el.innerHTML = tabsHtml + addHtml;
     }
     function onSxrTabClick(name) {
         if (!name || name === sxrState.client) return;
@@ -17567,131 +16390,21 @@
         _sxrRenderShell();
         loadSxrCards(sxrClientSlug(name));
     }
-    function onSxrTabRemove(name) {
-        const pins = _calGetPins().filter(n => n !== name);
-        _calSavePins(pins);
-        if (sxrState.client === name) {
-            const next = pins[0] || null;
-            sxrState.client = next; sxrState.cards = []; sxrState.error = null;
-            _sxrRenderShell();
-            if (next) loadSxrCards(sxrClientSlug(next)); else _sxrRenderBody();
-        } else _sxrRenderTabs();
-    }
-    function _sxrTabAddOutside(e) {
-        if (!e.target.closest('.sxr-tab-add-wrap')) { const p = document.getElementById('sxrTabAddPanel'); if (p) p.hidden = true; document.removeEventListener('mousedown', _sxrTabAddOutside); }
-    }
-    function onSxrTabAddClick(e) {
-        if (e) e.stopPropagation();
-        const panel = document.getElementById('sxrTabAddPanel');
-        if (!panel) return;
-        if (!panel.hidden) { panel.hidden = true; document.removeEventListener('mousedown', _sxrTabAddOutside); return; }
-        const pins = _calGetPins();
-        const all = (typeof WL_CLIENT_NAMES !== 'undefined' && Array.isArray(WL_CLIENT_NAMES)) ? WL_CLIENT_NAMES : [];
-        const avail = all.filter(n => !pins.includes(n)).sort((a, b) => String(a).localeCompare(String(b)));
-        panel.innerHTML = avail.length
-            ? avail.map(n => `<button type="button" class="sxr-tab-add-item" onclick="onSxrTabAddPick(${_jsAttrArg(n)})">${_calEsc(n)}</button>`).join('')
-            : `<div class="sxr-tab-add-empty">All clients added</div>`;
-        panel.hidden = false;
-        setTimeout(() => document.addEventListener('mousedown', _sxrTabAddOutside), 0);
-    }
-    function onSxrTabAddPick(name) {
-        const p = document.getElementById('sxrTabAddPanel'); if (p) p.hidden = true;
-        document.removeEventListener('mousedown', _sxrTabAddOutside);
-        if (!name) return;
-        const pins = _calGetPins();
-        if (!pins.includes(name)) { pins.push(name); _calSavePins(pins); }
-        sxrState.client = name; sxrState.cards = []; sxrState.error = null;
-        _sxrRenderShell();
-        loadSxrCards(sxrClientSlug(name));
-    }
 
-    /* Deferred-render-on-blur: a background realtime change that lands while the
-       SMM is typing in a card is dropped by the editing-guard above, then replayed
-       once focus leaves the field — so other cards' updates aren't lost. Clone of
-       _calSchedulePendingRender / _calMaybeRunPendingRender + the focusout flush. */
-    let _sxrPendingBackgroundRender = false;
-    let _sxrFocusoutWired = false;
-    function _sxrMaybeRunPendingRender() {
-        if (!_sxrPendingBackgroundRender) return;
-        const ae = document.activeElement;
-        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && ae.matches('input, textarea')) return;
-        _sxrPendingBackgroundRender = false;
-        _sxrRenderBody();
-    }
-    function _sxrWireDeferredRender() {
-        if (_sxrFocusoutWired) return;
-        _sxrFocusoutWired = true;
-        document.addEventListener('focusout', (e) => {
-            if (e.target && e.target.closest && e.target.closest('#sxrBody .sxr-card.is-editable')) setTimeout(_sxrMaybeRunPendingRender, 60);
-        });
-    }
     function _sxrRenderBody() {
         const body = document.getElementById('sxrBody');
         if (!body) return;
         if (!sxrState.client) { body.innerHTML = `<div class="sxr-empty">Select a client to review its samples.</div>`; return; }
         if (sxrState.loading && !sxrState.cards.length) { body.innerHTML = _sxrLoaderHtml(); return; }
-        if (sxrState.error && !sxrState.cards.length) {
-            body.innerHTML = `<div class="sxr-empty sxr-error">Couldn't load samples right now. ${_calEsc(String(sxrState.error))}<button type="button" class="sxr-retry-link" onclick="loadSxrCards(sxrClientSlug(sxrState.client),{skipCache:true})">Try again</button></div>`;
-            return;
-        }
-        const canAdd = !_isClientLink;   // samples have no collaborative mode → clients never add
+        if (sxrState.error && !sxrState.cards.length) { body.innerHTML = `<div class="sxr-empty">Couldn't load samples right now. ${_calEsc(String(sxrState.error))}</div>`; return; }
+        if (!sxrState.cards.length) { body.innerHTML = `<div class="sxr-empty">No samples for ${_calEsc(sxrState.client || '')} yet.</div>`; return; }
         // Don't blow away a field the user is actively editing — a background
         // realtime reload mid-edit would otherwise lose the caret / typed text
         // (the pending save still holds it; we just skip the repaint until blur).
         const ae = document.activeElement;
-        if (ae && ae.matches && ae.matches('input, textarea') && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable, #sxrBody .cal-review-card')) { _sxrPendingBackgroundRender = true; return; }
-        if (!sxrState.cards.length) {
-            // Empty: the SMM gets an "Add the first sample" hero (so the surface is
-            // usable from zero); a client share link gets read-only text.
-            body.innerHTML = canAdd
-                ? `<div class="sxr-grid is-empty">${_sxrAddTileHtml(true)}</div>`
-                : `<div class="sxr-empty">No samples for ${_calEsc(sxrState.client || '')} yet.</div>`;
-            return;
-        }
-        const sorted = _sxrSortCards(sxrState.cards);
-        if (_isClientLink) {
-            // Client share — clone the calendar's review surface (renderCalReview):
-            // a vertical list of COLLAPSIBLE kcard review cards, NOT the SMM strip.
-            const ready = sorted.filter(s => !_sxrIsBlankId(s.id) && _sxrIsClientReady(s));
-            const scrollYc = window.scrollY;
-            if (!ready.length) {
-                body.innerHTML = `<div class="cal-review-wrap"><div class="cal-empty">Nothing to review right now — every sample is either fully approved or still being worked on.</div></div>`;
-                return;
-            }
-            body.innerHTML = `<div class="cal-review-wrap"><div class="cal-review-list">${ready.map(_sxrReviewCardHtml).join('')}</div></div>`;
-            _sxrAutosizeTextareas(body);
-            if (scrollYc != null) window.scrollTo({ top: scrollYc, behavior: 'instant' });
-            return;
-        }
-        // Harvest decoded thumbnails + capture scroll so a background repaint
-        // doesn't re-decode every image (flicker) or jump the page to the top.
-        const harvested = _sxrHarvestThumbs();
-        const scrollY0 = window.scrollY;
-        const cardsHtml = sorted.map(_sxrRenderCard).join('');
-        const selectBar = (sxrState.selectMode && !_isClientLink)
-            ? `<div class="sxr-select-bar"><span class="sxr-select-count" id="sxrSelectCount">${sxrState.selected.size} selected</span><button type="button" class="sxr-select-archive" id="sxrSelectArchive" onclick="_sxrArchiveSelected()"${sxrState.selected.size ? '' : ' disabled'}>Archive</button><button type="button" class="sxr-select-cancel" onclick="_sxrToggleSelectMode()">Done</button></div>`
-            : '';
-        body.innerHTML = `<div class="sxr-grid">${cardsHtml}${(canAdd && !sxrState.selectMode) ? _sxrAddTileHtml(false) : ''}</div>${selectBar}`;
-        _sxrRestoreThumbs(harvested);
-        // "Up next": mark the first card not yet fully Approved so the SMM sees
-        // what to work on next (no date dependency — keys off the review status).
-        if (!_isClientLink) {
-            const upNext = sorted.find(s => !_sxrIsBlankId(s.id) && _calNormStatus(s.status || '') !== 'Approved');
-            if (upNext) { const sel = (window.CSS && CSS.escape) ? CSS.escape(String(upNext.id)) : String(upNext.id); const el = body.querySelector(`.sxr-card[data-sxr-id="${sel}"]`); if (el) el.classList.add('sxr-card-current'); }
-        }
-        if (scrollY0 != null) window.scrollTo({ top: scrollY0, behavior: 'instant' });
-        _sxrAutosizeTextareas(body);
-        if (sxrState.selectMode && !_isClientLink) _sxrSyncSelectionUI();
-        else _sxrWireDrag();
-    }
-    /* The Add-sample affordance — an "Add the first sample" hero when the grid is
-       empty, a compact "+" tile in a populated grid. SMM-only (clones the
-       calendar's cal-card-add / cal-card-add-hero, renderCalOrganizer). */
-    function _sxrAddTileHtml(isHero) {
-        const plus = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
-        return isHero
-            ? `<button class="sxr-card-add sxr-card-add-hero" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}<span>Add the first sample</span></button>`
-            : `<button class="sxr-card-add" type="button" onclick="addSxrBlankCard()" title="Add a sample">${plus}</button>`;
+        if (ae && ae.closest && ae.closest('#sxrBody .sxr-card.is-editable') && (ae.matches('input, textarea'))) return;
+        body.innerHTML = `<div class="sxr-grid">${_sxrSortCards(sxrState.cards).map(_sxrRenderCard).join('')}</div>`;
+        _sxrWireDrag();
     }
 
     async function loadSxrCards(slug, opts) {
@@ -17705,26 +16418,20 @@
         if (!opts.skipCache && !bg) {
             const cached = _sxrCacheRead(slug);
             if (cached && cached.length) {
-                const aRefs = _sxrArchivedRefs(slug);
-                sxrState.cards = _sxrApplyReorderOptimistic(cached.map(_sxrNormalize).filter(s => !_sxrIsArchived(s) && !_sxrIsArchivedRef(s, aRefs)));
+                sxrState.cards = _sxrApplyReorderOptimistic(cached.map(_sxrNormalize).filter(s => !_sxrIsArchived(s)));
                 sxrState.loading = false; _sxrRenderBody();
             }
         }
         if (!bg) { sxrState.loading = !sxrState.cards.length; if (sxrState.loading) _sxrRenderBody(); }
         sxrState.error = null;
         try {
-            if (bg) _sxrSetRefreshing(true);
             const ctrl = new AbortController();
             const timer = setTimeout(() => ctrl.abort(), 15000);
             const data = await _sxrV2FetchCards(slug, ctrl.signal);
             clearTimeout(timer);
             const rows = Array.isArray(data) ? data : (data.items || data.posts || data.samples || []);
             if (sxrClientSlug(sxrState.client) !== slug) return; // switched mid-flight
-            // Archive ledger: hide rows we just asked the server to archive until
-            // it confirms, and self-heal refs for rows the server now reports live.
-            _sxrCleanArchiveLedger(slug, rows);
-            const archivedRefs = _sxrArchivedRefs(slug);
-            let fresh = (rows || []).map(_sxrNormalize).filter(s => !_sxrIsArchived(s) && !_sxrIsArchivedRef(s, archivedRefs));
+            let fresh = (rows || []).map(_sxrNormalize).filter(s => !_sxrIsArchived(s));
             // Keep the optimistic local copy of any card with a pending edit or
             // an in-flight save: a background reload (this write's own echo, a
             // reconnect catch-up) that landed before the write is readable would
@@ -17737,11 +16444,8 @@
                     const cur = local.find(c => String(c.id) === id);
                     if (!cur) return srv;
                     // A pending / in-flight edit always wins — the save's own
-                    // echo adopts the server row once it lands. A card whose last
-                    // save FAILED also stays optimistic (with its Save-failed chip)
-                    // so a bg reload can't clobber the un-persisted value before
-                    // the user retries; cleared the moment a retry succeeds.
-                    if (_sxrSaveInFlight[id] || _sxrPendingEdits[id] || (cur && cur._saveError)) return cur;
+                    // echo adopts the server row once it lands.
+                    if (_sxrSaveInFlight[id] || _sxrPendingEdits[id]) return cur;
                     // Recent-save protection (the Kasper→SMM clobber + stale
                     // Linear regress fix). Within the conflict window, only
                     // adopt a server sub-status that is genuinely NEW (another
@@ -17756,27 +16460,16 @@
                         const merged = _sxrRecentSaveReconcile(cur, srv, rsf);
                         return merged || cur;
                     }
-                    // Union comment threads with the local copy so a laggy poll
-                    // can't resurrect a just-tombstoned comment (newer-stamp wins).
-                    return _sxrMergeCardComments(srv, cur);
+                    return srv;
                 });
-            }
-            // Preserve a brand-new card whose first save FAILED — it has no server
-            // row yet, so a reload would otherwise silently vanish it. Kept on
-            // screen with its Save-failed chip until a retry succeeds or it's archived.
-            if (_sxrFailedNewCards.size) {
-                const have = new Set(fresh.map(s => String(s.id)));
-                (sxrState.cards || []).forEach(c => { if (_sxrFailedNewCards.has(String(c.id)) && !have.has(String(c.id))) fresh.push(c); });
             }
             // Pin a still-fresh dragged order_index over a server row that the
             // reorder write hasn't yet made readable (prevents the snap-back
             // flicker); expired pins are dropped on read.
             sxrState.cards = _sxrApplyReorderOptimistic(fresh);
             sxrState.loading = false; sxrState.error = null;
-            _sxrSetStaleNotice(false);
             _sxrCacheWrite(slug, sxrState.cards);
             _sxrRenderBody();
-            _sxrApplyFocusCard();
             // Open (or re-point) the realtime subscription for this client.
             if (_sxrV2Ready()) {
                 _sxrV2EnsureSubscribed(slug);
@@ -17786,42 +16479,9 @@
             if (sxrClientSlug(sxrState.client) !== slug) return;
             sxrState.loading = false;
             if (!sxrState.cards.length) sxrState.error = (e && e.name === 'AbortError') ? 'timed out' : 'offline';
-            // A failed BACKGROUND refresh while cards are on screen must not be
-            // silent — surface a clickable "Couldn't refresh — retry" notice
-            // (mirrors the calendar; the inverse of the old silent behavior).
-            else if (bg) _sxrSetStaleNotice(true);
             _sxrRenderBody();
-        } finally {
-            _sxrSetRefreshing(false);
         }
     }
-
-    /* Tab-return / focus catch-up — a faithful clone of the calendar's
-       _calRefreshOnReturn. A backgrounded tab's realtime WebSocket suspends and
-       Supabase does NOT replay the rows it missed, so realtime alone leaves the
-       samples surface stale after an app/tab switch. On every tab return (or
-       window focus / bfcache restore) we fire ONE throttled background reload
-       from Supabase, which catches up everything missed — exactly how the
-       calendar stays live. Event-driven (no polling); a mid-edit repaint is
-       deferred by _sxrRenderBody's own guard until the user blurs out. */
-    let _sxrLastReturnLoad = 0;
-    const SXR_RETURN_REFRESH_MIN_MS = 4000;
-    function _sxrRefreshOnReturn() {
-        if (document.visibilityState === 'hidden') return;
-        if (!_sxrReady() || !sxrState.client) return;
-        // Only when the samples surface is actually mounted (skips other tabs).
-        if (!document.getElementById('sxrBody')) return;
-        const slug = sxrClientSlug(sxrState.client);
-        if (!slug) return;
-        const now = Date.now();
-        if (now - _sxrLastReturnLoad < SXR_RETURN_REFRESH_MIN_MS) return;
-        if (sxrState.loading) return;
-        _sxrLastReturnLoad = now;
-        loadSxrCards(slug, { background: true });
-    }
-    document.addEventListener('visibilitychange', _sxrRefreshOnReturn);
-    window.addEventListener('focus', _sxrRefreshOnReturn);
-    window.addEventListener('pageshow', _sxrRefreshOnReturn);
 
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */

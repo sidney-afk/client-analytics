@@ -51,7 +51,7 @@ async function typeName(page, id, v) {
 async function pickStatus(page, id, comp, status) {
   await page.evaluate(({ id, comp }) => { const b = document.querySelector(`.sxr-card[data-sxr-id="${id}"] .sxr-pill-btn[data-sxr-comp-pill="${comp}"]`); if (b) b.click(); }, { id, comp });
   await page.waitForTimeout(160);
-  return page.evaluate((status) => { const m = document.querySelector('.cal-fld-status-menu'); if (!m) return false; const o = Array.from(m.querySelectorAll('.cal-fld-status-item')).find(b => b.textContent.trim() === status); if (!o) return false; o.click(); return true; }, status);
+  return page.evaluate((status) => { const m = document.querySelector('.sxr-status-menu'); if (!m) return false; const o = Array.from(m.querySelectorAll('.cal-fld-status-opt')).find(b => b.textContent.trim() === status); if (!o) return false; o.click(); return true; }, status);
 }
 
 (async () => {

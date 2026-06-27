@@ -64,15 +64,14 @@ const rowOf = (id) => { const r = Q.supa('id=eq.' + encodeURIComponent(id) + '&c
         thumb: !!card.querySelector('input[data-sxr-fld="thumbnail_url"]'),
         cd: !!card.querySelector('textarea[data-sxr-fld="creative_direction"]'),
         eye: !!card.querySelector('.sxr-dir-toggle'),
-        // Linear slots are now the calendar-style pile on the thumbnail (not body URL inputs).
-        vidLinear: !!card.querySelector('.cal-linear-pile .cal-linear-btn-video'),
-        graLinear: !!card.querySelector('.cal-linear-pile .cal-linear-btn-graphic'),
-        pills: card.querySelectorAll('.cal-card-substatus-row [data-sxr-comp-pill]').length,
+        vidLinear: !!card.querySelector('input[data-sxr-fld="linear_issue_id"]'),
+        graLinear: !!card.querySelector('input[data-sxr-fld="graphic_linear_issue_id"]'),
+        pillsReadonly: card.querySelectorAll('[data-sxr-comp-pill]').length,
       };
     }, idA);
     ok(surface && surface.name && surface.asset && surface.thumb && surface.cd && surface.eye && surface.vidLinear && surface.graLinear,
-      'editable surface has name + 2 media link-pills + creative dir + eye + the Linear thumbnail pile', JSON.stringify(surface));
-    ok(surface && surface.pills === 2, 'both per-component status triggers render in the bottom sub-status row', JSON.stringify(surface));
+      'editable surface has name + 2 media links + creative dir + eye + 2 linear inputs', JSON.stringify(surface));
+    ok(surface && surface.pillsReadonly === 2, 'per-component status pills still render (read-only display)', JSON.stringify(surface));
 
     // ── 1) name field: type + blur → persists ──
     const newName = 'M2 renamed ' + Date.now();
@@ -124,21 +123,16 @@ const rowOf = (id) => { const r = Q.supa('id=eq.' + encodeURIComponent(id) + '&c
     r = await Q.poll(() => { const x = rowOf(idA); return x && String(x.hide_creative_direction).toUpperCase() === 'FALSE' ? x : false; }, 18000);
     ok(r && String(r.hide_creative_direction).toUpperCase() === 'FALSE', "hide_creative_direction toggles back to 'FALSE'", r ? JSON.stringify(r.hide_creative_direction) : 'no row');
 
-    // ── 5) Link a Linear VIDEO sub-issue via the thumbnail pile → title-row input
-    //       → real blur (commit guards). Persists to linear_issue_id. ──
-    Q.setSubissuesResp({ ok: true, parent: { status: 'In Progress', identifier: 'VID-1' }, subIssues: [] });
-    const linUrl = 'https://linear.app/synchro/issue/VID-' + (Date.now() % 100000) + '/m2-link';
-    await page.evaluate((id) => {
-      const b = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"] .cal-linear-pile .cal-linear-btn-video`);
-      if (b) b.click();
-    }, idA);
-    await page.waitForTimeout(220);
+    // ── 5) linear_issue_id: set a url + blur → persists (plain URL, no sync) ──
+    const linUrl = 'https://linear.app/synchro/issue/VID-M2-' + Date.now();
     await page.evaluate(({ id, v }) => {
-      const el = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"] .cal-title-row .cal-linear-input`);
-      if (el) { el.focus(); el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); el.blur(); }
+      const el = document.querySelector(`.sxr-card.is-editable[data-sxr-id="${id}"] input[data-sxr-fld="linear_issue_id"]`);
+      el.focus(); el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('blur', { bubbles: true }));
     }, { id: idA, v: linUrl });
     r = await Q.poll(() => { const x = rowOf(idA); return x && x.linear_issue_id === linUrl ? x : false; }, 18000);
-    ok(r && r.linear_issue_id === linUrl, 'linking a Linear video sub-issue (thumbnail pile) persists', r ? JSON.stringify(r.linear_issue_id) : 'no row');
+    ok(r && r.linear_issue_id === linUrl, 'linear_issue_id persists as a plain URL', r ? JSON.stringify(r.linear_issue_id) : 'no row');
 
     // ── 6) drag-reorder A and B → order_index persists, updated_at UNCHANGED ──
     const aBeforeReorder = rowOf(idA);

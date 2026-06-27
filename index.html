@@ -4068,6 +4068,10 @@
             .cal-cm-action { padding: 7px 10px; }
             .pin-pill .pin-remove { width: 20px; height: 20px; }
         }
+        /* >>> SXR_BEGIN */
+        /* Samples (Review) styles — REUSE the calendar's global cal-* CSS for
+           pixel parity; surface-specific rules get appended here per surface. */
+        /* <<< SXR_END */
     </style>
 </head>
 <body>
@@ -4179,6 +4183,12 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="#22c55e"/></svg>
             TikTok Pilot
         </a>
+        <!-- >>> SXR_BEGIN -->
+        <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Sample Reviews
+        </a>
+        <!-- <<< SXR_END -->
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -11631,6 +11641,7 @@
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
         const navTtp = document.getElementById('navTiktokPilot');
         if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
+        const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
         // The standalone Calendar page hides the page header (pageTop) and drops
         // the toolbar straight under the sticky nav, so the global .main top
         // gutter reads as dead space. Tag the body so we can tighten that band
@@ -11647,6 +11658,7 @@
         // Phase 2: drop the calendar's Supabase realtime subscription when
         // leaving the calendar so it isn't held open in the background.
         if (page !== 'calendar' && typeof _calV2Teardown === 'function') _calV2Teardown();
+        if (page !== 'sample-reviews' && typeof _sxrV2Teardown === 'function') _sxrV2Teardown(); // SXR_LINE
         // Leaving Samples while its Notes modal is open would otherwise leave
         // the body scroll-locked; clear the lock on every navigation away.
         if (page !== 'samples') document.body.classList.remove('sm-modal-open');
@@ -11683,6 +11695,13 @@
             content.innerHTML = renderCalendarView();
             mountCalendar();
             window.scrollTo({ top: 0, behavior: 'instant' });
+        // >>> SXR_BEGIN
+        } else if (page === 'sample-reviews') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSxrView();
+            mountSxrView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        // <<< SXR_END
         } else if (page === 'samples') {
             pageTop.style.display = 'none';
             content.innerHTML = renderSamplesView();
@@ -24730,6 +24749,179 @@
         setTimeout(()=>document.getElementById('passwordInput').focus(),50);
     }
 
+    // >>> SXR_BEGIN
+    /* ============================================================
+       SAMPLES (REVIEW) MODULE  —  ?sxr=1 (default-OFF), route #sample-reviews
+       A whole-surface clone of the Content Calendar review machinery, re-pointed
+       to the LIVE `sample_reviews` Supabase table + the `sample-review-*` n8n
+       webhooks, over the components ['video','graphic'] only. Built as a fully
+       ADDITIVE, namespaced fork (every new symbol carries `sxr`) so it can never
+       affect the calendar and is removable by deleting the SXR fences.
+       See SAMPLES_REBUILD_STRATEGY.md / SAMPLES_REBUILD_SPEC.md.
+       --- SURFACE 0: constants, flag isolation, shared-util aliases, state ---
+       ============================================================ */
+
+    /* Status vocabulary: the calendar's set MINUS the publishing-only
+       Scheduled/Posted (samples never schedule). Terminal = Approved (+Archived). */
+    const SXR_STATUSES  = ['In Progress','For SMM Approval','Kasper Approval','Client Approval','Tweaks Needed','Approved'];
+    const SXR_PRIORITY  = { 'Tweaks Needed':0,'In Progress':1,'For SMM Approval':2,'Kasper Approval':3,'Client Approval':4,'Approved':5 };
+    /* Two components only — no caption, no title. `graphic` renders as "Thumbnail". */
+    const SXR_COMPONENTS = ['video','graphic'];
+    const SXR_REVIEW_COMPONENTS = ['video','graphic'];
+
+    /* Live backend (SAMPLES_GO_LIVE.md): reads hit Supabase REST and fall back to
+       the get webhook; writes are field-level patches to the upsert webhook. The
+       Supabase project + anon key are SHARED with the calendar (same browser key). */
+    const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
+    const SXR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+    const SXR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
+    const SXR_TABLE       = 'sample_reviews';
+    const SXR_RT_CHANNEL_PREFIX = 'sxr-';
+    const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
+    const SXR_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+
+    /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
+       of cloning keeps the cloned surfaces uniformly `_sxr*` (clean grep/teardown)
+       while still CALLING the shared implementation, so its security / pagination /
+       Linear-mapping fixes reach samples for free (see SAMPLES_PARITY_LOG.md §0). */
+    const _sxrEsc = _calEsc, _sxrEscAttr = _calEscAttr, _sxrJsArg = _jsAttrArg;
+    const _sxrNormalizeClient = wlNormalizeClient;
+    const _sxrSupabaseFetchAllRows = _calSupabaseFetchAllRows;
+    const _sxrV2LoadLib = _calV2LoadLib;
+    const _sxrMapLinearStatusStrict = _calMapLinearStatusStrict;
+    const _sxrIdentFromUrl = _calIdentFromUrl;
+
+    /* Feature flag — DEFAULT-OFF (the inverse of the calendar's v2 default).
+       `?sxr=1` turns it on and is sticky in localStorage; `?sxr=0` opts back out.
+       With the flag off NO samples code runs: the nav tab stays hidden, the router
+       never mounts the view (mountSxrView early-returns), and supabase-js is never
+       loaded. This isolation is a hard requirement (SAMPLES_REBUILD_SPEC.md §6). */
+    const SXR_ON_KEY  = 'syncview_sxr_on';
+    const SXR_OFF_KEY = 'syncview_sxr_off';
+    let _sxrFlagCache = null;
+    function _sxrEnabled() {
+        if (_sxrFlagCache !== null) return _sxrFlagCache;
+        let on = false;
+        try {
+            const q = new URLSearchParams(location.search).get('sxr');
+            if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY,'1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
+            else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY,'1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
+            else { on = (localStorage.getItem(SXR_ON_KEY) === '1') && (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
+        } catch { on = false; }
+        _sxrFlagCache = on;
+        return on;
+    }
+    /* Realtime/REST readiness: flag on AND the shared anon key present. */
+    function _sxrReady() { return _sxrEnabled() && !!CAL_SUPABASE_URL && !!CAL_SUPABASE_ANON_KEY; }
+
+    /* Per-surface state — the calendar's calState, TRIMMED: no month/week cursors,
+       no month/status filters, no collab/title settings (all excluded). */
+    const sxrState = {
+        view: 'organizer',          // 'organizer' (Sheet) | 'smmreview' (Review)
+        client: null,
+        posts: [],
+        loading: false,
+        error: null,
+        previewId: null,
+        embedded: false,
+        zoom: 'default',
+        selectMode: false,
+        selectAction: 'archive',
+        selected: new Set(),
+        lastSel: null,
+        focusCard: null,
+    };
+
+    /* Slug for a client name/object (samples reuse the shared normalizer). */
+    function sxrClientSlug(c) { return _sxrNormalizeClient(c && c.name ? c.name : c); }
+
+    /* Map a legacy/external status string onto the samples set. Clone of
+       _calNormStatus minus the Scheduled/Posted members (which samples reject). */
+    function _sxrNormStatus(s) {
+        const v = String(s || '').trim();
+        if (!v || /^draft$/i.test(v)) return 'In Progress';
+        if (/^(for )?kasper approval$/i.test(v)) return 'Kasper Approval';
+        if (/^smm approval$/i.test(v)) return 'For SMM Approval';
+        const m = SXR_STATUSES.find(x => x.toLowerCase() === v.toLowerCase());
+        return m || v;
+    }
+    /* Overall card status = worst-of its sub-statuses. Clone of computeOverallStatus
+       over SXR_COMPONENTS; the reduce seed is 'Approved' (best) since there is no
+       Scheduled/Posted above it. */
+    function computeSampleOverallStatus(p) {
+        if (!p) return 'In Progress';
+        const subs = SXR_COMPONENTS.map(c => _sxrNormStatus(p[c + '_status'] || 'In Progress'));
+        return subs.reduce((acc, s) => (SXR_PRIORITY[s] != null && SXR_PRIORITY[acc] != null && SXR_PRIORITY[s] < SXR_PRIORITY[acc]) ? s : acc, 'Approved');
+    }
+    /* Clear stale client-approval stamps when a sub drops below Client Approval.
+       Clone of _calClearStaleApprovals over SXR_COMPONENTS; the above-set has no
+       Scheduled/Posted and there is no title clause. */
+    function _sxrClearStaleApprovals(post, pending) {
+        if (!post) return;
+        const above = new Set(['Client Approval', 'Approved']);
+        SXR_COMPONENTS.forEach(c => {
+            const sub = _sxrNormStatus(post[c + '_status'] || '');
+            const stampKey = 'client_' + c + '_approved_at';
+            if (!above.has(sub) && post[stampKey]) {
+                post[stampKey] = '';
+                if (pending) pending[stampKey] = '';
+            }
+        });
+    }
+
+    /* Per-client archive ledger (clone of _calArchived*, sxr-namespaced key so it
+       never collides with the calendar's). Hides a row the user archived while the
+       Archived write propagates / against a resurrecting realtime echo. */
+    const SXR_ARCHIVE_GRACE_MS = 60 * 1000;
+    function _sxrArchivedKey(slug) { return 'syncview_sxr_archived_v1_' + slug; }
+    function _sxrArchivedReadRaw(slug) {
+        if (!slug) return {};
+        try {
+            const raw = JSON.parse(localStorage.getItem(_sxrArchivedKey(slug)) || '{}');
+            if (Array.isArray(raw)) { const m = {}; raw.forEach(r => { if (r) m[String(r)] = 0; }); return m; }
+            return (raw && typeof raw === 'object') ? raw : {};
+        } catch { return {}; }
+    }
+    function _sxrArchivedWriteRaw(slug, obj) {
+        if (!slug) return;
+        try { localStorage.setItem(_sxrArchivedKey(slug), JSON.stringify(obj || {})); } catch {}
+    }
+    function _sxrArchivedRefs(slug) {
+        if (!slug) return new Set();
+        return new Set(Object.keys(_sxrArchivedReadRaw(slug)));
+    }
+    function _sxrArchivedAdd(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _sxrArchivedReadRaw(slug); const now = Date.now(); let changed = false;
+        refs.filter(Boolean).forEach(r => { const k = String(r); if (m[k] !== now) { m[k] = now; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+    function _sxrArchivedRemove(slug, refs) {
+        if (!slug || !refs || !refs.length) return;
+        const m = _sxrArchivedReadRaw(slug); let changed = false;
+        refs.filter(Boolean).forEach(r => { const k = String(r); if (Object.prototype.hasOwnProperty.call(m, k)) { delete m[k]; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+
+    /* --- View render/mount (Surface 0 stubs; Surface 1 installs the real shell) --- */
+    function renderSxrView() {
+        return '<div class="sxr-view" id="sxrView" style="padding:48px 24px;text-align:center;color:#9aa;font-size:14px;">Sample Reviews — coming up…</div>';
+    }
+    function mountSxrView() {
+        if (!_sxrEnabled()) return;   // default-OFF isolation: never mount with the flag off
+        // Surface 1 installs the real shell mount here.
+    }
+
+    /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY
+       samples statement that runs at load — and it only reads the flag and toggles
+       one element's display: no network, no supabase-js, no realtime. */
+    try {
+        if (_sxrEnabled()) {
+            const _sxrNavEl = document.getElementById('navSxr');
+            if (_sxrNavEl) _sxrNavEl.style.display = '';
+        }
+    } catch (e) {}
+    // <<< SXR_END
     /* ============================================================
        TIKTOK UPLOAD MODULE
        Posts videos to Post For Me (api.postforme.dev) through a

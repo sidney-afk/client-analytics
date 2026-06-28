@@ -21,8 +21,10 @@
 > | ot06_smm_resolve_on_approve | SMM simplified resolve: approve a For-SMM video carrying an open client tweak → Kasper + tweak auto-resolved done=true (live) | ✅ PASS (7/7) |
 > | ot07_kasper_actions | Kasper request-change → Tweaks Needed + is_tweak comment + Linear status/comment; approve-after-tweaks → For SMM + AAT flag (live) | ✅ PASS (11/11) |
 > | ot08_smm_fields | SMM Sheet fields: hide-cd eye toggle (1↔''), thumbnail derivation (YouTube→img), Linear video commit, malformed-URL guard reject — all live | ✅ PASS (14/14) |
+> | ot09_flag_off_isolation | Flag OFF: nav hidden, _sxrEnabled false, no channel, ZERO samples/linear network after focus+visibility; OLD #samples still mounts, no sxrView leak | ✅ PASS (8/8) |
+> | ot10_notes_modal | Notes modal: Video/Thumbnail comp picker, audience toggle; internal note→video_tweaks(audience=internal), client note→graphic_tweaks(audience=client) live | ✅ PASS (13/13) |
 >
-> **Totals:** 8 probes · 102 assertions · 102 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> **Totals:** 10 probes · 123 assertions · 123 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
 > `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
 >
 > ### OBSERVATIONS (this run)

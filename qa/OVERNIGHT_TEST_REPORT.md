@@ -25,8 +25,9 @@
 > | ot10_notes_modal | Notes modal: Video/Thumbnail comp picker, audience toggle; internal note→video_tweaks(audience=internal), client note→graphic_tweaks(audience=client) live | ✅ PASS (13/13) |
 > | ot11_reorder_gap | DOCUMENTS BUG-1: grip shown + draggable=true but drag is a no-op (stub wiring, webhook never called, order_index unchanged) | ✅ PASS (9/9, records BUG-1) |
 > | ot12_realtime_catchup | Cross-tab sync (live): tab-1 status change → tab-2 converges via focus/visibility catch-up (past 8s throttle) AND via _sxrV2OnRealtimeChange | ✅ PASS (9/9) |
+> | ot13_kasper_isolation | Kasper samples↔calendar isolation: sample only in Samples sub-tab (no calendar bleed); absent from the calendar Review Session queue | ✅ PASS (7/7) |
 >
-> **Totals:** 12 probes · 141 assertions · 141 PASS · 0 FAIL · 0 app JS errors · **1 product bug found (BUG-1).**
+> **Totals:** 13 probes · 148 assertions · 148 PASS · 0 FAIL · 0 app JS errors · **1 product bug found (BUG-1).**
 >
 > ### 🐞 BUGS FOUND (this run)
 > - **BUG-1 — drag-to-reorder is non-functional on the SMM Sheet (real gap).**

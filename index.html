@@ -27232,6 +27232,174 @@
         _sxrLinearOutboxFlush();   // retry any queued Linear pushes from a previous session
     }
 
+    /* ============================================================
+       --- SURFACE 8: the Kasper samples sub-tab (cross-client) ---
+       A "Samples" sub-tab on the Kasper page (registered + dispatched via the two
+       // SXR_LINE hooks). Loads sample_reviews CROSS-CLIENT (Supabase REST, no
+       client filter) for components at Kasper Approval, renders per-component review
+       panels, and persists each card with ITS OWN client slug (never sxrState /
+       _kasperPersistPost). Kasper: Approve -> Client Approval · Approve-after-tweaks
+       -> back to SMM + pre-clear (kasper_approved_after_tweaks) · Request change ->
+       Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
+       v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
+       ============================================================ */
+    const _sxrKasperState = { items: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null) };
+    function _sxrKasperFindItem(pid) { return (_sxrKasperState.items || []).find(it => it && it.post && it.post.id === pid); }
+    async function _sxrKasperFetchAllSamples() {
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*';
+        return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
+    }
+    async function _sxrKasperLoadQueue(force) {
+        if (_sxrKasperState.loading) return;
+        _sxrKasperState.loading = true; _sxrKasperState.error = false;
+        if (force) _sxrKasperRenderQueue();
+        try {
+            const rows = await _sxrKasperFetchAllSamples();
+            const items = [];
+            for (const p of (rows || [])) {
+                if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
+                p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
+                if (!SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval')) continue;
+                const slug = String(p.client || '');
+                items.push({ post: p, slug, client: wlCanonicalClient(slug) || slug });
+            }
+            items.sort((a, b) => String(a.client).localeCompare(String(b.client)));
+            _sxrKasperState.items = items; _sxrKasperState.loaded = true;
+        } catch (e) { _sxrKasperState.error = true; }
+        finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
+    }
+    function _sxrKasperRenderQueue() {
+        const host = document.getElementById('kasperContent');
+        if (!host) return;
+        if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
+        const st = _sxrKasperState;
+        const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
+        if (st.loading && !st.items.length) { host.innerHTML = head + `<div class="kasper-loading">${_sxrLoaderHtml('Loading samples for review')}</div>`; return; }
+        if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
+        if (!st.items.length) { host.innerHTML = head + `<div class="cal-empty">Nothing waiting on your review right now.</div>`; return; }
+        host.innerHTML = head + `<div class="kasper-list">${st.items.map(it => _sxrKasperRenderCard(it)).join('')}</div>`;
+    }
+    function _sxrKasperRenderCard(item) {
+        const p = item.post, pid = p.id;
+        const expanded = !!_sxrKasperState.expanded[pid];
+        const info = _sxrDeriveThumbInfo(p);
+        const thumb = info.url ? `<img loading="lazy" src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const awaiting = SXR_REVIEW_COMPONENTS.filter(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+        const video = String(p.asset_url || '').trim();
+        const watch = video ? `<a class="kcard-watch-btn" href="${_sxrEscAttr(video)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>` : '';
+        const body = expanded ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length || 1},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>` : '';
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-kasper-pid="${_sxrEscAttr(pid)}">
+            <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
+                <div class="kcard-thumb">${thumb}</div>
+                <div class="kcard-main">
+                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span><span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span></div>
+                    <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${watch}
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+    function _sxrKasperPanelHtml(item, comp) {
+        const p = item.post, pid = p.id, escId = _sxrEscAttr(pid), escComp = _sxrEscAttr(comp);
+        const key = pid + '|' + comp;
+        const draft = _sxrKasperState.drafts[key] || '';
+        const saving = !!_sxrKasperState.saving[key];
+        const hasDraft = !!draft.trim();
+        const preview = _sxrReviewComponentPreview(p, comp);
+        const comments = _sxrCommentsForView(p, comp);
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const thread = comments.length ? comments.map(c => { const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'); return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${c.done ? ' is-resolved' : ''}"><div class="cal-review-comment-head"><strong>${_sxrEsc(author)}</strong><span class="cal-review-comment-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${c.done ? '<span class="cal-review-resolved-pill">Resolved</span>' : ''}</div><div class="cal-review-comment-body">${_sxrEsc(c.body || '')}</div></div>`; }).join('') : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}">
+            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span></div>
+            <div class="cal-review-panel-preview">${preview}</div>
+            <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="Describe the change you need…" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-aat-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-clear for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
+                    <button type="button" class="cal-review-tweak-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            <div class="cal-review-thread">${thread}</div>
+        </div>`;
+    }
+    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; _sxrKasperRepaint(pid); }
+    function _sxrKasperRepaint(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector(`[data-sxr-kasper-pid="${sel}"]`); if (!el) return;
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrKasperRenderCard(it);
+        if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
+    }
+    function _sxrKasperOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp; _sxrKasperState.drafts[key] = ta.value;
+        const panel = ta.closest('.cal-review-panel'); if (!panel) return;
+        const has = !!ta.value.trim(), saving = !!_sxrKasperState.saving[key];
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn').forEach(b => b.disabled = !has || saving);
+        panel.querySelectorAll('.cal-review-approve-main').forEach(b => b.disabled = has || saving);
+    }
+    async function _sxrKasperPersist(item, patch) {
+        const sample = Object.assign({ id: item.post.id }, patch);
+        const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: item.slug, sample, comments_base_at: '' }) });
+        if (!resp.ok) throw new Error('http ' + resp.status);
+        const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
+        return j.sample || sample;
+    }
+    function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
+        const p = it.post;
+        const patch = mutate(p);
+        _sxrKasperState.saving[key] = true;
+        _sxrKasperRepaint(pid);
+        _sxrKasperPersist(it, patch).then(() => {
+            _sxrKasperState.saving[key] = false;
+            const url = _sxrLinearUrlFor(p, comp);
+            if (url && patch[comp + '_status']) _sxrPushStatusToLinear(url, patch[comp + '_status']);
+            if (url && linearComment) _sxrPostLinearComment(url, linearComment, 'Kasper');
+            if (!SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval')) {
+                _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+                _sxrKasperRenderQueue();
+            } else _sxrKasperRepaint(pid);
+        }).catch(e => { _sxrKasperState.saving[key] = false; _sxrKasperRepaint(pid); if (typeof showNotify === 'function') showNotify('Save failed', (e && e.message) || 'Please try again.'); });
+    }
+    function _sxrKasperApproveComp(pid, comp) {
+        _sxrKasperApplyAndPersist(pid, comp, (p) => { p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p); return { [comp + '_status']: 'Client Approval', status: p.status }; });
+    }
+    function _sxrKasperRequestTweakComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', round: _sxrNextTweakRound(p, comp), body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            p[comp + '_status'] = 'Tweaks Needed'; p.status = computeSampleOverallStatus(p);
+            return { [comp + '_status']: 'Tweaks Needed', status: p.status, [comp + '_tweaks']: _sxrStringifyComments(list) };
+        }, body);
+    }
+    function _sxrKasperApproveAfterTweaksComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', round: _sxrNextTweakRound(p, comp), body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            // Pre-clear for the client: route back to the SMM to verify the fix, flag it.
+            p[comp + '_status'] = 'For SMM Approval';
+            const set = new Set(String(p.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean)); set.add(comp);
+            p.kasper_approved_after_tweaks = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+            p.status = computeSampleOverallStatus(p);
+            return { [comp + '_status']: 'For SMM Approval', status: p.status, kasper_approved_after_tweaks: p.kasper_approved_after_tweaks, [comp + '_tweaks']: _sxrStringifyComments(list) };
+        }, body);
+    }
+
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY
        samples statement that runs at load — and it only reads the flag and toggles
        one element's display: no network, no supabase-js, no realtime. */
@@ -29215,6 +29383,7 @@
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' }
     ];
+    if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
     // Optional override — if your workspace's primary domain is known, set it here.
     // Without it the Slack button falls back to opening Slack and searching the SMM's name.
@@ -29591,6 +29760,7 @@
     }
 
     function _kasperRenderTab() {
+        if (_kasperState.tab === 'samples' && typeof _sxrKasperRenderQueue === 'function') return _sxrKasperRenderQueue(); // SXR_LINE
         if (_kasperState.tab === 'review')  return _kasperRenderReview();
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();

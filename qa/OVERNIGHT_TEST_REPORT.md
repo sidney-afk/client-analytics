@@ -17,9 +17,20 @@
 > | ot02_client_review | Client share: shell, expand, single Approve video→Approved (live), read-only Sheet, hidden brief not leaked | ✅ PASS (21/21) |
 > | ot03_client_request | Client request-change: compose→Request change→Tweaks Needed (live) + client is_tweak comment persisted | ✅ PASS (10/10) |
 > | ot04_kasper_review | Kasper Samples sub-tab: cross-client queue→expand→Approve→Client Approval (live), queue eviction, Linear push (mocked) | ✅ PASS (11/11) |
+> | ot05_smm_review_split | SMM Review approve-split: video→Kasper (primary), graphic→Client (alt), worst-of overall (live) | ✅ PASS (10/10) |
+> | ot06_smm_resolve_on_approve | SMM simplified resolve: approve a For-SMM video carrying an open client tweak → Kasper + tweak auto-resolved done=true (live) | ✅ PASS (7/7) |
+> | ot07_kasper_actions | Kasper request-change → Tweaks Needed + is_tweak comment + Linear status/comment; approve-after-tweaks → For SMM + AAT flag (live) | ✅ PASS (11/11) |
 >
-> **Totals:** 4 probes · 60 assertions · 60 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> **Totals:** 7 probes · 88 assertions · 88 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
 > `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
+>
+> ### OBSERVATIONS (this run)
+> - **OBS-R1 (resolve chooser intentionally removed):** The prior attempt's 4-route
+>   resolve-destination chooser modal (`#resolveDestModal`) does NOT exist in the
+>   rebuild. By design (code comment "Simplified resolve … no chooser modal"),
+>   approving an SMM component that still has open change-requests marks them resolved
+>   as part of the send, and routing is handled by the approve-split (Kasper / Client /
+>   Approved). Consistent with the "fewer options" mandate. Verified in ot06 — not a bug.
 >
 > ### NOT YET COVERED (this run — resume here)
 > Matrix A: graphic-component lifecycle symmetry; SMM approve-split (Kasper vs Client alt);

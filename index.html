@@ -25395,16 +25395,8 @@
     let _sxrPendingEdits = Object.create(null);
     let _sxrSaveTimers = Object.create(null);
     let _sxrSaveInFlight = Object.create(null);
-    function _sxrOnFieldInput(input) {
-        const pid = input.dataset.pid, fld = input.dataset.fld;
-        if (!pid || !fld) return;
-        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
-        _sxrPendingEdits[pid][fld] = input.value;
-        const post = sxrState.posts.find(p => p.id === pid);
-        if (post) post[fld] = input.value;
-    }
-    function _sxrOnFieldBlur(input) { if (input && input.dataset) _sxrFlushCardSave(input.dataset.pid); }
-    function _sxrFlushCardSave(pid) { /* Surface 3 implements the real field-patch save engine. */ }
+    // _sxrOnFieldInput / _sxrOnFieldBlur / _sxrFlushCardSave / _sxrRetrySave are the
+    // real save engine — defined in Surface 3 below.
     function _sxrMarkLocalStatus(pid, comp) { /* Surface 7: Linear stale-regress protection */ }
     function _sxrUpdateCardStatusDisplay(pid) { /* in-place pill sync — safe no-op until Surface 3/7 */ }
     function _sxrAutosize(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
@@ -25923,10 +25915,9 @@
     async function _sxrArchiveOne(pid, slug) {
         delete _sxrPendingEdits[pid];
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
-        const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sample: { id: pid, client: slug, status: 'Archived', updated_at: new Date().toISOString() } }) });
+        const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }) });
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
     }
-    function _sxrRetrySave(pid) { _sxrFlushCardSave(pid); }   // Surface 3 completes failed-save retry
     function _sxrArchiveSelected() { /* Surface 6: bulk archive */ }
     function _sxrCardSelectClick(e, pid) { /* Surface 6: multi-select */ }
 
@@ -25955,6 +25946,277 @@
             body.innerHTML = renderSxrOrganizer();
             if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
         }
+    }
+
+    /* ============================================================
+       --- SURFACE 3: the save engine ---
+       Clone of _calOnFieldInput/Blur + _calFlushCardSave + _calPromoteBlankCard +
+       _calRetrySave + _calSetCardStatus, re-pointed to the LIVE sample-review-upsert
+       webhook. Verified payload contract: POST { client, sample: wirePost,
+       comments_base_at } → { ok:true, sample } | { ok:false, error }.
+       Samples are always v2: existing rows get a FIELD-LEVEL PATCH (only edited
+       columns), new rows / forced retries send the whole card. comments_base_at is
+       always '' (no scalar-conflict guard under realtime). __CLEAR_LINK__ sentinel
+       for an intentional link clear. Linear push + comment merge are stubbed here
+       (Surfaces 7 and 5). These function defs OVERRIDE the Surface 2 stubs.
+       ============================================================ */
+
+    const SXR_SAVE_DEBOUNCE_MS = 650;
+    function _sxrMintId() { return 'sr_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    const _sxrThumbRev = Object.create(null);
+    function _sxrBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _sxrThumbRev[pid] = t; return t; }
+
+    /* Structural fields rolled back when the upsert fails (free text is kept so a
+       user's typing is never erased). Samples set: video/graphic only — no
+       caption/title/scheduled_date/posted_at. */
+    const _SXR_ROLLBACK_FIELDS = [
+        'video_status', 'graphic_status', 'status', 'order_index',
+        'linear_issue_id', 'graphic_linear_issue_id',
+        'client_video_approved_at', 'client_graphic_approved_at',
+        'kasper_approved_at', 'kasper_approved_after_tweaks',
+    ];
+
+    /* Save-engine + reconcile state (declared once here; Surface 7 REFERENCES,
+       never redeclares, these). */
+    const _sxrNoLinearPush = new Set();          // single-shot outbound-push suppression keys
+    let _sxrLocalRecentSaves = new Map();        // realId → ts of our last successful write
+    let _sxrRecentSaveFields = new Map();        // realId → {wrote, base} sub-status snapshot
+    const _sxrFailedNewCards = new Set();         // new rows whose first save failed (keep on screen)
+    const _sxrConflictNotified = new Set();
+    let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
+
+    /* Comment helpers — minimal here; Surface 5 (Notes) installs the real ones. */
+    function _sxrStringifyComments(arr) { try { return JSON.stringify(Array.isArray(arr) ? arr : []); } catch (e) { return '[]'; } }
+    function _sxrCommentsFor(post, comp) { return (post && Array.isArray(post[comp + '_comments'])) ? post[comp + '_comments'] : []; }
+    function _sxrMergePostComments(into, from) { /* Surface 5: union comment threads on echo */ }
+    /* Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
+    function _sxrPushStatusToLinear(issueUrl, status) { /* Surface 7 */ }
+    function _sxrSyncStatusFromLinear(pid, issueUrl, comp) { /* Surface 7: point-adoption on a fresh link */ }
+    function _sxrWireDragOnCard(card) { /* drag-reorder is a Surface 2 follow-up */ }
+
+    function _sxrClientFieldEditBlocked() { return _isClientLink; }   // client never edits fields (no collab)
+    function _sxrOnFieldInput(el) {
+        if (_sxrClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][fld] = val;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (post) post[fld] = val;
+        if (_sxrSaveTimers[pid]) clearTimeout(_sxrSaveTimers[pid]);
+        _sxrSaveTimers[pid] = setTimeout(() => { _sxrSaveTimers[pid] = null; _sxrFlushCardSave(pid); }, SXR_SAVE_DEBOUNCE_MS);
+    }
+    function _sxrOnFieldBlur(el) {
+        if (!el || !el.dataset || _sxrClientFieldEditBlocked()) return;
+        const pid = el.dataset.pid, fld = el.dataset.fld, val = el.value;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][fld] = val;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (post) post[fld] = val;
+        if (_sxrSaveTimers[pid]) { clearTimeout(_sxrSaveTimers[pid]); _sxrSaveTimers[pid] = null; }
+        _sxrFlushCardSave(pid);
+    }
+    function _sxrFlushAllPending() {
+        Object.keys(_sxrPendingEdits).forEach(pid => {
+            if (_sxrSaveTimers[pid]) { clearTimeout(_sxrSaveTimers[pid]); _sxrSaveTimers[pid] = null; }
+            _sxrFlushCardSave(pid);
+        });
+    }
+
+    function _sxrSetCardStatus(pid, state, msg) {
+        const tag = document.querySelector(`[data-saving="${pid}"]`);
+        if (!tag) return;
+        tag.classList.remove('is-saved', 'is-error');
+        if (state === 'saving') { tag.hidden = false; tag.textContent = 'Saving…'; }
+        else if (state === 'saved') {
+            tag.hidden = false; tag.textContent = 'Saved'; tag.classList.add('is-saved');
+            setTimeout(() => { if (tag.classList.contains('is-saved')) { tag.hidden = true; tag.textContent = ''; tag.classList.remove('is-saved'); } }, 1500);
+        } else if (state === 'error') { tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error'); }
+        else { tag.hidden = true; tag.textContent = ''; }
+        const card = tag.closest('.cal-card');
+        if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
+    }
+
+    /* Promote a blank card → a real minted row: rewrite EVERY attribute referencing
+       the old blank pid (the full attribute walk — the calendar learned the hard
+       way that a partial rewrite mints a second ghost row), inject grip + archive,
+       migrate pending edits, wire drag. */
+    function _sxrPromoteBlankCard(oldPid, newId) {
+        const strip = document.getElementById('sxrStrip');
+        if (!strip) return;
+        const blank = strip.querySelector(`.cal-card[data-pid="${oldPid}"]`);
+        if (!blank) return;
+        blank.classList.remove('is-blank');
+        blank.setAttribute('draggable', 'true');
+        const oldEsc = oldPid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const re = new RegExp(oldEsc, 'g');
+        const walk = (el) => {
+            if (!el || !el.attributes) return;
+            for (let i = 0; i < el.attributes.length; i++) {
+                const a = el.attributes[i];
+                if (typeof a.value === 'string' && a.value.indexOf(oldPid) !== -1) el.setAttribute(a.name, a.value.replace(re, newId));
+            }
+            for (let i = 0; i < el.children.length; i++) walk(el.children[i]);
+        };
+        walk(blank);
+        if (!blank.querySelector('.cal-card-grip')) {
+            const grip = document.createElement('span');
+            grip.className = 'cal-card-grip'; grip.title = 'Drag to reorder';
+            grip.innerHTML = `<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg>`;
+            blank.insertBefore(grip, blank.firstChild);
+        }
+        if (!blank.querySelector('.cal-card-del')) {
+            const del = document.createElement('button');
+            del.className = 'cal-card-del'; del.type = 'button'; del.title = 'Archive';
+            del.addEventListener('click', () => archiveSxrCard(newId));
+            del.innerHTML = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
+            blank.insertBefore(del, blank.firstChild);
+        }
+        if (_sxrPendingEdits[oldPid]) {
+            _sxrPendingEdits[newId] = Object.assign(_sxrPendingEdits[newId] || {}, _sxrPendingEdits[oldPid]);
+            delete _sxrPendingEdits[oldPid];
+        }
+        _sxrWireDragOnCard(blank);
+    }
+
+    async function _sxrFlushCardSave(pid) {
+        const edits = _sxrPendingEdits[pid];
+        if (!edits) return;
+        const _saveSlug = sxrClientSlug(sxrState.client);
+        if (_sxrSaveInFlight[pid]) return;          // serialize per card — finally re-flushes queued edits
+        delete _sxrPendingEdits[pid];
+        let _releaseSave;
+        _sxrSaveInFlight[pid] = new Promise(res => { _releaseSave = res; });
+        let realId = pid;
+        try {
+            const isBlank = _sxrIsBlankId(pid);
+            const hasContent = Object.values(edits).some(v => String(v).trim() !== '');
+            if (isBlank && !hasContent) return;
+            if (isBlank) {
+                realId = _sxrMintId();
+                _sxrPromoteBlankCard(pid, realId);
+                _sxrSaveInFlight[realId] = _sxrSaveInFlight[pid];
+            }
+            let post;
+            const idx = sxrState.posts.findIndex(p => p.id === realId);
+            const prevSnapshot = idx >= 0 ? Object.assign({}, sxrState.posts[idx]) : null;
+            const wasNewRow = idx < 0;
+            if (idx < 0) {
+                const blank = _sxrBlankSample(); blank.id = realId;
+                post = Object.assign({}, blank, edits);
+                sxrState.posts.push(post);
+            } else {
+                post = Object.assign({}, sxrState.posts[idx], edits);
+                sxrState.posts[idx] = post;
+            }
+            post.updated_at = new Date().toISOString();
+            if ('thumbnail_url' in edits || 'asset_url' in edits) post.thumb_rev = _sxrBumpThumbRev(realId);
+            delete post._saveError;
+            _sxrSetCardStatus(realId, 'saving');
+            const suppressAll     = _sxrNoLinearPush.has(realId) || _sxrNoLinearPush.has(pid);
+            const suppressVideo   = suppressAll || _sxrNoLinearPush.has(realId + '|video')   || _sxrNoLinearPush.has(pid + '|video');
+            const suppressGraphic = suppressAll || _sxrNoLinearPush.has(realId + '|graphic') || _sxrNoLinearPush.has(pid + '|graphic');
+            [realId, pid].forEach(k => { _sxrNoLinearPush.delete(k); _sxrNoLinearPush.delete(k + '|video'); _sxrNoLinearPush.delete(k + '|graphic'); });
+            try {
+                post.status = computeSampleOverallStatus(post);
+                let wirePost;
+                if (!wasNewRow && Object.keys(edits).length > 0) {
+                    // FIELD-LEVEL PATCH — only the columns this edit touched.
+                    wirePost = { id: post.id };
+                    for (const k of Object.keys(edits)) {
+                        if (k === 'comments' || k === 'tweaks' || /_tweaks$/.test(k)) continue;
+                        wirePost[k] = post[k];
+                    }
+                    SXR_REVIEW_COMPONENTS.forEach(comp => {
+                        const fk = comp + '_tweaks';
+                        if (fk in edits) { wirePost[fk] = _sxrStringifyComments(_sxrCommentsFor(post, comp)); if (comp === 'video') wirePost.tweaks = wirePost[fk]; }
+                    });
+                    if ('video_status' in edits || 'graphic_status' in edits) wirePost.status = post.status;
+                    if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
+                    // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
+                    ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
+                        if (Object.prototype.hasOwnProperty.call(wirePost, lk) && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
+                    });
+                } else {
+                    // Whole card (new row, or a forced retry with empty edits).
+                    wirePost = Object.assign({}, post);
+                    wirePost.video_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'video'));
+                    wirePost.graphic_tweaks = _sxrStringifyComments(_sxrCommentsFor(post, 'graphic'));
+                    wirePost.tweaks = wirePost.video_tweaks;
+                    delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
+                    delete wirePost._baseAt; delete wirePost._saveError;
+                }
+                _sxrLastLocalWriteAt = Date.now();
+                const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: _saveSlug, sample: wirePost, comments_base_at: '' }) });
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const json = await resp.json();
+                if (!json.ok) throw new Error(json.error || 'save failed');
+                const saved = json.sample || post;
+                const i2 = sxrState.posts.findIndex(p => p.id === realId);
+                if (i2 >= 0) {
+                    // Overlay the echo onto the FULL local row, THEN migrate (so an
+                    // omitted sub-status is never invented and a column the echo
+                    // omits keeps its correct local value).
+                    const merged = Object.assign({}, sxrState.posts[i2], saved);
+                    _sxrMigrateShape(merged);
+                    const queued = _sxrPendingEdits[realId];
+                    if (queued) for (const k in queued) merged[k] = sxrState.posts[i2][k];
+                    _sxrMergePostComments(merged, sxrState.posts[i2]);
+                    merged._baseAt = String(saved.updated_at || merged.updated_at || merged._baseAt || '');
+                    sxrState.posts[i2] = merged;
+                }
+                _sxrLocalRecentSaves.set(realId, Date.now());
+                _sxrRecentSaveFields.set(realId, {
+                    wrote: { video_status: post.video_status, graphic_status: post.graphic_status },
+                    base: prevSnapshot ? { video_status: prevSnapshot.video_status, graphic_status: prevSnapshot.graphic_status } : {}
+                });
+                _sxrLastLocalWriteAt = Date.now();
+                _sxrConflictNotified.delete(realId);
+                _sxrFailedNewCards.delete(realId);
+                const _okPost = sxrState.posts.find(p => p.id === realId);
+                if (_okPost && _okPost._saveError) delete _okPost._saveError;
+                _sxrSetCardStatus(realId, 'saved');
+                if ('thumbnail_url' in edits || 'asset_url' in edits) _sxrForceThumbRefresh(realId);
+                if (isBlank && wasNewRow) {
+                    const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
+                    if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
+                }
+                const savedPost = sxrState.posts.find(p => p.id === realId);
+                if (savedPost) {
+                    if ('video_status' in edits && !suppressVideo) { const u = String(savedPost.linear_issue_id || '').trim(); if (u) _sxrPushStatusToLinear(u, savedPost.video_status); }
+                    if ('graphic_status' in edits && !suppressGraphic) { const u = String(savedPost.graphic_linear_issue_id || '').trim(); if (u) _sxrPushStatusToLinear(u, savedPost.graphic_status); }
+                }
+            } catch (e) {
+                console.warn('[Samples] save failed', e);
+                _sxrSetCardStatus(realId, 'error', e.message || 'save failed');
+                const iErr = sxrState.posts.findIndex(p => p.id === realId);
+                if (wasNewRow) {
+                    _sxrFailedNewCards.add(realId);
+                    if (iErr >= 0) sxrState.posts[iErr]._saveError = e.message || 'save failed';
+                } else if (prevSnapshot && iErr >= 0) {
+                    const cur = sxrState.posts[iErr];
+                    _SXR_ROLLBACK_FIELDS.forEach(k => { if (k in edits) cur[k] = prevSnapshot[k]; });
+                    cur.updated_at = prevSnapshot.updated_at || cur.updated_at;
+                    cur._saveError = e.message || 'save failed';
+                }
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
+            }
+        } finally {
+            delete _sxrSaveInFlight[pid];
+            delete _sxrSaveInFlight[realId];
+            if (_releaseSave) _releaseSave();
+            if (_sxrPendingEdits[realId]) _sxrFlushCardSave(realId);
+            else if (realId !== pid && _sxrPendingEdits[pid]) _sxrFlushCardSave(pid);
+        }
+    }
+
+    /* Retry a failed save — queue an empty bucket so the flush re-sends the whole
+       current row through the normal funnel (fixes the old broken retry that
+       early-returned on an empty bucket). */
+    function _sxrRetrySave(pid) {
+        if (!pid) return;
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrSetCardStatus(pid, 'saving');
+        _sxrFlushCardSave(pid);
     }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY

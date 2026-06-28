@@ -14,15 +14,23 @@
 > | Probe | Interaction | Result |
 > |---|---|---|
 > | ot01_cold_open_smm | SMM cold open: create→name(promote+live upsert)→video URL→creative dir→status pick→audit→archive | ✅ PASS (18/18) |
+> | ot02_client_review | Client share: shell, expand, single Approve video→Approved (live), read-only Sheet, hidden brief not leaked | ✅ PASS (21/21) |
+> | ot03_client_request | Client request-change: compose→Request change→Tweaks Needed (live) + client is_tweak comment persisted | ✅ PASS (10/10) |
+> | ot04_kasper_review | Kasper Samples sub-tab: cross-client queue→expand→Approve→Client Approval (live), queue eviction, Linear push (mocked) | ✅ PASS (11/11) |
 >
-> **Totals:** 1 probe · 18 assertions · 18 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
-> `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified.
+> **Totals:** 4 probes · 60 assertions · 60 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
 >
 > ### NOT YET COVERED (this run — resume here)
-> Cold-open Client + Kasper journeys; Matrix A (lifecycle both comps × 3 actors, resolve
-> chooser, stale-clear, idempotency); B (Linear sync mocked); C (every SMM field, thumb
-> derivation, optimistic rollback, reorder); D (client gating spectrum); E (Kasper queue
-> depth/isolation); F (flag-off isolation); G (realtime push); H (rest of app).
+> Matrix A: graphic-component lifecycle symmetry; SMM approve-split (Kasper vs Client alt);
+> SMM resolve-tweak chooser (4 routes); stale-approval clear; same-tick idempotency; undo-approve.
+> B: Linear graphic routing, no-push-on-unchanged, __CLEAR_LINK__, suppression of inbound echo.
+> C: link paste/commit/move, thumbnail derivation (YouTube/Drive), optimistic rollback on failure, reorder.
+> D: Tweaks-Needed reload composer state; persist-guard (client write only touches review cols).
+> E: Kasper queue pagination depth; reverse isolation (samples never in calendar review).
+> F: flag-off isolation (nav hidden, no _sxr net/DOM); OLD #samples module untouched.
+> G: realtime push into _sxrV2OnRealtimeChange; recent-save window protects a fresh approval.
+> H: rest of app (calendar lifecycle/fields/Linear, Kasper-for-calendar, onboarding, TikTok, templates).
 >
 > ---
 

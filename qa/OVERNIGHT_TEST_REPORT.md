@@ -20,8 +20,9 @@
 > | ot05_smm_review_split | SMM Review approve-split: video→Kasper (primary), graphic→Client (alt), worst-of overall (live) | ✅ PASS (10/10) |
 > | ot06_smm_resolve_on_approve | SMM simplified resolve: approve a For-SMM video carrying an open client tweak → Kasper + tweak auto-resolved done=true (live) | ✅ PASS (7/7) |
 > | ot07_kasper_actions | Kasper request-change → Tweaks Needed + is_tweak comment + Linear status/comment; approve-after-tweaks → For SMM + AAT flag (live) | ✅ PASS (11/11) |
+> | ot08_smm_fields | SMM Sheet fields: hide-cd eye toggle (1↔''), thumbnail derivation (YouTube→img), Linear video commit, malformed-URL guard reject — all live | ✅ PASS (14/14) |
 >
-> **Totals:** 7 probes · 88 assertions · 88 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> **Totals:** 8 probes · 102 assertions · 102 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
 > `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
 >
 > ### OBSERVATIONS (this run)
@@ -31,6 +32,14 @@
 >   approving an SMM component that still has open change-requests marks them resolved
 >   as part of the send, and routing is handled by the approve-split (Kasper / Client /
 >   Approved). Consistent with the "fewer options" mandate. Verified in ot06 — not a bug.
+> - **OBS-R2 (inline Linear input vs re-render, low severity):** An open inline Linear
+>   `<input>` can be wiped if a debounced field-save (or realtime update) re-renders the
+>   card while it's focused. The comment composer/textarea is protected by the
+>   defer-render-while-editing guard; the Linear slot input is not. In practice the
+>   exposure is the ~sub-second window between opening the slot and committing, and a
+>   real user pastes+commits within it. Probe ot08 settles before opening (then commits
+>   first-try, attempts=1). Worth considering extending the editing-guard to
+>   `.cal-linear-input`. Not a data-loss bug in normal use.
 >
 > ### NOT YET COVERED (this run — resume here)
 > Matrix A: graphic-component lifecycle symmetry; SMM approve-split (Kasper vs Client alt);

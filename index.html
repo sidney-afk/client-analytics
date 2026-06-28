@@ -11766,7 +11766,7 @@
     const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
     const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
 
-    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['none','No B-roll'] ];
+    const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['own','My own footage'], ['none','No B-roll'] ];
 
     // Thumbnail text picker: Font (3) x Style (4) x Highlight (on/off) = 24 real renders,
     // hosted in thumbnail-styles/<font>-<style>[-hl].jpg. The client builds the combo live.
@@ -11950,12 +11950,12 @@
 
     function _obRepRowHtml(rep, first){
       const x = first ? '' : '<button type="button" class="ob-rep-x" aria-label="Remove row">×</button>';
-      if(rep==='creators') return '<div class="ob-rep-row"><input class="ob-input" data-rep="creators" data-rep-k="link" type="url" placeholder="Creator link"><input class="ob-input" data-rep="creators" data-rep-k="copy" type="text" placeholder="What to copy?">'+x+'</div>';
+      if(rep==='creators') return '<div class="ob-rep-row"><input class="ob-input" data-rep="creators" data-rep-k="link" type="url" placeholder="Creator link"><input class="ob-input" data-rep="creators" data-rep-k="model" type="text" placeholder="What to model from them?">'+x+'</div>';
       return '<div class="ob-rep-row"><input class="ob-input" data-rep="clips" data-rep-k="link" type="url" placeholder="Paste a link">'+x+'</div>';
     }
     function _obCreators(){
       return '<div class="ob-q" data-ob-q="creators"><label class="ob-label">Creators for inspiration</label>'+
-        '<div class="ob-help">Anyone whose style you\'d like us to borrow from.</div>'+
+        '<div class="ob-help">Anyone whose style you\'d like us to model after.</div>'+
         '<div class="ob-rep" id="obCreators">'+_obRepRowHtml('creators', true)+'</div>'+
         '<button type="button" class="ob-add" data-rep-add="creators">+ Add another</button></div>';
     }
@@ -11997,10 +11997,10 @@
         ]},
         { id:'s2', n:'2', c:'#6f78e2', title:'Your brand & audience', fields:[
           _obField({id:'brand_guidelines', label:'Brand guidelines link', help:'Logos, colours, fonts — if you have them.', type:'url', placeholder:'https://…'}),
-          _obField({id:'ideal_customer', label:'Who is your ideal customer?', type:'textarea', required:true}),
-          _obField({id:'pain_points', label:'What problems do you solve for them?', type:'textarea', required:true}),
-          _obField({id:'desired_outcomes', label:'What results do you get them?', type:'textarea', required:true}),
-          _obField({id:'process', label:'How do you get them there?', type:'textarea', required:true}),
+          _obField({id:'ideal_customer', label:'Who is your IDEAL target customer?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'pain_points', label:'What are the PAIN points of the customers you help?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'desired_outcomes', label:'What are the DESIRED OUTCOMES of the customers you help?', help:'The more detail, the better.', type:'textarea', required:true}),
+          _obField({id:'process', label:'What is your PROCESS for helping clients get from where they are to where they want to go?', help:'The more detail, the better.', type:'textarea', required:true}),
         ]},
         { id:'s3', n:'3', c:'#8a6fe0', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
           _obCreators(),
@@ -12021,7 +12021,7 @@
             _obField({id:'dos_donts', label:'Anything we must always include, or never include?', help:'Anything we should keep in mind for every video.', type:'textarea', rows:2}),
           ]),
         ]},
-        { id:'s4', n:'4', c:'#a063d8', title:'Sample video', intro:'So your very first sample looks like your real videos — it\'s the single most useful thing you can give us.', fields:[
+        { id:'s4', n:'4', c:'#a063d8', title:'Sample video', intro:'Before we produce your first real video, we\'ll make a few short sample edits — showing different subtitle styles, thumbnails and looks — so you can see your options and pick what feels right. To make those samples look like your actual videos, the single most useful thing you can give us is a short clip of you (below).', fields:[
           _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s5', n:'5', c:'#b65fce', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
@@ -12329,10 +12329,10 @@
       .ob-wrap{ max-width:680px; margin:0 auto; padding:26px 18px 120px; font-family:'Plus Jakarta Sans',sans-serif; color:var(--text-primary); }
       .ob-card{ background:var(--white); border:1px solid var(--border); border-radius:18px; padding:30px 28px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
       .ob-kicker{ font-size:0.7rem; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-muted); }
-      .ob-brand{ display:flex; flex-direction:column; align-items:flex-start; gap:9px; margin-bottom:22px; }
+      .ob-brand{ display:flex; flex-direction:column; align-items:center; gap:8px; margin-bottom:22px; }
       .ob-logo-wrap{ position:relative; flex-shrink:0; display:inline-flex; }
       .ob-logo-wrap::after{ content:''; position:absolute; inset:-14px -18px; background:radial-gradient(closest-side, rgba(162,28,230,0.34), rgba(162,28,230,0) 74%); filter:blur(11px); z-index:-1; }
-      .ob-logo{ width:172px; height:auto; display:block; filter:drop-shadow(0 4px 16px rgba(162,28,230,0.38)); }
+      .ob-logo{ width:116px; height:auto; display:block; filter:drop-shadow(0 4px 16px rgba(162,28,230,0.38)); }
       .ob-brand-kicker{ padding-left:2px; }
       .ob-title{ font-size:1.6rem; font-weight:800; margin:8px 0 8px; letter-spacing:-0.02em; }
       .ob-sub{ font-size:0.9rem; line-height:1.5; color:var(--text-secondary); margin:0; }

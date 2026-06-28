@@ -69,10 +69,12 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
 ## Sections (the approved question set)
 
 1. **Basic info** — name, email, phone, who else to loop in, billing contact.
-2. **Your brand & audience** — brand-guidelines link, ideal customer, pain points,
-   desired outcomes, process.
+2. **Your brand & audience** — brand-guidelines link, then the original form's four questions
+   (IDEAL target customer, PAIN points, DESIRED OUTCOMES, PROCESS), each with a "the more detail,
+   the better" prompt.
 3. **Style** — split into clear **Video** and **Thumbnail** groups (via `.ob-subhead`s).
-   - **Creators for inspiration** — repeatable rows (kept; the one structured "who to copy" field).
+   - **Creators for inspiration** — repeatable rows (kept; "what to **model** from them" — the copy
+     deliberately avoids "copy"/"borrow" so it doesn't feel like stealing).
    - **── Video ──**
      - **Subtitle style** — single-select cards **Elegant / Native / Banner**. Each card shows
        its name + the **Standard** and **+ Highlight** previews side-by-side (real ~10s client
@@ -80,7 +82,7 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
        keywords** toggle (`subtitle_highlight`) is **disabled until a style with a highlight
        variant is selected** (`_obStyleSel`); Banner has no highlight, so the toggle stays off
        for it. The toggle no longer swaps previews — both are always shown.
-     - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / No B-roll.
+     - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / **My own footage** / No B-roll.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
        **description** of the look they want (`video_reference` + `video_reference_desc`).
@@ -100,9 +102,10 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
    - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
      reference, visual reference, font preference, font reference image, and "clips you like" were
      folded in. *(No "video editing style" picker — editing feel is the B-roll + Music answers.)*
-4. **Sample video** — its own section (it's the single most useful thing a client can give us, and
-   it isn't really a *style* choice): the **sample clip of you** (~30s talking to camera), clearly
-   named so it's distinct from the photos / source-material links.
+4. **Sample video** — its own section, with intro instructions explaining the process: *before* we
+   produce the first real video we make a few short **sample edits** (different subtitle styles,
+   thumbnails, looks) so the client can pick what they like — and to make those look like their real
+   videos, the **sample clip of you** (~30s talking to camera) is the single most useful thing to give.
 5. **Photos & source material** — both optional links (photos of you, content to pull from).
 6. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.

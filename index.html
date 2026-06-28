@@ -25265,26 +25265,9 @@
         onSxrClientChange(name);
     }
 
-    /* Body dispatcher — Sheet (organizer) | Review (smmreview/review). The
-       organizer + review renderers are installed by Surfaces 2 and 4. */
-    function _sxrRenderBody() {
-        const body = document.getElementById('sxrBody');
-        if (!body) return;
-        if (!sxrState.client) {
-            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab.</div>`;
-            return;
-        }
-        if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
-        if (sxrState.error) {
-            body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`;
-            return;
-        }
-        if (sxrState.view === 'review' || sxrState.view === 'smmreview') {
-            body.innerHTML = (typeof renderSxrReview === 'function') ? renderSxrReview() : `<div class="cal-empty">Review queue — coming in Surface 4.</div>`;
-        } else {
-            body.innerHTML = (typeof renderSxrOrganizer === 'function') ? renderSxrOrganizer() : `<div class="cal-empty">${(sxrState.posts||[]).length} sample(s) loaded — card view comes in Surface 2.</div>`;
-        }
-    }
+    /* Body dispatcher lives below (the opts-aware version in Surface 3) — this
+       Surface-1 stub was superseded and removed to keep _sxrRenderBody defined
+       exactly once. */
 
     function onSxrViewChange(v) {
         if (!['review','smmreview','organizer'].includes(v)) return;

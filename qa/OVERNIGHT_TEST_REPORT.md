@@ -23,8 +23,28 @@
 > | ot08_smm_fields | SMM Sheet fields: hide-cd eye toggle (1↔''), thumbnail derivation (YouTube→img), Linear video commit, malformed-URL guard reject — all live | ✅ PASS (14/14) |
 > | ot09_flag_off_isolation | Flag OFF: nav hidden, _sxrEnabled false, no channel, ZERO samples/linear network after focus+visibility; OLD #samples still mounts, no sxrView leak | ✅ PASS (8/8) |
 > | ot10_notes_modal | Notes modal: Video/Thumbnail comp picker, audience toggle; internal note→video_tweaks(audience=internal), client note→graphic_tweaks(audience=client) live | ✅ PASS (13/13) |
+> | ot11_reorder_gap | DOCUMENTS BUG-1: grip shown + draggable=true but drag is a no-op (stub wiring, webhook never called, order_index unchanged) | ✅ PASS (9/9, records BUG-1) |
 >
-> **Totals:** 10 probes · 123 assertions · 123 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> **Totals:** 11 probes · 132 assertions · 132 PASS · 0 FAIL · 0 app JS errors · **1 product bug found (BUG-1).**
+>
+> ### 🐞 BUGS FOUND (this run)
+> - **BUG-1 — drag-to-reorder is non-functional on the SMM Sheet (real gap).**
+>   *Repro:* open `?sxr=1#sample-reviews/sidneylaruel` with ≥2 samples, hover a card →
+>   a "Drag to reorder" grip appears and the card is `draggable="true"`. Drag one card
+>   onto another → **nothing happens**; `order_index` is unchanged in the live DB and the
+>   `sample-review-reorder` webhook is never called.
+>   *Root cause:* `_sxrWireDragOnCard(card)` is an empty stub (`/* drag-reorder is a
+>   Surface 2 follow-up */`); there are no `dragstart/dragover/drop` listeners anywhere in
+>   the SXR block, and the declared `SXR_REORDER_URL` constant has zero call-sites.
+>   *Impact:* misleading affordance — the user sees a drag handle that does nothing.
+>   Reorder is a core calendar behavior and was NOT on the removal list, so the Sheet does
+>   not fully replicate the calendar here. *Severity:* medium (UX/feature gap; no data loss,
+>   no errors). *Two clean fixes (needs product call):* (a) WIRE reorder — clone the
+>   calendar's drag handlers into the `_sxr` namespace + POST to `SXR_REORDER_URL` (the
+>   webhook is already live); or (b) HIDE the grip + set `draggable="false"` if reorder
+>   isn't wanted in samples. Recommend (a) to match the calendar. NOT auto-fixed — it's a
+>   feature decision and belongs on the feature branch under the SXR fences. Probe:
+>   `ot11_reorder_gap.js`.
 > `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
 >
 > ### OBSERVATIONS (this run)

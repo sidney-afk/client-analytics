@@ -6,15 +6,18 @@
   <title>Synchro Social</title>
   <!--
     GitHub Pages serves this file for any path that doesn't map to a real file.
-    We use it as a tiny router so the standalone onboarding form can live at a clean
-    /onboarding_form path (GitHub Pages can't do server rewrites): send that path into
-    the SPA via ?onboarding=1, and index.html rewrites the address bar back to
-    /onboarding_form. Any other unknown path just goes home.
+    We use it as a tiny router so the standalone onboarding forms can live at clean
+    paths (GitHub Pages can't do server rewrites): the standard funnel at
+    /onboarding_form -> ?onboarding=1, and the AI funnel at /ai_onboarding_form ->
+    ?onboarding=ai. index.html then rewrites the address bar back to the clean path.
+    Any other unknown path just goes home.
   -->
   <script>
     (function () {
       var p = location.pathname.replace(/\/+$/, '').toLowerCase();
-      if (p === '/onboarding_form' || p === '/onboarding-form') {
+      if (p === '/ai_onboarding_form' || p === '/ai-onboarding-form') {
+        location.replace('/?onboarding=ai' + location.search.replace(/^\?/, '&') + location.hash);
+      } else if (p === '/onboarding_form' || p === '/onboarding-form') {
         location.replace('/?onboarding=1' + location.search.replace(/^\?/, '&') + location.hash);
       } else {
         location.replace('/');

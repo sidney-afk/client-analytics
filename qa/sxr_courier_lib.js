@@ -231,11 +231,22 @@ async function kasper(browser, opts) {
   const page = await ctx.newPage();
   _capture(page);
   await page.goto(ORIGIN + '/index.html?Kasper=1&sxr=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
-  // Wait for the Kasper view + the samples sub-tab handler to be wired.
-  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperRenderSamples === 'function', { timeout: 20000 }).catch(() => {});
-  // Switch to the samples sub-tab.
-  await page.evaluate(() => { try { window._kasperGotoTab('samples'); } catch (e) {} });
-  await page.waitForTimeout(800);
+  // Wait for the Kasper view to be wired. (This rebuild renders the samples
+  // sub-tab via _kasperRenderTab → _sxrKasperRenderQueue, hooked in by a
+  // // SXR_LINE; the queue fn is module-scoped, so gate on the exposed
+  // _kasperGotoTab + the presence of the real Samples sub-tab button.)
+  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function', { timeout: 20000 }).catch(() => {});
+  await page.waitForFunction(() => !!document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'), { timeout: 10000 }).catch(() => {});
+  // Switch to the samples sub-tab — click the REAL button when present, else fall
+  // back to the programmatic tab switch.
+  const clicked = await page.evaluate(() => {
+    const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]');
+    if (b) { b.click(); return true; }
+    try { window._kasperGotoTab('samples'); } catch (e) {}
+    return false;
+  });
+  void clicked;
+  await page.waitForTimeout(900);
   return page;
 }
 

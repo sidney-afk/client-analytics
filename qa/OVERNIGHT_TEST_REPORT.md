@@ -1,5 +1,33 @@
 # Overnight Autonomous Test Run — SyncView
 
+> ## ⟶ ACTIVE RUN: SXR REBUILD VERIFICATION (2026-06-28)
+>
+> **Branch:** `claude/overnight-test-sxr` · **Test client:** `sidneylaruel` ONLY
+> **Target:** the REBUILT Samples (Review) feature (`?sxr=1`) — the from-scratch,
+> fully-fenced clone that replaced the prior "Samples v2" attempt. This run writes
+> FRESH probes (`qa/probes/ot*.js`) that drive the rebuild's actual DOM/API against
+> the LIVE backend (Linear mocked). The prior run's report (probes `sxr_*`, the
+> superseded build) is preserved below the divider for reference.
+>
+> ### Results (this run)
+>
+> | Probe | Interaction | Result |
+> |---|---|---|
+> | ot01_cold_open_smm | SMM cold open: create→name(promote+live upsert)→video URL→creative dir→status pick→audit→archive | ✅ PASS (18/18) |
+>
+> **Totals:** 1 probe · 18 assertions · 18 PASS · 0 FAIL · 0 app JS errors · 0 bugs.
+> `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified.
+>
+> ### NOT YET COVERED (this run — resume here)
+> Cold-open Client + Kasper journeys; Matrix A (lifecycle both comps × 3 actors, resolve
+> chooser, stale-clear, idempotency); B (Linear sync mocked); C (every SMM field, thumb
+> derivation, optimistic rollback, reorder); D (client gating spectrum); E (Kasper queue
+> depth/isolation); F (flag-off isolation); G (realtime push); H (rest of app).
+>
+> ---
+
+## (ARCHIVED) Prior run — "Samples v2" attempt (superseded by the rebuild)
+
 **Branch:** `claude/overnight-test-8g0bsg` · **Test client:** `sidneylaruel` (Sidney Laruel) ONLY
 **Harness:** real headless Chromium + Node courier → LIVE Supabase/n8n backend; Linear MOCKED.
 **Started:** 2026-06-26 (autonomous /loop)

@@ -11647,6 +11647,7 @@
         // gutter reads as dead space. Tag the body so we can tighten that band
         // (and the toolbar margins) for this page only — see body.cal-page CSS.
         document.body.classList.toggle('cal-page', page === 'calendar');
+        if (page === 'sample-reviews') document.body.classList.add('cal-page'); // SXR_LINE
 
         // Tear down the TikTok-upload polling timer whenever we leave the page so
         // it doesn't keep hitting the queue webhook in the background.
@@ -24315,6 +24316,20 @@
         try{
             const qp = new URLSearchParams(location.search);
             const hashRaw = decodeURIComponent(location.hash.replace('#',''));
+            // >>> SXR_BEGIN
+            // Samples (Review) refresh/deep-link landing. Its own backend (no
+            // analytics dependency), so route immediately and skip the analytics
+            // await. Deferred to a macrotask so module bindings declared later in
+            // the file (sxrState / _sxrEnabled / mountSxrView) are initialized
+            // first — the same TDZ guard the onboarding boot uses (see ~24716).
+            // The flag is read INLINE (no SXR symbols) so this is safe even though
+            // it runs before the SXR module block evaluates.
+            if (hashRaw === 'sample-reviews' || hashRaw.startsWith('sample-reviews/')) {
+                let _sxrOn = false;
+                try { const _q = new URLSearchParams(location.search).get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                if (_sxrOn) { try { window.__sxrDeepHash = hashRaw; } catch (e) {} setTimeout(function () { try { navTo('sample-reviews', false); } catch (e) {} }, 0); return; }
+            }
+            // <<< SXR_END
             const savedNav = localStorage.getItem(NAV_KEY);
             const stateNav = history.state && history.state.nav;
             const stateClient = history.state && history.state.client;
@@ -24903,13 +24918,442 @@
         if (changed) _sxrArchivedWriteRaw(slug, m);
     }
 
-    /* --- View render/mount (Surface 0 stubs; Surface 1 installs the real shell) --- */
-    function renderSxrView() {
-        return '<div class="sxr-view" id="sxrView" style="padding:48px 24px;text-align:center;color:#9aa;font-size:14px;">Sample Reviews — coming up…</div>';
+    /* ============================================================
+       --- SURFACE 1: shell, toolbar (Review+Sheet), per-client tabs,
+           zoom, kebab (Share only), data load, body dispatcher ---
+       Clone of _calRenderShell / mountCalendar / loadCalendarPosts /
+       _calRenderBody / onCalViewChange / the tab strip, re-pointed to
+       sample_reviews and STRIPPED of: Month/Week views, the All-months +
+       All-content filter dropdowns, the import/bulk-sync/edit-platforms/
+       edit-caption-prompt/collaborative/YouTube-title kebab items, and the
+       multi-post caption button. Reuses the calendar's GLOBAL cal-* CSS.
+       ============================================================ */
+
+    /* View/zoom prefs — own key so samples prefs never collide with the calendar. */
+    const SXR_PREFS_KEY = 'syncview_sxr_prefs_v1';
+    function _sxrLoaderHtml(label) { return _calLoaderHtml(label || 'Loading sample reviews'); }
+    function _sxrLoadPrefs() { try { return JSON.parse(localStorage.getItem(SXR_PREFS_KEY) || '{}'); } catch { return {}; } }
+    function _sxrSavePrefs() {
+        try {
+            const prev = _sxrLoadPrefs();
+            const client = sxrState.embedded ? prev.client : sxrState.client;
+            localStorage.setItem(SXR_PREFS_KEY, JSON.stringify({ view: sxrState.view, client, zoom: sxrState.zoom }));
+        } catch {}
     }
+
+    /* Open client tabs (pins) + the pure tab-strip helpers + the client matcher
+       are SHARED with the calendar (same clients in both surfaces). */
+    const _sxrGetPins = _calGetPins, _sxrSavePins = _calSavePins;
+    const _sxrChevron = _calChevron, _sxrClientHue = _calClientHue;
+    const _sxrTabScrollBy = _calTabScrollBy, _sxrUpdateTabScroll = _calUpdateTabScroll, _sxrScrollTabStripToActive = _calScrollTabStripToActive;
+    const _sxrMatchClients = _calMatchClients;
+
+    /* Deep-link focus request (set by the router on #sample-reviews/<slug>/<id>). */
+    let _sxrFocusRequest = null;
+
+    function renderSxrView() {
+        return `<div class="cal-view" id="sxrView">${_sxrLoaderHtml()}</div>`;
+    }
+
     function mountSxrView() {
         if (!_sxrEnabled()) return;   // default-OFF isolation: never mount with the flag off
-        // Surface 1 installs the real shell mount here.
+        if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown();
+        // Resolve a deep-link (#sample-reviews/<slug>/<cardId>) captured at boot.
+        try {
+            const dh = window.__sxrDeepHash; window.__sxrDeepHash = null;
+            if (dh && dh.indexOf('sample-reviews/') === 0) {
+                const parts = dh.slice('sample-reviews/'.length).split('/');
+                const slug = parts[0]; const cardId = parts[1] || null;
+                const match = (typeof WL_CLIENT_NAMES !== 'undefined' ? WL_CLIENT_NAMES : []).find(n => _sxrNormalizeClient(n) === slug) || null;
+                _sxrFocusRequest = (match || cardId) ? { client: match, cardId } : null;
+            }
+        } catch (e) {}
+        const prefs = _sxrLoadPrefs();
+        const pins  = _sxrGetPins();
+        let initial = null;
+        if (_sxrFocusRequest && _sxrFocusRequest.client && wlIsAllowedClient(_sxrFocusRequest.client)) initial = _sxrFocusRequest.client;
+        else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
+        else if (pins.length > 0) initial = pins[0];
+        else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        sxrState.client = initial;
+        sxrState.embedded = false;
+        sxrState.view = (_sxrFocusRequest ? 'organizer' : (prefs.view === 'smmreview' ? 'smmreview' : 'organizer'));
+        sxrState.zoom = _sxrNormZoom(prefs.zoom);
+        sxrState.posts = [];
+        sxrState.error = null;
+        sxrState.previewId = null;
+        _sxrRenderShell();
+        if (sxrState.client) loadSxrCards();
+        else _sxrRenderBody();
+    }
+
+    function _sxrRenderShell() {
+        const view = document.getElementById('sxrView');
+        if (!view) return;
+        const embedded = !!sxrState.embedded;
+        const leftHtml = embedded
+            ? `<div class="cal-embed-title"><strong>${_sxrEsc(sxrState.client || '')}</strong><span>Sample reviews</span></div>`
+            : `<div class="cal-tabs" id="sxrTabs"></div>`;
+        // Kebab: ONLY "Share with client" survives. Every other calendar kebab item
+        // (imports, bulk-Linear-sync, edit-caption-prompt, edit-platforms, collab,
+        // YouTube-title-review) is on the exclusion list and is dropped.
+        const kebabHtml = (sxrState.client && !_isClientLink)
+            ? `<div class="cal-kebab-wrap">
+                    <button class="cal-kebab" type="button" onclick="_sxrToggleKebab(event)" title="More" aria-label="More options"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="3" r="1.5"/><circle cx="8" cy="8" r="1.5"/><circle cx="8" cy="13" r="1.5"/></svg></button>
+                    <div class="cal-kebab-menu" id="sxrKebabMenu" hidden>
+                        <button class="cal-kebab-item" type="button" onclick="_sxrCloseKebab();_sxrCopyShareLink()" title="Copy a client-facing link to these sample reviews"><svg width="15" height="15" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 1L13 4.5M13 4.5L9.5 8M13 4.5H5.5C3.57 4.5 2 6.07 2 8V13"/></svg>Share with client</button>
+                    </div>
+                </div>`
+            : '';
+        // Archive-only select mode (no colour-tag, no multi-post caption — both excluded).
+        const selectBtnHtml = (sxrState.client && !_isClientLink && sxrState.view === 'organizer')
+            ? `<button class="cal-select-btn${sxrState.selectMode ? ' active' : ''}" type="button" data-select-action="archive" onclick="_sxrToggleSelectMode()" title="Select multiple samples to archive"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="1.8" width="12.4" height="12.4" rx="3.2"/><path d="M4.8 8.1l2 2 4.4-4.8"/></svg></button>`
+            : '';
+        const viewLabels = { review: 'Review', smmreview: 'Review', organizer: 'Sheet' };
+        // Two tabs only — Review + Sheet. No Month/Week (samples have no dates).
+        const tabViews = _isClientLink ? ['review','organizer'] : ['smmreview','organizer'];
+        view.innerHTML = `
+            <div class="cal-toolbar">
+                <div class="cal-toolbar-left">${leftHtml}</div>
+                <div class="cal-toolbar-mid">
+                    <div class="cal-view-toggle">
+                        ${tabViews.map(v => {
+                            const n = (v === 'review' || v === 'smmreview') ? _sxrApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client') : 0;
+                            const badge = n > 0 ? `<span class="cal-view-badge">${n}</span>` : '';
+                            return `<button type="button" class="cal-view-btn${sxrState.view === v ? ' active' : ''}" data-cal-view="${v}" onclick="onSxrViewChange('${v}')">${viewLabels[v]}${badge}</button>`;
+                        }).join('')}
+                    </div>
+                    <div class="cal-zoom" id="sxrZoomCtl" title="Card size">
+                        <svg class="cal-zoom-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                        <button type="button" id="sxrZoomOut" onclick="sxrZoom(-1)" aria-label="Zoom out"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                        <button type="button" id="sxrZoomIn" onclick="sxrZoom(1)" aria-label="Zoom in"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="7" y1="3" x2="7" y2="11"/><line x1="3" y1="7" x2="11" y2="7"/></svg></button>
+                    </div>
+                </div>
+                <div class="cal-toolbar-right">
+                    <span class="cal-refreshing" id="sxrRefreshing" hidden><span class="cal-refresh-spin"></span>Refreshing…</span>
+                    <span class="cal-stale-notice" id="sxrStaleNotice" hidden onclick="loadSxrCards({skipCache:true})" title="Click to retry">Couldn't refresh — retry</span>
+                    ${selectBtnHtml}
+                    ${kebabHtml}
+                </div>
+            </div>
+            <div class="cal-body" id="sxrBody">${_sxrLoaderHtml()}</div>
+            <div class="cal-lightbox" id="sxrLightbox" onclick="closeSxrLightbox()">
+                <img alt="" onclick="event.stopPropagation()">
+                <button class="cal-lightbox-close" type="button" onclick="closeSxrLightbox()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            <div class="cal-comments-overlay" id="sxrCommentsOverlay" onclick="if(event.target===this)closeSxrComments()">
+                <div class="cal-comments-modal" id="sxrCommentsModal" role="dialog" aria-modal="true" aria-labelledby="sxrCommentsTitle"></div>
+            </div>
+        `;
+        if (!embedded) {
+            _sxrRenderTabs();
+            _sxrWireOutsideTabSearchClose();
+        }
+        _sxrApplyZoom();
+    }
+
+    /* Zoom — three discrete card sizes (Sheet only), saved to localStorage. */
+    const SXR_ZOOM_LEVELS = ['s', 'm', 'l'];
+    function _sxrNormZoom(z) { const map = { small:'m', default:'l', large:'l', s:'s', m:'m', l:'l' }; return map[z] || 'm'; }
+    function _sxrApplyZoom() {
+        const view = document.getElementById('sxrView');
+        if (view) view.dataset.zoom = sxrState.zoom || 'm';
+        const i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        const out = document.getElementById('sxrZoomOut'), inb = document.getElementById('sxrZoomIn');
+        if (out) out.disabled = i <= 0;
+        if (inb) inb.disabled = i >= SXR_ZOOM_LEVELS.length - 1;
+        const ctl = document.getElementById('sxrZoomCtl');
+        if (ctl) { ctl.style.display = ''; ctl.style.visibility = sxrState.view === 'organizer' ? 'visible' : 'hidden'; }
+    }
+    function sxrZoom(delta) {
+        let i = SXR_ZOOM_LEVELS.indexOf(sxrState.zoom || 'm');
+        if (i < 0) i = 1;
+        i = Math.max(0, Math.min(SXR_ZOOM_LEVELS.length - 1, i + delta));
+        sxrState.zoom = SXR_ZOOM_LEVELS[i];
+        _sxrSavePrefs();
+        _sxrApplyZoom();
+    }
+
+    function _sxrToggleKebab(e) {
+        if (e) e.stopPropagation();
+        const menu = document.getElementById('sxrKebabMenu');
+        if (!menu) return;
+        menu.hidden = !menu.hidden;
+        if (!menu.hidden) setTimeout(() => document.addEventListener('mousedown', _sxrKebabOutside), 0);
+    }
+    function _sxrCloseKebab() {
+        const menu = document.getElementById('sxrKebabMenu');
+        if (menu) menu.hidden = true;
+        document.removeEventListener('mousedown', _sxrKebabOutside);
+    }
+    function _sxrKebabOutside(e) { if (!e.target.closest('.cal-kebab-wrap')) _sxrCloseKebab(); }
+
+    /* Share-with-client link — carries ?sxr=1 because samples is default-OFF
+       (without it a fresh client browser never mounts the surface). */
+    function _sxrCopyShareLink() {
+        if (!sxrState.client) return;
+        const url = location.origin + location.pathname + '?sxr=1&c=' + encodeURIComponent(sxrState.client) + '&v=sample-reviews';
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
+        else window.prompt('Copy this link:', url);
+    }
+
+    /* Per-client tab strip (clone of _calRenderTabs; reuses the shared pins). */
+    function _sxrRenderTabs() {
+        const tabs = document.getElementById('sxrTabs');
+        if (!tabs) return;
+        const pins = _sxrGetPins();
+        const active = sxrState.client;
+        const tabHtml = pins.map(name => {
+            const isActive = name === active;
+            return `<button type="button" class="cal-tab${isActive ? ' active' : ''}" style="--tab-h:${_sxrClientHue(name)}" data-cal-tab="${_sxrEscAttr(name)}" onclick="onSxrTabClick(${_sxrJsArg(name)})">
+                <span class="cal-tab-name">${_sxrEsc(name)}</span>
+                <span class="cal-tab-x" onclick="event.stopPropagation();onSxrTabRemove(${_sxrJsArg(name)})" title="Remove tab"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></span>
+            </button>`;
+        }).join('');
+        const plusSvg = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"><line x1="8" y1="2.5" x2="8" y2="13.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><line x1="2.5" y1="8" x2="13.5" y2="8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+        const addBtnLabel = pins.length ? plusSvg : `${plusSvg}<span>Add client</span>`;
+        const addBtnCls = pins.length ? 'cal-tab-add no-label' : 'cal-tab-add';
+        tabs.innerHTML = `<button type="button" class="cal-tab-scroll-btn left" tabindex="-1" aria-label="Scroll clients left" onclick="_sxrTabScrollBy('sxrTabsScroll',-1)">${_sxrChevron(-1)}</button>`
+            + `<div class="cal-tabs-scroll" id="sxrTabsScroll" onscroll="_sxrUpdateTabScroll('sxrTabsScroll')">${tabHtml}</div>`
+            + `<button type="button" class="cal-tab-scroll-btn right" tabindex="-1" aria-label="Scroll clients right" onclick="_sxrTabScrollBy('sxrTabsScroll',1)">${_sxrChevron(1)}</button>`
+            + `<div class="cal-tab-add-wrap" id="sxrTabAddWrap">
+                <button type="button" class="${addBtnCls}" onclick="onSxrTabAddClick(event)" title="Add client">${addBtnLabel}</button>
+                <div class="cal-tab-search" id="sxrTabSearchPanel" hidden>
+                    <div class="wl-client-search">
+                        <input type="text" class="wl-client-search-input" id="sxrClientSearchInput" placeholder="Search clients…" autocomplete="off">
+                        <div class="wl-client-search-results" id="sxrClientSearchResults" hidden role="listbox"></div>
+                    </div>
+                </div>
+            </div>`;
+        _sxrScrollTabStripToActive('sxrTabsScroll');
+        _sxrUpdateTabScroll('sxrTabsScroll');
+    }
+
+    function onSxrTabClick(name) {
+        if (!name || name === sxrState.client) return;
+        onSxrClientChange(name);
+    }
+    function onSxrClientChange(name) {
+        if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
+        sxrState.client = name;
+        _sxrResetSelection();
+        sxrState.posts = [];
+        _sxrSavePrefs();
+        _sxrRenderTabs();
+        loadSxrCards();
+    }
+    function onSxrTabRemove(name) {
+        const pins = _sxrGetPins().filter(n => n !== name);
+        _sxrSavePins(pins);
+        if (sxrState.client === name) {
+            if (typeof _sxrFlushAllPending === 'function') _sxrFlushAllPending();
+            const next = pins[0] || null;
+            sxrState.client = next;
+            _sxrResetSelection();
+            sxrState.posts = [];
+            _sxrSavePrefs();
+            _sxrRenderTabs();
+            if (next) loadSxrCards();
+            else _sxrRenderBody();
+        } else {
+            _sxrRenderTabs();
+        }
+    }
+    function onSxrTabAddClick(e) {
+        if (e) e.stopPropagation();
+        const panel = document.getElementById('sxrTabSearchPanel');
+        if (!panel) return;
+        const opening = panel.hidden;
+        panel.hidden = !opening;
+        if (opening) {
+            _sxrRenderClientSearchResults('');
+            const input = document.getElementById('sxrClientSearchInput');
+            if (input) { input.value = ''; setTimeout(() => input.focus(), 10); }
+            _sxrWireSearchInput();
+        }
+    }
+    function _sxrCloseTabSearch() { const panel = document.getElementById('sxrTabSearchPanel'); if (panel) panel.hidden = true; }
+    function _sxrWireOutsideTabSearchClose() {
+        if (document._sxrOutsideWired) return;
+        document._sxrOutsideWired = true;
+        document.addEventListener('click', (e) => { if (!e.target.closest('#sxrTabAddWrap')) _sxrCloseTabSearch(); });
+    }
+    function _sxrWireSearchInput() {
+        const input = document.getElementById('sxrClientSearchInput');
+        if (!input || input.dataset.wired === '1') return;
+        input.dataset.wired = '1';
+        input.addEventListener('input', () => _sxrRenderClientSearchResults(input.value.trim()));
+    }
+    function _sxrRenderClientSearchResults(q) {
+        const results = document.getElementById('sxrClientSearchResults');
+        if (!results) return;
+        const matches = _sxrMatchClients(q);
+        const pins    = _sxrGetPins();
+        const pinned  = matches.filter(c => pins.includes(c)).sort((a,b) => pins.indexOf(a) - pins.indexOf(b));
+        const others  = matches.filter(c => !pins.includes(c)).sort((a,b) => a.localeCompare(b));
+        const row = (name) => {
+            const isPinned = pins.includes(name);
+            return `<div class="wl-client-search-result is-pin-row" onclick="onSxrPickClient(${_sxrJsArg(name)})">
+                <span>${_sxrEsc(name)}</span>
+                <button type="button" class="wl-client-search-pin${isPinned ? ' pinned' : ''}" title="${isPinned ? 'Open' : 'Add'}">${isPinned ? '★' : '☆'}</button>
+            </div>`;
+        };
+        let html = '';
+        if (!matches.length) {
+            html = '<div class="wl-client-search-result is-empty-prompt">No clients match</div>';
+        } else {
+            if (pinned.length) { html += '<div class="wl-client-search-section">Already added</div>' + pinned.map(row).join(''); if (others.length) html += '<div class="wl-client-search-divider"></div>'; }
+            if (others.length) { if (pinned.length) html += '<div class="wl-client-search-section">Add a client</div>'; html += others.map(row).join(''); }
+        }
+        results.innerHTML = html;
+        results.hidden = false;
+    }
+    function onSxrPickClient(name) {
+        const pins = _sxrGetPins();
+        if (!pins.includes(name)) { pins.unshift(name); _sxrSavePins(pins); }
+        _sxrCloseTabSearch();
+        onSxrClientChange(name);
+    }
+
+    /* Body dispatcher — Sheet (organizer) | Review (smmreview/review). The
+       organizer + review renderers are installed by Surfaces 2 and 4. */
+    function _sxrRenderBody() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        if (!sxrState.client) {
+            body.innerHTML = `<div class="cal-empty">No clients added yet. Click <strong>+ Add client</strong> in the toolbar to start — picking a client opens it as a tab.</div>`;
+            return;
+        }
+        if (sxrState.loading) { body.innerHTML = _sxrLoaderHtml(); return; }
+        if (sxrState.error) {
+            body.innerHTML = `<div class="cal-empty cal-error">Couldn't load sample reviews — <button class="cal-link" onclick="loadSxrCards({skipCache:true})">try again</button>.</div>`;
+            return;
+        }
+        if (sxrState.view === 'review' || sxrState.view === 'smmreview') {
+            body.innerHTML = (typeof renderSxrReview === 'function') ? renderSxrReview() : `<div class="cal-empty">Review queue — coming in Surface 4.</div>`;
+        } else {
+            body.innerHTML = (typeof renderSxrOrganizer === 'function') ? renderSxrOrganizer() : `<div class="cal-empty">${(sxrState.posts||[]).length} sample(s) loaded — card view comes in Surface 2.</div>`;
+        }
+    }
+
+    function onSxrViewChange(v) {
+        if (!['review','smmreview','organizer'].includes(v)) return;
+        sxrState.view = v;
+        if (v !== 'organizer') sxrState.focusPid = null;
+        _sxrSavePrefs();
+        if (v !== 'organizer' && sxrState.selectMode) _sxrResetSelection();
+        document.querySelectorAll('#sxrView .cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === v));
+        const selBtn = document.querySelector('#sxrView .cal-select-btn');
+        if (selBtn) { selBtn.style.display = v === 'organizer' ? '' : 'none'; selBtn.classList.toggle('active', sxrState.selectMode); }
+        _sxrApplyZoom();
+        _sxrRenderBody();
+    }
+
+    function _sxrSetRefreshing(on) { const el = document.getElementById('sxrRefreshing'); if (el) el.hidden = !on; }
+    function _sxrSetStaleNotice(on) { const el = document.getElementById('sxrStaleNotice'); if (el) el.hidden = !on; }
+    function _sxrApprovalBadgeCount(mode) { return 0; }   // Surface 4 (Review) fills this in.
+    function _sxrToggleSelectMode() { /* Surface 6: archive-only bulk select */ }
+    function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
+    function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); }
+    function closeSxrComments() { const ov = document.getElementById('sxrCommentsOverlay'); if (ov) ov.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
+
+    /* --- Data load (trimmed clone of loadCalendarPosts: keeps cache-prime,
+       background refresh, archived-ledger filter, normalize/migrate, the
+       Supabase-REST-with-webhook-fallback read, seq guard, timeout, stale
+       notice; drops the excluded caption-prompt / caption-job / collab-settings
+       machinery). Realtime + save-merge are layered on in Surfaces 3 and 7. --- */
+    const SXR_LOAD_TIMEOUT_MS = 20000;
+    const SXR_CACHE_PREFIX = 'syncview_sxr_cache_v1_';
+    let _sxrLoadSeq = 0;
+    let _sxrBgLoadInFlight = false;
+    let _sxrLastNetworkLoadAt = 0;
+    function _sxrCacheRead(slug) { try { const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null'); return (o && Array.isArray(o.posts)) ? o : null; } catch { return null; } }
+    function _sxrCacheWrite(slug, posts) { try { localStorage.setItem(SXR_CACHE_PREFIX + slug, JSON.stringify({ posts, at: Date.now() })); } catch {} }
+    function _sxrIsArchivedRef(p, refs) {
+        if (!p) return false;
+        if (refs.has(String(p.id))) return true;
+        const vl = String(p.linear_issue_id || ''), gl = String(p.graphic_linear_issue_id || '');
+        return !!((vl && refs.has(vl)) || (gl && refs.has(gl)));
+    }
+    /* Never seeds caption/title; ensures the two component statuses + the link/media
+       columns exist so the card/save code can read them safely. */
+    function _sxrMigrateShape(p) {
+        if (!p) return p;
+        SXR_COMPONENTS.forEach(c => { if (p[c + '_status'] == null || p[c + '_status'] === '') p[c + '_status'] = 'In Progress'; });
+        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','graphic_linear_issue_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        return p;
+    }
+    function _sxrCleanArchiveLedger(slug, posts) {
+        if (!slug || !posts || !posts.length) return;
+        const m = _sxrArchivedReadRaw(slug);
+        if (!Object.keys(m).length) return;
+        const now = Date.now();
+        const liveRefs = new Set();
+        posts.forEach(p => {
+            if (!p || String(p.status || '') === 'Archived') return;
+            liveRefs.add(String(p.id));
+            if (p.linear_issue_id) liveRefs.add(String(p.linear_issue_id));
+            if (p.graphic_linear_issue_id) liveRefs.add(String(p.graphic_linear_issue_id));
+        });
+        let changed = false;
+        Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > SXR_ARCHIVE_GRACE_MS && liveRefs.has(ref)) { delete m[ref]; changed = true; } });
+        if (changed) _sxrArchivedWriteRaw(slug, m);
+    }
+    async function _sxrFetchPosts(slug, signal) {
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&client=eq.' + encodeURIComponent(slug);
+        try {
+            const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
+            return { ok: true, posts: rows };
+        } catch (e) {
+            if (e && e.name === 'AbortError') throw e;
+            console.warn('[Samples] Supabase read failed — falling back to sample-review-get', e);
+            const resp = await fetch(SXR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now(), signal ? { signal } : undefined);
+            const j = await resp.json();
+            return { ok: true, posts: (j && (j.items || j.samples || j.posts)) || [] };
+        }
+    }
+    async function loadSxrCards(opts) {
+        opts = opts || {};
+        if (!sxrState.client) { _sxrRenderBody(); return; }
+        const seq = ++_sxrLoadSeq;
+        const slug = sxrClientSlug(sxrState.client);
+        const cached = !opts.skipCache ? _sxrCacheRead(slug) : null;
+        const haveCache = !!(cached && cached.posts.length > 0);
+        if (haveCache && sxrState.posts.length === 0) {
+            const refs = _sxrArchivedRefs(slug);
+            sxrState.posts = cached.posts.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            sxrState.loading = false; sxrState.error = null;
+            _sxrRenderBody();
+        }
+        const background = (!!opts.background && sxrState.posts.length > 0) || (sxrState.posts.length > 0 && haveCache);
+        if (background) { _sxrBgLoadInFlight = true; _sxrSetRefreshing(true); }
+        else { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); sxrState.loading = true; sxrState.error = null; _sxrRenderBody(); }
+        const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        const TIMEOUT = Symbol('sxr-load-timeout');
+        let timeoutId = null;
+        const timeoutPromise = new Promise(res => { timeoutId = setTimeout(() => { if (ctrl) { try { ctrl.abort(); } catch {} } res(TIMEOUT); }, SXR_LOAD_TIMEOUT_MS); });
+        _sxrLastNetworkLoadAt = Date.now();
+        try {
+            const result = await Promise.race([_sxrFetchPosts(slug, ctrl ? ctrl.signal : null), timeoutPromise]);
+            if (seq !== _sxrLoadSeq) return;                      // a newer load superseded us
+            if (sxrClientSlug(sxrState.client) !== slug) return;  // client switched mid-load
+            if (result === TIMEOUT) throw new Error('timeout');
+            const rows = (result && result.posts) || [];
+            _sxrCleanArchiveLedger(slug, rows);
+            const refs = _sxrArchivedRefs(slug);
+            sxrState.posts = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            sxrState.loading = false; sxrState.error = null;
+            _sxrCacheWrite(slug, rows);
+            _sxrSetStaleNotice(false);
+            _sxrRenderBody();
+        } catch (e) {
+            if (seq !== _sxrLoadSeq) return;
+            if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
+            else { sxrState.loading = false; sxrState.error = e; _sxrRenderBody(); }
+        } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (seq === _sxrLoadSeq) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
+        }
     }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY

@@ -4084,6 +4084,9 @@
         .cal-card-notes { display: inline-flex; align-items: center; gap: 5px; border: 1px solid #e2e4ea; background: #fff; color: #5b6172; border-radius: 7px; padding: 4px 9px; font-size: 12px; font-weight: 600; cursor: pointer; }
         .cal-card-notes svg { width: 14px; height: 14px; }
         .cal-card-notes:hover { border-color: #c7ccda; color: #2b2f38; }
+        /* Surface 4 — review graphic preview tile (the video tile reuses cal CSS) */
+        .cal-review-graphic-tile { display: block; width: 100%; border-radius: 8px; overflow: hidden; background: #f0f1f6; }
+        .cal-review-graphic-tile img { display: block; width: 100%; height: auto; max-height: 200px; object-fit: cover; }
         /* <<< SXR_END */
     </style>
 </head>
@@ -25264,7 +25267,7 @@
 
     function _sxrSetRefreshing(on) { const el = document.getElementById('sxrRefreshing'); if (el) el.hidden = !on; }
     function _sxrSetStaleNotice(on) { const el = document.getElementById('sxrStaleNotice'); if (el) el.hidden = !on; }
-    function _sxrApprovalBadgeCount(mode) { return 0; }   // Surface 4 (Review) fills this in.
+    // _sxrApprovalBadgeCount — real version in Surface 4 (Review), hoisted.
     function _sxrToggleSelectMode() { /* Surface 6: archive-only bulk select */ }
     function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
     function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); }
@@ -25294,6 +25297,21 @@
         if (!p) return p;
         SXR_COMPONENTS.forEach(c => { if (p[c + '_status'] == null || p[c + '_status'] === '') p[c + '_status'] = 'In Progress'; });
         ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','graphic_linear_issue_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        // Parse the per-component comment threads from the *_tweaks string columns
+        // (so the Review/Notes surfaces can read them); seed the local kasper-seen
+        // cache from the cross-device kasper_seen CSV.
+        SXR_COMPONENTS.forEach(c => {
+            const arrKey = c + '_comments', strKey = c + '_tweaks';
+            if (!Array.isArray(p[arrKey])) {
+                const raw = String(p[strKey] == null ? '' : p[strKey]).trim();
+                let arr = [];
+                if (raw.startsWith('[')) { try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) arr = parsed.filter(x => x && x.id); } catch (e) {} }
+                p[arrKey] = arr;
+            }
+            (p[arrKey] || []).forEach(x => { if (x && !x.updated_at) x.updated_at = x.created_at || ''; });
+        });
+        p.comments = p.video_comments;
+        String(p.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean).forEach(c => { if (typeof _sxrMarkKasperSeen === 'function') _sxrMarkKasperSeen(p.id, c); });
         return p;
     }
     function _sxrCleanArchiveLedger(slug, posts) {
@@ -25770,10 +25788,7 @@
         } else apply(false);
     }
 
-    /* ── Comments button (full Notes modal is Surface 5) ── */
-    function _sxrCommentsBtnHtml(p, pid) {
-        return `<button type="button" class="cal-card-notes" onclick="openSxrComments('${pid}')" title="Notes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H6l-3 2.5V11.5H2.5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/></svg><span>Notes</span></button>`;
-    }
+    /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted. */
     function openSxrComments(pid) { /* Surface 5: full Notes modal */ }
 
     /* ── Creative direction (samples-only) + client-visibility eye ── */
@@ -25946,6 +25961,7 @@
             body.innerHTML = renderSxrOrganizer();
             if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
         }
+        if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
     }
 
     /* ============================================================
@@ -25985,11 +26001,10 @@
     const _sxrConflictNotified = new Set();
     let _sxrLastLocalWriteAt = 0;                 // self-echo window for realtime
 
-    /* Comment helpers — minimal here; Surface 5 (Notes) installs the real ones. */
-    function _sxrStringifyComments(arr) { try { return JSON.stringify(Array.isArray(arr) ? arr : []); } catch (e) { return '[]'; } }
-    function _sxrCommentsFor(post, comp) { return (post && Array.isArray(post[comp + '_comments'])) ? post[comp + '_comments'] : []; }
-    function _sxrMergePostComments(into, from) { /* Surface 5: union comment threads on echo */ }
-    /* Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
+    /* The comment data layer (_sxrCommentsFor / _sxrStringifyComments /
+       _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
+       it's hoisted, so the flush above resolves it at call time.
+       Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
     function _sxrPushStatusToLinear(issueUrl, status) { /* Surface 7 */ }
     function _sxrSyncStatusFromLinear(pid, issueUrl, comp) { /* Surface 7: point-adoption on a fresh link */ }
     function _sxrWireDragOnCard(card) { /* drag-reorder is a Surface 2 follow-up */ }
@@ -26217,6 +26232,417 @@
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrSetCardStatus(pid, 'saving');
         _sxrFlushCardSave(pid);
+    }
+
+    /* ============================================================
+       --- SURFACE 4: the SMM Review queue + the review state machine ---
+       Clone of renderCalReview / _calReviewItems / _calReviewCardHtml /
+       _calReviewCardBody / _calReviewPanelHtml / the approve / request-change /
+       comment handlers + the comment DATA layer (shared with Surface 5 Notes),
+       over video+graphic. _CAL_REVIEW_CFG: SMM 'For SMM Approval'->'Kasper Approval',
+       client 'Client Approval'->'Approved'. The SMM keeps the Approve→Kasper /
+       Approve→Client split + the "First review" smart default. The resolve chooser
+       is simplified (open change-requests are resolved inline on approve — no modal);
+       the Linear comment push is stubbed for Surface 7.
+       ============================================================ */
+
+    /* Pure review/thumb helpers REUSED from the calendar. */
+    const _sxrDeriveThumb = _calDeriveThumb, _sxrIsFrameLink = _calIsFrameLink, _sxrIsFolderLink = _calIsFolderLink;
+    const _sxrReviewFrameHtml = _calReviewFrameHtml, _sxrMiniLinkBadgeHtml = _calMiniLinkBadgeHtml, _sxrThumbIconSvg = _calThumbIconSvg;
+    const _sxrKcardReuseThumbInto = (typeof _kcardReuseThumbInto === 'function') ? _kcardReuseThumbInto : function () {};
+
+    /* ── Comment data layer (forked over video+graphic; shared with Notes) ── */
+    function _sxrCommentsFor(post, comp) {
+        if (!post) return [];
+        if (comp === 'graphic') return Array.isArray(post.graphic_comments) ? post.graphic_comments : [];
+        if (Array.isArray(post.video_comments)) return post.video_comments;
+        return Array.isArray(post.comments) ? post.comments : [];
+    }
+    function _sxrSetCommentsFor(post, comp, arr) {
+        if (!post) return;
+        const list = Array.isArray(arr) ? arr : [];
+        const str = _sxrStringifyComments(list);
+        if (comp === 'graphic') { post.graphic_comments = list; post.graphic_tweaks = str; return; }
+        post.video_comments = list; post.comments = list; post.video_tweaks = str; post.tweaks = str;
+    }
+    function _sxrStringifyComments(arr) { const list = Array.isArray(arr) ? arr.filter(c => c && c.id) : []; return list.length ? JSON.stringify(list) : ''; }
+    function _sxrCommentStamp(c) { return String((c && (c.updated_at || c.created_at)) || ''); }
+    function _sxrMergeCommentLists(a, b) {
+        const out = new Map();
+        const absorb = (list) => { if (!Array.isArray(list)) return; for (const c of list) { if (!c || !c.id) continue; const prev = out.get(c.id); if (!prev || _sxrCommentStamp(c) >= _sxrCommentStamp(prev)) out.set(c.id, c); } };
+        absorb(a); absorb(b); return Array.from(out.values());
+    }
+    function _sxrMergePostComments(winner, other) {
+        if (!winner || !other) return winner;
+        for (const comp of SXR_COMPONENTS) _sxrSetCommentsFor(winner, comp, _sxrMergeCommentLists(_sxrCommentsFor(winner, comp), _sxrCommentsFor(other, comp)));
+        if (Array.isArray(winner.video_comments)) winner.comments = winner.video_comments;
+        return winner;
+    }
+    function _sxrMsgAudience(c) { if (!c) return 'client'; if (c.audience === 'internal' || c.audience === 'client') return c.audience; return (c.role === 'kasper' || c.role === 'smm') ? 'internal' : 'client'; }
+    function _sxrMsgIsTweak(c) { if (!c) return false; if (typeof c.is_tweak === 'boolean') return c.is_tweak; return true; }
+    function _sxrNextTweakRound(post, comp) { const list = _sxrCommentsFor(post, comp); return Array.isArray(list) ? list.filter(c => c && _sxrMsgIsTweak(c) && !c.deleted).length + 1 : 1; }
+    function _sxrCommentsForView(post, comp) {
+        let list = _sxrCommentsFor(post, comp);
+        if (!Array.isArray(list)) return [];
+        list = list.filter(c => c && !c.deleted && !c.hidden);
+        if (!_isClientLink) return list;
+        const byId = new Map(); for (const c of list) if (c && c.id) byId.set(c.id, c);
+        const rootAudience = (c) => { const root = (c.parent_id && byId.has(c.parent_id)) ? byId.get(c.parent_id) : c; return _sxrMsgAudience(root); };
+        return list.filter(c => { if (!c) return false; if (c.role === 'kasper') return false; return rootAudience(c) === 'client'; });
+    }
+    function _sxrCommentRoots(arr) { return arr.filter(c => !c.parent_id && !c.deleted && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentReplies(arr, rootId) { return arr.filter(c => c.parent_id === rootId && !c.deleted && !c.hidden).sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || ''))); }
+    function _sxrCommentRole() { return _isClientLink ? 'client' : 'smm'; }
+    function _sxrCurrentAuthor() { return _isClientLink ? (sxrState.client ? String(sxrState.client) : 'Client') : 'Synchro Social'; }
+    function _sxrMintCommentId() { return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+    function _sxrOpenCommentCount(post) { if (!post) return 0; let n = 0; for (const c of SXR_COMPONENTS) { const list = _sxrCommentsForView(post, c); for (const root of _sxrCommentRoots(list || [])) { if (_sxrMsgIsTweak(root) && !root.done) n++; } } return n; }
+    function _sxrFmtCommentTime(iso) { const t = Date.parse(iso || ''); if (!isFinite(t)) return ''; const mins = Math.round((Date.now() - t) / 60000); if (mins < 1) return 'just now'; if (mins < 60) return mins + 'm ago'; const hrs = Math.round(mins / 60); if (hrs < 24) return hrs + 'h ago'; const days = Math.round(hrs / 24); if (days < 7) return days + 'd ago'; return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
+    function _sxrAvatarInitial(name, role) { const s = String(name || '').trim(); if (s) return s.charAt(0).toUpperCase(); return role === 'client' ? 'C' : 'S'; }
+    function _sxrLinearUrlFor(post, comp) { if (!post) return ''; if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim(); return String(post.linear_issue_id || '').trim(); }
+    function _sxrPostLinearComment(issueUrl, body, author) { /* Surface 7: push the tweak as a Linear comment */ }
+
+    /* ── Kasper-seen ledger + review predicates ── */
+    const SXR_KASPER_SEEN_KEY = 'syncview_sxr_kasper_seen_v1';
+    const _sxrKasperSeen = (() => { try { return new Set(JSON.parse(localStorage.getItem(SXR_KASPER_SEEN_KEY) || '[]')); } catch (e) { return new Set(); } })();
+    function _sxrKasperSeenKey(pid, comp) { return String(pid) + '|' + comp; }
+    function _sxrMarkKasperSeen(pid, comp) { const k = _sxrKasperSeenKey(pid, comp); if (!pid || _sxrKasperSeen.has(k)) return; _sxrKasperSeen.add(k); try { localStorage.setItem(SXR_KASPER_SEEN_KEY, JSON.stringify([..._sxrKasperSeen])); } catch (e) {} }
+    function _sxrWasKasperSeen(pid, comp) { return _sxrKasperSeen.has(_sxrKasperSeenKey(pid, comp)); }
+    function _sxrHasBeenToKasper(post, comp) {
+        if (!post) return false;
+        if (_sxrWasKasperSeen(post.id, comp)) return true;
+        if (String(post.kasper_seen || '').split(',').map(s => s.trim()).indexOf(comp) !== -1) { _sxrMarkKasperSeen(post.id, comp); return true; }
+        const cs = _sxrNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval' || cs === 'Client Approval' || cs === 'Approved') { _sxrMarkKasperSeen(post.id, comp); return true; }
+        if ((_sxrCommentsFor(post, comp) || []).some(c => c && c.role === 'kasper')) { _sxrMarkKasperSeen(post.id, comp); return true; }
+        return false;
+    }
+    function _sxrRecordKasperSeenOnPost(post, comp) {
+        _sxrMarkKasperSeen(post.id, comp);
+        const set = new Set(String(post.kasper_seen || '').split(',').map(s => s.trim()).filter(Boolean));
+        SXR_COMPONENTS.forEach(c => { if (_sxrWasKasperSeen(post.id, c)) set.add(c); });
+        set.add(comp);
+        const csv = SXR_COMPONENTS.filter(c => set.has(c)).join(',');
+        post.kasper_seen = csv; return csv;
+    }
+    function _sxrShowApprovedAfterTweaks(post, comp) {
+        const set = new Set(String((post && post.kasper_approved_after_tweaks) || '').split(',').map(s => s.trim()).filter(Boolean));
+        if (!set.has(comp)) return false;
+        return _sxrNormStatus((post && post[comp + '_status']) || 'In Progress') !== 'Approved';
+    }
+    function _sxrHasMedia(p) { return !!(String((p && p.asset_url) || '').trim() || String((p && p.thumbnail_url) || '').trim()); }
+
+    /* ── Review render ── */
+    const _sxrReviewState = { expanded: new Set(), drafts: Object.create(null), saving: Object.create(null), errors: Object.create(null) };
+    const _SXR_REVIEW_CFG = { client: { reviewStatus: 'Client Approval', approveTo: 'Approved' }, smm: { reviewStatus: 'For SMM Approval', approveTo: 'Kasper Approval' } };
+    function _sxrReviewMode() { return (!_isClientLink && sxrState.view === 'smmreview') ? 'smm' : 'client'; }
+    function _sxrReviewComponentActive(p, c, mode) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === _SXR_REVIEW_CFG[mode].reviewStatus) return true; return mode !== 'smm' && cs === 'Tweaks Needed' && !_isClientLink; }
+    function _sxrApprovalBadgeCount(mode) {
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        return (sxrState.posts || []).reduce((n, p) => { if (mode === 'smm' && !_sxrHasMedia(p)) return n; const awaiting = SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === reviewStatus); return n + (awaiting ? 1 : 0); }, 0);
+    }
+    function _sxrUpdateReviewBadge() {
+        document.querySelectorAll('#sxrView .cal-view-btn').forEach(btn => {
+            const v = btn.dataset.calView; if (v !== 'review' && v !== 'smmreview') return;
+            const count = _sxrApprovalBadgeCount(v === 'smmreview' ? 'smm' : 'client');
+            let badge = btn.querySelector('.cal-view-badge');
+            if (count > 0) { if (!badge) { badge = document.createElement('span'); badge.className = 'cal-view-badge'; btn.appendChild(badge); } badge.textContent = String(count); }
+            else if (badge) badge.remove();
+        });
+    }
+    function _sxrReviewItems() {
+        const mode = _sxrReviewMode();
+        return (sxrState.posts || []).filter(p => {
+            if (_sxrNormStatus(p.status || '') === 'Approved') return false;
+            if (mode === 'smm') { if (!_sxrHasMedia(p)) return false; return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'smm')); }
+            if (_isClientLink) return SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(p, c, 'client'));
+            return true;
+        }).slice().sort((a, b) => Number(a.order_index || 0) - Number(b.order_index || 0));
+    }
+    function renderSxrReview() {
+        const items = _sxrReviewItems();
+        if (!items.length) {
+            const msg = _sxrReviewMode() === 'smm'
+                ? 'Nothing waiting on SMM approval right now — samples with a linked video or thumbnail appear here when they reach the SMM Approval stage.'
+                : 'Nothing to review right now — every sample is either fully approved or still being worked on.';
+            return `<div class="cal-review-wrap"><div class="cal-empty">${msg}</div></div>`;
+        }
+        return `<div class="cal-review-wrap"><div class="cal-review-list">${items.map(p => _sxrReviewCardHtml(p)).join('')}</div></div>`;
+    }
+    function _sxrReviewPendingLabel(p) {
+        const mode = _sxrReviewMode();
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        const showInFlight = mode !== 'client' || !_isClientLink;
+        const awaiting = [], inFlight = [];
+        for (const c of SXR_REVIEW_COMPONENTS) { const cs = _sxrNormStatus(p[c + '_status'] || ''); if (cs === reviewStatus) awaiting.push(c); else if (showInFlight && cs === 'Tweaks Needed') inFlight.push(c); }
+        if (!awaiting.length && !inFlight.length) return '';
+        const human = (list) => { const labels = list.map(c => `<span class="kcard-pending-strong">${_sxrEsc(COMP_LABELS[c])}</span>`); if (labels.length === 1) return labels[0]; return labels.slice(0, -1).join(', ') + ' and ' + labels.slice(-1)[0]; };
+        const parts = [];
+        if (awaiting.length) parts.push(human(awaiting) + (awaiting.length === 1 ? ' needs' : ' need') + (mode === 'smm' ? ' SMM approval' : ' your review'));
+        if (inFlight.length) parts.push(mode === 'smm' ? ('tweaks requested on ' + human(inFlight)) : ("we're working on your tweaks for " + human(inFlight)));
+        const joined = parts.join(' · ');
+        return joined.charAt(0).toUpperCase() + joined.slice(1);
+    }
+    function _sxrReviewCardHtml(p) {
+        const escId = _sxrEscAttr(p.id);
+        const expanded = _sxrReviewState.expanded.has(p.id);
+        const info = _sxrDeriveThumbInfo(p);
+        const thumbHtml = info.url ? `<img src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const pendingLabel = _sxrReviewPendingLabel(p);
+        const compPills = _sxrClientCompPillsHtml(p);
+        const body = expanded ? _sxrReviewCardBody(p) : '';
+        return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-cal-review-pid="${escId}">
+            <div class="kcard-strip" onclick="_sxrReviewToggleCard('${escId}')">
+                <div class="kcard-thumb">${thumbHtml}</div>
+                <div class="kcard-main">
+                    <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
+                    ${pendingLabel ? `<div class="kcard-pending">${pendingLabel}</div>` : ''}
+                    ${compPills ? `<div class="cal-review-sub-row">${compPills}</div>` : ''}
+                </div>
+                <div class="kcard-actions" onclick="event.stopPropagation();">
+                    <button class="kcard-open-sheet" type="button" onclick="_sxrReviewOpenInSheet('${escId}')" title="Open this sample in the Sheet" aria-label="Open in Sheet"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="2.5" width="11" height="11" rx="2"/><path d="M2.5 6h11M6.5 6v7"/></svg></button>
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrReviewToggleCard('${escId}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                </div>
+            </div>
+            ${body}
+        </div>`;
+    }
+    function _sxrReviewCardBody(p) {
+        const mode = _sxrReviewMode();
+        const activeComps = (mode === 'smm')
+            ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'smm'))
+            : (_isClientLink ? SXR_REVIEW_COMPONENTS.filter(c => _sxrReviewComponentActive(p, c, 'client')) : SXR_REVIEW_COMPONENTS.slice());
+        if (!activeComps.length) return `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing left to review on this sample.</div></div>`;
+        const cols = activeComps.length;
+        return `<div class="cal-review-body" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));" onclick="event.stopPropagation();">${activeComps.map(comp => _sxrReviewPanelHtml(p, comp)).join('')}</div>`;
+    }
+    function _sxrReviewPanelHtml(p, comp) {
+        const escId = _sxrEscAttr(p.id), escComp = _sxrEscAttr(comp);
+        const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
+        const state = subStatus === 'Approved' ? 'approved' : (subStatus === 'Tweaks Needed' ? 'tweaks' : 'pending');
+        const comments = _sxrCommentsForView(p, comp);
+        if (state === 'approved') {
+            const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+            return `<div class="cal-review-panel cal-review-panel-mini" data-comp="${escComp}" data-state="approved"><span class="cal-review-mini-icon">${checkIco}</span><span class="cal-review-mini-label">${_sxrEsc(COMP_LABELS[comp])} approved</span><span class="cal-review-mini-sub">Locked in</span></div>`;
+        }
+        const previewHtml = _sxrReviewComponentPreview(p, comp);
+        const draftKey = p.id + '|' + comp;
+        const draft = _sxrReviewState.drafts[draftKey] || '';
+        const saving = !!_sxrReviewState.saving[draftKey];
+        const err = _sxrReviewState.errors[draftKey] || '';
+        const mode = _sxrReviewMode();
+        const reviewStatus = _SXR_REVIEW_CFG[mode].reviewStatus;
+        const canAct = (mode === 'smm' || _isClientLink) ? (subStatus === reviewStatus || subStatus === 'Tweaks Needed') : true;
+        const hasDraft = !!draft.trim();
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const showApprove = canAct && subStatus !== 'Approved';
+        const approveEnabled = showApprove && !saving && !hasDraft && !inTweaks;
+        const tweakEnabled = canAct && !saving && hasDraft;
+        const stateLabel = inTweaks ? 'Changes requested' : (subStatus === 'Client Approval' ? 'Awaiting your approval' : (subStatus === 'For SMM Approval' ? 'Awaiting SMM approval' : subStatus));
+        const placeholder = inTweaks ? 'The team is working on it. Anything else to add?' : 'Add a note or request a change…';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        const resolvedIco = `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6.5L5 9.5L10 3.5"/></svg>`;
+        const threadHtml = comments && comments.length
+            ? comments.map(c => {
+                const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM');
+                const isResolved = !!c.done;
+                const resolvedBadge = isResolved ? `<span class="cal-review-resolved-pill">${resolvedIco}Resolved</span>` : '';
+                return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${isResolved ? ' is-resolved' : ''}"><div class="cal-review-comment-head"><strong>${_sxrEsc(author)}</strong><span class="cal-review-comment-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${resolvedBadge}</div><div class="cal-review-comment-body">${_sxrEsc(c.body || '')}</div></div>`;
+            }).join('')
+            : `<div class="cal-review-comment-empty">No comments yet.</div>`;
+        const statusPill = !inTweaks ? '' : `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>`;
+        const seenByKasper = mode === 'smm' && _sxrHasBeenToKasper(p, comp);
+        const firstReviewBadge = (mode === 'smm' && showApprove && !seenByKasper) ? `<span class="cal-review-firstpass" title="This hasn't been sent to Kasper yet">First review</span>` : '';
+        const aatBadge = (mode === 'smm' && _sxrShowApprovedAfterTweaks(p, comp)) ? `<span class="cal-review-aat-pill" title="Kasper pre-cleared this for the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>` : '';
+        let approveControl = '';
+        if (showApprove) {
+            if (mode === 'smm') {
+                const primary = seenByKasper ? 'client' : 'kasper', alt = seenByKasper ? 'kasper' : 'client';
+                const lbl = d => d === 'kasper' ? 'Kasper' : 'Client';
+                const dis = approveEnabled ? '' : 'disabled';
+                approveControl = `<div class="cal-review-approve-split"><button type="button" class="cal-review-approve-btn cal-review-approve-main" ${dis} onclick="_sxrReviewApprove('${escId}','${escComp}','${primary}')">${checkIco}<span class="cal-ap-verb">Approve</span><span class="cal-ap-route">${lbl(primary)}</span></button><button type="button" class="cal-review-approve-alt" ${dis} onclick="_sxrReviewApprove('${escId}','${escComp}','${alt}')" title="Approve &amp; send to ${lbl(alt)} instead">${lbl(alt)}</button></div>`;
+            } else {
+                approveControl = `<button type="button" class="cal-review-approve-btn" ${approveEnabled ? '' : 'disabled'} onclick="_sxrReviewApprove('${escId}','${escComp}')">${checkIco}Approve ${_sxrEsc(COMP_LABELS[comp].toLowerCase())}</button>`;
+            }
+        }
+        return `<div class="cal-review-panel" data-comp="${escComp}" data-state="${state}">
+            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${firstReviewBadge}${aatBadge}<div class="cal-review-panel-head-right">${statusPill}</div></div>
+            <div class="cal-review-panel-preview">${previewHtml}</div>
+            ${approveControl}
+            <div class="cal-review-panel-compose">
+                <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" data-cal-review-draft="${escId}|${escComp}" oninput="_sxrReviewOnDraftInput(this,'${escId}','${escComp}')" ${canAct ? '' : 'readonly'}>${_sxrEsc(draft)}</textarea>
+                <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewComment('${escId}','${escComp}')" title="Leave a comment — won't change the status"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>Comment</button>
+                    <button type="button" class="cal-review-tweak-btn" ${tweakEnabled ? '' : 'disabled'} onclick="_sxrReviewRequestTweak('${escId}','${escComp}')">${sendIco}Request change</button>
+                </div>
+            </div>
+            ${err ? `<div class="cal-review-panel-err">${_sxrEsc(err)}</div>` : ''}
+            <div class="cal-review-thread">${threadHtml}</div>
+        </div>`;
+    }
+    function _sxrReviewComponentPreview(p, comp) {
+        if (comp === 'video') {
+            const url = String(p.asset_url || '').trim();
+            if (!url) return `<div class="cal-review-preview-empty">No video yet.</div>`;
+            const thumbUrl = _sxrDeriveThumb(p);
+            const bg = thumbUrl ? `<img class="cal-review-video-bg" src="${_sxrEscAttr(thumbUrl)}" alt="" onerror="this.style.display='none'">` : '';
+            return `<a class="cal-review-video-tile${thumbUrl ? '' : ' cal-review-video-tile-blank'}" href="${_sxrEscAttr(url)}" target="_blank" rel="noopener" aria-label="Open video">${bg}<span class="cal-review-video-overlay"><span class="cal-review-video-play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span><span class="cal-review-video-label">Open video ↗</span></span></a>`;
+        }
+        const raw = String(p.thumbnail_url || '').trim();
+        if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
+        const imgUrl = _sxrDeriveThumb(p);
+        if (!imgUrl) {
+            const kind = _sxrIsFrameLink(raw) ? 'frame' : (_sxrIsFolderLink(raw) ? 'folder' : '');
+            if (kind) return _sxrReviewFrameHtml(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw, '', kind);
+            return `<div class="cal-review-preview-empty">Thumbnail can't preview.</div>`;
+        }
+        return `<a class="cal-review-graphic-tile" href="${_sxrEscAttr(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw)}" target="_blank" rel="noopener"><img src="${_sxrEscAttr(imgUrl)}" alt="" onerror="this.style.display='none'"></a>`;
+    }
+    function _sxrReviewToggleCard(pid) { if (_sxrReviewState.expanded.has(pid)) _sxrReviewState.expanded.delete(pid); else _sxrReviewState.expanded.add(pid); _sxrReviewRepaintCard(pid); }
+    function _sxrReviewRepaintCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!el || !post) return;
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrReviewCardHtml(post);
+        if (tmp.firstElementChild) { _sxrKcardReuseThumbInto(el, tmp.firstElementChild); el.replaceWith(tmp.firstElementChild); }
+        _sxrUpdateReviewBadge();
+    }
+    function _sxrReviewRemoveCard(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
+        if (!el) return;
+        const list = el.closest('.cal-review-list');
+        const finish = () => { el.remove(); if (!list || !list.querySelector('.cal-review-card')) _sxrRenderBody({ preserveScroll: true }); _sxrUpdateReviewBadge(); };
+        const h = el.offsetHeight; if (!h) { finish(); return; }
+        el.style.overflow = 'hidden'; el.style.height = h + 'px'; el.style.transition = 'height .2s ease, opacity .15s ease, margin .2s ease';
+        void el.offsetHeight; el.style.opacity = '0'; el.style.height = '0px'; el.style.marginTop = '0px'; el.style.marginBottom = '0px';
+        let done = false; const onEnd = () => { if (done) return; done = true; finish(); };
+        el.addEventListener('transitionend', onEnd, { once: true }); setTimeout(onEnd, 280);
+    }
+    function _sxrReviewOpenInSheet(pid) {
+        sxrState.focusPid = pid;
+        if (sxrState.view !== 'organizer') { sxrState.view = 'organizer'; _sxrSavePrefs(); document.querySelectorAll('#sxrView .cal-view-btn').forEach(b => b.classList.toggle('active', b.dataset.calView === 'organizer')); _sxrApplyZoom(); }
+        _sxrRenderBody();
+        setTimeout(() => { const card = document.querySelector(`.cal-card[data-pid="${pid}"]`); if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 60);
+    }
+
+    /* ── Review handlers (approve / request-change / comment) ── */
+    function _sxrReviewOnDraftInput(ta, pid, comp) {
+        const key = pid + '|' + comp;
+        _sxrReviewState.drafts[key] = ta.value;
+        const nowHasDraft = !!ta.value.trim();
+        const card = ta.closest('.cal-review-card'); if (!card) return;
+        const panel = card.querySelector('.cal-review-panel[data-comp="' + comp + '"]'); if (!panel) return;
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-comment-btn').forEach(b => { b.disabled = !nowHasDraft || !!_sxrReviewState.saving[key]; });
+        panel.querySelectorAll('.cal-review-approve-btn, .cal-review-approve-alt').forEach(b => { b.disabled = nowHasDraft || !!_sxrReviewState.saving[key]; });
+    }
+    function _sxrOpenTweaksForComp(post, comp) { const list = _sxrCommentsFor(post, comp); return Array.isArray(list) ? list.filter(c => c && !c.parent_id && !c.deleted && !c.done && _sxrMsgIsTweak(c)) : []; }
+    function _sxrResolveTweaksDone(post, comp, ids) {
+        if (!post || !Array.isArray(ids) || !ids.length) return false;
+        const list = _sxrCommentsFor(post, comp).slice();
+        const want = new Set(ids), at = new Date().toISOString(), by = _sxrCurrentAuthor();
+        let changed = false;
+        for (const c of list) { if (c && !c.parent_id && want.has(c.id) && !c.done && !c.deleted) { c.done = true; c.done_at = at; c.done_by = by; c.updated_at = at; changed = true; } }
+        if (!changed) return false;
+        _sxrSetCommentsFor(post, comp, list);
+        _sxrPendingEdits[post.id] = Object.assign(_sxrPendingEdits[post.id] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        return true;
+    }
+    function _sxrReviewApprove(pid, comp, dest) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        // Simplified resolve: when approving an SMM component that still has open
+        // change-requests, mark them all done as part of the send (no chooser modal).
+        if (_sxrReviewMode() === 'smm') { const open = _sxrOpenTweaksForComp(post, comp); if (open.length) _sxrResolveTweaksDone(post, comp, open.map(c => c.id)); }
+        _sxrReviewApplyApprove(pid, comp, dest);
+    }
+    function _sxrReviewApplyApprove(pid, comp, dest) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        if (_sxrReviewState.saving[key]) return;
+        const mode = _sxrReviewMode();
+        const subKey = comp + '_status';
+        if (_isClientLink) { const cur = String(post[subKey] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
+        const prev = { [subKey]: post[subKey], status: post.status, [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`], kasper_seen: post.kasper_seen };
+        let approveTo = _SXR_REVIEW_CFG[mode].approveTo;
+        if (mode === 'smm') approveTo = dest === 'client' ? 'Client Approval' : (dest === 'approved' ? 'Approved' : 'Kasper Approval');
+        let kasperSeenCsv = null;
+        if (approveTo === 'Kasper Approval') kasperSeenCsv = _sxrRecordKasperSeenOnPost(post, comp);
+        post[subKey] = approveTo;
+        if (mode === 'client') post[`client_${comp}_approved_at`] = new Date().toISOString();
+        post.status = computeSampleOverallStatus(post);
+        post.updated_at = new Date().toISOString();
+        _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        _sxrMarkLocalStatus(pid, comp);
+        const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+        if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [subKey]: post[subKey], status: post.status }, mode === 'client' ? { [`client_${comp}_approved_at`]: post[`client_${comp}_approved_at`] } : {}, kasperSeenCsv != null ? { kasper_seen: kasperSeenCsv } : {});
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { Object.assign(post, prev); _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
+    }
+    function _sxrReviewComment(pid, comp) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        const body = String(_sxrReviewState.drafts[key] || '').trim();
+        if (!body || _sxrReviewState.saving[key]) return;
+        const role = _sxrCommentRole();
+        const list = _sxrCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
+        list.push({ id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: false, audience: (role === 'client') ? 'client' : 'internal', body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' });
+        _sxrSetCommentsFor(post, comp, list);
+        post.updated_at = _now;
+        _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        _sxrReviewRepaintCard(pid);
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => { _sxrReviewState.saving[key] = false; }).catch(e => { _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
+    }
+    function _sxrReviewRequestTweak(pid, comp) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const key = pid + '|' + comp;
+        const body = String(_sxrReviewState.drafts[key] || '').trim();
+        if (!body || _sxrReviewState.saving[key]) return;
+        if (_isClientLink) { const cur = String(post[comp + '_status'] || '').trim().toLowerCase(); if (cur !== 'client approval' && cur !== 'tweaks needed') return; }
+        const role = _sxrCommentRole();
+        const list = _sxrCommentsFor(post, comp).slice();
+        const _now = new Date().toISOString();
+        const newComment = { id: _sxrMintCommentId(), parent_id: null, author: _sxrCurrentAuthor(), role, is_tweak: true, audience: (role === 'client') ? 'client' : 'internal', round: _sxrNextTweakRound(post, comp), body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' };
+        list.push(newComment);
+        const prev = { video_comments: post.video_comments, graphic_comments: post.graphic_comments, [comp + '_status']: post[comp + '_status'], status: post.status };
+        _sxrSetCommentsFor(post, comp, list);
+        post[comp + '_status'] = 'Tweaks Needed';
+        post.status = computeSampleOverallStatus(post);
+        post.updated_at = _now;
+        _sxrReviewState.drafts[key] = ''; _sxrReviewState.saving[key] = true; _sxrReviewState.errors[key] = '';
+        _sxrMarkLocalStatus(pid, comp);
+        const mode = _sxrReviewMode();
+        const clearsCard = (mode === 'smm' || _isClientLink) && !SXR_REVIEW_COMPONENTS.some(c => _sxrReviewComponentActive(post, c, mode));
+        if (clearsCard) _sxrReviewRemoveCard(pid); else _sxrReviewRepaintCard(pid);
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_status']: post[comp + '_status'], status: post.status, [comp + '_tweaks']: _sxrStringifyComments(list) });
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            const linUrl = _sxrLinearUrlFor(post, comp);
+            if (linUrl) _sxrPostLinearComment(linUrl, body, newComment.author);
+            _sxrReviewState.saving[key] = false;
+            if (_sxrCommentRole() === 'client' && !post._saveError && typeof showToast === 'function') showToast('Change request sent — the team has been notified');
+        }).catch(e => { Object.assign(post, prev); _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
+    }
+
+    /* ── Comments button (open-tweak count; full Notes modal is Surface 5) ── */
+    function _sxrCommentsBtnHtml(post, pid) {
+        const open = _sxrOpenCommentCount(post);
+        const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn cal-card-notes${open > 0 ? ' has-open' : ''}" data-comments-btn="${pid}" onclick="openSxrComments('${pid}')" title="${open > 0 ? open + ' open change request' + (open === 1 ? '' : 's') : 'Notes'}">${ico}<span class="cal-comments-label">Notes</span><span class="cal-comments-count">${open}</span></button></span>`;
+    }
+    function _sxrRefreshCommentsBtn(pid) {
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        const wrap = document.querySelector(`.cal-foot-tweaks[data-comments-wrap="${sel}"]`);
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!wrap || !post) return;
+        const tmp = document.createElement('div'); tmp.innerHTML = _sxrCommentsBtnHtml(post, pid);
+        if (tmp.firstElementChild) wrap.replaceWith(tmp.firstElementChild);
     }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY

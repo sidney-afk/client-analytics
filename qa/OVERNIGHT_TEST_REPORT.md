@@ -26,8 +26,9 @@
 > | ot11_reorder_gap | DOCUMENTS BUG-1: grip shown + draggable=true but drag is a no-op (stub wiring, webhook never called, order_index unchanged) | ✅ PASS (9/9, records BUG-1) |
 > | ot12_realtime_catchup | Cross-tab sync (live): tab-1 status change → tab-2 converges via focus/visibility catch-up (past 8s throttle) AND via _sxrV2OnRealtimeChange | ✅ PASS (9/9) |
 > | ot13_kasper_isolation | Kasper samples↔calendar isolation: sample only in Samples sub-tab (no calendar bleed); absent from the calendar Review Session queue | ✅ PASS (7/7) |
+> | ot14_archive_and_select | Per-card X archive works (confirm→live Archived→card removed); BUG-2: multi-select button rendered but inert (stub handlers) | ✅ PASS (10/10, records BUG-2) |
 >
-> **Totals:** 13 probes · 148 assertions · 148 PASS · 0 FAIL · 0 app JS errors · **1 product bug found (BUG-1).**
+> **Totals:** 14 probes · 158 assertions · 158 PASS · 0 FAIL · 0 app JS errors · **2 product bugs found (BUG-1, BUG-2).**
 >
 > ### 🐞 BUGS FOUND (this run)
 > - **BUG-1 — drag-to-reorder is non-functional on the SMM Sheet (real gap).**
@@ -47,6 +48,30 @@
 >   isn't wanted in samples. Recommend (a) to match the calendar. NOT auto-fixed — it's a
 >   feature decision and belongs on the feature branch under the SXR fences. Probe:
 >   `ot11_reorder_gap.js`.
+> - **BUG-2 — multi-select / bulk-archive button is non-functional on the SMM Sheet.**
+>   *Repro:* open the Sheet view as SMM; the toolbar shows a "Select multiple samples to
+>   archive" button. Click it → **nothing happens**: no select bar appears, the button
+>   doesn't go active, cards get no selection overlay.
+>   *Root cause:* `_sxrToggleSelectMode()`, `_sxrCardSelectClick()`, and
+>   `_sxrArchiveSelected()` are all empty stubs (`/* Surface 6: … */`). (Per-card archive
+>   via the card X — `archiveSxrCard` → `_sxrArchiveOne` — IS implemented and works; ot14
+>   verifies it live.) *Impact:* same class as BUG-1 — a shown control that does nothing.
+>   *Severity:* low-medium (per-card archive covers the core need; bulk is a convenience).
+>   *Two clean fixes:* (a) WIRE bulk select+archive (clone the calendar's select-mode,
+>   archive-only since colour-tag was intentionally removed); or (b) HIDE the select
+>   button. NOT auto-fixed — feature decision for the feature branch. Probe:
+>   `ot14_archive_and_select.js`.
+>
+> ### Stub audit (complete — the SXR block has NO other dead affordances)
+> Static scan of the whole SXR block for empty/stub function bodies. The only two that back
+> a VISIBLE control are BUG-1 and BUG-2 above. The rest are intentional and benign:
+> - `_sxrUpdateCardStatusDisplay` — "safe no-op"; status pills update via the full card
+>   re-render instead (verified live in ot01/ot12 — pills reflect status changes). OK.
+> - `_sxrNotesMarkSeen` — per-note unread-dot tracking deliberately omitted in v1; the
+>   notes button's open-count badge carries the signal (verified rendering in ot10). Minor
+>   OBS, no dead control.
+> - `_sxrKcardReuseThumbInto` — defensive no-op fallback when the calendar helper is absent. OK.
+> So BUG-1 + BUG-2 are the COMPLETE set of shown-but-dead affordances — not an open-ended list.
 > `node test/run-all.js`: GREEN. Live backend reachable via courier; cleanup verified each probe.
 >
 > ### OBSERVATIONS (this run)

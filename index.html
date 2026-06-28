@@ -25406,11 +25406,19 @@
             const rows = (result && result.posts) || [];
             _sxrCleanArchiveLedger(slug, rows);
             const refs = _sxrArchivedRefs(slug);
-            sxrState.posts = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            const fresh = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
+            // Background (realtime / tab-return) reloads MERGE so an in-flight edit /
+            // comment isn't clobbered (Surface 7); a foreground load adopts the server.
+            sxrState.posts = (background && typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
             sxrState.loading = false; sxrState.error = null;
             _sxrCacheWrite(slug, rows);
             _sxrSetStaleNotice(false);
-            _sxrRenderBody();
+            // Defer the repaint while the user is mid-edit so a realtime reload can't
+            // clobber their caret / unsaved field (Surface 7 deferred-render guard).
+            if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) { _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender(); }
+            else _sxrRenderBody();
+            if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
+            if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
         } catch (e) {
             if (seq !== _sxrLoadSeq) return;
             if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
@@ -25449,7 +25457,7 @@
     let _sxrSaveInFlight = Object.create(null);
     // _sxrOnFieldInput / _sxrOnFieldBlur / _sxrFlushCardSave / _sxrRetrySave are the
     // real save engine — defined in Surface 3 below.
-    function _sxrMarkLocalStatus(pid, comp) { /* Surface 7: Linear stale-regress protection */ }
+    // _sxrMarkLocalStatus / _sxrIsLocalStatusFresh — real versions in Surface 7, hoisted.
     function _sxrUpdateCardStatusDisplay(pid) { /* in-place pill sync — safe no-op until Surface 3/7 */ }
     function _sxrAutosize(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
@@ -26039,9 +26047,8 @@
        _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
        it's hoisted, so the flush above resolves it at call time.
        Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
-    function _sxrPushStatusToLinear(issueUrl, status) { /* Surface 7 */ }
-    function _sxrSyncStatusFromLinear(pid, issueUrl, comp) { /* Surface 7: point-adoption on a fresh link */ }
     function _sxrWireDragOnCard(card) { /* drag-reorder is a Surface 2 follow-up */ }
+    // _sxrPushStatusToLinear / _sxrSyncStatusFromLinear — real versions in Surface 7, hoisted.
 
     function _sxrClientFieldEditBlocked() { return _isClientLink; }   // client never edits fields (no collab)
     function _sxrOnFieldInput(el) {
@@ -26333,7 +26340,7 @@
     function _sxrFmtCommentTime(iso) { const t = Date.parse(iso || ''); if (!isFinite(t)) return ''; const mins = Math.round((Date.now() - t) / 60000); if (mins < 1) return 'just now'; if (mins < 60) return mins + 'm ago'; const hrs = Math.round(mins / 60); if (hrs < 24) return hrs + 'h ago'; const days = Math.round(hrs / 24); if (days < 7) return days + 'd ago'; return new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); }
     function _sxrAvatarInitial(name, role) { const s = String(name || '').trim(); if (s) return s.charAt(0).toUpperCase(); return role === 'client' ? 'C' : 'S'; }
     function _sxrLinearUrlFor(post, comp) { if (!post) return ''; if (comp === 'graphic') return String(post.graphic_linear_issue_id || '').trim(); return String(post.linear_issue_id || '').trim(); }
-    function _sxrPostLinearComment(issueUrl, body, author) { /* Surface 7: push the tweak as a Linear comment */ }
+    // _sxrPostLinearComment — real version in Surface 7 (outbox-backed), hoisted.
 
     /* ── Kasper-seen ledger + review predicates ── */
     const SXR_KASPER_SEEN_KEY = 'syncview_sxr_kasper_seen_v1';
@@ -26995,6 +27002,234 @@
         sxrState.selectMode = false;
         _sxrRenderShell();
         loadSxrCards();
+    }
+
+    /* ============================================================
+       --- SURFACE 7: realtime + freshness + the Linear push layer ---
+       Clone of _calV2EnsureSubscribed (channel sxr-<slug> on sample_reviews) +
+       _calRefreshOnReturn (tab-return refetch — the piece attempt #1 missed) + the
+       deferred-render guard + the WHOLE Linear FE layer (durable outbox on the
+       SEPARATE key syncview_sxr_linear_outbox_v1, per-issue serialized push,
+       suppression, point-adoption, stale-regress). REUSES the shared, poison-
+       hardened Linear webhooks + status mapper. Inbound Linear rides realtime
+       (the embedded n8n branch) — the FE only pushes outbound. These defs make the
+       Surface 2/3/4 Linear/realtime stubs real (hoisted).
+       ============================================================ */
+
+    /* Background-reload MERGE — a realtime / tab-return reload must not clobber an
+       in-flight edit, a just-typed comment, or a freshly-set status mid-round-trip. */
+    function _sxrMergeServerRows(server) {
+        const local = sxrState.posts || [];
+        const localById = new Map(local.map(p => [p.id, p]));
+        const out = [], serverIds = new Set();
+        for (const srv of server) {
+            serverIds.add(srv.id);
+            const loc = localById.get(srv.id);
+            const keepLocal = loc && (_sxrPendingEdits[srv.id] || _sxrSaveInFlight[srv.id] || _sxrIsLocalStatusFresh(srv.id));
+            if (keepLocal) { _sxrMergePostComments(loc, srv); out.push(loc); }
+            else { if (loc) _sxrMergePostComments(srv, loc); out.push(srv); }
+        }
+        // Keep local-only cards the server doesn't have yet (blank / just-created /
+        // failed-new / pending) so a reload can't drop them.
+        for (const loc of local) {
+            if (serverIds.has(loc.id)) continue;
+            if (_sxrIsBlankId(loc.id) || _sxrPendingEdits[loc.id] || _sxrSaveInFlight[loc.id] || _sxrFailedNewCards.has(loc.id)) out.push(loc);
+        }
+        return out;
+    }
+
+    /* Deferred-render guard — hold a background repaint while the user is mid-edit. */
+    let _sxrPendingBackgroundRender = false;
+    let _sxrPendingRenderInterval = null;
+    function _sxrIsBusy() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return false;
+        const a = document.activeElement;
+        const isTextEntry = !!(a && ((a.tagName === 'INPUT' && /^(text|url|email|search|number|tel|password|date)$/i.test(a.type || 'text')) || a.tagName === 'TEXTAREA' || a.isContentEditable));
+        if (isTextEntry && (body.contains(a) || (a.closest && a.closest('#sxrCommentsModal')))) return true;
+        if (Object.keys(_sxrPendingEdits).length > 0) return true;
+        if (_sxrOpenStatusMenu) return true;
+        return false;
+    }
+    function _sxrSchedulePendingRender() {
+        if (_sxrPendingRenderInterval) return;
+        _sxrPendingRenderInterval = setInterval(() => {
+            if (!_sxrPendingBackgroundRender) { clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null; return; }
+            if (_sxrIsBusy()) return;
+            _sxrPendingBackgroundRender = false;
+            clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null;
+            _sxrRenderBody({ preserveScroll: true });
+        }, 1200);
+    }
+    function _sxrMaybeRunPendingRender() {
+        if (!_sxrPendingBackgroundRender || _sxrIsBusy()) return;
+        _sxrPendingBackgroundRender = false;
+        if (_sxrPendingRenderInterval) { clearInterval(_sxrPendingRenderInterval); _sxrPendingRenderInterval = null; }
+        _sxrRenderBody({ preserveScroll: true });
+    }
+
+    /* Tab-return refetch — a backgrounded tab's socket suspends and Supabase never
+       replays missed rows, so on return pull one catch-up. Gated on the surface
+       being mounted (and the flag) so it's inert otherwise. */
+    let _sxrLastReturnLoad = 0;
+    const SXR_RETURN_REFRESH_MIN_MS = 8000;
+    function _sxrRefreshOnReturn() {
+        if (!_sxrEnabled() || document.visibilityState === 'hidden') return;
+        if (!sxrState.client || !document.getElementById('sxrBody')) return;
+        if (Date.now() - _sxrLastNetworkLoadAt < SXR_RETURN_REFRESH_MIN_MS) return;
+        if (_sxrBgLoadInFlight || sxrState.loading) return;
+        const now = Date.now();
+        if (now - _sxrLastReturnLoad < 500) return;
+        _sxrLastReturnLoad = now;
+        loadSxrCards({ background: true });
+    }
+
+    /* ── Local-status freshness (reconcile guard) ── */
+    const _sxrLocalStatusAt = Object.create(null);
+    const SXR_LOCAL_STATUS_GRACE_MS = 5 * 60 * 1000;
+    function _sxrMarkLocalStatus(pid, comp) { _sxrLocalStatusAt[pid + '|' + (comp || '')] = Date.now(); if (comp) _sxrLocalStatusAt[pid + '|'] = Date.now(); }
+    function _sxrIsLocalStatusFresh(pid, comp) { const ts = _sxrLocalStatusAt[pid + '|' + (comp || '')] || _sxrLocalStatusAt[pid + '|'] || 0; return !!ts && (Date.now() - ts) < SXR_LOCAL_STATUS_GRACE_MS; }
+
+    /* ── Linear push: durable outbox (SEPARATE key) + per-issue serialized push ── */
+    const SXR_LINEAR_OUTBOX_MAX = 6, SXR_LINEAR_OUTBOX_RETRY_MS = 60 * 1000;
+    let _sxrLinearOutboxTimer = null;
+    function _sxrLinearOutboxRead() { try { const a = JSON.parse(localStorage.getItem(SXR_LINEAR_OUTBOX_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+    function _sxrLinearOutboxWrite(a) { try { localStorage.setItem(SXR_LINEAR_OUTBOX_KEY, JSON.stringify(a || [])); } catch (e) {} }
+    function _sxrLinearOutboxEnqueue(kind, payload, err) { const items = _sxrLinearOutboxRead(); items.push({ id: 'slob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), kind, payload, attempts: 0, lastError: err || '', queuedAt: Date.now() }); _sxrLinearOutboxWrite(items); _sxrLinearOutboxScheduleRetry(); }
+    function _sxrLinearOutboxScheduleRetry() { if (_sxrLinearOutboxTimer) return; _sxrLinearOutboxTimer = setTimeout(() => { _sxrLinearOutboxTimer = null; _sxrLinearOutboxFlush(); }, SXR_LINEAR_OUTBOX_RETRY_MS); }
+    async function _sxrLinearOutboxFlush() {
+        const items = _sxrLinearOutboxRead(); if (!items.length) return;
+        const remaining = [];
+        for (const it of items) {
+            if (it.attempts >= SXR_LINEAR_OUTBOX_MAX) { remaining.push(it); continue; }
+            const url = it.kind === 'comment' ? LINEAR_ADD_COMMENT_URL : LINEAR_SET_STATUS_URL;
+            try { const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(it.payload || {}) }); let ok = resp && resp.ok; try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch (e) {} if (!ok) throw new Error('http ' + (resp && resp.status)); }
+            catch (e) { it.attempts += 1; it.lastError = (e && e.message) || String(e); remaining.push(it); }
+        }
+        _sxrLinearOutboxWrite(remaining);
+        if (remaining.some(it => it.attempts < SXR_LINEAR_OUTBOX_MAX)) _sxrLinearOutboxScheduleRetry();
+    }
+    window.clearSxrLinearOutbox = function () { const n = _sxrLinearOutboxRead().length; _sxrLinearOutboxWrite([]); return 'cleared ' + n; };
+    const _sxrLinearPushChain = Object.create(null), _sxrLinearPushLatest = Object.create(null);
+    function _sxrPushStatusToLinear(issueUrl, status) {
+        const url = String(issueUrl || '').trim(), st = String(status || '').trim();
+        if (!url || !st || st === 'Scheduled' || st === 'Posted') return;   // samples never push the calendar-only states
+        _sxrLinearPushLatest[url] = st;
+        const run = async () => {
+            if (_sxrLinearPushLatest[url] !== st) return;     // superseded by a newer push
+            const payload = { issue: url, status: st };
+            try { const resp = await fetch(LINEAR_SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); let ok = resp && resp.ok; try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch (e) {} if (!ok) throw new Error('http ' + (resp && resp.status)); }
+            catch (e) { console.warn('[Samples] Linear status push failed — queued', e); _sxrLinearOutboxEnqueue('status', payload, (e && e.message) || String(e)); }
+        };
+        _sxrLinearPushChain[url] = (_sxrLinearPushChain[url] || Promise.resolve()).then(run, run);
+    }
+    function _sxrPostLinearComment(issueUrl, body, author) {
+        const url = String(issueUrl || '').trim(), txt = String(body || '').trim();
+        if (!url || !txt) return;
+        const payload = { issue: url, body: txt, author: String(author || _sxrCurrentAuthor() || 'SyncView') };
+        (async () => { try { const resp = await fetch(LINEAR_ADD_COMMENT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); let ok = resp && resp.ok; try { const j = await resp.json(); if (j && j.ok === false) ok = false; } catch (e) {} if (!ok) throw new Error('http ' + (resp && resp.status)); } catch (e) { console.warn('[Samples] Linear comment failed — queued', e); _sxrLinearOutboxEnqueue('comment', payload, (e && e.message) || String(e)); } })();
+    }
+    /* Point-adoption: when a Linear sub-issue link is freshly set, adopt its current
+       Linear status onto the card (suppressing the outbound echo of that adopt).
+       Refuses a PARENT issue and rejects the calendar-only Scheduled/Posted. */
+    async function _sxrSyncStatusFromLinear(pid, issueUrl, comp) {
+        const which = (comp === 'graphic') ? 'graphic' : 'video';
+        let mapped;
+        try {
+            const resp = await fetch(LINEAR_SUBISSUES_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: issueUrl }) });
+            const json = await resp.json();
+            if (!json.ok || !json.parent) return;
+            const subs = Array.isArray(json.subIssues) ? json.subIssues.filter(s => s && s.url) : [];
+            if (subs.length) { _sxrRenderBody({ preserveScroll: true }); return; }   // a parent — don't adopt
+            mapped = _sxrMapLinearStatusStrict(json.parent.status);
+        } catch (e) { return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post || !mapped || mapped === 'Scheduled' || mapped === 'Posted') return;
+        const subKey = which + '_status';
+        if (_sxrNormStatus(post[subKey] || '') === mapped) return;
+        post[subKey] = mapped;
+        post.status = computeSampleOverallStatus(post);
+        _sxrNoLinearPush.add(pid); _sxrNoLinearPush.add(pid + '|' + which);   // break the adopt→push echo
+        if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
+        _sxrPendingEdits[pid][subKey] = mapped; _sxrPendingEdits[pid].status = post.status;
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        _sxrFlushCardSave(pid);
+        _sxrRenderBody({ preserveScroll: true });
+    }
+    const _sxrLinearReassertAt = new Map();
+    const SXR_LINEAR_REASSERT_MS = 20 * 1000;
+    function _sxrReassertLinearStatus(post, comp) {
+        if (!post || (comp !== 'video' && comp !== 'graphic')) return;
+        const url = String((comp === 'graphic' ? post.graphic_linear_issue_id : post.linear_issue_id) || '').trim();
+        if (!url) return;
+        const st = _sxrNormStatus(post[comp + '_status'] || '');
+        if (!st) return;
+        const key = url + '|' + st, now = Date.now();
+        if (now - (_sxrLinearReassertAt.get(key) || 0) < SXR_LINEAR_REASSERT_MS) return;
+        _sxrLinearReassertAt.set(key, now);
+        _sxrPushStatusToLinear(url, st);
+    }
+
+    /* ── Realtime subscription (channel sxr-<slug> on sample_reviews) ── */
+    let _sxrV2ClientObj = null, _sxrV2ClientPromise = null;
+    function _sxrV2Client() {
+        if (!_sxrReady()) return Promise.resolve(null);
+        if (_sxrV2ClientObj) return Promise.resolve(_sxrV2ClientObj);
+        if (_sxrV2ClientPromise) return _sxrV2ClientPromise;
+        _sxrV2ClientPromise = _sxrV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _sxrV2ClientObj = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false }, realtime: { params: { eventsPerSecond: 5 } } });
+            return _sxrV2ClientObj;
+        }).catch(e => { console.warn('[Samples] supabase init failed', e); _sxrV2ClientPromise = null; return null; });
+        return _sxrV2ClientPromise;
+    }
+    let _sxrV2Channel = null, _sxrV2SubSlug = null, _sxrV2RtTimer = null, _sxrV2RtPending = false, _sxrV2SubscribedOnce = false;
+    const SXR_RT_DEBOUNCE_MS = 350, SXR_RT_SELF_ECHO_MS = 4000;
+    async function _sxrV2EnsureSubscribed(slug) {
+        if (!_sxrReady() || !slug) return;
+        if (_sxrV2SubSlug === slug && _sxrV2Channel) return;
+        _sxrV2Teardown();
+        const client = await _sxrV2Client();
+        if (!client) return;
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        _sxrV2SubSlug = slug; _sxrV2SubscribedOnce = false;
+        try {
+            _sxrV2Channel = client.channel(SXR_RT_CHANNEL_PREFIX + slug)
+                .on('postgres_changes', { event: '*', schema: 'public', table: SXR_TABLE, filter: 'client=eq.' + slug }, () => _sxrV2OnRealtimeChange(slug))
+                .subscribe((status) => { if (status === 'SUBSCRIBED') { if (_sxrV2SubscribedOnce) _sxrV2OnRealtimeChange(slug); _sxrV2SubscribedOnce = true; } });
+        } catch (e) { _sxrV2Channel = null; _sxrV2SubSlug = null; }
+    }
+    function _sxrV2OnRealtimeChange(slug) {
+        if (sxrClientSlug(sxrState.client) !== slug) return;
+        if (_sxrV2RtTimer) clearTimeout(_sxrV2RtTimer);
+        _sxrV2RtTimer = setTimeout(function tick() {
+            _sxrV2RtTimer = null;
+            if (sxrClientSlug(sxrState.client) !== slug) return;
+            const sinceLocal = Date.now() - _sxrLastLocalWriteAt;
+            if (sinceLocal < SXR_RT_SELF_ECHO_MS) { _sxrV2RtTimer = setTimeout(tick, SXR_RT_SELF_ECHO_MS - sinceLocal); return; }   // self-echo
+            if (_sxrBgLoadInFlight || sxrState.loading) { _sxrV2RtPending = true; return; }
+            loadSxrCards({ background: true });
+        }, SXR_RT_DEBOUNCE_MS);
+    }
+    function _sxrV2DrainPending(slug) { if (_sxrV2RtPending) { _sxrV2RtPending = false; _sxrV2OnRealtimeChange(slug); } }
+    function _sxrV2Teardown() {
+        if (_sxrV2RtTimer) { clearTimeout(_sxrV2RtTimer); _sxrV2RtTimer = null; }
+        if (_sxrV2Channel) { try { if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrV2Channel); else if (typeof _sxrV2Channel.unsubscribe === 'function') _sxrV2Channel.unsubscribe(); } catch (e) {} }
+        _sxrV2Channel = null; _sxrV2SubSlug = null;
+    }
+    window.sxrV2Status = function () { return { flag: _sxrEnabled(), ready: _sxrReady(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_sxrV2Channel, slug: _sxrV2SubSlug }; };
+
+    /* Freshness wiring — only registered when the flag is on, so with it OFF this
+       block adds NO listeners and touches nothing (default-OFF isolation). */
+    if (_sxrEnabled()) {
+        document.addEventListener('focusout', () => { setTimeout(_sxrMaybeRunPendingRender, 60); });
+        document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden' && sxrState.client) _sxrFlushAllPending(); });
+        window.addEventListener('pagehide', () => { if (sxrState.client) _sxrFlushAllPending(); });
+        window.addEventListener('pageshow', _sxrRefreshOnReturn);
+        document.addEventListener('visibilitychange', _sxrRefreshOnReturn);
+        window.addEventListener('focus', _sxrRefreshOnReturn);
+        window.addEventListener('focus', _sxrLinearOutboxFlush);
+        _sxrLinearOutboxFlush();   // retry any queued Linear pushes from a previous session
     }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY

@@ -115,8 +115,10 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
    no prices or firm promises). When Yes: what to build the likeness from (reuses the sample
    clip / photos if given), personality, look (talking-to-camera / podcast, each with an ⓘ
    example frame), text-only-videos toggle (ⓘ explains avatar-in-background + on-screen text),
-   setting, framing, accessories (incl. an "Other" write-in), hair, makeup, clothing, and the
-   voice-clone capture script + recording link.
+   setting, framing, accessories (incl. an "Other" write-in), hair, makeup, clothing, and — in the
+   **Voice** group — the voice-clone capture script + recording link (`ai_voice_link`), plus an extra
+   optional field (`ai_voice_samples`) asking for a Drive link to as many high-quality voice recordings
+   as possible (≈3 h ideal) to improve the clone.
 
 ### Example media
 

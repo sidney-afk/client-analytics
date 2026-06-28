@@ -12073,6 +12073,7 @@
                 '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
                 '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
                 '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>',
+              _obField({id:'ai_voice_samples', label:'More voice recordings (optional, but the more the better)', help:'On top of the script above, drop a Google Drive link to as many high-quality recordings of your voice as you can — podcasts, talks, voice notes, anything clear and natural. Around 3 hours is ideal; 2 hours is great; otherwise just as much as you can gather.', type:'url', placeholder:'https://…', driveNote:true}),
             ])+
           '</div>',
         ]},

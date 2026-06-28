@@ -11,8 +11,14 @@ name: Samples ⇄ Linear status reconcile
 # from the Actions tab (workflow_dispatch) — leave "dry_run" on to preview.
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
+  # DISABLED — the Samples (Review) front-end was removed from index.html in
+  # adce19b ("clean slate for the rebuild"), taking the SXR_COMPONENTS /
+  # computeSampleOverallStatus / _sxrClearStaleApprovals symbols this script
+  # extracts at runtime. With them gone, every scheduled run crashes on startup
+  # (grabConst('SXR_COMPONENTS') -> null). Re-enable this cron once the Samples
+  # rebuild restores those symbols to index.html.
+  # schedule:
+  #   - cron: '*/10 * * * *'      # every 10 minutes (GitHub may delay under load)
   workflow_dispatch:
     inputs:
       dry_run:

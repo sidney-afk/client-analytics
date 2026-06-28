@@ -24474,6 +24474,40 @@
                 // Unknown client — fall through to the regular path.
             }
 
+            // >>> SXR_BEGIN
+            // Client share link for Sample Reviews: ?sxr=1&c=<name>&v=sample-reviews[&t=<token>].
+            // Requires the flag (samples is default-OFF); validates the same
+            // client_review_token, then mounts the read-only samples client portal.
+            // Flag is read INLINE (no SXR symbols) so this stays TDZ-safe before the
+            // SXR module block evaluates; mountSxrClientView runs post-await (safe).
+            {
+                let _sxrOn = false;
+                try { const _q = qp.get('sxr'); _sxrOn = (_q === '1' || _q === 'true') || (_q !== '0' && _q !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1'); } catch (e) {}
+                if (_sxrOn && !!qp.get('c') && qp.get('v') === 'sample-reviews') {
+                    await fetchEssentials();
+                    const clientFromQuery = decodeURIComponent(qp.get('c'));
+                    const clientNames = [...new Set(allData.map(r => r.client_name))];
+                    const _sxrLink = clientNames.includes(clientFromQuery) ? clientFromQuery : (wlIsAllowedClient(clientFromQuery) ? wlCanonicalClient(clientFromQuery) : null);
+                    if (_sxrLink) {
+                        const expectedToken = String((clientMap[_sxrLink] || {}).client_review_token || '').trim();
+                        const tParam = String(qp.get('t') || '').trim();
+                        if (expectedToken && tParam !== expectedToken) {
+                            const _h = document.querySelector('header.header'); if (_h) _h.style.display = 'none';
+                            const _pt = document.getElementById('pageTop'); if (_pt) _pt.style.display = 'none';
+                            document.getElementById('content').innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;"><div style="font-size:1.15rem;font-weight:700;color:#111;">This link isn't valid</div><div style="font-size:0.9rem;color:#777;max-width:380px;line-height:1.45;">Please ask your social media manager for an updated link.</div></div>`;
+                            return;
+                        }
+                        if (!expectedToken) console.warn('[Samples] No client_review_token set for "' + clientFromQuery + '" — sample-reviews link is unguarded.');
+                        const _h = document.querySelector('header.header'); if (_h) _h.style.display = 'none';
+                        const _sw = document.getElementById('selectorWrap'); if (_sw) _sw.style.display = 'none';
+                        const _ps = document.getElementById('pageSub'); if (_ps) _ps.style.display = 'none';
+                        const _pt = document.getElementById('pageTop'); if (_pt) _pt.style.display = 'none';
+                        mountSxrClientView(_sxrLink);
+                        return;
+                    }
+                }
+            }
+            // <<< SXR_END
             // Kasper unlock must run BEFORE the skipAwait branch so the nav
             // button is visible regardless of which navigation path init()
             // takes. Previously this lived after the fast-path return, so
@@ -25843,7 +25877,7 @@
         const ro = _isClientLink && !isBlank;
         const editableText = !_isClientLink || isBlank;
         const selectable = sxrState.selectMode && !ro && !isBlank;
-        const draggable = (isBlank || selectable) ? 'false' : 'true';
+        const draggable = (isBlank || selectable || ro) ? 'false' : 'true';   // client Sheet is read-only — no drag
         const needsLinear = !ro && !isBlank && !String(p.linear_issue_id || '').trim();
         const dupePeers = (!_isClientLink && !isBlank) ? _sxrLinkDuplicatePeers(p) : [];
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
@@ -25869,7 +25903,7 @@
         const warnHtml = needsLinear ? `<button type="button" class="cal-thumb-linear-warn" onclick="event.stopPropagation();_sxrLinearEdit('${pid}')" title="Link this sample to its Linear sub-issue">${_sxrLinearSvg()}Link the Linear sub-issue</button>` : '';
         return `<div class="cal-card cal-card-edit${isBlank ? ' is-blank' : ''}${isCurrent ? ' cal-card-current' : ''}${ro ? ' cal-card-ro' : ''}${selectable ? ' cal-card-selectable' : ''}${selectable && sxrState.selected.has(p.id) ? ' cal-card-selected' : ''}" data-pid="${pid}" draggable="${draggable}">
             ${selectable ? `<div class="cal-card-select-overlay" onclick="_sxrCardSelectClick(event,'${pid}')"><span class="cal-card-select-check">${selChk}</span></div>` : ''}
-            ${isBlank ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
+            ${(isBlank || ro) ? '' : `<span class="cal-card-grip" title="Drag to reorder"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="6" cy="4" r="1.4"/><circle cx="10" cy="4" r="1.4"/><circle cx="6" cy="8" r="1.4"/><circle cx="10" cy="8" r="1.4"/><circle cx="6" cy="12" r="1.4"/><circle cx="10" cy="12" r="1.4"/></svg></span>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-link" type="button" data-card-link="${pid}" onclick="_sxrCopyCardLink(event,'${pid}')" title="Copy a link to this card"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9a2.5 2.5 0 0 0 3.5 0L13 6.5a2.5 2.5 0 0 0-3.5-3.5L8 4.5"/><path d="M9 7a2.5 2.5 0 0 0-3.5 0L3 9.5a2.5 2.5 0 0 0 3.5 3.5L8 11.5"/></svg></button>`}
             ${(isBlank || _isClientLink) ? '' : `<button class="cal-card-del" type="button" onclick="archiveSxrCard('${pid}')" title="Archive"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>`}
             <div class="cal-card-thumb" onclick="_sxrThumbClick(event,'${pid}')">${warnHtml}${_sxrThumbContent(p)}${(_isClientLink || ro) ? '' : _sxrLinearPileHtml(pid, p)}</div>
@@ -26925,6 +26959,43 @@
         if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
     }
     function _sxrToggleShowResolved() { _sxrShowResolved = !_sxrShowResolved; _sxrCaptureModalDrafts(); _sxrRenderCommentsModal(); }
+
+    /* ============================================================
+       --- SURFACE 6: the client portal (read-only multi-tab) ---
+       The biggest gap from attempt #1. The client surface reuses the SAME machinery
+       as the SMM, gated by the shared `_isClientLink` flag:
+         · Review tab  — _sxrReviewMode()==='client' → _SXR_REVIEW_CFG.client
+                          (Client Approval → Approved); client approve/request-change.
+         · Sheet tab   — _sxrRenderInlineCard ro=true branch: read-only pills, link
+                          pills open-only, NO add/edit/status/archive/drag/select.
+         · Notes       — client role; _sxrCommentsForView hides internal/Kasper.
+       NEW here: the client-link mount (embed shell: title "Sample reviews", tabs
+       Review + Sheet) + client-visibility gating. Client is always read/review-only
+       (no collab). The share link carries ?sxr=1 (samples is default-OFF).
+       ============================================================ */
+    function _sxrIsClientReady(p) {
+        // A sample is visible to the client once any component has left "In Progress"
+        // (been sent for review). Archived samples are never shown. No collab.
+        if (!p || String(p.status || '').toLowerCase() === 'archived') return false;
+        return SXR_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || 'In Progress') !== 'In Progress');
+    }
+    function mountSxrClientView(clientName) {
+        if (!_sxrEnabled()) return;
+        if (typeof _sxrV2Teardown === 'function') _sxrV2Teardown();
+        document.body.classList.add('cal-page');
+        const content = document.getElementById('content');
+        if (content) content.innerHTML = renderSxrView();
+        sxrState.client = clientName;
+        sxrState.embedded = true;        // client shell: embed title + Review/Sheet tabs, no per-client tabs
+        sxrState.view = 'review';        // the client lands on their approval queue
+        sxrState.zoom = _sxrNormZoom((_sxrLoadPrefs() || {}).zoom);
+        sxrState.posts = [];
+        sxrState.error = null;
+        sxrState.previewId = null;
+        sxrState.selectMode = false;
+        _sxrRenderShell();
+        loadSxrCards();
+    }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY
        samples statement that runs at load — and it only reads the flag and toggles

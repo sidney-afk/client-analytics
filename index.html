@@ -25270,8 +25270,8 @@
     // _sxrApprovalBadgeCount — real version in Surface 4 (Review), hoisted.
     function _sxrToggleSelectMode() { /* Surface 6: archive-only bulk select */ }
     function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
-    function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); }
-    function closeSxrComments() { const ov = document.getElementById('sxrCommentsOverlay'); if (ov) ov.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
+    function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
+    // closeSxrComments / openSxrComments — real versions in Surface 5 (Notes), hoisted.
 
     /* --- Data load (trimmed clone of loadCalendarPosts: keeps cache-prime,
        background refresh, archived-ledger filter, normalize/migrate, the
@@ -25788,8 +25788,8 @@
         } else apply(false);
     }
 
-    /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted. */
-    function openSxrComments(pid) { /* Surface 5: full Notes modal */ }
+    /* _sxrCommentsBtnHtml — real version in Surface 4 (open-tweak count), hoisted.
+       openSxrComments — real version in Surface 5 (Notes modal), hoisted. */
 
     /* ── Creative direction (samples-only) + client-visibility eye ── */
     function _sxrCreativeHidden(p) { const h = p && p.hide_creative_direction; return h === true || h === 1 || String(h || '').toLowerCase() === 'true' || String(h || '') === '1'; }
@@ -26644,6 +26644,287 @@
         const tmp = document.createElement('div'); tmp.innerHTML = _sxrCommentsBtnHtml(post, pid);
         if (tmp.firstElementChild) wrap.replaceWith(tmp.firstElementChild);
     }
+
+    /* ============================================================
+       --- SURFACE 5: the Notes / comments modal ---
+       Clone of openCalComments / _calRenderCommentsModal / _calComposerHtml /
+       _calCommentActionsHtml + the append / delete / resolve / reply handlers +
+       the compose toggles, over video+graphic. Reuses the calendar's GLOBAL
+       cal-comments-* / cal-cm-* CSS for pixel parity and the Surface 4 comment
+       data layer. Component picker = Video / Thumbnail. The resolve-route chooser
+       is simplified (Mark done resolves in place; no Kasper/Client route modal);
+       the Linear comment push rides Surface 7's _sxrPostLinearComment.
+       ============================================================ */
+
+    let _sxrOpenCommentsPid = null;
+    let _sxrReplyTarget = null;
+    let _sxrReplyDrafts = Object.create(null);
+    let _sxrRootDraft = '';
+    let _sxrComposeAudience = 'internal';
+    let _sxrComposeIsTweak = false;
+    let _sxrComposeComp = 'video';
+    let _sxrShowResolved = false;
+    function _sxrNotesMarkSeen(pid) { /* unread-dot tracking omitted in v1 (the open-count badge carries the signal) */ }
+
+    function openSxrComments(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        _sxrOpenCommentsPid = pid;
+        _sxrReplyTarget = null;
+        for (const k of Object.keys(_sxrReplyDrafts)) delete _sxrReplyDrafts[k];
+        _sxrRootDraft = '';
+        try { _sxrRootDraft = sessionStorage.getItem('sv_sxrNoteDraft_' + pid) || ''; } catch (e) {}
+        _sxrComposeAudience = 'internal';
+        _sxrComposeIsTweak = false;
+        _sxrComposeComp = 'video';
+        _sxrShowResolved = false;
+        _sxrNotesMarkSeen(pid);
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (!ovl) return;
+        ovl.classList.add('open');
+        document.body.classList.add('cal-modal-open');
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; const ta = document.getElementById('sxrCommentComposer'); if (ta) ta.focus(); }, 30);
+    }
+    function closeSxrComments() {
+        _sxrCaptureModalDrafts();
+        const ovl = document.getElementById('sxrCommentsOverlay');
+        if (ovl) ovl.classList.remove('open');
+        document.body.classList.remove('cal-modal-open');
+        const pid = _sxrOpenCommentsPid;
+        _sxrOpenCommentsPid = null; _sxrReplyTarget = null;
+        if (pid) { _sxrNotesMarkSeen(pid); _sxrRefreshCommentsBtn(pid); }
+    }
+    function _sxrCaptureModalDrafts() {
+        const root = document.getElementById('sxrCommentsModal');
+        if (!root) return;
+        const composer = root.querySelector('#sxrCommentComposer');
+        if (composer) { if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = composer.value; else _sxrRootDraft = composer.value; }
+    }
+    function _sxrRenderCommentsModal() {
+        const pid = _sxrOpenCommentsPid;
+        const modal = document.getElementById('sxrCommentsModal');
+        if (!modal || !pid) return;
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) { closeSxrComments(); return; }
+        const videoComments = Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post);
+        post.comments = videoComments;
+        const compThreads = SXR_COMPONENTS.flatMap(c => {
+            const list = _sxrCommentsForView(post, c);
+            if (!Array.isArray(list) || !list.length) return [];
+            return _sxrCommentRoots(list).map(r => ({ comp: c, list, root: r }));
+        });
+        compThreads.sort((a, b) => String(a.root.created_at || '').localeCompare(String(b.root.created_at || '')));
+        const resolvedCount = compThreads.filter(e => e.root.done).length;
+        const visibleThreads = _sxrShowResolved ? compThreads : compThreads.filter(e => !e.root.done);
+        const postName = _sxrEsc(post.name || 'Untitled sample');
+        const renderRow = (c, isReply, comp) => {
+            const roleCls = c.role === 'client' ? 'is-client' : 'is-smm';
+            const author = c.author || (c.role === 'client' ? 'Client' : 'SMM');
+            const initial = _sxrAvatarInitial(author, c.role);
+            const doneTag = (!isReply && c.done) ? `<span class="cal-cm-done-tag">Resolved</span>` : '';
+            const compLabel = (!isReply && comp) ? `<span class="cal-cm-comp-label cal-cm-comp-${comp}">${_sxrEsc(COMP_LABELS[comp])}</span>` : '';
+            const lock = (!isReply && !_isClientLink && _sxrMsgAudience(c) === 'internal') ? `<span class="cal-cm-lock" title="Internal — the client can't see this"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg></span>` : '';
+            const typeTag = (!isReply && _sxrMsgIsTweak(c)) ? `<span class="cal-cm-type-tag is-tweak" title="Change request — moves the sample to Tweaks Needed">Tweak${c.round ? ' #' + c.round : ''}</span>` : '';
+            return `<div class="cal-cm-row${isReply ? ' is-reply' : ''}" data-cm-row="${c.id}"><div class="cal-cm-avatar ${roleCls}">${_sxrEsc(initial)}</div><div class="cal-cm-body-col"><div class="cal-cm-head-line"><span class="cal-cm-author">${_sxrEsc(author)}</span>${typeTag}${lock}<span class="cal-cm-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${doneTag}${compLabel}</div><div class="cal-cm-row-body">${_sxrEsc(c.body || '')}</div></div>${_sxrCommentActionsHtml(c, isReply)}</div>`;
+        };
+        const renderThread = (entry) => { const replies = _sxrCommentReplies(entry.list, entry.root.id); return `<div class="cal-cm-thread${entry.root.done ? ' is-done' : ''}" data-thread="${entry.root.id}">${renderRow(entry.root, false, entry.comp)}${replies.map(r => renderRow(r, true, entry.comp)).join('')}</div>`; };
+        const emptyMsg = _sxrShowResolved
+            ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">Nothing here</div>No resolved items.</div>`
+            : (resolvedCount ? `<div class="cal-comments-empty"><div class="cal-comments-empty-title">All clear</div>No open notes — resolved items are in history (top right).</div>` : `<div class="cal-comments-empty"><div class="cal-comments-empty-title">No notes yet</div>Start the conversation — type below.</div>`);
+        const feedHtml = visibleThreads.length ? visibleThreads.map(renderThread).join('') : emptyMsg;
+        const histBtn = resolvedCount ? `<button class="cal-comments-hist${_sxrShowResolved ? ' is-active' : ''}" type="button" onclick="_sxrToggleShowResolved()" title="${_sxrShowResolved ? 'Hide resolved' : 'Show resolved (' + resolvedCount + ')'}" aria-label="Toggle resolved history"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.5V8l2.5 1.5"/><path d="M2.6 8a5.4 5.4 0 1 0 1.5-3.7M2.5 3v2.2h2.2"/></svg>${_sxrShowResolved ? '' : `<span class="cal-comments-hist-count">${resolvedCount}</span>`}</button>` : '';
+        modal.innerHTML = `
+            <div class="cal-comments-head">
+                <div class="cal-comments-head-text"><h3 id="sxrCommentsTitle">${_sxrShowResolved ? 'Resolved' : 'Notes'}</h3><p>${postName}</p></div>
+                ${histBtn}
+                <button class="cal-comments-close" type="button" onclick="closeSxrComments()" aria-label="Close"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            </div>
+            <div class="cal-comments-feed" id="sxrCommentsFeed"><div class="cal-comments-feed-inner">${feedHtml}</div></div>
+            ${_sxrComposerHtml(post, videoComments)}`;
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta) { _sxrAutosizeComposer(ta); ta.focus(); const v = ta.value; ta.value = ''; ta.value = v; }
+    }
+    function _sxrCanDeleteComment(c) { return _sxrCommentRole() === 'smm' || c.role === 'client'; }
+    function _sxrCanResolveComment() { return _sxrCommentRole() === 'smm'; }
+    function _sxrCommentActionsHtml(c, isReply) {
+        const replyIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5L1.5 8L5 11.5M1.5 8h7a4 4 0 0 1 4 4"/></svg>`;
+        const checkIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>`;
+        const undoIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5L2 7l3.5 3.5M2 7h7a3.5 3.5 0 0 1 0 7"/></svg>`;
+        const trashIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4h9M5.5 4V2.5h3V4M3.5 4l.5 8.5h6L10.5 4M6 6.5v4M8 6.5v4"/></svg>`;
+        const rootId = isReply ? c.parent_id : c.id;
+        const replyBtn = c.done ? '' : `<button class="cal-cm-action" type="button" onclick="_sxrBeginReply(${_sxrJsArg(rootId)})" title="Reply">${replyIco}<span>Reply</span></button>`;
+        const doneBtn = (!isReply && _sxrCanResolveComment() && _sxrMsgIsTweak(c)) ? (c.done ? `<button class="cal-cm-action is-done-on" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Reopen">${undoIco}<span>Reopen</span></button>` : `<button class="cal-cm-action" type="button" onclick="_sxrToggleCommentDone(${_sxrJsArg(c.id)})" title="Mark thread done">${checkIco}<span>Mark done</span></button>`) : '';
+        const delBtn = _sxrCanDeleteComment(c) ? `<button class="cal-cm-action is-danger" type="button" onclick="_sxrDeleteComment(${_sxrJsArg(c.id)})" title="Delete">${trashIco}<span>Delete</span></button>` : '';
+        if (!replyBtn && !doneBtn && !delBtn) return '';
+        return `<div class="cal-cm-actions">${replyBtn}${doneBtn}${delBtn}</div>`;
+    }
+    function _sxrComposePlaceholder(role) {
+        if (role === 'client') return 'Message your Synchro Social team…';
+        return _sxrComposeAudience === 'client' ? 'Write a note the client will see…' : 'Team-only note (you + Kasper)…';
+    }
+    function _sxrComposerHtml(post, comments) {
+        const role = _sxrCommentRole();
+        const author = _sxrCurrentAuthor();
+        const initial = _sxrAvatarInitial(author, role);
+        const roleCls = role === 'client' ? 'is-client' : 'is-smm';
+        const isReply = !!_sxrReplyTarget;
+        const allLists = SXR_COMPONENTS.map(c => c === 'video' ? (Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post)) : _sxrCommentsFor(post, c));
+        const target = isReply ? allLists.flatMap(l => l).find(c => c && c.id === _sxrReplyTarget) : null;
+        const draft = isReply ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '');
+        const placeholder = isReply ? `Reply to ${target ? (target.author || 'thread') : 'thread'}…` : _sxrComposePlaceholder(role);
+        const replyingTo = isReply && target ? `<div class="cal-cm-replying-to">Replying to <strong>${_sxrEsc(target.author || 'thread')}</strong> <button class="cal-cm-cancel-reply" type="button" onclick="_sxrBeginReply(null)" title="Cancel reply"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="1" y1="1" x2="9" y2="9"/><line x1="9" y1="1" x2="1" y2="9"/></svg></button></div>` : '';
+        const lockIco = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="1"/><path d="M4.75 6.5V5a2.25 2.25 0 0 1 4.5 0v1.5"/></svg>`;
+        const audienceToggle = (!isReply && role !== 'client') ? `<div class="cal-cm-audience" data-cm-toggle="audience" role="group" aria-label="Who can see this note"><span class="cal-cm-audience-cap">Who sees this?</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'internal' ? ' is-active' : ''}" data-aud="internal" onclick="_sxrSetComposeAudience('internal')" title="Team only — you and Kasper.">${lockIco}Kasper / team</button><button type="button" class="cal-cm-aud-btn${_sxrComposeAudience === 'client' ? ' is-active' : ''}" data-aud="client" onclick="_sxrSetComposeAudience('client')" title="Shared — the client can see this too.">Client</button></div></div>` : '';
+        const changeToggle = (!isReply && role === 'client') ? `<div class="cal-cm-audience" data-cm-toggle="tweak" role="group" aria-label="Comment or change request"><span class="cal-cm-audience-cap">This is a…</span><div class="cal-cm-aud-seg"><button type="button" class="cal-cm-aud-btn${!_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="0" onclick="_sxrSetComposeIsTweak(false)">Comment</button><button type="button" class="cal-cm-aud-btn${_sxrComposeIsTweak ? ' is-active' : ''}" data-tweak="1" onclick="_sxrSetComposeIsTweak(true)" title="Request a change — moves the sample to Tweaks Needed">Request a change</button></div></div>` : '';
+        const compPicker = !isReply ? `<div class="cal-cm-audience" data-cm-toggle="comp" role="group" aria-label="Which deliverable is this note about"><span class="cal-cm-audience-cap">About the…</span><div class="cal-cm-aud-seg">${SXR_COMPONENTS.map(c => `<button type="button" class="cal-cm-aud-btn${_sxrComposeComp === c ? ' is-active' : ''}" data-comp="${c}" onclick="_sxrSetComposeComp('${c}')" title="This note is about the ${_sxrEscAttr(String(COMP_LABELS[c] || c).toLowerCase())}">${_sxrEsc(COMP_LABELS[c] || c)}</button>`).join('')}</div></div>` : '';
+        const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        return `<div class="cal-cm-composer-wrap">${replyingTo}${compPicker}${audienceToggle}${changeToggle}<div class="cal-cm-composer"><div class="cal-cm-avatar ${roleCls}" style="width:28px;height:28px;border-radius:8px;font-size:0.72rem;">${_sxrEsc(initial)}</div><textarea id="sxrCommentComposer" rows="1" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrOnComposerInput(this)" onkeydown="_sxrOnComposerKey(event)">${_sxrEsc(draft)}</textarea><div class="cal-cm-composer-actions"><button class="cal-cm-send" type="button" onclick="_sxrSubmitComposer()" title="Send (Enter)" ${draft.trim() ? '' : 'disabled'}>${sendIco}</button></div></div></div>`;
+    }
+    function _sxrAutosizeComposer(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'; }
+    function _sxrOnComposerInput(ta) {
+        _sxrAutosizeComposer(ta);
+        if (_sxrReplyTarget) _sxrReplyDrafts[_sxrReplyTarget] = ta.value;
+        else { _sxrRootDraft = ta.value; try { if (ta.value) sessionStorage.setItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid, ta.value); else sessionStorage.removeItem('sv_sxrNoteDraft_' + _sxrOpenCommentsPid); } catch (e) {} }
+        const wrap = ta.closest('.cal-cm-composer'); if (!wrap) return;
+        const sendBtn = wrap.querySelector('.cal-cm-send'); if (sendBtn) sendBtn.disabled = !ta.value.trim();
+    }
+    function _sxrOnComposerKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _sxrSubmitComposer(); } else if (e.key === 'Escape' && _sxrReplyTarget) { e.preventDefault(); _sxrBeginReply(null); } }
+    function _sxrBeginReply(rootId) {
+        _sxrCaptureModalDrafts();
+        _sxrReplyTarget = rootId || null;
+        const feed = document.getElementById('sxrCommentsFeed');
+        const prevScroll = feed ? feed.scrollTop : null;
+        _sxrRenderCommentsModal();
+        const feed2 = document.getElementById('sxrCommentsFeed');
+        if (feed2 && prevScroll != null) feed2.scrollTop = prevScroll;
+    }
+    function _sxrSubmitComposer() {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        _sxrCaptureModalDrafts();
+        const body = (_sxrReplyTarget ? (_sxrReplyDrafts[_sxrReplyTarget] || '') : (_sxrRootDraft || '')).trim();
+        if (!body) return;
+        const parentId = _sxrReplyTarget;
+        _sxrAppendComment(pid, parentId, body);
+        if (parentId) delete _sxrReplyDrafts[parentId];
+        else { _sxrRootDraft = ''; try { sessionStorage.removeItem('sv_sxrNoteDraft_' + pid); } catch (e) {} }
+        _sxrReplyTarget = null;
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
+    }
+    function _sxrWatchNoteSave(pid) {
+        Promise.resolve(_sxrFlushCardSave(pid)).then(() => {
+            const p = sxrState.posts.find(x => x.id === pid);
+            if (p && p._saveError && _sxrOpenCommentsPid === pid && typeof showNotify === 'function') showNotify('Note not saved yet', 'Saving failed (' + p._saveError + '). Your note is kept and will be sent with the next save of this sample — edit any field or use the Save-failed chip to retry.');
+        });
+    }
+    function _sxrFindCompForCommentId(post, commentId) {
+        for (const c of SXR_COMPONENTS) {
+            const list = c === 'video' ? (Array.isArray(post.comments) ? post.comments : _sxrLoadComments(post)) : _sxrCommentsFor(post, c);
+            if (Array.isArray(list) && list.some(x => x.id === commentId)) return c;
+        }
+        return 'video';
+    }
+    function _sxrAppendComment(pid, parentId, body) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const comp = parentId ? _sxrFindCompForCommentId(post, parentId) : (SXR_COMPONENTS.indexOf(_sxrComposeComp) >= 0 ? _sxrComposeComp : 'video');
+        const arr = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const role = _sxrCommentRole();
+        const _now = new Date().toISOString();
+        const isRoot = !parentId;
+        const msg = { id: _sxrMintCommentId(), parent_id: parentId || null, author: _sxrCurrentAuthor(), role, body, created_at: _now, updated_at: _now, done: false, done_at: '', done_by: '' };
+        if (isRoot) { msg.audience = (role === 'client') ? 'client' : _sxrComposeAudience; msg.is_tweak = (role === 'client') ? _sxrComposeIsTweak : false; if (msg.is_tweak) msg.round = _sxrNextTweakRound(post, comp); }
+        arr.push(msg);
+        _sxrSetCommentsFor(post, comp, arr);
+        if (comp === 'video') post.comments = arr;
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(arr) });
+        if (isRoot && role === 'client' && msg.is_tweak) _sxrApplyAutoStatus(pid, 'client_added', comp);
+        if (comp === 'video' || comp === 'graphic') _sxrPostLinearComment(_sxrLinearUrlFor(post, comp), body, msg.author);
+        _sxrWatchNoteSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+        _sxrUpdateCardStatusDisplay(pid);
+    }
+    function _sxrToggleCommentDone(rootId) {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
+        const comp = _sxrFindCompForCommentId(post, rootId);
+        const list = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const root = list.find(c => c.id === rootId && !c.parent_id); if (!root) return;
+        const wasDone = !!root.done;
+        if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
+        else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _sxrCurrentAuthor(); }
+        root.updated_at = new Date().toISOString();
+        _sxrSetCommentsFor(post, comp, list);
+        if (comp === 'video') post.comments = list;
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
+        _sxrWatchNoteSave(pid);
+        _sxrRefreshCommentsBtn(pid);
+        _sxrUpdateCardStatusDisplay(pid);
+        _sxrCaptureModalDrafts();
+        _sxrRenderCommentsModal();
+        setTimeout(() => { const feed = document.getElementById('sxrCommentsFeed'); if (feed) feed.scrollTop = feed.scrollHeight; }, 0);
+    }
+    function _sxrDeleteComment(commentId) {
+        const pid = _sxrOpenCommentsPid; if (!pid) return;
+        const post = sxrState.posts.find(p => p.id === pid); if (!post) return;
+        const comp = _sxrFindCompForCommentId(post, commentId);
+        const arr = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
+        const target = arr.find(c => c.id === commentId);
+        if (!target || !_sxrCanDeleteComment(target)) return;
+        const isRoot = !target.parent_id;
+        const msg = isRoot ? "This deletes the message and every reply in this thread. This can't be undone." : "Delete this reply? This can't be undone.";
+        showConfirm('Delete note?', msg, () => {
+            const _delAt = new Date().toISOString();
+            const next = arr.map(c => (c.id === commentId || c.parent_id === commentId) ? Object.assign({}, c, { deleted: true, updated_at: _delAt }) : c);
+            _sxrSetCommentsFor(post, comp, next);
+            if (comp === 'video') post.comments = next;
+            _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [comp + '_tweaks']: _sxrStringifyComments(next) });
+            _sxrWatchNoteSave(pid);
+            _sxrRefreshCommentsBtn(pid);
+            _sxrUpdateCardStatusDisplay(pid);
+            _sxrCaptureModalDrafts();
+            _sxrRenderCommentsModal();
+        }, 'Delete');
+    }
+    function _sxrApplyAutoStatus(pid, trigger, comp, dest) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return false;
+        const which = comp || 'video';
+        const subKey = which + '_status';
+        let next = null;
+        if (trigger === 'client_added' && post[subKey] !== 'Tweaks Needed') next = 'Tweaks Needed';
+        else if (trigger === 'smm_resolved_last') next = (dest === 'kasper') ? 'Kasper Approval' : (dest === 'approved') ? 'Approved' : 'Client Approval';
+        if (!next || post[subKey] === next) return false;
+        post[subKey] = next;
+        post.status = computeSampleOverallStatus(post);
+        post.updated_at = new Date().toISOString();
+        _sxrPendingEdits[pid] = Object.assign(_sxrPendingEdits[pid] || {}, { [subKey]: next, status: post.status });
+        if (next === 'Kasper Approval') { const csv = _sxrRecordKasperSeenOnPost(post, which); if (csv != null) _sxrPendingEdits[pid].kasper_seen = csv; }
+        _sxrClearStaleApprovals(post, _sxrPendingEdits[pid]);
+        _sxrMarkLocalStatus(pid, which);
+        return true;
+    }
+    function _sxrSetComposeAudience(val) {
+        _sxrComposeAudience = (val === 'client') ? 'client' : 'internal';
+        const seg = document.querySelector('[data-cm-toggle="audience"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.aud === _sxrComposeAudience));
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta && !_sxrReplyTarget) ta.placeholder = _sxrComposePlaceholder('smm');
+    }
+    function _sxrSetComposeIsTweak(val) {
+        _sxrComposeIsTweak = !!val;
+        const seg = document.querySelector('[data-cm-toggle="tweak"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', (b.dataset.tweak === '1') === _sxrComposeIsTweak));
+        const ta = document.getElementById('sxrCommentComposer');
+        if (ta && !_sxrReplyTarget) ta.placeholder = _sxrComposeIsTweak ? 'Describe the change you need…' : _sxrComposePlaceholder('client');
+    }
+    function _sxrSetComposeComp(val) {
+        _sxrComposeComp = (SXR_COMPONENTS.indexOf(val) >= 0) ? val : 'video';
+        const seg = document.querySelector('[data-cm-toggle="comp"]');
+        if (seg) seg.querySelectorAll('.cal-cm-aud-btn').forEach(b => b.classList.toggle('is-active', b.dataset.comp === _sxrComposeComp));
+    }
+    function _sxrToggleShowResolved() { _sxrShowResolved = !_sxrShowResolved; _sxrCaptureModalDrafts(); _sxrRenderCommentsModal(); }
 
     /* Reveal the nav tab when the flag is on. With the flag OFF this is the ONLY
        samples statement that runs at load — and it only reads the flag and toggles

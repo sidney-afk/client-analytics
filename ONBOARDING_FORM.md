@@ -10,11 +10,15 @@ and Raha's Google Doc.
 ## How to open it
 
 ```
-https://syncview.synchrosocial.com/?onboarding=<anything>
+https://syncview.synchrosocial.com/onboarding_form
 ```
 
-Any non-empty `?onboarding=` value renders the form. It is **not** in the main nav —
-reachable only by knowing the link. Like `?intake=1`, this mode:
+This is a clean path URL. Because the site is **GitHub Pages** (static, no server
+rewrites), `/onboarding_form` is handled by `404.html`: GitHub Pages serves it for that
+(file-less) path, and a tiny script redirects into the SPA via `?onboarding=1`; `navTo`
+then rewrites the address bar back to a clean `/onboarding_form` (no query, no hash). The
+old `?onboarding=<anything>` links still work and get cleaned to the same path. It is
+**not** in the main nav — reachable only by knowing the link. Like `?intake=1`, this mode:
 
 - bypasses the staff password,
 - hides all workspace chrome (header + pageTop),

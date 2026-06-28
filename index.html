@@ -11655,9 +11655,16 @@
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _wlV2Teardown();
 
         const state = {nav: page, client: null};
-        const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
-        if (push) history.pushState(state, '', url);
-        else history.replaceState(state, '', url);
+        if (page === 'onboarding') {
+            // Standalone onboarding form gets a clean path URL (/onboarding_form), served on
+            // GitHub Pages via the 404.html redirect. Guarded: replaceState to a different path
+            // throws on file:// (local tests), which we can safely ignore.
+            try { history.replaceState(state, '', '/onboarding_form'); } catch (e) {}
+        } else {
+            const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
+            if (push) history.pushState(state, '', url);
+            else history.replaceState(state, '', url);
+        }
 
         const pageTop = document.getElementById('pageTop');
         const content = document.getElementById('content');
@@ -24785,7 +24792,7 @@
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
-    const _isOnboarding=(new URLSearchParams(location.search).get('onboarding')!==null);
+    const _isOnboarding=(new URLSearchParams(location.search).get('onboarding')!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
     if(_isIntake){document.body.classList.add('intake-mode');}
     if(_isOnboarding){document.body.classList.add('onboarding-mode');}
     if(_isOnboarding){

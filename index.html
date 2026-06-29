@@ -11956,7 +11956,7 @@
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
     const OB_LOCK_SVG = '<svg class="ob-lock-ic" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3.1" y="7" width="9.8" height="6.4" rx="1.7" stroke="currentColor" stroke-width="1.25"/><path d="M5.4 7V5.1a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
-    const OB_DRIVE_NOTE = '<div class="ob-drivenote">'+OB_LOCK_SVG+'<span>Make sure the link is shared so anyone with the link can open it.</span></div>';
+    const OB_DRIVE_NOTE = '<div class="ob-drivenote">'+OB_LOCK_SVG+'<span>Any link works — Google Drive, Dropbox, WeTransfer, etc. If it\'s a private file, make sure it\'s shared so anyone with the link can open it.</span></div>';
     const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
     const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
     const OB_INFO_SVG = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="6.4" r="1.05" fill="currentColor"/><path d="M10 9.3v4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
@@ -12105,7 +12105,7 @@
           '<div class="ob-help">Switch this off and we\'ll design the thumbnail for you.</div></div>'+
           '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_build" checked><span class="ob-switch-track"></span></label></div>'+
         '<div class="ob-tp-wrap" id="obThumbWrap">'+
-          '<div class="ob-help ob-tp-help">Pick a font and a style, and flip on a highlighted line — the preview updates as you go; whatever\'s showing is what we\'ll use.</div>'+
+          '<div class="ob-help ob-tp-help">Pick a font and a style, and flip on a highlighted line — the preview updates as you go.</div>'+
           '<div class="ob-tp">'+
             '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
               '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
@@ -12117,6 +12117,7 @@
                 '<label class="ob-switch"><input type="checkbox" data-ob-toggle="thumbnail_highlight"'+(d.hl?' checked':'')+'><span class="ob-switch-track"></span></label></div>'+
             '</div>'+
           '</div>'+
+          '<div class="ob-info-panel ob-tp-note">This is just to point us in the right direction — nothing here is locked in. Treat it as inspiration: the font, the highlight colour, the music and anything else can all change as we work together.</div>'+
         '</div>'+
         '<input type="hidden" data-ob="thumbnail_font" value="'+d.font+'">'+
         '<input type="hidden" data-ob="thumbnail_text_style" value="'+d.style+'"></div>';
@@ -12254,13 +12255,13 @@
           _obField({id:'desired_outcomes', label:'What are the DESIRED OUTCOMES of the customers you help?', help:'The more detail, the better.', type:'textarea', required:true}),
           _obField({id:'process', label:'What is your PROCESS for helping clients get from where they are to where they want to go?', help:'The more detail, the better.', type:'textarea', required:true}),
         ]},
-        { id:'s3', n:'3', c:'#8a6fe0', title:'Style', intro:'Tell us how you want your videos to look and feel.', fields:[
+        { id:'s3', n:'3', c:'#8a6fe0', title:'Style', intro:'Tell us the direction you want for your videos. None of this is locked in — it just points us the right way, and we fine-tune everything (fonts, colours, music, the lot) together as we go.', fields:[
           _obCreators(),
           _obSubgroup('Video', '#6f8be8', [
             _obSubtitles(),
             _obBroll(),
             _obMusic(),
-            _obField({id:'music_refs', label:'Music reference (optional)', help:'A Drive link to a song or two whose style you like.', type:'url', placeholder:'https://…', driveNote:true}),
+            _obField({id:'music_refs', label:'Music reference (optional)', help:'A link to a song or two whose style you like — Spotify, YouTube, Apple Music, SoundCloud, whatever you use.', type:'url', placeholder:'Paste any link…'}),
             _obField({id:'video_reference', label:'Video reference — links (optional)', help:'Paste links to videos or reels whose look you like.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
             _obField({id:'video_reference_desc', label:'…or describe the video look you want (optional)', help:'In your own words — editing, captions, fonts, pacing, vibe.', type:'textarea', rows:2, placeholder:'Describe what you\'re going for…'}),
           ]),
@@ -12278,7 +12279,7 @@
         ]},
         { id:'s5', n:'5', c:'#b65fce', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
           _obField({id:'photos_link', label:'Link to photos of you', help:'A few clear, recent, high-quality photos.', type:'url', placeholder:'https://…', driveNote:true}),
-          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos — anything we can create from.', type:'url', placeholder:'https://…', driveNote:true}),
+          _obField({id:'source_material', label:'Content to pull from', help:'Podcasts, talks, videos — anything we can create from. Any link works: a Google Drive/Dropbox folder, a YouTube channel, a podcast, etc.', type:'url', placeholder:'Paste any link…', driveNote:true}),
         ]},
         { id:'s6', n:'6', c:'#c560bc', title:'Goals', fields:[
           _obField({id:'success', label:'What would make this a win for you?', type:'textarea', required:true}),
@@ -12293,6 +12294,7 @@
           _obField({id:'facebook', label:'Facebook login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
           _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
           _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
+          '<div class="ob-q"><label class="ob-genre-pick ob-lp-check"><input type="checkbox" data-ob-toggle="lastpass_sent"><span class="ob-chk"></span><span>Sharing through <b>LastPass</b> instead of typing passwords above? Tick this once you\'ve sent your logins to <b>house@synchrosocial.com</b> — so we know to look for them.</span></label></div>',
         ]},
         { id:'s8', n:'8', c:'#d36f93', title:'AI avatar', isAi:true, intro:'A realistic version of you that can deliver videos without filming. Tell us how you\'d like your avatar to look, sound and feel.', fields:[
           '<div id="obAiFields" class="ob-ai-fields">'+
@@ -12320,7 +12322,7 @@
                 '<div class="ob-help">Read the script below in a quiet room (phone is fine) and paste the link.</div>'+
                 '<div class="ob-script">'+OB_VOICE_SCRIPT.map(p=>'<p>'+p+'</p>').join('')+'</div>'+
                 '<input class="ob-input" type="url" data-ob="ai_voice_link" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>',
-              _obField({id:'ai_voice_samples', label:'More voice recordings (optional, but the more the better)', help:'On top of the script above, drop a Google Drive link to as many high-quality recordings of your voice as you can — podcasts, talks, voice notes, anything clear and natural. Around 3 hours is ideal; 2 hours is great; otherwise just as much as you can gather.', type:'url', placeholder:'https://…', driveNote:true}),
+              _obField({id:'ai_voice_samples', label:'More voice recordings (optional, but the more the better)', help:'On top of the script above, drop a link (Google Drive, Dropbox, etc.) to as many high-quality recordings of your voice as you can — podcasts, talks, voice notes, anything clear and natural. Around 3 hours is ideal; 2 hours is great; otherwise just as much as you can gather.', type:'url', placeholder:'https://…', driveNote:true}),
             ])+
           '</div>',
         ]},
@@ -12762,6 +12764,9 @@
       .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
+      .ob-tp-note{ margin:16px 0 0; }
+      .ob-lp-check{ align-items:flex-start; gap:10px; line-height:1.45; }
+      .ob-lp-check .ob-chk{ margin-top:1px; }
       .ob-ai-fields{ margin-top:6px; }
       .ob-script{ font-size:0.8rem; line-height:1.55; color:var(--text-primary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:13px 15px; margin-bottom:10px; }
       .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }

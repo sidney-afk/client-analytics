@@ -39,7 +39,12 @@ const SXR_REORDER = HOOKS + '/sample-review-reorder';
 // Clients Info Google-Sheet CSVs) BEFORE resolving ?c=…&v=sample-reviews, so
 // without tunneling the sheet the client-link branch throws and the surface
 // never mounts. (Analytics CSV is read-only seed data; safe to tunnel.)
-const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com)/;
+// Backend hosts the courier tunnels for the page. Now also includes the common
+// IMAGE/THUMBNAIL hosts so visual tests render REAL media instead of gray boxes
+// (the browser's own egress is blocked, so an un-tunnelled image just fails to
+// load — which is why earlier visual checks couldn't see thumbnails). curl fetches
+// the bytes via Node and fulfils them back into the page.
+const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com|youtube\.com|ggpht\.com|vimeocdn\.com|frame\.io|placeholder\.com|imgur\.com)/;
 const COURIER = process.env.SXR_COURIER !== '0';  // on by default; 0 in open-egress envs
 const TMP = process.env.SXR_TMP || '/tmp/qa';
 try { fs.mkdirSync(TMP, { recursive: true }); } catch {}

@@ -6,3 +6,7 @@
 node_modules/
 package-lock.json
 .playwright/
+
+# Master tester — per-run artifacts (regenerated every run)
+qa/visual/
+qa/MASTER_REPORT.md

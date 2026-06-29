@@ -205,6 +205,36 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       rec('statusLabel', s, _calStatusLabel(s), (typeof _sxrStatusLabel === 'function' ? _sxrStatusLabel(s) : _calStatusLabel(s)),
           (s === 'Scheduled' || s === 'Posted'));
 
+    // ── Q. Kasper-queue membership: does a card surface on Kasper's review queue? ──
+    //   Calendar: _calPostKasperVisible → _calCompKasperVisible, which (a) GATES an
+    //     unlinked thumbnail (graphic@Kasper with no graphic_linear_issue_id — nobody
+    //     can act on it) and (b) KEEPS a Tweaks-Needed component that still has an
+    //     unresolved Kasper tweak (the re-review hand-off).
+    //   Samples: the inline rule in _sxrKasperLoadQueue (index.html:27797) is just
+    //     SXR_REVIEW_COMPONENTS.some(c => normStatus(p[c+'_status']) === 'Kasper Approval')
+    //     — neither guard. (Samples has NO _sxrPostKasperVisible function.)
+    {
+      const sxrKasperVisible = (p) => ['video', 'graphic'].some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+      rec('kasperQueueVisible', 'video@Kasper',
+          _calPostKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }),
+          sxrKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }), false);
+      rec('kasperQueueVisible', 'graphic@Kasper + linked',
+          _calPostKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' }),
+          sxrKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' }), false);
+      rec('kasperQueueVisible', 'graphic@Kasper + UNLINKED',
+          _calPostKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: '' }),
+          sxrKasperVisible({ video_status: 'In Progress', graphic_status: 'Kasper Approval', graphic_linear_issue_id: '' }), false,
+          'cal hides an un-actionable unlinked thumbnail; samples surfaces it');
+      rec('kasperQueueVisible', 'nothing@Kasper',
+          _calPostKasperVisible({ video_status: 'For SMM Approval', graphic_status: 'In Progress' }),
+          sxrKasperVisible({ video_status: 'For SMM Approval', graphic_status: 'In Progress' }), false);
+      const kt = [{ id: uid(), parent_id: null, role: 'kasper', is_tweak: true, done: false, deleted: false, body: 'fix', created_at: now() }];
+      const reReview = { video_status: 'Tweaks Needed', graphic_status: 'In Progress', video_comments: kt, comments: kt, graphic_comments: [] };
+      rec('kasperQueueVisible', 'video@TweaksNeeded + open Kasper tweak',
+          _calPostKasperVisible(reReview), sxrKasperVisible(reReview), false,
+          'cal keeps the re-review hand-off in Kasper queue; samples drops it');
+    }
+
     return { diffs, cmp, errs: [] };
   });
 

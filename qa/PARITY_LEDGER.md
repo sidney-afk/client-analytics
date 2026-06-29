@@ -38,6 +38,27 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
 | `statusLabel` text | ✅ (alias of `_calStatusLabel`) |
 | `hasBeenToKasper` / `showApprovedAfterTweaks` / `statusLabel` @ Scheduled/Posted | ◌ samples has no schedule/publish stage (4 diffs) |
 
+### Batch 4 — Kasper review queue (`parity_logic.js`) — 5 checks, **2 GAPS FOUND**
+| Check | Result |
+|---|---|
+| `kasperQueueVisible` video@Kasper · graphic@Kasper+linked · nothing@Kasper | ✅ |
+| **graphic@Kasper + UNLINKED thumbnail** | 🔴 **GAP** — cal hides (un-actionable); samples surfaces a full approve/request panel |
+| **video@Tweaks-Needed + open Kasper tweak** | 🔴 **GAP** — cal keeps the re-review hand-off in Kasper's queue; samples drops it |
+
+## ⚠ Open findings — divergences pending decision
+1. **Unlinked-thumbnail gate missing on the samples Kasper queue.** The calendar's
+   `_calCompKasperVisible` returns false for a `graphic` at `Kasper Approval` with no
+   `graphic_linear_issue_id` (a junk status, e.g. from a Linear sync through a removed
+   link, would otherwise show Kasper a thumbnail panel nobody can act on). Samples'
+   `_sxrKasperLoadQueue` / `_sxrKasperRenderCard` (index.html:27797, 27822) have no such
+   gate. **Fix:** port `_calCompKasperVisible`/`_calPostKasperVisible` to `_sxr` and use it
+   for queue membership + panel rendering. *(higher confidence — clear robustness gate)*
+2. **Re-review hand-off dropped.** The calendar keeps a component visible in Kasper's
+   queue while it's at `Tweaks Needed` IF Kasper still has an unresolved tweak on it
+   (`_calCompHasUnresolvedKasperTweak`), so he can track the re-review. Samples drops it
+   the moment it leaves `Kasper Approval`. **Fix:** include the same clause. *(genuine but
+   subtler workflow difference — worth a quick confirm)*
+
 ## Next territory (not yet probed)
 - **Kasper surface** — unread-reply predicate, cross-client queue membership (Surface 8).
 - **Approve-split routing** — primary/alt button (seen-by-Kasper → client default), `_calReviewApplyApprove` target.

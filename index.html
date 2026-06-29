@@ -33047,6 +33047,7 @@
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
         let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
         const perDay = {};
+        const loadList = [];   // the actual on-plate videos, for the dynamic hover
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
             const fin = _kedVideoFinished(v);
@@ -33060,7 +33061,10 @@
             else if (isWip) wip++;
             const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
             const wasEditing = court.editingMs > 0, wasTweaking = court.tweakMs > 0;
-            if (wasEditing || wasTweaking) loadVideos++;
+            if (wasEditing || wasTweaking) {
+                loadVideos++;
+                loadList.push({ name: v.title || v.identifier || 'video', client: v.clientName || '', editing: wasEditing, tweaking: wasTweaking });
+            }
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
@@ -33069,7 +33073,7 @@
         }
         const workUnits = firstCuts + tweakRounds;
         const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
-        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
+        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay, loadList,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
                  loadVideos, loadEditing, loadTweaks, stillOpen,
                  editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
@@ -33089,7 +33093,6 @@
     // Plain-English hover copy for each number — explains what it counts, for
     // someone who doesn't know the internal vocabulary. Same in either view.
     const _KED_TIPS = {
-        plate:     "Videos that were sitting with him last week — ones he was still editing, plus ones that came back for changes he hadn't finished and re-sent yet. “Still open” = ones still on him when the week ended.",
         pushed:    "Each time he finished a video and moved it on for review, it counts once. A brand-new edit is a “first cut”; a video that came back with changes, which he fixed and sent again, is a “tweak round”.",
         firstCut:  "First cuts: brand-new videos he edited and sent on for review for the first time.",
         tweak:     "Tweak rounds: videos that came back with requested changes, which he fixed and sent on again.",
@@ -33099,6 +33102,32 @@
         touched:   "How many different videos he worked on at all last week.",
         finished:  "Videos that got fully approved (or posted) last week — they crossed the finish line.",
     };
+
+    function _kedJoinAnd(arr) {
+        if (!arr.length) return '';
+        if (arr.length === 1) return arr[0];
+        return arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
+    }
+    // Dynamic "on his plate" hover: explains what THIS editor's number means
+    // this week — the actual videos and why each was sitting with him.
+    function _kedPlateTip(stats) {
+        const n = stats.loadVideos;
+        if (!n) return "Nothing was on his plate last week.";
+        const segs = [];
+        if (stats.loadTweaks)  segs.push(`${stats.loadTweaks} waiting for him to make requested changes`);
+        if (stats.loadEditing) segs.push(`${stats.loadEditing} he was still editing`);
+        let s = `${n} video${n === 1 ? '' : 's'} on his plate last week: ` + _kedJoinAnd(segs) + '.';
+        if (stats.stillOpen) s += ` ${stats.stillOpen} still not sent back by the end of the week.`;
+        const mixed = stats.loadEditing > 0 && stats.loadTweaks > 0;
+        const list = stats.loadList || [];
+        const CAP = 5;
+        const names = list.slice(0, CAP).map(v => {
+            const tag = mixed ? (v.tweaking && !v.editing ? ' (tweaks)' : (v.editing && !v.tweaking ? ' (editing)' : '')) : '';
+            return (v.client ? v.client + ' — ' : '') + v.name + tag;
+        });
+        if (names.length) s += ` (${names.join('; ')}${list.length > CAP ? `; +${list.length - CAP} more` : ''})`;
+        return s;
+    }
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
         const key = ed.email || ed.name;
@@ -33183,7 +33212,7 @@
                     <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-stats">
-                    <div class="ked-stat is-load" data-tip="${_calEscAttr(_KED_TIPS.plate)}">
+                    <div class="ked-stat is-load" data-tip="${_calEscAttr(_kedPlateTip(stats))}">
                         <span class="ked-stat-val">${loadBig}</span>
                         <span class="ked-stat-label">${loadLabel}</span>
                         <div class="ked-stat-sub">${loadSub}</div>

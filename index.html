@@ -27973,7 +27973,7 @@
        Tweaks Needed + a kasper-role tweak comment. Pushes status/comments to Linear.
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
-    const _sxrKasperState = { items: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null) };
+    const _sxrKasperState = { items: [], history: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null), touched: Object.create(null), dismissed: Object.create(null), closed: Object.create(null), waitingCollapsed: false, tweaksCollapsed: false, historyCollapsed: false };
     // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
     //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
     //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
@@ -27995,6 +27995,57 @@
         return SXR_REVIEW_COMPONENTS.some(c => _sxrCompKasperVisible(post, c));
     }
     function _sxrKasperFindItem(pid) { return (_sxrKasperState.items || []).find(it => it && it.post && it.post.id === pid); }
+    // ── Decision-flow helpers (clones of the calendar _kasper* equivalents) ──
+    // A component still at Kasper Approval = an undecided component; an unlinked
+    // thumbnail never blocks "Finish reviewing" (it can't be acted on).
+    function _sxrKasperUndecidedComps(post) {
+        return SXR_REVIEW_COMPONENTS.filter(c =>
+            !(c === 'graphic' && !String(post.graphic_linear_issue_id || '').trim())
+            && _sxrNormStatus(post[c + '_status'] || '') === 'Kasper Approval');
+    }
+    function _sxrKasperPostHasUnresolvedKasperTweak(post) {
+        return SXR_REVIEW_COMPONENTS.some(c => _sxrCompHasUnresolvedKasperTweak(post, c));
+    }
+    function _sxrKasperLatestMsgAt(post) {
+        let latest = '';
+        for (const c of SXR_REVIEW_COMPONENTS) for (const m of _sxrCommentsFor(post, c)) {
+            if (m && m.created_at && String(m.created_at) > latest) latest = String(m.created_at);
+        }
+        return latest;
+    }
+    // Finished = handed to the SMM (kasper_finished_at stamp or local dismiss).
+    // Re-surfaces on a genuine fresh ask: an actionable component back at Kasper
+    // Approval (server-confirmed), or a message after the finish stamp.
+    function _sxrKasperIsFinished(post) {
+        if (!post) return false;
+        const stampedAt = String(post.kasper_finished_at || '');
+        const localFin = !!(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
+        if (!stampedAt && !localFin) return false;
+        if (stampedAt && _sxrKasperUndecidedComps(post).length) return false;
+        if (stampedAt) { const latest = _sxrKasperLatestMsgAt(post); if (latest && latest > stampedAt) return false; }
+        return true;
+    }
+    function _sxrKasperIsClosed(post) {
+        if (!post) return false;
+        const closedAt = String(post.kasper_closed_at || '');
+        const localClosed = !!(_sxrKasperState.closed && _sxrKasperState.closed[post.id]);
+        if (!closedAt && !localClosed) return false;
+        if (closedAt) { const latest = _sxrKasperLatestMsgAt(post); if (latest && latest > closedAt) return false; }
+        return true;
+    }
+    // Waiting = he still has a call to make; Tweaks pending = finished + handed off.
+    function _sxrKasperPartitionItems(items) {
+        const waiting = [], tweaks = [];
+        for (const it of items) { if (_sxrKasperIsFinished(it.post)) tweaks.push(it); else waiting.push(it); }
+        return { waiting, tweaks };
+    }
+    // Approved-history (in-session — a "recently approved" list; clears on reload).
+    function _sxrKasperHistoryEntryFromPost(post, client, slug, approvedAt) {
+        return { id: post.id, client, slug, name: post.name || 'Untitled', asset_url: String(post.asset_url || ''), thumbnail_url: String(post.thumbnail_url || ''), approvedAt };
+    }
+    function _sxrKasperRecordHistory(entry) {
+        _sxrKasperState.history = [entry].concat((_sxrKasperState.history || []).filter(x => x.id !== entry.id)).slice(0, 60);
+    }
     async function _sxrKasperFetchAllSamples() {
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*';
         return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
@@ -28009,11 +28060,22 @@
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
                 p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
-                if (!_sxrPostKasperVisible(p)) continue;
+                // Membership: anything Kasper can still act on OR a card he has
+                // FINISHED (it sits in "Tweaks pending"); minus cards he X-closed.
+                if (!(_sxrPostKasperVisible(p) || _sxrKasperIsFinished(p))) continue;
+                if (_sxrKasperIsClosed(p)) continue;
                 const slug = String(p.client || '');
                 items.push({ post: p, slug, client: wlCanonicalClient(slug) || slug });
             }
             items.sort((a, b) => String(a.client).localeCompare(String(b.client)));
+            // Prune local dismiss/close flags whose card has fully left the queue
+            // (so the sets can't grow without bound and a re-routed card reappears).
+            const ids = new Set(items.map(it => it.post.id));
+            for (const id of Object.keys(_sxrKasperState.dismissed)) if (!ids.has(id)) delete _sxrKasperState.dismissed[id];
+            for (const id of Object.keys(_sxrKasperState.closed)) if (!ids.has(id)) delete _sxrKasperState.closed[id];
+            // Preserve expanded / touched-comps across refreshes.
+            const prev = new Map((_sxrKasperState.items || []).map(x => [x.post.id, x]));
+            for (const it of items) { const old = prev.get(it.post.id); if (old && old._touched) it._touched = old._touched; }
             _sxrKasperState.items = items; _sxrKasperState.loaded = true;
         } catch (e) { _sxrKasperState.error = true; }
         finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
@@ -28026,28 +28088,102 @@
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
         if (st.loading && !st.items.length) { host.innerHTML = head + `<div class="kasper-loading">${_sxrLoaderHtml('Loading samples for review')}</div>`; return; }
         if (st.error && !st.items.length) { host.innerHTML = head + `<div class="cal-empty cal-error">Couldn't load samples — <button class="cal-link" onclick="_sxrKasperLoadQueue(true)">try again</button>.</div>`; return; }
-        if (!st.items.length) { host.innerHTML = head + `<div class="cal-empty">Nothing waiting on your review right now.</div>`; return; }
-        host.innerHTML = head + `<div class="kasper-list">${st.items.map(it => _sxrKasperRenderCard(it)).join('')}</div>`;
+        const { waiting, tweaks } = _sxrKasperPartitionItems(st.items);
+        // Waiting bucket (collapsible head matches Tweaks-pending / history so the
+        // three feel like siblings). Defaults open — it's where Kasper works.
+        const waitingBody = waiting.length
+            ? `<div class="kasper-list">${waiting.map(it => _sxrKasperRenderCard(it)).join('')}</div>`
+            : `<div class="kasper-empty"><div class="kasper-empty-title">You're all caught up</div><div class="kasper-empty-sub">Nothing is waiting for your review right now.</div></div>`;
+        const waitingHtml = `<div class="kasper-history-wrap kasper-waiting-wrap${st.waitingCollapsed ? ' collapsed' : ''}" id="sxrKasperWaitingWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleWaiting()">
+                <span class="kasper-history-title">Waiting for your review</span>
+                <span class="kasper-history-count">${waiting.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body">${waitingBody}</div>
+        </div>`;
+        host.innerHTML = head + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
     }
+    function _sxrKasperRenderTweaksSection(tweaks) {
+        if (!tweaks.length) return '';
+        return `<div class="kasper-history-wrap${_sxrKasperState.tweaksCollapsed ? ' collapsed' : ''}" id="sxrKasperTweaksWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleTweaks()">
+                <span class="kasper-history-title">Tweaks pending</span>
+                <span class="kasper-history-count">${tweaks.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-list">${tweaks.map(it => _sxrKasperRenderCard(it)).join('')}</div></div>
+        </div>`;
+    }
+    function _sxrKasperRenderHistorySection() {
+        const list = _sxrKasperState.history || [];
+        if (!list.length) return '';
+        const rows = list.map(e => {
+            const thumb = e.thumbnail_url || e.asset_url || '';
+            const thumbHtml = thumb ? `<img loading="lazy" src="${_sxrEscAttr(thumb)}" alt="" onerror="this.style.display='none'">` : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 11l3 3 5-5"/></svg>`;
+            const t = Date.parse(e.approvedAt); const timeStr = isFinite(t) ? new Date(t).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+            const videoBtn = e.asset_url ? `<a href="${_sxrEscAttr(e.asset_url)}" target="_blank" rel="noopener">Video</a>` : '';
+            return `<div class="kasper-history-row"><div class="kasper-history-thumb">${thumbHtml}</div><div class="kasper-history-main"><div class="kasper-history-line1">${_sxrEsc(e.name)}</div><div class="kasper-history-line2"><span class="kasper-history-client">${_sxrEsc(e.client)}</span>${timeStr ? ' · approved ' + _sxrEsc(timeStr) : ''}</div></div><div class="kasper-history-actions">${videoBtn}</div></div>`;
+        }).join('');
+        return `<div class="kasper-history-wrap${_sxrKasperState.historyCollapsed ? ' collapsed' : ''}" id="sxrKasperHistoryWrap">
+            <div class="kasper-history-head" onclick="_sxrKasperToggleHistory()">
+                <span class="kasper-history-title">Approved history</span>
+                <span class="kasper-history-count">${list.length}</span>
+                <svg class="kasper-history-chev" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
+            </div>
+            <div class="kasper-history-body"><div class="kasper-history-day">${rows}</div></div>
+        </div>`;
+    }
+    function _sxrKasperToggleWaiting() { _sxrKasperState.waitingCollapsed = !_sxrKasperState.waitingCollapsed; const w = document.getElementById('sxrKasperWaitingWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.waitingCollapsed); }
+    function _sxrKasperToggleTweaks() { _sxrKasperState.tweaksCollapsed = !_sxrKasperState.tweaksCollapsed; const w = document.getElementById('sxrKasperTweaksWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.tweaksCollapsed); }
+    function _sxrKasperToggleHistory() { _sxrKasperState.historyCollapsed = !_sxrKasperState.historyCollapsed; const w = document.getElementById('sxrKasperHistoryWrap'); if (w) w.classList.toggle('collapsed', _sxrKasperState.historyCollapsed); }
     function _sxrKasperRenderCard(item) {
         const p = item.post, pid = p.id;
         const expanded = !!_sxrKasperState.expanded[pid];
         const info = _sxrDeriveThumbInfo(p);
         const thumb = info.url ? `<img loading="lazy" src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        // Full-screen thumbnail zoom on the card strip (mirrors the calendar's
+        // kcard-thumb-zoom → _kasperOpenLightbox); _sxrOpenThumbLightbox resolves
+        // the Kasper card from _sxrKasperState.items.
+        const zoomBtn = info.url ? `<button class="kcard-thumb-zoom" type="button" onclick="event.stopPropagation();_sxrOpenThumbLightbox('${_sxrEscAttr(pid)}')" title="View thumbnail full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></button>` : '';
         const awaiting = SXR_REVIEW_COMPONENTS.filter(c => _sxrCompKasperVisible(p, c));
         const video = String(p.asset_url || '').trim();
         const watch = video ? `<a class="kcard-watch-btn" href="${_sxrEscAttr(video)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>` : '';
-        const body = expanded ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length || 1},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>` : '';
+        // "Finish reviewing" — explicit hand-off, enabled only once every component
+        // has a decision (a comment doesn't count). Approved → logged history;
+        // change requested → handed to SMM (Tweaks pending). Once finished the card
+        // shows "Sent to SMM" until a fresh ask resurfaces it.
+        const undecided = _sxrKasperUndecidedComps(p);
+        const canFinish = undecided.length === 0;
+        const isFinished = _sxrKasperIsFinished(p);
+        const finishTitle = canFinish
+            ? 'Finish reviewing — hand this card to the SMM. Approved components go to the client; change requests move to "Tweaks pending". Nothing is approved unless you approved it.'
+            : 'Decide on the ' + undecided.map(c => COMP_LABELS[c]).join(' & ') + ' first — approve it or request a change to finish.';
+        const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5L6.5 12L13 4.5"/></svg>`;
+        const doneBtn = isFinished
+            ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you.">${checkIco}Sent to SMM</button>`
+            : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_sxrKasperDismiss('${_sxrEscAttr(pid)}')" title="${_sxrEscAttr(finishTitle)}">${checkIco}Finish reviewing</button>`;
+        const pillsHtml = undecided.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecided.map(c => `<span class="kcard-comp-pill">${_sxrEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : '';
+        const pending = awaiting.length
+            ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
+            : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
+        const body = expanded
+            ? (awaiting.length
+                ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>`
+                : `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing pending your approval on this card.</div></div>`)
+            : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-kasper-pid="${_sxrEscAttr(pid)}">
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It stays hidden until the SMM sends it back to Kasper Approval." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
-                <div class="kcard-thumb">${thumb}</div>
+                <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
-                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span><span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span></div>
+                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}</div>
                     <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${doneBtn}
                     ${watch}
-                    <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')" aria-label="${expanded ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
+                    <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')" aria-label="${expanded ? 'Collapse card' : 'Expand card'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
                 </div>
             </div>
             ${body}
@@ -28063,14 +28199,25 @@
         const comments = _sxrCommentsForView(p, comp);
         const checkIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8.5L6.5 12L13 4"/></svg>`;
         const sendIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8h11M9 3.5L13.5 8L9 12.5"/></svg>`;
+        // State machine mirror of the calendar hero panel: once a component is at
+        // Tweaks Needed the framing is "Changes requested" and Approve is SUPPRESSED
+        // (he already sent it back); only Comment / Approve-after-tweaks / Request
+        // stay. A "Comment" is an internal-only note that does NOT change status.
+        const subStatus = _sxrNormStatus(p[comp + '_status'] || '');
+        const inTweaks = subStatus === 'Tweaks Needed';
+        const showApprove = !inTweaks;
+        const stateLabel = inTweaks ? 'Changes requested' : '';
+        const placeholder = inTweaks ? 'Anything else to add?' : 'Describe the change you need…';
+        const commentIco = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 4.5h11v7h-6l-3 2.5v-2.5h-2z"/></svg>`;
         const thread = comments.length ? comments.map(c => { const author = c.author || (c.role === 'client' ? 'Client' : c.role === 'kasper' ? 'Kasper' : 'SMM'); return `<div class="cal-review-comment cal-cm-${c.role || 'smm'}${c.parent_id ? ' is-reply' : ''}${c.done ? ' is-resolved' : ''}"><div class="cal-review-comment-head"><strong>${_sxrEsc(author)}</strong><span class="cal-review-comment-time">${_sxrEsc(_sxrFmtCommentTime(c.created_at))}</span>${c.done ? '<span class="cal-review-resolved-pill">Resolved</span>' : ''}</div><div class="cal-review-comment-body">${_sxrEsc(c.body || '')}</div></div>`; }).join('') : `<div class="cal-review-comment-empty">No comments yet.</div>`;
-        return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}">
-            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span></div>
+        return `<div class="cal-review-panel" data-sxr-kasper-comp="${escComp}" data-state="${inTweaks ? 'tweaks' : 'pending'}">
+            <div class="cal-review-panel-head"><span class="cal-review-panel-title">${_sxrEsc(COMP_LABELS[comp])}</span>${stateLabel ? `<span class="cal-review-panel-status">${_sxrEsc(stateLabel)}</span>` : ''}</div>
             <div class="cal-review-panel-preview">${preview}</div>
-            <button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>
+            ${showApprove ? `<button type="button" class="cal-review-approve-btn cal-review-approve-main" ${(!saving && !hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveComp('${escId}','${escComp}')">${checkIco}<span class="cal-ap-verb">${saving ? 'Saving…' : 'Approve'}</span>${saving ? '' : '<span class="cal-ap-route">Client</span>'}</button>` : ''}
             <div class="cal-review-panel-compose">
-                <textarea class="cal-review-textarea" placeholder="Describe the change you need…" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
+                <textarea class="cal-review-textarea" placeholder="${_sxrEscAttr(placeholder)}" oninput="_sxrKasperOnDraftInput(this,'${escId}','${escComp}')">${_sxrEsc(draft)}</textarea>
                 <div class="cal-review-tweak-actions">
+                    <button type="button" class="cal-review-comment-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperAddCommentComp('${escId}','${escComp}')" title="Leave a comment or question — internal only. Doesn't change the status or notify the editor; the card stays awaiting your approval.">${commentIco}Comment</button>
                     <button type="button" class="cal-review-aat-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperApproveAfterTweaksComp('${escId}','${escComp}')" title="Send these tweaks and pre-clear for the client — the editor fixes it, then it goes straight to the client (no Kasper re-review)">${checkIco}Approve after tweaks</button>
                     <button type="button" class="cal-review-tweak-btn" ${(!saving && hasDraft) ? '' : 'disabled'} onclick="_sxrKasperRequestTweakComp('${escId}','${escComp}')">${sendIco}Request change</button>
                 </div>
@@ -28090,7 +28237,7 @@
         const key = pid + '|' + comp; _sxrKasperState.drafts[key] = ta.value;
         const panel = ta.closest('.cal-review-panel'); if (!panel) return;
         const has = !!ta.value.trim(), saving = !!_sxrKasperState.saving[key];
-        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn').forEach(b => b.disabled = !has || saving);
+        panel.querySelectorAll('.cal-review-tweak-btn, .cal-review-aat-btn, .cal-review-comment-btn').forEach(b => b.disabled = !has || saving);
         panel.querySelectorAll('.cal-review-approve-main').forEach(b => b.disabled = has || saving);
     }
     async function _sxrKasperPersist(item, patch) {
@@ -28100,7 +28247,7 @@
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;
     }
-    function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment) {
+    function _sxrKasperApplyAndPersist(pid, comp, mutate, linearComment, afterPersist) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const key = pid + '|' + comp; if (_sxrKasperState.saving[key]) return;
         const p = it.post;
@@ -28112,14 +28259,100 @@
             const url = _sxrLinearUrlFor(p, comp);
             if (url && patch[comp + '_status']) _sxrPushStatusToLinear(url, patch[comp + '_status']);
             if (url && linearComment) _sxrPostLinearComment(url, linearComment, 'Kasper');
-            if (!_sxrPostKasperVisible(p)) {
-                _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
-                _sxrKasperRenderQueue();
-            } else _sxrKasperRepaint(pid);
+            // Pin the card in the queue (touched) — it no longer auto-vanishes when
+            // a component leaves Kasper Approval. It only leaves via "Finish
+            // reviewing" (→ history / Tweaks pending) or the X (Close). The approve
+            // handler's afterPersist may complete + log a fully-approved card.
+            it._touched = true;
+            if (afterPersist && afterPersist(p, it)) return;
+            _sxrKasperRepaint(pid);
         }).catch(e => { _sxrKasperState.saving[key] = false; _sxrKasperRepaint(pid); if (typeof showNotify === 'function') showNotify('Save failed', (e && e.message) || 'Please try again.'); });
     }
     function _sxrKasperApproveComp(pid, comp) {
-        _sxrKasperApplyAndPersist(pid, comp, (p) => { p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p); return { [comp + '_status']: 'Client Approval', status: p.status }; });
+        const it0 = _sxrKasperFindItem(pid);
+        const prevStatus = it0 ? String(it0.post[comp + '_status'] || 'Kasper Approval') : 'Kasper Approval';
+        _sxrKasperApplyAndPersist(pid, comp,
+            (p) => { p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p); return { [comp + '_status']: 'Client Approval', status: p.status }; },
+            null,
+            (p, it) => {
+                // Card fully done (nothing at Kasper Approval, no unresolved tweaks)
+                // → log to Approved history + remove, with an Undo (mirrors the
+                // calendar). Otherwise keep it pinned so he can keep deciding.
+                const stillKasper = SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+                const stillTweaks = _sxrKasperPostHasUnresolvedKasperTweak(p);
+                if (stillKasper || stillTweaks) return false;
+                const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, new Date().toISOString());
+                _sxrKasperRecordHistory(entry);
+                const removed = it;
+                _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+                _sxrKasperRenderQueue();
+                if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(removed, comp, prevStatus, entry.id) });
+                return true;
+            });
+    }
+    function _sxrKasperUndoApprove(item, comp, prevStatus, entryId) {
+        if (!item) return;
+        _sxrKasperState.history = (_sxrKasperState.history || []).filter(e => e.id !== entryId);
+        const p = item.post;
+        p[comp + '_status'] = prevStatus;
+        p.status = computeSampleOverallStatus(p);
+        if (!_sxrKasperFindItem(p.id)) _sxrKasperState.items.push(item);
+        _sxrKasperRenderQueue();
+        _sxrKasperPersist(item, { [comp + '_status']: prevStatus, status: p.status }).catch(() => {});
+    }
+    // Comment — internal-only note. No status change, no Linear ping; the card
+    // stays exactly where it is (still awaiting his approval).
+    function _sxrKasperAddCommentComp(pid, comp) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const key = pid + '|' + comp; const body = String(_sxrKasperState.drafts[key] || '').trim(); if (!body) return;
+        _sxrKasperState.drafts[key] = '';
+        _sxrKasperApplyAndPersist(pid, comp, (p) => {
+            const list = _sxrCommentsFor(p, comp).slice(); const now = new Date().toISOString();
+            list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: false, audience: 'internal', body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
+            _sxrSetCommentsFor(p, comp, list);
+            return { [comp + '_tweaks']: _sxrStringifyComments(list) };
+        });
+    }
+    // "Finish reviewing" — explicit hand-off. Guard: every component decided.
+    // Clean approve-all → Approved history; any change request → stamped finished
+    // and moved to "Tweaks pending" until the SMM addresses it or a fresh ask
+    // supersedes it (see _sxrKasperIsFinished). Stamps persist (the upsert drops
+    // unknown columns, so the local flag is the same-device fallback).
+    function _sxrKasperDismiss(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const p = it.post;
+        if (_sxrKasperUndecidedComps(p).length) return;
+        if (!_sxrKasperPostHasUnresolvedKasperTweak(p)) {
+            const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, p.kasper_approved_at || new Date().toISOString());
+            _sxrKasperRecordHistory(entry);
+            _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+            _sxrKasperRenderQueue();
+        } else {
+            const stamp = _sxrKasperLatestMsgAt(p) || new Date().toISOString();
+            _sxrKasperAppendFinishLog(p, stamp);
+            p.kasper_finished_at = stamp;
+            _sxrKasperState.dismissed[pid] = true;
+            _sxrKasperRenderQueue();
+            _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => {});
+        }
+    }
+    function _sxrKasperAppendFinishLog(post, stampIso) {
+        let log = []; try { log = JSON.parse(post.kasper_finish_log || '[]'); if (!Array.isArray(log)) log = []; } catch { log = []; }
+        const prev = log.length ? log[log.length - 1].at : null;
+        log.push({ at: stampIso, prev, kind: 'handoff', statuses: { video: post.video_status || null, graphic: post.graphic_status || null }, overall: post.status || null });
+        if (log.length > 50) log = log.slice(-50);
+        post.kasper_finish_log = JSON.stringify(log);
+    }
+    // Close (the X) — hide the card, no decision required. Cross-device via the
+    // persisted kasper_closed_at; re-surfaces on a new message or a re-route.
+    function _sxrKasperClose(pid) {
+        const it = _sxrKasperFindItem(pid); if (!it) return;
+        const p = it.post;
+        p.kasper_closed_at = new Date().toISOString();
+        _sxrKasperState.closed[pid] = true;
+        _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
+        _sxrKasperRenderQueue();
+        _sxrKasperPersist(it, { kasper_closed_at: p.kasper_closed_at }).catch(() => {});
     }
     function _sxrKasperRequestTweakComp(pid, comp) {
         const it = _sxrKasperFindItem(pid); if (!it) return;

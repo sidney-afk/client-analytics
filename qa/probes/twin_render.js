@@ -79,7 +79,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     // SURFACE 3 — Kasper review card (video at Kasper Approval, expanded)
     try {
       const cp = mkPost('k_c'), sp = mkPost('k_s');
-      const itemC = { post: cp, client: 'Acme', slug: 'acme' }, itemS = { post: sp, client: 'Acme', slug: 'acme' };
+      const itemC = { post: cp, client: 'Acme', slug: 'acme', _expanded: true }, itemS = { post: sp, client: 'Acme', slug: 'acme' };
       if (typeof _kasperState === 'object') { _kasperState.items = [itemC]; }
       if (typeof _sxrKasperState === 'object') { _sxrKasperState.items = [itemS]; _sxrKasperState.expanded[sp.id] = true; }
       R.kasperCard = { cal: snap(_kasperRenderCard(itemC)), sxr: snap(_sxrKasperRenderCard(itemS)) };

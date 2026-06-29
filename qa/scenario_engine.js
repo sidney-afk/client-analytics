@@ -65,8 +65,12 @@ async function expandKasper(page, name) { return ensureExpanded(page, '#kasperCo
 
 // ---------- the verbs ----------
 async function smmStatus(page, id, comp, status) {
-  // ensure Sheet view
-  await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); });
+  // ensure Sheet view + a FRESH load: the SMM tab can be stale after another actor
+  // changed status elsewhere; without this, _sxrStatusPick's "already that status"
+  // guard can no-op against a stale in-memory value (e.g. a client bounce the SMM
+  // tab hasn't seen because the realtime WS isn't tunneled in the harness).
+  await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+  await sleep(page, 1700);
   await page.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id, { timeout: 8000 }).catch(() => {});
   const res = await page.evaluate((args) => {
     const [cid, comp, status] = args;

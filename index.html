@@ -27054,7 +27054,11 @@
             if (kind) return _sxrReviewFrameHtml(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw, '', kind);
             return `<div class="cal-review-preview-empty">Thumbnail can't preview.</div>`;
         }
-        return `<a class="cal-review-graphic-tile" href="${_sxrEscAttr(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw)}" target="_blank" rel="noopener"><img src="${_sxrEscAttr(imgUrl)}" alt="" onerror="this.style.display='none'"></a>`;
+        // Use the calendar's preview-thumb markup so the WHOLE thumbnail shows
+        // (object-fit: contain, centred) instead of a cropped strip. Keeps the
+        // samples' open-in-new-tab behaviour (no lightbox dependency).
+        const href = /^https?:\/\//i.test(raw) ? raw : 'https://' + raw;
+        return `<div class="cal-review-preview-thumb"><a class="cal-review-preview-thumb-btn" href="${_sxrEscAttr(href)}" target="_blank" rel="noopener" aria-label="Open thumbnail"><img src="${_sxrEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></a></div>`;
     }
     function _sxrReviewToggleCard(pid) { if (_sxrReviewState.expanded.has(pid)) _sxrReviewState.expanded.delete(pid); else _sxrReviewState.expanded.add(pid); _sxrReviewRepaintCard(pid); }
     function _sxrReviewRepaintCard(pid) {

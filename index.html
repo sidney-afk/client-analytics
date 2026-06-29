@@ -11891,9 +11891,9 @@
       ['native','Native','Clean, bold white captions.', OB_VID+'sub-native.mp4', OB_VID+'sub-native-hl.mp4'],
       ['bold','Bold','Big, heavy captions that pop.', OB_VID+'sub-bold.mp4', OB_VID+'sub-bold-hl.mp4'],
     ];
-    // AI "which look" examples (ⓘ → full-screen frame)
-    const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
-    const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
+    // AI "which look" examples — shown as selectable previews (client's own reference frames).
+    const OB_LOOK_TALKING = 'onboarding-ai/talking-head.jpg';
+    const OB_LOOK_PODCAST = 'onboarding-ai/podcast.jpg';
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['own','My own footage'], ['none','No B-roll'] ];
 
@@ -11958,8 +11958,8 @@
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
-    // Style cards: name+desc on top, then the standard + "+ highlight" previews below (both shown).
-    // The card's radio carries data-hashl so the group's Highlight toggle can enable on selection.
+    // A single preview tile: the clip/image (tap to play/zoom) plus a caption slot below
+    // (used for the selectable Standard / +Highlight pick under each subtitle style).
     function _obStylePreview(url, isVideo, cap){
       if(!url) return '';
       const inner = isVideo
@@ -11968,23 +11968,28 @@
       return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button>'+cap+'</div>';
     }
     function _obStyleCards(group, items, isVideo){
+      // Each preview (Standard and +Highlight) is its OWN selectable option with a radio dot that
+      // fills when picked — same bullet-select feel as the cards. One radio group (subtitle_pick)
+      // across all styles/variants; a change derives the hidden subtitle_style + subtitle_highlight.
+      const pick = (val, st, hl, label) =>
+        '<label class="ob-stp-pick"><input type="radio" name="subtitle_pick" value="'+val+'" data-style="'+st+'" data-hl="'+hl+'"><span class="ob-stp-dot"></span><span class="ob-stp-pk-txt">'+label+'</span></label>';
       return items.map(t=>{
         const std=t[3]||'', hl=t[4]||'';
-        // The highlight preview's caption IS the add-on control: a per-style "+ Add highlight"
-        // pill (right where the +Highlight preview is, so it's obvious it can be turned on).
-        const stdCap = '<span class="ob-stp-cap">Standard</span>';
-        const hlCap = '<button type="button" class="ob-hl-pill" data-ob-hl="'+t[0]+'" aria-pressed="false">+ Add highlight</button>';
-        const previews = '<div class="ob-stp-row">'+_obStylePreview(std, isVideo, stdCap)+(hl?_obStylePreview(hl, isVideo, hlCap):'')+'</div>';
+        const stdPrev = _obStylePreview(std, isVideo, pick(t[0], t[0], '0', 'Standard'));
+        const hlPrev = hl ? _obStylePreview(hl, isVideo, pick(t[0]+'__hl', t[0], '1', '+ Highlight')) : '';
+        const previews = '<div class="ob-stp-row">'+stdPrev+hlPrev+'</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<div class="ob-stcard"><label class="ob-stcard-head"><input type="radio" name="'+group+'" value="'+t[0]+'" data-hashl="'+(hl?'1':'')+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+previews+'</div>';
+        return '<div class="ob-stcard"><div class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div>'+previews+'</div>';
       }).join('');
     }
 
     function _obSubtitles(){
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Pick the caption style. Each shows the standard look and the +highlight version side by side — tap a preview to play it, or hit <b>+ Add highlight</b> under a style to add the colour-pop keywords as an add-on.</div>'+
-        '<div class="ob-stgrid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
-        // hidden carrier for the add-on value (serialized as a boolean); driven by the per-style pills.
+        '<div class="ob-help">Tap a preview to play it, then click the dot under the look you want — pick the plain <b>Standard</b> caption or the <b>+ Highlight</b> version, where a key word pops in colour.</div>'+
+        '<div class="ob-stgrid">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
+        // hidden carriers (set from the visible picks) — keep subtitle_style + subtitle_highlight
+        // exactly as before, so serialization, validation and the dashboard viewer are unchanged.
+        '<input type="hidden" data-ob="subtitle_style">'+
         '<input type="checkbox" data-ob-toggle="subtitle_highlight" hidden></div>';
     }
 
@@ -12043,39 +12048,45 @@
     // Sync the per-style "+ Add highlight" pills to the current selection + add-on state.
     // The pill on the SELECTED style reads "Highlight on" when the add-on is on; the others
     // invite turning it on. subtitle_highlight is one boolean (a hidden checkbox carrier).
-    function _obStyleSel(){
-      const sel=document.querySelector('input[name="subtitle_style"]:checked');
-      const selStyle = sel ? sel.value : '';
-      const hasHl = !!(sel && sel.getAttribute('data-hashl')==='1');
+    // A subtitle pick was made: write the chosen style + highlight into the hidden carriers.
+    function _obPickSubtitle(radio){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
       const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
-      if(!hasHl && c && c.checked) c.checked=false;   // a style with no highlight variant can't be highlighted
-      const hlOn = !!(c && c.checked);
-      document.querySelectorAll('.ob-hl-pill[data-ob-hl]').forEach(p=>{
-        const st=p.getAttribute('data-ob-hl'); const active=(st===selStyle && hlOn);
-        p.classList.toggle('on', active);
-        p.setAttribute('aria-pressed', active?'true':'false');
-        p.innerHTML = active ? (OB_CHECK_SVG+'Highlight on') : '+ Add highlight';
-      });
+      if(s) s.value = radio.getAttribute('data-style')||'';
+      if(c) c.checked = radio.getAttribute('data-hl')==='1';
     }
-    // Clicking a style's "+ Add highlight" pill: if it's the selected style, toggle the add-on;
-    // otherwise select that style and turn the add-on on.
-    function _obClickHlPill(style){
-      const sel=document.querySelector('input[name="subtitle_style"]:checked');
-      const selStyle = sel ? sel.value : '';
+    // Reflect the hidden subtitle_style + subtitle_highlight carriers onto the visible picks
+    // (used on restore / mount so a saved choice shows its filled dot).
+    function _obStyleSel(){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
       const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
-      if(style===selStyle){ if(c) c.checked=!c.checked; }
-      else { const radio=document.querySelector('input[name="subtitle_style"][value="'+style+'"]'); if(radio) radio.checked=true; if(c) c.checked=true; }
-      _obStyleSel(); _obSaveDraftDebounced();
+      const style=s?s.value:''; const hl=!!(c&&c.checked);
+      const want = style ? (style + (hl?'__hl':'')) : '';
+      document.querySelectorAll('input[name="subtitle_pick"]').forEach(r=>{ r.checked=(r.value===want); });
+    }
+    // Reveal the optional "link to your B-roll footage" field only when "My own footage" is picked.
+    function _obBrollSync(){
+      const r=document.querySelector('input[name="broll"]:checked');
+      const bl=document.getElementById('obBrollLink');
+      if(bl) bl.style.display=(r&&r.value==='own')?'block':'none';
     }
 
     function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
+      // Show the example frames up front (no ⓘ to click) and let the client tick the look(s)
+      // they want — same preview + select feel as the subtitle styles. Multi-select (one or both).
+      const opt = (val, img, label) =>
+        '<div class="ob-stp">'+
+          '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+img+'" aria-label="View '+_obEsc(label)+' full screen"><img src="'+img+'" alt="'+_obEsc(label)+'" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span></button>'+
+          '<label class="ob-genre-pick ob-look-pick"><input type="checkbox" name="ai_content_style" value="'+val+'"><span class="ob-chk"></span><span class="ob-stp-pk-txt">'+label+'</span></label>'+
+        '</div>';
       return '<div class="ob-q" data-ob-q="ai_content_style"><label class="ob-label">Which look do you prefer?<span class="ob-req">*</span></label>'+
-        '<div class="ob-checks" data-ob-multi="ai_content_style">'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="talking_head"><span>Talking to camera</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_TALKING+'" aria-label="See example"')+'</span>'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="podcast"><span>Podcast style</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_PODCAST+'" aria-label="See example"')+'</span>'+
+        '<div class="ob-help">Tap a preview to see it full screen, then tick the look(s) you want — pick one or both.</div>'+
+        '<div class="ob-stp-row ob-look-row" data-ob-multi="ai_content_style">'+
+          opt('talking_head', OB_LOOK_TALKING, 'Talking to camera')+
+          opt('podcast', OB_LOOK_PODCAST, 'Podcast style')+
         '</div></div>';
     }
 
@@ -12154,7 +12165,9 @@
           _obCreators(),
           _obSubgroup('Video', '#6f8be8', [
             _obSubtitles(),
+            '<div class="ob-info-panel ob-tp-note">This is just to point us in the right direction — nothing here is locked in. Treat it as inspiration: the subtitles, the highlight colour, the music and anything else can all change as we work together.</div>',
             _obBroll(),
+            '<div class="ob-q" id="obBrollLink" data-ob-q="broll_link" style="display:none"><label class="ob-label">Link to your B-roll footage (optional)</label><div class="ob-help">If you have your own footage you\'d like us to use, drop a link here.</div><input class="ob-input" type="url" data-ob="broll_link" placeholder="Paste any link…">'+OB_DRIVE_NOTE+'</div>',
             _obMusic(),
             _obField({id:'music_refs', label:'Music reference (optional)', help:'A link to a song or two whose style you like — Spotify, YouTube, Apple Music, SoundCloud, whatever you use.', type:'url', placeholder:'Paste any link…'}),
             _obField({id:'video_reference', label:'Video reference — links (optional)', help:'Paste links to videos or reels whose look you like.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
@@ -12276,7 +12289,8 @@
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
-        if(t.name==='subtitle_style'){ _obStyleSel('subtitle_style'); }
+        if(t.name==='subtitle_pick'){ _obPickSubtitle(t); }
+        if(t.name==='broll'){ _obBrollSync(); }
         if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_highlight'){ _obThumbSync(); }
         if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_build'){ _obThumbBuildSync(); }
         // Exclusive option: picking it clears the rest; picking anything else clears it.
@@ -12304,7 +12318,6 @@
         const rail = e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); return; }
         const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
-        const hlp = e.target.closest && e.target.closest('[data-ob-hl]'); if(hlp){ e.preventDefault(); _obClickHlPill(hlp.getAttribute('data-ob-hl')); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
         const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
         const csT = e.target.closest && e.target.closest('[data-cs-toggle]'); if(csT){ e.preventDefault(); _obToggleSelect(csT.getAttribute('data-cs-toggle')); return; }
@@ -12352,10 +12365,10 @@
         html+='<div class="ob-help">You already shared '+shared+' earlier — can we use that to build your avatar?</div>'+
           '<div class="ob-radios" data-ob-radio="ai_use_existing"><label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="yes" data-ob="ai_use_existing"><span>Yes, use those</span></label>'+
           '<label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="no" data-ob="ai_use_existing"><span>No, I\'ll send new ones</span></label></div>'+
-          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
           '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>';
       } else {
-        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
           '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE;
       }
       const prev=_obFieldVal('ai_new_likeness'); const prevUse=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
@@ -12467,7 +12480,7 @@
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
       const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
-      _obStyleSel('subtitle_style'); _obThumbSync(); _obThumbBuildSync();
+      _obStyleSel(); _obBrollSync(); _obThumbSync(); _obThumbBuildSync();
       _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
     }
 
@@ -12616,11 +12629,21 @@
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:pointer; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
-      /* Per-style highlight add-on pill (sits where the +Highlight caption was). */
-      .ob-hl-pill{ display:inline-flex; align-items:center; gap:4px; font-family:inherit; font-size:0.7rem; font-weight:700; line-height:1; color:var(--ob-accent); background:transparent; border:1.5px solid var(--ob-accent); border-radius:99px; padding:5px 11px; cursor:pointer; transition:background 0.13s, color 0.13s; white-space:nowrap; }
-      .ob-hl-pill:hover{ background:rgba(99,102,241,0.14); }
-      .ob-hl-pill.on{ background:var(--ob-accent); border-color:var(--ob-accent); color:#fff; }
-      .ob-hl-pill svg{ display:block; }
+      /* Selectable pick under each preview (Standard / +Highlight): a radio dot that fills. */
+      .ob-stp-pick{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.74rem; font-weight:600; color:var(--text-secondary); user-select:none; }
+      .ob-stp-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-stp-dot{ flex-shrink:0; width:15px; height:15px; border-radius:50%; border:1.7px solid var(--border); position:relative; transition:all 0.12s; }
+      .ob-stp-pick:hover .ob-stp-dot{ border-color:var(--text-muted); }
+      .ob-stp-pick input:checked + .ob-stp-dot{ border-color:var(--ob-accent); }
+      .ob-stp-pick input:checked + .ob-stp-dot::after{ content:''; position:absolute; inset:3px; border-radius:50%; background:var(--ob-accent); }
+      .ob-stp-pick input:checked ~ .ob-stp-pk-txt{ color:var(--ob-accent); }
+      .ob-stp-pick input:focus-visible + .ob-stp-dot{ outline:2px solid var(--ob-accent); outline-offset:2px; }
+      /* AI "which look" — selectable image previews (multi-select, one or both). */
+      .ob-look-row{ flex-wrap:wrap; }
+      .ob-look-row .ob-stp .ob-sub-thumb{ width:150px; height:266px; }
+      .ob-look-pick{ flex:0 0 auto; align-items:flex-start; max-width:160px; line-height:1.3; }
+      .ob-look-pick .ob-chk{ margin-top:1px; }
+      .ob-look-row .ob-stp:has(input:checked) .ob-sub-thumb{ outline:2.5px solid var(--ob-accent); outline-offset:2px; }
       /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
       .ob-tp-buildrow{ margin-bottom:14px; }
       .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }

@@ -114,17 +114,21 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    - **Creators for inspiration** — repeatable rows (kept; "what to **model** from them" — the copy
      deliberately avoids "copy"/"borrow" so it doesn't feel like stealing).
    - **── Video ──**
-     - **Subtitle style** — single-select cards **Elegant / Native / Bold**. Each card shows
-       its name + the **Standard** and **+ Highlight** previews side-by-side (purpose-made sample
-       clips, `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). The highlight add-on is set **per
-       card**: under each style's +Highlight preview sits a **"+ Add highlight"** pill
-       (`.ob-hl-pill`, `_obClickHlPill`) — clicking it selects that style and turns the
-       colour-pop keywords on (the pill flips to a filled **"✓ Highlight on"**); clicking the
-       active one removes it. It's a single boolean (`subtitle_highlight`, a hidden checkbox
-       carrier) that follows the selected style — `_obStyleSel` keeps the pills in sync. This
-       replaced the old single toggle at the bottom of the section, which clients scrolling
-       top-to-bottom would miss (they saw a "+Highlight" preview with no obvious way to pick it).
+     - **Subtitle style** — cards **Elegant / Native / Bold**, each showing its name + the
+       **Standard** and **+ Highlight** previews side-by-side (purpose-made sample clips,
+       `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). **Each preview is its own selectable option**
+       with a radio **dot that fills** when picked — Standard = plain caption, +Highlight = a key
+       word pops in colour. One radio group (`subtitle_pick`, values `<style>` / `<style>__hl`);
+       on change `_obPickSubtitle` writes the derived **`subtitle_style`** + **`subtitle_highlight`**
+       into hidden carriers (so serialization, validation and the viewer are unchanged), and
+       `_obStyleSel` reflects the carriers back onto the dots on restore. (Replaced the per-card
+       "+ Add highlight" pill, which replaced the old bottom toggle — clients couldn't tell the
+       "+Highlight" preview was selectable.)
      - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / **My own footage** / No B-roll.
+       Picking **My own footage** reveals an optional **`broll_link`** field (`_obBrollSync`) to paste
+       a link to their own footage.
+     - A **"this is direction, not final"** disclaimer (`.ob-tp-note`, same as the thumbnail one)
+       sits in the Video subgroup — nothing is locked in.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
        **description** of the look they want (`video_reference` + `video_reference_desc`). Copy is
@@ -170,7 +174,7 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    short intro instead). Its fields are **required** on this funnel (`_obValidate` treats
    `OB_VARIANT==='ai'` the same way the old gate's "yes" answer worked). Fields: what to build
    the likeness from (reuses photos if given), personality, look (talking-to-camera / podcast,
-   each with an ⓘ example frame), text-only-videos toggle (ⓘ explains avatar-in-background +
+   shown as **selectable preview images**), text-only-videos toggle (ⓘ explains avatar-in-background +
    on-screen text), setting, framing, accessories (incl. an "Other" write-in), hair, makeup,
    clothing, and — in the **Voice** group — the voice-clone capture script + recording link
    (`ai_voice_link`), plus an extra optional field (`ai_voice_samples`) asking for a Drive link
@@ -180,13 +184,15 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
 
 ### Example media
 
-The two AI "look" options show a real reference frame from Sandcastles thumbnails (public
-`storage.googleapis.com` URLs in `OB_LOOK_TALKING` / `OB_LOOK_PODCAST`). Music previews are
-byte-sliced MP3 clips under `onboarding-audio/`.
+The two AI "look" options (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`) are shown as **selectable
+preview images** up front — `onboarding-ai/talking-head.jpg` + `podcast.jpg` (resized from the
+client's reference frames) — tick one or both, same preview + select feel as the subtitle styles
+(`.ob-look-row`; no more ⓘ-to-reveal). Music previews are byte-sliced MP3 clips under
+`onboarding-audio/`.
 
 The **subtitle** picker uses `_obStyleCards(group, items, isVideo)` — rows
 `[key, name, desc, standardMedia, highlightMedia]` rendered as cards showing the standard +
-`+highlight` previews side by side, each highlight preview carrying a `_obClickHlPill` add-on pill (`_obStyleSel` keeps them in sync with the selected style).
+`+highlight` previews side by side, **each preview a selectable radio pick** — `_obPickSubtitle` derives the hidden `subtitle_style` + `subtitle_highlight` carriers; `_obStyleSel` reflects them back on restore.
 The **thumbnail** picker is the separate live `_obThumbPicker` described above (preview + Font/Style/
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.
@@ -202,7 +208,8 @@ image by extension.
   Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to
   800px-wide JPEG (~85 KB each, ~2 MB total) from the client's Drive originals. To swap the base or
   add a font/style, drop in matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
-- The two AI "look" frames use `OB_LOOK_TALKING` / `OB_LOOK_PODCAST` (hot-linked Sandcastles URLs).
+- The two AI "look" frames are local selectable previews — `onboarding-ai/talking-head.jpg` +
+  `podcast.jpg` (`OB_LOOK_TALKING` / `OB_LOOK_PODCAST`), 800px-wide JPEGs from the client's frames.
 
 ## Data flow
 

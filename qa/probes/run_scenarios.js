@@ -12,7 +12,7 @@ const SHOT_DIR = '/tmp/qa/scn';
 (async () => {
   const ts = Date.now();
   let specs = base();
-  if (filter) specs = specs.filter(s => s.key.includes(filter));
+  if (filter) { const parts = filter.split(','); specs = specs.filter(s => parts.some(p => s.key.includes(p))); }
   // stamp unique id + name per scenario
   specs = specs.map((s, i) => ({ ...s, id: 'sr_scn_' + s.key + '_' + ts + '_' + i, name: 'SCN ' + s.key + ' ' + ts }));
 

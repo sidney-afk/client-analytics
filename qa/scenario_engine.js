@@ -21,7 +21,7 @@ const LABEL = { video: 'video', graphic: 'graphic' };
 const sleep = (p, ms) => p.waitForTimeout(ms);
 
 // ---------- live-DB helpers ----------
-function row(id, cols) { const r = supa('id=eq.' + id + '&select=' + (cols || '*')); return r[0] || null; }
+function row(id, cols) { try { const r = supa('id=eq.' + id + '&select=' + (cols || '*')); return (Array.isArray(r) && r[0]) || null; } catch (e) { return null; } }
 async function waitCol(id, col, val, ms = 15000) {
   const t = Date.now();
   while (Date.now() - t < ms) { const r = row(id, col); if (r && String(r[col]) === String(val)) return true; await new Promise(s => setTimeout(s, 400)); }
@@ -151,15 +151,22 @@ async function kasperAct(page, name, comp, kind, text) {
   return page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-sxr-kasper-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b || b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
 }
 async function clientAct(page, name, comp, kind, text) {
-  await sleep(page, 1200);   // settle a prior same-tab client action's save+re-render
-  await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 12000 }).catch(() => {});
-  await expandReview(page, name);
-  if (kind === 'request') {
-    await page.evaluate((args) => { const [n, comp, text] = args; const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); const ta = p && p.querySelector('.cal-review-textarea'); if (ta) { const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; set.call(ta, text); ta.dispatchEvent(new Event('input', { bubbles: true })); } }, [name, comp, text]);
-    await sleep(page, 200);
-  }
   const sel = kind === 'request' ? '.cal-review-tweak-btn' : '.cal-review-approve-btn';
-  return page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b || b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
+  // The client tab can be stale after another actor changed status in a different
+  // tab; force a fresh load and retry so the card is reviewable before we act.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await page.evaluate(() => { if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+    await sleep(page, 1700);
+    await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 12000 }).catch(() => {});
+    await expandReview(page, name);
+    if (kind === 'request') {
+      await page.evaluate((args) => { const [n, comp, text] = args; const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); const ta = p && p.querySelector('.cal-review-textarea'); if (ta) { const set = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; set.call(ta, text); ta.dispatchEvent(new Event('input', { bubbles: true })); } }, [name, comp, text]);
+      await sleep(page, 200);
+    }
+    const res = await page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b) return 'no-panel'; if (b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
+    if (res === 'ok') return 'ok';
+  }
+  return 'disabled';
 }
 
 // ---------- the runner ----------

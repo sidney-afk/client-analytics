@@ -88,9 +88,12 @@ function base() {
       seed: { ...FOR_SMM },
       steps: [['smm.request', comp, 'tighten'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Kasper Approval']] });
 
-    S.push({ key: 'kasper_request_fix_approve_' + comp, title: `Kasper request→fix→re-approve loop on ${comp}`,
+    // After Kasper has SEEN a component, an SMM re-approve routes straight to Client
+    // (Kasper isn't re-bugged) — see OBS-S1 in the report. So request→fix→re-approve
+    // lands at Client Approval, then the client approves it.
+    S.push({ key: 'kasper_request_fix_approve_' + comp, title: `Kasper request→fix→re-approve loop on ${comp} (re-approve → Client, seen-by-Kasper)`,
       seed: { [comp + '_status']: 'Kasper Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Kasper Approval' },
-      steps: [['kasper.request', comp, 'trim'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Kasper Approval'], ['kasper.approve', comp], ['expect', comp + '_status', 'Client Approval']] });
+      steps: [['kasper.request', comp, 'trim'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Client Approval'], ['client.approve', comp], ['expect', comp + '_status', 'Approved']] });
 
     S.push({ key: 'client_request_fix_approve_' + comp, title: `Client request→fix→re-approve loop on ${comp}`,
       seed: { [comp + '_status']: 'Client Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Client Approval' },
@@ -159,9 +162,8 @@ function base() {
       ['smm.approve', 'graphic', 'primary'], ['expect', 'graphic_status', 'Kasper Approval'],
       ['kasper.request', 'video', 'Trim the first 2s'], ['expect', 'video_status', 'Tweaks Needed'],
       ['smm.status', 'video', 'For SMM Approval'],
-      ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
-      ['kasper.approve', 'video'], ['kasper.approve', 'graphic'],
-      ['expect', 'video_status', 'Client Approval'], ['expect', 'graphic_status', 'Client Approval'],
+      ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Client Approval'],   // seen by Kasper → straight to Client
+      ['kasper.approve', 'graphic'], ['expect', 'graphic_status', 'Client Approval'],
       ['client.request', 'video', 'Colour feels off'], ['expect', 'video_status', 'Tweaks Needed'],
       ['smm.status', 'video', 'Client Approval'],   // re-offer after fix
       ['client.approve', 'video'], ['client.approve', 'graphic'],

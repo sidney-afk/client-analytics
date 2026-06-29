@@ -1,8 +1,9 @@
 # Samples vs Calendar — Divergence Catalog (the live sweep)
 
-The **calendar is the source of truth**; the standard is **exact clone**. Every entry
-under A–F is a **bug to fix**. The "By-design" section lists the only intentional
-differences (a structural subset agreed with the user) and is NOT bug-tracked.
+The **calendar is the source of truth**; the standard is **exact clone**. Entries **A, B, C, E**
+are **bugs to fix**; **D was reclassified as by-design** after checking the rebuild spec (colour
+tag is on the exclusion list). The "By-design" section lists the documented intentional
+differences (a structural subset, each cited to the spec) and is NOT bug-tracked.
 
 > **This is the handoff for the fix session. Nothing here is fixed yet.**
 
@@ -55,8 +56,8 @@ snapshotting the live card shows samples is missing, on every Kasper card:
 | A5 | **"Close card" (X)** — hide a card until it returns to Kasper Approval (`_kasperClose`) | live `missing:["Close card"]` |
 | A6 | **"Slack"** — message the card's SMM (`_kasperOpenSlack`) | live `missing:["Slack"]` |
 | A7 | **"View thumbnail full screen"** lightbox (`_kasperOpenLightbox`); samples opens the video/thumb in a **new tab** instead (`Open video ↗`) | live `missing:["View thumbnail full screen"] extra:["Open video ↗"]` |
-| A8 | **URGENT** ping on the Kasper card (`_calShowUrgent`→`_kasperSendUrgentSlack`, video@Tweaks Needed+link) | code audit (31806) |
-| A9 | **"New message"** unread-reply chip (`_kasperHasUnreadReply`→`.kcard-newreply-chip`) | live `stMissing:["New message"]` on `full_bounce` s8/s13 |
+| A8 | ⚠ **URGENT** ping on the Kasper card (`_calShowUrgent`→`_kasperSendUrgentSlack`) — **documented v1 deferral**, not a fresh gap (`SAMPLES_PARITY_LOG.md:104` "v1 omits URGENT") | code audit (31806) |
+| A9 | ⚠ **"New message"** unread-reply chip (`_kasperHasUnreadReply`→`.kcard-newreply-chip`) — part of the **deferred** "Replies/Messages union" (`SAMPLES_PARITY_LOG.md:104`) | live `stMissing:["New message"]` on `full_bounce` s8/s13 |
 | A10 | **Durable cross-device stamps** `kasper_finished_at` / `kasper_closed_at` / `kasper_finish_log`, and **Undo** on approve (`_kasperUndoApprove`) | code audit (31513, 32301) |
 
 …and two cases where samples shows the **wrong** thing:
@@ -100,12 +101,14 @@ Confirmed live: `smm_request_video` s1, `clean_both` s1, `both_request_then_appr
 `full_bounce` s1 (SMM Review); twin_render (Client review panel). **Fix:** emit the calendar's
 lightbox button/markup in `_sxrReviewComponentPreview`.
 
-## D. SMM Sheet card — missing the colour-tag button  **[MED]**
-The calendar Sheet card has **"Tag this card with a color"** (`cal-card-color-tag` /
-`_calOpenColorPicker`); the samples card never renders it. Confirmed live on every Sheet
-snapshot: `notes_audiences` s1/s3, `notes_markdone` s1, `comment_no_status` s1,
-`both_request_then_approve` s5/s6, `full_bounce` s5/s10/s17; twin_render. **Fix:** port the
-colour-tag button into `_sxrRenderInlineCard`.
+## D. ~~SMM Sheet card — missing the colour-tag button~~ → **BY-DESIGN (not a bug)**
+The calendar Sheet card's **"Tag this card with a color"** (`cal-card-color-tag` /
+`_calOpenColorPicker`) is **explicitly on the exclusion list** — `SAMPLES_REBUILD_SPEC.md:98`
+"EXCLUDE caption …, CTA, scheduled-date chip, **platforms strip, colour tag**" (also
+`SAMPLES_PARITY_PLAN.md:131`). So the live `missing:["Tag this card with a color"]` on every
+Sheet snapshot (`notes_*`, `comment_no_status`, `both_request_*`, `full_bounce`) is **expected**,
+not a divergence. Moved to "By-design" below. *(Caught by checking the spec — thanks to the
+flag about documented omissions.)*
 
 ## E. SMM Sheet status label — "Client Approval" not personalised  **[LOW — new this sweep]**
 On the SMM surface the calendar renders the `Client Approval` status as **`<ClientFirstName>
@@ -148,23 +151,32 @@ watch the other with NO reload). Verify there before treating it as code.
 ---
 
 ## By-design — registered intentional differences (NOT bugs)
-The samples is a structural subset; the tester treats these as expected:
-- **No caption/title component** → no "Alt caption" / "Generate" / "Show more" / Caption pill.
-  *Consequence:* the calendar's overall status is `worst-of(video, graphic, caption)`; with the
-  seed's caption left at `In Progress`, the calendar overall reads **lower** than samples — this
-  is why every `clean_both` / `worstof_smm` / `full_bounce` **db-state** divergence is on the
-  `status` (overall) column only, never on `video`/`graphic`, and why the Sheet snapshot shows a
-  by-design `stMissing:["In Progress"]` (the caption substatus pill). Not a bug.
-- **No `Scheduled` / `Posted`** — the samples pipeline ends at `Approved`.
-- **Samples-only "Toggle client visibility"** creative-direction eye.
-- **No platform targeting** — the calendar Sheet card has a platform-toggle picker
-  (`cal-card-platform-btn`: Instagram / TikTok / YouTube / Facebook / LinkedIn); the samples card
-  renders none (`_sxrRenderInlineCard` has no platform markup). This is a structural extension of
-  the "no scheduling/publishing" given — surfaces as live `missing:["Instagram","YouTube",
-  "LinkedIn"]` on Sheet snapshots. **Flagged for your confirmation** (it wasn't in the original
-  tiny registry).
-- **No Month / Week grid views** — the calendar `#calView` has `month`/`week` buttons; samples
-  `#sxrView` has only `organizer` (Sheet) + `smmreview`.
+Confirmed against the rebuild spec — every item below is on the documented exclusion list
+(`SAMPLES_REBUILD_SPEC.md:66/69/98/186`, `SAMPLES_PARITY_PLAN.md:90/131`, `SAMPLES_V2_PLAN.md:132-134`):
+- **No caption/title component** (`SPEC:69` "Components: video, graphic ONLY") → no "Alt caption"
+  / "Generate" / "Show more" / Caption pill / CTA. *Consequence:* the calendar's overall status is
+  `worst-of(video, graphic, caption)`; with the seed's caption left at `In Progress`, the calendar
+  overall reads **lower** than samples — this is why every `clean_both` / `worstof_smm` /
+  `full_bounce` **db-state** divergence is on the `status` (overall) column only, never on
+  `video`/`graphic`, and why the Sheet snapshot shows a by-design `stMissing:["In Progress"]` (the
+  caption substatus pill). Not a bug.
+- **No `Scheduled` / `Posted`** (`SPEC:66/186`) — the samples pipeline ends at `Approved`; no
+  scheduled-date chip.
+- **No colour tag** on the Sheet card (`SPEC:98` EXCLUDE colour tag) — this is the former "D".
+- **No platform targeting** (`SPEC:98` EXCLUDE platforms strip; `SAMPLES_V2_PLAN.md:134` edit-platforms
+  REMOVE) — the calendar Sheet card has a platform-toggle picker (`cal-card-platform-btn`:
+  Instagram/TikTok/YouTube/Facebook/LinkedIn); samples renders none. Surfaces as live
+  `missing:["Instagram","YouTube","LinkedIn"]` on Sheet snapshots. **Confirmed by-design.**
+- **Samples-only "Toggle client visibility"** creative-direction eye (`SPEC:98` keep visibility eye).
+- **No Month / Week grid views** — the calendar `#calView` has `month`/`week`; samples `#sxrView`
+  has only `organizer` (Sheet) + `smmreview`.
+- **Always-actionable status triggers** — samples deliberately does NOT lock an unlinked
+  video/graphic status trigger (`SPEC:98/180`, the "no-caption-escape-hatch" decision); the Linear
+  push no-ops until linked.
+- **Kasper card v1 deferrals** — **URGENT** ping (A8) and the **Replies/Messages union** /
+  "New message" chip (A9) were explicitly deferred in the M5a build (`SAMPLES_PARITY_LOG.md:104`).
+  Listed in A for completeness but treat as deferred-by-plan, not fresh regressions — confirm
+  whether the exact-clone bar now pulls them into scope.
 
 ## Harness note (not a product divergence)
 A `graphic`-only Kasper scenario needs a `graphic_linear_issue_id` on the seed to enter the queue
@@ -174,14 +186,16 @@ video-side Kasper scenarios fully exercise the flow.
 
 ---
 
-## Suggested fix order
+## Suggested fix order (real bugs only — D is by-design)
 1. **F — realtime:** verify in a real two-tab browser first; the headless evidence says the
    repaint logic is already at parity, so this may need no code change.
-2. **C / D — thumbnail lightbox + colour tag:** small, isolated `_sxr` render changes.
-3. **E — status label:** one-line first-name helper.
+2. **C — thumbnail lightbox:** small, isolated `_sxrReviewComponentPreview` change (the lightbox
+   already exists in samples — just wire the review/client preview to it instead of a new tab).
+3. **E — status label:** one-line first-name helper (`sxrState.client`).
 4. **B — AAT outcome:** one-line status change (`For SMM Approval` → `Tweaks Needed`), but
    semantic — re-verify the AAT→SMM-approve→client routing afterwards.
-5. **A — Kasper flow:** the big rebuild; port the calendar's decision flow to `_sxr`.
+5. **A — Kasper flow:** the big rebuild; port the calendar's decision flow to `_sxr` (excluding
+   the documented v1 deferrals A8/A9 unless you want them in scope now).
 
 ## Re-run the gates
 ```

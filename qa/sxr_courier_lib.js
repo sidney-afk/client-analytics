@@ -213,12 +213,72 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
 }
 
 // Seed/save a CALENDAR post via the live calendar-upsert-post webhook — used to
-// prove an unrelated calendar card NEVER appears in the samples sub-tab.
-function upCal(post) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: '' }); }
+// prove an unrelated calendar card NEVER appears in the samples sub-tab, and (in
+// the twin-live tester) to seed the calendar SOURCE-OF-TRUTH row alongside the
+// samples row so the SAME journey can be driven on both surfaces.
+function upCal(post, base) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: base || '' }); }
 // Read a calendar_posts row (or rows) back from Supabase REST.
 function supaCal(qs) {
   const out = execSync(`curl -s ${_q(SUPA + '/rest/v1/calendar_posts?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', timeout: 60000 });
   try { return JSON.parse(out); } catch { return []; }
+}
+// Archive a CALENDAR seed and VERIFY it stuck (mirror of archiveSafe for samples).
+function archiveCalSafe(id, tries) {
+  tries = tries || 4;
+  for (let i = 0; i < tries; i++) {
+    try { upCal({ id, status: 'Archived' }); } catch {}
+    try {
+      const r = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
+    } catch {}
+    try { execSync('sleep 1.5'); } catch {}
+  }
+  return false;
+}
+
+// ============================================================================
+// CALENDAR-SIDE role helpers (the SOURCE OF TRUTH surface). Same actors as the
+// samples helpers above, but WITHOUT ?sxr=1 — they open the original calendar:
+//   smmCal     → the content calendar Sheet/Review (#calendar/<slug>)
+//   clientCal  → the calendar client share surface (?c=<name>&v=calendar)
+//   kasperCal  → the Kasper page's "Review" sub-tab (the calendar Kasper queue,
+//                the source-of-truth that the samples "Samples" sub-tab clones)
+// The twin-live tester drives each scenario on BOTH a samples tab and a calendar
+// tab and diffs the observable snapshot. (The linear-* webhooks are still mocked
+// and every other backend host is tunnelled, exactly as for the samples helpers.)
+// ============================================================================
+// SMM content-calendar surface. The #calendar/<slug> deep link resolves the
+// active client + loads calendar_posts once the analytics/clients sheets merge.
+async function smmCal(browser, slug = 'sidneylaruel', opts) {
+  const p = await open(browser, `/index.html?v2debug=1#calendar/${encodeURIComponent(slug)}`, opts);
+  await p.waitForFunction(() => typeof calState === 'object' && !!calState.client, { timeout: 20000 }).catch(() => {});
+  await p.waitForTimeout(1200);
+  return p;
+}
+// Calendar client share surface (?c=<name>&v=calendar) — the original of the
+// samples client portal.
+async function clientCal(browser, name = 'Sidney Laruel', token, opts) {
+  const t = token ? `&t=${encodeURIComponent(token)}` : '';
+  const p = await open(browser, `/index.html?c=${encodeURIComponent(name)}&v=calendar${t}&v2debug=1`, opts);
+  await p.waitForTimeout(1800);
+  return p;
+}
+// Kasper page → the CALENDAR "Review" sub-tab (source of truth for the samples
+// "Samples" sub-tab). No ?sxr=1; seeds the same auth + Kasper unlock as kasper(),
+// waits for _kasperLoadReview, then switches to the review tab.
+async function kasperCal(browser, opts) {
+  const ctx = await _ctx(browser, opts);
+  await ctx.addInitScript(() => {
+    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
+    try { sessionStorage.setItem('syncview_kasper_unlocked', 'ok'); } catch (e) {}
+  });
+  const page = await ctx.newPage();
+  _capture(page);
+  await page.goto(ORIGIN + '/index.html?Kasper=1&v2debug=1#kasper', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.waitForFunction(() => typeof window._kasperGotoTab === 'function' && typeof window._kasperLoadReview === 'function', { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => { try { window._kasperGotoTab('review'); } catch (e) {} });
+  await page.waitForTimeout(800);
+  return page;
 }
 
 // Kasper review surface for the SAMPLES sub-tab (M5a). Opens ?Kasper=1&sxr=1,
@@ -244,4 +304,4 @@ async function kasper(browser, opts) {
   return page;
 }
 
-module.exports = { PW, launch, open, smm, client, kasper, up, archiveSafe, upCal, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };
+module.exports = { PW, launch, open, smm, client, kasper, smmCal, clientCal, kasperCal, up, archiveSafe, upCal, archiveCalSafe, reorder, supa, supaCal, supaEvents, poll, appErrs, ORIGIN, SUPA, KEY, COURIER, linearCalls, resetLinearCalls, setSubissuesResp };

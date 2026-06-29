@@ -3504,6 +3504,9 @@
         .ked-stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 3px; }
         .ked-stat-sub { font-size: 0.66rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
         .ked-stat-sep { width: 1px; align-self: stretch; min-height: 34px; background: var(--border); }
+        .ked-avgtoggle { display: inline-flex; background: #f1f1ef; border-radius: 8px; padding: 2px; }
+        .ked-avgtoggle-btn { border: none; background: transparent; font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); padding: 4px 11px; border-radius: 6px; cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .ked-avgtoggle-btn.is-active { background: #fff; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
@@ -29966,6 +29969,7 @@
         editorsExpanded: {},  // editorKey -> true (expanded video list visible)
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
+        editorsAvgMode: false, // false = weekly totals, true = per-workday averages
         filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,runwayDate,daysLeft,status,reason}], loadedAt }
         filmingLoading: false,
         filmingError: null,
@@ -32553,6 +32557,10 @@
             <div class="kasper-toolbar">
                 <div class="ked-meta-week" id="kedWeekLabel">&nbsp;</div>
                 <div class="ked-toolbar-actions">
+                    <div class="ked-avgtoggle" role="group" aria-label="Show totals or per-day averages">
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? '' : ' is-active'}" data-mode="total" onclick="_kasperSetEditorsAvg(false)">Totals</button>
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? ' is-active' : ''}" data-mode="avg" onclick="_kasperSetEditorsAvg(true)">Per day</button>
+                    </div>
                     <button type="button" class="ked-info-btn" id="kedInfoBtn" onclick="_kedToggleInfo()" aria-label="About this view" title="About this view">
                         <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><path d="M7 9.7V6.4M7 4.5v.05"/></svg>
                     </button>
@@ -32589,6 +32597,14 @@
         const panel = document.getElementById('kedInfoPanel');
         if (!panel) return;
         panel.hidden = !panel.hidden;
+    }
+
+    // Flip the whole tab between weekly totals and per-workday averages.
+    function _kasperSetEditorsAvg(on) {
+        _kasperState.editorsAvgMode = !!on;
+        document.querySelectorAll('.ked-avgtoggle-btn').forEach(b =>
+            b.classList.toggle('is-active', (b.dataset.mode === 'avg') === !!on));
+        _kedPaint();
     }
 
     // YYYY-MM-DD for last week's Monday in Chicago time. The workflow's
@@ -32853,7 +32869,7 @@
     // finishes = reached Approved/Posted; touched = distinct videos involved.
     function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
-        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0;
+        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
@@ -32872,11 +32888,15 @@
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
+            editHeldMs += court.editingMs;
+            tweakHeldMs += court.tweakMs;
         }
         const workUnits = firstCuts + tweakRounds;
+        const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
         return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
-                 loadVideos, loadEditing, loadTweaks, stillOpen };
+                 loadVideos, loadEditing, loadTweaks, stillOpen,
+                 editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
     }
 
     // Per-editor stats, memoised on the editor object so _kedPaint (shared
@@ -32889,6 +32909,20 @@
         if (ed) { try { Object.defineProperty(ed, '_kedStats', { value: s, enumerable: false }); } catch (e) { ed._kedStats = s; } }
         return s;
     }
+
+    // Plain-English hover copy for each number — explains what it counts, for
+    // someone who doesn't know the internal vocabulary. Same in either view.
+    const _KED_TIPS = {
+        plate:     "Videos that were sitting with him last week — ones he was still editing, plus ones that came back for changes he hadn't finished and re-sent yet. “Still open” = ones still on him when the week ended.",
+        pushed:    "Each time he finished a video and moved it on for review, it counts once. A brand-new edit is a “first cut”; a video that came back with changes, which he fixed and sent again, is a “tweak round”.",
+        firstCut:  "First cuts: brand-new videos he edited and sent on for review for the first time.",
+        tweak:     "Tweak rounds: videos that came back with requested changes, which he fixed and sent on again.",
+        editing:   "Videos he was still editing the first version of.",
+        inTweaks:  "Videos that came back for changes and were waiting on his fixes.",
+        stillOpen: "Videos still on his plate when the week ended — he hadn't finished and sent them back yet.",
+        touched:   "How many different videos he worked on at all last week.",
+        finished:  "Videos that got fully approved (or posted) last week — they crossed the finish line.",
+    };
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
         const key = ed.email || ed.name;
@@ -32925,26 +32959,44 @@
             </div>`;
         }).join('');
 
-        const parts = [`<strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched`];
-        if (stats.finishes) parts.push(`<span class="ked-bd-finished">${stats.finishes} finished</span>`);
+        const avg = !!_kasperState.editorsAvgMode;        // Totals vs Per-day toggle
+        const tipAttr = k => ` data-tip="${_calEscAttr(_KED_TIPS[k])}"`;
+        const n1 = x => (Math.round(x * 10) / 10).toFixed(1);
+
+        // Identity breakdown (always weekly totals).
+        const parts = [`<span${tipAttr('touched')}><strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched</span>`];
+        if (stats.finishes) parts.push(`<span class="ked-bd-finished"${tipAttr('finished')}>${stats.finishes} finished</span>`);
         const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
 
-        // LOAD — how much sat in his court last week.
+        // LOAD — how much sat in his court. Totals = distinct videos this week;
+        // Per-day = average videos in each state on a typical workday.
         const loadParts = [];
-        if (stats.loadEditing) loadParts.push(`${stats.loadEditing} editing`);
-        if (stats.loadTweaks)  loadParts.push(`${stats.loadTweaks} in tweaks`);
-        if (!loadParts.length) loadParts.push('clear');
-        if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip">${stats.stillOpen} still open</span>`);
+        if (avg) {
+            loadParts.push(`<span${tipAttr('editing')}>~${n1(stats.editPerDay)} editing</span>`);
+            loadParts.push(`<span${tipAttr('inTweaks')}>~${n1(stats.tweakPerDay)} in tweaks</span>`);
+        } else {
+            if (stats.loadEditing) loadParts.push(`<span${tipAttr('editing')}>${stats.loadEditing} editing</span>`);
+            if (stats.loadTweaks)  loadParts.push(`<span${tipAttr('inTweaks')}>${stats.loadTweaks} in tweaks</span>`);
+            if (!loadParts.length) loadParts.push('clear');
+            if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip"${tipAttr('stillOpen')}>${stats.stillOpen} still open</span>`);
+        }
         const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
-        const loadTip = "Videos that were sitting with him last week — ones he was still editing, plus ones that came back for changes he hadn't finished and re-sent yet. “Still open” = ones still on him when the week ended.";
+        const loadBig = avg ? n1(stats.editPerDay + stats.tweakPerDay) : stats.loadVideos;
+        const loadLabel = avg ? 'on his plate / day' : 'on his plate';
 
-        // DELIVERIES — what he pushed through.
+        // DELIVERIES — what he pushed through. Totals = this week; Per-day = ÷5 workdays.
         const delivParts = [];
-        if (stats.firstCuts)   delivParts.push(`${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}`);
-        if (stats.tweakRounds) delivParts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
-        if (!delivParts.length) delivParts.push('nothing shipped');
+        if (avg) {
+            delivParts.push(`<span${tipAttr('firstCut')}>~${n1(stats.firstCuts / 5)} first cuts</span>`);
+            delivParts.push(`<span${tipAttr('tweak')}>~${n1(stats.tweakRounds / 5)} tweaks</span>`);
+        } else {
+            if (stats.firstCuts)   delivParts.push(`<span${tipAttr('firstCut')}>${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}</span>`);
+            if (stats.tweakRounds) delivParts.push(`<span${tipAttr('tweak')}>${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}</span>`);
+            if (!delivParts.length) delivParts.push('nothing shipped');
+        }
         const delivSub = delivParts.join(' <span class="ked-id-sep">·</span> ');
-        const delivTip = "Each time he finished a video and moved it on for review, it counts once. A brand-new edit is a “first cut”; a video that came back with changes, which he fixed and sent again, is a “tweak round”.";
+        const delivBig = avg ? stats.avgPerWorkday.toFixed(1) : stats.workUnits;
+        const delivLabel = avg ? 'pushed through / day' : 'pushed through';
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
@@ -32955,15 +33007,15 @@
                     <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-stats">
-                    <div class="ked-stat is-load" data-tip="${_calEscAttr(loadTip)}">
-                        <span class="ked-stat-val">${stats.loadVideos}</span>
-                        <span class="ked-stat-label">on his plate</span>
+                    <div class="ked-stat is-load" data-tip="${_calEscAttr(_KED_TIPS.plate)}">
+                        <span class="ked-stat-val">${loadBig}</span>
+                        <span class="ked-stat-label">${loadLabel}</span>
                         <div class="ked-stat-sub">${loadSub}</div>
                     </div>
                     <div class="ked-stat-sep"></div>
-                    <div class="ked-stat is-deliv" data-tip="${_calEscAttr(delivTip)}">
-                        <span class="ked-stat-val">${stats.workUnits}</span>
-                        <span class="ked-stat-label">pushed through</span>
+                    <div class="ked-stat is-deliv" data-tip="${_calEscAttr(_KED_TIPS.pushed)}">
+                        <span class="ked-stat-val">${delivBig}</span>
+                        <span class="ked-stat-label">${delivLabel}</span>
                         <div class="ked-stat-sub">${delivSub}</div>
                     </div>
                 </div>
@@ -33303,6 +33355,7 @@
     window._kasperToggleAllClients = _kasperToggleAllClients;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
+    window._kasperSetEditorsAvg = _kasperSetEditorsAvg;
 
     /* ──────────────────────────────────────────────────────────────────
        Global styled tooltip — replaces every browser-native title popup

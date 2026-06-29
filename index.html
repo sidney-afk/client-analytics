@@ -26086,6 +26086,26 @@
             : '';
         return `<div class="cal-organizer-wrap"><div class="cal-organizer-strip${empty ? ' is-empty' : ''}${sxrState.selectMode ? ' cal-selecting' : ''}" id="sxrStrip">${posts.map(p => _sxrRenderInlineCard(p, false, false)).join('')}${addBtn}</div>${selectBar}</div>`;
     }
+    // URGENT ping predicate — Video only, at Tweaks Needed with a Linear sub-issue
+    // to tag the editor from. Mirror of _calShowUrgent.
+    function _sxrShowUrgent(p, c) {
+        if (!p || c !== 'video') return false;
+        if (_sxrNormStatus(p[c + '_status'] || '') !== 'Tweaks Needed') return false;
+        return !!String(p.linear_issue_id || '').trim();
+    }
+    // Ping the editor in #video-editing for an urgent video tweak. Reuses the
+    // calendar's shared confirm→POST→latch dispatch (same webhook + message), just
+    // sourcing the video sub-issue + client name from sxr state.
+    function _sxrSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const issue = String(post.linear_issue_id || '').trim();
+        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        _calUrgentSlackDispatch(btn, issue, String(sxrState.client || '').trim(), post.name);
+    }
     function _sxrRenderInlineCard(p, isBlank, isCurrent) {
         const pid = _sxrEscAttr(p.id);
         const ro = _isClientLink && !isBlank;
@@ -26097,12 +26117,22 @@
         const subStatusHtml = (ro || _isClientLink) ? '' : SXR_COMPONENTS.map(c => {
             const cs = _sxrNormStatus(p[c + '_status'] || 'In Progress');
             const slug = _sxrStatusSlug(cs);
-            return `<div class="cal-fld-substatus-wrap cal-comp-${c}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
-                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')">
+            // A component with no Linear sub-issue can't be routed, so its status
+            // pill is locked until one is linked (mirror _calRenderInlineCard).
+            const link = String(p[c === 'graphic' ? 'graphic_linear_issue_id' : 'linear_issue_id'] || '').trim();
+            const lock = !link ? ' is-locked' : '';
+            // URGENT ping — Video only, once it's at Tweaks Needed with a Linear
+            // sub-issue we can tag the editor from.
+            const showUrgent = _sxrShowUrgent(p, c);
+            const urgentBtn = showUrgent
+                ? `<button type="button" class="cal-urgent-btn" data-urgent-pid="${pid}" onclick="_sxrSendUrgentSlack(event,'${pid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`
+                : '';
+            return `<div class="cal-fld-substatus-wrap cal-comp-${c}${lock}${showUrgent ? ' has-urgent' : ''}" data-val="${_sxrEscAttr(cs)}" data-substatus-pid="${pid}" data-substatus-comp="${c}">
+                <button type="button" class="cal-fld-substatus-trigger cal-fld-status-${slug}" onclick="_sxrStatusToggleMenu(event,'${pid}',this,'${c}')"${lock ? ' disabled title="Link a Linear sub-issue first"' : ''}>
                     <span class="cal-fld-substatus-dot" style="background:${COMP_PILL_COLORS[c]}"></span>
                     <span class="cal-fld-substatus-comp">${_sxrEsc(COMP_LABELS[c])}</span>
                     <span class="cal-fld-substatus-label">${_sxrEsc(_sxrStatusLabel(cs))}</span>
-                </button>
+                </button>${urgentBtn}
             </div>`;
         }).join('');
         const setAllHtml = (ro || _isClientLink || isBlank) ? '' : `<button type="button" class="cal-fld-setall" onclick="_sxrOpenSetAllMenu(event,'${pid}',this)" title="Set both statuses to the same value">
@@ -27779,6 +27809,26 @@
        v1 omits URGENT + the Replies/Messages union (per SAMPLES_PARITY_LOG M5a).
        ============================================================ */
     const _sxrKasperState = { items: [], loading: false, loaded: false, error: false, expanded: Object.create(null), drafts: Object.create(null), saving: Object.create(null) };
+    // Per-component Kasper-queue visibility (mirror of _calCompKasperVisible):
+    //  · an UNLINKED thumbnail is not reviewable — gated out so a junk
+    //    'Kasper Approval' graphic_status can't surface a panel nobody can act on;
+    //  · a component still shows while at Tweaks Needed IF Kasper has an
+    //    unresolved tweak on it (the re-review hand-off).
+    function _sxrCompHasUnresolvedKasperTweak(post, comp) {
+        const list = _sxrCommentsFor(post, comp);
+        if (!Array.isArray(list)) return false;
+        return list.some(x => x && x.role === 'kasper' && _sxrMsgIsTweak(x) && !x.done && !x.deleted);
+    }
+    function _sxrCompKasperVisible(post, comp) {
+        if (comp === 'graphic' && !String(post.graphic_linear_issue_id || '').trim()) return false;
+        const cs = _sxrNormStatus(post[comp + '_status'] || '');
+        if (cs === 'Kasper Approval') return true;
+        if (cs === 'Tweaks Needed' && _sxrCompHasUnresolvedKasperTweak(post, comp)) return true;
+        return false;
+    }
+    function _sxrPostKasperVisible(post) {
+        return SXR_REVIEW_COMPONENTS.some(c => _sxrCompKasperVisible(post, c));
+    }
     function _sxrKasperFindItem(pid) { return (_sxrKasperState.items || []).find(it => it && it.post && it.post.id === pid); }
     async function _sxrKasperFetchAllSamples() {
         const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*';
@@ -27794,7 +27844,7 @@
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
                 p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p);
-                if (!SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval')) continue;
+                if (!_sxrPostKasperVisible(p)) continue;
                 const slug = String(p.client || '');
                 items.push({ post: p, slug, client: wlCanonicalClient(slug) || slug });
             }
@@ -27819,7 +27869,7 @@
         const expanded = !!_sxrKasperState.expanded[pid];
         const info = _sxrDeriveThumbInfo(p);
         const thumb = info.url ? `<img loading="lazy" src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
-        const awaiting = SXR_REVIEW_COMPONENTS.filter(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+        const awaiting = SXR_REVIEW_COMPONENTS.filter(c => _sxrCompKasperVisible(p, c));
         const video = String(p.asset_url || '').trim();
         const watch = video ? `<a class="kcard-watch-btn" href="${_sxrEscAttr(video)}" target="_blank" rel="noopener" onclick="event.stopPropagation();"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Watch video</a>` : '';
         const body = expanded ? `<div class="cal-review-body" style="grid-template-columns:repeat(${awaiting.length || 1},minmax(0,1fr));" onclick="event.stopPropagation();">${awaiting.map(c => _sxrKasperPanelHtml(item, c)).join('')}</div>` : '';
@@ -27897,7 +27947,7 @@
             const url = _sxrLinearUrlFor(p, comp);
             if (url && patch[comp + '_status']) _sxrPushStatusToLinear(url, patch[comp + '_status']);
             if (url && linearComment) _sxrPostLinearComment(url, linearComment, 'Kasper');
-            if (!SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval')) {
+            if (!_sxrPostKasperVisible(p)) {
                 _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
                 _sxrKasperRenderQueue();
             } else _sxrKasperRepaint(pid);

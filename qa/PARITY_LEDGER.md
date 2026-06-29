@@ -54,7 +54,21 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
 | **URGENT ping affordance** (video@TweaksNeeded+link) | 🔴 **GAP** — samples has no `_sxrShowUrgent` / URGENT button at all |
 | **Status-pill lock for an unlinked component** | 🔴 **GAP** — cal disables the pill; samples lets you set any status |
 
-## ⚠ Open findings — divergences pending decision
+## ✅ Findings RESOLVED — all 4 gaps fixed (PR #615)
+
+All four are faithful ports of the calendar; `parity_logic.js` now reports **NO GAPS**.
+- **#4 Status-pill lock** — `_sxrRenderInlineCard` now disables a component's status pill
+  (`is-locked` + "Link a Linear sub-issue first") until its Linear sub-issue is linked.
+- **#1 Unlinked-thumbnail gate + #2 re-review hand-off** — new `_sxrCompKasperVisible` /
+  `_sxrPostKasperVisible` / `_sxrCompHasUnresolvedKasperTweak` (mirror of `_calCompKasperVisible`),
+  used at all three Kasper-queue sites (load, render-awaiting, post-action removal).
+- **#3 URGENT ping** — new `_sxrShowUrgent` + URGENT button on the Sheet card, wired to a
+  new `_sxrSendUrgentSlack` that reuses the calendar's shared `_calUrgentSlackDispatch`.
+
+> Note for review: with #2, after Kasper requests-a-change / approve-after-tweaks, his card
+> now **stays** in the queue (re-review hand-off) instead of vanishing — matching the calendar.
+
+<details><summary>Original finding details (now fixed)</summary>
 
 **Theme A — unlinked components aren't gated (2 gaps, connected):**
 4. **No status-pill lock.** Calendar disables a component's status pill until a Linear
@@ -86,6 +100,8 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
 |---|---|
 | Approve-split routing (primary/alt = seenByKasper ? client : kasper) | ✅ byte-identical source; rides `hasBeenToKasper` (already ✅) |
 | Composer placeholder text | ◌ by-design copy refinement (rebuild reworded — not a behavioural gap) |
+
+</details>
 
 ## Coverage status — high-value parity territory largely exhausted
 Six batches, **140+ comparisons** across status math, routing predicates, visibility,

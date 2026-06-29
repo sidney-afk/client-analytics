@@ -214,7 +214,11 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     //     SXR_REVIEW_COMPONENTS.some(c => normStatus(p[c+'_status']) === 'Kasper Approval')
     //     — neither guard. (Samples has NO _sxrPostKasperVisible function.)
     {
-      const sxrKasperVisible = (p) => ['video', 'graphic'].some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
+      // Now that the rebuild has a real predicate, compare it directly (was the
+      // inline _sxrKasperLoadQueue rule before the fix).
+      const sxrKasperVisible = (p) => (typeof _sxrPostKasperVisible === 'function')
+        ? _sxrPostKasperVisible(p)
+        : ['video', 'graphic'].some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
       rec('kasperQueueVisible', 'video@Kasper',
           _calPostKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }),
           sxrKasperVisible({ video_status: 'Kasper Approval', graphic_status: 'In Progress' }), false);

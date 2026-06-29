@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/readme-sync-reminder.sh\"",
+            "statusMessage": "Checking README is in sync with the app…"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -28049,8 +28049,14 @@
         finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
     }
     function _sxrKasperRenderQueue() {
+        // Keep the Samples subtab pill live even when this fires from a background
+        // load while another Kasper tab is showing.
+        if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
         const host = document.getElementById('kasperContent');
         if (!host) return;
+        // #kasperContent is shared by every Kasper tab; a background samples load
+        // landing while another tab is open must not overwrite that tab's content.
+        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
         if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
         const st = _sxrKasperState;
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
@@ -30281,6 +30287,12 @@
         // in-memory state.
         if (!_kasperState.lastLoaded) _kasperHydrateCache();
         _kasperRenderTab();
+        // Paint every subtab's count from whatever state we already have (review
+        // comes straight from the entry cache), then fetch the rest in the
+        // background so all the pills show a real number — not the placeholder dot —
+        // without the user having to open each tab.
+        _kasperRefreshTabCounts();
+        _kasperEnsureAllTabCounts();
         _kasperEnsureAutoRefresh();
     }
 
@@ -30790,6 +30802,7 @@
                 _kasperState.filmingData = { rows: cached };
                 _kasperState.filmingLoadedAt = Date.now();
                 _filmsPaint();
+                _kasperRefreshTabCounts();
                 return;
             }
         }
@@ -30840,6 +30853,10 @@
         } finally {
             _kasperState.filmingLoading = false;
             if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+            // Covers the empty-rows and success paths (and is a harmless no-op on
+            // error, where filmingData is guarded) — the Filming pill updates even
+            // when the user is on another Kasper tab.
+            _kasperRefreshTabCounts();
         }
     }
 
@@ -30917,6 +30934,51 @@
         const n = (_kasperState.replies || []).length;
         const el = document.querySelector('[data-kasper-count="replies"]');
         if (el) el.textContent = String(n);
+    }
+    /* Subtab count pills. Each tab's own render path only refreshes its OWN pill
+       while that tab is mounted (e.g. _kasperPaintReview bails when the review
+       body isn't on screen), so every OTHER tab sat on the placeholder dot until
+       you visited it. These keep a real number on EVERY tab at all times:
+       _kasperRefreshTabCounts paints from current state and touches ONLY the tiny
+       count pills — never #kasperContent — so it's safe to call from any tab or a
+       background load; _kasperEnsureAllTabCounts fetches the data behind every
+       counted tab once on entry so the numbers appear without opening each tab. */
+    function _kasperSetTabCount(key, n) {
+        const el = document.querySelector('[data-kasper-count="' + key + '"]');
+        if (el) el.textContent = String(n);
+    }
+    function _kasperRefreshTabCounts() {
+        // review = cards still waiting on Kasper's decision. _kasperState.items is
+        // also restored from cache on entry, so a returning Kasper sees a real
+        // number before the network round-trip even finishes.
+        if (Array.isArray(_kasperState.items) && _kasperState.lastLoaded) {
+            _kasperSetTabCount('review', _kasperPartitionItems(_kasperState.items).waiting.length);
+        }
+        // replies = unread message threads — owned by _kasperUpdateReplyCount, which
+        // every load already calls. Deliberately NOT painted here: it isn't part of
+        // the entry cache, so doing so would flash a stale 0 before the first fetch.
+        // samples = samples awaiting review (only present when that subtab exists).
+        if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
+            _kasperSetTabCount('samples', (_sxrKasperState.items || []).length);
+        }
+        // filming = clients not yet covered (a plan is needed now or soon).
+        const fd = _kasperState.filmingData;
+        if (fd && Array.isArray(fd.rows)) {
+            _kasperSetTabCount('filming', fd.rows.filter(r => r && r.status !== 'green').length);
+        }
+    }
+    function _kasperEnsureAllTabCounts() {
+        // The active tab's render path already kicked its own load and set a loading
+        // flag synchronously (before its first await), so the loading/loaded guards
+        // below dedupe it — we never double-fetch the tab that's showing. Each loader
+        // calls _kasperRefreshTabCounts() when it lands.
+        if (!_kasperState.loading) _kasperLoadReview(true);           // feeds review + replies
+        if (typeof _sxrKasperLoadQueue === 'function'
+            && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
+            _sxrKasperLoadQueue();
+        }
+        if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
     }
     let _kasperRepliesPaintRetry = null;
     function _kasperRenderReplies() {
@@ -31239,6 +31301,7 @@
             _kasperPersistCache();
             _kasperPaintReview();
             _kasperUpdateReplyCount();
+            _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
             if (_kasperState.tab === 'replies') _kasperRenderReplies();
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);

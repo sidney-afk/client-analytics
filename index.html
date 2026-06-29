@@ -13940,10 +13940,6 @@
         return fc.some(c => c && c.id && _calMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
     }
     const CAL_CONFLICT_WINDOW_MS = 90 * 1000;
-    /* IDs we've already warned about in the current session — prevents
-       the same conflict from re-firing the dialog on every 30 s poll
-       until either the user re-saves (refresh) or the entry ages out. */
-    const _calConflictNotified = new Set();
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
@@ -19838,7 +19834,6 @@
                     : {}
             });
             _calLastLocalWriteAt = Date.now();   // refresh the self-echo window: the realtime echo fires just after this success
-            _calConflictNotified.delete(realId);
             // Save landed — drop any failed-create flag so the "Save failed"
             // chip clears and the poll-merge no longer force-keeps the card on
             // that basis (the recent-save guard now covers it).

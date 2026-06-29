@@ -396,7 +396,7 @@ v2 is live behind `?v2=1` and in active testing on `sidneylaruel`. Work merged
   sync → mirror → realtime).
 
 ### Before Phase 3 — run the full-system audit
-`PHASE3_AUDIT_PROMPT.md` is a paste-in prompt for a fresh session: audit every
+`docs/archive/PHASE3_AUDIT_PROMPT.md` is a paste-in prompt for a fresh session: audit every
 n8n workflow, the FE v2 path, Sheet↔Supabase parity, Supabase RLS/realtime, and
 security, with an empirical go/no-go for flipping v2 to default.
 

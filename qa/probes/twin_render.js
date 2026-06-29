@@ -118,6 +118,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const INTENTIONAL = [
     'Alt caption', 'Generate', 'Show more', 'Caption In Progress', 'Caption',   // samples has no caption component
     'Toggle client visibility',                                                  // samples-only creative-direction eye
+    'Tag this card with a color',                                                // colour tag — EXCLUDED per SAMPLES_REBUILD_SPEC.md:98
+    'Instagram', 'YouTube', 'TikTok', 'Facebook', 'LinkedIn',                    // platforms strip — EXCLUDED per spec:98
   ];
   const isIntentional = (label) => INTENTIONAL.some(i => label === i || label.includes(i));
 

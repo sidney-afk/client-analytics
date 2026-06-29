@@ -15,6 +15,12 @@ couldn't see the thumbnail. **Fixed** `_sxrReviewComponentPreview` to emit the c
 Review + Kasper panels, which share it). `render_parity.js` now renders both previews and
 diffs the computed image CSS → **RENDER PARITY HELD**.
 
+**Render-parity coverage (growing each loop):**
+- ✅ Review thumbnail preview (was cropped → fixed) · Review video preview (blurred backdrop)
+- ✅ Sheet-card thumbnail image (object-fit: contain, 184px — matches)
+- ✅ Notes button: unread dot (orange) + AAT badge (green bg/text — matches)
+- *Next visual territory:* status/substatus pills, review-panel structure, Kasper card, Notes-modal comment rows, client-portal layout.
+
 - **Legend:** ✅ parity held · 🔧 divergence found→fixed · ◌ by-design difference (not a bug).
 
 ## Covered

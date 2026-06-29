@@ -58,15 +58,53 @@ function diff(name, cal, sxr, keys) {
       return info;
     };
     const p = mkPost('g1');
-    return {
+    const R = {
       graphic: { cal: dig(_calReviewComponentPreview(p, 'graphic')), sxr: dig(_sxrReviewComponentPreview(p, 'graphic')) },
       video: { cal: dig(_calReviewComponentPreview(p, 'video')), sxr: dig(_sxrReviewComponentPreview(p, 'video')) },
     };
+
+    // ── Sheet-card thumbnail (full inline card render) ──
+    try {
+      const cp = mkPost('card_c'), sp = mkPost('card_s');
+      calState.posts = [cp]; sxrState.posts = [sp];
+      const digThumb = (html) => {
+        const host = document.createElement('div'); host.style.width = '320px'; host.innerHTML = html; document.body.appendChild(host);
+        const img = host.querySelector('.cal-card-thumb img');
+        const info = { hasThumbImg: !!img };
+        if (img) { const cs = getComputedStyle(img); info.objectFit = cs.objectFit; info.maxHeight = cs.maxHeight; info.maxWidth = cs.maxWidth; }
+        host.remove(); return info;
+      };
+      R.card = { cal: digThumb(_calRenderInlineCard(cp, false, false)), sxr: digThumb(_sxrRenderInlineCard(sp, false, false)) };
+    } catch (e) { R.cardErr = e.message; }
+
+    // ── Notes button: unread dot + AAT badge + count (computed styling) ──
+    try {
+      const now = new Date().toISOString();
+      const np = mkPost('nb');
+      np.kasper_approved_after_tweaks = 'video'; np.video_status = 'For SMM Approval';
+      np.video_comments = [{ id: 'c1', parent_id: null, role: 'client', audience: 'client', is_tweak: false, body: 'hi', created_at: now, updated_at: now }];
+      np.comments = np.video_comments;
+      const digBtn = (html) => {
+        const host = document.createElement('div'); host.innerHTML = html; document.body.appendChild(host);
+        const dot = host.querySelector('.cal-comments-dot'), badge = host.querySelector('.cal-aat-badge'), cnt = host.querySelector('.cal-comments-count');
+        const info = { hasDot: !!dot, hasBadge: !!badge };
+        if (badge) { const cs = getComputedStyle(badge); info.badgeBg = cs.backgroundColor; info.badgeColor = cs.color; }
+        if (dot) { const cs = getComputedStyle(dot); info.dotBg = cs.backgroundColor; }
+        host.remove(); return info;
+      };
+      R.notesBtn = { cal: digBtn(_calCommentsBtnHtml(np, np.id)), sxr: digBtn(_sxrCommentsBtnHtml(np, np.id)) };
+    } catch (e) { R.notesErr = e.message; }
+
+    return R;
   });
 
-  console.log('═══ RENDER parity: review preview (calendar vs samples) ═══\n');
-  diff('Thumbnail (graphic) preview', out.graphic.cal, out.graphic.sxr, ['hasImg', 'objectFit', 'maxWidth', 'maxHeight']);
-  diff('Video preview', out.video.cal, out.video.sxr, ['hasImg', 'objectFit', 'maxHeight']);
+  console.log('═══ RENDER parity: calendar vs samples (computed visual CSS) ═══\n');
+  diff('Review: thumbnail (graphic) preview', out.graphic.cal, out.graphic.sxr, ['hasImg', 'objectFit', 'maxWidth', 'maxHeight']);
+  diff('Review: video preview', out.video.cal, out.video.sxr, ['hasImg', 'objectFit', 'maxHeight']);
+  if (out.cardErr) console.log('  ERR Sheet-card thumb:', out.cardErr);
+  else diff('Sheet card: thumbnail image', out.card.cal, out.card.sxr, ['hasThumbImg', 'objectFit', 'maxHeight', 'maxWidth']);
+  if (out.notesErr) console.log('  ERR Notes button:', out.notesErr);
+  else diff('Notes button: dot + AAT badge', out.notesBtn.cal, out.notesBtn.sxr, ['hasDot', 'hasBadge', 'badgeBg', 'badgeColor', 'dotBg']);
 
   console.log('\n  page errors:', errs.length, errs.slice(0, 3));
   console.log('\n' + (fails.length

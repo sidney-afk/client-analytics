@@ -3,7 +3,18 @@
 Running record of what the parity system has compared, so each loop iteration
 pushes into fresh territory instead of re-treading. Calendar = source of truth.
 
-- **Harnesses:** `qa/probes/parity_check.js` (affordances/DOM) · `qa/probes/parity_logic.js` (pure logic) · `qa/probes/verify_chooser.js` (chooser routing).
+- **Harnesses:** `qa/probes/parity_check.js` (affordances/DOM) · `qa/probes/parity_logic.js` (pure logic) · `qa/probes/render_parity.js` (**rendered visual** — object-fit/dimensions) · `qa/probes/verify_chooser.js` (chooser routing).
+
+### Batch 7 — RENDER parity (`render_parity.js`) — the test type that was missing
+Earlier batches diffed function *logic*; none rendered a component and compared how
+it *looks*. That blind spot let a real bug ship: the review **thumbnail preview** was
+cropped on samples (`.cal-review-graphic-tile img { object-fit: cover; max-height:200px }`)
+while the calendar shows it whole (`object-fit: contain; max 260×220`) — so the client
+couldn't see the thumbnail. **Fixed** `_sxrReviewComponentPreview` to emit the calendar's
+`cal-review-preview-thumb` / `cal-review-preview-thumb-btn` markup (also fixes the SMM
+Review + Kasper panels, which share it). `render_parity.js` now renders both previews and
+diffs the computed image CSS → **RENDER PARITY HELD**.
+
 - **Legend:** ✅ parity held · 🔧 divergence found→fixed · ◌ by-design difference (not a bug).
 
 ## Covered

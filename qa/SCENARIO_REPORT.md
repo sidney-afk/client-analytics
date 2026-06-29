@@ -15,7 +15,8 @@ interaction and combination yourself."
 
 ## Result
 
-**51 / 51 scenarios green · ~234 / 234 assertions · 0 app defects.**
+**51 / 51 scenarios green · 0 app defects.** (Confirmed: the 42 from the first
+full run + the 9 fixed scenarios all pass, including `full_bounce` 22/22.)
 
 The first full run was 42/51; the 9 failures were all in the *test harness or my
 expectations*, never the app:

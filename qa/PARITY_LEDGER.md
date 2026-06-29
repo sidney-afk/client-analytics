@@ -19,7 +19,14 @@ diffs the computed image CSS → **RENDER PARITY HELD**.
 - ✅ Review thumbnail preview (was cropped → fixed) · Review video preview (blurred backdrop)
 - ✅ Sheet-card thumbnail image (object-fit: contain, 184px — matches)
 - ✅ Notes button: unread dot (orange) + AAT badge (green bg/text — matches)
-- *Next visual territory:* status/substatus pills, review-panel structure, Kasper card, Notes-modal comment rows, client-portal layout.
+- ✅ Status substatus pills: per-status color (Kasper peach / Tweaks orange — matches)
+- ✅ Review-panel Approve button (green rgb(22,163,74) on white — matches)
+- *Next visual territory:* Notes-modal comment rows, Kasper card, client-portal layout.
+
+> **Pattern:** the samples reuses the calendar's CSS classes, so shared surfaces render
+> identically. The one render bug (thumbnail) happened because it introduced a NEW class
+> (`cal-review-graphic-tile`) instead of reusing `cal-review-preview-thumb-btn`. Highest
+> render-risk = wherever samples defines its own `.cal-*`/`.sxr-*` visual class.
 
 - **Legend:** ✅ parity held · 🔧 divergence found→fixed · ◌ by-design difference (not a bug).
 

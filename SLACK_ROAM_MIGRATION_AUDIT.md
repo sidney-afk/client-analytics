@@ -4,6 +4,10 @@
 > **Scope:** every place the SyncView system depends on Slack, and exactly what must change to run on Roam.
 > Covers the n8n workflows, the SyncView SPA (`index.html`), the Google Sheets identity maps, the
 > Supabase data model, edge functions, CI, and tests — across `client-analytics` and `synchrosocial`.
+>
+> **Decisions confirmed (2026-06-29):** (1) "Roam" = **ro.am**, the virtual-office product. (2) Every
+> notification that is a DM today will be delivered as a **channel/group post** on Roam's **stable** API — we
+> deliberately avoid the Alpha DM/user-lookup endpoints. See §Feasibility and §Migration plan.
 
 ---
 
@@ -25,19 +29,19 @@ Sheets identity maps that feed both. After triaging all **72 n8n workflows**, th
   functions, and in CI. **No inbound Slack triggers** — every touchpoint is outbound, with one Slack-modal
   *input* flow (the "Content Ready" slash command in `AI WORKFLOW`).
 
-**Can we send messages to Roam? Yes — with one important caveat.** The target is almost certainly **ro.am**
-(the Roam virtual office), which has a documented REST API (`https://api.ro.am/v1`, Bearer auth) reachable from
-n8n's generic **HTTP Request** node. **There is no native n8n Roam node and no community node**, so every Slack
-node must be rebuilt as an HTTP Request call.
+**Can we send messages to Roam? Yes.** The platform is confirmed as **ro.am** (the Roam virtual office), which has
+a documented REST API (`https://api.ro.am/v1`, Bearer auth) reachable from n8n's generic **HTTP Request** node.
+**There is no native n8n Roam node and no community node**, so every Slack node must be rebuilt as an HTTP Request
+call — but all of it targets Roam's **stable** endpoint.
 
 - **Channel / group posts are stable and production-safe today** via `POST /v1/chat.sendMessage`.
-- **Direct messages and all user-ID lookup live only in Roam's *Alpha* Chat API** (`chat.post`, `user.*`), which
-  Roam labels "may change."
+- DMs + user lookup exist only in Roam's *Alpha* Chat API — **so every notification, including the 5 that are DMs
+  today, is being routed through channels instead** (decision below). This keeps the whole migration on the stable API.
 
-**Single biggest risk:** the entire **DM half** of the migration (3 onboarding DMs to Sidney + the SMM DMs in
-`VIDEO PRODUCTION AUTOMATION`) is gated on an **Alpha API**. Combined with the unconfirmed platform identity, this
-is the #1 thing to validate before committing engineering time. Secondary structural risk: the weekly-report
-messages are **Slack Block Kit**, which does not port and must be re-authored.
+**Single biggest risk (now that DMs are off the table):** the weekly-report messages are **Slack Block Kit**, which
+does not port and must be re-authored as Roam blocks/markdown. Two smaller open items: confirming that an
+`@mention` of a specific person renders inside a **stable** channel post (needed so the SMM / editor still gets
+pinged), and whether Roam supports programmatic channel **member invite** for the `AI WORKFLOW` onboarding flow.
 
 ---
 
@@ -49,11 +53,11 @@ Three products carry the name; only one fits a Slack replacement.
 
 | Candidate | What it is | Channels + DMs? | Messaging API? | Verdict |
 |---|---|---|---|---|
-| **ro.am** (Roam virtual office / "Roam HQ") | Virtual-office collaboration platform; chat layer has channel-style groups + DMs | Yes | Yes — REST `api.ro.am/v1` | **Almost certainly the target** |
+| **ro.am** (Roam virtual office / "Roam HQ") | Virtual-office collaboration platform; chat layer has channel-style groups + DMs | Yes | Yes — REST `api.ro.am/v1` | **Confirmed target** |
 | Roam Research (roamresearch.com) | Networked note-taking / PKM tool | No | Graph-blocks API only; no message-send | Ruled out |
 | Any other "Roam" chat product | — | — | — | None found |
 
-> ⚠️ **Open question #1 (blocking):** confirm "Roam" = **ro.am**. The entire audit assumes this.
+> ✅ **Confirmed (2026-06-29):** "Roam" = **ro.am**.
 
 ### The API (ro.am)
 
@@ -87,8 +91,15 @@ Bot" / "Slack account 2") is replaced by Roam's `sender` object / an Organizatio
 - No documented rate limits for bulk sends (only payload size limits). Any "n8n integration" Roam advertises is
   marketing (MCP/Zapier-style), **not** a verified node. Line breaks may require double newlines.
 
-**Bottom line:** Channel posts — feasible and stable today. DMs — feasible but on an unstable API. Channel
+**Bottom line:** Channel posts — feasible and stable today. DMs — feasible but only on an unstable API. Channel
 *provisioning* (create + invite) — creation likely possible; **invite is the open risk.**
+
+> **Decision (2026-06-29):** because the team communicates primarily in channels, **every notification that is a DM
+> today will be re-routed to a channel/group post.** This keeps the entire migration on Roam's **stable**
+> `chat.sendMessage` API and eliminates any dependency on the Alpha DM/user-lookup endpoints. The only Alpha-ish
+> residual is confirming that an `@mention` of a specific user renders inside a stable channel post (so the right
+> person is still pinged); the handful of user IDs needed for those mentions will be collected **once, manually**,
+> into the sheet rather than via the Alpha `user.lookup` API.
 
 ---
 
@@ -174,27 +185,30 @@ in any sheet.**
 
 ### 1) Outbound notifications
 
-- **DMs to Sidney** (`hxLFIdKG9hUIzukO`, `ljNY7CKYLKzMOACZ`, `y1bEpXLggfR5HqYV`): replace the Slack DM node with
-  HTTP → **Alpha** DM; remap hardcoded `U0ACW93FS30` → Sidney's Roam ID; keep fail-soft
-  `onError:continueRegularOutput`.
-- **SMM DMs** (`BrJSe8zCKUccfmIq`, 2 nodes): HTTP → Alpha DM; rewrite the hardcoded SMM-name→ID Code map to Roam IDs.
-- **Weekly client reports** (`BTxic5NSaCMtZMh6` PROD, `ukLGHr6uDJIEP1pM` TEST): HTTP → **stable
-  `chat.sendMessage`** per client; **rewrite Block Kit** (header/section/fields/divider/`watch_reel` button) into
-  Roam blocks or markdown + a plain link; drive the channel from the new Roam column.
-- **Urgent editor ping** (`TJVMyfwl85qrFGeK`): HTTP → **stable `chat.sendMessage`** to the Roam #video-editing
-  group **for the post itself** — but the **@mention requires Alpha user resolution**, so this workflow straddles
-  stable + Alpha (see plan).
+> All of these become **HTTP → stable `chat.sendMessage`** (channel/group). No Alpha endpoints.
+
+- **Onboarding notifications to Sidney** (`hxLFIdKG9hUIzukO`, `ljNY7CKYLKzMOACZ`, `y1bEpXLggfR5HqYV`): **were DMs →
+  now post to an internal notifications channel** (Sidney watches it). Drop the hardcoded `U0ACW93FS30`; keep
+  fail-soft `onError:continueRegularOutput`.
+- **Linear-submission SMM notification** (`BrJSe8zCKUccfmIq`, 2 nodes): **was a DM → now a channel post that
+  `@mentions` the responsible SMM.** Replace the hardcoded SMM-name→Slack-ID Code map with the SMM's Roam user ID
+  (for the mention) + the destination channel.
+- **Weekly client reports** (`BTxic5NSaCMtZMh6` PROD, `ukLGHr6uDJIEP1pM` TEST): per-client channel post; **rewrite
+  Block Kit** (header/section/fields/divider/`watch_reel` button) into Roam blocks or markdown + a plain link;
+  drive the channel from the new Roam column.
+- **Urgent editor ping** (`TJVMyfwl85qrFGeK`): channel post to the Roam "#video-editing" group, `@mention`-ing the
+  assigned editor (editor Roam IDs collected into the sheet — no Alpha lookup).
 
 ### 2) Identity mapping
 
 | Slack value | Where it lives | Roam replacement |
 |---|---|---|
-| Sidney DM `U0ACW93FS30` | Hardcoded in 3 onboarding nodes + AI WF invite + the VPA "sidney" map entry | Sidney's Roam user ID |
+| Sidney DM `U0ACW93FS30` | Hardcoded in 3 onboarding nodes + AI WF invite + the VPA "sidney" map entry | **Destination channel** for onboarding notifications (DM dropped). Sidney's Roam user ID still needed only for the AI-WF channel *invite* |
 | Per-client channels | `Clients Info.slack_channel_id` | New `roam_channel_id` (group UUID) |
 | #video-editing `C09QTMZST5J`; test `C0B7D49KCD6` | Hardcoded in workflows (`C09QTMZST5J` in **two** places) | Roam group UUIDs |
 | Private-invite `U02RBFE3BK8` | Hardcoded in AI WF | Roam user ID — **but who is this? identify first** |
-| SMM IDs (7 distinct) | SMM-map `slack_profile_url` + hardcoded VPA Code map | New `roam_user_id` (write to every row) + rewritten map |
-| Editor IDs | Hardcoded FALLBACK in `TJVMyfwl85qrFGeK` + an **expected-but-absent** `slack_user_id` column in Video Editors | New `roam_user_id`, **or** Roam email lookup (Alpha). The expected sheet column is **currently missing → latent bug to fix, not just port** |
+| SMM IDs (7 distinct) | SMM-map `slack_profile_url` + hardcoded VPA Code map | New `roam_user_id` (write to every row) — used to `@mention` the SMM in a channel post |
+| Editor IDs | Hardcoded FALLBACK in `TJVMyfwl85qrFGeK` + an **expected-but-absent** `slack_user_id` column in Video Editors | New `roam_user_id` column (collected manually — no Alpha lookup). The expected sheet column is **currently missing → fix this latent bug while migrating** |
 | `slack_team_id` | SPA-referenced (verify column exists) | Roam deep-link equivalent (if any) |
 
 The editor mention path has **three sources that must stay in sync**: (a) the hardcoded fallback map in the
@@ -233,25 +247,26 @@ existing `content-ready-submit` webhook. The downstream action is a Gmail send (
 message" pattern, and (c) build the Slack→Roam user/channel ID map **before** rewiring any individual notifier.
 Do not migrate notifiers piecemeal first.
 
-**Phase 0 — Confirm & access *(blocking)*.** Confirm Roam = ro.am; **decide whether you accept the Alpha Chat API
-for DMs + user lookup** (DM sending exists nowhere else); create the API client under Roam Admin → Developer;
-grant scopes (chat send + groups read + user read/email); store as one n8n HTTP Header Auth credential.
+**Phase 0 — Access *(blocking)*.** ✅ Platform confirmed (ro.am) and ✅ delivery model decided (channels, not DMs —
+no Alpha needed). Remaining: create the API client under Roam Admin → Developer; grant scopes (chat send + groups
+read; user read only if needed to obtain mention IDs); store as one n8n HTTP Header Auth credential.
 
-**Phase 1 — Foundations.** Build the reusable Roam-send sub-workflow (channel = stable `chat.sendMessage`,
-DM = Alpha). Build the ID map: enumerate Roam groups, map every Slack channel → group UUID; resolve Roam user IDs
-for the 7 SMMs, the editors, Sidney, and `U02RBFE3BK8`. Add `roam_channel_id` (Clients Info) and `roam_user_id`
-(SMM map + Video Editors) and **backfill every row**; keep Slack columns for a parallel run.
-**Dependency note:** the user-lookup step is **Alpha-gated** — if Phase 0 rejects Alpha, build the ID map
-**manually** instead.
+**Phase 1 — Foundations.** Build the reusable Roam-send sub-workflow (**channel = stable `chat.sendMessage`** — the
+only path now). Build the ID map: enumerate Roam groups, map every Slack channel → group UUID, and decide
+destination channels for the notifications that used to be DMs (an internal "notifications" channel for onboarding;
+a channel for Linear-submission SMM pings). Collect Roam **user IDs** (manually) for the 7 SMMs and the editors —
+needed only for `@mentions`. Add `roam_channel_id` (Clients Info) and `roam_user_id` (SMM map + Video Editors) and
+**backfill every row**; keep Slack columns for a parallel run.
 
-**Phase 2 — Channel posts (stable API, lower risk).** Migrate `ukLGHr6uDJIEP1pM` (TEST) first; validate
-Block-Kit→Roam rendering; then `BTxic5NSaCMtZMh6` (PROD weekly). For `TJVMyfwl85qrFGeK`, ship the channel post now
-with **name-only mentions** (defer real `@mentions` to Phase 3, since they need Alpha resolution).
+**Phase 2 — Existing channel posts (stable API).** Migrate `ukLGHr6uDJIEP1pM` (TEST) first; validate
+Block-Kit→Roam rendering; then `BTxic5NSaCMtZMh6` (PROD weekly) and `TJVMyfwl85qrFGeK` (urgent ping, with the
+editor `@mention`). **Confirm mention rendering on the first send.**
 **Sequencing:** create each Roam-posting n8n workflow at its new path and verify it **before** repointing the SPA
 consts — repointing first breaks the buttons. Update `test/kasper-urgent-ping.js` and add a live Roam smoke test.
 
-**Phase 3 — DMs + mentions (Alpha API, higher risk).** Migrate the 3 onboarding DMs + 2 VPA SMM DMs; add real
-editor `@mentions` to the urgent ping. Keep fail-soft error handling. Migrate the SPA Kasper deep-link resolver.
+**Phase 3 — Notifications that were DMs (now channel posts).** Re-route the 3 onboarding notifications + the 2 VPA
+SMM notifications to their destination channels (with `@mentions` where a specific person must be pinged). Keep
+fail-soft error handling. Migrate the SPA Kasper deep-link resolver.
 
 **Phase 4 — Channel provisioning + modal (highest uncertainty).** Rebuild `AI WORKFLOW` channel create/invite
 against Roam (`group.create` likely exists; **invite is the open risk** — fall back to manual provisioning if
@@ -280,9 +295,10 @@ n8n backups; update docs; remove the defunct README Discord webhook.
 
 ## Open questions for Sidney
 
-1. **Platform identity *(blocking)*:** Is "Roam" = **ro.am (Roam virtual office)**?
-2. **Alpha API acceptance:** OK to rely on Roam's **Alpha Chat API** for all DMs and user lookup? If not, DMs may
-   need to become channel posts and the ID map must be built manually.
+1. ✅ **Platform identity:** confirmed **ro.am**.
+2. ✅ **Delivery model:** confirmed **channels, not DMs** — DM notifications become channel posts; no Alpha
+   dependency. *(Follow-up: which channel should the onboarding notifications and the Linear-submission SMM pings
+   land in? — needed for Phase 1.)*
 3. **Channel provisioning:** Does Roam support programmatic channel **create + invite** (needed by `AI WORKFLOW`)?
    `group.create` appears to exist; **invite** is unconfirmed.
 4. **Slash-command/modal:** Does Roam offer a slash-command / interactive-form for the "Content Ready" flow, or
@@ -300,12 +316,12 @@ n8n backups; update docs; remove the defunct README Discord webhook.
 
 | Workstream | Effort | Risk | Notes |
 |---|---|---|---|
-| Phase 0 — confirm + API access | **S** | **High** | Pure dependency/unknown; gates everything |
-| Reusable Roam-send sub-workflow/pattern | **M** | Med | Channel path stable; DM path on Alpha |
-| ID map + Sheet columns + backfill | **M** | Med | 1 channel/client + ~12 users; user lookup is Alpha |
+| Phase 0 — API access (platform + model already decided) | **S** | Low | Create API client + credential; no more unknowns gating start |
+| Reusable Roam-send sub-workflow/pattern | **M** | Low | Single stable channel path (no Alpha) |
+| ID map + Sheet columns + backfill | **M** | Low | 1 channel/client + ~12 user IDs collected manually |
 | Weekly report (PROD+TEST) — Block-Kit rewrite | **L** | Med | Block Kit doesn't port; per-client dynamic channel |
-| Urgent ping + SPA wire | **M** | Med | Channel post stable; mention syntax + editor map (Alpha) |
-| Onboarding DMs (3) + VPA SMM DMs (2) | **M** | **High** | All on Alpha DM; fail-soft must hold |
+| Urgent ping + SPA wire | **M** | Med | Channel post stable; confirm mention rendering |
+| Onboarding + SMM notifications (5) → channel posts | **M** | Low | Now stable channel posts; pick destination channels |
 | SPA changes (2 consts + deep-link resolver + labels) | **M** | Med | Roam deep-link format unconfirmed |
 | Channel provisioning + slash-command modal (`AI WORKFLOW`) | **L** | **High** | Create likely; invite + modal unconfirmed; may need manual/web-form fallback |
 | Credentials retire + docs + test + backups | **S** | Low | Cleanup after cutover |

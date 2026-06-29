@@ -25285,7 +25285,14 @@
     function _sxrSetRefreshing(on) { const el = document.getElementById('sxrRefreshing'); if (el) el.hidden = !on; }
     function _sxrSetStaleNotice(on) { const el = document.getElementById('sxrStaleNotice'); if (el) el.hidden = !on; }
     // _sxrApprovalBadgeCount — real version in Surface 4 (Review), hoisted.
-    function _sxrToggleSelectMode() { /* Surface 6: archive-only bulk select */ }
+    function _sxrToggleSelectMode() {
+        if (_isClientLink) return;   // multi-select / bulk-archive is SMM-only
+        sxrState.selectMode = !sxrState.selectMode;
+        sxrState.selected = new Set();
+        sxrState.lastSel = null;
+        document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.toggle('active', sxrState.selectMode));
+        _sxrRenderBody({ preserveScroll: true });
+    }
     function _sxrResetSelection() { sxrState.selectMode = false; sxrState.selected = new Set(); sxrState.lastSel = null; }
     function closeSxrLightbox() { const lb = document.getElementById('sxrLightbox'); if (lb) lb.classList.remove('open'); document.body.classList.remove('cal-modal-open'); }
     // closeSxrComments / openSxrComments — real versions in Surface 5 (Notes), hoisted.
@@ -25304,6 +25311,7 @@
     function _sxrCacheWrite(slug, posts) { try { localStorage.setItem(SXR_CACHE_PREFIX + slug, JSON.stringify({ posts, at: Date.now() })); } catch {} }
     function _sxrIsArchivedRef(p, refs) {
         if (!p) return false;
+        if (_sxrNormStatus(p.status) === 'Archived') return true;   // persisted-archived rows must never render, even on a fresh ledger
         if (refs.has(String(p.id))) return true;
         const vl = String(p.linear_issue_id || ''), gl = String(p.graphic_linear_issue_id || '');
         return !!((vl && refs.has(vl)) || (gl && refs.has(gl)));
@@ -25958,8 +25966,74 @@
         const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }) });
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
     }
-    function _sxrArchiveSelected() { /* Surface 6: bulk archive */ }
-    function _sxrCardSelectClick(e, pid) { /* Surface 6: multi-select */ }
+    function _sxrCardSelectClick(e, pid) {
+        e.preventDefault();
+        e.stopPropagation();
+        // Shift-range over the cards ACTUALLY ON SCREEN (selectable ones in the
+        // rendered strip), never all of sxrState.posts — so a shift-click can't
+        // silently select (and bulk-archive) blank/read-only cards.
+        const order = Array.from(document.querySelectorAll('#sxrStrip .cal-card-selectable[data-pid]'))
+            .map(el => el.getAttribute('data-pid'));
+        if (e.shiftKey && sxrState.lastSel && sxrState.lastSel !== pid) {
+            const a = order.indexOf(sxrState.lastSel), b = order.indexOf(pid);
+            if (a >= 0 && b >= 0) { const lo = Math.min(a, b), hi = Math.max(a, b); for (let i = lo; i <= hi; i++) sxrState.selected.add(order[i]); }
+        } else {
+            if (sxrState.selected.has(pid)) sxrState.selected.delete(pid);
+            else sxrState.selected.add(pid);
+        }
+        sxrState.lastSel = pid;
+        _sxrSyncSelectionUI();
+    }
+    function _sxrSyncSelectionUI() {
+        document.querySelectorAll('#sxrStrip .cal-card[data-pid]').forEach(card => {
+            card.classList.toggle('cal-card-selected', sxrState.selected.has(card.getAttribute('data-pid')));
+        });
+        const n = sxrState.selected.size;
+        const count = document.getElementById('sxrSelectCount');
+        if (count) count.textContent = n + ' selected';
+        const archive = document.getElementById('sxrSelectArchive');
+        if (archive) archive.disabled = n === 0;
+    }
+    function _sxrArchiveSelected() {
+        if (_isClientLink) return;   // bulk archive is SMM-only (defense in depth beyond select-mode)
+        const ids = Array.from(sxrState.selected).filter(id => id && !_sxrIsBlankId(id));
+        if (!ids.length) return;
+        // Pin the slug at click time — the archive HTTPs can take seconds; if the
+        // SMM switches client mid-flight, ledger/cache writes still attribute to
+        // the calendar this action started from.
+        const slug = sxrClientSlug(sxrState.client);
+        showConfirm('Archive ' + ids.length + ' sample' + (ids.length === 1 ? '' : 's') + '?',
+            "They're kept (archived) on our server and can always be recovered.",
+            () => {
+                const idSet = new Set(ids);
+                const refsById = new Map();
+                sxrState.posts.forEach(p => {
+                    if (!idSet.has(p.id)) return;
+                    const refs = [p.id];
+                    if (p.linear_issue_id) refs.push(p.linear_issue_id);
+                    if (p.graphic_linear_issue_id) refs.push(p.graphic_linear_issue_id);
+                    refsById.set(p.id, refs);
+                });
+                // Pre-populate the archive ledger BEFORE the writes fire so a
+                // background poll racing them can't resurrect the rows; failed
+                // archives are rolled back below so they reappear honestly.
+                const allRefs = [];
+                refsById.forEach(arr => arr.forEach(x => allRefs.push(x)));
+                _sxrArchivedAdd(slug, allRefs);
+                sxrState.posts = sxrState.posts.filter(p => !idSet.has(p.id));
+                sxrState.selectMode = false;
+                sxrState.selected = new Set();
+                sxrState.lastSel = null;
+                document.querySelectorAll('#sxrView .cal-select-btn').forEach(btn => btn.classList.remove('active'));
+                _sxrRenderBody({ preserveScroll: true });
+                try { _sxrCacheWrite(slug, sxrState.posts); } catch (e) {}
+                Promise.allSettled(ids.map(id => _sxrArchiveOne(id, slug))).then(results => {
+                    const failedRefs = [];
+                    results.forEach((r, i) => { if (r.status === 'rejected') { const refs = refsById.get(ids[i]); if (refs) refs.forEach(x => failedRefs.push(x)); } });
+                    if (failedRefs.length) { _sxrArchivedRemove(slug, failedRefs); loadSxrCards({ skipCache: true }); }
+                });
+            }, 'Archive');
+    }
 
     /* ── Copy a deep-link to one card ── */
     function _sxrCopyCardLink(e, pid) {
@@ -25984,6 +26058,7 @@
             body.innerHTML = (typeof renderSxrReview === 'function') ? renderSxrReview() : `<div class="cal-empty">Review queue — coming in Surface 4.</div>`;
         } else {
             body.innerHTML = renderSxrOrganizer();
+            if (typeof _sxrWireStrip === 'function') _sxrWireStrip();   // drag-reorder wiring
             if (preserveScroll && scrollY0 != null) window.scrollTo({ top: scrollY0 });
         }
         if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
@@ -26030,7 +26105,95 @@
        _sxrMergePostComments + the rest) is installed by Surface 4 (Review) below;
        it's hoisted, so the flush above resolves it at call time.
        Linear push — stubbed; Surface 7 installs the real outbox-backed push. */
-    function _sxrWireDragOnCard(card) { /* drag-reorder is a Surface 2 follow-up */ }
+    function _sxrWireDragOnCard(card) {
+        if (!card || card.dataset.dragWired === '1') return;
+        card.dataset.dragWired = '1';
+        const strip = card.parentElement;
+        card.addEventListener('dragstart', (e) => {
+            if (e.target.closest('input, textarea, select, button')) { e.preventDefault(); return; }
+            if (sxrState.selectMode) { e.preventDefault(); return; }   // no drag while multi-selecting
+            e.dataTransfer.effectAllowed = 'move';
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const dragging = strip.querySelector('.cal-card.dragging');
+            if (!dragging || dragging === card) return;
+            const rect = card.getBoundingClientRect();
+            const after = (e.clientX - rect.left) > rect.width / 2;
+            strip.insertBefore(dragging, after ? card.nextSibling : card);
+        });
+    }
+    /* Wire the Sheet strip: a drop handler that reads the DOM order and persists,
+       plus drag listeners on every draggable card. Called after each Sheet render
+       (idempotent — the dropWired flag guards the one-time strip listeners). */
+    function _sxrWireStrip() {
+        const strip = document.getElementById('sxrStrip');
+        if (!strip) return;
+        strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_sxrWireDragOnCard);
+        if (strip.dataset.dropWired === '1') return;
+        strip.dataset.dropWired = '1';
+        strip.addEventListener('dragover', (e) => e.preventDefault());   // make the strip a valid drop target
+        strip.addEventListener('drop', () => {
+            if (_isClientLink) return;   // a read-only client can't persist a reorder
+            const ids = Array.from(strip.querySelectorAll('.cal-card[draggable="true"]')).map(c => c.dataset.pid).filter(Boolean);
+            if (!ids.length) return;
+            const byId = new Map(sxrState.posts.map(p => [p.id, p]));
+            // Recycle the visible cards' existing order_index slots — de-duped,
+            // strictly increasing, and skipping any slot held by a non-visible
+            // post — so the GET workflow's tiebreaker-free order_index sort can't
+            // snap a dropped card back (see the calendar's _calOnStripDrop notes).
+            const idSet = new Set(ids);
+            const hiddenSlots = new Set(sxrState.posts.filter(p => p && !idSet.has(p.id)).map(p => Number(p.order_index || 0)));
+            const rawSlots = ids.map(id => Number((byId.get(id) || {}).order_index || 0)).slice().sort((a, b) => a - b);
+            const slots = []; let prevSlot = -Infinity;
+            for (const v of rawSlots) { let s = v > prevSlot ? v : prevSlot + 1; while (hiddenSlots.has(s)) s++; slots.push(s); prevSlot = s; }
+            const items = ids.map((id, i) => ({ id, order_index: slots[i] }));
+            const prevOrder = new Map(sxrState.posts.map(p => [p.id, Number(p.order_index || 0)]));
+            let changed = false;
+            items.forEach(({ id, order_index }) => { const p = byId.get(id); if (p && Number(p.order_index || 0) !== order_index) { p.order_index = order_index; changed = true; } });
+            if (!changed) return;   // dropped in place — nothing to persist
+            _sxrRecordReorderOptimistic(items);
+            try { _sxrCacheWrite(sxrClientSlug(sxrState.client), sxrState.posts); } catch (e) {}
+            _sxrPersistReorder(items, prevOrder, sxrClientSlug(sxrState.client));
+        });
+    }
+    /* Reorder persistence: serialized + coalesced (two quick drags collapse to the
+       latest order), with an optimistic-order guard so a background reload that
+       lands before the write is READABLE can't adopt the stale server order_index
+       and snap cards back. Mirrors the calendar's persistCalReorder. */
+    let _sxrReorderInFlight = false;
+    let _sxrReorderPending = null;
+    const _sxrReorderOptimistic = new Map();   // id -> { order_index:Number, at:ms }
+    const SXR_REORDER_GUARD_MS = 12000;
+    function _sxrRecordReorderOptimistic(items) {
+        const at = Date.now();
+        (items || []).forEach(({ id, order_index }) => _sxrReorderOptimistic.set(id, { order_index: Number(order_index), at }));
+    }
+    async function _sxrPersistReorder(items, prevOrder, slug) {
+        if (slug == null) slug = sxrClientSlug(sxrState.client);
+        if (_sxrReorderInFlight) { _sxrReorderPending = { items, prevOrder, slug }; return; }   // coalesce
+        _sxrReorderInFlight = true;
+        _sxrLastLocalWriteAt = Date.now();   // treat as a local write so our own realtime echo defers (Surface 7)
+        try {
+            const resp = await fetch(SXR_REORDER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: slug, items }) });
+            if (!resp.ok) throw new Error('reorder HTTP ' + resp.status);
+            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
+        } catch (e) {
+            // Revert to the captured order if nothing newer is queued and we're still on this client.
+            if (prevOrder && prevOrder.size && !_sxrReorderPending && sxrClientSlug(sxrState.client) === slug) {
+                sxrState.posts.forEach(p => { if (prevOrder.has(p.id)) p.order_index = prevOrder.get(p.id); });
+                items.forEach(({ id }) => _sxrReorderOptimistic.delete(id));
+                try { _sxrCacheWrite(slug, sxrState.posts); } catch (e2) {}
+                try { _sxrRenderBody({ preserveScroll: true }); } catch (e2) {}
+                if (typeof showNotify === 'function') showNotify("Couldn't save the new order", 'It was put back — please try again.');
+            }
+        } finally {
+            _sxrReorderInFlight = false;
+            if (_sxrReorderPending) { const next = _sxrReorderPending; _sxrReorderPending = null; _sxrPersistReorder(next.items, next.prevOrder, next.slug); }
+        }
+    }
     // _sxrPushStatusToLinear / _sxrSyncStatusFromLinear — real versions in Surface 7, hoisted.
 
     function _sxrClientFieldEditBlocked() { return _isClientLink; }   // client never edits fields (no collab)
@@ -27017,6 +27180,16 @@
         for (const loc of local) {
             if (serverIds.has(loc.id)) continue;
             if (_sxrIsBlankId(loc.id) || _sxrPendingEdits[loc.id] || _sxrSaveInFlight[loc.id] || _sxrFailedNewCards.has(loc.id)) out.push(loc);
+        }
+        // Pin a freshly dragged order_index over a stale fetch until the reorder
+        // write is readable (or the guard expires) — prevents drag snap-back.
+        if (typeof _sxrReorderOptimistic !== 'undefined' && _sxrReorderOptimistic.size) {
+            for (const row of out) {
+                const ro = _sxrReorderOptimistic.get(row.id);
+                if (!ro) continue;
+                if (Date.now() - ro.at < SXR_REORDER_GUARD_MS) row.order_index = ro.order_index;
+                else _sxrReorderOptimistic.delete(row.id);
+            }
         }
         return out;
     }

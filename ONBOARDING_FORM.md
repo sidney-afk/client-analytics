@@ -114,12 +114,12 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    - **Creators for inspiration** — repeatable rows (kept; "what to **model** from them" — the copy
      deliberately avoids "copy"/"borrow" so it doesn't feel like stealing).
    - **── Video ──**
-     - **Subtitle style** — single-select cards **Elegant / Native / Banner**. Each card shows
-       its name + the **Standard** and **+ Highlight** previews side-by-side (real ~10s client
+     - **Subtitle style** — single-select cards **Elegant / Native / Bold**. Each card shows
+       its name + the **Standard** and **+ Highlight** previews side-by-side (purpose-made sample
        clips, `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). A separate **Add highlighted
-       keywords** toggle (`subtitle_highlight`) is **disabled until a style with a highlight
-       variant is selected** (`_obStyleSel`); Banner has no highlight, so the toggle stays off
-       for it. The toggle no longer swaps previews — both are always shown.
+       keywords** toggle (`subtitle_highlight`) is **disabled until a style is selected**
+       (`_obStyleSel`); all three styles now ship a highlight variant, so the toggle is available
+       for each. The toggle no longer swaps previews — both are always shown.
      - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / **My own footage** / No B-roll.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
@@ -178,12 +178,12 @@ The **thumbnail** picker is the separate live `_obThumbPicker` described above (
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.
 
-- **Subtitle clips** — `onboarding-video/sub-{elegant,native,banner}.mp4` plus
-  `sub-elegant-hl.mp4` / `sub-native-hl.mp4`. Trimmed to ~10s, 480×854 H.264
-  (`yuv420p`, `+faststart`, no audio), ~0.3–0.5 MB each, cut from real client reels
-  (Elegant=Chelsey, Native=Jesse, Banner=Lily; Elegant-hl=Danielle, Native-hl=Lisa).
-  Reels are pulled with `yt-dlp` then cut: `ffmpeg -ss <t> -i src.mp4 -t 10 -vf scale=-2:854
-  -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow -movflags +faststart out.mp4`.
+- **Subtitle clips** — `onboarding-video/sub-{elegant,native,bold}.mp4` + a `-hl.mp4` for each
+  (six files; every style now has a highlighted-keyword variant). Purpose-made 9:16 sample reels
+  (one talent, same VO) demoing each subtitle style, 480×854 H.264 (`yuv420p`, `+faststart`, no
+  audio), ~16 s, ~1 MB each. Re-encoded from the client's source folder with:
+  `ffmpeg -i src.mp4 -vf scale=480:-2 -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27
+  -preset slow -movflags +faststart out.mp4`. (Replaced the old Elegant/Native/Banner set; `sub-banner.mp4` removed.)
 - **Thumbnail styles** — 24 hosted renders under `thumbnail-styles/<font>-<style>[-hl].jpg`
   (font ∈ bold/native/elegant, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
   Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to

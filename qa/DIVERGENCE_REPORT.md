@@ -11,7 +11,7 @@ differences (a structural subset, each cited to the spec) and is NOT bug-tracked
 >
 > | Item | Status | Evidence |
 > |---|---|---|
-> | A — Kasper decision flow | ✅ fixed (core) | `kasper_request_video`/`kasper_aat_video`: live Kasper diff dropped from `missing=[Close card, View thumbnail full screen, Slack, Finish reviewing, Comment] extra=[ApproveClient] stMissing=[Finish reviewing, Changes requested]` → `missing=[Slack] extra=[Open video ↗]`. twin_render Kasper card parity; unit suite 28/28. **Residual (documented deferrals):** Slack (A6, needs the cross-client SMM map), URGENT (A8), the Replies/Messages "New message" chip (A9); plus a cosmetic "Open video ↗" label (the samples Kasper reuses the review-panel video tile, itself at parity on SMM Review/Client). |
+> | A — Kasper decision flow | ✅ **fixed (full)** | Live Kasper diff dropped from `missing=[Close card, View thumbnail full screen, Slack, Finish reviewing, Comment] extra=[ApproveClient] stMissing=[Finish reviewing, Changes requested]` → `missing=[] extra=[Open video ↗]`. **A6 Slack / A8 URGENT / A9 New-message now ported too** (Slack `missing=[]` live; URGENT+Slack render at parity on a linked Tweaks-Needed card; unread chip uses the shared `_kasperHasUnreadReply`). twin_render Kasper parity; unit suite 28/28. **Only residual:** a cosmetic "Open video ↗" label (the samples Kasper reuses the review-panel video tile — itself at parity on SMM Review/Client — vs the calendar's hero poster "Open video"). |
 > | B — AAT → Tweaks Needed | ✅ fixed | `kasper_aat_video`: both surfaces reach `Tweaks Needed` + stamp, no DB divergence |
 > | C — thumbnail lightbox | ✅ fixed | twin_render SMM Review + Client panels now parity |
 > | E — "Client Approval" personalised | ✅ fixed | twin_realtime: samples now reads "Video **Sidney** Approval" |
@@ -65,10 +65,10 @@ snapshotting the live card shows samples is missing, on every Kasper card:
 | A3 | **"Changes requested"** component state-label on a tweaked component (`stateLabel`, 32011) | live `stMissing:["…Changes requested"]` on every `kasper.request` step |
 | A4 | **"Comment"** button — an internal-only note that does NOT flip status or ping the editor (`_kasperAddCommentComp` 32360) | live `missing:["Comment"]` |
 | A5 | **"Close card" (X)** — hide a card until it returns to Kasper Approval (`_kasperClose`) | live `missing:["Close card"]` |
-| A6 | **"Slack"** — message the card's SMM (`_kasperOpenSlack`) | live `missing:["Slack"]` |
+| A6 | ✅ **"Slack"** — message the card's SMM — now ported (`_kasperLoadSMMMap` decorates items, `_sxrKasperOpenSlack` + the shared `_kasperResolveSlackTarget`). | live `missing:[]` after fix |
 | A7 | **"View thumbnail full screen"** lightbox (`_kasperOpenLightbox`); samples opens the video/thumb in a **new tab** instead (`Open video ↗`) | live `missing:["View thumbnail full screen"] extra:["Open video ↗"]` |
-| A8 | ⚠ **URGENT** ping on the Kasper card (`_calShowUrgent`→`_kasperSendUrgentSlack`) — **documented v1 deferral**, not a fresh gap (`SAMPLES_PARITY_LOG.md:104` "v1 omits URGENT") | code audit (31806) |
-| A9 | ⚠ **"New message"** unread-reply chip (`_kasperHasUnreadReply`→`.kcard-newreply-chip`) — part of the **deferred** "Replies/Messages union" (`SAMPLES_PARITY_LOG.md:104`) | live `stMissing:["New message"]` on `full_bounce` s8/s13 |
+| A8 | ✅ **URGENT** ping — now ported (`_sxrShowUrgent` gate + `_sxrKasperSendUrgentSlack` → the shared `_calUrgentSlackDispatch`, same N8N workflow/message). | render parity on a linked Tweaks-Needed card |
+| A9 | ✅ **"New message"** unread-reply chip — now ported (the shared `_kasperHasUnreadReply` + `_kasperMarkSeenAt` on expand). | render/live |
 | A10 | **Durable cross-device stamps** `kasper_finished_at` / `kasper_closed_at` / `kasper_finish_log`, and **Undo** on approve (`_kasperUndoApprove`) | code audit (31513, 32301) |
 
 …and two cases where samples shows the **wrong** thing:
@@ -184,10 +184,9 @@ Confirmed against the rebuild spec — every item below is on the documented exc
 - **Always-actionable status triggers** — samples deliberately does NOT lock an unlinked
   video/graphic status trigger (`SPEC:98/180`, the "no-caption-escape-hatch" decision); the Linear
   push no-ops until linked.
-- **Kasper card v1 deferrals** — **URGENT** ping (A8) and the **Replies/Messages union** /
-  "New message" chip (A9) were explicitly deferred in the M5a build (`SAMPLES_PARITY_LOG.md:104`).
-  Listed in A for completeness but treat as deferred-by-plan, not fresh regressions — confirm
-  whether the exact-clone bar now pulls them into scope.
+- ~~**Kasper card v1 deferrals** — URGENT (A8) + the "New message" chip (A9)~~ → **now ported**
+  (alongside Slack/A6), so no longer deferred. The full Replies/Messages *inbox union* (the
+  separate Kasper "Messages" sub-tab) remains its own surface, out of scope here.
 
 ## Harness note (not a product divergence)
 A `graphic`-only Kasper scenario needs a `graphic_linear_issue_id` on the seed to enter the queue

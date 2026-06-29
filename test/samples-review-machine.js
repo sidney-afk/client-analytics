@@ -199,10 +199,13 @@ ok(/_sxrClientApproveComp[\s\S]{0,400}cur !== 'client approval' && cur !== 'twea
   '_sxrClientApproveComp carries the handler-level surface guard');
 // comments_base_at:'' on the M2 save path is unchanged
 has(/comments_base_at: ''/, 'M2 save path still sends comments_base_at: ""');
-// finish judged by created_at, not updated_at (028cbd7/b5e73f5)
+// PRODUCT RULE: a finished sample re-surfaces ONLY on a Kasper Approval component.
+// A later message — even a client tweak — must NOT re-surface it (mirrors
+// _kasperIsFinished). The old "reply after finish re-surfaces it" branch is gone.
 const finishedSrc = grabFunc('_sxrKasperIsFinished');
-ok(/_sxrLatestMsgCreatedAt\(sample\)/.test(finishedSrc),
-  '_sxrKasperIsFinished judges a fresh ask by latest message CREATED-AT');
+ok(/Kasper Approval/.test(finishedSrc) && !/_sxrLatestMsgCreatedAt/.test(finishedSrc),
+  '_sxrKasperIsFinished re-surfaces ONLY on a Kasper Approval component (a message does not)');
+// _sxrLatestMsgCreatedAt still exists (used by the X-close check) and is created_at-based
 const latestSrc = grabFunc('_sxrLatestMsgCreatedAt');
 ok(/m\.created_at/.test(latestSrc) && !/m\.updated_at/.test(latestSrc),
   '_sxrLatestMsgCreatedAt ranks by created_at ONLY (a resolve/edit bump is not a new ask)');

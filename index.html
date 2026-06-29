@@ -15671,20 +15671,20 @@
         _sxrFlushCardSave(pid);
         return true;
     }
-    /* Is a sample "finished" / "closed" for Kasper right now? GLOBAL +
-       cross-device via the persisted stamp. A fresh ask re-surfaces it:
-         • finished: an actionable component back at Kasper Approval (only when
-           SERVER-CONFIRMED — the stamp present on this row; the 028cbd7 fix),
-           or a message CREATED after the finish stamp.
+    /* Is a sample "finished" / "closed" for Kasper right now? GLOBAL + cross-device
+       via the persisted stamp.
+         • finished: once finished it STAYS finished ("Tweaks pending") and returns to
+           "Waiting" ONLY when a component is re-sent to Kasper Approval. A later
+           message — even a client tweak — updates it in place but does NOT re-surface
+           it (same product rule as the calendar Kasper review; mirrors
+           _kasperIsFinished).
          • closed: a message created after the close stamp. */
     function _sxrKasperIsFinished(sample) {
         if (!sample) return false;
         const stampedAt = String(sample.kasper_finished_at || '');
         if (!stampedAt) return false;
         const anyKA = SXR_COMPONENTS.some(c => _calNormStatus(sample[c + '_status'] || '') === 'Kasper Approval');
-        if (anyKA) return false;                                  // fresh ask: server-confirmed KA component
-        const latest = _sxrLatestMsgCreatedAt(sample);           // created-at basis
-        if (latest && latest > stampedAt) return false;          // reply since he finished
+        if (anyKA) return false;                                  // fresh ask: a component re-sent to Kasper Approval
         return true;
     }
     function _sxrKasperIsClosed(sample) {
@@ -31889,36 +31889,22 @@
        unknown field), then it becomes global automatically. Rollout + the two
        backend steps: KASPER_REVIEW_GLOBAL_ROLLOUT.md. */
     function _kasperFinishedAt(post) { return String((post && post.kasper_finished_at) || ''); }
-    /* "Finish reviewing" hand-off. A finished card sits in "Tweaks pending"
-       until a genuine fresh ask supersedes it:
-         • an ACTIONABLE component is back at Kasper Approval — gated exactly like
-           _kasperUndecidedComps, so an unlinked-thumbnail graphic stuck at KA
-           (which can't be acted on and never blocked Finish) does NOT count; or
-         • a message landed after he finished (the SMM replied / client commented).
-       `kasper_finished_at` doubles as his "seen up to here" stamp, so the second
-       test is just latestMsg > kasper_finished_at. */
+    /* "Finish reviewing" hand-off. Once finished, a card STAYS in "Tweaks pending"
+       and returns to "Waiting" for ONE reason only: a component is genuinely re-sent
+       to Kasper Approval. A later message — even a client tweak — updates the card in
+       place but must NOT pull it back into his queue. (Product rule: Finish means
+       finished until an explicit For-Kasper-Approval re-route. The earlier
+       reply-re-surfaces-it behaviour was the friction — a client tweak kept bouncing
+       finished cards back into "Waiting".) The KA check is gated on a SERVER-CONFIRMED
+       finish (stamp present) so a mid-write stale read can't bounce a card that was
+       only just finished locally; _kasperUndecidedComps applies the unlinked-thumbnail
+       gate (a graphic stuck at KA with no GRA sub-issue doesn't count). */
     function _kasperIsFinished(post) {
         if (!post) return false;
         const stampedAt = _kasperFinishedAt(post);
         const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
-        // A component back at Kasper Approval re-surfaces the card as a genuine
-        // "fresh ask" — but ONLY when the finish is SERVER-CONFIRMED (the global
-        // kasper_finished_at stamp is present on this row). A card's writes are
-        // serialized: the finish upsert is chained after every component decision
-        // (_kasperPersistPost), so a server row that carries the stamp necessarily
-        // carries those decisions too — a KA component on it is therefore a real
-        // re-route by the SMM. When the card is held finished on the LOCAL flag
-        // ALONE (the finish hasn't echoed back yet), a KA component is just the
-        // pre-decision status the store hasn't caught up on; a background
-        // auto-refresh that ingests that stale read must NOT drag the card back to
-        // "Waiting". That was the intermittent bug Kasper hit — a finished card
-        // popping back, showing whichever component the refresh caught mid-write.
-        // (Reply-based re-surface below is unaffected and still works either way.)
-        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: actionable KA (server-confirmed)
-        const seen = stampedAt || _kasperGetSeenAt(post.id);             // global stamp, else local seen
-        const latest = _calLatestMsgCreatedAt(post);                     // created-at: a resolve/edit bump is NOT a new ask
-        if (seen && latest && latest > seen) return false;               // reply since he finished
+        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: a component re-sent to Kasper Approval
         return true;
     }
     /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new

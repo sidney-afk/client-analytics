@@ -235,6 +235,50 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
           'cal keeps the re-review hand-off in Kasper queue; samples drops it');
     }
 
+    // ── R. Post-level comment merge (field-level, newer-wins per component) ──
+    {
+      const mk = (id, stamp, body) => ({ id, parent_id: null, role: 'client', updated_at: stamp, created_at: stamp, body });
+      const winner = { id: uid(), video_comments: [mk('v1', '2021-01-01', 'w-v1')], graphic_comments: [mk('g1', '2020-01-01', 'w-g1')] };
+      const other = { id: winner.id, video_comments: [mk('v1', '2022-01-01', 'o-v1-newer')], graphic_comments: [mk('g2', '2021-01-01', 'o-g2')] };
+      const cw = JSON.parse(JSON.stringify(winner)), co = JSON.parse(JSON.stringify(other));
+      const sw = JSON.parse(JSON.stringify(winner)), so = JSON.parse(JSON.stringify(other));
+      _calMergePostComments(cw, co); _sxrMergePostComments(sw, so);
+      const dump = (post) => ['video', 'graphic'].map(c => [c, (_sxrCommentsFor(post, c) || []).map(x => x.id + '@' + x.updated_at).sort()]);
+      rec('mergePostComments', 'v1 newer + new g2', dump(cw), dump(sw), false);
+    }
+
+    // ── S. Archive-ref predicate (id / linear-link membership) ──
+    {
+      const refs = new Set(['post-1', 'https://linear.app/x/VID-9']);
+      rec('isArchivedRef', 'by id', _calIsArchivedRef({ id: 'post-1' }, refs), _sxrIsArchivedRef({ id: 'post-1' }, refs), false);
+      rec('isArchivedRef', 'by video link', _calIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9' }, refs), _sxrIsArchivedRef({ id: 'p2', linear_issue_id: 'https://linear.app/x/VID-9' }, refs), false);
+      rec('isArchivedRef', 'not archived', _calIsArchivedRef({ id: 'p4' }, refs), _sxrIsArchivedRef({ id: 'p4' }, refs), false);
+      rec('isArchivedRef', 'by GRAPHIC link', _calIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9' }, refs), _sxrIsArchivedRef({ id: 'p3', graphic_linear_issue_id: 'https://linear.app/x/VID-9' }, refs),
+          true, 'samples also archives by graphic link (stricter); cal checks id + video link only');
+    }
+
+    // ── T. URGENT ping affordance (Video @ Tweaks Needed with a Linear link) ──
+    {
+      const p = { video_status: 'Tweaks Needed', linear_issue_id: 'https://linear.app/x/VID-1' };
+      const calHas = (typeof _calShowUrgent === 'function') && !!_calShowUrgent(p, 'video');
+      const sxrHas = (typeof _sxrShowUrgent === 'function') && !!_sxrShowUrgent(p, 'video');
+      rec('urgentPing affordance', 'video@TweaksNeeded+link', calHas, sxrHas, false,
+          'calendar pings the editor (#video-editing) for an urgent video tweak; samples has no _sxrShowUrgent / URGENT button');
+    }
+
+    // ── U. Status-pill LOCK for an UNLINKED component (render-level) ──
+    try {
+      const p = { id: uid(), name: 'Lock test', client: 'acme', order_index: 1, asset_url: 'https://frame.io/x', thumbnail_url: '',
+        video_status: 'For SMM Approval', graphic_status: 'Kasper Approval',
+        linear_issue_id: 'https://linear.app/x/VID-1', graphic_linear_issue_id: '', video_comments: [], graphic_comments: [] };
+      calState.posts = [p]; sxrState.posts = [p];
+      const calHtml = String(_calRenderInlineCard(p, false, false) || '');
+      const sxrHtml = String(_sxrRenderInlineCard(p, false, false) || '');
+      const locks = (h) => /is-locked/.test(h) || /Link a Linear sub-issue first/.test(h);
+      rec('unlinkedPillLock', 'graphic unlinked @ Kasper', locks(calHtml), locks(sxrHtml), false,
+          'calendar disables the status pill for an unlinked component; samples lets you set any status (feeds the Kasper unlinked-thumbnail gap)');
+    } catch (e) { diffs.push({ group: 'unlinkedPillLock', input: 'inconclusive', cal: 'render-ok', sxr: 'render-threw: ' + e.message, byDesign: true, note: 'inline-card render needs more page state; re-test at DOM level' }); }
+
     return { diffs, cmp, errs: [] };
   });
 

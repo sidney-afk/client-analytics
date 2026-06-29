@@ -45,7 +45,22 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
 | **graphic@Kasper + UNLINKED thumbnail** | 🔴 **GAP** — cal hides (un-actionable); samples surfaces a full approve/request panel |
 | **video@Tweaks-Needed + open Kasper tweak** | 🔴 **GAP** — cal keeps the re-review hand-off in Kasper's queue; samples drops it |
 
+### Batch 5 — merge / archive / card affordances (`parity_logic.js`) — 7 checks, **2 GAPS**
+| Check | Result |
+|---|---|
+| `mergePostComments` (field-level, newer-wins per component) | ✅ |
+| `isArchivedRef` by id / video link | ✅ |
+| `isArchivedRef` by graphic link | ◌ samples also archives by graphic link (stricter) |
+| **URGENT ping affordance** (video@TweaksNeeded+link) | 🔴 **GAP** — samples has no `_sxrShowUrgent` / URGENT button at all |
+| **Status-pill lock for an unlinked component** | 🔴 **GAP** — cal disables the pill; samples lets you set any status |
+
 ## ⚠ Open findings — divergences pending decision
+
+**Theme A — unlinked components aren't gated (2 gaps, connected):**
+4. **No status-pill lock.** Calendar disables a component's status pill until a Linear
+   sub-issue is linked (`_calRenderInlineCard`: `is-locked` + `disabled "Link a Linear
+   sub-issue first"`). Samples' `_sxrRenderInlineCard` (index.html:26100) has no lock —
+   you can set an unlinked thumbnail to any status. **This is the root that lets #1 happen.**
 1. **Unlinked-thumbnail gate missing on the samples Kasper queue.** The calendar's
    `_calCompKasperVisible` returns false for a `graphic` at `Kasper Approval` with no
    `graphic_linear_issue_id` (a junk status, e.g. from a Linear sync through a removed
@@ -53,11 +68,18 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
    `_sxrKasperLoadQueue` / `_sxrKasperRenderCard` (index.html:27797, 27822) have no such
    gate. **Fix:** port `_calCompKasperVisible`/`_calPostKasperVisible` to `_sxr` and use it
    for queue membership + panel rendering. *(higher confidence — clear robustness gate)*
+**Theme B — missing affordances:**
 2. **Re-review hand-off dropped.** The calendar keeps a component visible in Kasper's
    queue while it's at `Tweaks Needed` IF Kasper still has an unresolved tweak on it
    (`_calCompHasUnresolvedKasperTweak`), so he can track the re-review. Samples drops it
    the moment it leaves `Kasper Approval`. **Fix:** include the same clause. *(genuine but
    subtler workflow difference — worth a quick confirm)*
+3. **URGENT ping not ported.** Calendar shows an "URGENT" button on a video at
+   `Tweaks Needed` with a Linear link (`_calShowUrgent` → `_calSendUrgentSlack`, pings
+   #video-editing). Samples has neither function nor button — though the Surface-2 header
+   comment lists "URGENT" as in-scope, so it's an unfinished port. **Fix:** port
+   `_calShowUrgent` + the ping button (+ a `_sxrSendUrgentSlack` if the Slack webhook is
+   wired for samples). *(confirm whether the Slack ping is wanted for samples)*
 
 ## Next territory (not yet probed)
 - **Kasper surface** — unread-reply predicate, cross-client queue membership (Surface 8).

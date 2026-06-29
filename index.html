@@ -28055,7 +28055,12 @@
         _sxrKasperState.loading = true; _sxrKasperState.error = false;
         if (force) _sxrKasperRenderQueue();
         try {
-            const rows = await _sxrKasperFetchAllSamples();
+            // SMM map (cross-client) in parallel — drives the per-card Slack button.
+            const [rows, smmMap] = await Promise.all([
+                _sxrKasperFetchAllSamples(),
+                _kasperLoadSMMMap().catch(() => new Map()),
+            ]);
+            _sxrKasperState.smmByClient = smmMap;
             const items = [];
             for (const p of (rows || [])) {
                 if (!p || String(p.status || '').toLowerCase() === 'archived') continue;
@@ -28065,7 +28070,8 @@
                 if (!(_sxrPostKasperVisible(p) || _sxrKasperIsFinished(p))) continue;
                 if (_sxrKasperIsClosed(p)) continue;
                 const slug = String(p.client || '');
-                items.push({ post: p, slug, client: wlCanonicalClient(slug) || slug });
+                const client = wlCanonicalClient(slug) || slug;
+                items.push({ post: p, slug, client, smm: smmMap.get(wlNormalizeClient(client)) || smmMap.get(slug) || null });
             }
             items.sort((a, b) => String(a.client).localeCompare(String(b.client)));
             // Prune local dismiss/close flags whose card has fully left the queue
@@ -28164,6 +28170,21 @@
             ? `<button type="button" class="kcard-done-btn" disabled title="Finished — these tweaks are with the SMM. This card returns to your queue if they reply or send a component back to you.">${checkIco}Sent to SMM</button>`
             : `<button type="button" class="kcard-done-btn" ${canFinish ? '' : 'disabled'} onclick="event.stopPropagation();_sxrKasperDismiss('${_sxrEscAttr(pid)}')" title="${_sxrEscAttr(finishTitle)}">${checkIco}Finish reviewing</button>`;
         const pillsHtml = undecided.length ? `<span class="kcard-comp-pills" title="Awaiting your decision">${undecided.map(c => `<span class="kcard-comp-pill">${_sxrEsc(COMP_LABELS[c])}</span>`).join('')}</span>` : '';
+        // New-message chip — a message Kasper didn't write, on an internal thread,
+        // newer than his last look (the SHARED _kasperHasUnreadReply reads the same
+        // video_comments/graphic_comments arrays).
+        const newMsg = _kasperHasUnreadReply(p) ? '<span class="kcard-newreply-chip">New message</span>' : '';
+        // SMM row + Slack deep link (item.smm decorated at load from the SMM map).
+        const smm = item.smm;
+        const hasSlackTarget = !!(smm && _kasperResolveSlackTarget(smm));
+        const slackTitle = smm && smm.name ? (hasSlackTarget ? `Message ${smm.name} on Slack` : `Add ${smm.name}'s Slack profile URL to the sheet to enable this`) : 'Slack';
+        const slackBtn = (smm && smm.name) ? `<button class="kcard-slack-btn${hasSlackTarget ? '' : ' is-stub'}" type="button" onclick="event.stopPropagation();_sxrKasperOpenSlack('${_sxrEscAttr(item.slug)}')" title="${_sxrEscAttr(slackTitle)}">Slack</button>` : '';
+        const smmHtml = smm && smm.name
+            ? `<span class="kcard-smm" onclick="event.stopPropagation();"><span class="kcard-smm-avatar">${_sxrEsc(smm.name.charAt(0).toUpperCase())}</span>${_sxrEsc(smm.name)}${slackBtn}</span>`
+            : `<span class="kcard-smm is-missing" onclick="event.stopPropagation();" title="No row for ${_sxrEscAttr(item.client)} in the Social Media Managers sheet"><span class="kcard-smm-avatar">?</span>Social media manager not found</span>`;
+        // URGENT ping (video at Tweaks Needed + linked) — reuses the existing N8N
+        // workflow + message via _sxrKasperSendUrgentSlack → _calUrgentSlackDispatch.
+        const urgentBtn = _sxrShowUrgent(p, 'video') ? `<button type="button" class="cal-urgent-btn kcard-urgent-btn" data-urgent-pid="${_sxrEscAttr(pid)}" onclick="event.stopPropagation();_sxrKasperSendUrgentSlack(event,'${_sxrEscAttr(pid)}')" title="Ping the editor in #video-editing that this video needs urgent tweaks">URGENT</button>` : '';
         const pending = awaiting.length
             ? `<span class="kcard-pending"><span class="kcard-pending-strong">${awaiting.map(c => _sxrEsc(COMP_LABELS[c])).join(' & ')}</span> awaiting your review</span>`
             : (isFinished ? `<span class="kcard-pending">Sent to SMM — changes pending</span>` : '');
@@ -28177,10 +28198,12 @@
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
                 <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
-                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}</div>
+                    <div class="kcard-line1"><span class="kcard-client">${_sxrEsc(item.client)}</span><span class="kcard-dot">·</span>${pending}${pillsHtml}${newMsg}</div>
                     <div class="kcard-title">${_sxrEsc(p.name || 'Untitled')}</div>
+                    <div class="kcard-meta-row">${smmHtml}</div>
                 </div>
                 <div class="kcard-actions" onclick="event.stopPropagation();">
+                    ${urgentBtn}
                     ${doneBtn}
                     ${watch}
                     <button class="kcard-expand-btn" type="button" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')" aria-label="${expanded ? 'Collapse card' : 'Expand card'}"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg></button>
@@ -28225,7 +28248,7 @@
             <div class="cal-review-thread">${thread}</div>
         </div>`;
     }
-    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; _sxrKasperRepaint(pid); }
+    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; if (_sxrKasperState.expanded[pid]) { try { _kasperMarkSeenAt(pid); } catch (e) {} } _sxrKasperRepaint(pid); }
     function _sxrKasperRepaint(pid) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -28353,6 +28376,31 @@
         _sxrKasperState.items = _sxrKasperState.items.filter(x => x.post.id !== pid);
         _sxrKasperRenderQueue();
         _sxrKasperPersist(it, { kasper_closed_at: p.kasper_closed_at }).catch(() => {});
+    }
+    // URGENT ping — mirrors _kasperSendUrgentSlack: resolve the post + client from
+    // the cross-client Kasper queue and reuse the SHARED _calUrgentSlackDispatch
+    // (same #video-editing webhook + message). Gate is _sxrShowUrgent (video at
+    // Tweaks Needed with a linked sub-issue).
+    function _sxrKasperSendUrgentSlack(event, pid) {
+        if (event) { event.preventDefault(); event.stopPropagation(); }
+        const btn = (event && event.currentTarget) ? event.currentTarget : null;
+        if (btn && btn.dataset.urgentSent === '1') { if (typeof showNotify === 'function') showNotify('Already sent', 'An urgent ping for this video was already sent in this session.'); return; }
+        const it = _sxrKasperFindItem(pid); if (!it || !it.post) return;
+        const issue = String(it.post.linear_issue_id || '').trim();
+        if (!issue) { if (typeof showNotify === 'function') showNotify('No Linear link', 'This video has no Linear sub-issue, so the editor can’t be tagged. Link one first.'); return; }
+        const client = String(it.client || wlCanonicalClient(it.slug) || '').trim();
+        _calUrgentSlackDispatch(btn, issue, client, it.post.name);
+    }
+    // Slack deep link to the card's SMM — mirror of _kasperOpenSlack, reading the
+    // samples Kasper SMM map and the SHARED _kasperResolveSlackTarget.
+    function _sxrKasperOpenSlack(slug) {
+        const entry = _sxrKasperState.smmByClient && _sxrKasperState.smmByClient.get(slug);
+        const target = entry ? _kasperResolveSlackTarget(entry) : null;
+        if (!target) {
+            if (typeof showNotify === 'function') showNotify('Slack link not set up yet', `Add ${(entry && entry.name) || 'this manager'}'s Slack Member ID or "Copy link to profile" URL to the slack_profile_url column on the Social Media Managers sheet.`);
+            return;
+        }
+        const a = document.createElement('a'); a.href = target; a.target = '_blank'; a.rel = 'noopener'; a.click();
     }
     function _sxrKasperRequestTweakComp(pid, comp) {
         const it = _sxrKasperFindItem(pid); if (!it) return;

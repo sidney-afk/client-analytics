@@ -3481,11 +3481,8 @@
         .ked-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .ked-id { min-width: 0; }
         .ked-name { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-        .ked-id-breakdown { font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px; font-weight: 500; font-variant-numeric: tabular-nums; }
-        .ked-id-breakdown strong { color: var(--text-primary); font-weight: 800; }
         .ked-id-sep { color: var(--text-muted); margin: 0 1px; }
-        .ked-id-breakdown .ked-bd-finished { color: #15803d; font-weight: 700; }
-        .ked-id-breakdown .ked-bd-wip { color: var(--text-muted); }
+        .ked-bd-wip { color: var(--text-muted); }
         .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 6px; }
         .ked-avg-val { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
@@ -32924,7 +32921,6 @@
         editing:   "Videos he was still editing the first version of.",
         inTweaks:  "Videos that came back for changes and were waiting on his fixes.",
         stillOpen: "Videos still on his plate when the week ended — he hadn't finished and sent them back yet.",
-        touched:   "How many different videos he worked on at all last week.",
         finished:  "Videos that got fully approved (or posted) last week — they crossed the finish line.",
     };
 
@@ -32967,10 +32963,6 @@
         const tipAttr = k => ` data-tip="${_calEscAttr(_KED_TIPS[k])}"`;
         const n1 = x => (Math.round(x * 10) / 10).toFixed(1);
 
-        // Identity breakdown (always weekly totals).
-        const parts = [`<span${tipAttr('touched')}><strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched</span>`];
-        const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
-
         // LOAD — how much sat in his court. Totals = distinct videos this week;
         // Per-day = average videos in each state on a typical workday.
         const loadParts = [];
@@ -33011,7 +33003,6 @@
                 <div class="ked-avatar">${avatarHtml}</div>
                 <div class="ked-id">
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
-                    <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-stats">
                     <div class="ked-stat is-load">

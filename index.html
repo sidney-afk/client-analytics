@@ -11975,8 +11975,8 @@
         '<label class="ob-stp-pick"><input type="radio" name="subtitle_pick" value="'+val+'" data-style="'+st+'" data-hl="'+hl+'"><span class="ob-stp-dot"></span><span class="ob-stp-pk-txt">'+label+'</span></label>';
       return items.map(t=>{
         const std=t[3]||'', hl=t[4]||'';
-        const stdPrev = _obStylePreview(std, isVideo, pick(t[0], t[0], '0', 'Standard'));
-        const hlPrev = hl ? _obStylePreview(hl, isVideo, pick(t[0]+'__hl', t[0], '1', '+ Highlight')) : '';
+        const stdPrev = _obStylePreview(std, isVideo, pick(t[0], t[0], '0', 'Subtitle'));
+        const hlPrev = hl ? _obStylePreview(hl, isVideo, pick(t[0]+'__hl', t[0], '1', 'Subtitle + Highlights')) : '';
         const previews = '<div class="ob-stp-row">'+stdPrev+hlPrev+'</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
         return '<div class="ob-stcard"><div class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div>'+previews+'</div>';
@@ -11985,7 +11985,7 @@
 
     function _obSubtitles(){
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Tap a preview to play it, then click the dot under the look you want — pick the plain <b>Standard</b> caption or the <b>+ Highlight</b> version, where a key word pops in colour.</div>'+
+        '<div class="ob-help">Tap a preview to play it, then click the dot under the look you want — pick the plain <b>Subtitle</b> or the <b>Subtitle + Highlights</b> version, where a key word pops in colour.</div>'+
         '<div class="ob-stgrid">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
         // hidden carriers (set from the visible picks) — keep subtitle_style + subtitle_highlight
         // exactly as before, so serialization, validation and the dashboard viewer are unchanged.
@@ -12682,7 +12682,7 @@
       .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
-      .ob-tp-note{ margin:16px 0 0; }
+      .ob-tp-note{ margin:18px 0 22px; }
       .ob-lp-check{ align-items:flex-start; gap:10px; line-height:1.45; }
       .ob-lp-check .ob-chk{ margin-top:1px; }
       .ob-ai-fields{ margin-top:6px; }
@@ -25175,7 +25175,7 @@
             let _fav = document.querySelector('link[rel="icon"]');
             if (!_fav) { _fav = document.createElement('link'); _fav.rel = 'icon'; document.head.appendChild(_fav); }
             _fav.type = 'image/png';
-            _fav.href = 'synchro-social-logo.png';
+            _fav.href = 'synchro-social-favicon.png';
         } catch (e) {}
         const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
         const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';

@@ -1,0 +1,69 @@
+{
+  "_snapshot_note": "Net-new workflow created 2026-06-28 for the SyncView AI-funnel onboarding viewer. GET /webhook/ai-onboarding-list. Clone of onboarding-list (slqt2zCDyIc7OAmY) reading Supabase ai_client_onboarding, stripping account-credential fields, returning {ok,count,submissions} (each tagged funnel:'ai'). Created + ACTIVATED via n8n SDK. Supabase cred 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT). Feeds the dashboard Templates->Onboarding 'AI avatar onboarding' section. Snapshot for the repo record / rollback. Workflow id oDZ1Oljvaig5KSLD.",
+  "id": "oDZ1Oljvaig5KSLD",
+  "name": "SyncView AI Onboarding — List",
+  "active": true,
+  "description": "GET /webhook/ai-onboarding-list. Returns AI-funnel onboarding submissions from Supabase ai_client_onboarding with credential fields stripped, for the dashboard's Templates→Onboarding viewer. Clone of onboarding-list.",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "connections": {
+    "Receive GET": { "main": [[{ "node": "Get Submissions", "type": "main", "index": 0 }]] },
+    "Get Submissions": { "main": [[{ "node": "Strip Credentials", "type": "main", "index": 0 }]] },
+    "Strip Credentials": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "name": "Receive GET",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "ai-onboarding-list",
+        "responseMode": "responseNode",
+        "options": { "allowedOrigins": "*" }
+      }
+    },
+    {
+      "name": "Get Submissions",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [220, 0],
+      "parameters": {
+        "resource": "row",
+        "operation": "getAll",
+        "tableId": "ai_client_onboarding",
+        "returnAll": true,
+        "filters": {},
+        "options": {}
+      },
+      "_credential": "supabaseApi → 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT)"
+    },
+    {
+      "name": "Strip Credentials",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [440, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map(i => i.json);\nconst STRIP = ['instagram','instagram_backup','tiktok','facebook','linkedin','youtube'];\nconst subs = rows.filter(r => r && r.id).map(r => {\n  const a = (r.answers && typeof r.answers === 'object') ? Object.assign({}, r.answers) : {};\n  STRIP.forEach(k => { delete a[k]; });\n  return { id: r.id, slug: r.slug || '', first_name: r.first_name || '', last_name: r.last_name || '', email: r.email || '', ai_avatar: r.ai_avatar || 'yes', funnel: r.funnel || 'ai', status: r.status || '', created_at: r.created_at || '', answers: a };\n});\nsubs.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)));\nreturn [{ json: { ok: true, count: subs.length, submissions: subs } }];"
+      }
+    },
+    {
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [660, 0],
+      "parameters": {
+        "respondWith": "firstIncomingItem",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              { "name": "Access-Control-Allow-Origin", "value": "*" },
+              { "name": "Cache-Control", "value": "no-store" }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

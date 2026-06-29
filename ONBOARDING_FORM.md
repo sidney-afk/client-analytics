@@ -2,23 +2,43 @@
 
 A standalone, private-link onboarding page built into `index.html`. It replaces the
 two old intake systems (the **Notion** "Onboarding Form" for normal clients and the
-**JotForm** form for AI clients) with one form that has everything the Notion form
-had, plus the JotForm AI-Avatar flow (gated behind an opt-in), plus the new
-**editing-direction / samples** module from the June 25 team call, the Slack thread,
-and Raha's Google Doc.
+**JotForm** form for AI clients) — **two funnels rendered from one shared module**:
+
+- **Standard funnel** (`/onboarding_form`) — everything the Notion form had, plus the
+  **editing-direction / samples** module from the June 25 team call, the Slack thread,
+  and Raha's Google Doc. **No AI-avatar section.**
+- **AI funnel** (`/ai_onboarding_form`) — the same form minus the **Sample video**
+  section, plus the **AI-avatar** section shown unconditionally (no "want to add an AI
+  avatar?" opt-in — every client on this funnel is here for the avatar). This is the
+  replacement for the old JotForm AI form.
+
+### One module, two variants
+
+Both forms are the *same* code. A single flag, `OB_VARIANT` (`'normal'` | `'ai'`),
+selects which sections render. The entry router sets it before the form mounts (see
+below), then `_obSections()` filters the master list:
+
+- `s4` **Sample video** → standard funnel only.
+- `s8` **AI avatar** → AI funnel only.
+
+After filtering, sections are **renumbered and recoloured by position** (a `_RAMP` of 8
+brand hues), so each variant shows a clean `1..7` with a continuous blue→rose gradient and
+no gaps — e.g. on the AI funnel the AI section is `s8` in markup but renders as step **7**.
 
 ## How to open it
 
 ```
-https://syncview.synchrosocial.com/onboarding_form
+Standard:  https://syncview.synchrosocial.com/onboarding_form
+AI funnel: https://syncview.synchrosocial.com/ai_onboarding_form
 ```
 
-This is a clean path URL. Because the site is **GitHub Pages** (static, no server
-rewrites), `/onboarding_form` is handled by `404.html`: GitHub Pages serves it for that
-(file-less) path, and a tiny script redirects into the SPA via `?onboarding=1`; `navTo`
-then rewrites the address bar back to a clean `/onboarding_form` (no query, no hash). The
-old `?onboarding=<anything>` links still work and get cleaned to the same path. It is
-**not** in the main nav — reachable only by knowing the link. Like `?intake=1`, this mode:
+These are clean path URLs. Because the site is **GitHub Pages** (static, no server
+rewrites), the file-less paths are handled by `404.html`: GitHub Pages serves it, and a
+tiny script redirects into the SPA — `/onboarding_form → ?onboarding=1`,
+`/ai_onboarding_form → ?onboarding=ai`. `navTo` then rewrites the address bar back to the
+matching clean path (no query, no hash). Old `?onboarding=<anything>` links still work and
+clean to `/onboarding_form`; `?onboarding=ai` cleans to `/ai_onboarding_form`. Neither is
+in the main nav — reachable only by knowing the link. Like `?intake=1`, this mode:
 
 - bypasses the staff password,
 - hides all workspace chrome (header + pageTop),
@@ -26,8 +46,16 @@ old `?onboarding=<anything>` links still work and get cleaned to the same path. 
 - loads **no** dashboard/Sheet/Supabase data, so the form works even if the rest of
   the app's data sources are down.
 
-The page autosaves a draft to `localStorage` (`syncview_onboarding_draft_v1`) as the
-client types, and clears it on a successful submit.
+Each funnel autosaves its own draft to `localStorage` — `syncview_onboarding_draft_v1`
+(standard) and `syncview_ai_onboarding_draft_v1` (AI) — so the two never clobber each
+other; the draft clears on a successful submit.
+
+### Branding
+
+In onboarding mode (**either** funnel) the tab is branded **SynchroSocial**: the entry
+router sets `document.title = 'SynchroSocial'` and swaps the favicon to
+`synchro-social-logo.png`. The SyncView dashboard keeps its own `SyncView` title +
+`syncview-favicon.png` — the override only applies on the onboarding page.
 
 The page is **dark-themed** — the dark palette is scoped to `body.onboarding-mode`
 (redefining `--bg`, `--white`, `--text-primary`, etc., plus a new `--ob-accent` indigo
@@ -45,9 +73,10 @@ full infinity + wordmark lockup, a transparent PNG cropped tight) given presence
 purple glow, above a small "Client Onboarding" label.
 
 **Visual hierarchy** is conveyed with colour. Every main section owns a hue — a coloured
-left rail plus its numbered badge (`--sec-rail`, set per section in `_obSections`). The eight
-section hues form a calm **blue → violet → magenta → rose** gradient — all in the brand's
-purple family, so it never reads as a rainbow. Within a section, sub-groups
+left rail plus its numbered badge (`--sec-rail`). Hues are assigned **by visible position**
+from the `_RAMP` (after variant filtering + renumber), so each funnel's sections form a calm
+**blue → violet → magenta → rose** gradient with no gaps — all in the brand's purple family,
+so it never reads as a rainbow. Within a section, sub-groups
 (`_obSubgroup(title, color, fields)`) sit behind a thinner, indented rail with a small dot, in
 an **analogous neighbour** of the parent section's hue — so a section and its children read as
 one family rather than clashing. Sub-groups exist in **Style** (Video / Thumbnail / Anything
@@ -71,6 +100,11 @@ All controls are custom-styled and emoji-free: the music-genre checkboxes use a 
 note uses a small inline lock **SVG** (no 🔒 emoji).
 
 ## Sections (the approved question set)
+
+Master list below. **Standard funnel** shows 1–7 (Basic info → Account access).
+**AI funnel** drops **Sample video** and appends **AI avatar**, so it also shows seven
+steps: Basic info → Brand & audience → Style → Photos & source → Goals → Account access →
+AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional.)
 
 1. **Basic info** — name, email, phone, who else to loop in, billing contact.
 2. **Your brand & audience** — brand-guidelines link, then the original form's four questions
@@ -106,26 +140,30 @@ note uses a small inline lock **SVG** (no 🔒 emoji).
    - References were consolidated to exactly three (video / thumbnail / music); the old subtitle
      reference, visual reference, font preference, font reference image, and "clips you like" were
      folded in. *(No "video editing style" picker — editing feel is the B-roll + Music answers.)*
-4. **Sample video** — its own section, with intro instructions explaining the process: *before* we
-   produce the first real video we make a few short **sample edits** (different subtitle styles,
-   thumbnails, looks) so the client can pick what they like — and to make those look like their real
-   videos, the **sample clip of you** (~30s talking to camera) is the single most useful thing to give.
+4. **Sample video** *(standard funnel only)* — its own section, with intro instructions explaining
+   the process: *before* we produce the first real video we make a few short **sample edits**
+   (different subtitle styles, thumbnails, looks) so the client can pick what they like — and to make
+   those look like their real videos, the **sample clip of you** (~30s talking to camera) is the
+   single most useful thing to give. (Dropped on the AI funnel.)
 5. **Photos & source material** — both optional links (photos of you, content to pull from).
 6. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.
 7. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
    to share credentials securely via LastPass to `house@synchrosocial.com` instead of typing
    them. These login fields are the only ones the dashboard viewer strips.
-8. **AI avatar (optional)** — last section. Gated behind the "Want to add an AI avatar?"
-   Yes/No question (**defaults to No**) with an ⓘ explainer that frames it as a separate
-   add-on — its own production system and pricing, handled directly with Casper (deliberately
-   no prices or firm promises). When Yes: what to build the likeness from (reuses the sample
-   clip / photos if given), personality, look (talking-to-camera / podcast, each with an ⓘ
-   example frame), text-only-videos toggle (ⓘ explains avatar-in-background + on-screen text),
-   setting, framing, accessories (incl. an "Other" write-in), hair, makeup, clothing, and — in the
-   **Voice** group — the voice-clone capture script + recording link (`ai_voice_link`), plus an extra
-   optional field (`ai_voice_samples`) asking for a Drive link to as many high-quality voice recordings
-   as possible (≈3 h ideal) to improve the clone.
+8. **AI avatar** *(AI funnel only)* — last section. **No opt-in gate** — on the AI funnel
+   the client is already here for the avatar, so the old "Want to add an AI avatar?" Yes/No
+   question and its ⓘ add-on explainer are removed and the fields show unconditionally (with a
+   short intro instead). Its fields are **required** on this funnel (`_obValidate` treats
+   `OB_VARIANT==='ai'` the same way the old gate's "yes" answer worked). Fields: what to build
+   the likeness from (reuses photos if given), personality, look (talking-to-camera / podcast,
+   each with an ⓘ example frame), text-only-videos toggle (ⓘ explains avatar-in-background +
+   on-screen text), setting, framing, accessories (incl. an "Other" write-in), hair, makeup,
+   clothing, and — in the **Voice** group — the voice-clone capture script + recording link
+   (`ai_voice_link`), plus an extra optional field (`ai_voice_samples`) asking for a Drive link
+   to as many high-quality voice recordings as possible (≈3 h ideal) to improve the clone.
+   *(The likeness helper reads `sample_clip` if present, but on the AI funnel that field is gone,
+   so it falls back to the photo links — no error.)*
 
 ### Example media
 
@@ -155,19 +193,26 @@ image by extension.
 
 ## Data flow
 
+Each funnel has its **own** webhook and its **own** Supabase table, so the two intake
+streams stay cleanly separated for review/routing:
+
 ```
-Browser form ──POST {submission}──▶ n8n `onboarding-submit` (service role)
-                                        ├─▶ Supabase  client_onboarding   (durable record)
-                                        └─▶ Slack      per-client creative channel  (auto-post)
+Standard form ─POST {submission}─▶ n8n `onboarding-submit`     ─▶ Supabase client_onboarding     ─▶ Slack DM (Sidney)
+AI form       ─POST {submission}─▶ n8n `ai-onboarding-submit`  ─▶ Supabase ai_client_onboarding  ─▶ Slack DM (Sidney)
 ```
 
-The browser **never** writes Supabase directly. `client_onboarding` deliberately has
-**no anon read/write** (it holds passwords + personal data) — see
-`onboarding-supabase-migration.sql`. Only the service-role n8n webhook touches it.
+The front-end picks the URL by variant: `_obSubmit` POSTs to `ONBOARDING_SUBMIT_URL`
+(standard) or `AI_ONBOARDING_SUBMIT_URL` (AI), and stamps the payload's `source`
+(`syncview-onboarding` | `syncview-ai-onboarding`), `funnel` (`standard` | `ai`), and
+`ai_avatar` (`no` | `yes`) accordingly.
 
-### Webhook contract — `POST /webhook/onboarding-submit`
+The browser **never** writes Supabase directly. Both tables deliberately have **no anon
+read/write** (they hold passwords + personal data) — see `onboarding-supabase-migration.sql`
+and `ai-onboarding-supabase-migration.sql`. Only the service-role n8n webhooks touch them.
 
-Request body:
+### Webhook contract — `POST /webhook/{onboarding-submit | ai-onboarding-submit}`
+
+Both webhooks take the identical body shape:
 
 ```jsonc
 {
@@ -175,9 +220,10 @@ Request body:
     "id": "o_<ts36>_<rand>",     // client-minted
     "slug": "firstlast",          // wlNormalizeClient(first+last), best-effort
     "first_name": "…", "last_name": "…", "email": "…", "phone": "…",
-    "ai_avatar": "yes" | "no",
+    "ai_avatar": "yes" | "no",   // always "yes" on the AI funnel
+    "funnel": "standard" | "ai",
     "answers": { /* full structured form: every field id, style_matrix{}, asset_grid{} */ },
-    "source": "syncview-onboarding",
+    "source": "syncview-onboarding" | "syncview-ai-onboarding",
     "created_at": "ISO", "updated_at": "ISO"
   }
 }
@@ -186,38 +232,59 @@ Request body:
 Expected response: `200` with any JSON (the form only checks `res.ok`). On a non-200 the
 form keeps the draft and shows a retry message, so a flaky webhook never loses answers.
 
-The webhook should: (1) upsert the row into `client_onboarding` (PK `id`, via the
-service-role Supabase credential `XdBpJ6Xk8PMpZXXT`), and (2) post a readable summary to
-the client's Slack creative channel — this is the "automated onboarding message after the
-form is submitted" from the June 25 call. (A second auto-message after the onboarding
-*call* — from the Fathom transcript — is a later step, not part of this form.)
+Each webhook: (1) inserts the row into its table (PK `id`, via the service-role Supabase
+credential `XdBpJ6Xk8PMpZXXT`) — **the insert gates the 200**, so a missing table 500s and
+the browser keeps the draft rather than silently losing it — and (2) DMs Sidney on Slack
+(`U0ACW93FS30`, as **SyncView Bot**) with a readable summary. The Slack step is fail-soft
+(`onError: continueRegularOutput`): if the DM fails the submission is still saved and the
+form still gets its 200. The AI table also carries a `funnel` column (always `ai`).
+(A second auto-message after the onboarding *call* — from the Fathom transcript — is a
+later step, not part of this form.)
 
 ## Status
 
-- ✅ Front-end page — dark-themed, built, renders, validates, autosaves, graceful submit-failure.
-  Verified in a headless browser (`?onboarding=test`): 8 collapsible sections, style pickers,
-  AI gate reveal, required-field validation (auto-expands collapsed sections), draft restore.
-- ✅ `onboarding-supabase-migration.sql` — committed; **run it once** in the Supabase SQL
-  editor (project `uzltbbrjidmjwwfakwve`).
-- 🟡 n8n `onboarding-submit` webhook — **created** (workflow id `ljNY7CKYLKzMOACZ`,
-  `POST /webhook/onboarding-submit`): `Receive POST → Build Row → Insert Submission
-  (Supabase, gate) → Notify Sidney (Slack DM) → Respond {ok}`. Snapshot in
-  `n8n-backups/onboarding-submit.2026-06-25.created.json`. Two small finish steps remain
-  (the MCP write/permission prompts errored out mid-session, so these are left for the n8n UI).
+- ✅ Front-end — both funnels built from one module, dark-themed, renders, validates, autosaves,
+  graceful submit-failure. Verified in a headless browser:
+  - **Standard** (`?onboarding=test`): 7 sections incl. **Sample video**, **no** AI section, no
+    JS errors, title `SynchroSocial`, favicon `synchro-social-logo.png`.
+  - **AI** (`?onboarding=ai`): 7 sections, **no** Sample video, **AI avatar** shown gate-less &
+    renumbered to step 7, positional recolour, no JS errors, same branding.
+- ✅ `onboarding-supabase-migration.sql` — standard table `client_onboarding`.
+- ✅ `ai-onboarding-supabase-migration.sql` — AI table `ai_client_onboarding` (mirrors the
+  standard table + a `funnel` column). **Run it once** in the Supabase SQL editor
+  (project `uzltbbrjidmjwwfakwve`).
+- ✅ n8n `onboarding-submit` webhook — workflow `ljNY7CKYLKzMOACZ`, `POST /webhook/onboarding-submit`
+  → `client_onboarding`. (Active.)
+- ✅ n8n `ai-onboarding-submit` webhook — **created + activated** (workflow id `hxLFIdKG9hUIzukO`,
+  `POST /webhook/ai-onboarding-submit`): `Receive POST → Build Row (adds funnel:'ai',
+  source:'syncview-ai-onboarding', ai_avatar:'yes') → Insert Submission (Supabase
+  `ai_client_onboarding`, gate) → Notify Sidney (Slack DM, SyncView Bot) → Respond {ok}`.
+  Cloned from the standard Submit workflow via the n8n SDK; Supabase + Slack ("SyncView Bot")
+  credentials attached.
+- ✅ n8n `ai-onboarding-list` webhook — **created + activated** (workflow id `oDZ1Oljvaig5KSLD`,
+  `GET /webhook/ai-onboarding-list`): reads `ai_client_onboarding`, strips credentials, returns
+  `{ok,count,submissions}`. Feeds the dashboard's **AI avatar onboarding** section.
+- ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
+  both list webhooks in parallel with per-funnel fault tolerance. Verified in a headless browser
+  (both-load and AI-list-fails cases).
 
-### Finish steps (≈2 min, one time)
+### Finish steps for the AI funnel (≈1 min, one time)
 
-1. **Run the SQL.** In the Supabase SQL editor (project `uzltbbrjidmjwwfakwve`), run
-   `onboarding-supabase-migration.sql` to create `client_onboarding`.
-2. **Fix the Slack credential.** Open workflow `ljNY7CKYLKzMOACZ` → **Notify Sidney** node →
-   switch the Slack credential from the auto-assigned **"Slack account 2"** to **"SyncView Bot"**
-   (`qUlAcjdhd6EpKOTL`) — same bot the existing Notion-intake notifier uses.
-3. **Activate** the workflow (toggle Active / publish).
+1. **Run the AI SQL.** In the Supabase SQL editor (project `uzltbbrjidmjwwfakwve`), run
+   `ai-onboarding-supabase-migration.sql` to create `ai_client_onboarding`. **This is the only
+   required step** — the webhook is already created and active.
+2. *(Optional)* **Confirm the Slack sender.** Workflow `hxLFIdKG9hUIzukO` → **Notify Sidney** is
+   wired to **"SyncView Bot"** (`qUlAcjdhd6EpKOTL`). If the standard notifier uses a different
+   Slack credential and you want them identical, switch it there. The DM is fail-soft, so this
+   never blocks a submission.
 
-Until step 1 + 3 are done, the form's submit returns the graceful "saved on this device, try
-again" message — no data is lost. Because the Supabase insert is the gate (`onError:
-stopWorkflow`), a submission is never silently dropped: if the table is missing the webhook
-500s and the browser keeps the draft.
+Until step 1 is done, the AI form's submit returns the graceful "saved on this device, try
+again" message — no data is lost. Because the Supabase insert is the gate, a submission is never
+silently dropped: if the table is missing the webhook 500s and the browser keeps the draft.
+
+> **Note on the standard funnel's earlier finish steps:** if `client_onboarding` and workflow
+> `ljNY7CKYLKzMOACZ` were already set up in the prior round, nothing more is needed there. If not,
+> run `onboarding-supabase-migration.sql` and activate `ljNY7CKYLKzMOACZ` as before.
 
 ### Second auto-message (later)
 The June 25 call also wanted a *second* Slack post after the onboarding **call** (built from the
@@ -227,13 +294,25 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 ## Viewing submissions in the dashboard (Templates → Onboarding)
 
-A new **Onboarding** sub-tab in the Templates tab lists submissions and shows each
-one's editor/designer-relevant sections (brand & audience, style, photos/source,
-goals, AI avatar). It reads `GET /webhook/onboarding-list` (workflow
-`slqt2zCDyIc7OAmY`), which fetches `client_onboarding` with the service-role
-credential and **strips the account-credential fields** before returning — so no
-passwords ever reach the public dashboard. Snapshot:
-`n8n-backups/onboarding-list.2026-06-26.created.json`.
+A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
+editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
+It is **split into two sections** — **Standard onboarding** and **AI avatar onboarding** —
+each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
+is always visible.
 
-**One-time finish step:** activate workflow `slqt2zCDyIc7OAmY` in n8n (toggle Active).
-Until then, the Onboarding tab shows "couldn't load submissions".
+It reads **both** list webhooks, in parallel:
+
+- `GET /webhook/onboarding-list` (workflow `slqt2zCDyIc7OAmY`) → `client_onboarding`.
+- `GET /webhook/ai-onboarding-list` (workflow `oDZ1Oljvaig5KSLD`) → `ai_client_onboarding`.
+
+Both fetch with the service-role credential and **strip the account-credential fields**
+(IG/TikTok/FB/LinkedIn/YouTube) before returning — so no passwords ever reach the public
+dashboard. The dashboard tags each row with its `funnel` (by which webhook it came from) and
+groups by it. Load is **fault-tolerant**: if one webhook fails, the other funnel still renders
+and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapshots:
+`n8n-backups/onboarding-list.2026-06-26.created.json`,
+`n8n-backups/ai-onboarding-list.2026-06-28.created.json`.
+
+**Finish step:** both list workflows are **active** (`slqt2zCDyIc7OAmY` + `oDZ1Oljvaig5KSLD`).
+The AI section stays empty until `ai-onboarding-supabase-migration.sql` is run and an AI form is
+submitted; until the standard table/workflow exist the Standard section behaves the same way.

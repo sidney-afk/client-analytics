@@ -7359,8 +7359,9 @@
        templates tab's _tpl* pattern).
        ============================================================ */
     const ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-list';
+    const AI_ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-list';
     let _tplTab = 'templates';            // 'templates' | 'onboarding'
-    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvSelected = null, _obvLoadedAt = 0;
+    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0;
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
     const OBV_SUB = { native:'Native captions', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
@@ -7385,11 +7386,23 @@
     function _obvEnsureLoaded(force){
       if (_obvLoading) return;
       if (_obvSubs && !force) return;
-      _obvLoading = true; _obvError = '';
-      fetch(ONBOARDING_LIST_URL + '?_t=' + Date.now(), { method:'GET' })
+      _obvLoading = true; _obvError = ''; _obvWarn = '';
+      // Two funnels = two list webhooks (standard client_onboarding + ai_client_onboarding).
+      // Pull both, tag each row with its funnel, and merge. Partial failure (e.g. the AI
+      // list isn't active yet) still shows whatever loaded, with a soft warning.
+      const pull = (url, funnel) => fetch(url + '?_t=' + Date.now(), { method:'GET' })
         .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(d=>{ _obvSubs = Array.isArray(d) ? d : (d.submissions || []); _obvLoadedAt = Date.now(); })
-        .catch(e=>{ _obvError = e.message || 'load failed'; _obvSubs = _obvSubs || []; })
+        .then(d=>{ const arr = Array.isArray(d) ? d : (d.submissions || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
+      Promise.allSettled([ pull(ONBOARDING_LIST_URL, 'standard'), pull(AI_ONBOARDING_LIST_URL, 'ai') ])
+        .then(([std, ai])=>{
+          const ok = []; const failed = [];
+          if (std.status==='fulfilled') ok.push(...std.value); else failed.push('standard ('+(std.reason&&std.reason.message||'failed')+')');
+          if (ai.status==='fulfilled')  ok.push(...ai.value);  else failed.push('AI ('+(ai.reason&&ai.reason.message||'failed')+')');
+          _obvSubs = ok;
+          _obvError = (ok.length===0 && failed.length) ? failed.join('; ') : '';
+          _obvWarn  = (ok.length>0  && failed.length) ? ('Couldn\'t load the ' + failed.join(' and ') + ' list.') : '';
+          _obvLoadedAt = Date.now();
+        })
         .finally(()=>{ _obvLoading = false; if (_tplTab==='onboarding') _obvRerender(); });
     }
 
@@ -7409,9 +7422,17 @@
       }
       let body;
       if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
-      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If the onboarding-list webhook isn't active yet, activate it in n8n.</small></div>`;
+      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If a list webhook isn't active yet, activate it in n8n.</small></div>`;
       else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
-      else body = `<div class="obv-list">` + _obvSubs.map(_obvCard).join('') + `</div>`;
+      else {
+        // Two funnels, two sections. Standard = client_onboarding; AI = ai_client_onboarding.
+        const warn = _obvWarn ? `<div class="obv-warn">${_obvEsc(_obvWarn)}</div>` : '';
+        const std = _obvSubs.filter(s=>s.funnel!=='ai');
+        const aiSubs = _obvSubs.filter(s=>s.funnel==='ai');
+        const group = (label, arr) => `<div class="obv-group"><div class="obv-group-h">${label}<span class="obv-group-n">${arr.length}</span></div>`
+          + (arr.length ? `<div class="obv-list">${arr.map(_obvCard).join('')}</div>` : `<div class="obv-group-empty">None yet.</div>`) + `</div>`;
+        body = warn + group('Standard onboarding', std) + group('AI avatar onboarding', aiSubs);
+      }
       return top + body + `</div>`;
     }
 
@@ -7419,7 +7440,7 @@
 
     function _obvCard(s){
       const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Untitled';
-      const ai = (s.ai_avatar==='yes') ? `<span class="obv-badge">AI avatar</span>` : '';
+      const ai = (s.ai_avatar==='yes' && s.funnel!=='ai') ? `<span class="obv-badge">AI avatar</span>` : '';
       return `<button class="obv-card" onclick="_obvOpen('${_obvEsc(s.id)}')">
         <div class="obv-card-main"><div class="obv-card-name">${_obvEsc(name)}</div>
         <div class="obv-card-sub">${_obvEsc(s.email||'')}</div></div>
@@ -7520,6 +7541,12 @@
       .obv-refresh{ margin-left:auto; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; font-size:0.95rem; }
       .obv-refresh:hover{ color:var(--text-primary); border-color:var(--text-muted); }
       .obv-empty{ text-align:center; color:var(--text-muted); font-size:0.9rem; padding:50px 20px; line-height:1.6; }
+      .obv-warn{ font-size:0.8rem; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:9px; padding:9px 12px; margin-bottom:16px; }
+      .obv-group{ margin-bottom:22px; }
+      .obv-group:last-child{ margin-bottom:0; }
+      .obv-group-h{ display:flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin:0 2px 9px; }
+      .obv-group-n{ font-size:0.7rem; font-weight:700; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:1px 8px; }
+      .obv-group-empty{ font-size:0.84rem; color:var(--text-muted); padding:8px 4px 2px; }
       .obv-list{ display:flex; flex-direction:column; gap:8px; }
       .obv-card{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; background:var(--white); border:1px solid var(--border); border-radius:12px; padding:13px 16px; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; transition:all 0.12s; }
       .obv-card:hover{ border-color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.06); }
@@ -11656,10 +11683,11 @@
 
         const state = {nav: page, client: null};
         if (page === 'onboarding') {
-            // Standalone onboarding form gets a clean path URL (/onboarding_form), served on
-            // GitHub Pages via the 404.html redirect. Guarded: replaceState to a different path
-            // throws on file:// (local tests), which we can safely ignore.
-            try { history.replaceState(state, '', '/onboarding_form'); } catch (e) {}
+            // Standalone onboarding form gets a clean path URL, served on GitHub Pages via the
+            // 404.html redirect. The AI funnel keeps its own /ai_onboarding_form path so the two
+            // forms are individually shareable. Guarded: replaceState to a different path throws
+            // on file:// (local tests), which we can safely ignore.
+            try { history.replaceState(state, '', OB_VARIANT === 'ai' ? '/ai_onboarding_form' : '/onboarding_form'); } catch (e) {}
         } else {
             const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
             if (push) history.pushState(state, '', url);
@@ -11728,7 +11756,11 @@
        Submit -> n8n `onboarding-submit` -> Supabase + Slack. Namespaced _ob/OB_.
        ============================================================ */
     const ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-submit';
-    const OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
+    const AI_ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-submit';
+    // Funnel variant: 'normal' (/onboarding_form) or 'ai' (/ai_onboarding_form). The entry
+    // router sets this (and the matching draft key) before the form mounts.
+    let OB_VARIANT = 'normal';
+    let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
 
@@ -11993,7 +12025,8 @@
     }
 
     function _obSections(){
-      return [
+      const _ai = (OB_VARIANT === 'ai');
+      const _all = [
         { id:'s1', n:'1', c:'#5f86df', title:'Basic info', fields:[
           _obField({id:'first_name', label:'First name', type:'text', required:true}),
           _obField({id:'last_name', label:'Last name', type:'text', required:true}),
@@ -12049,13 +12082,8 @@
           _obField({id:'linkedin', label:'LinkedIn login', help:'e.g. you@email.com / Mypassword123', placeholder:'email / password', type:'text'}),
           _obField({id:'youtube', label:'YouTube access', help:'Invite house@synchrosocial.com via YouTube Studio, or leave blank.', type:'text'}),
         ]},
-        { id:'s8', n:'8', c:'#d36f93', title:'AI avatar (optional)', isAi:true, fields:[
-          '<div class="ob-q" data-ob-q="ai_avatar"><label class="ob-label">Want to add an AI avatar?<span class="ob-req">*</span></label>'+
-            '<div class="ob-help">A realistic version of you that can deliver videos without filming. '+
-            '<button type="button" class="ob-i" id="obAiInfoBtn" aria-label="More about the AI avatar add-on">'+OB_INFO_SVG+'</button></div>'+
-            '<div class="ob-info-panel" id="obAiInfo" style="display:none">This is a separate add-on — its own production system and pricing, handled directly with Casper. Choosing &ldquo;Yes&rdquo; just flags your interest; Casper will walk you through how it works and the details.</div>'+
-            '<div class="ob-radios" data-ob-radio="ai_avatar"><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="yes"><span>Yes</span></label><label class="ob-pill-opt"><input type="radio" name="ai_avatar" value="no" checked><span>No</span></label></div></div>',
-          '<div id="obAiFields" class="ob-ai-fields" style="display:none">'+
+        { id:'s8', n:'8', c:'#d36f93', title:'AI avatar', isAi:true, intro:'A realistic version of you that can deliver videos without filming. Tell us how you\'d like your avatar to look, sound and feel.', fields:[
+          '<div id="obAiFields" class="ob-ai-fields">'+
             _obSubgroup('Your likeness', '#c56fc0', [
               _obAiLikeness(),
             ])+
@@ -12085,6 +12113,17 @@
           '</div>',
         ]},
       ];
+      // Variant filtering: the standard funnel drops the AI section; the AI funnel drops the
+      // Sample-video section and keeps the (gate-less) AI section. Then renumber + recolour by
+      // final position so the section gradient stays smooth in both.
+      const _RAMP = ['#5f86df','#6f78e2','#8a6fe0','#a063d8','#b65fce','#c560bc','#cf64a2','#d36f93'];
+      const _list = _all.filter(function(s){
+        if (s.id === 's8') return _ai;     // AI avatar — AI funnel only
+        if (s.id === 's4') return !_ai;    // Sample video — standard funnel only
+        return true;
+      });
+      _list.forEach(function(s, i){ s.n = String(i + 1); s.c = _RAMP[i] || s.c; });
+      return _list;
     }
 
     function mountOnboardingView(){
@@ -12260,7 +12299,7 @@
       ['first_name','last_name','email','phone','ideal_customer','pain_points','desired_outcomes','process','success'].forEach(k=>{ if(!d[k]) miss.push(k); });
       if(!d.subtitle_style) miss.push('subtitle_style');
       if(d.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.email)) miss.push('email');
-      if(d.ai_avatar==='yes'){
+      if(OB_VARIANT==='ai' || d.ai_avatar==='yes'){
         ['ai_personality','ai_setting','ai_voice_link'].forEach(k=>{ if(!d[k]) miss.push(k); });
         if(!d.ai_content_style||!d.ai_content_style.length) miss.push('ai_content_style');
         if(!d.ai_text_driven) miss.push('ai_text_driven');
@@ -12283,8 +12322,9 @@
       const btn=document.getElementById('obSubmit'); btn.disabled=true; btn.textContent='Submitting…';
       const slug=(typeof wlNormalizeClient==='function')?wlNormalizeClient((d.first_name+' '+d.last_name).trim()):'';
       const now=new Date().toISOString();
-      const submission={ id:_obId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:d.ai_avatar, answers:d, source:'syncview-onboarding', created_at:now, updated_at:now };
-      fetch(ONBOARDING_SUBMIT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ submission }) })
+      const _aiFunnel = (OB_VARIANT==='ai');
+      const submission={ id:_obId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:(_aiFunnel?'yes':'no'), funnel:(_aiFunnel?'ai':'standard'), answers:d, source:(_aiFunnel?'syncview-ai-onboarding':'syncview-onboarding'), created_at:now, updated_at:now };
+      fetch(_aiFunnel?AI_ONBOARDING_SUBMIT_URL:ONBOARDING_SUBMIT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ submission }) })
         .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({ok:true})); })
         .then(()=>{ try{ localStorage.removeItem(OB_DRAFT_KEY); }catch(e){} _obThankYou(d); })
         .catch(e=>{ btn.disabled=false; btn.textContent='Submit'; err.style.display='block'; err.textContent='Something went wrong sending the form — your answers are saved here, please try again.'; console.error('[onboarding] submit failed', e); });
@@ -24792,7 +24832,13 @@
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
     const _isIntake=(new URLSearchParams(location.search).get('intake')==='1');
-    const _isOnboarding=(new URLSearchParams(location.search).get('onboarding')!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
+    const _obParam=new URLSearchParams(location.search).get('onboarding');
+    // AI funnel lives at /ai_onboarding_form (or ?onboarding=ai); the standard
+    // funnel at /onboarding_form (or ?onboarding=<anything-else>). The /ai_ path
+    // can't match the standard regex (no '/' before 'onboarding_form'), so order
+    // doesn't matter, but we detect AI explicitly to set the variant.
+    const _isAiOnboarding=(_obParam==='ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
+    const _isOnboarding=_isAiOnboarding || (_obParam!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
     if(_isIntake){document.body.classList.add('intake-mode');}
     if(_isOnboarding){document.body.classList.add('onboarding-mode');}
     if(_isOnboarding){
@@ -24800,6 +24846,21 @@
         // dashboard data load. Hide all workspace chrome and mount only the
         // onboarding page; navTo is locked to 'onboarding' so the link can't
         // reach any other tab.
+        // Pick the funnel variant BEFORE the form mounts. The AI funnel shows the
+        // AI-avatar section and drops the sample-video section; the standard funnel
+        // is the reverse. Each keeps its own autosave draft key so the two forms
+        // never clobber each other's localStorage.
+        OB_VARIANT = _isAiOnboarding ? 'ai' : 'normal';
+        OB_DRAFT_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1';
+        // Both onboarding forms carry SynchroSocial branding (tab title + favicon),
+        // distinct from the SyncView dashboard chrome.
+        try {
+            document.title = 'SynchroSocial';
+            let _fav = document.querySelector('link[rel="icon"]');
+            if (!_fav) { _fav = document.createElement('link'); _fav.rel = 'icon'; document.head.appendChild(_fav); }
+            _fav.type = 'image/png';
+            _fav.href = 'synchro-social-logo.png';
+        } catch (e) {}
         const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
         const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
         // Defer to a macrotask so the whole script finishes initializing its

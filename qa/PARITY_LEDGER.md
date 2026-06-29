@@ -81,7 +81,22 @@ pushes into fresh territory instead of re-treading. Calendar = source of truth.
    `_calShowUrgent` + the ping button (+ a `_sxrSendUrgentSlack` if the Slack webhook is
    wired for samples). *(confirm whether the Slack ping is wanted for samples)*
 
-## Next territory (not yet probed)
+### Batch 6 — composer + approve-split (inspection) — no new gaps
+| Check | Result |
+|---|---|
+| Approve-split routing (primary/alt = seenByKasper ? client : kasper) | ✅ byte-identical source; rides `hasBeenToKasper` (already ✅) |
+| Composer placeholder text | ◌ by-design copy refinement (rebuild reworded — not a behavioural gap) |
+
+## Coverage status — high-value parity territory largely exhausted
+Six batches, **140+ comparisons** across status math, routing predicates, visibility,
+review-queue rules, Kasper surface, merge/freshness, archive, card affordances. New
+*real* divergences have dried up — the last two passes turned up only by-design/cosmetic
+differences. **4 real gaps stand open** (below) and are the high-value next step.
+Remaining un-probed areas are low-yield (realtime echo dedup, drag-reorder persistence —
+both already covered by the live scenario/temporal suites) so the finder is moving to a
+slow heartbeat pending the fix decision.
+
+## Next territory (low-yield, not yet probed)
 - **Kasper surface** — unread-reply predicate, cross-client queue membership (Surface 8).
 - **Approve-split routing** — primary/alt button (seen-by-Kasper → client default), `_calReviewApplyApprove` target.
 - **Post-level save merge** — `_calMergePostComments`/field-level merge vs `_sxr` (no clobber under concurrent edits).

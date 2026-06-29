@@ -28,6 +28,17 @@ diffs the computed image CSS → **RENDER PARITY HELD**.
 > (`cal-review-graphic-tile`) instead of reusing `cal-review-preview-thumb-btn`. Highest
 > render-risk = wherever samples defines its own `.cal-*`/`.sxr-*` visual class.
 
+### Batch 8 — samples-specific visual-class audit (the targeted close-out)
+Enumerated every visual class the samples *defines itself* (where the thumbnail bug lived):
+- `.cal-review-graphic-tile` — the thumbnail bug. **Fixed** earlier; its now-dead CSS **removed** this pass.
+- `.cal-card-notes` — a deliberate restyle of the card Notes button (icon 14px vs the
+  calendar's 13px, own border/padding). Intentional samples styling, cosmetic — *not a drift bug*.
+- `.sxr-cd-*` — the creative-direction field; **samples-only**, no calendar counterpart to diff against.
+
+**Conclusion:** the only render-drift bug the samples-specific classes ever caused was the
+thumbnail (fixed). Render-parity is **exhausted** — remaining risk is *live behavior*, not CSS:
+the PR-#615 fixes (URGENT POST, pill-lock, Kasper-queue gate) have only been verified as logic.
+
 - **Legend:** ✅ parity held · 🔧 divergence found→fixed · ◌ by-design difference (not a bug).
 
 ## Covered

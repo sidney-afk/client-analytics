@@ -11854,6 +11854,7 @@
     // Hover-affordance icons on previews: a play triangle (videos) and a maximize/expand (thumbnail).
     const OB_PLAY_BIG_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.5-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14Z"/></svg>';
     const OB_EXPAND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
+    const OB_CHECK_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><path d="M3.3 8.4l3 3 6.4-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     function _obInfoBtn(attr){ return '<button type="button" class="ob-i" '+attr+'>'+OB_INFO_SVG+'</button>'; }
     const OB_TEXTONLY_INFO = 'Your avatar appears in the background (an expression or a pose) while the main message is text on screen — no one is talking.';
 
@@ -11960,29 +11961,27 @@
       const inner = isVideo
         ? '<video src="'+url+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic ob-zoom-ic--play">'+OB_PLAY_BIG_SVG+'</span>'
         : '<img src="'+url+'" alt="" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span>';
-      return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button><span class="ob-stp-cap">'+cap+'</span></div>';
+      return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button>'+cap+'</div>';
     }
     function _obStyleCards(group, items, isVideo){
       return items.map(t=>{
         const std=t[3]||'', hl=t[4]||'';
-        const previews = '<div class="ob-stp-row">'+_obStylePreview(std, isVideo, 'Standard')+(hl?_obStylePreview(hl, isVideo, '+ Highlight'):'')+'</div>';
+        // The highlight preview's caption IS the add-on control: a per-style "+ Add highlight"
+        // pill (right where the +Highlight preview is, so it's obvious it can be turned on).
+        const stdCap = '<span class="ob-stp-cap">Standard</span>';
+        const hlCap = '<button type="button" class="ob-hl-pill" data-ob-hl="'+t[0]+'" aria-pressed="false">+ Add highlight</button>';
+        const previews = '<div class="ob-stp-row">'+_obStylePreview(std, isVideo, stdCap)+(hl?_obStylePreview(hl, isVideo, hlCap):'')+'</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
         return '<div class="ob-stcard"><label class="ob-stcard-head"><input type="radio" name="'+group+'" value="'+t[0]+'" data-hashl="'+(hl?'1':'')+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+previews+'</div>';
       }).join('');
     }
 
-    // Highlight add-on toggle — rendered disabled; enabled once a style with a highlight variant is picked.
-    function _obHlToggle(id,label,help){
-      const h = help ? '<div class="ob-help">'+help+'</div>' : '';
-      return '<div class="ob-q ob-toggle-q ob-disabled" data-ob-q="'+id+'"><div><label class="ob-label">'+_obEsc(label)+'</label>'+h+'</div>'+
-        '<label class="ob-switch"><input type="checkbox" data-ob-toggle="'+id+'" disabled><span class="ob-switch-track"></span></label></div>';
-    }
-
     function _obSubtitles(){
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Pick the caption style. Each shows the standard look and the +highlight version. Tap a preview to play it.</div>'+
-        '<div class="ob-stgrid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div></div>'+
-        _obHlToggle('subtitle_highlight','Add highlighted keywords','An add-on: a key word pops in colour. Pick a style above to turn it on.');
+        '<div class="ob-help">Pick the caption style. Each shows the standard look and the +highlight version side by side — tap a preview to play it, or hit <b>+ Add highlight</b> under a style to add the colour-pop keywords as an add-on.</div>'+
+        '<div class="ob-stgrid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
+        // hidden carrier for the add-on value (serialized as a boolean); driven by the per-style pills.
+        '<input type="checkbox" data-ob-toggle="subtitle_highlight" hidden></div>';
     }
 
     // Live thumbnail-text picker: a preview that swaps in place + tight controls beside it
@@ -12036,13 +12035,32 @@
     }
 
     // Enable a group's Highlight toggle only when a style with a highlight variant is selected.
-    function _obStyleSel(group){
-      const sel=document.querySelector('input[name="'+group+'"]:checked');
-      const togId = group==='subtitle_style'?'subtitle_highlight':'thumbnail_highlight';
-      const tog=document.querySelector('[data-ob-toggle="'+togId+'"]'); if(!tog) return;
+    // Sync the per-style "+ Add highlight" pills to the current selection + add-on state.
+    // The pill on the SELECTED style reads "Highlight on" when the add-on is on; the others
+    // invite turning it on. subtitle_highlight is one boolean (a hidden checkbox carrier).
+    function _obStyleSel(){
+      const sel=document.querySelector('input[name="subtitle_style"]:checked');
+      const selStyle = sel ? sel.value : '';
       const hasHl = !!(sel && sel.getAttribute('data-hashl')==='1');
-      tog.disabled=!hasHl; if(!hasHl && tog.checked) tog.checked=false;
-      const wrap=tog.closest('.ob-toggle-q'); if(wrap) wrap.classList.toggle('ob-disabled', !hasHl);
+      const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
+      if(!hasHl && c && c.checked) c.checked=false;   // a style with no highlight variant can't be highlighted
+      const hlOn = !!(c && c.checked);
+      document.querySelectorAll('.ob-hl-pill[data-ob-hl]').forEach(p=>{
+        const st=p.getAttribute('data-ob-hl'); const active=(st===selStyle && hlOn);
+        p.classList.toggle('on', active);
+        p.setAttribute('aria-pressed', active?'true':'false');
+        p.innerHTML = active ? (OB_CHECK_SVG+'Highlight on') : '+ Add highlight';
+      });
+    }
+    // Clicking a style's "+ Add highlight" pill: if it's the selected style, toggle the add-on;
+    // otherwise select that style and turn the add-on on.
+    function _obClickHlPill(style){
+      const sel=document.querySelector('input[name="subtitle_style"]:checked');
+      const selStyle = sel ? sel.value : '';
+      const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
+      if(style===selStyle){ if(c) c.checked=!c.checked; }
+      else { const radio=document.querySelector('input[name="subtitle_style"][value="'+style+'"]'); if(radio) radio.checked=true; if(c) c.checked=true; }
+      _obStyleSel(); _obSaveDraftDebounced();
     }
 
     function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
@@ -12280,6 +12298,7 @@
         const rail = e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); return; }
         const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
+        const hlp = e.target.closest && e.target.closest('[data-ob-hl]'); if(hlp){ e.preventDefault(); _obClickHlPill(hlp.getAttribute('data-ob-hl')); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
         const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
         const csT = e.target.closest && e.target.closest('[data-cs-toggle]'); if(csT){ e.preventDefault(); _obToggleSelect(csT.getAttribute('data-cs-toggle')); return; }
@@ -12591,6 +12610,11 @@
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:pointer; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
+      /* Per-style highlight add-on pill (sits where the +Highlight caption was). */
+      .ob-hl-pill{ display:inline-flex; align-items:center; gap:4px; font-family:inherit; font-size:0.7rem; font-weight:700; line-height:1; color:var(--ob-accent); background:transparent; border:1.5px solid var(--ob-accent); border-radius:99px; padding:5px 11px; cursor:pointer; transition:background 0.13s, color 0.13s; white-space:nowrap; }
+      .ob-hl-pill:hover{ background:rgba(99,102,241,0.14); }
+      .ob-hl-pill.on{ background:var(--ob-accent); border-color:var(--ob-accent); color:#fff; }
+      .ob-hl-pill svg{ display:block; }
       /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
       .ob-tp-buildrow{ margin-bottom:14px; }
       .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }

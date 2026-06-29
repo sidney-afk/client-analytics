@@ -116,10 +116,14 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    - **── Video ──**
      - **Subtitle style** — single-select cards **Elegant / Native / Bold**. Each card shows
        its name + the **Standard** and **+ Highlight** previews side-by-side (purpose-made sample
-       clips, `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). A separate **Add highlighted
-       keywords** toggle (`subtitle_highlight`) is **disabled until a style is selected**
-       (`_obStyleSel`); all three styles now ship a highlight variant, so the toggle is available
-       for each. The toggle no longer swaps previews — both are always shown.
+       clips, `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). The highlight add-on is set **per
+       card**: under each style's +Highlight preview sits a **"+ Add highlight"** pill
+       (`.ob-hl-pill`, `_obClickHlPill`) — clicking it selects that style and turns the
+       colour-pop keywords on (the pill flips to a filled **"✓ Highlight on"**); clicking the
+       active one removes it. It's a single boolean (`subtitle_highlight`, a hidden checkbox
+       carrier) that follows the selected style — `_obStyleSel` keeps the pills in sync. This
+       replaced the old single toggle at the bottom of the section, which clients scrolling
+       top-to-bottom would miss (they saw a "+Highlight" preview with no obvious way to pick it).
      - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / **My own footage** / No B-roll.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
@@ -173,7 +177,7 @@ byte-sliced MP3 clips under `onboarding-audio/`.
 
 The **subtitle** picker uses `_obStyleCards(group, items, isVideo)` — rows
 `[key, name, desc, standardMedia, highlightMedia]` rendered as cards showing the standard +
-`+highlight` previews side by side, with a gated `subtitle_highlight` toggle (`_obStyleSel`).
+`+highlight` previews side by side, each highlight preview carrying a `_obClickHlPill` add-on pill (`_obStyleSel` keeps them in sync with the selected style).
 The **thumbnail** picker is the separate live `_obThumbPicker` described above (preview + Font/Style/
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.

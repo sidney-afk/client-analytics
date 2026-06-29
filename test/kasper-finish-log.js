@@ -1,16 +1,16 @@
 'use strict';
 /*
- * kasper_finish_log — durable per-click finish record (regression test).
+ * kasper_finish_log — durable, self-describing per-click finish record (regression).
  *
  * Run:  node test/kasper-finish-log.js   (exit 0 = all good)
  *
- * BACKGROUND. `kasper_finished_at` is a SINGLE overwritten stamp, so it cannot
- * reveal the recurring review-card bug's fingerprint: a finished card that
- * re-surfaces and gets FINISHED AGAIN later. `_kasperAppendFinishLog` appends one
- * entry per Finish click to `kasper_finish_log` (a JSON array in a text column),
- * capturing the gap since the previous finish and a best-effort cause. This
- * asserts the REAL shipping function (extracted by name, brace-balanced) builds
- * those entries correctly. See kasper-finish-log-migration.sql.
+ * BACKGROUND. `kasper_finished_at` is a SINGLE overwritten stamp, so it can't reveal
+ * the recurring review-card bug: a finished card that re-surfaces and gets FINISHED
+ * AGAIN. `_kasperAppendFinishLog` appends one entry per Finish hand-off to
+ * `kasper_finish_log`, rich enough to CLASSIFY a recurrence without a manual Linear
+ * lookup: gap since the previous finish, message author, per-component tweak rounds,
+ * Linear links, and a `why` that flags the bug-candidate bucket ('recheck'). This
+ * asserts the REAL shipping function (extracted by name, brace-balanced).
  */
 const fs = require('fs');
 const path = require('path');
@@ -29,111 +29,132 @@ function grabFunc(name) {
   throw new Error('unbalanced braces: ' + name);
 }
 
-// We test _kasperAppendFinishLog in isolation. Its only outside reference is
-// _calLatestMsgCreatedAt — stub it (via `ref.v`) so the test controls the
-// "latest message time". The factory defines the stub, then the REAL extracted
-// function (which closes over the stub), and returns it.
+// Stub the three calendar helpers the logger reaches: component list, status
+// normalizer (identity here), and the per-component comment list (fed via
+// post.__msgs). The factory defines the stubs, then the REAL extracted function.
 const fn = grabFunc('_kasperAppendFinishLog');
-const ref = { v: '' };
 // eslint-disable-next-line no-new-func
-const factory = new Function('ref', `
-  function _calLatestMsgCreatedAt(){ return ref.v; }
+const factory = new Function('COMPS', `
+  function _calComponentsFor(){ return COMPS; }
+  function _calNormStatus(s){ return s || ''; }
+  function _calCommentsFor(post, comp){ return (post.__msgs && post.__msgs[comp]) || []; }
   ${fn}
   return _kasperAppendFinishLog;
 `);
-const _kasperAppendFinishLog = factory(ref);
+const _kasperAppendFinishLog = factory(['video', 'graphic', 'caption']);
 
 let pass = 0, fail = 0;
 function ok(name, cond, got) {
   if (cond) { pass++; console.log('✓  ' + name); }
   else { fail++; console.log('✗  ' + name + '  (got ' + JSON.stringify(got) + ')'); }
 }
-function lastEntry(post) { return JSON.parse(post.kasper_finish_log).slice(-1)[0]; }
+function last(post) { return JSON.parse(post.kasper_finish_log).slice(-1)[0]; }
 function isoAgo(min) { return new Date(Date.now() - min * 60000).toISOString(); }
+function tweak(round, role, at) { return { is_tweak: true, round: round, role: role, created_at: at }; }
+function msg(role, at) { return { is_tweak: false, role: role, created_at: at }; }
 
-// 1) First finish on a fresh card → one 'initial' entry, no prev/gap.
+// 1) First finish → 'initial', captures statuses, rounds, links, last_msg.
 {
-  ref.v = '';
-  const post = { graphic_status: 'Tweaks Needed', video_status: 'Client Approval' };
-  _kasperAppendFinishLog(post, isoAgo(0));
-  const arr = JSON.parse(post.kasper_finish_log);
-  const e = arr[0];
-  ok('first finish → 1 entry', arr.length === 1, arr.length);
-  ok('first finish → why=initial', e.why === 'initial', e.why);
-  ok('first finish → prev=null', e.prev === null, e.prev);
-  ok('first finish → gap_min=null', e.gap_min === null, e.gap_min);
-  ok('first finish → captures component statuses', e.graphic_status === 'Tweaks Needed' && e.video_status === 'Client Approval', e);
+  const post = {
+    video_status: 'Tweaks Needed', graphic_status: 'Approved', status: 'For SMM Approval',
+    linear_issue_id: 'https://linear.app/x/VID-1', graphic_linear_issue_id: 'https://linear.app/x/GRA-1',
+    __msgs: { video: [tweak(1, 'kasper', isoAgo(5))], graphic: [], caption: [] },
+  };
+  _kasperAppendFinishLog(post);
+  const e = last(post);
+  ok('initial → why=initial', e.why === 'initial', e.why);
+  ok('initial → kind=handoff', e.kind === 'handoff', e.kind);
+  ok('initial → prev/gap null', e.prev === null && e.gap_min === null, e);
+  ok('initial → statuses captured', e.statuses.video === 'Tweaks Needed' && e.statuses.graphic === 'Approved', e.statuses);
+  ok('initial → rounds (max tweak round per comp)', e.rounds.video === 1 && e.rounds.graphic === 0, e.rounds);
+  ok('initial → links captured', e.links.video.endsWith('VID-1') && e.links.graphic.endsWith('GRA-1'), e.links);
+  ok('initial → last_msg captured', e.last_msg && e.last_msg.comp === 'video' && e.last_msg.role === 'kasper', e.last_msg);
 }
 
-// 2) Re-finish after a component re-entered Kasper Approval (status_at advanced
-//    past the prior finish), no new message → 'status-reentered', gap computed.
+// 2) Re-finish after someone ELSE replied → 'new-message'.
 {
-  ref.v = isoAgo(125);                       // newest message is OLDER than prev finish
-  const prev = isoAgo(120);                  // finished 2h ago
+  const prev = isoAgo(120);
   const post = {
     kasper_finished_at: prev,
-    kasper_finish_log: JSON.stringify([{ at: prev, prev: null, gap_min: null, why: 'initial' }]),
-    graphic_status: 'Kasper Approval',
-    graphic_status_at: isoAgo(5),            // graphic re-entered KA 5 min ago (after prev)
-    video_status_at: isoAgo(200),
+    kasper_finish_log: JSON.stringify([{ at: prev, why: 'initial', rounds: { video: 1, graphic: 0, caption: 0 } }]),
+    video_status: 'Tweaks Needed',
+    __msgs: { video: [tweak(1, 'kasper', isoAgo(125)), msg('smm', isoAgo(10))], graphic: [], caption: [] },
   };
-  _kasperAppendFinishLog(post, isoAgo(0));
-  const e = lastEntry(post);
-  ok('re-finish → appends (2 entries)', JSON.parse(post.kasper_finish_log).length === 2, JSON.parse(post.kasper_finish_log).length);
-  ok('re-finish → why=status-reentered', e.why === 'status-reentered', e.why);
-  ok('re-finish → prev = prior finish', e.prev === prev, e.prev);
-  ok('re-finish → gap_min ~120', e.gap_min >= 119 && e.gap_min <= 121, e.gap_min);
+  _kasperAppendFinishLog(post);
+  const e = last(post);
+  ok('re-finish w/ later SMM reply → why=new-message', e.why === 'new-message', e.why);
+  ok('new-message → last_msg.role=smm', e.last_msg.role === 'smm', e.last_msg);
+  ok('new-message → gap_min ~120', e.gap_min >= 119 && e.gap_min <= 121, e.gap_min);
 }
 
-// 3) Re-finish because a NEW message arrived after the prior finish → 'new-message'
-//    (message recency wins even if a status also moved).
+// 3) Re-finish after a fresh tweak round (editor reworked, Kasper re-asked) → 'new-round'.
 {
   const prev = isoAgo(90);
-  ref.v = isoAgo(10);                        // newest message is NEWER than prev finish
   const post = {
     kasper_finished_at: prev,
-    kasper_finish_log: JSON.stringify([{ at: prev, why: 'initial' }]),
-    graphic_status_at: isoAgo(5),            // a status also moved — message must still win
-    video_status_at: isoAgo(5),
+    kasper_finish_log: JSON.stringify([{ at: prev, why: 'initial', rounds: { video: 1, graphic: 0, caption: 0 } }]),
+    video_status: 'Tweaks Needed',
+    // newest message is Kasper's own round-2 tweak (so NOT new-message), and round grew 1→2
+    __msgs: { video: [tweak(1, 'kasper', isoAgo(200)), tweak(2, 'kasper', isoAgo(5))], graphic: [], caption: [] },
   };
-  _kasperAppendFinishLog(post, ref.v);
-  ok('re-finish w/ newer message → why=new-message', lastEntry(post).why === 'new-message', lastEntry(post).why);
+  _kasperAppendFinishLog(post);
+  const e = last(post);
+  ok('re-finish w/ new tweak round → why=new-round', e.why === 'new-round', e.why);
+  ok('new-round → rounds.video=2', e.rounds.video === 2, e.rounds);
 }
 
-// 4) Re-finish with nothing newer than the prior finish → 'refinish-no-change'.
+// 4) Re-finish with NOTHING new (no reply, no new round) → 'recheck' (bug-candidate).
 {
   const prev = isoAgo(60);
-  ref.v = isoAgo(200);                       // message older than prev
   const post = {
     kasper_finished_at: prev,
-    kasper_finish_log: JSON.stringify([{ at: prev, why: 'initial' }]),
-    graphic_status_at: isoAgo(200),          // status older than prev
-    video_status_at: isoAgo(200),
+    kasper_finish_log: JSON.stringify([{ at: prev, why: 'initial', rounds: { video: 1, graphic: 0, caption: 0 } }]),
+    video_status: 'Tweaks Needed',
+    __msgs: { video: [tweak(1, 'kasper', isoAgo(200))], graphic: [], caption: [] },  // all older than prev
   };
-  _kasperAppendFinishLog(post, prev);
-  ok('re-finish w/ no change → why=refinish-no-change', lastEntry(post).why === 'refinish-no-change', lastEntry(post).why);
+  _kasperAppendFinishLog(post);
+  ok('re-finish w/ nothing new → why=recheck', last(post).why === 'recheck', last(post).why);
 }
 
-// 5) Log is capped at 50 entries (keeps the most recent).
+// 5) rounds = max tweak round; non-tweak comments and deleted tweaks are ignored.
 {
-  ref.v = '';
+  const post = {
+    __msgs: { video: [], graphic: [
+      tweak(1, 'kasper', isoAgo(50)),
+      tweak(3, 'kasper', isoAgo(40)),
+      { is_tweak: false, round: 9, role: 'smm', created_at: isoAgo(30) },        // plain comment, ignored
+      { is_tweak: true, round: 5, role: 'kasper', created_at: isoAgo(20), deleted: true }, // deleted, ignored
+    ], caption: [] },
+  };
+  _kasperAppendFinishLog(post);
+  ok('rounds → max tweak round, ignores plain + deleted', last(post).rounds.graphic === 3, last(post).rounds);
+}
+
+// 6) links are null when a component has no Linear issue.
+{
+  const post = { __msgs: { video: [], graphic: [], caption: [] } };
+  _kasperAppendFinishLog(post);
+  const e = last(post);
+  ok('no links → null', e.links.video === null && e.links.graphic === null, e.links);
+}
+
+// 7) Capped at 50, keeps the newest.
+{
   const seed = [];
   for (let i = 0; i < 60; i++) seed.push({ at: isoAgo(1000 - i), why: 'x', n: i });
-  const post = { kasper_finish_log: JSON.stringify(seed) };
-  _kasperAppendFinishLog(post, isoAgo(0));
+  const post = { kasper_finish_log: JSON.stringify(seed), __msgs: { video: [], graphic: [], caption: [] } };
+  _kasperAppendFinishLog(post);
   const arr = JSON.parse(post.kasper_finish_log);
   ok('cap → length 50', arr.length === 50, arr.length);
-  ok('cap → drops oldest (keeps newest tail)', arr[0].n === 11, arr[0].n);
-  ok('cap → last entry is the new click', arr[49].why === 'initial', arr[49].why);
+  ok('cap → drops oldest (keeps tail)', arr[0].n === 11, arr[0].n);
+  ok('cap → last is the new click', arr[49].kind === 'handoff', arr[49]);
 }
 
-// 6) Corrupt/absent existing log never throws — starts fresh.
+// 8) Corrupt existing log never throws — recovers to a single entry.
 {
-  ref.v = '';
-  const post = { kasper_finish_log: 'not json {' };
-  _kasperAppendFinishLog(post, isoAgo(0));
-  const arr = JSON.parse(post.kasper_finish_log);
-  ok('corrupt log → recovers to 1 entry', arr.length === 1, arr.length);
+  const post = { kasper_finish_log: 'not json {', __msgs: { video: [], graphic: [], caption: [] } };
+  _kasperAppendFinishLog(post);
+  ok('corrupt log → recovers to 1 entry', JSON.parse(post.kasper_finish_log).length === 1, post.kasper_finish_log);
 }
 
 console.log('\n' + (fail ? (fail + ' FAILED') : 'ALL ' + pass + ' PASSED'));

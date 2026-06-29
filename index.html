@@ -3495,6 +3495,15 @@
         .ked-avg-split-item.is-finished .ked-avg-split-n { color: #15803d; }
         .ked-avg-split-item.is-tweaks   .ked-avg-split-n { color: #c2410c; }
         .ked-avg-split-item.is-firstcut .ked-avg-split-n { color: #6d28d9; }
+        /* Load (what's piled on him) vs Deliveries (what he pushed through) */
+        .ked-row-stats { display: flex; gap: 14px; align-items: flex-start; }
+        .ked-stat { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 3px; min-width: 0; }
+        .ked-stat-val { font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; }
+        .ked-stat.is-load  .ked-stat-val { color: #b45309; }
+        .ked-stat.is-deliv .ked-stat-val { color: var(--text-primary); }
+        .ked-stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 3px; }
+        .ked-stat-sub { font-size: 0.66rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
+        .ked-stat-sep { width: 1px; align-self: stretch; min-height: 34px; background: var(--border); }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
@@ -32739,9 +32748,11 @@
                 </div>
             </div>
             <div class="ked-info-panel" id="kedInfoPanel" hidden>
-                <p><strong>What this is.</strong> Last week's work, one row per editor. The big number is <strong>deliveries per workday</strong> — how many times a day, on average, the editor handed a video off for review.</p>
-                <p><strong>A delivery</strong> is the editor sending a video for review — to the SMM, to Kasper, or to the client. It's either a <strong>first cut</strong> (new work) or a <strong>tweak round</strong> (fixing requested changes and sending it back). The split under the big number shows the average of each per workday; together they make up the headline. <em>Finished</em> (got fully approved) and <em>in progress</em> (started, not yet delivered) are shown separately — they're outcomes, not the work count.</p>
+                <p><strong>What this is.</strong> Last week, one row per editor — two numbers side by side: how much was <strong>on his plate</strong> and how much he <strong>pushed through</strong>. The gap between them is the story.</p>
+                <p><strong>On his plate (load).</strong> How many videos sat in his court during the week — being edited, or waiting on his tweaks. This is the "how buried was he" number: a video stuck in tweaks for days counts here even if he never got to hand it off. "Still open" = videos that ended the week still parked on him.</p>
+                <p><strong>Pushed through (deliveries).</strong> Videos he actually handed off for review that week — a <strong>first cut</strong> (new work) or a <strong>tweak round</strong> (fixed and sent back), to the SMM, Kasper, or the client. <strong>High plate + low pushed-through = blocked or buried, not idle.</strong> <em>Finished</em> (got fully approved) is shown as a separate outcome.</p>
                 <p><strong>The bars.</strong> Each bar is one weekday; the number above is how many deliveries landed that day. Higher = busier day.</p>
+                <p class="ked-info-note">Heads up: load only counts videos that changed status at least once during the week, so a video that sat completely untouched won't show yet.</p>
                 <p><strong>Click an editor.</strong> See every video they touched last week, grouped by client. Each video gets a tiny timeline showing what happened to it across the week.</p>
                 <p><strong>Click a single day's bar.</strong> Zoom in on just that day — which clients the editor worked on and how many first cuts vs tweak rounds they delivered.</p>
                 <p><strong>Reading the timeline.</strong></p>
@@ -32985,13 +32996,49 @@
         return ((v && v.transitions) || []).some(t => _kedNorm(t.status) === 'in progress');
     }
 
-    // Roll a video list up into the numbers a row renders. firstCuts +
-    // tweakRounds = workUnits; avgPerWorkday = workUnits / 5 (workdays). perDay
-    // counts deliveries per Chicago day key. finishes / wip are distinct-video
-    // outcome counts; touched = distinct videos with any delivery, finish, or
-    // in-progress work in the window.
-    function _kedSplitVideos(videos) {
+    // "In his court" = the ball is with the editor: actively editing (In
+    // Progress) or owing a fix (Tweaks Needed). Waiting on a reviewer, done,
+    // or sitting in Todo is NOT his court.
+    function _kedIsCourtState(norm) {
+        return norm === 'in progress' || _kedIsTweakState(norm);
+    }
+    // How long a video sat in his court during the week — the "load" signal.
+    // Reconstructed from the transition timeline: the state before the first
+    // in-window event holds from weekStart; each event flips the state until
+    // weekEnd. editingMs (In Progress) and tweakMs (Tweaks Needed) are the time
+    // the ball was with him; endInCourt = still parked on him at week's end.
+    // (Only sees videos that had ≥1 in-window transition — a video that sat
+    // untouched all week isn't in the payload at all; richer once the server
+    // selection widens.)
+    function _kedVideoCourt(v, weekStartMs, weekEndMs) {
+        const trs = ((v && v.transitions) || []).slice()
+            .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        if (!trs.length || !(weekEndMs > weekStartMs)) return { editingMs: 0, tweakMs: 0, endInCourt: false };
+        let editingMs = 0, tweakMs = 0, cursor = weekStartMs, state = _kedNorm(trs[0].from);
+        const add = (st, fromMs, toMs) => {
+            const dur = Math.min(toMs, weekEndMs) - Math.max(fromMs, weekStartMs);
+            if (dur <= 0) return;
+            if (st === 'in progress') editingMs += dur;
+            else if (_kedIsTweakState(st)) tweakMs += dur;
+        };
+        for (const t of trs) {
+            const tMs = Date.parse(t.at);
+            if (!isNaN(tMs)) { add(state, cursor, tMs); cursor = tMs; }
+            state = _kedNorm(t.status);
+        }
+        add(state, cursor, weekEndMs);
+        return { editingMs, tweakMs, endInCourt: _kedIsCourtState(state) };
+    }
+
+    // Roll a video list up into the numbers a row renders, around two ideas:
+    // LOAD — how much sat in his court (loadVideos, split editing/tweaks,
+    // stillOpen at week's end, heldDays of total court-time) — and DELIVERIES
+    // — what he pushed through (firstCuts + tweakRounds = workUnits; perDay
+    // counts deliveries per Chicago day; avgPerWorkday = workUnits / 5).
+    // finishes = reached Approved/Posted; touched = distinct videos involved.
+    function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
+        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, heldMs = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
@@ -33004,17 +33051,28 @@
             }
             if (fin) finishes++;
             else if (isWip) wip++;
+            const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
+            const wasEditing = court.editingMs > 0, wasTweaking = court.tweakMs > 0;
+            if (wasEditing || wasTweaking) loadVideos++;
+            if (wasEditing) loadEditing++;
+            if (wasTweaking) loadTweaks++;
+            if (court.endInCourt) stillOpen++;
+            heldMs += court.editingMs + court.tweakMs;
         }
         const workUnits = firstCuts + tweakRounds;
         return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
-                 avgPerWorkday: Math.round((workUnits / 5) * 100) / 100 };
+                 avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
+                 loadVideos, loadEditing, loadTweaks, stillOpen,
+                 heldDays: Math.round((heldMs / 86400000) * 10) / 10 };
     }
 
     // Per-editor stats, memoised on the editor object so _kedPaint (shared
     // y-axis) and _kedRow (bars + headline) compute them once.
     function _kedEditorStats(ed) {
         if (ed && ed._kedStats) return ed._kedStats;
-        const s = _kedSplitVideos((ed && ed.videos) || []);
+        const data = _kasperState.editorsData || {};
+        const wsMs = Date.parse(data.weekStart), weMs = Date.parse(data.weekEnd);
+        const s = _kedSplitVideos((ed && ed.videos) || [], wsMs, weMs);
         if (ed) { try { Object.defineProperty(ed, '_kedStats', { value: s, enumerable: false }); } catch (e) { ed._kedStats = s; } }
         return s;
     }
@@ -33053,12 +33111,25 @@
             </div>`;
         }).join('');
 
-        const parts = [`<strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'}`];
-        if (stats.firstCuts)   parts.push(`${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}`);
-        if (stats.tweakRounds) parts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
-        if (stats.finishes)    parts.push(`<span class="ked-bd-finished">${stats.finishes} finished</span>`);
-        if (stats.wip)         parts.push(`<span class="ked-bd-wip">${stats.wip} in progress</span>`);
+        const parts = [`<strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched`];
+        if (stats.finishes) parts.push(`<span class="ked-bd-finished">${stats.finishes} finished</span>`);
         const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
+
+        // LOAD — how much sat in his court last week.
+        const loadParts = [];
+        if (stats.loadEditing) loadParts.push(`${stats.loadEditing} editing`);
+        if (stats.loadTweaks)  loadParts.push(`${stats.loadTweaks} in tweaks`);
+        if (!loadParts.length) loadParts.push('clear');
+        if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip">${stats.stillOpen} still open</span>`);
+        const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
+        const loadTip = `Videos in his court last week — being edited or awaiting his tweaks${stats.heldDays ? ` · ~${stats.heldDays} video-days on his plate` : ''}`;
+
+        // DELIVERIES — what he pushed through.
+        const delivParts = [];
+        if (stats.firstCuts)   delivParts.push(`${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}`);
+        if (stats.tweakRounds) delivParts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
+        if (!delivParts.length) delivParts.push('nothing shipped');
+        const delivSub = delivParts.join(' <span class="ked-id-sep">·</span> ');
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
@@ -33068,12 +33139,17 @@
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
                     <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
-                <div class="ked-row-avg">
-                    <span class="ked-avg-val">${stats.avgPerWorkday.toFixed(2)}</span>
-                    <span class="ked-avg-label">per workday</span>
-                    <div class="ked-avg-split">
-                        <span class="ked-avg-split-item is-firstcut" data-tip="Average first cuts delivered per workday"><span class="ked-avg-split-n">${(stats.firstCuts / 5).toFixed(2)}</span>first cuts</span>
-                        <span class="ked-avg-split-item is-tweaks" data-tip="Average tweak rounds delivered per workday"><span class="ked-avg-split-n">${(stats.tweakRounds / 5).toFixed(2)}</span>tweaks</span>
+                <div class="ked-row-stats">
+                    <div class="ked-stat is-load" data-tip="${_calEscAttr(loadTip)}">
+                        <span class="ked-stat-val">${stats.loadVideos}</span>
+                        <span class="ked-stat-label">on his plate</span>
+                        <div class="ked-stat-sub">${loadSub}</div>
+                    </div>
+                    <div class="ked-stat-sep"></div>
+                    <div class="ked-stat is-deliv" data-tip="Videos handed off for review last week — ${stats.avgPerWorkday.toFixed(2)}/workday">
+                        <span class="ked-stat-val">${stats.workUnits}</span>
+                        <span class="ked-stat-label">pushed through</span>
+                        <div class="ked-stat-sub">${delivSub}</div>
                     </div>
                 </div>
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>

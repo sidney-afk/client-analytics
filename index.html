@@ -3501,6 +3501,7 @@
         .ked-stat-val { font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; }
         .ked-stat.is-load  .ked-stat-val { color: #b45309; }
         .ked-stat.is-deliv .ked-stat-val { color: var(--text-primary); }
+        .ked-stat.is-finished .ked-stat-val { color: #15803d; }
         .ked-stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 3px; }
         .ked-stat-sub { font-size: 0.66rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
         .ked-stat-sep { width: 1px; align-self: stretch; min-height: 34px; background: var(--border); }
@@ -32871,7 +32872,6 @@
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
         let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
         const perDay = {};
-        const loadList = [];   // the actual on-plate videos, for the dynamic hover
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
             const fin = _kedVideoFinished(v);
@@ -32885,10 +32885,7 @@
             else if (isWip) wip++;
             const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
             const wasEditing = court.editingMs > 0, wasTweaking = court.tweakMs > 0;
-            if (wasEditing || wasTweaking) {
-                loadVideos++;
-                loadList.push({ name: v.title || v.identifier || 'video', client: v.clientName || '', editing: wasEditing, tweaking: wasTweaking });
-            }
+            if (wasEditing || wasTweaking) loadVideos++;
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
@@ -32897,7 +32894,7 @@
         }
         const workUnits = firstCuts + tweakRounds;
         const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
-        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay, loadList,
+        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
                  loadVideos, loadEditing, loadTweaks, stillOpen,
                  editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
@@ -32917,7 +32914,8 @@
     // Plain-English hover copy for each number — explains what it counts, for
     // someone who doesn't know the internal vocabulary. Same in either view.
     const _KED_TIPS = {
-        pushed:    "Each time he finished a video and moved it on for review, it counts once. A brand-new edit is a “first cut”; a video that came back with changes, which he fixed and sent again, is a “tweak round”.",
+        plate:     "How many different videos were sitting with him last week — ones he was editing, or that were waiting on his changes.",
+        pushed:    "How many videos he finished and sent on for review last week — new first cuts plus re-sent tweak fixes.",
         firstCut:  "First cuts: brand-new videos he edited and sent on for review for the first time.",
         tweak:     "Tweak rounds: videos that came back with requested changes, which he fixed and sent on again.",
         editing:   "Videos he was still editing the first version of.",
@@ -32926,32 +32924,6 @@
         touched:   "How many different videos he worked on at all last week.",
         finished:  "Videos that got fully approved (or posted) last week — they crossed the finish line.",
     };
-
-    function _kedJoinAnd(arr) {
-        if (!arr.length) return '';
-        if (arr.length === 1) return arr[0];
-        return arr.slice(0, -1).join(', ') + ' and ' + arr[arr.length - 1];
-    }
-    // Dynamic "on his plate" hover: explains what THIS editor's number means
-    // this week — the actual videos and why each was sitting with him.
-    function _kedPlateTip(stats) {
-        const n = stats.loadVideos;
-        if (!n) return "Nothing was on his plate last week.";
-        const segs = [];
-        if (stats.loadTweaks)  segs.push(`${stats.loadTweaks} waiting for him to make requested changes`);
-        if (stats.loadEditing) segs.push(`${stats.loadEditing} he was still editing`);
-        let s = `${n} video${n === 1 ? '' : 's'} on his plate last week: ` + _kedJoinAnd(segs) + '.';
-        if (stats.stillOpen) s += ` ${stats.stillOpen} still not sent back by the end of the week.`;
-        const mixed = stats.loadEditing > 0 && stats.loadTweaks > 0;
-        const list = stats.loadList || [];
-        const CAP = 5;
-        const names = list.slice(0, CAP).map(v => {
-            const tag = mixed ? (v.tweaking && !v.editing ? ' (tweaks)' : (v.editing && !v.tweaking ? ' (editing)' : '')) : '';
-            return (v.client ? v.client + ' — ' : '') + v.name + tag;
-        });
-        if (names.length) s += ` (${names.join('; ')}${list.length > CAP ? `; +${list.length - CAP} more` : ''})`;
-        return s;
-    }
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
         const key = ed.email || ed.name;
@@ -32994,7 +32966,6 @@
 
         // Identity breakdown (always weekly totals).
         const parts = [`<span${tipAttr('touched')}><strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched</span>`];
-        if (stats.finishes) parts.push(`<span class="ked-bd-finished"${tipAttr('finished')}>${stats.finishes} finished</span>`);
         const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
 
         // LOAD — how much sat in his court. Totals = distinct videos this week;
@@ -33027,6 +32998,10 @@
         const delivBig = avg ? stats.avgPerWorkday.toFixed(1) : stats.workUnits;
         const delivLabel = avg ? 'pushed through / day' : 'pushed through';
 
+        // FINISHED — outcome: videos that crossed the finish line (approved/posted).
+        const finBig = avg ? n1(stats.finishes / 5) : stats.finishes;
+        const finLabel = avg ? 'finished / day' : 'finished';
+
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
             <div class="ked-row-head" onclick="_kasperToggleEditor(${_jsAttrArg(key)})">
@@ -33036,16 +33011,21 @@
                     <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-stats">
-                    <div class="ked-stat is-load" data-tip="${_calEscAttr(_kedPlateTip(stats))}">
+                    <div class="ked-stat is-load">
                         <span class="ked-stat-val">${loadBig}</span>
-                        <span class="ked-stat-label">${loadLabel}</span>
+                        <span class="ked-stat-label"${tipAttr('plate')}>${loadLabel}</span>
                         <div class="ked-stat-sub">${loadSub}</div>
                     </div>
                     <div class="ked-stat-sep"></div>
-                    <div class="ked-stat is-deliv" data-tip="${_calEscAttr(_KED_TIPS.pushed)}">
+                    <div class="ked-stat is-deliv">
                         <span class="ked-stat-val">${delivBig}</span>
-                        <span class="ked-stat-label">${delivLabel}</span>
+                        <span class="ked-stat-label"${tipAttr('pushed')}>${delivLabel}</span>
                         <div class="ked-stat-sub">${delivSub}</div>
+                    </div>
+                    <div class="ked-stat-sep"></div>
+                    <div class="ked-stat is-finished">
+                        <span class="ked-stat-val">${finBig}</span>
+                        <span class="ked-stat-label"${tipAttr('finished')}>${finLabel}</span>
                     </div>
                 </div>
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>

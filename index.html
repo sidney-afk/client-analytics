@@ -14001,6 +14001,14 @@
     /* Set by "Open in content calendar" from the workload view — tells the
        calendar which client to open and which linked post to scroll to. */
     let _calFocusRequest = null;
+    /* A #calendar/<slug> deep link (e.g. a link handed over by another SMM)
+       whose client wasn't in the allowlist yet when the fast-path router ran:
+       WL_CLIENT_NAMES is seed-only until fetchAll folds in the Clients Info
+       sheet, so a sheet-only client's slug can't be matched synchronously.
+       mountCalendar holds the strip on its loader instead of opening the wrong
+       last-used client, and _calResolvePendingDeepLink (run after fetchAll)
+       opens the real client as a tab. Shape: { slug, cardId }. */
+    let _calPendingDeepLink = null;
     /* Card ids whose next save must NOT push back to Linear — used when a
        status was just pulled FROM Linear, so we don't bounce it back. */
     const _calNoLinearPush = new Set();
@@ -14327,6 +14335,57 @@
         }
     }
 
+    /* Open a client as a calendar tab and switch to it. Mirrors the tab-search
+       pickAndPin: a deep link (#calendar/<slug>) handed over by another SMM
+       should land on that client AND pin it as a tab — not just set it as the
+       active body with no matching pill in the strip. No-op outside the
+       standalone calendar, or when it's already the active client. */
+    function _calOpenClientTab(name) {
+        if (!name || calState.embedded || currentNav !== 'calendar') return;
+        const pins = _calGetPins();
+        if (!pins.includes(name)) { pins.unshift(name); _calSavePins(pins); }
+        if (calState.client === name) { _calRenderTabs(); return; }
+        // Persist debounced saves for the outgoing client before switching.
+        _calFlushAllPending();
+        calState.client = name;
+        _calResetSelection();
+        calState.posts = [];
+        _calLoadClientFilters();
+        _calSavePrefs();
+        _calSyncUrlClient();
+        _calRenderTabs();
+        _calRefreshFilterPill('.cal-month-filter:not(.cal-status-filter)', _calMonthFilterHtml());
+        _calRefreshFilterPill('.cal-status-filter', _calStatusFilterHtml());
+        loadCalendarPosts();
+    }
+
+    /* Resolve a deferred #calendar/<slug> deep link once fetchAll has merged the
+       Clients Info sheet into the allowlist, then open that client as a tab. The
+       fast-path router runs before the sheet loads, so a sheet-only client (one
+       not in the hardcoded seed list) can't be matched there — this picks it up
+       the moment data lands. */
+    function _calResolvePendingDeepLink() {
+        const pending = _calPendingDeepLink;
+        if (!pending) return;
+        _calPendingDeepLink = null;
+        // The user may have navigated away (or into a client profile) while data
+        // was loading — don't yank them back to the calendar.
+        if (currentNav !== 'calendar' || calState.embedded) return;
+        const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === pending.slug);
+        if (!match) {
+            // Slug never resolved to a known client. Don't leave the strip stuck
+            // on its loader — fall back to the normal first-pinned client.
+            if (!calState.client) {
+                const pins = _calGetPins();
+                if (pins.length) { calState.client = pins[0]; _calLoadClientFilters(); _calSyncUrlClient(); loadCalendarPosts(); }
+                else _calRenderBody();
+            }
+            return;
+        }
+        if (pending.cardId) _calFocusRequest = { client: match, cardId: pending.cardId };
+        _calOpenClientTab(match);
+    }
+
     function renderCalendarView() {
         return `<div class="cal-view" id="calView">${_calLoaderHtml()}</div>`;
     }
@@ -14336,7 +14395,18 @@
         const prefs = _calLoadPrefs();
         const pins  = _calGetPins();
         let initial = null;
-        if (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) initial = _calFocusRequest.client;
+        // A deep link (#calendar/<slug>) or a workload "Open in content calendar"
+        // jump focuses one specific client. Open it as a real tab (pin it) so it
+        // shows in the strip as the active tab — previously calState.client was
+        // set without pinning, so the body showed the client but no matching tab
+        // appeared, which read as "the link didn't open the client".
+        const focusClient = (_calFocusRequest && _calFocusRequest.client && wlIsAllowedClient(_calFocusRequest.client)) ? _calFocusRequest.client : null;
+        if (focusClient) initial = focusClient;
+        // A deep link whose client isn't in the allowlist yet (sheet-only, fast
+        // path before fetchAll merged the sheet): hold on the loader rather than
+        // open the wrong last-used client — _calResolvePendingDeepLink opens the
+        // real one once data lands.
+        else if (_calPendingDeepLink) initial = null;
         // Re-open on the client whose tab was last showing. Validate against
         // pins (the durable open-tabs list) — NOT WL_CLIENT_NAMES — because the
         // allowlist is sheet-driven and hasn't loaded yet on the calendar fast
@@ -14345,6 +14415,7 @@
         else if (prefs.client && pins.includes(prefs.client)) initial = prefs.client;
         else if (pins.length > 0) initial = pins[0];
         else if (prefs.client && WL_CLIENT_NAMES.includes(prefs.client)) initial = prefs.client;
+        if (focusClient && !pins.includes(focusClient)) { pins.unshift(focusClient); _calSavePins(pins); }
         calState.client = initial;
         calState.embedded = false;
         calState.view = _calFocusRequest ? 'organizer' : _calResolveInitialView(prefs.view);
@@ -14357,9 +14428,14 @@
         calState.error = null;
         calState.previewId = null;
         _calRenderShell();
-        _calSyncUrlClient();
+        // While a deep link is still resolving, leave the hash (#calendar/<slug>)
+        // untouched — _calSyncUrlClient would rewrite it to a bare #calendar and
+        // lose the slug. The resolver syncs the URL once it opens the client.
+        if (!_calPendingDeepLink || calState.client) _calSyncUrlClient();
         if (calState.client) loadCalendarPosts();
-        else _calRenderBody();
+        // Pending deep link with nothing resolved yet: keep the shell's loader up
+        // (don't paint the empty-state body) until _calResolvePendingDeepLink runs.
+        else if (!_calPendingDeepLink) _calRenderBody();
     }
 
     /* Re-fetch the calendar whenever the browser tab/window regains focus, so
@@ -24780,6 +24856,18 @@
                     const cardId = sl >= 0 ? decodeURIComponent(rest.slice(sl+1)) : '';
                     const match = WL_CLIENT_NAMES.find(n => wlNormalizeClient(n) === slug);
                     if (match) _calFocusRequest = { client: match, cardId: cardId || null };
+                    // Sheet-only client (e.g. a calendar link shared by another
+                    // SMM): the allowlist is still seed-only on this fast path, so
+                    // the slug won't have matched above. Resolve and open it as a
+                    // tab once fetchAll folds in the Clients Info sheet.
+                    else if (slug) {
+                        _calPendingDeepLink = { slug, cardId: cardId || null };
+                        // Run on both settle paths: fetchEssentials (which merges
+                        // the sheet) can succeed while fetchExtras rejects, and the
+                        // resolver must still fire so the strip never sticks on its
+                        // loader. The resolver degrades gracefully if unresolved.
+                        dataPromise.then(_calResolvePendingDeepLink, _calResolvePendingDeepLink);
+                    }
                     navTo('calendar', false);
                 } else if (hashRaw.startsWith('samples/')) {
                     const rest = hashRaw.slice('samples/'.length);
@@ -24918,7 +25006,10 @@
                 const sl=rest.indexOf('/');
                 const slug=sl>=0?rest.slice(0,sl):rest;
                 const cardId=sl>=0?decodeURIComponent(rest.slice(sl+1)):'';
-                const match=clientNames.find(n=>wlNormalizeClient(n)===slug);
+                // Prefer the full allowlist (WL_CLIENT_NAMES has merged the
+                // Clients Info sheet by now) over the analytics-only client list,
+                // so a calendar-only client with no analytics row still resolves.
+                const match=WL_CLIENT_NAMES.find(n=>wlNormalizeClient(n)===slug)||clientNames.find(n=>wlNormalizeClient(n)===slug);
                 if(match){_calFocusRequest={client:match,cardId:cardId||null};navTo('calendar',false);return;}
                 navTo('calendar',false);return;
             }

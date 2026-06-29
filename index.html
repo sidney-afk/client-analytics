@@ -11960,6 +11960,9 @@
     const OB_PLAY_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><path d="M2.6 1.3 L8 5 L2.6 8.7 Z" fill="currentColor"/></svg>';
     const OB_PAUSE_SVG = '<svg viewBox="0 0 10 10" width="9" height="9" aria-hidden="true"><rect x="2.3" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/><rect x="5.7" y="1.5" width="2" height="7" rx="0.4" fill="currentColor"/></svg>';
     const OB_INFO_SVG = '<svg viewBox="0 0 20 20" width="15" height="15" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="8.2" stroke="currentColor" stroke-width="1.4"/><circle cx="10" cy="6.4" r="1.05" fill="currentColor"/><path d="M10 9.3v4.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+    // Hover-affordance icons on previews: a play triangle (videos) and a maximize/expand (thumbnail).
+    const OB_PLAY_BIG_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" aria-hidden="true"><path d="M8 5.14v13.72a1 1 0 0 0 1.54.84l10.5-6.86a1 1 0 0 0 0-1.68L9.54 4.3A1 1 0 0 0 8 5.14Z"/></svg>';
+    const OB_EXPAND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>';
     function _obInfoBtn(attr){ return '<button type="button" class="ob-i" '+attr+'>'+OB_INFO_SVG+'</button>'; }
     const OB_TEXTONLY_INFO = 'Your avatar appears in the background (an expression or a pose) while the main message is text on screen — no one is talking.';
 
@@ -12064,8 +12067,8 @@
     function _obStylePreview(url, isVideo, cap){
       if(!url) return '';
       const inner = isVideo
-        ? '<video src="'+url+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic">▶</span>'
-        : '<img src="'+url+'" alt="" loading="lazy"><span class="ob-zoom-ic">⤢</span>';
+        ? '<video src="'+url+'" muted loop playsinline preload="metadata"></video><span class="ob-zoom-ic ob-zoom-ic--play">'+OB_PLAY_BIG_SVG+'</span>'
+        : '<img src="'+url+'" alt="" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span>';
       return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button><span class="ob-stp-cap">'+cap+'</span></div>';
     }
     function _obStyleCards(group, items, isVideo){
@@ -12107,7 +12110,7 @@
           '<div class="ob-tp">'+
             '<button type="button" class="ob-tp-prev" data-ob-zoom="'+_obThumbImg(d.font,d.style,d.hl)+'" aria-label="View full screen">'+
               '<img class="ob-tp-img" id="obThumbImg" src="'+_obThumbImg(d.font,d.style,d.hl)+'" alt="Thumbnail preview">'+
-              '<span class="ob-zoom-ic">⤢</span></button>'+
+              '<span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span></button>'+
             '<div class="ob-tp-ctrls">'+
               '<div class="ob-tp-row"><span class="ob-tp-lbl">Font</span>'+seg('font', OB_THUMB_FONTS, d.font)+'</div>'+
               '<div class="ob-tp-row"><span class="ob-tp-lbl">Style</span>'+seg('style', OB_THUMB_TSTYLES, d.style)+'</div>'+
@@ -12682,7 +12685,7 @@
       .ob-sub-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
       .ob-sub-name{ font-size:0.84rem; font-weight:600; }
       .ob-sub-desc{ font-size:0.72rem; color:var(--text-secondary); line-height:1.35; }
-      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--border-light); border:none; padding:0; cursor:zoom-in; }
+      .ob-sub-thumb{ position:relative; width:50px; height:68px; border-radius:8px; overflow:hidden; flex-shrink:0; background:var(--border-light); border:none; padding:0; cursor:pointer; }
       .ob-sub-thumb img,.ob-sub-thumb video{ width:100%; height:100%; object-fit:cover; display:block; }
       .ob-sub-noimg{ display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.6rem; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; cursor:default; }
       .ob-stgrid{ display:flex; flex-direction:column; gap:10px; }
@@ -12695,13 +12698,13 @@
       .ob-stcard:has(input:checked) .ob-sub-dot::after{ content:''; position:absolute; inset:3.5px; border-radius:50%; background:var(--ob-accent); }
       .ob-stp-row{ display:flex; gap:14px; margin-top:11px; }
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
-      .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:zoom-in; }
+      .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:pointer; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
       /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
       .ob-tp-buildrow{ margin-bottom:14px; }
       .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }
       .ob-tp{ display:flex; gap:20px; align-items:flex-start; margin-top:4px; }
-      .ob-tp-prev{ position:relative; flex:0 0 auto; width:186px; padding:0; border:none; background:var(--border-light); border-radius:13px; overflow:hidden; cursor:zoom-in; line-height:0; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
+      .ob-tp-prev{ position:relative; flex:0 0 auto; width:186px; padding:0; border:none; background:var(--border-light); border-radius:13px; overflow:hidden; cursor:pointer; line-height:0; box-shadow:0 2px 10px rgba(0,0,0,0.25); }
       .ob-tp-img{ width:186px; height:auto; display:block; transition:opacity 0.12s ease; }
       .ob-tp-ctrls{ flex:1 1 0; min-width:0; display:flex; flex-direction:column; gap:15px; padding-top:2px; }
       .ob-tp-row{ display:flex; flex-direction:column; gap:8px; }
@@ -12714,7 +12717,15 @@
       @media(max-width:560px){ .ob-tp{ flex-direction:column; align-items:center; } .ob-tp-ctrls{ width:100%; } }
       .ob-toggle-q.ob-disabled{ opacity:0.5; }
       .ob-toggle-q.ob-disabled .ob-switch{ pointer-events:none; }
-      .ob-zoom-ic{ position:absolute; right:3px; bottom:3px; width:16px; height:16px; border-radius:4px; background:rgba(0,0,0,0.55); color:#fff; font-size:0.6rem; display:flex; align-items:center; justify-content:center; }
+      /* Preview affordance: normal pointer cursor + a centred play/expand icon that fades in
+         with a soft scrim on hover/focus — so it's clear you can play a clip or open the
+         thumbnail full screen, without a magnifier cursor. */
+      .ob-zoom-ic{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) scale(0.8); z-index:2; width:38px; height:38px; border-radius:50%; background:rgba(0,0,0,0.5); color:#fff; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.16s ease, transform 0.16s ease, background 0.16s ease; pointer-events:none; }
+      .ob-zoom-ic--play{ padding-left:2px; }
+      .ob-zoom-ic svg{ display:block; }
+      .ob-sub-thumb::after,.ob-tp-prev::after{ content:''; position:absolute; inset:0; z-index:1; background:rgba(0,0,0,0); transition:background 0.16s ease; pointer-events:none; }
+      .ob-sub-thumb:hover::after,.ob-sub-thumb:focus-visible::after,.ob-tp-prev:hover::after,.ob-tp-prev:focus-visible::after{ background:rgba(0,0,0,0.30); }
+      .ob-sub-thumb:hover .ob-zoom-ic,.ob-sub-thumb:focus-visible .ob-zoom-ic,.ob-tp-prev:hover .ob-zoom-ic,.ob-tp-prev:focus-visible .ob-zoom-ic{ opacity:1; transform:translate(-50%,-50%) scale(1); background:rgba(0,0,0,0.62); }
       .ob-zoom-ov{ position:fixed; inset:0; background:rgba(0,0,0,0.82); display:none; align-items:center; justify-content:center; z-index:10000; cursor:zoom-out; padding:24px; }
       .ob-zoom-ov.show{ display:flex; }
       .ob-zoom-ov img,.ob-zoom-ov video{ max-width:92vw; max-height:88vh; border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,0.4); }

@@ -42,14 +42,26 @@ class Actors {
 const findReview = (name) => `[...document.querySelectorAll('.cal-review-card')].find(c=>(c.querySelector('.kcard-title')||{}).textContent===${JSON.stringify(name)})`;
 const findKasper = (name) => `[...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(c=>(c.querySelector('.kcard-title')||{}).textContent===${JSON.stringify(name)})`;
 
-async function expandReview(page, name) {
-  await page.evaluate((n) => { const c = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); if (c) (c.querySelector('.kcard-strip') || c).click(); }, name);
-  await sleep(page, 400);
+// Idempotently ENSURE a card is expanded (showing its panels). Clicking the strip
+// toggles, so a blind click on an already-open card collapses it and hides the
+// panels — the cause of "no-panel"/"disabled" on a 2nd action in the same tab.
+async function ensureExpanded(page, scope, name) {
+  for (let i = 0; i < 5; i++) {
+    const state = await page.evaluate((args) => {
+      const [scope, n] = args;
+      const c = [...document.querySelectorAll(scope + ' .cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n);
+      if (!c) return 'no-card';
+      return c.querySelector('.cal-review-panel') ? 'panel' : 'collapsed';
+    }, [scope, name]);
+    if (state === 'panel') return true;
+    if (state === 'no-card') { await sleep(page, 500); continue; }
+    await page.evaluate((args) => { const [scope, n] = args; const c = [...document.querySelectorAll(scope + ' .cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); if (c) (c.querySelector('.kcard-strip') || c).click(); }, [scope, name]);
+    await sleep(page, 450);
+  }
+  return false;
 }
-async function expandKasper(page, name) {
-  await page.evaluate((n) => { const c = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); if (c) (c.querySelector('.kcard-strip') || c).click(); }, name);
-  await sleep(page, 400);
-}
+async function expandReview(page, name) { return ensureExpanded(page, '', name); }
+async function expandKasper(page, name) { return ensureExpanded(page, '#kasperContent', name); }
 
 // ---------- the verbs ----------
 async function smmStatus(page, id, comp, status) {
@@ -68,7 +80,7 @@ async function smmStatus(page, id, comp, status) {
 }
 async function smmApprove(page, name, comp, route) {
   await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="smmreview"]'); if (b) b.click(); });
-  await sleep(page, 500);
+  await sleep(page, 1400);   // let any prior action's save+re-render settle before we expand
   await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 8000 }).catch(() => {});
   await expandReview(page, name);
   return page.evaluate((args) => {
@@ -97,7 +109,8 @@ async function reviewTypeAndClick(page, name, comp, text, btnSel, finder) {
 }
 async function smmRequest(page, name, comp, text) {
   await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="smmreview"]'); if (b) b.click(); });
-  await sleep(page, 500);
+  await sleep(page, 1400);
+  await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 8000 }).catch(() => {});
   return reviewTypeAndClick(page, name, comp, text, '.cal-review-tweak-btn');
 }
 async function smmNote(page, id, comp, text, audience) {
@@ -138,6 +151,7 @@ async function kasperAct(page, name, comp, kind, text) {
   return page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-sxr-kasper-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b || b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
 }
 async function clientAct(page, name, comp, kind, text) {
+  await sleep(page, 1200);   // settle a prior same-tab client action's save+re-render
   await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 12000 }).catch(() => {});
   await expandReview(page, name);
   if (kind === 'request') {

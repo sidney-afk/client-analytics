@@ -3484,6 +3484,8 @@
         .ked-id-breakdown { font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px; font-weight: 500; font-variant-numeric: tabular-nums; }
         .ked-id-breakdown strong { color: var(--text-primary); font-weight: 800; }
         .ked-id-sep { color: var(--text-muted); margin: 0 1px; }
+        .ked-id-breakdown .ked-bd-finished { color: #15803d; font-weight: 700; }
+        .ked-id-breakdown .ked-bd-wip { color: var(--text-muted); }
         .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 6px; }
         .ked-avg-val { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
@@ -3492,7 +3494,7 @@
         .ked-avg-split-item .ked-avg-split-n { color: var(--text-primary); font-weight: 800; font-size: 0.78rem; }
         .ked-avg-split-item.is-finished .ked-avg-split-n { color: #15803d; }
         .ked-avg-split-item.is-tweaks   .ked-avg-split-n { color: #c2410c; }
-        .ked-avg-split-item.is-editing  .ked-avg-split-n { color: #6d28d9; }
+        .ked-avg-split-item.is-firstcut .ked-avg-split-n { color: #6d28d9; }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
@@ -3578,7 +3580,6 @@
         .ked-strip-seg[data-kind="marker"][data-status="kasper"]        { background: linear-gradient(90deg, #fed7aa 0%, #f97316 100%); }
         .ked-strip-seg[data-kind="marker"][data-status="client"]        { background: linear-gradient(90deg, #fecaca 0%, #ef4444 100%); }
         .ked-strip-seg[data-kind="marker"][data-status="tweak-needed"]  { background: linear-gradient(90deg, #fdba74 0%, #c2410c 100%); }
-        .ked-strip-seg[data-kind="marker"][data-status="tweak-applied"] { background: linear-gradient(90deg, #c7d2fe 0%, #4f46e5 100%); }
         .ked-strip-seg[data-kind="terminal"][data-status="approved"]    { background: linear-gradient(90deg, #93c5fd 0%, #2563eb 100%); }
         .ked-strip-seg[data-kind="terminal"][data-status="posted"]      { background: linear-gradient(90deg, #3b82f6 0%, #1e3a8a 100%); }
         .ked-strip-seg[data-kind="terminal"][data-status="canceled"]    { background: linear-gradient(90deg, #d4d4d8 0%, #71717a 100%); }
@@ -3592,7 +3593,6 @@
         .ked-legend-swatch[data-status="kasper"]        { background: #f97316; }
         .ked-legend-swatch[data-status="client"]        { background: #ef4444; }
         .ked-legend-swatch[data-status="tweak-needed"]  { background: #c2410c; }
-        .ked-legend-swatch[data-status="tweak-applied"] { background: #4f46e5; }
         .ked-legend-swatch[data-status="approved"]      { background: #2563eb; }
         .ked-legend-swatch[data-status="posted"]        { background: #1e3a8a; }
         .ked-legend-swatch[data-status="canceled"],
@@ -29975,7 +29975,7 @@
     // cache the workflow response in localStorage. The cache survives across
     // page reloads (until the user clicks Refresh or the calendar crosses
     // into a new "last week").
-    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v1';
+    const KASPER_EDITORS_CACHE_KEY = 'syncview_kasper_editors_v2';
     const KASPER_EDITORS_CACHE_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000; // 2 weeks — pure sanity bound
     const KASPER_FILMING_CACHE_KEY = 'syncview_kasper_filming_v1';
     const KASPER_FILMING_CACHE_MAX_AGE_MS = 30 * 60 * 1000; // 30 min — runway/coverage drift slowly
@@ -32529,14 +32529,16 @@
     }
 
     /* ── Editors (weekly labor) ─────────────────────────────────────
-       Reads /webhook/editors-week, which counts every Linear sub-issue
-       in the VID team that transitioned to "For SMM Approval" during
-       the previous calendar week (Mon→Sun, America/Chicago). Each event
-       is classified as a new submission (first-ever transition for that
-       issue) or a resubmission (issue had already been sent for SMM
-       review before the window, or it bounced back within the week).
-       Grouped per assignee. Cycles weekly: each Monday, "last week"
-       advances by 7 days, so there's no continuous logging to maintain. */
+       Reads /webhook/editors-week — every VID-team sub-issue with activity
+       in the previous calendar week (Mon→Sun, America/Chicago), grouped per
+       assignee, each carrying its full within-week transition history.
+       Work is measured client-side as DELIVERIES (see _kedSplitVideos): the
+       editor handing a video off for review (into For SMM / Kasper / Client
+       approval) from a state they were holding it in — a first cut (from In
+       Progress / Todo) or a tweak round (from Tweak Needed). Reviewer/pipeline
+       moves don't count; finishes and work-in-progress are shown separately.
+       Cycles weekly: each Monday, "last week" advances by 7 days, so there's
+       no continuous logging to maintain. */
 
     async function _kasperRenderEditors() {
         const root = document.getElementById('kasperContent');
@@ -32555,14 +32557,15 @@
                 </div>
             </div>
             <div class="ked-info-panel" id="kedInfoPanel" hidden>
-                <p><strong>What this is.</strong> Last week's work, one row per editor.</p>
-                <p><strong>The bars.</strong> Each bar is one weekday. The number above shows how many videos that editor <em>finished</em> that day — meaning they either sent a first cut to the SMM, or they applied a round of tweaks and sent it back for review. Higher number = busier day.</p>
+                <p><strong>What this is.</strong> Last week's work, one row per editor. The big number is <strong>deliveries per workday</strong> — how many times a day, on average, the editor handed a video off for review.</p>
+                <p><strong>A delivery</strong> is the editor sending a video for review — to the SMM, to Kasper, or to the client. It's either a <strong>first cut</strong> (new work) or a <strong>tweak round</strong> (fixing requested changes and sending it back). The split under the big number shows the average of each per workday; together they make up the headline. <em>Finished</em> (got fully approved) and <em>in progress</em> (started, not yet delivered) are shown separately — they're outcomes, not the work count.</p>
+                <p><strong>The bars.</strong> Each bar is one weekday; the number above is how many deliveries landed that day. Higher = busier day.</p>
                 <p><strong>Click an editor.</strong> See every video they touched last week, grouped by client. Each video gets a tiny timeline showing what happened to it across the week.</p>
-                <p><strong>Click a single day's bar.</strong> Zoom in on just that day. You'll see which clients the editor worked on and a quick summary of what they did (tweaks, first cuts, etc.).</p>
+                <p><strong>Click a single day's bar.</strong> Zoom in on just that day — which clients the editor worked on and how many first cuts vs tweak rounds they delivered.</p>
                 <p><strong>Reading the timeline.</strong></p>
                 <ul class="ked-info-list">
                     <li><span class="ked-legend-swatch" data-status="in-progress"></span> <strong>Yellow band</strong> — the editor was actively editing.</li>
-                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="smm"></span> <strong>Coloured notch</strong> — a status changed at that moment (sent for SMM / Kasper / client, tweaks needed, tweak applied).</li>
+                    <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="smm"></span> <strong>Coloured notch</strong> — a status changed at that moment (sent for SMM / Kasper / client, or tweaks needed).</li>
                     <li><span class="ked-legend-swatch ked-legend-swatch--marker" data-status="approved"></span> <strong>Blue or dark blue cap on the right</strong> — approved or posted. The line ends there.</li>
                     <li><span class="ked-legend-swatch" data-status="todo" style="opacity:0.5"></span> <strong>Empty gap</strong> — the video was sitting in Todo or Backlog. No editor work happening.</li>
                 </ul>
@@ -32669,25 +32672,24 @@
         if (weekEl) weekEl.textContent = data.weekLabel || 'Last week';
 
         if (!editors.length) {
-            body.innerHTML = `<div class="ked-empty-msg">No VID sub-issues moved last week.</div>`;
+            body.innerHTML = `<div class="ked-empty-msg">No editor deliveries last week.</div>`;
             return;
         }
 
         // Shared y-axis across all editors so per-day bars are visually comparable.
         let globalDailyMax = 1;
         for (const ed of editors) {
-            const perDay = ed.perDay || {};
+            const perDay = _kedEditorStats(ed).perDay;
             for (const k of Object.keys(perDay)) {
-                const v = (perDay[k] && perDay[k].count) || 0;
-                if (v > globalDailyMax) globalDailyMax = v;
+                if (perDay[k] > globalDailyMax) globalDailyMax = perDay[k];
             }
         }
         const weekDates = _kedWeekDateKeys(data.weekStart);
         const anyWeekendActivity = editors.some(ed => {
-            const pd = ed.perDay || {};
-            const sat = pd[weekDates[5]?.key];
-            const sun = pd[weekDates[6]?.key];
-            return ((sat && sat.count) || 0) + ((sun && sun.count) || 0) > 0;
+            const pd = _kedEditorStats(ed).perDay;
+            const sat = weekDates[5] && pd[weekDates[5].key];
+            const sun = weekDates[6] && pd[weekDates[6].key];
+            return (sat || 0) + (sun || 0) > 0;
         });
 
         const rows = editors.map(ed => _kedRow(ed, weekDates, globalDailyMax, anyWeekendActivity)).join('');
@@ -32721,23 +32723,118 @@
         return { Mon: 'Monday', Tue: 'Tuesday', Wed: 'Wednesday', Thu: 'Thursday', Fri: 'Friday', Sat: 'Saturday', Sun: 'Sunday' }[short] || short;
     }
 
-    // Split videos by what kind of work landed on them this week.
-    // Buckets are mutually exclusive and sum to distinctVideos. If a
-    // video both got a tweak round and crossed the finish line, the
-    // finish wins. Approved and Posted both count as Finished.
-    function _kedSplitVideos(videos) {
-        let finished = 0, tweaks = 0, editing = 0;
-        for (const v of (videos || [])) {
-            const trs = v.transitions || [];
-            const finishedNow = trs.some(t => {
-                const n = String(t.status || '').toLowerCase();
-                return /^approved/.test(n) || /^posted/.test(n);
-            });
-            if (finishedNow) { finished++; continue; }
-            const tweaked = trs.some(t => /^tweak\s*applied$/i.test(t.status || ''));
-            if (tweaked) tweaks++; else editing++;
+    // ── Editor work model ───────────────────────────────────────────
+    // "How much did an editor ship?" is counted in DELIVERIES. A delivery is
+    // the editor handing a video off for review: a transition whose TARGET is
+    // a review column (For SMM / Kasper / Client approval) and whose PREVIOUS
+    // state was one the editor was holding the video in (In Progress, Todo,
+    // Backlog, Tweak Needed).
+    //   • from Tweak Needed  → a tweak round (re-work delivered)
+    //   • from anything else → a first cut   (new work delivered)
+    // Reviewer / pipeline moves are NOT deliveries and never count as editor
+    // work: review→review (SMM→Kasper, Kasper→Client), review→Tweak Needed
+    // (reviewer asking for changes), →Approved/Posted (sign-off), Todo→In
+    // Progress (just picking it up). Finishes (reached Approved/Posted) and
+    // work-in-progress (started, not yet delivered) are tracked separately as
+    // outcomes — they are not folded into the work number.
+    //
+    // Real Linear statuses carry quirks — trailing spaces ("Tweak Needed ")
+    // and mixed case ("For SMM approval" vs "For Client Approval") — so every
+    // comparison normalises through _kedNorm first.
+    function _kedNorm(s) { return String(s == null ? '' : s).trim().toLowerCase(); }
+
+    // Target of a delivery. Loose keyword match (robust to "For SMM approval"
+    // and future "SMM Approval" style renames). Only meaningful paired with the
+    // from-is-a-work-state check below — on its own it also matches a reviewer
+    // moving a video INTO a review column.
+    function _kedReviewTarget(norm) {
+        if (/smm/.test(norm))           return 'smm';
+        if (/kasper|casper/.test(norm)) return 'kasper';
+        if (/client/.test(norm))        return 'client';
+        return null;
+    }
+    function _kedIsTweakState(norm) {
+        return norm === 'tweak needed' || norm === 'tweaks needed';
+    }
+    // States the editor holds a video in; a move OUT of one INTO a review
+    // column is the editor delivering.
+    function _kedIsWorkState(norm) {
+        return norm === 'in progress'
+            || norm === 'todo' || norm === 'to do'
+            || norm === 'backlog'
+            || _kedIsTweakState(norm);
+    }
+    function _kedIsFinishState(norm) {
+        return norm === 'approved' || norm === 'posted';
+    }
+
+    // The deliveries for one video, de-bounced. Status-flip noise (a video
+    // toggled in and out of a review column several times the same day) is
+    // collapsed to at most one delivery per (day, kind), so a couple of stray
+    // clicks don't read as extra rounds. Memoised on the video object.
+    function _kedVideoDeliveries(v) {
+        if (v && v._kedDeliveries) return v._kedDeliveries;
+        const trs = ((v && v.transitions) || []).slice()
+            .sort((a, b) => String(a.at).localeCompare(String(b.at)));
+        const seen = new Set();
+        const out = [];
+        for (const t of trs) {
+            if (!_kedReviewTarget(_kedNorm(t.status))) continue; // must land in a review column
+            const from = _kedNorm(t.from);
+            if (!_kedIsWorkState(from)) continue;                // must come from an editor-held state
+            const dayKey = t.dayKey || String(t.at || '').slice(0, 10);
+            const kind = _kedIsTweakState(from) ? 'tweak' : 'firstcut';
+            const key = dayKey + '|' + kind;
+            if (seen.has(key)) continue;                         // de-bounce same (day, kind)
+            seen.add(key);
+            out.push({ at: t.at, dayKey, kind });
         }
-        return { finished, tweaks, editing };
+        if (v) { try { Object.defineProperty(v, '_kedDeliveries', { value: out, enumerable: false }); } catch (e) { v._kedDeliveries = out; } }
+        return out;
+    }
+    function _kedVideoFinished(v) {
+        return ((v && v.transitions) || []).some(t => _kedIsFinishState(_kedNorm(t.status)));
+    }
+    // Started but not delivered: has an In Progress transition, no delivery
+    // this week, and never reached a finish state.
+    function _kedVideoIsWip(v) {
+        if (_kedVideoDeliveries(v).length) return false;
+        if (_kedVideoFinished(v)) return false;
+        return ((v && v.transitions) || []).some(t => _kedNorm(t.status) === 'in progress');
+    }
+
+    // Roll a video list up into the numbers a row renders. firstCuts +
+    // tweakRounds = workUnits; avgPerWorkday = workUnits / 5 (workdays). perDay
+    // counts deliveries per Chicago day key. finishes / wip are distinct-video
+    // outcome counts; touched = distinct videos with any delivery, finish, or
+    // in-progress work in the window.
+    function _kedSplitVideos(videos) {
+        let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
+        const perDay = {};
+        for (const v of (videos || [])) {
+            const ds = _kedVideoDeliveries(v);
+            const fin = _kedVideoFinished(v);
+            const isWip = _kedVideoIsWip(v);
+            if (ds.length || fin || isWip) touched++;
+            for (const d of ds) {
+                if (d.kind === 'tweak') tweakRounds++; else firstCuts++;
+                perDay[d.dayKey] = (perDay[d.dayKey] || 0) + 1;
+            }
+            if (fin) finishes++;
+            else if (isWip) wip++;
+        }
+        const workUnits = firstCuts + tweakRounds;
+        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
+                 avgPerWorkday: Math.round((workUnits / 5) * 100) / 100 };
+    }
+
+    // Per-editor stats, memoised on the editor object so _kedPaint (shared
+    // y-axis) and _kedRow (bars + headline) compute them once.
+    function _kedEditorStats(ed) {
+        if (ed && ed._kedStats) return ed._kedStats;
+        const s = _kedSplitVideos((ed && ed.videos) || []);
+        if (ed) { try { Object.defineProperty(ed, '_kedStats', { value: s, enumerable: false }); } catch (e) { ed._kedStats = s; } }
+        return s;
     }
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
@@ -32745,12 +32842,12 @@
         const expanded = !!_kasperState.editorsExpanded[key];
         const dayFilter = _kasperState.editorsDayFilter[key] || null;
         const days = showWeekend ? weekDates : weekDates.slice(0, 5);
+        const stats = _kedEditorStats(ed);
         const avatarHtml = ed.avatarUrl
             ? `<img loading="lazy" src="${_calEscAttr(ed.avatarUrl)}" alt="" onerror="this.replaceWith(_kedAvatarFallback(${_jsAttrArg(ed.name || '')}))">`
             : _calEsc(_kedInitials(ed.name));
         const bars = days.map(d => {
-            const cell = (ed.perDay || {})[d.key] || { count: 0 };
-            const count = cell.count || 0;
+            const count = stats.perDay[d.key] || 0;
             const pct = Math.max(0, Math.min(1, count / globalDailyMax));
             const heightPct = count > 0 ? Math.max(0.12, pct) * 100 : 0;
             const seg = count > 0 ? `<div class="ked-bar-seg" style="height:${heightPct.toFixed(2)}%;"></div>` : '';
@@ -32760,8 +32857,8 @@
             const tipText = count === 0
                 ? `${dayLong} · nothing`
                 : isSel
-                    ? `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to clear`
-                    : `${dayLong} · ${count} sub-issue${count === 1 ? '' : 's'} advanced — click to view`;
+                    ? `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to clear`
+                    : `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to view`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
@@ -32774,11 +32871,11 @@
             </div>`;
         }).join('');
 
-        const split = _kedSplitVideos(ed.videos);
-        const parts = [`<strong>${ed.distinctVideos}</strong> video${ed.distinctVideos === 1 ? '' : 's'}`];
-        if (split.finished) parts.push(`${split.finished} finished`);
-        if (split.tweaks)   parts.push(`${split.tweaks} tweak${split.tweaks === 1 ? '' : 's'}`);
-        if (split.editing)  parts.push(`${split.editing} editing`);
+        const parts = [`<strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'}`];
+        if (stats.firstCuts)   parts.push(`${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}`);
+        if (stats.tweakRounds) parts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
+        if (stats.finishes)    parts.push(`<span class="ked-bd-finished">${stats.finishes} finished</span>`);
+        if (stats.wip)         parts.push(`<span class="ked-bd-wip">${stats.wip} in progress</span>`);
         const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
@@ -32790,12 +32887,11 @@
                     <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-avg">
-                    <span class="ked-avg-val">${ed.avgPerWorkday.toFixed(2)}</span>
+                    <span class="ked-avg-val">${stats.avgPerWorkday.toFixed(2)}</span>
                     <span class="ked-avg-label">per workday</span>
                     <div class="ked-avg-split">
-                        <span class="ked-avg-split-item is-finished" data-tip="Average videos finished per workday"><span class="ked-avg-split-n">${(split.finished / 5).toFixed(2)}</span>finished</span>
-                        <span class="ked-avg-split-item is-tweaks" data-tip="Average tweak rounds per workday"><span class="ked-avg-split-n">${(split.tweaks / 5).toFixed(2)}</span>tweaks</span>
-                        <span class="ked-avg-split-item is-editing" data-tip="Average first-cut videos per workday"><span class="ked-avg-split-n">${(split.editing / 5).toFixed(2)}</span>editing</span>
+                        <span class="ked-avg-split-item is-firstcut" data-tip="Average first cuts delivered per workday"><span class="ked-avg-split-n">${(stats.firstCuts / 5).toFixed(2)}</span>first cuts</span>
+                        <span class="ked-avg-split-item is-tweaks" data-tip="Average tweak rounds delivered per workday"><span class="ked-avg-split-n">${(stats.tweakRounds / 5).toFixed(2)}</span>tweaks</span>
                     </div>
                 </div>
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
@@ -32811,7 +32907,6 @@
         if (!n) return 'other';
         if (/^in\s*progress/.test(n))     return 'in-progress';
         if (/smm/.test(n))                return 'smm';
-        if (/^tweak\s*applied/.test(n))   return 'tweak-applied';
         if (/kasper/.test(n))             return 'kasper';
         if (/client/.test(n))             return 'client';
         if (/tweak\s*needed/.test(n))     return 'tweak-needed';
@@ -32825,7 +32920,6 @@
     const _KED_STATUS_LABELS = {
         'in-progress':   'In Progress',
         'smm':           'For SMM',
-        'tweak-applied': 'Tweak Applied',
         'kasper':        'For Kasper',
         'client':        'For Client',
         'tweak-needed':  'Tweak Needed',
@@ -32899,56 +32993,24 @@
         return segs;
     }
 
-    // Per-client per-day breakdown for the day-filter summary chips. The
-    // counts are aligned with the workflow's "perDay[day].count" semantics:
-    // every Tweak Applied and For SMM event counts; In Progress only counts
-    // (as a single "editing" point) for sub-issues that have NO finish
-    // events anywhere in the week. So `Σ chip counts === bar count`.
+    // Per-client per-day breakdown for the day-filter summary chips: the
+    // deliveries (first cuts / tweak rounds) that landed on the selected day.
+    // Same delivery model as the bars, so `Σ chip counts === bar count`.
     function _kedClientDaySummary(videos, dayKey) {
-        const counts = { 'Tweak Applied': 0, 'For SMM': 0, 'In Progress': 0 };
-        for (const v of videos) {
-            const transitions = v.transitions || [];
-            const hasFinishEver = transitions.some(t => {
-                const n = String(t.status || '').toLowerCase();
-                return /smm/.test(n) || /^tweak\s*applied/.test(n);
-            });
-            const earliestInProg = !hasFinishEver
-                ? transitions
-                    .filter(t => /^in\s*progress/i.test(t.status || ''))
-                    .reduce((a, b) => (!a || String(a.at) > String(b.at)) ? b : a, null)
-                : null;
-            for (const t of transitions) {
-                if (t.dayKey !== dayKey || !t.status) continue;
-                const n = t.status.toLowerCase();
-                if (/^tweak\s*applied/.test(n))                                  counts['Tweak Applied']++;
-                else if (/smm/.test(n))                                          counts['For SMM']++;
-                else if (/^in\s*progress/.test(n) && earliestInProg && t.at === earliestInProg.at) counts['In Progress']++;
+        let firstCuts = 0, tweakRounds = 0;
+        for (const v of (videos || [])) {
+            for (const d of _kedVideoDeliveries(v)) {
+                if (d.dayKey !== dayKey) continue;
+                if (d.kind === 'tweak') tweakRounds++; else firstCuts++;
             }
         }
-        return counts;
+        return { firstCuts, tweakRounds };
     }
 
-    // A sub-issue is "in the day's filter" iff it contributed to the bar
-    // count for that day — i.e. it had a finish event that day, OR (for
-    // videos with no finish events in window) the earliest In Progress
-    // event landed on that day. Mirrors the workflow's countedEvents logic.
+    // A video is "in the day's filter" iff it had a delivery on that day —
+    // i.e. it contributed to that day's bar count.
     function _kedVideoContributedOnDay(v, dayKey) {
-        const transitions = v.transitions || [];
-        const hasFinishOnDay = transitions.some(t => {
-            if (t.dayKey !== dayKey) return false;
-            const n = String(t.status || '').toLowerCase();
-            return /smm/.test(n) || /^tweak\s*applied/.test(n);
-        });
-        if (hasFinishOnDay) return true;
-        const hasFinishEver = transitions.some(t => {
-            const n = String(t.status || '').toLowerCase();
-            return /smm/.test(n) || /^tweak\s*applied/.test(n);
-        });
-        if (hasFinishEver) return false;
-        const earliestInProg = transitions
-            .filter(t => /^in\s*progress/i.test(t.status || ''))
-            .reduce((a, b) => (!a || String(a.at) > String(b.at)) ? b : a, null);
-        return !!(earliestInProg && earliestInProg.dayKey === dayKey);
+        return _kedVideoDeliveries(v).some(d => d.dayKey === dayKey);
     }
 
     function _kedClientIsExpanded(editorKey, clientName, defaultExpanded) {
@@ -32959,7 +33021,7 @@
 
     function _kedVideos(videos, dayFilter, weekStartISO, weekEndISO, editorKey, days) {
         if (!videos || !videos.length) {
-            return `<div class="ked-vid-empty">No sub-issues to show.</div>`;
+            return `<div class="ked-vid-empty">No videos to show.</div>`;
         }
         const weekStartMs = Date.parse(weekStartISO);
         const weekEndMs = Date.parse(weekEndISO);
@@ -33019,9 +33081,8 @@
             if (dayFilter) {
                 const sum = _kedClientDaySummary(vids, dayFilter);
                 const chips = [];
-                if (sum['Tweak Applied']) chips.push(`<span class="ked-group-chip" data-tip="Revision rounds finished that day"><span class="ked-chip-n">${sum['Tweak Applied']}</span> tweak${sum['Tweak Applied'] === 1 ? '' : 's'} applied</span>`);
-                if (sum['For SMM'])       chips.push(`<span class="ked-group-chip" data-tip="First cuts sent to SMM that day"><span class="ked-chip-n">${sum['For SMM']}</span> sent for SMM</span>`);
-                if (sum['In Progress'])   chips.push(`<span class="ked-group-chip" data-tip="Started editing on this day"><span class="ked-chip-n">${sum['In Progress']}</span> editing</span>`);
+                if (sum.firstCuts)   chips.push(`<span class="ked-group-chip" data-tip="First cuts delivered for review that day"><span class="ked-chip-n">${sum.firstCuts}</span> first cut${sum.firstCuts === 1 ? '' : 's'}</span>`);
+                if (sum.tweakRounds) chips.push(`<span class="ked-group-chip" data-tip="Tweak rounds delivered for review that day"><span class="ked-chip-n">${sum.tweakRounds}</span> tweak${sum.tweakRounds === 1 ? '' : 's'}</span>`);
                 summaryHtml = chips.length ? `<div class="ked-group-summary">${chips.join('')}</div>` : '';
             }
             const headCls = expanded ? 'ked-vid-group-head is-expanded' : 'ked-vid-group-head';

@@ -12,15 +12,18 @@
 -- the n8n calendar-upsert-post execution log, which is not practically queryable.
 --
 -- kasper_finish_log is an APPEND-ONLY JSON array (text column, like graphic_tweaks)
--- holding ONE entry per Finish click:
---   { at, prev, gap_min, why, video_status, graphic_status,
---     video_status_at, graphic_status_at }
--- where `why` ∈ initial | new-message | status-reentered | refinish-no-change, and
--- gap_min is minutes since the previous finish. The front end appends an entry on
--- every Finish (see _kasperAppendFinishLog in index.html); it rides the normal
--- calendar-upsert-post patch + Supabase realtime, exactly like kasper_finished_at.
--- NOTE: it only captures clicks from the moment it is live — it cannot recover past
--- ones.
+-- holding ONE entry per Finish hand-off:
+--   { at, prev, gap_min, kind, why, statuses{}, status_at{}, rounds{}, links{},
+--     last_msg{at,role,round,comp}, overall }
+-- where `why` ∈ initial | new-message | new-round | recheck. 'recheck' (re-finished
+-- with NO new message and NO new tweak round) is the BUG-CANDIDATE bucket: the card
+-- came back with nothing new for Kasper to act on. gap_min is minutes since the
+-- previous finish; rounds{} is the max tweak round per component (drives 'new-round');
+-- links{} are the Linear issue ids for one-click verification. The front end appends
+-- an entry on every Finish hand-off (see _kasperAppendFinishLog in index.html); it
+-- rides the normal calendar-upsert-post patch + Supabase realtime, exactly like
+-- kasper_finished_at. NOTE: it only captures clicks from the moment it is live — it
+-- cannot recover past ones.
 --
 -- ROLLOUT ORDER (important):
 --   1. Run THIS migration first (adds the column).
@@ -30,17 +33,20 @@
 --   send an unknown column and error. The front end can ship anytime: until the
 --   column is allow-listed the upsert just drops the field (no-op).
 --
--- AFTER it is live — every card Kasper finished more than once, with the gap
--- between his last two clicks and why it came back:
+-- AFTER it is live — every card that was re-finished (finished 2+ times, OR finished
+-- once after a pre-logger finish so the latest entry's why <> 'initial'), with the gap
+-- and cause, bug-candidates ('recheck') first:
 --
 --   select id, client, name,
---          jsonb_array_length(kasper_finish_log::jsonb)            as finishes,
---          (kasper_finish_log::jsonb -> -1 ->> 'gap_min')::int     as last_gap_min,
---          kasper_finish_log::jsonb -> -1 ->> 'why'                as last_why
+--          jsonb_array_length(kasper_finish_log::jsonb)         as finishes,
+--          (kasper_finish_log::jsonb -> -1 ->> 'gap_min')::int  as last_gap_min,
+--          kasper_finish_log::jsonb -> -1 ->> 'why'             as last_why,
+--          kasper_finish_log::jsonb -> -1 -> 'links'            as last_links
 --   from public.calendar_posts
 --   where kasper_finish_log is not null
---     and jsonb_array_length(kasper_finish_log::jsonb) >= 2
---   order by finishes desc;
+--     and ( jsonb_array_length(kasper_finish_log::jsonb) >= 2
+--           or (kasper_finish_log::jsonb -> -1 ->> 'why') <> 'initial' )
+--   order by ((kasper_finish_log::jsonb -> -1 ->> 'why') = 'recheck') desc, finishes desc;
 -- ============================================================
 
 alter table public.calendar_posts

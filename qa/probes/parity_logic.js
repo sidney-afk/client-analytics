@@ -145,8 +145,95 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
       }
     }
 
+    // ── J. Review-component-active (is this component "in play" on a surface?) ──
+    for (const mode of ['smm', 'client']) for (const st of STAT) {
+      const p = { video_status: st };
+      rec('reviewComponentActive[' + mode + ']', st, _calReviewComponentActive(p, 'video', mode), _sxrReviewComponentActive(p, 'video', mode), false);
+    }
+
+    // ── K. Approval-badge count (review-queue size). caption left non-review so the
+    //      calendar's extra component can't change the count; media present so smm counts. ──
+    {
+      const mkP = (v, g) => ({ id: uid(), asset_url: 'https://frame.io/x', thumbnail_url: '', video_status: v, graphic_status: g, caption_status: 'In Progress' });
+      const posts = [mkP('For SMM Approval', 'In Progress'), mkP('Client Approval', 'For SMM Approval'), mkP('In Progress', 'In Progress'), mkP('Approved', 'Client Approval')];
+      calState.posts = posts.map(p => Object.assign({}, p));
+      sxrState.posts = posts.map(p => Object.assign({}, p));
+      for (const mode of ['smm', 'client']) rec('approvalBadgeCount[' + mode + ']', mode, _calApprovalBadgeCount(mode), _sxrApprovalBadgeCount(mode), false);
+    }
+
+    // ── L. Can-delete / can-resolve role rules ──
+    for (const c of [{ role: 'smm' }, { role: 'client' }, { role: 'kasper' }])
+      rec('canDeleteComment', JSON.stringify(c), _calCanDeleteComment(c), _sxrCanDeleteComment(c), false);
+    rec('canResolveComment', 'smm-ctx', _calCanResolveComment(), _sxrCanResolveComment(), false);
+
+    // ── M. Stale-approval clearing: a sub below Client Approval clears its stamp;
+    //      one at/above keeps it. (Shared review range — Scheduled/Posted excluded.) ──
+    {
+      const before = { video_status: 'Tweaks Needed', graphic_status: 'Approved', client_video_approved_at: '2020-01-01', client_graphic_approved_at: '2020-01-01' };
+      const cp = Object.assign({}, before), sp = Object.assign({}, before);
+      const cPend = {}, sPend = {};
+      _calClearStaleApprovals(cp, cPend); _sxrClearStaleApprovals(sp, sPend);
+      rec('clearStale: video stamp cleared (below)', 'TweaksNeeded', cp.client_video_approved_at, sp.client_video_approved_at, false);
+      rec('clearStale: graphic stamp kept (Approved)', 'Approved', cp.client_graphic_approved_at, sp.client_graphic_approved_at, false);
+      rec('clearStale: pending write for video', 'pending', cPend.client_video_approved_at, sPend.client_video_approved_at, false);
+    }
+
+    // ── N. Linear issue URL routing (video → linear_issue_id, graphic → graphic_…) ──
+    {
+      const post = { linear_issue_id: 'https://linear.app/x/VID-1', graphic_linear_issue_id: 'https://linear.app/x/GRA-1' };
+      rec('linearUrlFor', 'video', _calLinearUrlFor(post, 'video'), _sxrLinearUrlFor(post, 'video'), false);
+      rec('linearUrlFor', 'graphic', _calLinearUrlFor(post, 'graphic'), _sxrLinearUrlFor(post, 'graphic'), false);
+      const empty = {};
+      rec('linearUrlFor', 'video(empty)', _calLinearUrlFor(empty, 'video'), _sxrLinearUrlFor(empty, 'video'), false);
+    }
+
+    // ── O. Comment merge = newer-wins by stamp, across overlapping ids ──
+    {
+      const A = [{ id: 'm1', updated_at: '2020-01-01', body: 'old' }, { id: 'm2', updated_at: '2021-01-01', body: 'a2' }];
+      const B = [{ id: 'm1', updated_at: '2022-01-01', body: 'new' }, { id: 'm3', updated_at: '2020-06-01', body: 'b3' }];
+      const norm = (arr) => arr.map(c => [c.id, c.updated_at, c.body]).sort((x, y) => String(x[0]).localeCompare(String(y[0])));
+      rec('mergeCommentLists (newer-wins)', 'overlap', norm(_calMergeCommentLists(A, B)), norm(_sxrMergeCommentLists(A, B)), false);
+      // a tombstone with a newer stamp must win over a live older copy
+      const live = [{ id: 'm9', updated_at: '2020-01-01', body: 'live' }];
+      const tomb = [{ id: 'm9', updated_at: '2021-01-01', deleted: true, body: 'live' }];
+      const pick = (arr) => { const r = arr.find(c => c.id === 'm9'); return r ? !!r.deleted : null; };
+      rec('mergeCommentLists (tombstone wins)', 'm9', pick(_calMergeCommentLists(live, tomb)), pick(_sxrMergeCommentLists(live, tomb)), false);
+    }
+
+    // ── P. Status label text (samples aliases the calendar's labeller) ──
+    for (const s of STAT.concat(['Scheduled', 'Posted', 'weird']))
+      rec('statusLabel', s, _calStatusLabel(s), (typeof _sxrStatusLabel === 'function' ? _sxrStatusLabel(s) : _calStatusLabel(s)),
+          (s === 'Scheduled' || s === 'Posted'));
+
     return { diffs, cmp, errs: [] };
   });
+
+  // ── Client-context page (_isClientLink === true) → exercise the visibility filter
+  //    that hides internal/Kasper threads from the client. ──
+  const cpage = await ctx.newPage();
+  await cpage.goto('http://localhost:8012/index.html?sxr=1&c=acme', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await cpage.waitForFunction(() => typeof _calCommentsForView === 'function' && typeof _sxrCommentsForView === 'function', { timeout: 15000 }).catch(() => {});
+  const cout = await cpage.evaluate(() => {
+    const diffs = []; let cmp = 0; const now = () => new Date().toISOString(); let _s = 0; const uid = () => 'cc_' + (++_s);
+    const rec = (group, input, cal, sxr) => { cmp++; if (JSON.stringify(cal) !== JSON.stringify(sxr)) diffs.push({ group, input, cal, sxr, byDesign: false }); };
+    const isClient = (typeof _isClientLink !== 'undefined') && !!_isClientLink;
+    // Mixed thread: internal-SMM tweak, client tweak, Kasper note, reply→client root, reply→internal root.
+    const rootSmm = { id: uid(), parent_id: null, role: 'smm', audience: 'internal', is_tweak: true, body: 'internal', created_at: now() };
+    const rootClient = { id: uid(), parent_id: null, role: 'client', audience: 'client', is_tweak: true, body: 'client', created_at: now() };
+    const kasper = { id: uid(), parent_id: null, role: 'kasper', audience: 'internal', body: 'k', created_at: now() };
+    const replyToClient = { id: uid(), parent_id: rootClient.id, role: 'smm', body: 'reply-client', created_at: now() };
+    const replyToInternal = { id: uid(), parent_id: rootSmm.id, role: 'client', body: 'reply-internal', created_at: now() };
+    const vid = [rootSmm, rootClient, kasper, replyToClient, replyToInternal];
+    const post = { id: uid(), video_comments: vid, comments: vid, graphic_comments: [] };
+    const ids = (arr) => arr.map(c => c.id).sort();
+    rec('clientView: visible ids', 'mixed thread', ids(_calCommentsForView(post, 'video')), ids(_sxrCommentsForView(post, 'video')));
+    rec('clientView: count', 'mixed thread', _calCommentsForView(post, 'video').length, _sxrCommentsForView(post, 'video').length);
+    return { diffs, cmp, isClient };
+  });
+  await cpage.close();
+  out.diffs = out.diffs.concat(cout.diffs);
+  out.cmp += cout.cmp;
+  if (!cout.isClient) console.log('  ⚠ client page did not set _isClientLink — visibility check may be invalid');
 
   // ── report ──
   const diffs = out.diffs;

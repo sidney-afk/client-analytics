@@ -7505,7 +7505,8 @@
     let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0;
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
-    const OBV_SUB = { native:'Native captions', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
+    const OBV_SUB = { elegant:'Elegant', native:'Native', banner:'Banner', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
+    const OBV_BROLL = { stock:'Stock footage', ai:'AI-generated', mix:'Mix of both', own:'My own footage', none:'No B-roll' };
     const OBV_FRAMING = { closeup:'Close-up', mid:'Mid-shot', wide:'Wide', mixed:'Mixed' };
     const OBV_CLOTHING = { formal:'Formal / suit', smart_casual:'Smart casual', casual:'Casual', streetwear:'Streetwear', athletic:'Activewear', branded:'Branded merch', elegant:'Elegant' };
     const OBV_PODCAST = { studio:'Studio desk with mics', lounge:'Casual lounge', office:'Office / bookshelf', minimal:'Plain backdrop' };
@@ -7599,6 +7600,9 @@
     function _obvLink(v){ if(!v) return ''; const u=String(v); const safe=_obvEsc(u); const href = /^https?:\/\//i.test(u) ? safe : ('https://'+safe); return `<a href="${href}" target="_blank" rel="noopener">${safe}</a>`; }
     function _obvRow(label, valueHtml){ if(!valueHtml) return ''; return `<div class="obv-row"><div class="obv-row-l">${_obvEsc(label)}</div><div class="obv-row-v">${valueHtml}</div></div>`; }
     function _obvList(arr, map){ if(!Array.isArray(arr)||!arr.length) return ''; return _obvEsc(arr.map(x=>(map&&map[x])||x).join(', ')); }
+    // Reference fields are free-text textareas where clients paste links (often several, with
+    // notes). Preserve line breaks and turn any URLs into clickable links.
+    function _obvLinkify(v){ if(v==null||v==='') return ''; return _obvEsc(String(v)).replace(/\n/g,'<br>').replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>'); }
     // The exact thumbnail render the client built (or a note if they asked us to design it).
     function _obvThumb(a){
       // thumbnail_build toggle off => client opted out of building their own look.
@@ -7619,7 +7623,7 @@
       // creators
       let creators='';
       const crList = Array.isArray(a.creators) ? a.creators : [];
-      crList.forEach(c=>{ if(c&&(c.link||c.copy)) creators += `<div class="obv-creator">${_obvLink(c.link)}${c.copy?(' — '+_obvEsc(c.copy)):''}</div>`; });
+      crList.forEach(c=>{ if(!c) return; const note=c.model||c.copy; if(c.link||note) creators += `<div class="obv-creator">${_obvLink(c.link)}${note?(' — '+_obvEsc(note)):''}</div>`; });
       if(!creators){ for(let i=1;i<=5;i++){ const link=a['creator'+i+'_link'], copy=a['creator'+i+'_copy']; if(link||copy){ creators += `<div class="obv-creator">${_obvLink(link)}${copy?(' — '+_obvEsc(copy)):''}</div>`; } } }
 
       const brand = [
@@ -7630,13 +7634,21 @@
         _obvRow('Process', _obvEsc(_obvText(a,'process'))),
       ].join('');
 
+      const _subHl = (a.subtitle_highlight===true || a.subtitle_highlight==='true' || a.highlight_keywords);
       const style = [
-        creators ? _obvRow('Creators', creators) : '',
+        creators ? _obvRow('Creators to model', creators) : '',
+        // legacy field from the earlier form version — kept so old submissions still render.
         _obvRow('Clips they like', (Array.isArray(a.clips)&&a.clips.length) ? a.clips.map(c=>_obvLink(c&&c.link)).filter(Boolean).join('<br>') : _obvLink(_obvText(a,'clips_you_like'))),
-        _obvRow('Music', _obvList(a.music, OBV_GENRE)),
-        _obvRow('Subtitles', _obvEsc(OBV_SUB[a.subtitle_style]||a.subtitle_style||'') + (a.highlight_keywords?' · highlight keywords':'')),
+        _obvRow('Subtitles', _obvEsc(OBV_SUB[a.subtitle_style]||a.subtitle_style||'') + (_subHl?' · highlighted keywords':'')),
+        _obvRow('B-roll', _obvList(a.broll, OBV_BROLL)),
+        _obvRow('Music genres', _obvList(a.music, OBV_GENRE)),
+        _obvRow('Music reference', _obvLink(_obvText(a,'music_refs'))),
+        _obvRow('Video reference', _obvLinkify(_obvText(a,'video_reference'))),
+        _obvRow('Video look wanted', _obvEsc(_obvText(a,'video_reference_desc'))),
         _obvRow('Thumbnail style', _obvThumb(a)),
-        _obvRow('B-roll', _obvList(a.broll, {stock:'Stock footage',ai:'AI-generated',none:'No B-roll'})),
+        _obvRow('Thumbnail reference', _obvLinkify(_obvText(a,'thumbnail_reference'))),
+        _obvRow('Thumbnail look wanted', _obvEsc(_obvText(a,'thumbnail_reference_desc'))),
+        // legacy fields (older form) — render only if present on old submissions.
         _obvRow('Colours', _obvEsc(_obvText(a,'color_prefs'))),
         _obvRow('Text / fonts', _obvEsc(_obvText(a,'text_prefs'))),
         _obvRow('Overall feel', _obvEsc(_obvText(a,'overall_approach'))),
@@ -7653,6 +7665,7 @@
       const goals = [
         _obvRow('Success looks like', _obvEsc(_obvText(a,'success'))),
         _obvRow('Anything else', _obvEsc(_obvText(a,'anything_else'))),
+        _obvRow('Questions / unclear', _obvEsc(_obvText(a,'questions'))),
       ].join('');
 
       let ai='';
@@ -7671,6 +7684,7 @@
           _obvRow('Makeup', _obvEsc(_obvText(a,'ai_makeup'))),
           _obvRow('Clothing', _obvList(a.ai_clothing, OBV_CLOTHING)),
           _obvRow('Voice recording', _obvLink(_obvText(a,'ai_voice_link'))),
+          _obvRow('More voice recordings', _obvLink(_obvText(a,'ai_voice_samples'))),
         ].join('');
       }
 
@@ -7678,7 +7692,7 @@
       return `<div class="obv-detail">
         <button class="obv-back" onclick="_obvBack()">← All submissions</button>
         <div class="obv-detail-head"><div class="obv-detail-name">${_obvEsc(name)}</div>
-          <div class="obv-detail-meta">${_obvEsc(s.email||'')} · ${_obvEsc(_obvFmtDate(s.created_at))}${s.ai_avatar==='yes'?' · <b>AI avatar</b>':''}</div></div>
+          <div class="obv-detail-meta">${_obvEsc(s.email||'')}${(s.phone||a.phone)?(' · '+_obvEsc(s.phone||a.phone)):''} · ${_obvEsc(_obvFmtDate(s.created_at))}${s.ai_avatar==='yes'?' · <b>AI avatar</b>':''}</div></div>
         ${sec('Brand &amp; audience', brand)}
         ${sec('Style', style)}
         ${sec('Photos &amp; source', assets)}

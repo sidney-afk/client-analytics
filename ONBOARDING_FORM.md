@@ -296,6 +296,11 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
 editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
+The detail view surfaces **every field an editor/designer needs**, including the reference
+material the form collects: **video reference** links + the client's described look, **thumbnail
+reference** links + described look, **music reference**, the **subtitle-highlight** choice, the
+**creators to model** (with notes), and the client's **questions** box. (Account logins are the
+only fields withheld — stripped by the list webhook.) Contact `phone` shows in the header.
 The **Style** section renders the **exact thumbnail the client built** in the picker — the real
 `thumbnail-styles/<font>-<style>[-hl].jpg` image (mirroring the form's `_obThumbImg`) with a
 "Font · Style · Highlight" caption, clickable to full size; if they toggled "build my own" off it

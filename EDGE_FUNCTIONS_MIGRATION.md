@@ -47,8 +47,10 @@ Rollback is **repointing one webhook URL**.
   for ~60 s — starving the upsert code nodes into the cold-start queue above.
 - **Security.** The live `LINEAR_KEY` is a **plaintext string constant inside the
   "Handle Linear Event" code node** of each Linear-sync workflow (not an n8n
-  credential). Repo backups redact it (`[REDACTED-LINEAR-KEY]`); it lives only in
-  n8n. It must be rotated and moved to a secret regardless of this migration.
+  credential). Repo backups redact it (the tokens vary — e.g. `[REDACTED-LINEAR-KEY]`
+  in the PROPOSED file, `<REDACTED_LINEAR_API_KEY>` in the `.pre-freshness-guard`
+  rollback file); it lives only in n8n. It must be rotated and moved to a secret
+  regardless of this migration.
 
 ## What is NOT changing (scope guardrails)
 
@@ -58,10 +60,21 @@ Rollback is **repointing one webhook URL**.
   `workload_issues` channels) with the publishable anon key under RLS. "Supabase →
   website" is **already** as direct as it gets. This migration does not touch it.
 - **The reconciler stays as-is.** `scripts/linear-sync-reconcile.js` (+ the samples
-  clone) runs on **GitHub Actions every ~10 min**, not on n8n. It is the
-  most-recent-action-wins **guarantee** behind the best-effort webhooks and is
-  unaffected by where the webhook handler runs. It keeps being the safety net
-  during and after the migration.
+  clone) runs on **GitHub Actions**, not on n8n. It is the most-recent-action-wins
+  **guarantee** behind the best-effort webhooks and is unaffected by where the
+  webhook handler runs — it keeps being the safety net during and after the
+  migration. Note its real ~10-min cadence is driven by the n8n **trigger workflow
+  `AkiFmromoDkmsh39`** (the GitHub `cron` alone throttles to ~3.4 h average — see
+  `LINEAR_DRIFT_INCIDENT_2026-06-19.md`); that n8n dependency stays in place, so
+  "heals within ~10 min" assumes it is alive. If it is ever retired, the safety-net
+  interval degrades to hours.
+- **Status change-timestamps are DB-stamped.** `video_status_at` /
+  `graphic_status_at` are written by a **server-side Postgres `BEFORE INSERT/UPDATE`
+  trigger** (`calendar-status-at-migration.sql`), not by handler code. Any Edge
+  Function write to `calendar_posts` fires it automatically — preserve normal
+  `UPDATE`/RPC writes so it keeps firing, and **never write these columns by hand.**
+  This server-stamped exact time is what keeps the reconciler's most-recent-wins
+  *direction* correct (the GRA-6339 drift, `LINEAR_DRIFT_INCIDENT_2026-06-19.md`).
 - **n8n keeps everything else.** AI generation (`generate-caption`,
   `generate-brief`, …), TikTok pilot (`ttp-*`, `tiktok-upload*`), onboarding
   (`onboarding-submit`, `ai-onboarding-*`), Slack (`send-urgent-slack`,
@@ -114,9 +127,11 @@ Rollback is **repointing one webhook URL**.
   matching card(s) → POST a **minimal** `{ id, video_status | graphic_status }`
   patch back through `calendar-upsert-post` per matched card.
 - **Status mapping** (`mapStatus` in n8n == `_calMapLinearStatusStrict`,
-  index.html:14643; substring match, first wins):
+  index.html:14643; first match wins — `tweak`/`smm`/`kasper`/`client`/`in progress`
+  match by **substring**, but `posted`/`approved`/`backlog`/`todo` match by **exact
+  equality** (`s === 'posted'` etc.), so the column below reads "contains/equals"):
 
-  | Linear state contains | → card sub-status |
+  | Linear state contains/equals | → card sub-status |
   |---|---|
   | `tweak` | Tweaks Needed |
   | `scheduled` | Scheduled |
@@ -165,6 +180,16 @@ user-visible symptom:
   relieve enough of the save-stall pain that the riskier upsert port can be
   scheduled calmly rather than under fire.
 
+**Phase 2 is conditional, and "Linear first" fixes the symptom only indirectly.**
+Phase 1 is committed; Phase 2 (the calendar upsert) proceeds **only if** the
+user-visible save stall persists after Phase 1 **and** the latency audit's
+infra/targeted-read fixes (remediation option 3). Be honest about the mechanism:
+Linear-first relieves the save stall *indirectly*, by removing runner-starvation
+amplification. If the cold-starts are actually driven by the shared n8n instance
+independent of `linear-status-sync` load, Phase 1 may move the needle little — which
+is exactly why Phase 2 is **gated on a re-measure**, neither assumed unnecessary nor
+assumed certain.
+
 ## New problems this introduces (eyes open)
 
 Edge Functions fix the cold-start latency but are not free of trade-offs. Take
@@ -177,8 +202,9 @@ these on deliberately:
    the **reconciler** as the convergence backstop. For the calendar upsert, the FE
    already retries; preserve that contract (return the same `{ok, conflict}` shape).
 2. **Weaker observability.** You lose n8n's visual, per-execution, node-by-node
-   replay. You get the Invocations tab + text logs (Logs Explorer, 1,000-row
-   cap), with **1-day retention on Free / 7-day on Pro**. *Mitigation:* structured
+   replay. You get the Invocations tab + text logs (Logs Explorer), with **short
+   log retention on Free (≈1 day) / longer on Pro** — confirm the current
+   retention and any row-cap on the live observability docs. *Mitigation:* structured
    `console.log` with a correlation id per event; consider Sentry for the two
    handlers; keep the n8n version runnable for comparison during bake-in.
 3. **Code-and-deploy, not click-around.** Functions deploy via the **Supabase CLI**
@@ -192,9 +218,10 @@ these on deliberately:
    `2.49.8` or a known-good), and read the **raw request body before any JSON
    parse** so the signature is computed over the exact bytes.
 5. **Single region per invocation + DB anchored to one region.** Not globally
-   ubiquitous. For DB-heavy handlers, **pin the function to the DB's region**
-   (`forceFunctionRegion` for webhook callers that can't set headers). The calendar
-   upsert (DB writes) is a candidate to pin.
+   ubiquitous. For DB-heavy handlers, **pin the function to the DB's region** (the
+   `x-region` request header, or the `forceFunctionRegion` query param for webhook
+   callers that can't set headers). The calendar upsert (DB writes) is a candidate
+   to pin.
 6. **Hard limits** (well clear for these handlers): CPU 2 s, wall-clock 150 s Free
    / 400 s Paid, memory 256 MB, function size 20 MB. Verify against the live limits
    page before relying on any number — Supabase has changed them (a stale doc still
@@ -208,10 +235,14 @@ these on deliberately:
 - [ ] Create the Linear **webhook signing secret** + a **dedicated Linear API key**
       for the function (so the rotation is clean and scoped). Store both as Supabase
       secrets: `supabase secrets set LINEAR_API_KEY=… LINEAR_WEBHOOK_SECRET=…`.
-- [ ] Confirm the `service_role` key is available to functions via the auto-injected
-      `SUPABASE_SERVICE_ROLE_KEY` (or the new `SUPABASE_SECRET_KEYS` JSON). It is
-      needed to call `calendar_merge_comments` (service-role-only) and to write
-      `calendar_posts`. **Never ship it to the browser.**
+- [ ] Confirm the service-role key is available to functions via the auto-injected
+      env (`SUPABASE_SECRET_KEYS` JSON is the current default; `SUPABASE_SERVICE_ROLE_KEY`
+      is the legacy var). It is needed to call `calendar_merge_comments`
+      (service-role-only) and to write `calendar_posts`. **Never ship it to the browser.**
+- [ ] **Confirm the live `calendar_merge_comments` signature** matches the port's
+      assumption `(client, id, video, graphic, caption, title, base)`
+      (`migrations/2026-06-18-atomic-comment-merge.sql`) before Phase 2 — the upsert
+      port hard-depends on that exact RPC shape.
 - [ ] **Confirm the `calendar_posts` anon-SELECT RLS policy DDL.** The base table
       DDL is **not in the repo** (only ADD-COLUMN migrations exist). Capture the
       live policy so it can be recreated/verified — the function will write with the
@@ -225,8 +256,19 @@ these on deliberately:
      `webhookTimestamp` is within ~60 s (replay guard);
    - port `mapStatus` + the link-match + the targeted `supaCandidates` read +
      dedupe-to-one-best-row;
-   - POST the minimal `{ id, video_status | graphic_status }` patch to the **upsert
-     endpoint** (still n8n `calendar-upsert-post` at this phase — they compose);
+   - POST **only** the minimal `{ id, video_status | graphic_status }` patch to the
+     **upsert endpoint** (still n8n `calendar-upsert-post` at this phase — they
+     compose). **Do not** recompute the overall pill or clear stale approvals in the
+     function — `calendar-upsert-post` + the FE (`computeOverallStatus` /
+     `_calClearStaleApprovals`) + the reconciler own that; a port that "helpfully"
+     recomputes the pill is a silent regression that fights the FE/reconciler;
+   - **bound the composition latency:** the function now *synchronously awaits* the
+     n8n upsert, which the audit shows can sit 5–16 s (one run hung ~60 s, exec
+     71344). Put a ~15 s timeout on each upsert POST, fan out matched cards with
+     bounded concurrency, and on timeout/error **return 2xx anyway** and let
+     Linear-retry + the reconciler heal — never let a slow n8n upsert blow the
+     function's wall-clock budget (150 s) or fail the whole webhook. This composition
+     cost disappears once Phase 2 moves the upsert off n8n too;
    - call Linear's GraphQL with the **raw key** in the `Authorization` header
      (Linear personal keys use **no** `Bearer ` prefix here).
 2. [ ] Decide the mapping-source strategy — see
@@ -237,9 +279,13 @@ these on deliberately:
 4. [ ] Deploy with `verify_jwt = false` (Linear sends no Supabase JWT; the HMAC is
    the auth). URL: `https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/linear-status-sync`.
 5. [ ] **Shadow run:** in Linear → Settings → API → Webhooks, add a **second**
-   webhook at the function URL while the n8n one stays live. Run the function in
-   **dry-run** (log the intended patch, don't POST it) and diff against n8n for a
-   few days. Zero user impact (the n8n webhook is still authoritative).
+   webhook at the function URL while the n8n one stays live. Keep the function a
+   **true dry-run** (log the intended patch, do **not** POST it) until cutover: the
+   shadow means *two* Linear webhooks fire per event, and double-driving the same
+   n8n upsert is harmless **only** because the upsert no-ops on an unchanged
+   sub-status — don't lean on that coincidence, just don't POST until you flip over.
+   Diff the function's logged patches against n8n's writes for a few days. Zero user
+   impact (the n8n webhook is still authoritative).
 6. [ ] **Cut over:** flip the function to write for real; **disable** (do not
    delete) the n8n `linear-status-sync` workflow. Keep both webhooks during bake-in.
 7. [ ] **Rotate** the old plaintext Linear key (it is compromised-by-exposure).
@@ -250,20 +296,38 @@ these on deliberately:
 1. [ ] `supabase functions new calendar-upsert-post`. Port the **guard gauntlet**
    faithfully (read-failure, phantom-row, `__CLEAR_LINK__`, link-clobber,
    duplicate-link, conflict/LWW) — reuse the JS from the n8n node nearly verbatim.
+   Deploy with `verify_jwt = false` and CORS configured: the FE calls this as an
+   **unauthenticated public webhook** today (CORS `*`, per `AUDIT_2026-06-15.md`),
+   so its "auth" is whatever the n8n endpoint has now. With JWT on, every save would
+   break. Tightening that auth is a separate hardening item, not part of this move.
 2. [ ] For the comment merge, **call the existing `calendar_merge_comments` RPC**
    with the service-role key — do **not** re-implement the merge in the function.
    This keeps the atomicity guarantee and a single source of truth for merge logic.
 3. [ ] Preserve the **exact response contract** the FE depends on (`{ok}`,
    `{ok:false, conflict:true}`, retryable `{ok:false}`), so optimistic save +
    retry behavior is unchanged.
-4. [ ] Keep the **best-effort Google-Sheets mirror** off the response path (or drop
-   it if the Sheet is now purely vestigial — decide explicitly, don't drop silently).
+4. [ ] **Keep** the best-effort Google-Sheets mirror in the port, **off** the
+   response path (a try/catch that never affects the `{ok}` response), consistent
+   with `AUDIT_2026-06-15.md`, which retains the Sheet as a backup / human-readable
+   mirror (NOT retired). Re-evaluate retiring it only as a separate Phase-4 cleanup
+   — never as a silent side effect of this migration.
 5. [ ] Pin the function to the **DB region**.
-6. [ ] Shadow/canary: route a **single low-traffic client** (or a `?ef=1` FE flag)
-   to the function endpoint; compare written rows against n8n for that client; then
-   widen. Keep n8n as the fallback URL.
-7. [ ] Cut over by switching `CALENDAR_UPSERT_URL` in `index.html` (and the
-   reconciler's `UPSERT_URL`) to the function; disable the n8n workflow; bake in.
+6. [ ] **Canary — must be BUILT; there is no `?ef=1` flag today.** Add a second
+   endpoint const (e.g. `CALENDAR_UPSERT_URL_EF`) and select it by a **client-slug
+   allowlist** applied at *all ~6* FE upsert call sites (not just one). A per-client
+   allowlist beats a URL/query flag because the reconciler and `linear-status-sync`
+   write for *every* client and won't honor a browser flag — so those backend
+   writers must also choose the endpoint by slug, or they'll keep hitting n8n for
+   the canary client and mask the test. Compare written rows against n8n for the
+   canary client, then widen. Keep n8n as the fallback URL.
+7. [ ] **Cut over = repoint EVERY writer of `calendar-upsert-post`, atomically.**
+   There is a fan-in, not one switch: the FE const `CALENDAR_UPSERT_URL`
+   (index.html:12625, used by ~6 call sites — 13685, 15738, 19784, 20190, 24414,
+   28998), the reconciler's `UPSERT_URL` (`scripts/linear-sync-reconcile.js`), and
+   the migrated `linear-status-sync` function's internal upsert URL. A single missed
+   caller silently keeps writing to n8n — re-introducing the cold-start latency for
+   that path while masking it elsewhere. Flip them together, disable the n8n
+   workflow, and bake in.
 
 ### Phase 3+ — Samples & cleanup (later)
 - [ ] Repeat Phases 1–2 for `sample-linear-status-sync` / `sample-review-upsert`
@@ -338,6 +402,12 @@ key, store it as `LINEAR_API_KEY` via `supabase secrets set`, read it with
 exposure independent of this plan. (The Supabase keys in those same nodes are the
 already-public publishable key — no action.)
 
+Adjacent, out of scope here but tracked in `AUDIT_2026-06-15.md`: rotating the n8n
+`service_role` credential (`XdBpJ6Xk8PMpZXXT`, "Supabase - SyncView Calendar") and
+the `using (true)` anon RLS (any client can read any client's rows). This migration
+doesn't worsen them — but "no action" on the publishable key should not be read as
+"the broader key/RLS posture is clean."
+
 ## Risk: a third hardcoded copy of the mapping
 
 `CAL_PRIORITY` and the Linear→card status map exist today in **three** places kept
@@ -383,6 +453,17 @@ before relying on them.
       proof before touching production).
 - [ ] Decide the fate of the **Google-Sheets mirror** (still wanted as backup, or
       vestigial?) before Phase 2 drops or keeps it.
+
+## Status updates (append-only)
+
+Per repo convention (cf. the dated `## Status update (DATE) — …` logs in
+`N8N_SAVE_LATENCY_AUDIT_2026-06-15.md`), record each phase's apply / blocked /
+rolled-back state here as work happens, newest at the bottom.
+
+- **2026-06-29 — drafted.** Plan written and grounded against the live handlers,
+  schema, keys/RLS, and house style, then adversarially fact-checked against the
+  codebase and current Supabase/Linear docs. **Nothing implemented** — no Edge
+  Function deployed, no n8n workflow changed, no Linear webhook repointed.
 
 ## Sources (research, accessed 2026-06-29)
 

@@ -28,8 +28,21 @@
 > | ot13_kasper_isolation | Kasper samples↔calendar isolation: sample only in Samples sub-tab (no calendar bleed); absent from the calendar Review Session queue | ✅ PASS (7/7) |
 > | ot14_archive_and_select | Per-card X archive works (confirm→live Archived→card removed); BUG-2: multi-select button rendered but inert (stub handlers) | ✅ PASS (10/10, records BUG-2) |
 > | ot15_linear_routing | Linear graphic approve routes to the GRA issue (never video); editing the name fires NO linear-set-status push | ✅ PASS (8/8) |
+> | ot16_idempotency_clearlink | Same-tick double-approve = 1 upsert + single correct transition (not double-advanced); clearing a Linear slot empties linear_issue_id (__CLEAR_LINK__) live | ✅ PASS (9/9) |
 >
-> **Totals:** 15 probes · 166 assertions · 166 PASS · 0 FAIL · 0 app JS errors · **2 product bugs found (BUG-1, BUG-2).**
+> **Totals:** 16 probes · 175 assertions · 175 PASS · 0 FAIL · 0 app JS errors · **2 product bugs found (BUG-1, BUG-2).**
+>
+> ### Samples feature coverage: COMPLETE (A–G). Remaining: H (rest of app).
+> Every Samples matrix section is now exercised against the live backend: A lifecycle (both
+> components × SMM/Kasper/Client, approve-split, worst-of, simplified resolve, idempotency),
+> B Linear sync (push, graphic routing, no-push-on-unchanged, __CLEAR_LINK__), C SMM fields
+> (name/video/cd/hide-cd/thumb-derivation/Linear-commit+guard), D client share (gating,
+> approve, request-change, read-only no-leak), E Kasper queue + isolation, F flag-off
+> isolation + old #samples intact, G realtime catch-up + push handler. The two gaps are
+> BUG-1 (reorder) and BUG-2 (bulk-select). **Next frontier = H:** the rest of the app
+> (calendar lifecycle/fields/Linear/drag, Kasper-for-calendar, client share for calendar,
+> onboarding, TikTok pilot, templates) — out of scope for the Samples rebuild but available
+> to sweep next.
 >
 > ### 🐞 BUGS FOUND (this run)
 > - **BUG-1 — drag-to-reorder is non-functional on the SMM Sheet (real gap).**

@@ -33023,14 +33023,13 @@
 
     // Roll a video list up into the numbers a row renders, around two ideas:
     // LOAD — how much sat in his court (loadVideos, split editing/tweaks,
-    // stillOpen at week's end, editPerDay/tweakPerDay = avg videos in each
-    // state per workday) — and DELIVERIES
+    // stillOpen at week's end) — and DELIVERIES
     // — what he pushed through (firstCuts + tweakRounds = workUnits; perDay
     // counts deliveries per Chicago day; avgPerWorkday = workUnits / 5).
     // finishes = reached Approved/Posted; touched = distinct videos involved.
     function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
-        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
+        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
@@ -33049,15 +33048,11 @@
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
-            editHeldMs += court.editingMs;
-            tweakHeldMs += court.tweakMs;
         }
         const workUnits = firstCuts + tweakRounds;
-        const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
         return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
-                 loadVideos, loadEditing, loadTweaks, stillOpen,
-                 editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
+                 loadVideos, loadEditing, loadTweaks, stillOpen };
     }
 
     // Per-editor stats, memoised on the editor object so _kedPaint (shared
@@ -33088,11 +33083,12 @@
             const isSel = dayFilter === d.key;
             const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
             const dayLong = _kedDayLong(d.label);
+            const sentLbl = `${count} video${count === 1 ? '' : 's'} sent for review`;
             const tipText = count === 0
-                ? `${dayLong} · nothing`
+                ? `${dayLong} · nothing sent for review`
                 : isSel
-                    ? `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to clear`
-                    : `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to view`;
+                    ? `${dayLong} · ${sentLbl} — click to clear`
+                    : `${dayLong} · ${sentLbl} — click to view`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
@@ -33116,7 +33112,7 @@
         if (!loadParts.length) loadParts.push('clear');
         if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip">${stats.stillOpen} still open</span>`);
         const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
-        const loadTip = `On an average workday: ~${stats.editPerDay} being edited · ~${stats.tweakPerDay} awaiting his tweaks`;
+        const loadTip = "Videos that were sitting with him last week — ones he was still editing, plus ones that came back for changes he hadn't finished and re-sent yet. “Still open” = ones still on him when the week ended.";
 
         // DELIVERIES — what he pushed through.
         const delivParts = [];
@@ -33124,6 +33120,7 @@
         if (stats.tweakRounds) delivParts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
         if (!delivParts.length) delivParts.push('nothing shipped');
         const delivSub = delivParts.join(' <span class="ked-id-sep">·</span> ');
+        const delivTip = "Each time he finished a video and moved it on for review, it counts once. A brand-new edit is a “first cut”; a video that came back with changes, which he fixed and sent again, is a “tweak round”.";
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
@@ -33140,7 +33137,7 @@
                         <div class="ked-stat-sub">${loadSub}</div>
                     </div>
                     <div class="ked-stat-sep"></div>
-                    <div class="ked-stat is-deliv" data-tip="On an average workday: ~${(stats.firstCuts / 5).toFixed(1)} videos delivered · ~${(stats.tweakRounds / 5).toFixed(1)} tweak rounds">
+                    <div class="ked-stat is-deliv" data-tip="${_calEscAttr(delivTip)}">
                         <span class="ked-stat-val">${stats.workUnits}</span>
                         <span class="ked-stat-label">pushed through</span>
                         <div class="ked-stat-sub">${delivSub}</div>

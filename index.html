@@ -2685,7 +2685,7 @@
            of native browser title tooltips. See setupGlobalTooltip() for
            the wire-up and opt-out semantics (data-no-tip, form fields, etc.). */
         .global-tip { position: fixed; z-index: 99999; max-width: 240px; padding: 7px 11px;
-            background: #2a2a28; color: #f5f5f3;
+            background: #0f172a; color: #fff;
             font-family: inherit; font-size: 0.72rem; font-weight: 500; line-height: 1.4; letter-spacing: 0;
             border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.22);
             pointer-events: none; white-space: normal; word-wrap: break-word; text-align: left;
@@ -2694,8 +2694,8 @@
         .global-tip::before { content: ''; position: absolute;
             left: var(--arrow-left, 50%); transform: translateX(-50%);
             border: 5px solid transparent; }
-        .global-tip[data-placement="above"]::before { top: 100%; border-top-color: #2a2a28; }
-        .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: #2a2a28; }
+        .global-tip[data-placement="above"]::before { top: 100%; border-top-color: #0f172a; }
+        .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: #0f172a; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -3610,10 +3610,7 @@
         .ked-legend-swatch[data-status="other"]         { background: #9ca3af; }
 
         /* Custom hover tooltip — single line, status name only. */
-        .ked-tip { position: fixed; pointer-events: none; transform: translate(-50%, calc(-100% - 14px)) translateY(4px); background: #0f172a; color: #fff; padding: 6px 10px 7px; border-radius: 7px; font-size: 0.74rem; font-weight: 700; line-height: 1.2; box-shadow: 0 8px 24px rgba(0,0,0,0.24), 0 2px 6px rgba(0,0,0,0.16); opacity: 0; transition: opacity 0.12s ease, transform 0.13s ease; z-index: 9999; white-space: nowrap; letter-spacing: -0.005em; }
-        .ked-tip.is-visible { opacity: 1; transform: translate(-50%, calc(-100% - 14px)); }
-        .ked-tip-status { font-size: 0.74rem; }
-        .ked-tip-arrow { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; background: #0f172a; rotate: 45deg; border-radius: 0 0 2px 0; }
+        /* Editor-tab tooltips use the shared .global-tip system (see setupGlobalTooltip). */
         .ked-empty-msg { background: var(--white); border: 1px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--text-secondary); font-size: 0.84rem; }
 
         @media (max-width: 720px) {
@@ -32850,13 +32847,14 @@
 
     // Roll a video list up into the numbers a row renders, around two ideas:
     // LOAD — how much sat in his court (loadVideos, split editing/tweaks,
-    // stillOpen at week's end, heldDays of total court-time) — and DELIVERIES
+    // stillOpen at week's end, editPerDay/tweakPerDay = avg videos in each
+    // state per workday) — and DELIVERIES
     // — what he pushed through (firstCuts + tweakRounds = workUnits; perDay
     // counts deliveries per Chicago day; avgPerWorkday = workUnits / 5).
     // finishes = reached Approved/Posted; touched = distinct videos involved.
     function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
-        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, heldMs = 0;
+        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
@@ -32875,13 +32873,15 @@
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
-            heldMs += court.editingMs + court.tweakMs;
+            editHeldMs += court.editingMs;
+            tweakHeldMs += court.tweakMs;
         }
         const workUnits = firstCuts + tweakRounds;
+        const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
         return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
                  loadVideos, loadEditing, loadTweaks, stillOpen,
-                 heldDays: Math.round((heldMs / 86400000) * 10) / 10 };
+                 editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
     }
 
     // Per-editor stats, memoised on the editor object so _kedPaint (shared
@@ -32940,7 +32940,7 @@
         if (!loadParts.length) loadParts.push('clear');
         if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip">${stats.stillOpen} still open</span>`);
         const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
-        const loadTip = `Videos in his court last week — being edited or awaiting his tweaks${stats.heldDays ? ` · ~${stats.heldDays} video-days on his plate` : ''}`;
+        const loadTip = `On an average workday: ~${stats.editPerDay} being edited · ~${stats.tweakPerDay} awaiting his tweaks`;
 
         // DELIVERIES — what he pushed through.
         const delivParts = [];
@@ -32964,7 +32964,7 @@
                         <div class="ked-stat-sub">${loadSub}</div>
                     </div>
                     <div class="ked-stat-sep"></div>
-                    <div class="ked-stat is-deliv" data-tip="Videos handed off for review last week — ${stats.avgPerWorkday.toFixed(2)}/workday">
+                    <div class="ked-stat is-deliv" data-tip="On an average workday: ~${(stats.firstCuts / 5).toFixed(1)} videos delivered · ~${(stats.tweakRounds / 5).toFixed(1)} tweak rounds">
                         <span class="ked-stat-val">${stats.workUnits}</span>
                         <span class="ked-stat-label">pushed through</span>
                         <div class="ked-stat-sub">${delivSub}</div>
@@ -33193,7 +33193,7 @@
                 const style = s.kind === 'work'
                     ? `left:${s.startPct.toFixed(3)}%;width:${s.widthPct.toFixed(3)}%;`
                     : `left:${s.startPct.toFixed(3)}%;`;
-                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip-status="${_calEscAttr(labelName)}" style="${style}"></div>`;
+                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip="${_calEscAttr(labelName)}" style="${style}"></div>`;
             }).join('')
             : '';
         const clientHtml = v.clientName
@@ -33213,41 +33213,10 @@
         </article>`;
     }
 
-    // Custom styled tooltip — single line. Triggered by any element carrying
-    // a `data-tip` attribute (strip segments, day bars, etc.). One floating
-    // element appended to body; mouseover delegation keeps the rendering
-    // path cheap even with hundreds of segments on screen.
-    let _kedTipEl = null;
-    function _kedEnsureTip() {
-        if (_kedTipEl) return _kedTipEl;
-        _kedTipEl = document.createElement('div');
-        _kedTipEl.className = 'ked-tip';
-        _kedTipEl.innerHTML = '<div class="ked-tip-status"></div><div class="ked-tip-arrow"></div>';
-        document.body.appendChild(_kedTipEl);
-        return _kedTipEl;
-    }
-    function _kedTipShow(el) {
-        const text = el.getAttribute('data-tip') || el.getAttribute('data-tip-status') || '';
-        if (!text) return;
-        const tip = _kedEnsureTip();
-        tip.querySelector('.ked-tip-status').textContent = text;
-        const r = el.getBoundingClientRect();
-        tip.style.left = (r.left + r.width / 2) + 'px';
-        tip.style.top  = r.top + 'px';
-        tip.classList.add('is-visible');
-    }
-    function _kedTipHide() {
-        if (_kedTipEl) _kedTipEl.classList.remove('is-visible');
-    }
-    document.addEventListener('mouseover', e => {
-        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
-        if (t) _kedTipShow(t);
-    });
-    document.addEventListener('mouseout', e => {
-        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
-        if (t) _kedTipHide();
-    });
-    window.addEventListener('scroll', _kedTipHide, true);
+    // Editor-tab tooltips (day bars, strip segments, the Load/Deliveries
+    // stats) ride the shared global tooltip — see setupGlobalTooltip. The old
+    // bespoke .ked-tip handler was removed: it also fired on [data-tip], so
+    // every editor tooltip was painting twice (once here, once globally).
 
     function _kedAvatarFallback(name) {
         const span = document.createElement('span');
@@ -33371,7 +33340,7 @@
        handler never targets them. */
     (function setupGlobalTooltip() {
         'use strict';
-        const SHOW_DELAY_MS = 350;
+        const SHOW_DELAY_MS = 0;   // instant — matches the snappy feel of the old editor tooltip
         const TIP_CLASS = 'global-tip';
         let tipEl = null;
         let activeTarget = null;

@@ -90,6 +90,15 @@ SendUserFile tool when a picture explains it faster than words.
 - **Linear is always mocked** — never let a status/comment reach live Linear.
 - The run asserts 0 app JS errors; a real app error is a finding, not noise.
 
+## Unattended / CI vision (when you're not in the loop)
+
+When this skill runs, **you** are the vision pass (step 3). For runs with no Claude
+session — nightly CI — the master tester can judge screenshots itself: set
+`MASTER_VISION=cli` (runs on the logged-in Claude Code subscription, no key) or
+`MASTER_VISION=api` (needs `ANTHROPIC_API_KEY`). A `broken` verdict then fails the
+run on its own. See `qa/MASTER_TESTER.md` → Automated vision. Default is off — the
+lane only captures and waits for you.
+
 ## Notes / future
 
 - The visual lane currently shoots the **result** frame after each step. A

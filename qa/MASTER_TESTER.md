@@ -92,9 +92,41 @@ The judging is done by a reviewer who **looks** at each shot and asks two things
    media, wrong colors, empty-where-it-shouldn't-be, unfinished states.
 2. **Did it DO the right thing?** the screen reflects what the action produced.
 
-Run the **`/master-test` skill** to have Claude do this pass automatically (it
+Run the **`/master-test` skill** to have Claude do this pass interactively (it
 reads each shot, judges it against your change note, and reports findings like a
 QA teammate). Or open the shots yourself and tick the checklist.
+
+### Automated vision (optional, off by default)
+
+For an unattended pass that fails the run on a `broken` verdict, set
+`MASTER_VISION`:
+
+```bash
+# subscription-powered, no API key — runs on your logged-in Claude Code (great locally)
+MASTER_VISION=cli node qa/master.js --lane=visual --scn=clean_both
+
+# API key (per-token billing) — the clean path for CI
+MASTER_VISION=api ANTHROPIC_API_KEY=… node qa/master.js --profile=full
+
+# auto: cli if `claude` is on PATH, else api if a key is set, else off
+MASTER_VISION=auto node qa/master.js
+```
+
+- **`cli`** shells out to `claude -p` and runs on whatever auth Claude Code is
+  logged into — i.e. **your Pro/Max subscription, no key, no per-call charge**.
+  Needs `claude` installed + logged in where the run happens (so: great on your
+  machine, awkward in GitHub Actions). Note: if `ANTHROPIC_API_KEY` is set it
+  takes precedence over the subscription.
+- **`api`** calls the Anthropic Messages API via `curl` (so it tunnels through
+  the same egress proxy the courier uses). Requires `ANTHROPIC_API_KEY`.
+- Model via `MASTER_VISION_MODEL` (default `claude-opus-4-8`; set
+  `claude-sonnet-4-6` or `claude-haiku-4-5` to cut cost on high-volume runs).
+- Verdicts are written to `qa/visual/VISION_VERDICT.md`. A `broken` verdict marks
+  the visual lane failed and fails the whole run; `warn`/`ok` don't.
+
+When `MASTER_VISION` is unset (default), the visual lane only **captures** and
+leaves the verdict to a human / `/master-test` — nothing calls a model and
+nothing bills.
 
 Why vision instead of pixel-diff baselines? Baselines only catch *drift from a
 saved snapshot* and scream on every intentional tweak; they can't judge "does

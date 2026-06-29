@@ -46,6 +46,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const VIS = require('./visual.js');
+const VJUDGE = require('./vision_judge.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const QA = __dirname;
@@ -236,10 +237,24 @@ function laneVisual(cfg) {
   if (scn) bits.push('scenarios ' + scn.trim());
   if (asr) bits.push('assertions ' + asr.trim());
   if (!r.ok) bits.push('⚠ capture ' + (r.errNote || 'exited non-zero'));
-  if (captureOk) bits.push('VISION REVIEW PENDING');
+
+  // Optional automated vision pass (MASTER_VISION=cli|api|auto; off by default).
+  // When it runs, a `broken` verdict fails the run; otherwise the lane just pends
+  // the verdict for a human / the /master-test skill.
+  let visionRan = false, visionOk = true;
+  if (captureOk) {
+    const vres = VJUDGE.judgeAndWrite(manifest, VISUAL_DIR, { changeNote: process.env.MASTER_CHANGE_NOTE || '' });
+    if (vres.backend !== 'off') {
+      visionRan = true;
+      visionOk = vres.broken === 0;
+      bits.push(`vision[${vres.backend}] ${vres.broken} broken · ${vres.warn} warn`);
+    }
+  }
+  const needsVision = captureOk && !visionRan;
+  if (needsVision) bits.push('VISION REVIEW PENDING');
   return {
-    ok: captureOk,
-    needsVision: captureOk,         // only pend the vision verdict when capture was clean
+    ok: captureOk && visionOk,      // capture failed, OR the auto-vision pass found something broken
+    needsVision,                    // pend a human/Claude verdict only when not auto-judged
     summary: bits.join(' · ') || 'no screenshots captured',
     ms: r.ms,
     tail: captureOk ? '' : tail(r.out, 25),

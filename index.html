@@ -28248,7 +28248,7 @@
             <div class="cal-review-thread">${thread}</div>
         </div>`;
     }
-    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; if (_sxrKasperState.expanded[pid]) { try { _kasperMarkSeenAt(pid); } catch (e) {} } _sxrKasperRepaint(pid); }
+    function _sxrKasperToggleCard(pid) { _sxrKasperState.expanded[pid] = !_sxrKasperState.expanded[pid]; _sxrKasperRepaint(pid); }
     function _sxrKasperRepaint(pid) {
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -28355,6 +28355,10 @@
             _sxrKasperAppendFinishLog(p, stamp);
             p.kasper_finished_at = stamp;
             _sxrKasperState.dismissed[pid] = true;
+            // Mark seen up to the finish stamp (clears the New-message chip on
+            // hand-off — matches the calendar's _kasperDismiss). The chip otherwise
+            // persists while reviewing, exactly like the calendar.
+            try { _kasperMarkSeenAt(pid, stamp); } catch (e) {}
             _sxrKasperRenderQueue();
             _sxrKasperPersist(it, { kasper_finished_at: p.kasper_finished_at, kasper_finish_log: p.kasper_finish_log }).catch(() => {});
         }

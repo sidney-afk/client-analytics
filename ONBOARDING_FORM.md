@@ -185,7 +185,7 @@ image by extension.
   Reels are pulled with `yt-dlp` then cut: `ffmpeg -ss <t> -i src.mp4 -t 10 -vf scale=-2:854
   -an -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow -movflags +faststart out.mp4`.
 - **Thumbnail styles** — 24 hosted renders under `thumbnail-styles/<font>-<style>[-hl].jpg`
-  (font ∈ bold/native/handwritten, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
+  (font ∈ bold/native/elegant, style ∈ plain/shadow/stroke/banner, `-hl` = highlighted line).
   Same base cover ("The red flag nobody tells you to look for") rendered every way; resized to
   800px-wide JPEG (~85 KB each, ~2 MB total) from the client's Drive originals. To swap the base or
   add a font/style, drop in matching files and extend `OB_THUMB_FONTS` / `OB_THUMB_TSTYLES`.
@@ -267,20 +267,27 @@ later step, not part of this form.)
 - ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
   both list webhooks in parallel with per-funnel fault tolerance. Verified in a headless browser
   (both-load and AI-list-fails cases).
+- ✅ Inbox detail — renders the **client's chosen thumbnail image** (`_obvThumb`) and surfaces
+  **every editor/designer field** incl. the video/thumbnail/music references + described looks,
+  subtitle-highlight, creators-to-model notes, the questions box, and (AI) the extra voice samples.
+  Verified end-to-end against the live backend with real test submissions.
+- ✅ **Live end-to-end** — AI migration run; real submissions to both funnels were captured in
+  Supabase, read back through both list webhooks (credentials stripped), and rendered in the
+  dashboard. The whole pipeline is operational.
 
-### Finish steps for the AI funnel (≈1 min, one time)
+### Finish steps for the AI funnel — ✅ DONE
 
-1. **Run the AI SQL.** In the Supabase SQL editor (project `uzltbbrjidmjwwfakwve`), run
-   `ai-onboarding-supabase-migration.sql` to create `ai_client_onboarding`. **This is the only
-   required step** — the webhook is already created and active.
+1. ✅ **AI SQL run.** `ai-onboarding-supabase-migration.sql` has been run in Supabase
+   (project `uzltbbrjidmjwwfakwve`); `ai_client_onboarding` exists and is taking writes.
+   *(Kept in the repo for the record / re-create / rollback.)*
 2. *(Optional)* **Confirm the Slack sender.** Workflow `hxLFIdKG9hUIzukO` → **Notify Sidney** is
    wired to **"SyncView Bot"** (`qUlAcjdhd6EpKOTL`). If the standard notifier uses a different
    Slack credential and you want them identical, switch it there. The DM is fail-soft, so this
    never blocks a submission.
 
-Until step 1 is done, the AI form's submit returns the graceful "saved on this device, try
-again" message — no data is lost. Because the Supabase insert is the gate, a submission is never
-silently dropped: if the table is missing the webhook 500s and the browser keeps the draft.
+The whole pipeline is live. (Safety net unchanged: the Supabase insert gates the 200, so if a
+table were ever missing the webhook 500s and the browser keeps the draft — a submission is never
+silently dropped.)
 
 > **Note on the standard funnel's earlier finish steps:** if `client_onboarding` and workflow
 > `ljNY7CKYLKzMOACZ` were already set up in the prior round, nothing more is needed there. If not,

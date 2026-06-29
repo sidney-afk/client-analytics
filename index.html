@@ -3180,6 +3180,11 @@
         .cal-cm-composer:focus-within { border-color: var(--text-primary); background: var(--white); }
         .cal-cm-composer textarea { flex: 1; min-width: 0; border: none; outline: none; resize: none; background: transparent; font-family: inherit; font-size: 0.88rem; line-height: 1.45; color: var(--text-primary); padding: 4px 0; max-height: 160px; overflow-y: auto; }
         .cal-cm-composer textarea::placeholder { color: var(--text-muted); }
+        /* Hide the native scroll-bar (its up/down arrows) in the Notes composer — the
+           textarea still autosizes + scrolls, just without the chrome. Shared by the
+           SMM/calendar composer and the Samples composer (both use .cal-cm-composer). */
+        .cal-cm-composer textarea { scrollbar-width: none; -ms-overflow-style: none; }
+        .cal-cm-composer textarea::-webkit-scrollbar { width: 0; height: 0; display: none; }
         .cal-cm-composer-actions { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
         .cal-cm-cancel-reply { background: transparent; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 8px; display: inline-flex; }
         .cal-cm-cancel-reply:hover { background: var(--border); color: var(--text-primary); }
@@ -26043,7 +26048,7 @@
         const eyeOn = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
         const eyeOff = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.2A6.8 6.8 0 0 1 8 3.5c4.5 0 7 4.5 7 4.5a12 12 0 0 1-2 2.6M9.6 9.4A2 2 0 0 1 6.6 6.6"/><path d="M3 3l10 10"/></svg>`;
         const eye = _isClientLink ? '' : `<button type="button" class="sxr-cd-eye${hidden ? ' is-hidden' : ''}" onclick="_sxrToggleCreativeVisibility('${pid}')" title="${hidden ? 'Hidden from client — click to show' : 'Visible to client — click to hide'}" aria-label="Toggle client visibility">${hidden ? eyeOff : eyeOn}</button>`;
-        return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction (brief for the editor)" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onblur="_sxrOnFieldBlur(this)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
+        return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onblur="_sxrOnFieldBlur(this)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
     }
     function _sxrToggleCreativeVisibility(pid) {
         if (_isClientLink) return;
@@ -26946,12 +26951,139 @@
         _sxrPendingEdits[post.id] = Object.assign(_sxrPendingEdits[post.id] || {}, { [comp + '_tweaks']: _sxrStringifyComments(list) });
         return true;
     }
+    /* ── Resolve-and-route chooser (ported faithfully from the calendar's _cal*
+       family). When the SMM clears the LAST open change-request on a component
+       (Notes "mark done") OR approves a component that still has open
+       change-requests (Review tab), the cleared work must be ROUTED — the SMM
+       picks Kasper / the client / straight to Approved — not silently resolved.
+       Reuses the shared #resolveDestOverlay DOM. ── */
+    let _sxrResolveDestCb = null;
+    function _sxrResolveDestRecommend(post, comp) {
+        if (!post) return 'client';
+        if (_sxrShowApprovedAfterTweaks(post, comp)) return 'client';
+        if (_sxrHasBeenToKasper(post, comp)) return 'client';
+        return 'kasper';
+    }
+    function _sxrResolveDestReason(post, comp) {
+        if (!post) return '';
+        if (_sxrShowApprovedAfterTweaks(post, comp)) return 'Kasper pre-cleared this after tweaks, so it can skip his re-review.';
+        if (_sxrHasBeenToKasper(post, comp)) return 'Kasper has already reviewed this once.';
+        return 'This hasn’t been to Kasper yet.';
+    }
+    function _sxrShowResolveDest(opts) {
+        opts = opts || {};
+        const overlay = document.getElementById('resolveDestOverlay');
+        const msg = document.getElementById('resolveDestMsg');
+        const checklist = document.getElementById('resolveDestChecklist');
+        const kBtn = document.getElementById('resolveDestKasper');
+        const cBtn = document.getElementById('resolveDestClient');
+        const aBtn = document.getElementById('resolveDestApprove');
+        const openTweaks = (Array.isArray(opts.openTweaks) ? opts.openTweaks : []).filter(Boolean);
+        // No overlay (stripped DOM) → fall back to the recommended route + resolve all.
+        if (!overlay || !kBtn || !cBtn || !aBtn) { if (opts.onChoose) opts.onChoose(opts.recommend || 'client', openTweaks.map(t => t.id)); return; }
+        const compLabel = (COMP_LABELS[opts.comp] || 'this').toLowerCase();
+        // The checklist earns its keep only with a genuine choice (2+ open); with
+        // one, the single change-request is implied by the route, so we hide it.
+        if (checklist) {
+            if (openTweaks.length >= 2) {
+                checklist.innerHTML = openTweaks.map(t => {
+                    const body = String(t.body || '').replace(/\s+/g, ' ').trim();
+                    const short = body.length > 90 ? body.slice(0, 88) + '…' : (body || '(no message)');
+                    const who = t.role === 'kasper' ? 'Kasper' : (t.role === 'client' ? 'Client' : (t.author || 'Note'));
+                    const rd = t.round ? ('Tweak #' + t.round) : 'Tweak';
+                    return '<label class="resolve-dest-check"><input type="checkbox" data-rd-id="' + _sxrEscAttr(t.id) + '" checked>'
+                        + '<span><span class="rd-round">' + _sxrEsc(rd) + '</span> · ' + _sxrEsc(who) + ' — ' + _sxrEsc(short) + '</span></label>';
+                }).join('');
+                checklist.hidden = false;
+            } else { checklist.innerHTML = ''; checklist.hidden = true; }
+        }
+        const n = openTweaks.length;
+        const lead = n >= 2 ? 'Tick the change requests you’ve handled — they’ll be marked done. '
+                   : n === 1 ? 'This change request will be marked done. ' : '';
+        const toKasper = opts.recommend === 'kasper';
+        const toApproved = opts.recommend === 'approved';
+        if (msg) msg.textContent = lead + 'Then send the ' + compLabel + ' onward: '
+            + (toApproved ? 'mark it approved — or to Kasper or the client first.'
+               : toKasper ? 'to Kasper for approval — or straight to the client.'
+                          : 'to the client for approval — or back to Kasper first.')
+            + (opts.reason ? ' (' + opts.reason + ')' : '');
+        kBtn.classList.toggle('primary', toKasper);
+        cBtn.classList.toggle('primary', !toKasper && !toApproved);
+        aBtn.classList.toggle('primary', toApproved);
+        const tickedIds = () => {
+            if (!checklist || checklist.hidden) return openTweaks.map(t => t.id);
+            return Array.from(checklist.querySelectorAll('input[data-rd-id]')).filter(i => i.checked).map(i => i.getAttribute('data-rd-id'));
+        };
+        _sxrResolveDestCb = (typeof opts.onChoose === 'function') ? opts.onChoose : null;
+        const pick = (dest) => { const cb = _sxrResolveDestCb; const ids = tickedIds(); _sxrDismissResolveDest(); if (cb) cb(dest, ids); };
+        kBtn.onclick = () => pick('kasper');
+        cBtn.onclick = () => pick('client');
+        aBtn.onclick = () => pick('approved');
+        // "Mark done — don't change the status" (dest 'stay'): resolve the ticked
+        // change-requests but route nowhere. Only from Notes — the Review tab's
+        // "Approve & send" is inherently a route, so it hides this escape.
+        const stayBtn = document.getElementById('resolveDestStay');
+        if (stayBtn) { stayBtn.hidden = !!opts.fromReview; stayBtn.onclick = () => pick('stay'); }
+        overlay.classList.add('active');
+    }
+    function _sxrDismissResolveDest() {
+        const overlay = document.getElementById('resolveDestOverlay');
+        if (overlay) overlay.classList.remove('active');
+        _sxrResolveDestCb = null;
+    }
+    function _sxrResolveLastTweak(pid, comp, rootId) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const root = _sxrOpenTweaksForComp(post, comp).find(c => c.id === rootId);
+        _sxrShowResolveDest({
+            comp: comp,
+            recommend: _sxrResolveDestRecommend(post, comp),
+            reason: _sxrResolveDestReason(post, comp),
+            openTweaks: root ? [root] : [],
+            fromReview: false,
+            onChoose: (destPick, ids) => {
+                _sxrResolveTweaksDone(post, comp, (ids && ids.length) ? ids : [rootId]);
+                if (destPick !== 'stay') _sxrApplyAutoStatus(pid, 'smm_resolved_last', comp, destPick);
+                _sxrWatchNoteSave(pid);
+                _sxrRefreshCommentsBtn(pid);
+                _sxrUpdateCardStatusDisplay(pid);
+                _sxrCaptureModalDrafts();
+                _sxrRenderCommentsModal();
+            }
+        });
+    }
     function _sxrReviewApprove(pid, comp, dest) {
         const post = sxrState.posts.find(p => p.id === pid);
         if (!post) return;
-        // Simplified resolve: when approving an SMM component that still has open
-        // change-requests, mark them all done as part of the send (no chooser modal).
-        if (_sxrReviewMode() === 'smm') { const open = _sxrOpenTweaksForComp(post, comp); if (open.length) _sxrResolveTweaksDone(post, comp, open.map(c => c.id)); }
+        // SMM approving a component that still has open change-requests routes it
+        // onward via the chooser (resolve the ticked requests + pick a destination)
+        // instead of silently auto-resolving. Mirrors _calReviewApprove.
+        if (_sxrReviewMode() === 'smm' && _sxrCanResolveComment()) {
+            const open = _sxrOpenTweaksForComp(post, comp);
+            if (open.length) {
+                const key = pid + '|' + comp;
+                if (_sxrReviewState.saving[key]) return;
+                _sxrShowResolveDest({
+                    comp: comp,
+                    recommend: dest === 'client' ? 'client' : (dest === 'approved' ? 'approved' : 'kasper'),
+                    reason: _sxrResolveDestReason(post, comp),
+                    openTweaks: open,
+                    fromReview: true,
+                    onChoose: (pickDest, ids) => {
+                        _sxrResolveTweaksDone(post, comp, ids);
+                        if (pickDest === 'stay') {
+                            _sxrWatchNoteSave(pid);
+                            _sxrRefreshCommentsBtn(pid);
+                            _sxrUpdateCardStatusDisplay(pid);
+                            _sxrReviewRepaintCard(pid);
+                        } else {
+                            _sxrReviewApplyApprove(pid, comp, pickDest);
+                        }
+                    }
+                });
+                return;
+            }
+        }
         _sxrReviewApplyApprove(pid, comp, dest);
     }
     function _sxrReviewApplyApprove(pid, comp, dest) {
@@ -27027,11 +27159,40 @@
         }).catch(e => { Object.assign(post, prev); _sxrReviewState.saving[key] = false; _sxrReviewState.errors[key] = (e && e.message) || 'Save failed'; _sxrReviewRepaintCard(pid); });
     }
 
-    /* ── Comments button (open-tweak count; full Notes modal is Surface 5) ── */
+    /* ── Comments button (open-tweak count + unread dot + AAT badge) ── */
+    // A fresh message from the OTHER role (not mine), newer than the last time I
+    // opened this card's Notes, lights the unread dot. Mirrors _calHasUnreadNotes;
+    // reuses the shared _notesGetSeen ledger (keyed by post id — sample ids are
+    // distinct from calendar ids, so there's no collision).
+    function _sxrHasUnreadNotes(post) {
+        if (!post) return false;
+        const myRole = _sxrCommentRole();
+        const seen = _notesGetSeen(post.id);
+        for (const c of SXR_COMPONENTS) {
+            const list = _sxrCommentsForView(post, c);
+            if (!Array.isArray(list)) continue;
+            for (const m of list) {
+                if (!m || m.deleted || m.role === myRole) continue;
+                const t = String(m.updated_at || m.created_at || '');
+                if (t && (!seen || t > seen)) return true;
+            }
+        }
+        return false;
+    }
+    // "Approved after tweaks" badge — Kasper pre-cleared a still-in-flight component
+    // (his "approve after tweaks"); the SMM should verify the edit then send onward.
+    // Mirrors _calAatBadgeHtml.
+    function _sxrAatBadgeHtml(post) {
+        if (!post || !SXR_COMPONENTS.some(c => _sxrShowApprovedAfterTweaks(post, c))) return '';
+        return `<span class="cal-aat-badge" title="No more tweaks needed — Kasper pre-cleared this for the client. Verify the edit was applied, then send to the client."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/></svg></span>`;
+    }
     function _sxrCommentsBtnHtml(post, pid) {
         const open = _sxrOpenCommentCount(post);
+        const unread = _sxrHasUnreadNotes(post);
+        const cls = (open > 0 ? ' has-open' : '') + (unread ? ' has-unread' : '');
+        const tip = unread ? 'New replies — open Notes' : (open > 0 ? open + ' open change request' + (open === 1 ? '' : 's') : 'Notes');
         const ico = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>`;
-        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn cal-card-notes${open > 0 ? ' has-open' : ''}" data-comments-btn="${pid}" onclick="openSxrComments('${pid}')" title="${open > 0 ? open + ' open change request' + (open === 1 ? '' : 's') : 'Notes'}">${ico}<span class="cal-comments-label">Notes</span><span class="cal-comments-count">${open}</span></button></span>`;
+        return `<span class="cal-foot-tweaks" data-comments-wrap="${pid}"><button type="button" class="cal-comments-btn cal-card-notes${cls}" data-comments-btn="${pid}" onclick="openSxrComments('${pid}')" title="${_sxrEscAttr(tip)}">${ico}<span class="cal-comments-label">Notes</span>${unread ? '<span class="cal-comments-dot" aria-label="New replies"></span>' : ''}<span class="cal-comments-count">${open}</span></button>${_sxrAatBadgeHtml(post)}</span>`;
     }
     function _sxrRefreshCommentsBtn(pid) {
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
@@ -27061,7 +27222,7 @@
     let _sxrComposeIsTweak = false;
     let _sxrComposeComp = 'video';
     let _sxrShowResolved = false;
-    function _sxrNotesMarkSeen(pid) { /* unread-dot tracking omitted in v1 (the open-count badge carries the signal) */ }
+    function _sxrNotesMarkSeen(pid) { _notesMarkSeen(pid); /* opening/closing Notes = caught up → clears the unread dot (shared ledger) */ }
 
     function openSxrComments(pid) {
         const post = sxrState.posts.find(p => p.id === pid);
@@ -27249,6 +27410,14 @@
         const list = comp === 'video' ? (Array.isArray(post.comments) ? post.comments.slice() : _sxrLoadComments(post)) : _sxrCommentsFor(post, comp).slice();
         const root = list.find(c => c.id === rootId && !c.parent_id); if (!root) return;
         const wasDone = !!root.done;
+        // Resolving the LAST open SMM change-request routes the component onward
+        // (Kasper / client / approved) — the SMM picks first via the chooser. Defer
+        // the whole resolution (mark-done + status flip) until they confirm, so the
+        // comment doesn't vanish before the choice and a cancel applies nothing.
+        // Count the OTHER still-open change-requests, this root excluded.
+        const otherOpen = list.filter(c => !c.parent_id && !c.done && !c.deleted && _sxrMsgIsTweak(c) && c.id !== rootId).length;
+        const deferToChooser = !wasDone && _sxrCommentRole() === 'smm' && otherOpen === 0;
+        if (deferToChooser) { _sxrResolveLastTweak(pid, comp, rootId); return; }
         if (wasDone) { root.done = false; root.done_at = ''; root.done_by = ''; }
         else { root.done = true; root.done_at = new Date().toISOString(); root.done_by = _sxrCurrentAuthor(); }
         root.updated_at = new Date().toISOString();

@@ -72,8 +72,29 @@ so they're tracked separately from the parity failures above:
   user's question directly: fixing it on the samples composer **also fixes the SMM
   one**, because they're the same rule. (Pure CSS; no behaviour.)
 
-## Status
+## Fixes applied — parity restored ✅
 
-System built and run — bugs reproduced independently. **No fixes applied yet**
-(per "before you fix anything"). Once fixes land, re-running `parity_check.js`
-should turn every row green; that green run is the acceptance gate.
+All eight divergences are fixed; `parity_check.js` now reports **PARITY HELD**.
+
+| Fix | What changed |
+|---|---|
+| Resolve-dest chooser machinery | Ported the whole family to `_sxr` — `_sxrShowResolveDest`, `_sxrResolveLastTweak`, `_sxrResolveDestReason`, `_sxrResolveDestRecommend`, `_sxrDismissResolveDest` — reusing the shared `#resolveDestOverlay` DOM. |
+| Mark-done (#3) | `_sxrToggleCommentDone` now defers to the chooser when clearing the **last** open change-request (SMM only); mid-list mark-done still resolves in place. |
+| Review-tab Approve (#4) | `_sxrReviewApprove` opens the chooser when a component still has open change-requests, mirroring `_calReviewApprove`. |
+| Unread dot (#1) | Added `_sxrHasUnreadNotes` + wired the dot into `_sxrCommentsBtnHtml`; `_sxrNotesMarkSeen` now writes the shared `_notesGetSeen` ledger so opening Notes clears it. |
+| AAT badge (#2) | Added `_sxrAatBadgeHtml`, appended to the Notes button. |
+| Copy | `index.html` placeholder is now just **"Creative direction"**. |
+| Composer scrollbar | Hid the native scroll-arrows on `.cal-cm-composer textarea` (shared rule → fixes the SMM composer too). |
+
+**Routing verified** by `qa/probes/verify_chooser.js` (13/13): each button flips the
+sub-status correctly — Kasper→Kasper Approval, Client→Client Approval, Approve→Approved,
+Stay→unchanged-but-resolved — the overlay closes after a pick, and a mid-list mark-done
+does **not** open the chooser. The calendar unit suite (`test/run-all.js`, 27/27) still
+passes — no `_cal` code was touched.
+
+## How to re-run the gate
+
+```
+node qa/probes/parity_check.js     # parity vs the calendar — expect "PARITY HELD"
+node qa/probes/verify_chooser.js   # chooser routing — expect "ALL ROUTING CHECKS PASSED"
+```

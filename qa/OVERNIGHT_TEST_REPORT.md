@@ -27,8 +27,9 @@
 > | ot12_realtime_catchup | Cross-tab sync (live): tab-1 status change → tab-2 converges via focus/visibility catch-up (past 8s throttle) AND via _sxrV2OnRealtimeChange | ✅ PASS (9/9) |
 > | ot13_kasper_isolation | Kasper samples↔calendar isolation: sample only in Samples sub-tab (no calendar bleed); absent from the calendar Review Session queue | ✅ PASS (7/7) |
 > | ot14_archive_and_select | Per-card X archive works (confirm→live Archived→card removed); BUG-2: multi-select button rendered but inert (stub handlers) | ✅ PASS (10/10, records BUG-2) |
+> | ot15_linear_routing | Linear graphic approve routes to the GRA issue (never video); editing the name fires NO linear-set-status push | ✅ PASS (8/8) |
 >
-> **Totals:** 14 probes · 158 assertions · 158 PASS · 0 FAIL · 0 app JS errors · **2 product bugs found (BUG-1, BUG-2).**
+> **Totals:** 15 probes · 166 assertions · 166 PASS · 0 FAIL · 0 app JS errors · **2 product bugs found (BUG-1, BUG-2).**
 >
 > ### 🐞 BUGS FOUND (this run)
 > - **BUG-1 — drag-to-reorder is non-functional on the SMM Sheet (real gap).**

@@ -54,7 +54,9 @@ other; the draft clears on a successful submit.
 
 In onboarding mode (**either** funnel) the tab is branded **SynchroSocial**: the entry
 router sets `document.title = 'SynchroSocial'` and swaps the favicon to
-`synchro-social-logo.png`. The SyncView dashboard keeps its own `SyncView` title +
+`synchro-social-favicon.png` — a **square** 256×256 crop of just the infinity mark (the wide
+logo lockup got squished in the square favicon slot; the on-page header still uses the full
+`synchro-social-logo.png`). The SyncView dashboard keeps its own `SyncView` title +
 `syncview-favicon.png` — the override only applies on the onboarding page.
 
 The page is **dark-themed** — the dark palette is scoped to `body.onboarding-mode`
@@ -117,7 +119,8 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
      - **Subtitle style** — cards **Elegant / Native / Bold**, each showing its name + the
        **Standard** and **+ Highlight** previews side-by-side (purpose-made sample clips,
        `onboarding-video/sub-<key>.mp4` + `-hl.mp4`). **Each preview is its own selectable option**
-       with a radio **dot that fills** when picked — Standard = plain caption, +Highlight = a key
+       with a radio **dot that fills** when picked — **Subtitle** = plain caption, **Subtitle +
+       Highlights** = a key
        word pops in colour. One radio group (`subtitle_pick`, values `<style>` / `<style>__hl`);
        on change `_obPickSubtitle` writes the derived **`subtitle_style`** + **`subtitle_highlight`**
        into hidden carriers (so serialization, validation and the viewer are unchanged), and

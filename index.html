@@ -7422,9 +7422,12 @@
       // Two funnels = two list webhooks (standard client_onboarding + ai_client_onboarding).
       // Pull both, tag each row with its funnel, and merge. Partial failure (e.g. the AI
       // list isn't active yet) still shows whatever loaded, with a soft warning.
+      // Read as text first: the list webhook returns a 200 with an EMPTY body when its table
+      // has no rows (n8n skips the downstream nodes when Supabase returns 0 items), so an empty
+      // funnel must read as "no submissions", not a parse error / failed load.
       const pull = (url, funnel) => fetch(url + '?_t=' + Date.now(), { method:'GET' })
-        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(d=>{ const arr = Array.isArray(d) ? d : (d.submissions || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
+        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
+        .then(txt=>{ let d=null; if(txt && txt.trim()){ try{ d=JSON.parse(txt); }catch(e){ d=null; } } const arr = Array.isArray(d) ? d : ((d && d.submissions) || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
       Promise.allSettled([ pull(ONBOARDING_LIST_URL, 'standard'), pull(AI_ONBOARDING_LIST_URL, 'ai') ])
         .then(([std, ai])=>{
           const ok = []; const failed = [];

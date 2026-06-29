@@ -7500,8 +7500,9 @@
        templates tab's _tpl* pattern).
        ============================================================ */
     const ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-list';
+    const AI_ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-list';
     let _tplTab = 'templates';            // 'templates' | 'onboarding'
-    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvSelected = null, _obvLoadedAt = 0;
+    let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0;
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
     const OBV_SUB = { native:'Native captions', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
@@ -7526,11 +7527,23 @@
     function _obvEnsureLoaded(force){
       if (_obvLoading) return;
       if (_obvSubs && !force) return;
-      _obvLoading = true; _obvError = '';
-      fetch(ONBOARDING_LIST_URL + '?_t=' + Date.now(), { method:'GET' })
+      _obvLoading = true; _obvError = ''; _obvWarn = '';
+      // Two funnels = two list webhooks (standard client_onboarding + ai_client_onboarding).
+      // Pull both, tag each row with its funnel, and merge. Partial failure (e.g. the AI
+      // list isn't active yet) still shows whatever loaded, with a soft warning.
+      const pull = (url, funnel) => fetch(url + '?_t=' + Date.now(), { method:'GET' })
         .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
-        .then(d=>{ _obvSubs = Array.isArray(d) ? d : (d.submissions || []); _obvLoadedAt = Date.now(); })
-        .catch(e=>{ _obvError = e.message || 'load failed'; _obvSubs = _obvSubs || []; })
+        .then(d=>{ const arr = Array.isArray(d) ? d : (d.submissions || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
+      Promise.allSettled([ pull(ONBOARDING_LIST_URL, 'standard'), pull(AI_ONBOARDING_LIST_URL, 'ai') ])
+        .then(([std, ai])=>{
+          const ok = []; const failed = [];
+          if (std.status==='fulfilled') ok.push(...std.value); else failed.push('standard ('+(std.reason&&std.reason.message||'failed')+')');
+          if (ai.status==='fulfilled')  ok.push(...ai.value);  else failed.push('AI ('+(ai.reason&&ai.reason.message||'failed')+')');
+          _obvSubs = ok;
+          _obvError = (ok.length===0 && failed.length) ? failed.join('; ') : '';
+          _obvWarn  = (ok.length>0  && failed.length) ? ('Couldn\'t load the ' + failed.join(' and ') + ' list.') : '';
+          _obvLoadedAt = Date.now();
+        })
         .finally(()=>{ _obvLoading = false; if (_tplTab==='onboarding') _obvRerender(); });
     }
 
@@ -7550,9 +7563,17 @@
       }
       let body;
       if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
-      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If the onboarding-list webhook isn't active yet, activate it in n8n.</small></div>`;
+      else if (_obvError && !_obvSubs.length) body = `<div class="obv-empty">Couldn't load submissions (${_obvEsc(_obvError)}).<br><small>If a list webhook isn't active yet, activate it in n8n.</small></div>`;
       else if (!_obvSubs.length) body = `<div class="obv-empty">No onboarding submissions yet.</div>`;
-      else body = `<div class="obv-list">` + _obvSubs.map(_obvCard).join('') + `</div>`;
+      else {
+        // Two funnels, two sections. Standard = client_onboarding; AI = ai_client_onboarding.
+        const warn = _obvWarn ? `<div class="obv-warn">${_obvEsc(_obvWarn)}</div>` : '';
+        const std = _obvSubs.filter(s=>s.funnel!=='ai');
+        const aiSubs = _obvSubs.filter(s=>s.funnel==='ai');
+        const group = (label, arr) => `<div class="obv-group"><div class="obv-group-h">${label}<span class="obv-group-n">${arr.length}</span></div>`
+          + (arr.length ? `<div class="obv-list">${arr.map(_obvCard).join('')}</div>` : `<div class="obv-group-empty">None yet.</div>`) + `</div>`;
+        body = warn + group('Standard onboarding', std) + group('AI avatar onboarding', aiSubs);
+      }
       return top + body + `</div>`;
     }
 
@@ -7560,7 +7581,7 @@
 
     function _obvCard(s){
       const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Untitled';
-      const ai = (s.ai_avatar==='yes') ? `<span class="obv-badge">AI avatar</span>` : '';
+      const ai = (s.ai_avatar==='yes' && s.funnel!=='ai') ? `<span class="obv-badge">AI avatar</span>` : '';
       return `<button class="obv-card" onclick="_obvOpen('${_obvEsc(s.id)}')">
         <div class="obv-card-main"><div class="obv-card-name">${_obvEsc(name)}</div>
         <div class="obv-card-sub">${_obvEsc(s.email||'')}</div></div>
@@ -7661,6 +7682,12 @@
       .obv-refresh{ margin-left:auto; width:32px; height:32px; border-radius:8px; border:1px solid var(--border); background:var(--white); color:var(--text-secondary); cursor:pointer; font-size:0.95rem; }
       .obv-refresh:hover{ color:var(--text-primary); border-color:var(--text-muted); }
       .obv-empty{ text-align:center; color:var(--text-muted); font-size:0.9rem; padding:50px 20px; line-height:1.6; }
+      .obv-warn{ font-size:0.8rem; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:9px; padding:9px 12px; margin-bottom:16px; }
+      .obv-group{ margin-bottom:22px; }
+      .obv-group:last-child{ margin-bottom:0; }
+      .obv-group-h{ display:flex; align-items:center; gap:8px; font-size:0.74rem; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin:0 2px 9px; }
+      .obv-group-n{ font-size:0.7rem; font-weight:700; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:1px 8px; }
+      .obv-group-empty{ font-size:0.84rem; color:var(--text-muted); padding:8px 4px 2px; }
       .obv-list{ display:flex; flex-direction:column; gap:8px; }
       .obv-card{ display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; text-align:left; background:var(--white); border:1px solid var(--border); border-radius:12px; padding:13px 16px; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; transition:all 0.12s; }
       .obv-card:hover{ border-color:var(--text-muted); box-shadow:0 1px 3px rgba(0,0,0,0.06); }

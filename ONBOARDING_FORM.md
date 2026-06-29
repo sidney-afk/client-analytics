@@ -261,6 +261,12 @@ later step, not part of this form.)
   `ai_client_onboarding`, gate) → Notify Sidney (Slack DM, SyncView Bot) → Respond {ok}`.
   Cloned from the standard Submit workflow via the n8n SDK; Supabase + Slack ("SyncView Bot")
   credentials attached.
+- ✅ n8n `ai-onboarding-list` webhook — **created + activated** (workflow id `oDZ1Oljvaig5KSLD`,
+  `GET /webhook/ai-onboarding-list`): reads `ai_client_onboarding`, strips credentials, returns
+  `{ok,count,submissions}`. Feeds the dashboard's **AI avatar onboarding** section.
+- ✅ Dashboard inbox — Templates→Onboarding now shows **two sections** (Standard + AI), fetching
+  both list webhooks in parallel with per-funnel fault tolerance. Verified in a headless browser
+  (both-load and AI-list-fails cases).
 
 ### Finish steps for the AI funnel (≈1 min, one time)
 
@@ -288,28 +294,25 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 ## Viewing submissions in the dashboard (Templates → Onboarding)
 
-A new **Onboarding** sub-tab in the Templates tab lists submissions and shows each
-one's editor/designer-relevant sections (brand & audience, style, photos/source,
-goals, AI avatar). It reads `GET /webhook/onboarding-list` (workflow
-`slqt2zCDyIc7OAmY`), which fetches `client_onboarding` with the service-role
-credential and **strips the account-credential fields** before returning — so no
-passwords ever reach the public dashboard. Snapshot:
-`n8n-backups/onboarding-list.2026-06-26.created.json`.
+A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
+editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
+It is **split into two sections** — **Standard onboarding** and **AI avatar onboarding** —
+each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
+is always visible.
 
-**One-time finish step:** activate workflow `slqt2zCDyIc7OAmY` in n8n (toggle Active).
-Until then, the Onboarding tab shows "couldn't load submissions".
+It reads **both** list webhooks, in parallel:
 
-### AI submissions in the dashboard (not wired yet)
+- `GET /webhook/onboarding-list` (workflow `slqt2zCDyIc7OAmY`) → `client_onboarding`.
+- `GET /webhook/ai-onboarding-list` (workflow `oDZ1Oljvaig5KSLD`) → `ai_client_onboarding`.
 
-The dashboard inbox currently reads **only** `client_onboarding` (standard funnel). AI-funnel
-submissions land in `ai_client_onboarding` and are **not** surfaced in the Templates→Onboarding
-tab yet — they are captured (Supabase) and announced (Slack DM to Sidney on submit), which is the
-"rest of backend" the funnel needs. To also list them in the dashboard later, the lightest path is:
+Both fetch with the service-role credential and **strip the account-credential fields**
+(IG/TikTok/FB/LinkedIn/YouTube) before returning — so no passwords ever reach the public
+dashboard. The dashboard tags each row with its `funnel` (by which webhook it came from) and
+groups by it. Load is **fault-tolerant**: if one webhook fails, the other funnel still renders
+and a soft warning notes which list couldn't load (`Promise.allSettled`). Snapshots:
+`n8n-backups/onboarding-list.2026-06-26.created.json`,
+`n8n-backups/ai-onboarding-list.2026-06-28.created.json`.
 
-1. Clone `onboarding-list` (`slqt2zCDyIc7OAmY`) → `ai-onboarding-list` reading `ai_client_onboarding`
-   with the same credential-stripping, exposed at `GET /webhook/ai-onboarding-list`.
-2. In `renderOnboardingInbox`, add a **funnel toggle** (Standard | AI) that swaps the fetch URL,
-   or fetch both and tag each row with its `funnel`.
-
-This is intentionally left as a follow-up so the read-side dashboard stays a separate change from
-the form + capture backend.
+**Finish step:** both list workflows are **active** (`slqt2zCDyIc7OAmY` + `oDZ1Oljvaig5KSLD`).
+The AI section stays empty until `ai-onboarding-supabase-migration.sql` is run and an AI form is
+submitted; until the standard table/workflow exist the Standard section behaves the same way.

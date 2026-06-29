@@ -296,6 +296,10 @@ Fathom transcript + this form's answers). That's a separate workflow, not part o
 
 A **Onboarding** sub-tab in the Templates tab lists submissions and shows each one's
 editor/designer-relevant sections (brand & audience, style, photos/source, goals, AI avatar).
+The **Style** section renders the **exact thumbnail the client built** in the picker — the real
+`thumbnail-styles/<font>-<style>[-hl].jpg` image (mirroring the form's `_obThumbImg`) with a
+"Font · Style · Highlight" caption, clickable to full size; if they toggled "build my own" off it
+shows "Wants us to design the thumbnail look." instead (`_obvThumb`).
 It is **split into two sections** — **Standard onboarding** and **AI avatar onboarding** —
 each with its own count; an empty funnel shows a muted "None yet." so the two-funnel structure
 is always visible.

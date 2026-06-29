@@ -40,12 +40,14 @@ None indicated a bug in the feature.
 | Both-component round-trips | bounce both, fix both, approve both; client rejects both then approves both |
 | The messy real-world round-trip | `full_bounce` — 22 steps: SMM approve→request→fix→approve, Kasper bounce→fix, Kasper approve, client bounce→fix, client approve, both components → Approved |
 
-## OBSERVATIONS (behaviour to confirm — not bugs)
+## OBSERVATIONS
 
-- **OBS-S1 — once Kasper has SEEN a component, an SMM re-approve goes straight to
-  Client (Kasper is not re-bugged).** Concretely: Kasper requests a change → the
-  editor fixes it → SMM re-approves → it routes to **Client Approval**, not back to
-  Kasper for a second review. This is consistent, deliberate routing (the
-  "seen-by-Kasper" flag), and matches the calendar's behaviour. Flagging only in
-  case the intent for *Kasper-requested* changes is that Kasper should re-verify
-  the fix — if so, that's a product tweak, not a bug. The app never errored.
+- **OBS-S1 (RESOLVED — working as designed, no concern).** Earlier framing was
+  misleading. Once Kasper has SEEN a component, the SMM Review approve-split simply
+  *defaults* to Client: the big button reads "Approve → Client" and a second button
+  next to it reads "Kasper" ("Approve & send to Kasper instead"). The SMM is never
+  forced to skip Kasper — they can route to Kasper via that alt button, and from the
+  Sheet tab the status pill can set any status manually. The scenario that "skipped
+  Kasper" only did so because it clicked the *primary* button; clicking the alt
+  routes to Kasper. Code: `const primary = seenByKasper ? 'client' : 'kasper', alt =
+  seenByKasper ? 'kasper' : 'client'`. Full control retained — no change needed.

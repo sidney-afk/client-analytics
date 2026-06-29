@@ -32862,15 +32862,17 @@
         return { editingMs, tweakMs, endInCourt: _kedIsCourtState(state) };
     }
 
-    // Roll a video list up into the numbers a row renders, around two ideas:
-    // LOAD — how much sat in his court (loadVideos, split editing/tweaks,
-    // stillOpen at week's end) — and DELIVERIES
-    // — what he pushed through (firstCuts + tweakRounds = workUnits; perDay
-    // counts deliveries per Chicago day; avgPerWorkday = workUnits / 5).
-    // finishes = reached Approved/Posted; touched = distinct videos involved.
+    // Roll a video list up into the numbers a row renders. The three headline
+    // numbers are all VIDEO counts so they read as one funnel:
+    //   loadVideos (on his plate — worked on) ⊇ deliveredVideos (sent for
+    //   review) → finishes (reached Approved/Posted).
+    // The hand-off effort lives in the sub-line: firstCuts + tweakRounds count
+    // each send (a re-sent video counts each time), and perDay counts those
+    // sends per Chicago day for the bars. loadEditing/loadTweaks/stillOpen
+    // break down the plate; touched = distinct videos involved.
     function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
-        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, editHeldMs = 0, tweakHeldMs = 0;
+        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, deliveredVideos = 0, editHeldMs = 0, tweakHeldMs = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
@@ -32883,9 +32885,10 @@
             }
             if (fin) finishes++;
             else if (isWip) wip++;
+            if (ds.length) deliveredVideos++;            // distinct videos he sent on for review
             const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
             const wasEditing = court.editingMs > 0, wasTweaking = court.tweakMs > 0;
-            if (wasEditing || wasTweaking) loadVideos++;
+            if (wasEditing || wasTweaking || ds.length) loadVideos++;   // worked on (in court OR delivered)
             if (wasEditing) loadEditing++;
             if (wasTweaking) loadTweaks++;
             if (court.endInCourt) stillOpen++;
@@ -32894,7 +32897,7 @@
         }
         const workUnits = firstCuts + tweakRounds;
         const perDay5 = ms => Math.round((ms / 86400000 / 5) * 10) / 10;  // avg videos in a state per workday
-        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
+        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay, deliveredVideos,
                  avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
                  loadVideos, loadEditing, loadTweaks, stillOpen,
                  editPerDay: perDay5(editHeldMs), tweakPerDay: perDay5(tweakHeldMs) };
@@ -32914,8 +32917,8 @@
     // Plain-English hover copy for each number — explains what it counts, for
     // someone who doesn't know the internal vocabulary. Same in either view.
     const _KED_TIPS = {
-        plate:     "How many different videos were sitting with him last week — ones he was editing, or that were waiting on his changes.",
-        pushed:    "How many videos he finished and sent on for review last week — new first cuts plus re-sent tweak fixes.",
+        plate:     "How many different videos he worked on last week — ones he was editing, waiting on his changes, or sent on for review.",
+        pushed:    "How many different videos he sent on for review last week. The first-cut / tweak-round numbers below count each send, so a video sent more than once is counted each time.",
         firstCut:  "First cuts: brand-new videos he edited and sent on for review for the first time.",
         tweak:     "Tweak rounds: videos that came back with requested changes, which he fixed and sent on again.",
         editing:   "Videos he was still editing the first version of.",
@@ -32995,8 +32998,8 @@
             if (!delivParts.length) delivParts.push('nothing shipped');
         }
         const delivSub = delivParts.join(' <span class="ked-id-sep">·</span> ');
-        const delivBig = avg ? stats.avgPerWorkday.toFixed(1) : stats.workUnits;
-        const delivLabel = avg ? 'pushed through / day' : 'pushed through';
+        const delivBig = avg ? n1(stats.deliveredVideos / 5) : stats.deliveredVideos;
+        const delivLabel = avg ? 'sent for review / day' : 'sent for review';
 
         // FINISHED — outcome: videos that crossed the finish line (approved/posted).
         const finBig = avg ? n1(stats.finishes / 5) : stats.finishes;

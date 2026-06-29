@@ -21876,11 +21876,33 @@
         }
         return false;
     }
-    /* Kasper's view of unread: a message he didn't write, on one of HIS
-       internal threads (audience 'internal'), newer than the last time he
-       caught up on this card. Drives the Replies inbox + the "New reply" pill.
-       Replies inherit their root's audience, so we resolve each message's root
-       to decide whether it's part of an internal conversation. */
+    /* Root-message ids on this component that belong to a KASPER conversation —
+       a thread he started (the root is his) OR one he joined (he replied on it).
+       Replies point straight at their root, so we resolve each Kasper-authored
+       message to its root and collect those ids.
+
+       This is what keeps the Messages inbox honest: a reply only belongs in
+       Kasper's inbox when it answers something HE said. A fresh note or
+       change-request the SMM opened that Kasper never touched is NOT his
+       conversation, so it must not surface a card (or a thread) in his inbox —
+       matching the documented intent ("the SMM or client replied on one of
+       Kasper's internal threads"). */
+    function _kasperOwnedThreadRoots(list, byId) {
+        const roots = new Set();
+        if (!Array.isArray(list)) return roots;
+        for (const m of list) {
+            if (!m || m.deleted || m.role !== 'kasper') continue;
+            const root = (m.parent_id && byId && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+            if (root && root.id) roots.add(root.id);
+        }
+        return roots;
+    }
+    /* Kasper's view of unread: a message he didn't write, on one of HIS OWN
+       internal threads (a thread he authored or replied on), newer than the last
+       time he caught up on this card. Drives the Replies inbox + the "New reply"
+       pill. Replies inherit their root's audience, so we resolve each message's
+       root to decide both whether it's an internal conversation AND whether that
+       conversation is one Kasper is part of (via _kasperOwnedThreadRoots). */
     function _kasperHasUnreadReply(post) {
         if (!post) return false;
         const seen = _kasperGetSeenAt(post.id);
@@ -21889,22 +21911,26 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.role === 'kasper') continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;   // only replies to a thread Kasper is part of
                 const t = String(m.updated_at || m.created_at || '');
                 if (t && (!seen || t > seen)) return true;
             }
         }
         return false;
     }
-    /* Newest NON-Kasper internal-thread message timestamp on this card — the exact
-       basis _kasperHasUnreadReply tests against. "Mark as read" must stamp THIS,
-       not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's own
-       and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
+    /* Newest NON-Kasper message timestamp on one of Kasper's OWN internal threads —
+       the exact basis _kasperHasUnreadReply tests against. "Mark as read" must stamp
+       THIS, not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's
+       own and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
        more recently than a still-unread reply makes mark-read stamp the newer
-       time and silently bury that genuinely-unread reply. */
+       time and silently bury that genuinely-unread reply. Must mirror the gate's
+       owned-thread filter exactly, or it could stamp past a reply the gate still
+       counts as unread (or fail to clear one it no longer does). */
     function _kasperRepliesSeenBasis(post) {
         if (!post) return '';
         let max = '';
@@ -21913,18 +21939,23 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.role === 'kasper') continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
                 const t = String(m.updated_at || m.created_at || '');
                 if (t > max) max = t;
             }
         }
         return max;
     }
-    /* Component owning the most recent internal message — where a Kasper reply
-       from the Replies inbox should land so the conversation stays together. */
+    /* Component owning the most recent message on one of Kasper's OWN internal
+       threads — where a Kasper reply from the Replies inbox should land so the
+       conversation stays together. Restricted to owned threads so his reply
+       attaches to the conversation he's actually looking at, never to an
+       unrelated SMM-only thread the inbox no longer shows. */
     function _kasperLatestInternalComp(post) {
         let best = null, bestT = '';
         for (const c of _calComponentsFor(post)) {
@@ -21932,10 +21963,12 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted) continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
                 const t = String(m.updated_at || m.created_at || '');
                 if (t > bestT) { bestT = t; best = c; }
             }
@@ -30892,7 +30925,7 @@
                 : `<div class="kasper-empty">
                     <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
                     <div class="kasper-empty-title">No new messages</div>
-                    <div class="kasper-empty-sub">When an SMM or client messages you about a card, it shows up here.</div>
+                    <div class="kasper-empty-sub">When the SMM or client replies to one of your notes or tweaks, it shows up here.</div>
                 </div>`;
             root.innerHTML = loadingNote;
             return;
@@ -30904,14 +30937,21 @@
         const pid = p.id;
         const thumb = _calDeriveThumb(p);
         const seen = _kasperGetSeenAt(pid);
-        // Group internal messages into threads (root + replies).
+        // Group internal messages into threads (root + replies). Only threads
+        // Kasper is part of (he authored or replied on) — a fresh SMM note or
+        // change-request he never touched is not his conversation and stays out
+        // of his Messages inbox, mirroring the inbox gate (_kasperHasUnreadReply).
         const threads = [];
         for (const c of _calComponentsFor(p)) {
             const list = _calCommentsFor(p, c);
             if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.parent_id) continue;           // roots only
                 if (_calMsgAudience(m) !== 'internal') continue;        // internal threads only
+                if (!owned.has(m.id)) continue;                         // only Kasper's own conversations
                 const replies = list.filter(r => r && !r.deleted && r.parent_id === m.id)
                     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
                 threads.push({ root: m, replies, comp: c });
@@ -31003,11 +31043,13 @@
         const list = _calCommentsFor(item.post, comp).slice();
         const byId = new Map();
         for (const m of list) if (m && m.id) byId.set(m.id, m);
+        const owned = _kasperOwnedThreadRoots(list, byId);
         let parentRootId = null, latestT = '';
         for (const m of list) {
             if (!m || m.deleted) continue;
             const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
             if (_calMsgAudience(root) !== 'internal') continue;
+            if (!owned.has(root.id)) continue;   // thread the inbox card to one of Kasper's own conversations
             const t = String(m.updated_at || m.created_at || '');
             if (t > latestT) { latestT = t; parentRootId = root.id; }
         }

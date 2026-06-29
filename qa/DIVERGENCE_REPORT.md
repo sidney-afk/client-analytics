@@ -5,7 +5,19 @@ are **bugs to fix**; **D was reclassified as by-design** after checking the rebu
 tag is on the exclusion list). The "By-design" section lists the documented intentional
 differences (a structural subset, each cited to the spec) and is NOT bug-tracked.
 
-> **This is the handoff for the fix session. Nothing here is fixed yet.**
+> **Fix status (updated):** **B, C, E — FIXED & verified** (commit on `claude/parity-loop-l697yf`).
+> **D + platforms — confirmed by-design** (spec exclusion list). **F — realtime repaint at parity;
+> needs a real two-tab browser to settle.** **A — the Kasper decision-flow rebuild — still OPEN**
+> (the largest piece; port plan below).
+>
+> | Item | Status | Evidence |
+> |---|---|---|
+> | C — thumbnail lightbox | ✅ fixed | twin_render SMM Review + Client panels now parity |
+> | E — "Client Approval" personalised | ✅ fixed | twin_realtime: samples now reads "Video **Sidney** Approval" |
+> | B — AAT → Tweaks Needed | ✅ fixed | `kasper_aat_video`: both surfaces reach `Tweaks Needed` + stamp, no DB divergence |
+> | A — Kasper decision flow | 🔴 open | the big rebuild — see section A |
+> | D — colour tag · platforms | ◌ by-design | `SAMPLES_REBUILD_SPEC.md:98` |
+> | F — realtime cross-tab | ⚠ verify live | repaint logic at parity; WS untunnelable headless |
 
 ## How this was produced (and why it caught what earlier passes missed)
 Four instruments, run against the **live backend** unless noted:

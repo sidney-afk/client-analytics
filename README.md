@@ -1,149 +1,86 @@
-# Client Analytics Dashboard
+# SyncView
 
-Automated Instagram analytics tracking with daily reports and beautiful web dashboard.
+SyncView is the internal client-operations dashboard for Synchro Social — a single-page
+web app for running the content pipeline end to end: planning the content calendar,
+reviewing samples and thumbnails, tracking YouTube title review, handling client
+onboarding, and keeping everything in sync with Linear.
 
-## Features
+**Live:** <https://syncview.synchrosocial.com> — served via GitHub Pages from `index.html` on `main`.
 
-- 📊 **Automated daily scraping** of Instagram metrics
-- 📈 **Beautiful web dashboard** with real-time data
-- 💬 **Discord notifications** with daily/weekly/monthly reports
-- 📱 **Mobile-friendly** responsive design
-- 🔄 **GitHub Actions** powered automation (runs daily at 6:45 AM CST)
+## What it does
 
-## Setup Instructions
+- **Content calendar** — per-client posting calendar with per-component statuses
+  (video / graphic / caption / title), drag-reorder, threaded comments, and live
+  realtime updates.
+- **Sample & thumbnail review** — Kasper and client approval flows for content samples.
+- **YouTube title review** — title status plus tweak-round tracking.
+- **Client onboarding** — in-app onboarding form and inbox (standard and AI funnels).
+- **Workload view** — derived per-person workload, rebuilt from Linear.
+- **Linear sync** — two-way status sync between the calendar and Linear issues.
+- **Analytics** — follower/engagement metrics, top videos, and competitor /
+  market-research briefs.
 
-### 1. Create GitHub Repository
+## Architecture
 
-1. Go to [github.com/new](https://github.com/new)
-2. Name it `client-analytics`
-3. Make it **Public** (required for GitHub Pages)
-4. Don't initialize with README
+The entire front end is one file, `index.html` (~2 MB): an inline-`<script>` SPA with
+no build step. It talks to three backends.
 
-### 2. Add Files to Repository
+1. **Supabase** (Postgres + realtime) — the live operational store for everything that
+   changes frequently: the content calendar, samples, onboarding, Kasper review state,
+   title review, the workload cache, and the TikTok pilot. Reads come straight from the
+   Supabase REST API; updates arrive over realtime channels (no polling — an idle tab
+   makes no calls). The browser uses a committed publishable (anon) key; row-level
+   security permits anonymous `SELECT` only — all writes go through n8n.
+2. **n8n** (`synchrosocial.app.n8n.cloud`) — the write / integration layer. Webhooks
+   handle saves, reorders, onboarding submissions, and the Linear ⇄ Supabase sync.
+   Writers also dual-write to Google Sheets, so the Sheet stays a human-readable mirror
+   and a lossless rollback path.
+3. **Google Sheets** (via the `gviz` CSV endpoint) — still the source of truth for the
+   **analytics** data that was never migrated: Metrics, Clients Info, TopVideos,
+   Competitor / Market-Research Briefs, ContentSummaries, FilmingPlans, and the
+   Social-Media-Manager map.
 
-1. Clone the repo locally:
-   ```bash
-   git clone https://github.com/sidney-afk/client-analytics.git
-   cd client-analytics
-   ```
+> **Migration history:** the calendar and samples features were moved from Google Sheets
+> to Supabase (dual-write → hidden flag → flip-default) in June 2026. For those features
+> the Sheet now survives only as an automatic fallback if Supabase is unreachable; for
+> analytics it remains the live source. See `CALENDAR_REALTIME_MIGRATION.md`,
+> `SAMPLES_SUPABASE_KICKOFF.md`, and the current source of truth `AUDIT_2026-06-15.md`.
 
-2. Copy these files into the repo:
-   - `scraper.py`
-   - `.github/workflows/daily-scrape.yml`
-   - `index.html`
-   - `requirements.txt`
-   - `README.md`
+## Repository layout
 
-3. Create initial data directory:
-   ```bash
-   mkdir data
-   echo '{"history":[],"latest":{},"changes":{}}' > data/metrics.json
-   ```
+| Path | What it is |
+|---|---|
+| `index.html` | The entire application. |
+| `test/` | Fast, offline unit/wiring tests that extract and exercise pieces of the inline script. Run with `npm test`. |
+| `qa/` | Headless (Playwright) end-to-end probes against the live backend. Run with `npm run test:e2e`. |
+| `scripts/` | The Linear ⇄ calendar reconcile job (`linear-sync-reconcile.js`). |
+| `.github/workflows/` | CI: unit tests on every push, nightly E2E, and the 10-minute Linear reconcile cron. |
+| `migrations/`, root `*.sql` | One-time, **manually applied** Supabase SQL-editor migrations, kept for provenance — there is no auto-runner. |
+| `n8n-backups/` | Point-in-time snapshots of the n8n workflows (rollback anchors). |
+| `docs/` | Test catalogs, the headless-testing guide, and archived handoff/incident notes under `docs/archive/`. |
+| Top-level `*_DESIGN.md` / `*_MIGRATION.md` | Design specs and runbooks for individual features. |
 
-4. Commit and push:
-   ```bash
-   git add .
-   git commit -m "Initial setup"
-   git push origin main
-   ```
+## Development
 
-### 3. Configure Secrets
+No build step. Open `index.html` in a browser, or serve the folder statically.
 
-1. Go to your repo settings: `https://github.com/sidney-afk/client-analytics/settings/secrets/actions`
-2. Click **New repository secret**
-3. Name: `DISCORD_WEBHOOK_URL`
-4. Value: (paste the Discord webhook URL you created)
-5. Click **Add secret**
-
-### 4. Enable GitHub Pages
-
-1. Go to repo settings → **Pages**
-2. Source: Deploy from branch
-3. Branch: `main` / `root`
-4. Click **Save**
-
-Your dashboard will be live at: `https://sidney-afk.github.io/client-analytics/`
-
-### 5. Run First Scrape
-
-1. Go to **Actions** tab in your repo
-2. Click **Daily Instagram Scrape** workflow
-3. Click **Run workflow** → **Run workflow**
-4. Wait ~1 minute for it to complete
-5. Refresh your dashboard URL
-
-## How It Works
-
-### Daily Automation
-
-- **Scraper** (`scraper.py`) uses Instaloader to pull Instagram metrics
-- **GitHub Actions** runs the scraper daily at 6:45 AM CST
-- **Data** is stored in `data/metrics.json` and committed to the repo
-- **Dashboard** (`index.html`) reads the JSON and displays live metrics
-- **Discord** receives a formatted report via webhook
-
-### Metrics Tracked
-
-- **Profile**: Followers, following, posts count
-- **Engagement**: Likes, comments, engagement rate
-- **Posts**: Last 12 posts with individual performance
-- **Trends**: 30-day follower growth chart
-
-## Customization
-
-### Add More Clients
-
-Edit `scraper.py` and change:
-```python
-INSTAGRAM_USERNAME = "bayavoce"  # Change to new client handle
+```bash
+npm install        # installs Playwright (only needed for the E2E probes)
+npm test           # offline unit/wiring suite — no network; run before every commit
+npm run test:e2e   # headless end-to-end probes (these hit the live backend)
 ```
 
-Or create multiple scraper scripts (one per client).
+## Deployment
 
-### Change Report Schedule
+GitHub Pages serves `index.html` from `main` at the `CNAME` domain
+(`syncview.synchrosocial.com`). Merging to `main` ships to production immediately.
+For the migrated features, per-browser rollback is available via `?v2=0` (calendar)
+and `?sv2=0` (samples).
 
-Edit `.github/workflows/daily-scrape.yml`:
-```yaml
-cron: '45 12 * * *'  # Current: 6:45 AM CST (12:45 PM UTC)
-```
+## Keeping this README current
 
-Use [crontab.guru](https://crontab.guru/) to generate new schedules.
-
-### Customize Dashboard
-
-Edit `index.html` to change colors, layout, or add new metrics.
-
-## Troubleshooting
-
-### Scraper fails
-
-- **Instagram blocks**: Instaloader might be rate-limited. Wait a few hours and retry.
-- **Private accounts**: Only works with public Instagram profiles.
-- **Network issues**: GitHub Actions might have connectivity issues. Retry manually.
-
-### Dashboard not updating
-
-- Check if GitHub Actions is running successfully (Actions tab)
-- Make sure GitHub Pages is enabled and deployed from `main` branch
-- Clear browser cache and refresh
-
-### Discord reports not sending
-
-- Verify webhook URL is correct in GitHub Secrets
-- Check Discord webhook settings (should be active)
-
-## Cost
-
-- **GitHub Actions**: Free (2000 minutes/month for public repos)
-- **GitHub Pages**: Free (100GB bandwidth/month)
-- **Instaloader**: Free and open source
-
-**Total monthly cost: $0**
-
-## Support
-
-Questions? Issues? Contact Alfredo in Discord.
-
----
-
-Built with ❤️ by Alfredo
+Treat this README as part of the app: update it whenever the app's features, data
+sources, or development / deployment steps change. A ready-made guard ships in
+`.claude/hooks/readme-sync-reminder.sh` — once enabled as a `Stop` hook in
+`.claude/settings.json`, it reminds you when a session changes `index.html` without
+touching `README.md`.

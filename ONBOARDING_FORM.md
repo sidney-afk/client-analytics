@@ -127,7 +127,10 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
      - **B-roll** — single-select chips: Stock / AI-generated / **Mix of both** / **My own footage** / No B-roll.
      - **Music** — genre checkboxes with ▶ previews (`onboarding-audio/<key>.mp3`).
      - **Music reference** + **Video reference** — each asks for **links** *and* a free-text
-       **description** of the look they want (`video_reference` + `video_reference_desc`).
+       **description** of the look they want (`video_reference` + `video_reference_desc`). Copy is
+       link-agnostic: the music reference invites **Spotify / YouTube / Apple Music / anything**
+       (no Drive note), and the shared "share the link" note (`OB_DRIVE_NOTE`) now reads "any link
+       works — Google Drive, Dropbox, WeTransfer…" so file fields don't read as Drive-only.
    - **── Thumbnail ──**
      - **Thumbnail style** — an interactive **live preview** picker (`_obThumbPicker`): a 9:16 preview
        that swaps in place beside tight controls — **Font** (Bold / Native / Elegant) × **Style**
@@ -138,6 +141,9 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
        (`thumbnail_build`, default on) lets a client opt out — switch it off and the picker hides
        (we design it for them). The current trio auto-saves as `thumbnail_font` + `thumbnail_text_style`
        + `thumbnail_highlight` and restores from the draft. (Replaced the old Elegant/Box/Bold cards.)
+       Below the picker a **disclaimer** (`.ob-tp-note`) makes clear this is *direction, not final* —
+       nothing's locked in; the font, highlight colour, music, etc. can all change later. The Style
+       section intro carries the same "none of this is locked in" framing.
      - **Thumbnail reference** — **links** *and* a free-text **description**
        (`thumbnail_reference` + `thumbnail_reference_desc`).
    - **── Anything else ──** always/never notes (the do's & don'ts).
@@ -154,7 +160,10 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    clarifications** box for anything that didn't fit the options above.
 7. **Account access** — IG / TikTok / FB / LinkedIn / YouTube logins, with a note offering
    to share credentials securely via LastPass to `house@synchrosocial.com` instead of typing
-   them. These login fields are the only ones the dashboard viewer strips.
+   them. Ends with a **confirmation checkbox** (`lastpass_sent`) — clients sharing via LastPass
+   tick it to confirm they actually sent the details, so staff know to look for them. These login
+   fields are the only ones the dashboard viewer strips (`lastpass_sent` is a harmless boolean, not
+   a credential, so it passes through in `answers`).
 8. **AI avatar** *(AI funnel only)* — last section. **No opt-in gate** — on the AI funnel
    the client is already here for the avatar, so the old "Want to add an AI avatar?" Yes/No
    question and its ⓘ add-on explainer are removed and the fields show unconditionally (with a

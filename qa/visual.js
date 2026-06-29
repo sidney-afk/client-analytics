@@ -22,7 +22,10 @@ function buildManifest(shotDir) {
   try { files = fs.readdirSync(shotDir).filter(f => f.endsWith('.png')).sort(); } catch { return []; }
   const byScn = {};
   for (const f of files) {
-    const m = f.match(/^(.*)-(\d+)-(.*)\.png$/);
+    // Step is zero-padded to >=2 digits by scenario_engine.js (padStart(2,'0')),
+    // so anchor on `-\d{2,}-`. This keeps a single-digit segment inside a label
+    // (e.g. `...-smm-approve-2.png`) from being mistaken for the step index.
+    const m = f.match(/^(.+)-(\d{2,})-(.+)\.png$/);
     if (!m) continue;
     const [, key, step, label] = m;
     (byScn[key] = byScn[key] || []).push({ step: Number(step), label, file: f, path: path.join(shotDir, f) });

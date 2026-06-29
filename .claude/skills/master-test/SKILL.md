@@ -28,6 +28,9 @@ ask once for a one-liner (or default to a broad sweep).
   pre-release / "test everything thoroughly".
 - Target a specific area with `--scn=<keys>` (comma-separated scenario keys, e.g.
   `--scn=clean_both,kasper_request_video`) and/or `--lane=<lanes>`.
+- The `tree` lane (full profile, or `--lane=tree`) runs the **branching scenario
+  tree** (`qa/scenario_tree.js`) — shared prefixes + branch points compiled to
+  root→leaf paths. `node qa/scenario_tree.js` prints the expansion without a browser.
 
 ## 2. Run the mechanical lanes
 

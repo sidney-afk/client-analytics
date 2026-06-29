@@ -14,20 +14,29 @@ the thing you used to do by hand, opening the page and clicking around.
 |------|-----|----------------|----------|
 | `unit` | `test/run-all.js` (29 suites) | pure transform/state-machine logic | no |
 | `parity` | `parity_*.js`, `render_parity.js` | Samples `_sxr*` is a faithful clone of calendar `_cal*` (logic + DOM + CSS) | yes |
-| `probes` | `run-probes.js` + `p*.js` | calendar lifecycle/routing/sync end-to-end | yes |
-| `scenarios` | `scenario_engine.js` + `scenarios.js` | Samples multi-actor flows (SMM/Kasper/Client), **real clicks/typing**, asserted against the live DB | yes |
+| `probes` | `run-probes.js` + `p*.js` | calendar lifecycle/routing/sync — drives via app **handlers** (`page.evaluate`), not real clicks | yes |
+| `scenarios` | `scenario_engine.js` + `scenarios.js` | Samples multi-actor flows (SMM/Kasper/Client) — clicks **real DOM nodes in-page** (`element.click()` + input events; not Playwright synthetic mouse/keyboard), asserted against the live DB. Flat library of 51 paths. | yes |
+| `tree` | `scenario_tree.js` *(new)* | same engine, specs from the **branching scenario tree** (shared prefixes + branch points, compiled to root→leaf paths) | yes |
 | `temporal` | `temporal_lib.js` + `ot_temporal_*.js` | UI reaction speed + no flicker/revert | yes |
-| `visual` | *(new)* | drives a flow with real clicks, screenshots every step, hands the frames to the **vision pass** | yes |
+| `visual` | *(new)* | drives a flow, screenshots every step, hands the frames to the **vision pass** (judged by a human / Claude via `/master-test` — not automated in CI) | yes |
 
-Nothing was thrown away — each lane shells the existing tester, so there is **zero
-coverage loss**. The master just gives them one server, one summary, one exit code.
+Nothing was thrown away — each lane shells the existing tester. The `full` profile
+runs them all (zero coverage loss); the default `fast` profile runs a smoke subset
+(see below). The master gives them one server, one summary, one exit code.
+
+> **Honest note on "real interactions":** only the `scenarios`/`tree`/`visual` lanes
+> drive the UI by locating real DOM elements; they activate them with in-page
+> `element.click()` and set inputs via the native value-setter, which is much closer
+> to a user than calling functions but is **not** Playwright synthetic mouse/keyboard
+> (no trusted events, hover, or focus). The `probes` lane still invokes app handlers
+> directly. Moving probes onto real input is future work.
 
 ## Profiles
 
 - **fast** (default) — `unit` + `parity(logic)` + a scenario smoke set + a visual
   smoke set. Run this on every change.
-- **full** — every lane, the whole scenario library, all nightly probes. Run this
-  nightly / before a release.
+- **full** — every lane: the whole scenario library, the branching tree, all
+  nightly probes, parity, temporal, visual. Run this nightly / before a release.
 
 ## Usage
 
@@ -48,6 +57,11 @@ MASTER_CHANGE_NOTE="redid the approve button" node qa/master.js --lane=visual --
 
 # reuse an already-running :8000 static server
 node qa/master.js --no-server
+
+# the branching scenario tree
+node qa/scenario_tree.js                          # print the compiled root→leaf paths (no browser)
+node qa/master.js --lane=tree                     # run the tree through the engine
+node qa/probes/run_scenarios.js --tree --shots    # run it directly, with screenshots
 ```
 
 npm shortcuts:
@@ -87,6 +101,25 @@ saved snapshot* and scream on every intentional tweak; they can't judge "does
 this brand-new thing look good." Open-ended vision generalizes to **any** change
 — you just say what you touched, and it goes and looks. (A pixel baseline can be
 added later as a cheap extra net *under* the vision pass; they complement.)
+
+## The branching scenario tree
+
+`qa/scenario_tree.js` models the review lifecycle as a **tree** instead of a flat
+list. A node is one beat of the flow (`{ key, title, seed?, steps?, children? }`);
+`compile()` walks root→leaf and emits one flat `{ key, title, seed, steps }` spec
+per leaf — exactly what `runScenario` already consumes — so the proven engine runs
+each path unchanged. The win: a **shared prefix is authored once at the branch
+point** and reused by every leaf beneath it, instead of being copy-pasted across
+scenarios (which is what `scenarios.js` does today).
+
+Example: from one `For SMM Approval` root, "SMM approves → Kasper" is written once,
+then branches into Kasper-approves (→ Client approves / Client requests change),
+Kasper-requests-change, and Kasper-approve-after-tweaks — six leaf paths sharing
+two authored prefixes. `node qa/scenario_tree.js` prints the expansion.
+
+The flat `scenarios` lane (51 paths) and the `tree` lane coexist — the tree is the
+new structured way to add coverage; existing flat scenarios are migrated into trees
+over time, never lost.
 
 ## Safety
 

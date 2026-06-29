@@ -3,11 +3,14 @@
 const L = require('../sxr_courier_lib.js');
 const { launch } = L;
 const { runScenario } = require('../scenario_engine.js');
-const { base } = require('../scenarios.js');
+// --tree sources specs from the branching scenario tree (compiled to flat paths);
+// otherwise the flat scenario library. Both yield the same {key,title,seed,steps}.
+const useTree = process.argv.includes('--tree');
+const { base } = useTree ? require('../scenario_tree.js') : require('../scenarios.js');
 
 const filter = process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : null;
 const forceShots = process.argv.includes('--shots');
-const SHOT_DIR = '/tmp/qa/scn';
+const SHOT_DIR = process.env.SXR_SCN_SHOTS || '/tmp/qa/scn';
 
 (async () => {
   const ts = Date.now();

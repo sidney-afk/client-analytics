@@ -80,6 +80,7 @@ function profilePlan(profile) {
       probes: { fromManifest: true },
       temporal: { glob: /^ot_temporal_.*\.js$/ },
       scenarios: { filter: null },
+      tree: { filter: null },
       visual: { filter: null },
     };
   }
@@ -92,11 +93,15 @@ function profilePlan(profile) {
   };
 }
 
-const LANE_ORDER = ['unit', 'parity', 'probes', 'temporal', 'scenarios', 'visual'];
+const LANE_ORDER = ['unit', 'parity', 'probes', 'temporal', 'scenarios', 'tree', 'visual'];
 
 // ---------------------------------------------------------------- server mgmt
 async function serverUp(ms = 2000) {
-  try { const r = await fetch('http://localhost:' + PORT + '/index.html'); return r.ok; } catch { return false; }
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms);
+  try { const r = await fetch('http://localhost:' + PORT + '/index.html', { signal: ac.signal }); return r.ok; }
+  catch { return false; }
+  finally { clearTimeout(t); }
 }
 async function waitForServer(ms = 30000) {
   const t = Date.now();
@@ -109,7 +114,7 @@ async function waitForServer(ms = 30000) {
 // summary line. ok is driven by exit code (0 == pass).
 function runNode(file, opts = {}) {
   const { cwd = PROBES, args = [], attempts = 1, timeout = PROBE_TIMEOUT_MS, env = {} } = opts;
-  let ok = false, lastOut = '', t0 = Date.now();
+  let ok = false, lastOut = '', errNote = '', t0 = Date.now();
   for (let attempt = 1; attempt <= attempts && !ok; attempt++) {
     const r = spawnSync(process.execPath, [file, ...args], {
       cwd, encoding: 'utf8', timeout,
@@ -118,18 +123,28 @@ function runNode(file, opts = {}) {
     });
     lastOut = (r.stdout || '') + (r.stderr || '');
     ok = r.status === 0;
+    // Distinguish INFRA failures from a plain non-zero exit, so a 30-min timeout
+    // or a buffer overflow doesn't masquerade as an assertion failure in the report.
+    errNote = '';
+    if (!ok && r.error) {
+      if (r.error.code === 'ETIMEDOUT') errNote = `timed out after ${Math.round(timeout / 1000)}s`;
+      else if (r.error.code === 'ENOBUFS') errNote = 'output exceeded 64MB (truncated)';
+      else errNote = 'spawn error: ' + (r.error.code || r.error.message);
+    } else if (!ok && r.signal) errNote = 'killed by ' + r.signal;
   }
   const summaryLine = (lastOut.match(/[^\n]*pass=\d+ fail=\d+[^\n]*/g) || []).pop();
-  return { ok, out: lastOut, summary: (summaryLine || '').trim(), ms: Date.now() - t0 };
+  return { ok, out: lastOut, summary: (summaryLine || '').trim(), errNote, ms: Date.now() - t0 };
 }
 
 function tail(s, n = 18) { return (s || '').split('\n').slice(-n).join('\n'); }
+// Decorate a lane summary with an infra-failure note when present.
+function withErr(summary, errNote) { return errNote ? ((summary ? summary + ' · ' : '') + '⚠ ' + errNote) : summary; }
 
 // ---------------------------------------------------------------- lane runners
 function laneUnit() {
   const r = runNode(path.join(TEST, 'run-all.js'), { cwd: ROOT, attempts: 1, timeout: 300000 });
   const m = r.out.match(/All (\d+) unit suites passed/);
-  return { ok: r.ok, summary: r.ok ? `all ${m ? m[1] : '?'} unit suites passed` : 'unit suites FAILED', ms: r.ms, tail: r.ok ? '' : tail(r.out) };
+  return { ok: r.ok, summary: r.ok ? `all ${m ? m[1] : '?'} unit suites passed` : withErr('unit suites FAILED', r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out) };
 }
 
 function laneParity(cfg) {
@@ -139,7 +154,7 @@ function laneParity(cfg) {
   for (const f of files) {
     const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: 1 });
     ms += r.ms; okAll = okAll && r.ok;
-    parts.push(`${r.ok ? '✓' : '✗'} ${f}${r.summary ? ' (' + r.summary + ')' : ''}`);
+    parts.push(`${r.ok ? '✓' : '✗'} ${f}${r.errNote ? ' [' + r.errNote + ']' : r.summary ? ' (' + r.summary + ')' : ''}`);
     if (!r.ok) detail += `\n--- ${f} ---\n` + tail(r.out);
   }
   return { ok: okAll, summary: parts.join('  '), ms, tail: detail };
@@ -158,7 +173,7 @@ function laneProbes() {
   const failed = []; let ms = 0;
   for (const f of probes) {
     const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: PROBE_ATTEMPTS });
-    ms += r.ms; if (!r.ok) failed.push(f);
+    ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
   return {
     ok: failed.length === 0, ms,
@@ -173,7 +188,7 @@ function laneTemporal(cfg) {
   const failed = []; let ms = 0;
   for (const f of files) {
     const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: 2 });
-    ms += r.ms; if (!r.ok) failed.push(f);
+    ms += r.ms; if (!r.ok) failed.push(f + (r.errNote ? ' [' + r.errNote + ']' : ''));
   }
   return { ok: failed.length === 0, ms, summary: failed.length ? `${failed.length}/${files.length} FAILED: ${failed.join(', ')}` : `all ${files.length} temporal probes passed`, tail: '' };
 }
@@ -183,7 +198,19 @@ function laneScenarios(cfg) {
   const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
   const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
   const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
-  return { ok: r.ok, summary: [scn && 'scenarios ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED'), ms: r.ms, tail: r.ok ? '' : tail(r.out, 25) };
+  const base = [scn && 'scenarios ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
+  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out, 25) };
+}
+
+// Same engine as scenarios, but specs come from the BRANCHING scenario tree
+// (qa/scenario_tree.js, compiled to flat paths) via run_scenarios.js --tree.
+function laneTree(cfg) {
+  const args = []; if (cfg.filter) args.push(cfg.filter); args.push('--tree');
+  const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
+  const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
+  const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
+  const base = [scn && 'tree paths ' + scn.trim(), asr && 'assertions ' + asr.trim()].filter(Boolean).join(' · ') || (r.ok ? 'passed' : 'FAILED');
+  return { ok: r.ok, summary: withErr(base, r.errNote), ms: r.ms, tail: r.ok ? '' : tail(r.out, 25) };
 }
 
 // Visual lane: drive scenarios WITH screenshots, then build a manifest + review
@@ -196,12 +223,26 @@ function laneVisual(cfg) {
   const r = runNode(path.join(PROBES, 'run_scenarios.js'), { cwd: ROOT, args, attempts: 1, timeout: SCN_TIMEOUT_MS });
   const manifest = VIS.writeArtifacts(SHOT_DIR, VISUAL_DIR, process.env.MASTER_CHANGE_NOTE || '');
   const nShots = VIS.countShots(manifest);
+  const scn = (r.out.match(/scenarios:\s*([^\n]+)/) || [])[1] || '';
+  const asr = (r.out.match(/assertions:\s*([^\n]+)/) || [])[1] || '';
+  // captureOk = the flow actually ran to completion AND produced shots. A flow
+  // that crashed or failed mid-way is a REAL failure that counts toward the run —
+  // distinct from "shots captured, awaiting the vision verdict" (never fails).
+  // Relying on nShots>0 alone would let a flow that dies after step 1 ride through
+  // green, because the engine still wrote that first frame.
+  const captureOk = r.ok && nShots > 0;
+  const bits = [];
+  if (nShots) bits.push(`${nShots} screenshots across ${manifest.length} flow(s)`);
+  if (scn) bits.push('scenarios ' + scn.trim());
+  if (asr) bits.push('assertions ' + asr.trim());
+  if (!r.ok) bits.push('⚠ capture ' + (r.errNote || 'exited non-zero'));
+  if (captureOk) bits.push('VISION REVIEW PENDING');
   return {
-    ok: nShots > 0,                 // capture produced shots
-    needsVision: nShots > 0,
-    summary: nShots ? `${nShots} screenshots across ${manifest.length} flow(s) — VISION REVIEW PENDING` : 'no screenshots captured (capture failed)',
+    ok: captureOk,
+    needsVision: captureOk,         // only pend the vision verdict when capture was clean
+    summary: bits.join(' · ') || 'no screenshots captured',
     ms: r.ms,
-    tail: nShots ? '' : tail(r.out, 25),
+    tail: captureOk ? '' : tail(r.out, 25),
     manifest,
   };
 }
@@ -210,7 +251,7 @@ function laneVisual(cfg) {
 (async () => {
   const args = parseArgs(process.argv.slice(2));
   const plan = profilePlan(args.profile);
-  if (args.scn != null) { if (plan.scenarios) plan.scenarios.filter = args.scn; if (plan.visual) plan.visual.filter = args.scn; }
+  if (args.scn != null) { if (plan.scenarios) plan.scenarios.filter = args.scn; if (plan.tree) plan.tree.filter = args.scn; if (plan.visual) plan.visual.filter = args.scn; }
   let lanes = args.lanes || LANE_ORDER.filter(l => plan[l]);
   lanes = lanes.filter(l => LANE_ORDER.includes(l));
 
@@ -239,6 +280,7 @@ function laneVisual(cfg) {
       else if (lane === 'probes') res = laneProbes();
       else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
       else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });
+      else if (lane === 'tree') res = laneTree(plan.tree || { filter: null });
       else if (lane === 'visual') res = laneVisual(plan.visual || { filter: null });
     } catch (e) { res = { ok: false, summary: 'LANE CRASHED: ' + (e.message || e), ms: 0, tail: '' }; }
     results[lane] = res;
@@ -249,9 +291,11 @@ function laneVisual(cfg) {
 
   killServer();
 
-  // A lane "fails" the run only if it is a pass/fail lane that failed. The visual
-  // lane never fails the run on its own — its verdict comes from the vision pass.
-  const hardFail = Object.entries(results).some(([l, r]) => l !== 'visual' && !r.skipped && !r.ok);
+  // A lane fails the run if it failed and wasn't skipped. For the visual lane, `ok`
+  // means CAPTURE succeeded — a clean capture sets needsVision (shown as 👁, NOT a
+  // fail); only a crashed/incomplete capture marks visual !ok and fails the run.
+  // (The vision VERDICT itself is downstream — the /master-test skill / a human.)
+  const hardFail = Object.entries(results).some(([, r]) => !r.skipped && !r.ok);
   const vis = results.visual;
 
   console.log('\n================= MASTER SUMMARY =================');
@@ -261,7 +305,7 @@ function laneVisual(cfg) {
     console.log(`  ${lane.padEnd(10)} ${tag.padEnd(10)} ${r.summary}`);
   }
   if (vis && vis.needsVision) {
-    console.log(`\n👁  VISION REVIEW PENDING — ${vis.summary.split(' — ')[0]} in ${SHOT_DIR}`);
+    console.log(`\n👁  VISION REVIEW PENDING — ${VIS.countShots(vis.manifest)} shots in ${SHOT_DIR}`);
     console.log(`    checklist: ${path.join(VISUAL_DIR, 'VISUAL_REVIEW.md')}  ·  manifest: ${path.join(VISUAL_DIR, 'manifest.json')}`);
     console.log(`    run the /master-test skill to have Claude review them, or open them yourself.`);
   }

@@ -78,6 +78,7 @@ function profilePlan(profile) {
     return {
       unit: {},
       parity: { files: ['parity_logic.js', 'parity_check.js', 'render_parity.js', 'verify_chooser.js'] },
+      realtime: {},   // Layer A (static parity) + Layer B (handler-injection probe)
       probes: { fromManifest: true },
       temporal: { glob: /^ot_temporal_.*\.js$/ },
       scenarios: { filter: null },
@@ -88,13 +89,13 @@ function profilePlan(profile) {
   // fast (default): the cheap, high-signal subset you run on every change.
   return {
     unit: {},
-    parity: { files: ['parity_logic.js'] },
+    parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
     scenarios: { filter: 'clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
 }
 
-const LANE_ORDER = ['unit', 'parity', 'probes', 'temporal', 'scenarios', 'tree', 'visual'];
+const LANE_ORDER = ['unit', 'parity', 'realtime', 'probes', 'temporal', 'scenarios', 'tree', 'visual'];
 
 // ---------------------------------------------------------------- server mgmt
 async function serverUp(ms = 2000) {
@@ -157,6 +158,29 @@ function laneParity(cfg) {
     ms += r.ms; okAll = okAll && r.ok;
     parts.push(`${r.ok ? '✓' : '✗'} ${f}${r.errNote ? ' [' + r.errNote + ']' : r.summary ? ' (' + r.summary + ')' : ''}`);
     if (!r.ok) detail += `\n--- ${f} ---\n` + tail(r.out);
+  }
+  return { ok: okAll, summary: parts.join('  '), ms, tail: detail };
+}
+
+// Realtime lane: the STATIC parity guard (Layer A — realtime_parity.js, instant,
+// no browser) + the handler-injection probe (Layer B — p88_realtime_handler.js,
+// real browser). A proves the WS is WIRED to call the handler; B proves the handler
+// updates the never-reloaded UI (and that a no-op echo doesn't rebuild). The real
+// WebSocket can't be tunneled headless, so this pair is how realtime gets tested.
+// On-demand: `node qa/master.js --lane=realtime`. (Layer A also rides the parity
+// lane on every run; Layer B also rides the probes lane via the nightly manifest.)
+function laneRealtime() {
+  const files = [
+    { f: 'realtime_parity.js', browser: false },
+    { f: 'p88_realtime_handler.js', browser: true },
+  ].filter(x => fs.existsSync(path.join(PROBES, x.f)));
+  if (!files.length) return { ok: true, summary: 'no realtime files', ms: 0, tail: '', skipped: true };
+  let okAll = true, parts = [], detail = '', ms = 0;
+  for (const { f, browser } of files) {
+    const r = runNode(path.join(PROBES, f), { cwd: PROBES, attempts: browser ? PROBE_ATTEMPTS : 1, timeout: browser ? PROBE_TIMEOUT_MS : 60000 });
+    ms += r.ms; okAll = okAll && r.ok;
+    parts.push(`${r.ok ? '✓' : '✗'} ${f}${r.errNote ? ' [' + r.errNote + ']' : ''}`);
+    if (!r.ok) detail += `\n--- ${f} ---\n` + tail(r.out, 25);
   }
   return { ok: okAll, summary: parts.join('  '), ms, tail: detail };
 }
@@ -292,6 +316,7 @@ function laneVisual(cfg) {
     try {
       if (lane === 'unit') res = laneUnit();
       else if (lane === 'parity') res = laneParity(plan.parity || { files: [] });
+      else if (lane === 'realtime') res = laneRealtime();
       else if (lane === 'probes') res = laneProbes();
       else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
       else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });

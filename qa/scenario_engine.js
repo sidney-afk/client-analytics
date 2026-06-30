@@ -77,7 +77,12 @@ async function smmStatus(page, id, comp, status) {
     const wrap = document.querySelector(`[data-substatus-pid="${cid}"][data-substatus-comp="${comp}"]`);
     const trig = wrap && wrap.querySelector('.cal-fld-substatus-trigger'); if (!trig) return 'no-trigger';
     trig.click();
-    const item = [...document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item')].find(i => new RegExp('^\\s*' + status + '\\s*$', 'i').test(i.textContent));
+    // Match by the RAW status in the onclick (`_sxrStatusPick('pid','<status>','comp')`)
+    // first, because the menu LABEL can be personalised (e.g. "Client Approval" renders
+    // as "<FirstName> Approval"); fall back to the visible text for older menus.
+    const items = [...document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item')];
+    const item = items.find(i => ((i.getAttribute('onclick') || '').includes("'" + status + "'")))
+              || items.find(i => new RegExp('^\\s*' + status + '\\s*$', 'i').test(i.textContent));
     if (!item) return 'no-item'; item.click(); return 'ok';
   }, [id, comp, status]);
   return res;
@@ -87,13 +92,30 @@ async function smmApprove(page, name, comp, route) {
   await sleep(page, 1400);   // let any prior action's save+re-render settle before we expand
   await page.waitForFunction((n) => [...document.querySelectorAll('.cal-review-card')].some(c => (c.querySelector('.kcard-title') || {}).textContent === n), name, { timeout: 8000 }).catch(() => {});
   await expandReview(page, name);
-  return page.evaluate((args) => {
+  const res = await page.evaluate((args) => {
     const [n, comp, route] = args;
     const card = [...document.querySelectorAll('.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n);
     const p = card && card.querySelector(`.cal-review-panel[data-comp="${comp}"]`); if (!p) return 'no-panel';
     const b = route === 'alt' ? p.querySelector('.cal-review-approve-alt') : p.querySelector('.cal-review-approve-main, .cal-review-approve-btn');
     if (!b || b.disabled) return 'disabled'; b.click(); return 'ok';
   }, [name, comp, route || 'primary']);
+  if (res !== 'ok') return res;
+  // Approving a component that still has an OPEN change-request opens the
+  // resolve-destination chooser ("Tweaks resolved — where to next?"). Click
+  // through it: route 'primary' → the recommended (filled .primary) destination,
+  // which the chooser pre-selects to the smart default (fresh→Kasper, seen→Client);
+  // route 'alt' → the other stage. If no chooser opened, the approve already went.
+  await sleep(page, 500);
+  await page.evaluate((route) => {
+    const ov = document.getElementById('resolveDestOverlay');
+    if (!ov || !ov.classList.contains('active')) return;
+    const btns = [...ov.querySelectorAll('.resolve-dest-actions .brief-action-btn')];
+    if (!btns.length) return;
+    let target = btns.find(b => b.classList.contains('primary')) || btns[0];
+    if (route === 'alt') { const other = btns.find(b => b !== target); if (other) target = other; }
+    target.click();
+  }, route || 'primary');
+  return 'ok';
 }
 async function reviewTypeAndClick(page, name, comp, text, btnSel, finder) {
   await expandReview(page, name);
@@ -182,8 +204,13 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const note = (pass, msg, extra) => { log.push({ pass, msg, extra }); if (pass) okCount++; else failCount++; };
   const shot = async (page, label) => { if (!doShots) return; try { fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
 
-  // seed
-  up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg' }, scn.seed));
+  // seed — link BOTH components by default. A real sample in the pipeline carries
+  // Linear sub-issues; without them the status pills are locked and an unlinked
+  // thumbnail is gated out of the Kasper queue (the unlinked-thumbnail rule, same
+  // on calendar + samples), so any flow using smm.status or routing the thumbnail
+  // through Kasper would stall. A scenario can still override with '' to test the
+  // unlinked case. (Linear is always mocked by the courier, so this never hits live.)
+  up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) }, scn.seed));
   await poll(() => { const r = supa('id=eq.' + id + '&select=id'); return r[0] || null; }, 12000, 600);
 
   try {

@@ -13,7 +13,8 @@ the thing you used to do by hand, opening the page and clicking around.
 | Lane | Was | What it checks | Browser? |
 |------|-----|----------------|----------|
 | `unit` | `test/run-all.js` (29 suites) | pure transform/state-machine logic | no |
-| `parity` | `parity_*.js`, `render_parity.js` | Samples `_sxr*` is a faithful clone of calendar `_cal*` (logic + DOM + CSS) | yes |
+| `parity` | `parity_*.js`, `render_parity.js`, `realtime_parity.js` | Samples `_sxr*` is a faithful clone of calendar `_cal*` (logic + DOM + CSS + realtime/immediacy wiring) | yes¹ |
+| `realtime` | `realtime_parity.js` + `p88_realtime_handler.js` *(new)* | **Layer A** (static, no browser): every calendar realtime/immediacy hook has a wired samples twin (subscription + teardown + dataChanged gate). **Layer B** (real browser): GIVEN a push, the never-reloaded surface repaints, a no-op echo doesn't rebuild, and the Kasper queue updates. Together: A = "the socket calls the handler", B = "the handler updates the UI". | yes (B only) |
 | `probes` | `run-probes.js` + `p*.js` | calendar lifecycle/routing/sync — drives via app **handlers** (`page.evaluate`), not real clicks | yes |
 | `scenarios` | `scenario_engine.js` + `scenarios.js` | Samples multi-actor flows (SMM/Kasper/Client) — clicks **real DOM nodes in-page** (`element.click()` + input events; not Playwright synthetic mouse/keyboard), asserted against the live DB. Flat library of 51 paths. | yes |
 | `tree` | `scenario_tree.js` *(new)* | same engine, specs from the **branching scenario tree** (shared prefixes + branch points, compiled to root→leaf paths) | yes |
@@ -23,6 +24,16 @@ the thing you used to do by hand, opening the page and clicking around.
 Nothing was thrown away — each lane shells the existing tester. The `full` profile
 runs them all (zero coverage loss); the default `fast` profile runs a smoke subset
 (see below). The master gives them one server, one summary, one exit code.
+
+> ¹ `realtime_parity.js` (Layer A) is pure source analysis — no browser. It rides
+> the `parity` lane on **every** run (including `fast`) so a missing/unwired samples
+> realtime twin breaks the build instantly. The `realtime` lane adds Layer B (the
+> real-browser handler-injection probe) and is in the `full` profile + on demand
+> (`--lane=realtime`). **Why this exists:** the Supabase realtime WebSocket can't be
+> tunneled headless (the egress proxy refuses WS upgrades), so a real cross-tab push
+> can't be observed in the sandbox — but the *handler logic* and the *wiring* (where
+> the two realtime bugs actually lived) are fully testable this way. A real-WS,
+> two-browser-context lane is opt-in for open-egress CI (`SXR_COURIER=0`).
 
 > **Honest note on "real interactions":** only the `scenarios`/`tree`/`visual` lanes
 > drive the UI by locating real DOM elements; they activate them with in-page
@@ -36,7 +47,7 @@ runs them all (zero coverage loss); the default `fast` profile runs a smoke subs
 - **fast** (default) — `unit` + `parity(logic)` + a scenario smoke set + a visual
   smoke set. Run this on every change.
 - **full** — every lane: the whole scenario library, the branching tree, all
-  nightly probes, parity, temporal, visual. Run this nightly / before a release.
+  nightly probes, parity, realtime, temporal, visual. Run this nightly / before a release.
 
 ## Usage
 

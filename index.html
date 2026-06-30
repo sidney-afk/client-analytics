@@ -31662,8 +31662,18 @@
                 const slug = wlNormalizeClient(it.client);
                 it.smm = smmMap.get(slug) || null;
             }
-            // Stable sort: scheduled date first (nulls last), then client name.
+            // Stable sort: oldest sent to Kasper first, so the card that's been
+            // waiting longest on his call sits at the top. No dedicated "sent
+            // to Kasper at" column exists, so post.updated_at is the proxy —
+            // it gets stamped whenever the SMM routes a component (including
+            // the flip to Kasper Approval). Fallbacks keep ordering stable
+            // for posts without a timestamp.
             items.sort((a, b) => {
+                const ta = String(a.post.updated_at || '');
+                const tb = String(b.post.updated_at || '');
+                if (ta && tb && ta !== tb) return ta < tb ? -1 : 1;
+                if (ta && !tb) return -1;
+                if (!ta && tb) return 1;
                 const da = String(a.post.scheduled_date || '').slice(0,10);
                 const db = String(b.post.scheduled_date || '').slice(0,10);
                 if (da && db && da !== db) return da < db ? -1 : 1;

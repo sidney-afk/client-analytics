@@ -7,7 +7,10 @@ function base() {
   const S = [];
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,
-    seed: { ...FOR_SMM },
+    // BOTH components linked: an unlinked thumbnail is gated out of the Kasper
+    // queue (the unlinked-thumbnail rule — same on calendar + samples), so a
+    // "clean path" that takes the thumbnail through Kasper must link it.
+    seed: { ...FOR_SMM, linear_issue_id: 'https://linear.app/x/VID-CLEAN', graphic_linear_issue_id: 'https://linear.app/x/GRA-CLEAN' },
     steps: [
       ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
       ['smm.approve', 'graphic', 'primary'], ['expect', 'graphic_status', 'Kasper Approval'],
@@ -42,7 +45,9 @@ function base() {
 
     S.push({ key: 'kasper_aat_' + comp, title: `Kasper approve-after-tweaks on ${comp}`,
       seed: { [comp + '_status']: 'Kasper Approval', [(comp === 'video' ? 'graphic' : 'video') + '_status']: 'Approved', status: 'Kasper Approval' },
-      steps: [['kasper.aat', comp, 'Kasper: fix then send to SMM'], ['expect', comp + '_status', 'For SMM Approval'], ['expect', 'kasper_approved_after_tweaks', comp]] });
+      // AAT routes the component to Tweaks Needed (editor applies the fix first),
+      // pre-cleared via kasper_approved_after_tweaks — matches the calendar.
+      steps: [['kasper.aat', comp, 'Kasper: fix then send to SMM'], ['expect', comp + '_status', 'Tweaks Needed'], ['expect', 'kasper_approved_after_tweaks', comp]] });
 
     S.push({ key: 'client_request_' + comp, title: `Client requests change on ${comp}`,
       seed: { [comp + '_status']: 'Client Approval', [(comp === 'video' ? 'graphic' : 'video') + '_status']: 'Approved', status: 'Client Approval' },
@@ -81,7 +86,7 @@ function base() {
     // approve-after-tweaks continuation: AAT → SMM approves → should route straight to Client (skip Kasper)
     S.push({ key: 'aat_continuation_' + comp, title: `Approve-after-tweaks continuation on ${comp} → SMM approve routes to Client`,
       seed: { [comp + '_status']: 'Kasper Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Kasper Approval' },
-      steps: [['kasper.aat', comp, 'Fix audio then send'], ['expect', comp + '_status', 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Client Approval']] });
+      steps: [['kasper.aat', comp, 'Fix audio then send'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Client Approval']] });
 
     // request → editor fixes (status back) → re-approve, per actor
     S.push({ key: 'smm_request_fix_approve_' + comp, title: `SMM request→fix→approve loop on ${comp}`,
@@ -175,7 +180,7 @@ function base() {
     // full approve-after-tweaks path: AAT → SMM approve→Client → client approve→Approved
     S.push({ key: 'aat_full_path_' + comp, title: `Full AAT path on ${comp} → Client → Approved`,
       seed: { [comp + '_status']: 'Kasper Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Kasper Approval' },
-      steps: [['kasper.aat', comp, 'fix and pre-clear'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Client Approval'], ['client.approve', comp], ['expect', comp + '_status', 'Approved']] });
+      steps: [['kasper.aat', comp, 'fix and pre-clear'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'For SMM Approval'], ['smm.approve', comp, 'primary'], ['expect', comp + '_status', 'Client Approval'], ['client.approve', comp], ['expect', comp + '_status', 'Approved']] });
 
     // two rounds of Kasper change requests
     S.push({ key: 'kasper_two_round_' + comp, title: `Two rounds of Kasper change requests on ${comp}`,
@@ -209,7 +214,8 @@ function base() {
     seed: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', status: 'Kasper Approval' },
     steps: [
       ['kasper.aat', 'video', 'fix audio'], ['kasper.approve', 'graphic'],
-      ['expect', 'video_status', 'For SMM Approval'], ['expect', 'graphic_status', 'Client Approval'],
+      ['expect', 'video_status', 'Tweaks Needed'], ['expect', 'graphic_status', 'Client Approval'],
+      ['smm.status', 'video', 'For SMM Approval'],
       ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Client Approval'],
       ['client.approve', 'video'], ['client.approve', 'graphic'],
       ['expect', 'video_status', 'Approved'], ['expect', 'graphic_status', 'Approved'], ['expect', 'status', 'Approved'],
@@ -218,7 +224,7 @@ function base() {
   // kasper approve one, AAT the other
   S.push({ key: 'kasper_approve_v_aat_g', title: 'Kasper approves video, approve-after-tweaks on thumbnail',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', status: 'Kasper Approval' },
-    steps: [['kasper.approve', 'video'], ['kasper.aat', 'graphic', 'fix logo then SMM'], ['expect', 'video_status', 'Client Approval'], ['expect', 'graphic_status', 'For SMM Approval']] });
+    steps: [['kasper.approve', 'video'], ['kasper.aat', 'graphic', 'fix logo then SMM'], ['expect', 'video_status', 'Client Approval'], ['expect', 'graphic_status', 'Tweaks Needed']] });
 
   return S;
 }

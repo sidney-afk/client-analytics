@@ -79,7 +79,7 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     // SURFACE 3 — Kasper review card (video at Kasper Approval, expanded)
     try {
       const cp = mkPost('k_c'), sp = mkPost('k_s');
-      const itemC = { post: cp, client: 'Acme', slug: 'acme' }, itemS = { post: sp, client: 'Acme', slug: 'acme' };
+      const itemC = { post: cp, client: 'Acme', slug: 'acme', _expanded: true }, itemS = { post: sp, client: 'Acme', slug: 'acme' };
       if (typeof _kasperState === 'object') { _kasperState.items = [itemC]; }
       if (typeof _sxrKasperState === 'object') { _sxrKasperState.items = [itemS]; _sxrKasperState.expanded[sp.id] = true; }
       R.kasperCard = { cal: snap(_kasperRenderCard(itemC)), sxr: snap(_sxrKasperRenderCard(itemS)) };
@@ -118,6 +118,8 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
   const INTENTIONAL = [
     'Alt caption', 'Generate', 'Show more', 'Caption In Progress', 'Caption',   // samples has no caption component
     'Toggle client visibility',                                                  // samples-only creative-direction eye
+    'Tag this card with a color',                                                // colour tag — EXCLUDED per SAMPLES_REBUILD_SPEC.md:98
+    'Instagram', 'YouTube', 'TikTok', 'Facebook', 'LinkedIn',                    // platforms strip — EXCLUDED per spec:98
   ];
   const isIntentional = (label) => INTENTIONAL.some(i => label === i || label.includes(i));
 

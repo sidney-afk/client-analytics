@@ -1,5 +1,11 @@
 # `qa/` — live golden-path interaction probes
 
+> **Want to run everything at once?** See **[`MASTER_TESTER.md`](./MASTER_TESTER.md)** —
+> one command (`npm run test:master`) runs every lane (unit, parity, probes,
+> scenarios, temporal) plus a **vision pass** that looks at real screenshots and
+> judges whether the UI looks right *and* behaves right. The `/master-test` skill
+> drives it with Claude's eyes in the loop. The probes below are individual lanes.
+
 Runnable, end-to-end probes for the 6 golden review paths in
 `docs/CALENDAR-TEST-CATALOG.md` §10.4. They drive the **real** Kasper and client
 handlers across surfaces and assert on the backend after every step.

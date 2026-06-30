@@ -14,12 +14,14 @@ existing `kasper_approved_at`:
 
 - **`kasper_finished_at`** — set when Kasper hits **Finish reviewing** on a card
   with outstanding change-requests (a hand-off). The card sits in **"Tweaks
-  pending"** until the SMM addresses it, or a **fresh ask** supersedes it:
-  an *actionable* component back at **Kasper Approval** (an unlinked-thumbnail
-  graphic stuck at KA does **not** count — it can't be acted on), or a message
-  newer than this stamp (the SMM/client replied). The stamp doubles as Kasper's
-  "I'd seen everything up to here" marker, so "did someone reply since I
-  finished?" works cross-device too.
+  pending"** and **stays there** — a later message (an SMM reply OR a client
+  tweak) updates it **in place** but does **not** move it. It returns to
+  **"Waiting"** for exactly one reason: a component is re-sent to **Kasper
+  Approval** (an *actionable* one — an unlinked-thumbnail graphic stuck at KA does
+  **not** count, it can't be acted on). *(Product rule, 2026-06-29: an earlier
+  build also re-surfaced on any newer message, which kept bouncing finished cards
+  back into Waiting whenever a client added a tweak — e.g. Alli Schaper "Video 12".
+  That message branch was removed from `_kasperIsFinished` / `_sxrKasperIsFinished`.)*
 - **`kasper_closed_at`** — set when Kasper **X-closes** a card (no decision, just
   hide it). It re-surfaces when a new message lands after the stamp.
 
@@ -87,4 +89,5 @@ the SMM (or a second Kasper session with empty localStorage). On the Kasper
 session, request a change on a card and hit **Finish reviewing**. Within ~1s it
 should move to **"Tweaks pending"** on **both** sessions and **stay there after a
 refresh on the second device** (which never saw Kasper's localStorage). A new
-reply from the SMM should bring it back to **"Waiting"** on both.
+reply (SMM or client) must **NOT** move it — it stays in **"Tweaks pending"**;
+only re-sending a component to **Kasper Approval** brings it back to **"Waiting"**.

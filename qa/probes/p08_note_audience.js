@@ -1,20 +1,24 @@
 // p08 — §4.9/§10/§14 privacy boundary: internal (team/Kasper) notes must NEVER reach the
-// client surface; client-audience notes must. Also: an internal note surfaces in Kasper's
-// Messages/Replies inbox. Injects 3 root notes (smm-internal, smm-client, kasper-internal).
+// client surface; client-audience notes must. Also: a reply to one of Kasper's own internal
+// threads surfaces the card in his Messages/Replies inbox. Injects 3 root notes
+// (smm-internal, smm-client, kasper-internal) + an SMM reply to the Kasper note.
 const Q = require('./lib.js');
 const PID = 'p_note_' + Math.floor(Date.now() / 1000);
 const now = () => new Date().toISOString();
 const mk = (id, role, audience, body) => ({ id, parent_id: null, author: role === 'kasper' ? 'Kasper' : (role === 'client' ? 'Client' : 'Synchro Social'),
   role, is_tweak: false, audience, body, created_at: now(), updated_at: now(), done: false, done_at: '', done_by: '' });
+const reply = (id, parent, role, audience, body) => Object.assign(mk(id, role, audience, body), { parent_id: parent });
 
 const INTERNAL = 'INTERNAL-SECRET-' + PID.slice(-5);
 const CLIENTV  = 'CLIENT-VISIBLE-' + PID.slice(-5);
 const KASPERS  = 'KASPER-SECRET-' + PID.slice(-5);
+const SMMREPLY = 'SMM-REPLY-SECRET-' + PID.slice(-5);   // reply to Kasper's note → surfaces his inbox
 const TS = PID.slice(-6);
 const COMMENTS = [
   mk('cn_int_' + TS, 'smm', 'internal', INTERNAL),
   mk('cn_cli_' + TS, 'smm', 'client',   CLIENTV),
   mk('cn_kas_' + TS, 'kasper', 'internal', KASPERS),
+  reply('cn_rep_' + TS, 'cn_kas_' + TS, 'smm', 'internal', SMMREPLY),
 ];
 
 (async () => {
@@ -41,6 +45,7 @@ const COMMENTS = [
     S.ok(filt.bodies && filt.bodies.includes(CLIENTV), 'client filter INCLUDES the client-audience note');
     S.ok(filt.bodies && !filt.bodies.includes(INTERNAL), 'client filter EXCLUDES the SMM internal note');
     S.ok(filt.bodies && !filt.bodies.includes(KASPERS), 'client filter EXCLUDES the Kasper internal note');
+    S.ok(filt.bodies && !filt.bodies.includes(SMMREPLY), 'client filter EXCLUDES the SMM reply on the Kasper internal thread');
 
     // CLIENT: rendered DOM must show the client note, never the internal ones.
     const dom = await cli.evaluate(async (a) => {
@@ -49,15 +54,17 @@ const COMMENTS = [
       try { _calReviewToggleCard(a.pid); } catch (e) {}
       await new Promise(x => setTimeout(x, 500));
       const t = document.body.innerText || '';
-      return { hasClient: t.includes(a.CLIENTV), hasInternal: t.includes(a.INTERNAL), hasKasper: t.includes(a.KASPERS) };
-    }, { pid: PID, CLIENTV, INTERNAL, KASPERS });
+      return { hasClient: t.includes(a.CLIENTV), hasInternal: t.includes(a.INTERNAL), hasKasper: t.includes(a.KASPERS), hasReply: t.includes(a.SMMREPLY) };
+    }, { pid: PID, CLIENTV, INTERNAL, KASPERS, SMMREPLY });
     console.log('client DOM:', JSON.stringify(dom));
     S.ok(dom.hasClient, 'client DOM shows the client note (render path active)');
     S.ok(!dom.hasInternal, 'client DOM does NOT show the SMM internal note');
     S.ok(!dom.hasKasper, 'client DOM does NOT show the Kasper internal note');
+    S.ok(!dom.hasReply, 'client DOM does NOT show the SMM reply on the Kasper internal thread');
     S.ok(cli._errs.length === 0, 'client: 0 JS errors (' + JSON.stringify(cli._errs.slice(0,3)) + ')');
 
-    // KASPER: an internal unread note should surface this card in the Replies/Messages inbox.
+    // KASPER: an unread reply on one of his own internal threads should surface this card
+    // in the Replies/Messages inbox (a fresh SMM/client note he never touched would not).
     const inbox = await kas.evaluate(async (a) => {
       for (let i = 0; i < 18; i++) {
         try { await _kasperLoadReview(true); } catch (e) {}
@@ -68,7 +75,7 @@ const COMMENTS = [
       return { inReplies: (_kasperState.replies || []).some(x => x.post.id === a.pid) };
     }, { pid: PID });
     console.log('kasper inbox:', JSON.stringify(inbox));
-    S.ok(inbox.inReplies, 'Kasper Messages inbox surfaces the card (internal unread note)');
+    S.ok(inbox.inReplies, 'Kasper Messages inbox surfaces the card (unread reply on his internal thread)');
     S.ok(kas._errs.length === 0, 'kasper: 0 JS errors (' + JSON.stringify(kas._errs.slice(0,3)) + ')');
   } finally {
     // tombstone the comments + archive (leave Sidney clean)

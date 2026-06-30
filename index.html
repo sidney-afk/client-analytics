@@ -2685,7 +2685,7 @@
            of native browser title tooltips. See setupGlobalTooltip() for
            the wire-up and opt-out semantics (data-no-tip, form fields, etc.). */
         .global-tip { position: fixed; z-index: 99999; max-width: 240px; padding: 7px 11px;
-            background: #2a2a28; color: #f5f5f3;
+            background: #0f172a; color: #fff;
             font-family: inherit; font-size: 0.72rem; font-weight: 500; line-height: 1.4; letter-spacing: 0;
             border-radius: 7px; box-shadow: 0 6px 20px rgba(0,0,0,0.22);
             pointer-events: none; white-space: normal; word-wrap: break-word; text-align: left;
@@ -2694,8 +2694,8 @@
         .global-tip::before { content: ''; position: absolute;
             left: var(--arrow-left, 50%); transform: translateX(-50%);
             border: 5px solid transparent; }
-        .global-tip[data-placement="above"]::before { top: 100%; border-top-color: #2a2a28; }
-        .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: #2a2a28; }
+        .global-tip[data-placement="above"]::before { top: 100%; border-top-color: #0f172a; }
+        .global-tip[data-placement="below"]::before { bottom: 100%; border-bottom-color: #0f172a; }
 
         /* Month + Week shared header */
         .cal-month-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 14px; }
@@ -3481,11 +3481,8 @@
         .ked-avatar img { width: 100%; height: 100%; object-fit: cover; }
         .ked-id { min-width: 0; }
         .ked-name { font-size: 1rem; font-weight: 700; color: var(--text-primary); letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
-        .ked-id-breakdown { font-size: 0.78rem; color: var(--text-secondary); margin-top: 3px; font-weight: 500; font-variant-numeric: tabular-nums; }
-        .ked-id-breakdown strong { color: var(--text-primary); font-weight: 800; }
         .ked-id-sep { color: var(--text-muted); margin: 0 1px; }
-        .ked-id-breakdown .ked-bd-finished { color: #15803d; font-weight: 700; }
-        .ked-id-breakdown .ked-bd-wip { color: var(--text-muted); }
+        .ked-bd-wip { color: var(--text-muted); }
         .ked-row-avg { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; gap: 6px; }
         .ked-avg-val { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
         .ked-avg-label { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--text-muted); margin-top: 4px; }
@@ -3501,9 +3498,15 @@
         .ked-stat-val { font-size: 1.55rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; line-height: 1; }
         .ked-stat.is-load  .ked-stat-val { color: #b45309; }
         .ked-stat.is-deliv .ked-stat-val { color: var(--text-primary); }
+        .ked-stat.is-finished .ked-stat-val { color: #15803d; }
+        .ked-stat.is-open .ked-stat-val { color: #6b7280; }
+        .ked-vid-rounds { display: inline-block; margin-left: 7px; padding: 1px 7px; border-radius: 999px; background: #fef3c7; color: #b45309; font-size: 0.66rem; font-weight: 700; vertical-align: middle; white-space: nowrap; }
         .ked-stat-label { font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 3px; }
         .ked-stat-sub { font-size: 0.66rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-secondary); white-space: nowrap; }
         .ked-stat-sep { width: 1px; align-self: stretch; min-height: 34px; background: var(--border); }
+        .ked-avgtoggle { display: inline-flex; background: #f1f1ef; border-radius: 8px; padding: 2px; }
+        .ked-avgtoggle-btn { border: none; background: transparent; font: inherit; font-size: 0.72rem; font-weight: 700; color: var(--text-muted); padding: 4px 11px; border-radius: 6px; cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .ked-avgtoggle-btn.is-active { background: #fff; color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .ked-row-chev { color: var(--text-muted); transition: transform 0.15s; flex-shrink: 0; }
         .ked-row.expanded .ked-row-chev { transform: rotate(180deg); }
         .ked-bars { margin-top: 14px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
@@ -3610,10 +3613,7 @@
         .ked-legend-swatch[data-status="other"]         { background: #9ca3af; }
 
         /* Custom hover tooltip — single line, status name only. */
-        .ked-tip { position: fixed; pointer-events: none; transform: translate(-50%, calc(-100% - 14px)) translateY(4px); background: #0f172a; color: #fff; padding: 6px 10px 7px; border-radius: 7px; font-size: 0.74rem; font-weight: 700; line-height: 1.2; box-shadow: 0 8px 24px rgba(0,0,0,0.24), 0 2px 6px rgba(0,0,0,0.16); opacity: 0; transition: opacity 0.12s ease, transform 0.13s ease; z-index: 9999; white-space: nowrap; letter-spacing: -0.005em; }
-        .ked-tip.is-visible { opacity: 1; transform: translate(-50%, calc(-100% - 14px)); }
-        .ked-tip-status { font-size: 0.74rem; }
-        .ked-tip-arrow { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); width: 8px; height: 8px; background: #0f172a; rotate: 45deg; border-radius: 0 0 2px 0; }
+        /* Editor-tab tooltips use the shared .global-tip system (see setupGlobalTooltip). */
         .ked-empty-msg { background: var(--white); border: 1px dashed var(--border); border-radius: 12px; padding: 26px 18px; text-align: center; color: var(--text-secondary); font-size: 0.84rem; }
 
         @media (max-width: 720px) {
@@ -11893,9 +11893,9 @@
       ['native','Native','Clean, bold white captions.', OB_VID+'sub-native.mp4', OB_VID+'sub-native-hl.mp4'],
       ['bold','Bold','Big, heavy captions that pop.', OB_VID+'sub-bold.mp4', OB_VID+'sub-bold-hl.mp4'],
     ];
-    // AI "which look" examples (ⓘ → full-screen frame)
-    const OB_LOOK_TALKING = SC_THUMB+'698156ef-6b7d-47ae-ab2b-200bffca454a.jpg';
-    const OB_LOOK_PODCAST = SC_THUMB+'64c399a3-f84d-44ee-a61e-fa36c49648c7.jpg';
+    // AI "which look" examples — shown as selectable previews (client's own reference frames).
+    const OB_LOOK_TALKING = 'onboarding-ai/talking-head.jpg';
+    const OB_LOOK_PODCAST = 'onboarding-ai/podcast.jpg';
 
     const OB_BROLL_OPTS = [ ['stock','Stock footage'], ['ai','AI-generated'], ['mix','Mix of both'], ['own','My own footage'], ['none','No B-roll'] ];
 
@@ -11960,8 +11960,8 @@
         '<div class="ob-genres" data-ob-multi="music">'+rows+'</div></div>';
     }
 
-    // Style cards: name+desc on top, then the standard + "+ highlight" previews below (both shown).
-    // The card's radio carries data-hashl so the group's Highlight toggle can enable on selection.
+    // A single preview tile: the clip/image (tap to play/zoom) plus a caption slot below
+    // (used for the selectable Standard / +Highlight pick under each subtitle style).
     function _obStylePreview(url, isVideo, cap){
       if(!url) return '';
       const inner = isVideo
@@ -11970,23 +11970,28 @@
       return '<div class="ob-stp"><button type="button" class="ob-sub-thumb" data-ob-zoom="'+url+'" aria-label="View example full screen">'+inner+'</button>'+cap+'</div>';
     }
     function _obStyleCards(group, items, isVideo){
+      // Each preview (Standard and +Highlight) is its OWN selectable option with a radio dot that
+      // fills when picked — same bullet-select feel as the cards. One radio group (subtitle_pick)
+      // across all styles/variants; a change derives the hidden subtitle_style + subtitle_highlight.
+      const pick = (val, st, hl, label) =>
+        '<label class="ob-stp-pick"><input type="radio" name="subtitle_pick" value="'+val+'" data-style="'+st+'" data-hl="'+hl+'"><span class="ob-stp-dot"></span><span class="ob-stp-pk-txt">'+label+'</span></label>';
       return items.map(t=>{
         const std=t[3]||'', hl=t[4]||'';
-        // The highlight preview's caption IS the add-on control: a per-style "+ Add highlight"
-        // pill (right where the +Highlight preview is, so it's obvious it can be turned on).
-        const stdCap = '<span class="ob-stp-cap">Standard</span>';
-        const hlCap = '<button type="button" class="ob-hl-pill" data-ob-hl="'+t[0]+'" aria-pressed="false">+ Add highlight</button>';
-        const previews = '<div class="ob-stp-row">'+_obStylePreview(std, isVideo, stdCap)+(hl?_obStylePreview(hl, isVideo, hlCap):'')+'</div>';
+        const stdPrev = _obStylePreview(std, isVideo, pick(t[0], t[0], '0', 'Subtitle'));
+        const hlPrev = hl ? _obStylePreview(hl, isVideo, pick(t[0]+'__hl', t[0], '1', 'Subtitle + Highlights')) : '';
+        const previews = '<div class="ob-stp-row">'+stdPrev+hlPrev+'</div>';
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
-        return '<div class="ob-stcard"><label class="ob-stcard-head"><input type="radio" name="'+group+'" value="'+t[0]+'" data-hashl="'+(hl?'1':'')+'"><span class="ob-sub-dot"></span><span class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</span></label>'+previews+'</div>';
+        return '<div class="ob-stcard"><div class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div>'+previews+'</div>';
       }).join('');
     }
 
     function _obSubtitles(){
       return '<div class="ob-q" data-ob-q="subtitle_style"><label class="ob-label">Subtitle style<span class="ob-req">*</span></label>'+
-        '<div class="ob-help">Pick the caption style. Each shows the standard look and the +highlight version side by side — tap a preview to play it, or hit <b>+ Add highlight</b> under a style to add the colour-pop keywords as an add-on.</div>'+
-        '<div class="ob-stgrid" data-ob-radio="subtitle_style" data-ob-stylegroup="subtitle_style">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
-        // hidden carrier for the add-on value (serialized as a boolean); driven by the per-style pills.
+        '<div class="ob-help">Tap a preview to play it, then click the dot under the look you want — pick the plain <b>Subtitle</b> or the <b>Subtitle + Highlights</b> version, where a key word pops in colour.</div>'+
+        '<div class="ob-stgrid">'+_obStyleCards('subtitle_style', OB_SUBTITLE_STYLES, true)+'</div>'+
+        // hidden carriers (set from the visible picks) — keep subtitle_style + subtitle_highlight
+        // exactly as before, so serialization, validation and the dashboard viewer are unchanged.
+        '<input type="hidden" data-ob="subtitle_style">'+
         '<input type="checkbox" data-ob-toggle="subtitle_highlight" hidden></div>';
     }
 
@@ -12045,39 +12050,45 @@
     // Sync the per-style "+ Add highlight" pills to the current selection + add-on state.
     // The pill on the SELECTED style reads "Highlight on" when the add-on is on; the others
     // invite turning it on. subtitle_highlight is one boolean (a hidden checkbox carrier).
-    function _obStyleSel(){
-      const sel=document.querySelector('input[name="subtitle_style"]:checked');
-      const selStyle = sel ? sel.value : '';
-      const hasHl = !!(sel && sel.getAttribute('data-hashl')==='1');
+    // A subtitle pick was made: write the chosen style + highlight into the hidden carriers.
+    function _obPickSubtitle(radio){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
       const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
-      if(!hasHl && c && c.checked) c.checked=false;   // a style with no highlight variant can't be highlighted
-      const hlOn = !!(c && c.checked);
-      document.querySelectorAll('.ob-hl-pill[data-ob-hl]').forEach(p=>{
-        const st=p.getAttribute('data-ob-hl'); const active=(st===selStyle && hlOn);
-        p.classList.toggle('on', active);
-        p.setAttribute('aria-pressed', active?'true':'false');
-        p.innerHTML = active ? (OB_CHECK_SVG+'Highlight on') : '+ Add highlight';
-      });
+      if(s) s.value = radio.getAttribute('data-style')||'';
+      if(c) c.checked = radio.getAttribute('data-hl')==='1';
     }
-    // Clicking a style's "+ Add highlight" pill: if it's the selected style, toggle the add-on;
-    // otherwise select that style and turn the add-on on.
-    function _obClickHlPill(style){
-      const sel=document.querySelector('input[name="subtitle_style"]:checked');
-      const selStyle = sel ? sel.value : '';
+    // Reflect the hidden subtitle_style + subtitle_highlight carriers onto the visible picks
+    // (used on restore / mount so a saved choice shows its filled dot).
+    function _obStyleSel(){
+      const s=document.querySelector('input[data-ob="subtitle_style"]');
       const c=document.querySelector('[data-ob-toggle="subtitle_highlight"]');
-      if(style===selStyle){ if(c) c.checked=!c.checked; }
-      else { const radio=document.querySelector('input[name="subtitle_style"][value="'+style+'"]'); if(radio) radio.checked=true; if(c) c.checked=true; }
-      _obStyleSel(); _obSaveDraftDebounced();
+      const style=s?s.value:''; const hl=!!(c&&c.checked);
+      const want = style ? (style + (hl?'__hl':'')) : '';
+      document.querySelectorAll('input[name="subtitle_pick"]').forEach(r=>{ r.checked=(r.value===want); });
+    }
+    // Reveal the optional "link to your B-roll footage" field only when "My own footage" is picked.
+    function _obBrollSync(){
+      const r=document.querySelector('input[name="broll"]:checked');
+      const bl=document.getElementById('obBrollLink');
+      if(bl) bl.style.display=(r&&r.value==='own')?'block':'none';
     }
 
     function _obBroll(){ return _obField({ id:'broll', label:'B-roll', help:'Extra footage laid over your talking. Pick one.', type:'radio', options:OB_BROLL_OPTS }); }
 
     // AI "which look" — multiselect chips, each with an ⓘ that opens an example frame.
     function _obLook(){
+      // Show the example frames up front (no ⓘ to click) and let the client tick the look(s)
+      // they want — same preview + select feel as the subtitle styles. Multi-select (one or both).
+      const opt = (val, img, label) =>
+        '<div class="ob-stp">'+
+          '<button type="button" class="ob-sub-thumb" data-ob-zoom="'+img+'" aria-label="View '+_obEsc(label)+' full screen"><img src="'+img+'" alt="'+_obEsc(label)+'" loading="lazy"><span class="ob-zoom-ic">'+OB_EXPAND_SVG+'</span></button>'+
+          '<label class="ob-genre-pick ob-look-pick"><input type="checkbox" name="ai_content_style" value="'+val+'"><span class="ob-chk"></span><span class="ob-stp-pk-txt">'+label+'</span></label>'+
+        '</div>';
       return '<div class="ob-q" data-ob-q="ai_content_style"><label class="ob-label">Which look do you prefer?<span class="ob-req">*</span></label>'+
-        '<div class="ob-checks" data-ob-multi="ai_content_style">'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="talking_head"><span>Talking to camera</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_TALKING+'" aria-label="See example"')+'</span>'+
-          '<span class="ob-opt-wrap"><label class="ob-pill-opt"><input type="checkbox" value="podcast"><span>Podcast style</span></label>'+_obInfoBtn('data-ob-zoom="'+OB_LOOK_PODCAST+'" aria-label="See example"')+'</span>'+
+        '<div class="ob-help">Tap a preview to see it full screen, then tick the look(s) you want — pick one or both.</div>'+
+        '<div class="ob-stp-row ob-look-row" data-ob-multi="ai_content_style">'+
+          opt('talking_head', OB_LOOK_TALKING, 'Talking to camera')+
+          opt('podcast', OB_LOOK_PODCAST, 'Podcast style')+
         '</div></div>';
     }
 
@@ -12156,7 +12167,9 @@
           _obCreators(),
           _obSubgroup('Video', '#6f8be8', [
             _obSubtitles(),
+            '<div class="ob-info-panel ob-tp-note">This is just to point us in the right direction — nothing here is locked in. Treat it as inspiration: the subtitles, the highlight colour, the music and anything else can all change as we work together.</div>',
             _obBroll(),
+            '<div class="ob-q" id="obBrollLink" data-ob-q="broll_link" style="display:none"><label class="ob-label">Link to your B-roll footage (optional)</label><div class="ob-help">If you have your own footage you\'d like us to use, drop a link here.</div><input class="ob-input" type="url" data-ob="broll_link" placeholder="Paste any link…">'+OB_DRIVE_NOTE+'</div>',
             _obMusic(),
             _obField({id:'music_refs', label:'Music reference (optional)', help:'A link to a song or two whose style you like — Spotify, YouTube, Apple Music, SoundCloud, whatever you use.', type:'url', placeholder:'Paste any link…'}),
             _obField({id:'video_reference', label:'Video reference — links (optional)', help:'Paste links to videos or reels whose look you like.', type:'textarea', rows:2, placeholder:'Paste any links…'}),
@@ -12278,7 +12291,8 @@
         if(t.name==='ai_avatar'){ _obToggleAi(t.value); }
         if(t.getAttribute && t.getAttribute('data-ob')==='ai_use_existing'){ _obUpdateLikenessVisibility(); }
         if(t.name==='ai_content_style'){ _obTogglePodcast(); }
-        if(t.name==='subtitle_style'){ _obStyleSel('subtitle_style'); }
+        if(t.name==='subtitle_pick'){ _obPickSubtitle(t); }
+        if(t.name==='broll'){ _obBrollSync(); }
         if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_highlight'){ _obThumbSync(); }
         if(t.getAttribute && t.getAttribute('data-ob-toggle')==='thumbnail_build'){ _obThumbBuildSync(); }
         // Exclusive option: picking it clears the rest; picking anything else clears it.
@@ -12306,7 +12320,6 @@
         const rail = e.target.closest && e.target.closest('[data-ob-rail]'); if(rail){ const cont=rail.parentElement; if(cont && cont.classList.contains('ob-subgroup')) _obToggleSubgroup(cont); else if(cont && cont.classList.contains('ob-sec')) cont.classList.toggle('collapsed'); return; }
         const tp = e.target.closest && e.target.closest('[data-ob-tp-opt]'); if(tp){ e.preventDefault(); const parts=tp.getAttribute('data-ob-tp-opt').split(':'); const sel=document.querySelector('[data-ob="thumbnail_'+(parts[0]==='font'?'font':'text_style')+'"]'); if(sel){ sel.value=parts[1]; } _obThumbSync(); _obSaveDraftDebounced(); return; }
         const play = e.target.closest && e.target.closest('.ob-play'); if(play){ e.preventDefault(); _obPlayMusic(play); return; }
-        const hlp = e.target.closest && e.target.closest('[data-ob-hl]'); if(hlp){ e.preventDefault(); _obClickHlPill(hlp.getAttribute('data-ob-hl')); return; }
         const zoom = e.target.closest && e.target.closest('[data-ob-zoom]'); if(zoom){ e.preventDefault(); _obZoom(zoom.getAttribute('data-ob-zoom')); return; }
         const info = e.target.closest && e.target.closest('[data-ob-info]'); if(info){ e.preventDefault(); const k=info.getAttribute('data-ob-info'); const pan=document.querySelector('[data-ob-info-panel="'+k+'"]'); if(pan) pan.style.display = pan.style.display==='none'?'block':'none'; return; }
         const csT = e.target.closest && e.target.closest('[data-cs-toggle]'); if(csT){ e.preventDefault(); _obToggleSelect(csT.getAttribute('data-cs-toggle')); return; }
@@ -12354,10 +12367,10 @@
         html+='<div class="ob-help">You already shared '+shared+' earlier — can we use that to build your avatar?</div>'+
           '<div class="ob-radios" data-ob-radio="ai_use_existing"><label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="yes" data-ob="ai_use_existing"><span>Yes, use those</span></label>'+
           '<label class="ob-pill-opt"><input type="radio" name="ai_use_existing" value="no" data-ob="ai_use_existing"><span>No, I\'ll send new ones</span></label></div>'+
-          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+          '<div id="obAiNew" style="display:none;margin-top:10px"><div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
           '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE+'</div>';
       } else {
-        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link (add photos too).</div>'+
+        html+='<div class="ob-help">Record ~30 seconds of you talking to the camera like a normal video, and paste the link.</div>'+
           '<input class="ob-input" type="url" data-ob="ai_new_likeness" placeholder="https://…">'+OB_DRIVE_NOTE;
       }
       const prev=_obFieldVal('ai_new_likeness'); const prevUse=(document.querySelector('input[name="ai_use_existing"]:checked')||{}).value;
@@ -12469,7 +12482,7 @@
       form.querySelectorAll('[data-ob-multi]').forEach(g=>{ const arr=d[g.getAttribute('data-ob-multi')]; if(Array.isArray(arr)) arr.forEach(v=>{ const i=g.querySelector('input[value="'+v+'"]'); if(i) i.checked=true; }); });
       form.querySelectorAll('[data-ob-toggle]').forEach(t=>{ if(d[t.getAttribute('data-ob-toggle')]) t.checked=true; });
       const af=document.querySelector('[data-ob="ai_accessories_other"]'); const ao=document.querySelector('[data-ob-multi="ai_accessories"] input[value="other"]'); if(af&&ao) af.style.display=ao.checked?'block':'none';
-      _obStyleSel('subtitle_style'); _obThumbSync(); _obThumbBuildSync();
+      _obStyleSel(); _obBrollSync(); _obThumbSync(); _obThumbBuildSync();
       _obSyncSelects(); _obUpdateLikeness(); _obTogglePodcast();
     }
 
@@ -12618,11 +12631,21 @@
       .ob-stp{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:0 0 auto; }
       .ob-stp .ob-sub-thumb{ width:112px; height:199px; cursor:pointer; }
       .ob-stp-cap{ font-size:0.7rem; font-weight:600; color:var(--text-muted); }
-      /* Per-style highlight add-on pill (sits where the +Highlight caption was). */
-      .ob-hl-pill{ display:inline-flex; align-items:center; gap:4px; font-family:inherit; font-size:0.7rem; font-weight:700; line-height:1; color:var(--ob-accent); background:transparent; border:1.5px solid var(--ob-accent); border-radius:99px; padding:5px 11px; cursor:pointer; transition:background 0.13s, color 0.13s; white-space:nowrap; }
-      .ob-hl-pill:hover{ background:rgba(99,102,241,0.14); }
-      .ob-hl-pill.on{ background:var(--ob-accent); border-color:var(--ob-accent); color:#fff; }
-      .ob-hl-pill svg{ display:block; }
+      /* Selectable pick under each preview (Standard / +Highlight): a radio dot that fills. */
+      .ob-stp-pick{ display:inline-flex; align-items:center; gap:6px; cursor:pointer; font-size:0.74rem; font-weight:600; color:var(--text-secondary); user-select:none; }
+      .ob-stp-pick input{ position:absolute; opacity:0; width:0; height:0; }
+      .ob-stp-dot{ flex-shrink:0; width:15px; height:15px; border-radius:50%; border:1.7px solid var(--border); position:relative; transition:all 0.12s; }
+      .ob-stp-pick:hover .ob-stp-dot{ border-color:var(--text-muted); }
+      .ob-stp-pick input:checked + .ob-stp-dot{ border-color:var(--ob-accent); }
+      .ob-stp-pick input:checked + .ob-stp-dot::after{ content:''; position:absolute; inset:3px; border-radius:50%; background:var(--ob-accent); }
+      .ob-stp-pick input:checked ~ .ob-stp-pk-txt{ color:var(--ob-accent); }
+      .ob-stp-pick input:focus-visible + .ob-stp-dot{ outline:2px solid var(--ob-accent); outline-offset:2px; }
+      /* AI "which look" — selectable image previews (multi-select, one or both). */
+      .ob-look-row{ flex-wrap:wrap; }
+      .ob-look-row .ob-stp .ob-sub-thumb{ width:150px; height:266px; }
+      .ob-look-pick{ flex:0 0 auto; align-items:flex-start; max-width:160px; line-height:1.3; }
+      .ob-look-pick .ob-chk{ margin-top:1px; }
+      .ob-look-row .ob-stp:has(input:checked) .ob-sub-thumb{ outline:2.5px solid var(--ob-accent); outline-offset:2px; }
       /* Live thumbnail picker — preview left, tight controls right (minimal cursor travel). */
       .ob-tp-buildrow{ margin-bottom:14px; }
       .ob-tp-buildlbl{ font-size:0.88rem; font-weight:600; }
@@ -12661,7 +12684,7 @@
       .ob-switch input:checked + .ob-switch-track{ background:var(--ob-accent); }
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
-      .ob-tp-note{ margin:16px 0 0; }
+      .ob-tp-note{ margin:18px 0 22px; }
       .ob-lp-check{ align-items:flex-start; gap:10px; line-height:1.45; }
       .ob-lp-check .ob-chk{ margin-top:1px; }
       .ob-ai-fields{ margin-top:6px; }
@@ -21878,11 +21901,33 @@
         }
         return false;
     }
-    /* Kasper's view of unread: a message he didn't write, on one of HIS
-       internal threads (audience 'internal'), newer than the last time he
-       caught up on this card. Drives the Replies inbox + the "New reply" pill.
-       Replies inherit their root's audience, so we resolve each message's root
-       to decide whether it's part of an internal conversation. */
+    /* Root-message ids on this component that belong to a KASPER conversation —
+       a thread he started (the root is his) OR one he joined (he replied on it).
+       Replies point straight at their root, so we resolve each Kasper-authored
+       message to its root and collect those ids.
+
+       This is what keeps the Messages inbox honest: a reply only belongs in
+       Kasper's inbox when it answers something HE said. A fresh note or
+       change-request the SMM opened that Kasper never touched is NOT his
+       conversation, so it must not surface a card (or a thread) in his inbox —
+       matching the documented intent ("the SMM or client replied on one of
+       Kasper's internal threads"). */
+    function _kasperOwnedThreadRoots(list, byId) {
+        const roots = new Set();
+        if (!Array.isArray(list)) return roots;
+        for (const m of list) {
+            if (!m || m.deleted || m.role !== 'kasper') continue;
+            const root = (m.parent_id && byId && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
+            if (root && root.id) roots.add(root.id);
+        }
+        return roots;
+    }
+    /* Kasper's view of unread: a message he didn't write, on one of HIS OWN
+       internal threads (a thread he authored or replied on), newer than the last
+       time he caught up on this card. Drives the Replies inbox + the "New reply"
+       pill. Replies inherit their root's audience, so we resolve each message's
+       root to decide both whether it's an internal conversation AND whether that
+       conversation is one Kasper is part of (via _kasperOwnedThreadRoots). */
     function _kasperHasUnreadReply(post) {
         if (!post) return false;
         const seen = _kasperGetSeenAt(post.id);
@@ -21891,22 +21936,26 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.role === 'kasper') continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;   // only replies to a thread Kasper is part of
                 const t = String(m.updated_at || m.created_at || '');
                 if (t && (!seen || t > seen)) return true;
             }
         }
         return false;
     }
-    /* Newest NON-Kasper internal-thread message timestamp on this card — the exact
-       basis _kasperHasUnreadReply tests against. "Mark as read" must stamp THIS,
-       not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's own
-       and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
+    /* Newest NON-Kasper message timestamp on one of Kasper's OWN internal threads —
+       the exact basis _kasperHasUnreadReply tests against. "Mark as read" must stamp
+       THIS, not _calLatestMsgAt (which is the max over ALL messages, incl. Kasper's
+       own and resolve-time updated_at bumps): otherwise resolving an unrelated tweak
        more recently than a still-unread reply makes mark-read stamp the newer
-       time and silently bury that genuinely-unread reply. */
+       time and silently bury that genuinely-unread reply. Must mirror the gate's
+       owned-thread filter exactly, or it could stamp past a reply the gate still
+       counts as unread (or fail to clear one it no longer does). */
     function _kasperRepliesSeenBasis(post) {
         if (!post) return '';
         let max = '';
@@ -21915,18 +21964,23 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.role === 'kasper') continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
                 const t = String(m.updated_at || m.created_at || '');
                 if (t > max) max = t;
             }
         }
         return max;
     }
-    /* Component owning the most recent internal message — where a Kasper reply
-       from the Replies inbox should land so the conversation stays together. */
+    /* Component owning the most recent message on one of Kasper's OWN internal
+       threads — where a Kasper reply from the Replies inbox should land so the
+       conversation stays together. Restricted to owned threads so his reply
+       attaches to the conversation he's actually looking at, never to an
+       unrelated SMM-only thread the inbox no longer shows. */
     function _kasperLatestInternalComp(post) {
         let best = null, bestT = '';
         for (const c of _calComponentsFor(post)) {
@@ -21934,10 +21988,12 @@
             if (!Array.isArray(list)) continue;
             const byId = new Map();
             for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted) continue;
                 const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
                 if (_calMsgAudience(root) !== 'internal') continue;
+                if (!owned.has(root.id)) continue;
                 const t = String(m.updated_at || m.created_at || '');
                 if (t > bestT) { bestT = t; best = c; }
             }
@@ -25121,7 +25177,7 @@
             let _fav = document.querySelector('link[rel="icon"]');
             if (!_fav) { _fav = document.createElement('link'); _fav.rel = 'icon'; document.head.appendChild(_fav); }
             _fav.type = 'image/png';
-            _fav.href = 'synchro-social-logo.png';
+            _fav.href = 'synchro-social-favicon.png';
         } catch (e) {}
         const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
         const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
@@ -28087,8 +28143,14 @@
         finally { _sxrKasperState.loading = false; _sxrKasperRenderQueue(); }
     }
     function _sxrKasperRenderQueue() {
+        // Keep the Samples subtab pill live even when this fires from a background
+        // load while another Kasper tab is showing.
+        if (typeof _kasperRefreshTabCounts === 'function') _kasperRefreshTabCounts();
         const host = document.getElementById('kasperContent');
         if (!host) return;
+        // #kasperContent is shared by every Kasper tab; a background samples load
+        // landing while another tab is open must not overwrite that tab's content.
+        if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab !== 'samples') return;
         if (!_sxrKasperState.loaded && !_sxrKasperState.loading) { _sxrKasperLoadQueue(); }
         const st = _sxrKasperState;
         const head = `<div class="kasper-samples-head" style="display:flex;justify-content:space-between;align-items:center;margin:4px 0 12px;gap:12px;"><div class="kasper-sub" style="margin:0;">Samples waiting on your review — all clients.</div><button class="cal-link" type="button" onclick="_sxrKasperLoadQueue(true)">Refresh</button></div>`;
@@ -30465,6 +30527,7 @@
         editorsExpanded: {},  // editorKey -> true (expanded video list visible)
         editorsDayFilter: {}, // editorKey -> 'YYYY-MM-DD' when filtered to a single day
         editorsClientExpanded: {}, // editorKey -> { clientName -> bool }; absent = use view default
+        editorsAvgMode: false, // false = weekly totals, true = per-workday averages
         filmingData: null,    // { rows:[{client,slug,docUrl,docId,notes,months:Set,runwayDate,daysLeft,status,reason}], loadedAt }
         filmingLoading: false,
         filmingError: null,
@@ -30540,6 +30603,12 @@
         // in-memory state.
         if (!_kasperState.lastLoaded) _kasperHydrateCache();
         _kasperRenderTab();
+        // Paint every subtab's count from whatever state we already have (review
+        // comes straight from the entry cache), then fetch the rest in the
+        // background so all the pills show a real number — not the placeholder dot —
+        // without the user having to open each tab.
+        _kasperRefreshTabCounts();
+        _kasperEnsureAllTabCounts();
         _kasperEnsureAutoRefresh();
     }
 
@@ -31049,6 +31118,7 @@
                 _kasperState.filmingData = { rows: cached };
                 _kasperState.filmingLoadedAt = Date.now();
                 _filmsPaint();
+                _kasperRefreshTabCounts();
                 return;
             }
         }
@@ -31099,6 +31169,10 @@
         } finally {
             _kasperState.filmingLoading = false;
             if (btn) { btn.disabled = false; btn.classList.remove('spinning'); }
+            // Covers the empty-rows and success paths (and is a harmless no-op on
+            // error, where filmingData is guarded) — the Filming pill updates even
+            // when the user is on another Kasper tab.
+            _kasperRefreshTabCounts();
         }
     }
 
@@ -31177,6 +31251,51 @@
         const el = document.querySelector('[data-kasper-count="replies"]');
         if (el) el.textContent = String(n);
     }
+    /* Subtab count pills. Each tab's own render path only refreshes its OWN pill
+       while that tab is mounted (e.g. _kasperPaintReview bails when the review
+       body isn't on screen), so every OTHER tab sat on the placeholder dot until
+       you visited it. These keep a real number on EVERY tab at all times:
+       _kasperRefreshTabCounts paints from current state and touches ONLY the tiny
+       count pills — never #kasperContent — so it's safe to call from any tab or a
+       background load; _kasperEnsureAllTabCounts fetches the data behind every
+       counted tab once on entry so the numbers appear without opening each tab. */
+    function _kasperSetTabCount(key, n) {
+        const el = document.querySelector('[data-kasper-count="' + key + '"]');
+        if (el) el.textContent = String(n);
+    }
+    function _kasperRefreshTabCounts() {
+        // review = cards still waiting on Kasper's decision. _kasperState.items is
+        // also restored from cache on entry, so a returning Kasper sees a real
+        // number before the network round-trip even finishes.
+        if (Array.isArray(_kasperState.items) && _kasperState.lastLoaded) {
+            _kasperSetTabCount('review', _kasperPartitionItems(_kasperState.items).waiting.length);
+        }
+        // replies = unread message threads — owned by _kasperUpdateReplyCount, which
+        // every load already calls. Deliberately NOT painted here: it isn't part of
+        // the entry cache, so doing so would flash a stale 0 before the first fetch.
+        // samples = samples awaiting review (only present when that subtab exists).
+        if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
+            _kasperSetTabCount('samples', (_sxrKasperState.items || []).length);
+        }
+        // filming = clients not yet covered (a plan is needed now or soon).
+        const fd = _kasperState.filmingData;
+        if (fd && Array.isArray(fd.rows)) {
+            _kasperSetTabCount('filming', fd.rows.filter(r => r && r.status !== 'green').length);
+        }
+    }
+    function _kasperEnsureAllTabCounts() {
+        // The active tab's render path already kicked its own load and set a loading
+        // flag synchronously (before its first await), so the loading/loaded guards
+        // below dedupe it — we never double-fetch the tab that's showing. Each loader
+        // calls _kasperRefreshTabCounts() when it lands.
+        if (!_kasperState.loading) _kasperLoadReview(true);           // feeds review + replies
+        if (typeof _sxrKasperLoadQueue === 'function'
+            && KASPER_SUBTABS.some(t => t.key === 'samples')
+            && !_sxrKasperState.loading && !_sxrKasperState.loaded) {
+            _sxrKasperLoadQueue();
+        }
+        if (!_kasperState.filmingLoading && !_kasperState.filmingData) _kasperLoadFilming(false);
+    }
     let _kasperRepliesPaintRetry = null;
     function _kasperRenderReplies() {
         const root = document.getElementById('kasperContent');
@@ -31207,7 +31326,7 @@
                 : `<div class="kasper-empty">
                     <div class="kasper-empty-icon"><svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg></div>
                     <div class="kasper-empty-title">No new messages</div>
-                    <div class="kasper-empty-sub">When an SMM or client messages you about a card, it shows up here.</div>
+                    <div class="kasper-empty-sub">When the SMM or client replies to one of your notes or tweaks, it shows up here.</div>
                 </div>`;
             root.innerHTML = loadingNote;
             return;
@@ -31219,14 +31338,21 @@
         const pid = p.id;
         const thumb = _calDeriveThumb(p);
         const seen = _kasperGetSeenAt(pid);
-        // Group internal messages into threads (root + replies).
+        // Group internal messages into threads (root + replies). Only threads
+        // Kasper is part of (he authored or replied on) — a fresh SMM note or
+        // change-request he never touched is not his conversation and stays out
+        // of his Messages inbox, mirroring the inbox gate (_kasperHasUnreadReply).
         const threads = [];
         for (const c of _calComponentsFor(p)) {
             const list = _calCommentsFor(p, c);
             if (!Array.isArray(list)) continue;
+            const byId = new Map();
+            for (const m of list) if (m && m.id) byId.set(m.id, m);
+            const owned = _kasperOwnedThreadRoots(list, byId);
             for (const m of list) {
                 if (!m || m.deleted || m.parent_id) continue;           // roots only
                 if (_calMsgAudience(m) !== 'internal') continue;        // internal threads only
+                if (!owned.has(m.id)) continue;                         // only Kasper's own conversations
                 const replies = list.filter(r => r && !r.deleted && r.parent_id === m.id)
                     .sort((a, b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
                 threads.push({ root: m, replies, comp: c });
@@ -31318,11 +31444,13 @@
         const list = _calCommentsFor(item.post, comp).slice();
         const byId = new Map();
         for (const m of list) if (m && m.id) byId.set(m.id, m);
+        const owned = _kasperOwnedThreadRoots(list, byId);
         let parentRootId = null, latestT = '';
         for (const m of list) {
             if (!m || m.deleted) continue;
             const root = (m.parent_id && byId.has(m.parent_id)) ? byId.get(m.parent_id) : m;
             if (_calMsgAudience(root) !== 'internal') continue;
+            if (!owned.has(root.id)) continue;   // thread the inbox card to one of Kasper's own conversations
             const t = String(m.updated_at || m.created_at || '');
             if (t > latestT) { latestT = t; parentRootId = root.id; }
         }
@@ -31489,6 +31617,7 @@
             _kasperPersistCache();
             _kasperPaintReview();
             _kasperUpdateReplyCount();
+            _kasperRefreshTabCounts();   // keep review/samples/filming pills live even when those tabs aren't mounted
             if (_kasperState.tab === 'replies') _kasperRenderReplies();
         } catch (e) {
             _kasperState.error = e && e.message ? e.message : String(e);
@@ -31838,23 +31967,17 @@
         const stampedAt = _kasperFinishedAt(post);
         const localFin = !!(_kasperState.dismissed && _kasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
-        // A component back at Kasper Approval re-surfaces the card as a genuine
-        // "fresh ask" — but ONLY when the finish is SERVER-CONFIRMED (the global
-        // kasper_finished_at stamp is present on this row). A card's writes are
-        // serialized: the finish upsert is chained after every component decision
-        // (_kasperPersistPost), so a server row that carries the stamp necessarily
-        // carries those decisions too — a KA component on it is therefore a real
-        // re-route by the SMM. When the card is held finished on the LOCAL flag
-        // ALONE (the finish hasn't echoed back yet), a KA component is just the
-        // pre-decision status the store hasn't caught up on; a background
-        // auto-refresh that ingests that stale read must NOT drag the card back to
-        // "Waiting". That was the intermittent bug Kasper hit — a finished card
-        // popping back, showing whichever component the refresh caught mid-write.
-        // (Reply-based re-surface below is unaffected and still works either way.)
-        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: actionable KA (server-confirmed)
-        const seen = stampedAt || _kasperGetSeenAt(post.id);             // global stamp, else local seen
-        const latest = _calLatestMsgCreatedAt(post);                     // created-at: a resolve/edit bump is NOT a new ask
-        if (seen && latest && latest > seen) return false;               // reply since he finished
+        // Once finished, a card STAYS in "Tweaks pending" and returns to "Waiting"
+        // ONLY when a component is genuinely re-sent to Kasper Approval. A later
+        // message — even a client tweak — updates the card in place but must NOT pull
+        // it back into his queue (product rule: Finish means finished until an explicit
+        // For-Kasper-Approval re-route; the earlier reply-re-surfaces-it behaviour was
+        // the friction — a client tweak kept bouncing finished cards back into
+        // "Waiting"). Gated on a SERVER-CONFIRMED finish (stamp present) so a mid-write
+        // stale read can't bounce a freshly-finished card; _kasperUndecidedComps applies
+        // the unlinked-thumbnail gate (a graphic stuck at KA with no GRA sub-issue
+        // doesn't count).
+        if (stampedAt && _kasperUndecidedComps(post).length > 0) return false;   // fresh ask: a component re-sent to Kasper Approval
         return true;
     }
     /* X-close (top-right X) — no decision, just hide it. Re-surfaces when a new
@@ -33052,6 +33175,10 @@
             <div class="kasper-toolbar">
                 <div class="ked-meta-week" id="kedWeekLabel">&nbsp;</div>
                 <div class="ked-toolbar-actions">
+                    <div class="ked-avgtoggle" role="group" aria-label="Show totals or per-day averages">
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? '' : ' is-active'}" data-mode="total" onclick="_kasperSetEditorsAvg(false)">Totals</button>
+                        <button type="button" class="ked-avgtoggle-btn${_kasperState.editorsAvgMode ? ' is-active' : ''}" data-mode="avg" onclick="_kasperSetEditorsAvg(true)">Per day</button>
+                    </div>
                     <button type="button" class="ked-info-btn" id="kedInfoBtn" onclick="_kedToggleInfo()" aria-label="About this view" title="About this view">
                         <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.5"/><path d="M7 9.7V6.4M7 4.5v.05"/></svg>
                     </button>
@@ -33088,6 +33215,14 @@
         const panel = document.getElementById('kedInfoPanel');
         if (!panel) return;
         panel.hidden = !panel.hidden;
+    }
+
+    // Flip the whole tab between weekly totals and per-workday averages.
+    function _kasperSetEditorsAvg(on) {
+        _kasperState.editorsAvgMode = !!on;
+        document.querySelectorAll('.ked-avgtoggle-btn').forEach(b =>
+            b.classList.toggle('is-active', (b.dataset.mode === 'avg') === !!on));
+        _kedPaint();
     }
 
     // YYYY-MM-DD for last week's Monday in Chicago time. The workflow's
@@ -33344,21 +33479,21 @@
         return { editingMs, tweakMs, endInCourt: _kedIsCourtState(state) };
     }
 
-    // Roll a video list up into the numbers a row renders, around two ideas:
-    // LOAD — how much sat in his court (loadVideos, split editing/tweaks,
-    // stillOpen at week's end, heldDays of total court-time) — and DELIVERIES
-    // — what he pushed through (firstCuts + tweakRounds = workUnits; perDay
-    // counts deliveries per Chicago day; avgPerWorkday = workUnits / 5).
-    // finishes = reached Approved/Posted; touched = distinct videos involved.
+    // Roll a video list up into the numbers a row renders. All headline numbers
+    // are VIDEO counts. On his plate = loadVideos (every video he worked on),
+    // split into newVideos + tweakVideos + inProgVideos (which add up to it).
+    // finishes = reached Approved/Posted; stillOpen = still in his court at
+    // week's end. perDay counts sends per Chicago day for the bars. Per-video
+    // rework (how many times a video was re-sent) is shown in the drill-down,
+    // not here — see _kedVideoCard.
     function _kedSplitVideos(videos, weekStartMs, weekEndMs) {
         let firstCuts = 0, tweakRounds = 0, finishes = 0, wip = 0, touched = 0;
-        let loadVideos = 0, loadEditing = 0, loadTweaks = 0, stillOpen = 0, heldMs = 0;
+        let loadVideos = 0, newVideos = 0, tweakVideos = 0, inProgVideos = 0, stillOpen = 0;
         const perDay = {};
         for (const v of (videos || [])) {
             const ds = _kedVideoDeliveries(v);
             const fin = _kedVideoFinished(v);
             const isWip = _kedVideoIsWip(v);
-            if (ds.length || fin || isWip) touched++;
             for (const d of ds) {
                 if (d.kind === 'tweak') tweakRounds++; else firstCuts++;
                 perDay[d.dayKey] = (perDay[d.dayKey] || 0) + 1;
@@ -33366,18 +33501,20 @@
             if (fin) finishes++;
             else if (isWip) wip++;
             const court = _kedVideoCourt(v, weekStartMs, weekEndMs);
-            const wasEditing = court.editingMs > 0, wasTweaking = court.tweakMs > 0;
-            if (wasEditing || wasTweaking) loadVideos++;
-            if (wasEditing) loadEditing++;
-            if (wasTweaking) loadTweaks++;
+            const worked = court.editingMs > 0 || court.tweakMs > 0 || ds.length > 0;
+            if (worked) {
+                loadVideos++;
+                // Every worked-on video is exactly one of: new (delivered a
+                // first cut), tweak (only tweak fixes), or in progress (not
+                // sent yet). The three add up to loadVideos.
+                if (ds.length) { if (ds.some(d => d.kind === 'firstcut')) newVideos++; else tweakVideos++; }
+                else inProgVideos++;
+            }
+            if (worked || fin) touched++;
             if (court.endInCourt) stillOpen++;
-            heldMs += court.editingMs + court.tweakMs;
         }
-        const workUnits = firstCuts + tweakRounds;
-        return { firstCuts, tweakRounds, finishes, wip, touched, workUnits, perDay,
-                 avgPerWorkday: Math.round((workUnits / 5) * 100) / 100,
-                 loadVideos, loadEditing, loadTweaks, stillOpen,
-                 heldDays: Math.round((heldMs / 86400000) * 10) / 10 };
+        return { firstCuts, tweakRounds, finishes, wip, touched, perDay,
+                 loadVideos, newVideos, tweakVideos, inProgVideos, stillOpen };
     }
 
     // Per-editor stats, memoised on the editor object so _kedPaint (shared
@@ -33390,6 +33527,17 @@
         if (ed) { try { Object.defineProperty(ed, '_kedStats', { value: s, enumerable: false }); } catch (e) { ed._kedStats = s; } }
         return s;
     }
+
+    // Plain-English hover copy for each number — explains what it counts, for
+    // someone who doesn't know the internal vocabulary. Same in either view.
+    const _KED_TIPS = {
+        plate:    "How many different videos he worked on last week — new edits, tweak fixes, and ones still in progress (these add up to this number).",
+        finished: "Videos that got fully approved or posted last week — they crossed the finish line.",
+        open:     "Videos still on his plate at the end of the week — not yet finished or sent back.",
+        newCut:   "Brand-new videos he edited and sent on for review for the first time.",
+        tweakFix: "Videos that came back for changes, which he fixed and re-sent.",
+        inProg:   "Videos he was still working on and hadn't sent for review yet.",
+    };
 
     function _kedRow(ed, weekDates, globalDailyMax, showWeekend) {
         const key = ed.email || ed.name;
@@ -33408,11 +33556,12 @@
             const isSel = dayFilter === d.key;
             const stackCls = ['ked-bar-stack', count === 0 ? 'is-empty' : 'is-clickable', isSel ? 'is-selected' : ''].filter(Boolean).join(' ');
             const dayLong = _kedDayLong(d.label);
+            const sentLbl = `${count} video${count === 1 ? '' : 's'} sent for review`;
             const tipText = count === 0
-                ? `${dayLong} · nothing`
+                ? `${dayLong} · nothing sent for review`
                 : isSel
-                    ? `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to clear`
-                    : `${dayLong} · ${count} deliver${count === 1 ? 'y' : 'ies'} — click to view`;
+                    ? `${dayLong} · ${sentLbl} — click to clear`
+                    : `${dayLong} · ${sentLbl} — click to view`;
             const onclickAttr = count > 0
                 ? ` onclick="event.stopPropagation();_kasperToggleEditorDay('${_calEscAttr(key)}','${d.key}')"`
                 : '';
@@ -33425,25 +33574,24 @@
             </div>`;
         }).join('');
 
-        const parts = [`<strong>${stats.touched}</strong> video${stats.touched === 1 ? '' : 's'} touched`];
-        if (stats.finishes) parts.push(`<span class="ked-bd-finished">${stats.finishes} finished</span>`);
-        const breakdownHtml = parts.join(' <span class="ked-id-sep">·</span> ');
+        const avg = !!_kasperState.editorsAvgMode;        // Totals vs Per-day toggle
+        const tipAttr = k => ` data-tip="${_calEscAttr(_KED_TIPS[k])}"`;
+        const perWk = n => avg ? Math.round(n / 5) : n;   // per-workday average (rounded) when toggled
 
-        // LOAD — how much sat in his court last week.
+        // ON HIS PLATE — every video he worked on, split new / tweaks / still in
+        // progress. The three add up to the plate number.
         const loadParts = [];
-        if (stats.loadEditing) loadParts.push(`${stats.loadEditing} editing`);
-        if (stats.loadTweaks)  loadParts.push(`${stats.loadTweaks} in tweaks`);
-        if (!loadParts.length) loadParts.push('clear');
-        if (stats.stillOpen)   loadParts.push(`<span class="ked-bd-wip">${stats.stillOpen} still open</span>`);
+        if (stats.newVideos)    loadParts.push(`<span${tipAttr('newCut')}>${perWk(stats.newVideos)} new</span>`);
+        if (stats.tweakVideos)  loadParts.push(`<span${tipAttr('tweakFix')}>${perWk(stats.tweakVideos)} tweaks</span>`);
+        if (stats.inProgVideos) loadParts.push(`<span${tipAttr('inProg')}>${perWk(stats.inProgVideos)} in progress</span>`);
+        if (!loadParts.length)  loadParts.push('—');
         const loadSub = loadParts.join(' <span class="ked-id-sep">·</span> ');
-        const loadTip = `Videos in his court last week — being edited or awaiting his tweaks${stats.heldDays ? ` · ~${stats.heldDays} video-days on his plate` : ''}`;
+        const loadBig = perWk(stats.loadVideos);
+        const loadLabel = avg ? 'on his plate / day' : 'on his plate';
 
-        // DELIVERIES — what he pushed through.
-        const delivParts = [];
-        if (stats.firstCuts)   delivParts.push(`${stats.firstCuts} first cut${stats.firstCuts === 1 ? '' : 's'}`);
-        if (stats.tweakRounds) delivParts.push(`${stats.tweakRounds} tweak${stats.tweakRounds === 1 ? '' : 's'}`);
-        if (!delivParts.length) delivParts.push('nothing shipped');
-        const delivSub = delivParts.join(' <span class="ked-id-sep">·</span> ');
+        // FINISHED and STILL OPEN are outcome counts — always weekly totals.
+        const finBig = stats.finishes;
+        const openBig = stats.stillOpen;
 
         const videosBlock = expanded ? _kedVideos(ed.videos || [], dayFilter, ed.weekStart || (_kasperState.editorsData && _kasperState.editorsData.weekStart), ed.weekEnd || (_kasperState.editorsData && _kasperState.editorsData.weekEnd), key, days) : '';
         return `<div class="ked-row${expanded ? ' expanded' : ''}${dayFilter ? ' is-day-filtered' : ''}" data-ked-key="${_calEscAttr(key)}">
@@ -33451,19 +33599,22 @@
                 <div class="ked-avatar">${avatarHtml}</div>
                 <div class="ked-id">
                     <div class="ked-name">${_calEsc(ed.name || 'Unknown')}</div>
-                    <div class="ked-id-breakdown">${breakdownHtml}</div>
                 </div>
                 <div class="ked-row-stats">
-                    <div class="ked-stat is-load" data-tip="${_calEscAttr(loadTip)}">
-                        <span class="ked-stat-val">${stats.loadVideos}</span>
-                        <span class="ked-stat-label">on his plate</span>
+                    <div class="ked-stat is-load">
+                        <span class="ked-stat-val">${loadBig}</span>
+                        <span class="ked-stat-label"${tipAttr('plate')}>${loadLabel}</span>
                         <div class="ked-stat-sub">${loadSub}</div>
                     </div>
                     <div class="ked-stat-sep"></div>
-                    <div class="ked-stat is-deliv" data-tip="Videos handed off for review last week — ${stats.avgPerWorkday.toFixed(2)}/workday">
-                        <span class="ked-stat-val">${stats.workUnits}</span>
-                        <span class="ked-stat-label">pushed through</span>
-                        <div class="ked-stat-sub">${delivSub}</div>
+                    <div class="ked-stat is-finished">
+                        <span class="ked-stat-val">${finBig}</span>
+                        <span class="ked-stat-label"${tipAttr('finished')}>finished</span>
+                    </div>
+                    <div class="ked-stat-sep"></div>
+                    <div class="ked-stat is-open">
+                        <span class="ked-stat-val">${openBig}</span>
+                        <span class="ked-stat-label"${tipAttr('open')}>still open</span>
                     </div>
                 </div>
                 <svg class="ked-row-chev" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5l4 4 4-4"/></svg>
@@ -33689,7 +33840,7 @@
                 const style = s.kind === 'work'
                     ? `left:${s.startPct.toFixed(3)}%;width:${s.widthPct.toFixed(3)}%;`
                     : `left:${s.startPct.toFixed(3)}%;`;
-                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip-status="${_calEscAttr(labelName)}" style="${style}"></div>`;
+                return `<div class="ked-strip-seg" data-status="${s.slug}" data-kind="${s.kind}" data-tip="${_calEscAttr(labelName)}" style="${style}"></div>`;
             }).join('')
             : '';
         const clientHtml = v.clientName
@@ -33698,10 +33849,17 @@
         const titleHtml = v.url
             ? `<a class="ked-vid-title" href="${_calEscAttr(v.url)}" target="_blank" rel="noopener">${_calEsc(v.title || 'Untitled')}</a>`
             : `<span class="ked-vid-title">${_calEsc(v.title || 'Untitled')}</span>`;
+        // Per-video rework: how many times it was sent on for review. Only the
+        // grinders (2+) get a badge, so a one-and-done video stays clean.
+        const rounds = _kedVideoDeliveries(v).length;
+        const roundsHtml = rounds >= 2
+            ? `<span class="ked-vid-rounds" data-tip="Sent on for review ${rounds} times last week — it kept coming back for changes.">${rounds} rounds</span>`
+            : '';
         return `<article class="ked-vid">
             <div class="ked-vid-meta">
                 ${clientHtml}
                 ${titleHtml}
+                ${roundsHtml}
             </div>
             <div class="ked-vid-strip">
                 <div class="ked-strip-track">${segHtml}</div>
@@ -33709,41 +33867,10 @@
         </article>`;
     }
 
-    // Custom styled tooltip — single line. Triggered by any element carrying
-    // a `data-tip` attribute (strip segments, day bars, etc.). One floating
-    // element appended to body; mouseover delegation keeps the rendering
-    // path cheap even with hundreds of segments on screen.
-    let _kedTipEl = null;
-    function _kedEnsureTip() {
-        if (_kedTipEl) return _kedTipEl;
-        _kedTipEl = document.createElement('div');
-        _kedTipEl.className = 'ked-tip';
-        _kedTipEl.innerHTML = '<div class="ked-tip-status"></div><div class="ked-tip-arrow"></div>';
-        document.body.appendChild(_kedTipEl);
-        return _kedTipEl;
-    }
-    function _kedTipShow(el) {
-        const text = el.getAttribute('data-tip') || el.getAttribute('data-tip-status') || '';
-        if (!text) return;
-        const tip = _kedEnsureTip();
-        tip.querySelector('.ked-tip-status').textContent = text;
-        const r = el.getBoundingClientRect();
-        tip.style.left = (r.left + r.width / 2) + 'px';
-        tip.style.top  = r.top + 'px';
-        tip.classList.add('is-visible');
-    }
-    function _kedTipHide() {
-        if (_kedTipEl) _kedTipEl.classList.remove('is-visible');
-    }
-    document.addEventListener('mouseover', e => {
-        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
-        if (t) _kedTipShow(t);
-    });
-    document.addEventListener('mouseout', e => {
-        const t = e.target && e.target.closest && e.target.closest('[data-tip],[data-tip-status]');
-        if (t) _kedTipHide();
-    });
-    window.addEventListener('scroll', _kedTipHide, true);
+    // Editor-tab tooltips (day bars, strip segments, the Load/Deliveries
+    // stats) ride the shared global tooltip — see setupGlobalTooltip. The old
+    // bespoke .ked-tip handler was removed: it also fired on [data-tip], so
+    // every editor tooltip was painting twice (once here, once globally).
 
     function _kedAvatarFallback(name) {
         const span = document.createElement('span');
@@ -33833,6 +33960,7 @@
     window._kasperToggleAllClients = _kasperToggleAllClients;
     window._kedAvatarFallback = _kedAvatarFallback;
     window._kedToggleInfo = _kedToggleInfo;
+    window._kasperSetEditorsAvg = _kasperSetEditorsAvg;
 
     /* ──────────────────────────────────────────────────────────────────
        Global styled tooltip — replaces every browser-native title popup
@@ -33867,7 +33995,7 @@
        handler never targets them. */
     (function setupGlobalTooltip() {
         'use strict';
-        const SHOW_DELAY_MS = 350;
+        const SHOW_DELAY_MS = 0;   // instant — matches the snappy feel of the old editor tooltip
         const TIP_CLASS = 'global-tip';
         let tipEl = null;
         let activeTarget = null;

@@ -7,7 +7,10 @@ function base() {
   const S = [];
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,
-    seed: { ...FOR_SMM },
+    // BOTH components linked: an unlinked thumbnail is gated out of the Kasper
+    // queue (the unlinked-thumbnail rule — same on calendar + samples), so a
+    // "clean path" that takes the thumbnail through Kasper must link it.
+    seed: { ...FOR_SMM, linear_issue_id: 'https://linear.app/x/VID-CLEAN', graphic_linear_issue_id: 'https://linear.app/x/GRA-CLEAN' },
     steps: [
       ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
       ['smm.approve', 'graphic', 'primary'], ['expect', 'graphic_status', 'Kasper Approval'],

@@ -22,8 +22,9 @@
  *     with EMPTY localStorage (i.e. cross-device) — the whole point of the fix;
  *   • the unlinked-thumbnail gate still holds (a graphic at "Kasper Approval"
  *     with no GRA sub-issue must NOT un-finish the card on refresh);
- *   • a genuine fresh ask (actionable component back at KA, or a reply after the
- *     finish) returns the card to "Waiting";
+ *   • a genuine fresh ask — a component re-sent to Kasper Approval — returns the
+ *     card to "Waiting"; a later message (SMM reply OR client tweak) does NOT
+ *     re-surface a finished card (product rule: it stays in "Tweaks pending");
  *   • the same-device localStorage fallback still works pre-backend;
  *   • X-close behaves the same way via kasper_closed_at;
  *   • the write paths actually persist the stamps (not just local state).
@@ -137,14 +138,18 @@ check('hand-off w/ stamp, no local flag → finished (cross-device)',
     kasper_finished_at: T.tweak, video_comments: [tweak('g1-v', T.tweak)],
   })), true);
 
-// G2 — a reply landed after he finished → re-surfaces to "Waiting".
+// G2 — PRODUCT RULE: a later message (SMM reply OR client tweak) updates the card
+// in place but must NOT re-surface it. Once finished it stays in "Tweaks pending"
+// until a component is re-sent to Kasper Approval (G3). The old reply-re-surfaces
+// behaviour was the friction — a client tweak kept bouncing finished cards back to
+// "Waiting" (e.g. Alli Schaper "Video 12", a client tweak ~20 days after finish).
 resetState();
-check('stamp + reply after finish → not finished (re-surfaces)',
+check('stamp + reply after finish → STILL finished (a message does not re-surface)',
   _kasperIsFinished(buildPost({
     id: 'g2', video_status: 'Tweaks Needed', caption_status: 'Client Approval',
     kasper_finished_at: T.tweak,
     video_comments: [tweak('g2-v', T.tweak), reply('g2-r', T.later)],
-  })), false);
+  })), true);
 
 // G3 — an ACTIONABLE component is back at Kasper Approval → fresh ask.
 resetState();
@@ -191,14 +196,15 @@ check('local flag, no stamp, no reply → finished (fallback)',
     video_comments: [tweak('l1-v', T.tweak)],
   })), true);
 
-// L2 — local flag but a reply after the local seen stamp → not finished.
+// L2 — same product rule for the local-flag fallback: a later reply does NOT
+// un-finish a locally-finished card either.
 resetState();
 mod._kasperState.dismissed['l2'] = true; mod._seenMap['l2'] = T.tweak;
-check('local flag + reply after seen → not finished (fallback)',
+check('local flag + reply after seen → STILL finished (a message does not re-surface)',
   _kasperIsFinished(buildPost({
     id: 'l2', video_status: 'Tweaks Needed', caption_status: 'Client Approval',
     video_comments: [tweak('l2-v', T.tweak), reply('l2-r', T.later)],
-  })), false);
+  })), true);
 
 // N1 — neither stamp nor local flag → plain Waiting card.
 resetState();

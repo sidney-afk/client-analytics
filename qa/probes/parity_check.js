@@ -11,10 +11,13 @@
 // No backend needed: every _cal*/_sxr* function is top-level/global, so we call
 // them directly and inspect the real DOM (#resolveDestOverlay) / returned HTML.
 //
-// Run: node qa/probes/parity_check.js   (self-hosts index.html on :8000)
+// Run: node qa/probes/parity_check.js   (self-hosts index.html on :8013)
+// Port 8013 (not 8000) so this runs alongside the master tester's own :8000
+// static server without an EADDRINUSE collision (see qa/master.js).
 const http = require('http'), fs = require('fs'), path = require('path');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
 const ROOT = '/home/user/client-analytics';
+const PORT = 8013;
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 
 const fails = [];
@@ -35,14 +38,14 @@ function parity(name, cal, sxr, note) {
     res.writeHead(200, { 'content-type': MIME[path.extname(fp)] || 'application/octet-stream' });
     fs.createReadStream(fp).pipe(res);
   });
-  await new Promise(r => server.listen(8000, r));
+  await new Promise((res, rej) => { server.on('error', rej); server.listen(PORT, res); });
   const browser = await PW.chromium.launch({ headless: true, args: ['--no-sandbox'] });
   const ctx = await browser.newContext();
-  await ctx.route('**/*', r => (r.request().url().includes('localhost:8000') ? r.continue() : r.abort()));
+  await ctx.route('**/*', r => (r.request().url().includes('localhost:' + PORT) ? r.continue() : r.abort()));
   const page = await ctx.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message));
   // SMM view (no ?c → _isClientLink false); ?sxr=1 turns the samples code on.
-  await page.goto('http://localhost:8000/index.html?sxr=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
+  await page.goto('http://localhost:' + PORT + '/index.html?sxr=1', { waitUntil: 'domcontentloaded', timeout: 45000 });
   await page.waitForFunction(() => typeof _calCommentsBtnHtml === 'function' && typeof _sxrCommentsBtnHtml === 'function', { timeout: 15000 }).catch(() => {});
 
   const out = await page.evaluate(() => {

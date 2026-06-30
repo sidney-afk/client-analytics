@@ -25808,13 +25808,32 @@
             const fresh = rows.filter(p => !_sxrIsArchivedRef(p, refs)).map(p => { p.status = _sxrNormStatus(p.status); _sxrMigrateShape(p); return p; });
             // Background (realtime / tab-return) reloads MERGE so an in-flight edit /
             // comment isn't clobbered (Surface 7); a foreground load adopts the server.
-            sxrState.posts = (background && typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
+            const _sxrPrevPosts = sxrState.posts;
+            const _sxrMerged = (background && typeof _sxrMergeServerRows === 'function') ? _sxrMergeServerRows(fresh) : fresh;
+            // Did anything the renderer paints actually change? On a background echo
+            // that already matches our optimistic state (the realtime self-echo of
+            // our OWN just-saved write) it didn't — so skip the full rebuild and only
+            // swap the cheap comment-count footer, exactly like the calendar's
+            // loadCalendarPosts !dataChanged path. This is the "send to client felt
+            // laggy" fix: the click was already instant; this kills the late repaint.
+            const _sxrDataChanged = !background || typeof _sxrPostsEqualForRender !== 'function' || !_sxrPostsEqualForRender(_sxrPrevPosts, _sxrMerged);
+            sxrState.posts = _sxrMerged;
             sxrState.loading = false; sxrState.error = null;
             _sxrCacheWrite(slug, rows);
             _sxrSetStaleNotice(false);
+            if (background && !_sxrDataChanged) {
+                // No visible change → don't rebuild (a full _sxrRenderBody flashes the
+                // queue). Refresh only the unread-notes dots so a note the LWW merge
+                // folded into a kept-local row can't be missed (the calendar's same
+                // false-negative fallback). Never touches a focused field.
+                if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+            }
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
-            if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) { _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender(); }
+            else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
+                _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
+                if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+            }
             else _sxrRenderBody();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
             if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);            // service a change that arrived mid-load
@@ -27794,6 +27813,34 @@
 
     /* Background-reload MERGE — a realtime / tab-return reload must not clobber an
        in-flight edit, a just-typed comment, or a freshly-set status mid-round-trip. */
+    // Mirror of _calPostsEqualForRender for the SAMPLES schema: if none of the
+    // fields the SMM-sheet / review renderer actually paints changed, the rebuilt
+    // DOM would be identical, so a BACKGROUND reload can SKIP the full _sxrRenderBody
+    // repaint that otherwise FLASHES the queue ~4s later when our own write's
+    // realtime echo lands (the "mark done / send to client felt laggy" symptom).
+    // Keys derived from renderSxrReview / renderSxrOrganizer + _sxrMigrateShape's
+    // default-fill list — NOT cloned from the calendar (samples has no caption /
+    // title / CTA / scheduled-date; it adds creative_direction + its eye toggle).
+    function _sxrPostsEqualForRender(a, b) {
+        if (a === b) return true;
+        if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+        const keys = ['id','order_index','status','name',
+                      'asset_url','thumbnail_url','creative_direction','hide_creative_direction',
+                      'linear_issue_id','graphic_linear_issue_id',
+                      'video_status','graphic_status',
+                      'updated_at'];
+        for (let i = 0; i < a.length; i++) {
+            for (const k of keys) {
+                if (String(a[i][k] == null ? '' : a[i][k]) !== String(b[i][k] == null ? '' : b[i][k])) return false;
+            }
+            // Comment arrays via the accessor so the comments/video_comments duality
+            // (and the graphic list) is compared exactly as the renderer reads it.
+            for (const comp of SXR_COMPONENTS) {
+                if (JSON.stringify(_sxrCommentsFor(a[i], comp) || []) !== JSON.stringify(_sxrCommentsFor(b[i], comp) || [])) return false;
+            }
+        }
+        return true;
+    }
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -28004,6 +28051,62 @@
         _sxrV2Channel = null; _sxrV2SubSlug = null;
     }
     window.sxrV2Status = function () { return { flag: _sxrEnabled(), ready: _sxrReady(), keySet: !!CAL_SUPABASE_ANON_KEY, subscribed: !!_sxrV2Channel, slug: _sxrV2SubSlug }; };
+
+    /* ── Kasper-queue realtime (channel kasper-sxr on sample_reviews, cross-client) ──
+       Mirror of the calendar's _kasperV2EnsureSubscribed (channel 'kasper-cal' on
+       calendar_posts). The samples Kasper queue spans EVERY client, so a single
+       UNFILTERED channel pushes a throttled _sxrKasperLoadQueue when any
+       sample_reviews row changes — so a card the SMM sends to Kasper, or a
+       client/SMM edit, surfaces WITHOUT a manual Refresh (the "Kasper review doesn't
+       update unless I refresh" fix). Push-only — an idle tab makes no calls. The
+       per-slug sxr-<slug> channel (Samples main review tab) is a SEPARATE concern;
+       this reuses the shared _sxrV2Client builder but its own channel + state. */
+    let _sxrKasperV2Channel = null, _sxrKasperV2RtTimer = null;
+    function _sxrKasperViewBusy() {
+        // Settle window after a local Kasper/SMM write so our OWN echo doesn't trigger
+        // a rebuild that reloads thumbnails / drops his caret (mirrors _kasperViewBusy).
+        if (Date.now() - _sxrLastLocalWriteAt < SXR_RT_SELF_ECHO_MS) return true;
+        const sv = _sxrKasperState.saving || {};
+        for (const k in sv) { if (sv[k]) return true; }                       // a save in flight
+        const dr = _sxrKasperState.drafts || {};
+        for (const k in dr) { if (String(dr[k] || '').trim()) return true; }   // a half-typed comment/tweak
+        const a = document.activeElement;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;
+        return false;
+    }
+    async function _sxrKasperV2EnsureSubscribed() {
+        if (!_sxrReady() || _sxrKasperV2Channel) return;
+        const client = await _sxrV2Client();
+        if (!client || _sxrKasperV2Channel) return;   // re-check: a teardown / second mount may have raced the lib load
+        try {
+            _sxrKasperV2Channel = client
+                .channel('kasper-sxr')
+                .on('postgres_changes', { event: '*', schema: 'public', table: SXR_TABLE }, () => {
+                    if (_sxrKasperV2RtTimer) clearTimeout(_sxrKasperV2RtTimer);
+                    _sxrKasperV2RtTimer = setTimeout(function tick() {
+                        _sxrKasperV2RtTimer = null;
+                        // Re-arm while Kasper is mid-review; a teammate's change while
+                        // he's idle still comes through (matches the cal's 2s re-arm).
+                        if (_sxrKasperViewBusy()) { _sxrKasperV2RtTimer = setTimeout(tick, 2000); return; }
+                        if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
+                    }, 1500);
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Samples Kasper] realtime subscribe failed', e);
+            _sxrKasperV2Channel = null;
+        }
+    }
+    function _sxrKasperV2Teardown() {
+        if (_sxrKasperV2RtTimer) { clearTimeout(_sxrKasperV2RtTimer); _sxrKasperV2RtTimer = null; }
+        if (_sxrKasperV2Channel) {
+            try {
+                if (_sxrV2ClientObj && typeof _sxrV2ClientObj.removeChannel === 'function') _sxrV2ClientObj.removeChannel(_sxrKasperV2Channel);
+                else if (typeof _sxrKasperV2Channel.unsubscribe === 'function') _sxrKasperV2Channel.unsubscribe();
+            } catch (e) {}
+        }
+        _sxrKasperV2Channel = null;
+    }
 
     /* Freshness wiring — only registered when the flag is on, so with it OFF this
        block adds NO listeners and touches nothing (default-OFF isolation). */
@@ -28338,9 +28441,11 @@
         const p = it.post;
         const patch = mutate(p);
         _sxrKasperState.saving[key] = true;
+        _sxrLastLocalWriteAt = Date.now();   // self-echo: defer the realtime queue refresh of our own write
         _sxrKasperRepaint(pid);
         _sxrKasperPersist(it, patch).then(() => {
             _sxrKasperState.saving[key] = false;
+            _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
             const url = _sxrLinearUrlFor(p, comp);
             if (url && patch[comp + '_status']) _sxrPushStatusToLinear(url, patch[comp + '_status']);
             if (url && linearComment) _sxrPostLinearComment(url, linearComment, 'Kasper');
@@ -30707,6 +30812,9 @@
         // SMM moves to Kasper Approval appears without waiting for a focus
         // event. Push-only — an idle tab makes no n8n calls. No-op under v1.
         _kasperV2EnsureSubscribed();
+        // Same live push for the Samples sub-tab queue (sample_reviews). Self-gates
+        // on _sxrReady(), so it's a no-op unless the samples feature is enabled.
+        if (typeof _sxrKasperV2EnsureSubscribed === 'function') _sxrKasperV2EnsureSubscribed();
     }
     /* Stop the Kasper background poller + detach its visibility listeners
        when leaving the Kasper page. Mirrors how the TikTok upload tab tears
@@ -30724,6 +30832,7 @@
         }
         _kasperReleasePointer();
         _kasperV2Teardown();
+        if (typeof _sxrKasperV2Teardown === 'function') _sxrKasperV2Teardown();
     }
 
     /* Kasper queue realtime (v2). The review queue spans every client, so a

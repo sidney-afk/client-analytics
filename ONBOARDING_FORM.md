@@ -161,7 +161,11 @@ AI avatar. (Markup ids `s1..s8` are stable; the displayed numbers are positional
    the process: *before* we produce the first real video we make a few short **sample edits**
    (different subtitle styles, thumbnails, looks) so the client can pick what they like — and to make
    those look like their real videos, the **sample clip of you** (~30s talking to camera) is the
-   single most useful thing to give. (Dropped on the AI funnel.)
+   single most useful thing to give. The section leads with a **worked example** (`_obSampleExample`):
+   a preview tile of a real ~30s talking-to-camera clip a teammate recorded, so the client can see
+   exactly what to send. It uses the same preview + full-screen-zoom mechanic as the subtitle clips
+   (`data-ob-zoom` → `_obZoom`, which auto-detects the `.mp4` and plays it **with sound**); the file is
+   `onboarding-video/sample-example.mp4`. (Dropped on the AI funnel.)
 5. **Photos & source material** — both optional links (photos of you, content to pull from).
 6. **Goals** — what a win looks like, anything else, and a free-text **questions /
    clarifications** box for anything that didn't fit the options above.
@@ -200,6 +204,12 @@ The **thumbnail** picker is the separate live `_obThumbPicker` described above (
 Highlight, `_obThumbSync` swaps the preview). The full-screen zoom (`_obZoom`) auto-detects video vs
 image by extension.
 
+- **Sample-video example** — `onboarding-video/sample-example.mp4`. The real ~30s talking-to-camera
+  clip shown in **step 4** so clients see what a good "sample clip of you" looks like. Re-encoded from
+  the client's 4K portrait source (2160×3840, 43 s, ~57 MB) down to a web-friendly **720×1280 H.264**
+  **with audio** (it's a talking example, so sound is kept), `+faststart`, ~6.7 MB, via:
+  `ffmpeg -i src.mp4 -vf scale=720:-2 -c:v libx264 -profile:v main -pix_fmt yuv420p -crf 27 -preset slow
+  -c:a aac -b:a 96k -movflags +faststart sample-example.mp4`.
 - **Subtitle clips** — `onboarding-video/sub-{elegant,native,bold}.mp4` + a `-hl.mp4` for each
   (six files; every style now has a highlighted-keyword variant). Purpose-made 9:16 sample reels
   (one talent, same VO) demoing each subtitle style, 480×854 H.264 (`yuv420p`, `+faststart`, no

@@ -11887,6 +11887,11 @@
 
     const SC_THUMB = 'https://storage.googleapis.com/prod-sandcastles-thumbnails/';
     const OB_VID = 'onboarding-video/';
+    // Step-4 worked example — a real ~30s talking-to-camera clip (a teammate) so the client sees
+    // exactly what a good "sample clip of you" looks like. Web-optimized 720×1280 H.264 w/ audio.
+    // The poster paints Casper's face on the tile immediately (before the video metadata loads).
+    const OB_SAMPLE_EG = OB_VID+'sample-example.mp4';
+    const OB_SAMPLE_EG_POSTER = OB_VID+'sample-example-poster.jpg';
     // Style cards: [key, name, desc, standardMedia, highlightMedia] — highlight is the toggle variant ('' = none).
     const OB_SUBTITLE_STYLES = [
       ['elegant','Elegant','Thin, refined serif captions.', OB_VID+'sub-elegant.mp4', OB_VID+'sub-elegant-hl.mp4'],
@@ -11983,6 +11988,22 @@
         const desc = t[2] ? '<div class="ob-sub-desc">'+_obEsc(t[2])+'</div>' : '';
         return '<div class="ob-stcard"><div class="ob-sub-text"><span class="ob-sub-name">'+_obEsc(t[1])+'</span>'+desc+'</div>'+previews+'</div>';
       }).join('');
+    }
+
+    // Step-4 example: a preview tile of the sample clip (a teammate talking to camera) + copy, so
+    // the client can see what to record. Tap → full-screen playback with sound via _obZoom (same
+    // preview + zoom mechanic as the subtitle clips; _obZoom auto-detects the .mp4 as a video).
+    function _obSampleExample(){
+      return '<div class="ob-q ob-sample-eg">'+
+        '<button type="button" class="ob-sub-thumb ob-sample-eg-thumb" data-ob-zoom="'+OB_SAMPLE_EG+'" aria-label="Play the example sample clip full screen">'+
+          '<video src="'+OB_SAMPLE_EG+'" poster="'+OB_SAMPLE_EG_POSTER+'" muted loop playsinline preload="metadata"></video>'+
+          '<span class="ob-zoom-ic ob-zoom-ic--play">'+OB_PLAY_BIG_SVG+'</span>'+
+        '</button>'+
+        '<div class="ob-sample-eg-body">'+
+          '<div class="ob-sample-eg-title">Here\'s an example</div>'+
+          '<div class="ob-sample-eg-desc">This is exactly what we mean — one of our team just talking to the camera like a normal video. <b>Tap to watch.</b> Yours doesn\'t need to be scripted or polished; a quick, natural ~30-second take on your phone is perfect.</div>'+
+        '</div>'+
+      '</div>';
     }
 
     function _obSubtitles(){
@@ -12185,6 +12206,7 @@
           ]),
         ]},
         { id:'s4', n:'4', c:'#a063d8', title:'Sample video', intro:'Before we produce your first real video, we\'ll make a few short sample edits — showing different subtitle styles, thumbnails and looks — so you can see your options and pick what feels right. To make those samples look like your actual videos, the single most useful thing you can give us is a short clip of you (below).', fields:[
+          _obSampleExample(),
           _obField({id:'sample_clip', label:'A sample clip of you (optional but ideal)', help:'Record ~30 seconds talking to the camera like a normal video, and paste the link.', type:'url', placeholder:'https://…', driveNote:true}),
         ]},
         { id:'s5', n:'5', c:'#b65fce', title:'Photos & source material', intro:'All optional — share whatever you already have.', fields:[
@@ -12258,7 +12280,7 @@
         '<div class="ob-brand"><span class="ob-logo-wrap"><img class="ob-logo" src="synchro-social-logo.png" alt="Synchro Social"></span>'+
         '<span class="ob-kicker ob-brand-kicker">Client Onboarding</span></div>'+
         '<h1 class="ob-title">Let\'s set up your content</h1>'+
-        '<p class="ob-sub">Takes about 15 minutes. The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
+        '<p class="ob-sub">The more you tell us, the faster we make content that feels like you. Saved as you go.</p></div>';
       const rail = '<div class="ob-rail">'+sections.map(s=>'<button type="button" class="ob-rail-btn" data-ob-go="'+s.id+'">'+s.n+'. '+_obEsc(s.title)+'</button>').join('')+'</div>';
       const chev = '<svg class="ob-sec-chev" viewBox="0 0 16 16" width="17" height="17" fill="none" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       const body = sections.map(s=>{
@@ -12685,6 +12707,13 @@
       .ob-switch input:checked + .ob-switch-track::before{ transform:translateX(18px); }
       .ob-info-panel{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:11px 13px; margin:4px 0 10px; }
       .ob-tp-note{ margin:18px 0 22px; }
+      /* Step-4 worked example: video preview + copy, side by side (stacks + centres on mobile). */
+      .ob-sample-eg{ display:flex; gap:16px; align-items:center; background:var(--bg); border:1px solid var(--border); border-radius:12px; padding:14px 15px; }
+      .ob-sample-eg-thumb{ width:120px; height:213px; border-radius:10px; flex-shrink:0; }
+      .ob-sample-eg-body{ display:flex; flex-direction:column; gap:6px; min-width:0; }
+      .ob-sample-eg-title{ font-size:0.9rem; font-weight:700; color:var(--text-primary); }
+      .ob-sample-eg-desc{ font-size:0.82rem; line-height:1.5; color:var(--text-secondary); }
+      @media(max-width:560px){ .ob-sample-eg{ flex-direction:column; align-items:center; text-align:center; } }
       .ob-lp-check{ align-items:flex-start; gap:10px; line-height:1.45; }
       .ob-lp-check .ob-chk{ margin-top:1px; }
       .ob-ai-fields{ margin-top:6px; }

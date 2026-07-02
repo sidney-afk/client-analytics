@@ -26,6 +26,23 @@ PROBES=(
 )
 # NOTE: the 6 fixed-bug guards (bug_repros/audit_holes/gating_flags) now assert
 # the FIX holds — a regression re-introducing any bug turns them red in the log.
+
+# CONTENT-CALENDAR sweep (phase 3): the 6 golden review paths + the highest-signal
+# calendar probes (concurrency, approve/undo cycles, realtime handler) run each
+# round alongside the samples set, so BOTH calendars are continuously covered.
+# The full 61-probe calendar manifest stays with the calendar-e2e-nightly CI job.
+CAL_PROBES=(
+  qa/golden_1_clean_approve.js
+  qa/golden_2_kasper_tweak_loop.js
+  qa/golden_3_client_tweak_loop.js
+  qa/golden_4_approve_after_tweaks.js
+  qa/golden_5_undo_approve.js
+  qa/golden_6_archive_cross_surface.js
+  qa/probes/p42_concurrent_components.js
+  qa/probes/p43_smm_client_concurrent.js
+  qa/probes/p78_approve_undo_reapprove.js
+  qa/probes/p88_realtime_handler.js
+)
 # Scenario batches (small groups so no single process trips SCN_TIMEOUT).
 SCN_BATCHES=(
   "smm_reply_to_client_request_video,client_mixed_gating_video,audience_leak_guard_video"
@@ -61,6 +78,9 @@ while :; do
   done
   for b in "${SCN_BATCHES[@]}"; do
     run_one "scn:$b" "node qa/probes/run_scenarios.js $b"
+  done
+  for p in "${CAL_PROBES[@]}"; do
+    [ -f "$p" ] && run_one "cal:$(basename "$p")" "node $p"
   done
   # safety sweep: archive any stray sr_probe_/sr_scn_ seeds left behind
   node -e "const {supa,archiveSafe}=require('./qa/sxr_courier_lib.js');try{const r=supa('client=eq.sidneylaruel&status=neq.Archived&select=id');for(const x of (r||[])){if(/^sr_(scn|probe|test)/.test(x.id))archiveSafe(x.id);}}catch(e){}" 2>/dev/null

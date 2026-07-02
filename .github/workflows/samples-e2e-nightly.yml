@@ -45,7 +45,7 @@ jobs:
           python3 -m http.server 8000 & SRV=$!
           sleep 2
           EC=0
-          for p in sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open sxr_kasper_audit_holes sxr_linear_deep sxr_realtime_twin; do
+          for p in sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open sxr_kasper_audit_holes sxr_linear_deep sxr_realtime_twin sxr_client_persist_guard cal_realtime_twin cal_linear_deep; do
             echo "=== $p ==="
             node "qa/probes/$p.js" || EC=1
           done

@@ -151,7 +151,10 @@ async function waitStatus(id, comp, status, ms = 20000) {
       let sent = false;
       for (let i = 0; i < 12 && !sent; i++) { sent = pushes('VID-OUTBOX-1').length > 0; if (!sent) await sleep(1000); }
       t(sent, 'outbox drain: queued push was sent to the (mocked) webhook');
-      const empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]')).length === 0);
+      // the capture logs at REQUEST time; the box rewrite happens after the
+      // response resolves in-page — poll briefly rather than reading instantly
+      let empty = false;
+      for (let i = 0; i < 10 && !empty; i++) { empty = await page.evaluate(() => (JSON.parse(localStorage.getItem('syncview_sxr_linear_outbox_v1') || '[]')).length === 0); if (!empty) await sleep(1000); }
       t(empty, 'outbox is empty after the drain');
     }
 

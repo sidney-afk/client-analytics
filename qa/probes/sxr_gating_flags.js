@@ -4,8 +4,9 @@
 //   2. Finished-card stays finished on a new message (BUG-7 FIX): after Kasper
 //      "Finish", a later message must NOT pull the card back to Waiting — only a
 //      genuine Kasper-Approval re-route may. Parity with the calendar rule.
-//   3. Flag-off isolation: without ?sxr=1 the Samples nav is absent and the
-//      sample-reviews route renders the "is off" state with zero cards.
+//   3. Flag semantics (GA rollout 2026-07-02): samples is ON BY DEFAULT (no
+//      param → enabled, "Samples New" nav visible). `?sxr=0` is the sticky
+//      per-browser OPT-OUT: everything dormant, nav hidden, route refused.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smm, kasper, open, up, supa, archiveSafe, appErrs, ORIGIN } = L;
@@ -77,25 +78,40 @@ async function kasperCardState(page, cid) {
     t(sawMsg, 'new SMM message landed on the finished card');
     t(stAfter === 'finished', 'BUG-7 FIX: a new message does NOT resurface a FINISHED card (stays in Tweaks pending; parity with calendar)', 'state=' + stAfter);
 
-    // ---------- 3. flag-off isolation ----------
-    const offPage = await open(browser, '/index.html#sample-reviews/sidneylaruel');   // NO ?sxr=1
+    // ---------- 3a. GA default-ON: no param → enabled, "Samples New" nav visible ----------
+    const defPage = await open(browser, '/index.html');   // NO sxr param at all
+    await sleep(2500);
+    const def = await defPage.evaluate(() => {
+      const nav = document.querySelector('#navSxr');
+      return {
+        enabled: (typeof _sxrEnabled === 'function') ? _sxrEnabled() : 'no-fn',
+        navVisible: !!nav && getComputedStyle(nav).display !== 'none' && nav.offsetParent !== null,
+        navLabel: nav ? nav.textContent.trim() : '',
+        oldLabel: (document.querySelector('#navSamples') || {}).textContent || '',
+      };
+    });
+    t(def.enabled === true, 'GA default: _sxrEnabled() is TRUE with no param', String(def.enabled));
+    t(def.navVisible, 'GA default: "Samples New" nav tab is visible');
+    t(/Samples New/.test(def.navLabel), 'GA default: new tab labeled "Samples New"', def.navLabel);
+    t(/Samples Old/.test(def.oldLabel), 'GA default: old tab labeled "Samples Old"', def.oldLabel.trim());
+
+    // ---------- 3b. opt-out isolation: ?sxr=0 → dormant, nav hidden, route refused ----------
+    const offPage = await open(browser, '/index.html?sxr=0#sample-reviews/sidneylaruel');
     await sleep(2500);
     const off = await offPage.evaluate(() => {
       const nav = document.querySelector('#navSxr');
       return {
         navVisible: !!nav && getComputedStyle(nav).display !== 'none' && nav.offsetParent !== null,
-        // rebuilt-FE contract: the route is REFUSED — hash cleared, default
-        // dashboard rendered, no sxr view mounted (old FE showed an "is off" page)
         hash: location.hash,
         sxrViewMounted: !!document.getElementById('sxrView'),
         cards: document.querySelectorAll('#sxrStrip .cal-card').length,
         enabled: (typeof _sxrEnabled === 'function') ? _sxrEnabled() : 'no-fn',
       };
     });
-    t(off.enabled === false, 'flag-off: _sxrEnabled() is false without ?sxr=1', String(off.enabled));
-    t(!off.navVisible, 'flag-off: samples nav is hidden (display:none)');
-    t(off.cards === 0, 'flag-off: zero sample cards rendered', String(off.cards));
-    t(off.hash === '' && !off.sxrViewMounted, 'flag-off: #sample-reviews route refused (hash cleared, no sxr view mounted)', `hash="${off.hash}" mounted=${off.sxrViewMounted}`);
+    t(off.enabled === false, 'opt-out: _sxrEnabled() is false with ?sxr=0', String(off.enabled));
+    t(!off.navVisible, 'opt-out: samples nav is hidden (display:none)');
+    t(off.cards === 0, 'opt-out: zero sample cards rendered', String(off.cards));
+    t(off.hash === '' && !off.sxrViewMounted, 'opt-out: #sample-reviews route refused (hash cleared, no sxr view mounted)', `hash="${off.hash}" mounted=${off.sxrViewMounted}`);
 
     for (const p of [kp, sp]) { const errs = appErrs(p) || []; if (errs.length) t(false, 'appErrs', errs[0]); }
   } catch (e) {

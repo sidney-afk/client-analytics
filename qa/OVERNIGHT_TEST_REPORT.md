@@ -72,6 +72,18 @@ Tester robustness: `expectKasperCard` now polls the cross-client queue until it
 settles on the expected state (was a single early read → flaky present/absent).
 
 ## OBSERVATIONS still open for YOUR product call (not auto-changed)
+- **OBS-4 (payload audit, live-verified 2026-07-02) — a client share link can
+  write ANY column, not just review actions.** The client surface renders no
+  field editors (UI gating holds — verified), but the save funnel
+  (`_sxrFlushCardSave` → `sample-review-upsert`) has no role-based column
+  allowlist: forcing `{name, asset_url}` edits through the client page's own
+  funnel persisted both (probe `sxr_client_persist_guard.js`). NB the deeper
+  boundary issue: the n8n upsert webhook accepts any payload from anyone who
+  has the URL, so an FE-side whitelist is defense-in-depth only — the real fix
+  is webhook-side (n8n): allowlist writable columns per role/token (client
+  token ⇒ only `*_status`, `*_tweaks`, `client_*_approved_at/by`, `status`).
+  The calendar's `calendar-upsert-post` webhook shares this architecture —
+  same recommendation. Left un-auto-fixed: the fix belongs in n8n, not this repo.
 - **OBS-2** — client loses sight of a component's thread at Tweaks Needed until
   re-offer (dead client tweaks-composer). Shared with calendar.
 - **OBS-3** — client can Approve while their own change request is still open.
@@ -193,6 +205,11 @@ settles on the expected state (was a single early read → flaky present/absent)
 
 | R2-41 | 2026-07-02 | Linear deep: inbound-echo suppression (single-shot), __CLEAR_LINK__ (no push), link uniqueness + "Move it here" relocation, outbox drain | sxr_linear_deep.js | ✅ 16/16 (detector pre-check informational) |
 | R2-42 | 2026-07-02 | **Realtime TWO-SCREEN sim**: cross-screen propagation via _sxrV2OnRealtimeChange (no manual refresh); recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven reload | sxr_realtime_twin.js | ✅ 9/9 |
+
+| R2-43 | 2026-07-02 | **CALENDAR realtime TWO-SCREEN twin** (cross-screen propagation via _calV2OnRealtimeChange, recent-save window survives concurrent push, pending edit survives push-driven reload) — courier-based, runs in-session AND on CI | cal_realtime_twin.js | ✅ 12/12 |
+
+| R2-44 | 2026-07-02 | **CALENDAR Linear deep twin** (single-shot echo suppression, __CLEAR_LINK__, cross-post link uniqueness + move relocation, outbox drain) | cal_linear_deep.js | ✅ 16/16 |
+| R2-45 | 2026-07-02 | **GA rollout verified**: samples ON by default ("Samples New" beside "Samples Old"), ?sxr=0 opt-out isolation intact | sxr_gating_flags.js | ✅ 13/13 |
 
 ### Overnight autonomous run (unattended, from 2026-07-02 night)
 `qa/overnight_runner.sh` loops all sxr probes + scenario batches back-to-back

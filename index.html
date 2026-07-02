@@ -4196,8 +4196,16 @@
         </a>
         <a class="header-nav-btn" id="navSamples" href="#samples" onclick="if(_modClick(event))return;event.preventDefault();navTo('samples')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 6L10.5 8L7 10V6Z" fill="currentColor"/></svg>
-            Samples
+            Samples Old
         </a>
+        <!-- >>> SXR_BEGIN (nav — beside the old Samples tab for the migration window) -->
+        <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Samples New
+        </a>
+        <!-- <<< SXR_END -->
+
+
         <a class="header-nav-btn" id="navTiktokUpload" href="#tiktok-upload" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-upload')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 13.5h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             TikTok Upload
@@ -4210,12 +4218,6 @@
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="#22c55e"/></svg>
             TikTok Pilot
         </a>
-        <!-- >>> SXR_BEGIN -->
-        <a class="header-nav-btn" id="navSxr" href="#sample-reviews" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sample-reviews')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 8.2L7 10.2L11 5.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Sample Reviews
-        </a>
-        <!-- <<< SXR_END -->
     </div>
     <span class="header-meta" id="lastUpdated" style="text-align:right;"></span>
 </header>
@@ -25427,13 +25429,17 @@
     let _sxrFlagCache = null;
     function _sxrEnabled() {
         if (_sxrFlagCache !== null) return _sxrFlagCache;
-        let on = false;
+        // GA rollout (2026-07-02): default ON for everyone — the "Samples New"
+        // nav tab ships beside the old Samples tab so SMMs can migrate; the old
+        // module retires later. `?sxr=0` remains the sticky per-browser opt-out
+        // (the rollback documented in SAMPLES_GO_LIVE.md); `?sxr=1` clears it.
+        let on = true;
         try {
             const q = new URLSearchParams(location.search).get('sxr');
             if (q === '1' || q === 'true') { on = true; try { localStorage.setItem(SXR_ON_KEY,'1'); localStorage.removeItem(SXR_OFF_KEY); } catch {} }
             else if (q === '0' || q === 'false') { on = false; try { localStorage.setItem(SXR_OFF_KEY,'1'); localStorage.removeItem(SXR_ON_KEY); } catch {} }
-            else { on = (localStorage.getItem(SXR_ON_KEY) === '1') && (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
-        } catch { on = false; }
+            else { on = (localStorage.getItem(SXR_OFF_KEY) !== '1'); }
+        } catch { on = true; }
         _sxrFlagCache = on;
         return on;
     }

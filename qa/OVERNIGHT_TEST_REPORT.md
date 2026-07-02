@@ -148,6 +148,9 @@ archived and Linear mocked.
 | R2-37 | 2026-07-02 | BUG-5a/5b pinned live: approve pushes Linear but never stamps kasper_approved_at; undo reverts DB, pushes NOTHING to Linear (stale issue) | sxr_kasper_audit_holes.js | ✅ 6/6 (pins) |
 | R2-38 | 2026-07-02 | Round numbering: Tweak #1 → #2 on both components | two_round_request_* | ✅ 12/12 |
 
+| R2-39 | 2026-07-02 | Remaining regression batches (worstof/mixed/notes ×7, graphic family ×7, notes+two-round ×7, graphic deep ×8, final ×10) | scenarios | ✅ 149/149 asserts |
+| R2-40 | 2026-07-02 | **MILESTONE: every one of the 74 flat-library keys has run green this session** (+ tree 24/24) | — | ✅ |
+
 ### Flaky-note (infra, watched)
 - One transient: a Kasper approve save silently failed once (DB unchanged, no
   retry — the catch path only shows "Save failed"); re-run green. Probes now

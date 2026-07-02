@@ -76,15 +76,19 @@ archived and Linear mocked.
   (KASPER_REVIEW_GLOBAL_ROLLOUT.md). Clone-parity miss in the rebuild.
 
 ## OBSERVATIONS (product-intent questions, not bugs)
-- **OBS-2 — a client who requests a change loses sight of the thread.** At
-  `Tweaks Needed` the card leaves the client Review queue entirely
-  (`_sxrReviewComponentActive` excludes Tweaks Needed for `_isClientLink`,
-  index.html:27034), so the SMM's reply is invisible to the client until the
-  SMM re-offers at Client Approval — unless the OTHER component still awaits
-  review (mixed case keeps the card visible, and then the tweaks-state
-  follow-up composer works). Verified live via screenshot (empty client queue).
-  If clients are expected to follow the conversation mid-tweak, the queue filter
-  needs to include Tweaks Needed for client links.
+- **OBS-2 (sharpened, live-verified both cases) — a client who requests a change
+  loses sight of that component's thread ENTIRELY until re-offer.** At `Tweaks
+  Needed` the component is excluded for client links both from the Review queue
+  (`_sxrReviewComponentActive`, index.html:27034) AND from the card body's panel
+  list on a card that stays visible via its other component
+  (`_sxrReviewCardBody`, index.html:27107-27109). Consequence: the client-facing
+  tweaks-state composer ("The team is working on it. Anything else to add?",
+  index.html:27137) is UNREACHABLE dead code for real client links. The calendar
+  twin has the identical predicate, so this is faithful clone parity — a
+  long-standing product behavior, not a rebuild regression. Product call:
+  either clients should follow the conversation mid-tweak (drop the
+  `!_isClientLink` guard) or the dead tweaks-state client UI should go.
+  Pinned by scenario `client_mixed_gating_video`.
 - **OBS-3 — client CAN approve at `Tweaks Needed`** (canAct includes it,
   index.html:27130) → straight to Approved with the open tweak left open.
   Pin/adjust per product intent.
@@ -121,6 +125,13 @@ archived and Linear mocked.
 | R2-15 | 2026-07-02 | Delete own note via confirm dialog (soft-delete persisted) | delete_comment_video | ✅ 4/4 |
 | R2-16 | 2026-07-02 | Audit trail: status_change event per clean-path transition (SMM→Kasper→Client→Approved) | audit_trail_video | ✅ 9/9 |
 | R2-17 | 2026-07-02 | Kasper close + SMM re-route → card does NOT resurface | kasper_close_resurface_video | 🐞 **BUG-6** (6/7 — re-route resurface fails; tooltip contradicts code) |
+| R2-18 | 2026-07-02 | Reopen a resolved tweak (via Show-resolved history view) | reopen_tweak_video | ✅ 5/5 |
+| R2-19 | 2026-07-02 | Mark done with another tweak open (no chooser) — done persisted | notes_markdone | ✅ 2/2 |
+| R2-20 | 2026-07-02 | Resolve chooser on the GRAPHIC component → Kasper | resolve_via_kasper_graphic | ✅ 3/3 |
+| R2-21 | 2026-07-02 | OBS-2 pin: Tweaks-Needed panel hidden from client even on a client-active card; other comp's panel renders | client_mixed_gating_video | ✅ 6/6 |
+| R2-22 | 2026-07-02 | SMM plain review-tab comment — no status change | smm_comment_video | ✅ 3/3 |
+| R2-23 | 2026-07-02 | Client comments then approves (comment must not block approval) | client_comment_then_approve_video | ✅ 5/5 |
+| R2-24 | 2026-07-02 | Client plain comment on the graphic | client_comment_graphic | ✅ 3/3 |
 
 ## NOT YET COVERED (resume here)
 - Re-run: linear_push_video_status, kasper_finish_video (SIGKILL'd batch).

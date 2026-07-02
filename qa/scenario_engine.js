@@ -472,6 +472,16 @@ async function runScenario(browser, scn, shotDir, doShots) {
         const p = await actors.client();
         const txt = await clientThreadText(p, name, args[0]);
         const want = args[1] || {};
+        // {absent:true} pins "the client sees NO panel for this component"
+        // (e.g. Tweaks Needed is gated off client links); {present:true} just
+        // requires the panel to render.
+        if (want.absent || want.present) {
+          const isAbsent = txt === '(no panel)';
+          const okk = want.absent ? isAbsent : !isAbsent;
+          note(okk, `expectClientThread ${args[0]} ${JSON.stringify(want)}`, okk ? '' : `panel ${isAbsent ? 'absent' : 'present'} [thread="${txt.slice(0, 80)}"]`);
+          await shot(p, 'client-thread');
+          continue;
+        }
         const missing = (want.contains || []).filter(s => !txt.includes(s));
         const leaked = (want.notContains || []).filter(s => txt.includes(s));
         note(missing.length === 0 && leaked.length === 0, `expectClientThread ${args[0]} ${JSON.stringify(want)}`,

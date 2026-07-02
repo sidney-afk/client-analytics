@@ -280,15 +280,21 @@ function base() {
       ['expect', 'video_status', 'Client Approval'],
       ['expectClientThread', 'video', { contains: ['CLIENT_ASK_TOKEN', 'SMM_ANSWER_TOKEN'] }],
     ] });
-  // Mixed case: the OTHER component still awaits the client, so the card stays
-  // in the client queue and the tweaks-needed panel (follow-up composer) renders.
-  S.push({ key: 'client_sees_reply_mixed_video', title: 'Reply visible at Tweaks Needed when the other component keeps the card client-active',
+  // Mixed case (pins render-gating — OBS-2): even when the OTHER component keeps
+  // the card in the client queue, a Tweaks-Needed component renders NO panel for
+  // client links (_sxrReviewCardBody filters by _sxrReviewComponentActive, which
+  // excludes Tweaks Needed when _isClientLink — same on the calendar twin). The
+  // client-facing tweaks-state composer at index.html:27137 is therefore
+  // unreachable for real clients; thread visibility resumes on re-offer.
+  S.push({ key: 'client_mixed_gating_video', title: 'Tweaks-Needed panel hidden from client even when card stays client-active (OBS-2 pin)',
     seed: { video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval' },
     steps: [
       ['client.request', 'video', 'CLIENT_MIX_ASK crop tighter'],
       ['expect', 'video_status', 'Tweaks Needed'],
       ['smm.reply', 'video', 'SMM_MIX_ANSWER cropping now'],
-      ['expectClientThread', 'video', { contains: ['CLIENT_MIX_ASK', 'SMM_MIX_ANSWER'] }],
+      ['expectComment', 'video', { role: 'smm', reply: true }],
+      ['expectClientThread', 'video', { absent: true }],    // gated off
+      ['expectClientThread', 'graphic', { present: true }], // other comp still reviewable
     ] });
 
   // Audience gating — internal note never leaks to the client surface

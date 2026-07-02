@@ -2,3 +2,6 @@
 [2026-07-02T04:44:10Z] ---- round 1 ----
 [2026-07-02T04:44:35Z] PASS  probe:sxr_bug_repros.js  | pass=6 fail=0 
 [2026-07-02T04:49:43Z] PASS  probe:sxr_concurrency.js  | pass=8 fail=0 
+[2026-07-02T05:45:48Z] ==== overnight runner START (pid 12959) ====
+[2026-07-02T05:45:48Z] ---- round 1 ----
+[2026-07-02T05:46:14Z] PASS  probe:sxr_bug_repros.js  | pass=4 fail=0 

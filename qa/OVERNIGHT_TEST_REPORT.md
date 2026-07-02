@@ -72,6 +72,18 @@ Tester robustness: `expectKasperCard` now polls the cross-client queue until it
 settles on the expected state (was a single early read → flaky present/absent).
 
 ## OBSERVATIONS still open for YOUR product call (not auto-changed)
+- **OBS-4 (payload audit, live-verified 2026-07-02) — a client share link can
+  write ANY column, not just review actions.** The client surface renders no
+  field editors (UI gating holds — verified), but the save funnel
+  (`_sxrFlushCardSave` → `sample-review-upsert`) has no role-based column
+  allowlist: forcing `{name, asset_url}` edits through the client page's own
+  funnel persisted both (probe `sxr_client_persist_guard.js`). NB the deeper
+  boundary issue: the n8n upsert webhook accepts any payload from anyone who
+  has the URL, so an FE-side whitelist is defense-in-depth only — the real fix
+  is webhook-side (n8n): allowlist writable columns per role/token (client
+  token ⇒ only `*_status`, `*_tweaks`, `client_*_approved_at/by`, `status`).
+  The calendar's `calendar-upsert-post` webhook shares this architecture —
+  same recommendation. Left un-auto-fixed: the fix belongs in n8n, not this repo.
 - **OBS-2** — client loses sight of a component's thread at Tweaks Needed until
   re-offer (dead client tweaks-composer). Shared with calendar.
 - **OBS-3** — client can Approve while their own change request is still open.

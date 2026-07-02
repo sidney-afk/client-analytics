@@ -23,6 +23,7 @@ PROBES=(
   qa/probes/sxr_kasper_audit_holes.js
   qa/probes/sxr_linear_deep.js
   qa/probes/sxr_realtime_twin.js
+  qa/probes/sxr_client_persist_guard.js
 )
 # NOTE: the 6 fixed-bug guards (bug_repros/audit_holes/gating_flags) now assert
 # the FIX holds — a regression re-introducing any bug turns them red in the log.

@@ -52,10 +52,13 @@ inside SyncView.
 | 6 | Deliverables for client | textarea | yes | Kasper writes these himself, free text. Fills the deliverables placeholder. |
 | 7 | Billing type | radio | yes | Three options — see pricing below. Drives the invoice amount AND the agreement's billing-period wording. |
 | 8 | Invoice amount | number (USD) | yes | Auto-filled from billing type ($2,997 monthly / $7,991 quarterly), editable; free entry when One-time is picked. |
-| 9 | Payment method | radio | yes | **ACH** or **Credit card**. Added in call 2 (not in the Notion reference form yet). Card payers do NOT share links with ACH payers — the card links carry a "Credit card processing fee" recurring product Kasper created in Stripe. |
-| 10 | Payment link | radio + url | yes | **Monthly** → fixed 4-week Stripe link, **Quarterly** → fixed 12-week link (URLs below), **Custom** → a url input appears and Kasper pastes the link he created in Stripe (always the case for one-time fees). |
-| 11 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. |
-| 12 | Referred by | text | no | From the reference form; the only optional field on it. |
+| 9 | Payment link | radio + url | yes | **Monthly** → fixed 4-week Stripe link, **Quarterly** → fixed 12-week link (URLs below), **Custom** → a url input appears and Kasper pastes the link he created in Stripe (always the case for one-time fees). |
+| 10 | Termination clause | radio | yes | **Regular** → the standard clause (verbatim text below; also to be hosted on synchrosocial.com, not Notion). **Custom** → a textarea appears and Kasper pastes the clause. Both options show for every billing type — Kasper picks per deal ("just have two options, either regular … and then custom"); the regular text is minimum-commitment (quarterly) wording, so one-time deals will typically use Custom. |
+| 11 | Referred by | text | no | From the reference form; the only optional field on it. |
+
+**Dropped:** the ACH-vs-credit-card payment-method option from call 2 — Kasper said
+to forget it (follow-up, 2026-07-02). No payment-method field, no card-fee link
+variants; the two Stripe links below are final.
 
 ### Regular termination clause (verbatim, from Kasper 2026-07-02)
 
@@ -65,9 +68,10 @@ inside SyncView.
 > Quarterly Term, whether billed in advance or outstanding, regardless of whether the
 > Client continues to use the services.
 
-Note this wording is quarterly-specific ("full three (3) consecutive four-week
-terms"). Confirm with Kasper whether the same text is used as-is for monthly and
-one-time deals or whether those always get a Custom clause.
+The wording is quarterly-specific ("full three (3) consecutive four-week terms").
+That's fine by design: per call 1 the form simply offers Regular/Custom on every
+deal and Kasper chooses — for non-quarterly deals he'll paste a Custom clause. Do
+not auto-couple the clause to the billing type.
 
 ### Pricing (current package)
 
@@ -87,12 +91,9 @@ be verified headlessly from the dev sandbox — **click both once before go-live
 sanity-check the product and amount. (The 4-week URL arrived with chat metadata glued
 on — "…ao80gEdited 1:11 PM" — the clean URL above is the real one.)
 
-On call 2 Kasper also created a "Credit card processing fee" recurring product
-(custom, every 12 weeks) and said ACH and card payers should NOT share links. Only
-the two links above have been handed over, so **confirm the ACH/card matrix with
-Kasper**: are these the ACH links with card variants still to come, or do they
-already include the card fee? Wire the payment-method → link mapping only after that
-answer; until then treat the two links as the defaults for monthly/quarterly.
+(On call 2 Kasper floated separate ACH vs credit-card links plus a card-processing-fee
+product, but he has since dropped the idea — these two links are final. Monthly →
+4-week link, Quarterly → 12-week link, one-time → Kasper pastes a custom link.)
 
 ## Submit flow
 
@@ -123,7 +124,7 @@ it back for v1).
 
 Suggested columns: `id`, `created_at`, `closed_by`, `client_name`, `client_email`,
 `instagram`, `contract_start_date`, `deliverables`, `billing_type`
-(`monthly|quarterly|one_time`), `invoice_amount`, `payment_method` (`ach|card`),
+(`monthly|quarterly|one_time`), `invoice_amount`,
 `payment_link`, `termination_clause_type` (`regular|custom`),
 `termination_clause_text`, `referred_by`, `esign_contract_id`, `status`, `raw jsonb`.
 
@@ -176,10 +177,10 @@ the *tab registration/gating* on the Kasper tab.
 - [x] Stripe payment links — 4-week and 12-week links received (see above).
 - [x] Standard termination clause text — received verbatim (see above); still to be
       published on synchrosocial.com.
-- [ ] eSignatures.com API token + Sales & Service Agreement template ID — Sidney's invite is in his email.
-- [ ] Confirm with Kasper: ACH vs card link matrix (see Stripe links section) and whether the card processing fee applies to monthly too — he only built the 12-week fee product on the call.
+- [ ] eSignatures.com API token + Sales & Service Agreement template ID — Sidney will
+      paste these into the implementation session; put the token in an n8n
+      credential, never in `index.html` or the repo.
 - [ ] Confirm: one combined email (agreement + invoice) or two (eSignatures sends its own signing email; invoice mail separate)?
-- [ ] Confirm: does the regular termination clause text apply as-is to monthly / one-time deals (its wording is quarterly-specific)?
 
 ## Out of scope for this feature (tracked from the same calls)
 

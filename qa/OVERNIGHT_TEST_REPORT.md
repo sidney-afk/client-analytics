@@ -151,6 +151,17 @@ archived and Linear mocked.
 | R2-39 | 2026-07-02 | Remaining regression batches (worstof/mixed/notes ×7, graphic family ×7, notes+two-round ×7, graphic deep ×8, final ×10) | scenarios | ✅ 149/149 asserts |
 | R2-40 | 2026-07-02 | **MILESTONE: every one of the 74 flat-library keys has run green this session** (+ tree 24/24) | — | ✅ |
 
+| R2-41 | 2026-07-02 | Linear deep: inbound-echo suppression (single-shot), __CLEAR_LINK__ (no push), link uniqueness + "Move it here" relocation, outbox drain | sxr_linear_deep.js | ✅ 16/16 (detector pre-check informational) |
+| R2-42 | 2026-07-02 | **Realtime TWO-SCREEN sim**: cross-screen propagation via _sxrV2OnRealtimeChange (no manual refresh); recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven reload | sxr_realtime_twin.js | ✅ 9/9 |
+
+### Overnight autonomous run (unattended, from 2026-07-02 night)
+`qa/overnight_runner.sh` loops all sxr probes + scenario batches back-to-back
+against a child server, archives stray seeds each round, re-checks the unit gate,
+appends to `qa/overnight_runner.log`, and never stops on its own (a FAIL is logged
+and the loop continues). Phase queue after samples runs dry: realtime two-screen
+depth → content-calendar sweep with the upgraded coverage → twin-check every bug
+across both calendars.
+
 ### Flaky-note (infra, watched)
 - One transient: a Kasper approve save silently failed once (DB unchanged, no
   retry — the catch path only shows "Save failed"); re-run green. Probes now

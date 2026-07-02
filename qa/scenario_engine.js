@@ -144,6 +144,54 @@ async function smmStatus(page, id, comp, status) {
   }, [id, comp, status]);
   return res;
 }
+// CREATE VIA THE REAL UI — clicks the Sheet "+" button, types into the blank
+// card's name field, and blurs (the exact human flow). This is the path the
+// GA day-1 ghost-card bug lived on (addSxrBlankCard's optimistic state push +
+// _sxrFlushCardSave's findIndex(realId) miss = the same card painted twice in
+// the creating window). No seeded-id shortcut can cover it: the blank→promote
+// funnel only runs when the card is born in the DOM.
+async function smmCreateCard(page, cardName) {
+  await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+  await sleep(page, 1700);
+  const clicked = await page.evaluate(() => {
+    const add = document.querySelector('#sxrStrip .cal-card-add');
+    if (!add) return 'no-add-btn';
+    add.click(); return 'ok';
+  });
+  if (clicked !== 'ok') return clicked;
+  await sleep(page, 500);
+  return page.evaluate((nm) => {
+    const blanks = [...document.querySelectorAll('#sxrStrip .cal-card[data-pid^="__sxrblank__"]')];
+    const card = blanks[blanks.length - 1];
+    if (!card) return 'no-blank-card';
+    const inp = card.querySelector('.cal-fld-name');
+    if (!inp) return 'no-name-field';
+    inp.focus();
+    inp.value = nm;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.blur();                       // fires the inline onblur → _sxrFlushCardSave (blank→promote→save)
+    return 'ok';
+  }, cardName);
+}
+
+// Rename a card by its CURRENT visible name — used right after smm.createCard
+// to race a second edit against the first save (the blank→real promote window).
+async function smmRenameCard(page, fromName, toName) {
+  return page.evaluate((args) => {
+    const [from, to] = args;
+    const strip = document.getElementById('sxrStrip');
+    if (!strip) return 'no-strip';
+    const card = [...strip.querySelectorAll('.cal-card[data-pid]')].find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === from; });
+    if (!card) return 'no-card';
+    const inp = card.querySelector('.cal-fld-name');
+    inp.focus();
+    inp.value = to;
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.blur();
+    return 'ok';
+  }, [fromName, toName]);
+}
+
 async function smmApprove(page, name, comp, route) {
   await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="smmreview"]'); if (b) b.click(); });
   await sleep(page, 1400);   // let any prior action's save+re-render settle before we expand
@@ -400,6 +448,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const id = scn.id, name = scn.name;
   const log = []; let nstep = 0; let okCount = 0, failCount = 0;
   const actors = new Actors(browser);
+  const extraIds = new Set();   // rows minted BY THE UI during this scenario (no seeded id) — archived in finally
   const note = (pass, msg, extra) => { log.push({ pass, msg, extra }); if (pass) okCount++; else failCount++; };
   const shot = async (page, label) => { if (!doShots) return; try { fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
 
@@ -413,14 +462,57 @@ async function runScenario(browser, scn, shotDir, doShots) {
   // on calendar + samples), so any flow using smm.status or routing the thumbnail
   // through Kasper would stall. A scenario can still override with '' to test the
   // unlinked case. (Linear is always mocked by the courier, so this never hits live.)
-  up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) }, scn.seed));
-  await poll(() => { const r = supa('id=eq.' + id + '&select=id'); return r[0] || null; }, 12000, 600);
+  // A `noSeed: true` scenario skips seeding entirely — used by the create-via-UI
+  // scenarios, whose whole point is that the row is born in the browser.
+  if (!scn.noSeed) {
+    up(Object.assign({ id, name, order_index: 1, asset_url: 'https://frame.io/x/' + id, thumbnail_url: 'https://i.ytimg.com/vi/x/hqdefault.jpg', linear_issue_id: 'https://linear.app/x/VID-' + id.slice(-8), graphic_linear_issue_id: 'https://linear.app/x/GRA-' + id.slice(-8) }, scn.seed));
+    await poll(() => { const r = supa('id=eq.' + id + '&select=id'); return r[0] || null; }, 12000, 600);
+  }
 
   try {
     for (const step of scn.steps) {
       const [verb, ...args] = step;
       let res = 'ok';
       if (verb === 'smm.status') { const p = await actors.smm(); res = await smmStatus(p, id, args[0], args[1]); await shot(p, 'smm-status'); }
+      else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, args[0]); await shot(p, 'smm-create'); }
+      else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, args[0], args[1]); await shot(p, 'smm-rename'); }
+      else if (verb === 'expectCardOnce') {
+        // The ghost-card gate. Waits for the save to settle, then asserts:
+        //   DOM  — exactly ONE .cal-card whose name field carries this name,
+        //          and ZERO leftover __sxrblank__ cards holding it;
+        //   DB   — exactly ONE live sample_reviews row with this name.
+        // Registers the minted row for cleanup. Fails loud on 0 or 2+.
+        const wantName = args[0];
+        const p = await actors.smm();
+        let dom = null;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 15000) {
+          dom = await p.evaluate((nm) => {
+            const strip = document.getElementById('sxrStrip');
+            if (!strip) return { cards: -1, blanks: -1, saving: 0 };
+            const all = [...strip.querySelectorAll('.cal-card[data-pid]')];
+            const named = all.filter(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+            return {
+              cards: named.length,
+              blanks: named.filter(c => (c.getAttribute('data-pid') || '').startsWith('__sxrblank__')).length,
+              saving: named.filter(c => c.classList.contains('is-saving')).length,
+              pids: named.map(c => c.getAttribute('data-pid')),
+            };
+          }, wantName);
+          if (dom.cards >= 1 && dom.saving === 0) break;
+          await new Promise(s => setTimeout(s, 600));
+        }
+        let rows = [];
+        try { rows = supa('client=eq.sidneylaruel&name=eq.' + encodeURIComponent(wantName) + '&status=neq.Archived&select=id,name') || []; } catch {}
+        (Array.isArray(rows) ? rows : []).forEach(r => extraIds.add(r.id));
+        (dom && dom.pids || []).filter(x => x && !x.startsWith('__sxrblank__')).forEach(x => extraIds.add(x));
+        const okDom = dom && dom.cards === 1 && dom.blanks === 0;
+        const okDb = Array.isArray(rows) && rows.length === 1;
+        note(okDom && okDb, `expectCardOnce "${wantName}"`,
+          (okDom && okDb) ? '' : `DOM cards=${dom && dom.cards} blanks=${dom && dom.blanks} pids=${JSON.stringify(dom && dom.pids)} · DB rows=${Array.isArray(rows) ? rows.length : 'err'}`);
+        await shot(p, 'card-once');
+        continue;
+      }
       else if (verb === 'smm.approve') { const p = await actors.smm(); res = await smmApprove(p, name, args[0], args[1]); await shot(p, 'smm-approve'); }
       else if (verb === 'smm.request') { const p = await actors.smm(); res = await smmRequest(p, name, args[0], args[1]); await shot(p, 'smm-request'); }
       else if (verb === 'smm.comment') { const p = await actors.smm(); res = await smmComment(p, name, args[0], args[1]); await shot(p, 'smm-comment'); }
@@ -519,6 +611,9 @@ async function runScenario(browser, scn, shotDir, doShots) {
       try { const errs = appErrs(p) || []; if (errs.length) note(false, `appErrs(${who})`, errs.slice(0, 3).join(' | ').slice(0, 300)); } catch {}
     }
     await actors.closeAll(); try { L.archiveSafe(id); } catch {}
+    // Rows born IN the UI (create-via-UI scenarios) carry minted ids the seed
+    // cleanup doesn't know about — archive them too so no test card survives.
+    for (const xid of extraIds) { if (xid && xid !== id) { try { L.archiveSafe(xid); } catch {} } }
   }
   return { key: scn.key, name: scn.title || scn.name, ok: okCount, fail: failCount, log };
 }

@@ -46,7 +46,13 @@ const SXR_REORDER = HOOKS + '/sample-review-reorder';
 // the bytes via Node and fulfils them back into the page.
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com|youtube\.com|ggpht\.com|vimeocdn\.com|frame\.io|placeholder\.com|imgur\.com)/;
 const COURIER = process.env.SXR_COURIER !== '0';  // on by default; 0 in open-egress envs
-const TMP = process.env.SXR_TMP || '/tmp/qa';
+// TMP must be a path BOTH Node (fs.writeFileSync) and the curl-under-bash
+// calls resolve to the same place. On win32 Node maps '/tmp' to <drive>:\tmp
+// while git-bash maps it to its own msys tmp — use os.tmpdir() with forward
+// slashes (git-bash accepts C:/... paths) so the two sides agree.
+const TMP = process.env.SXR_TMP || (process.platform === 'win32'
+  ? require('os').tmpdir().replace(/\\/g, '/') + '/qa'
+  : '/tmp/qa');
 try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 
 // ---- Linear webhook MOCK (M4) ----------------------------------------------
@@ -75,12 +81,18 @@ function _subissuesResp() {
 
 let _seq = 0;
 function _q(a) { return `'${String(a).replace(/'/g, "'\\''")}'`; }
+// Windows portability: the single-quoted curl commands above are POSIX shell
+// syntax — under cmd.exe (Node's default shell on win32) the quotes pass
+// through literally and every call silently returns junk ("'select' is not
+// recognized…"). Route execSync through bash (git-bash ships it) on Windows.
+const _SHELL = process.platform === 'win32' ? { shell: 'bash.exe' } : {};
+const _exec = (cmd, extra) => execSync(cmd, Object.assign({ encoding: 'utf8', timeout: 60000 }, _SHELL, extra || {}));
 
 // ---- Node-side network (works through the egress proxy) --------------------
 function nodePost(url, obj) {
   const f = `${TMP}/_post_${process.pid}_${++_seq}.json`;
   fs.writeFileSync(f, JSON.stringify(obj));
-  const out = execSync(`curl -s -X POST ${_q(url)} -H 'Content-Type: application/json' -d @${f}`, { encoding: 'utf8', timeout: 60000 });
+  const out = _exec(`curl -s -X POST ${_q(url)} -H 'Content-Type: application/json' -d @${f}`);
   try { return JSON.parse(out); } catch { return { _raw: out }; }
 }
 // Seed/save a sample via the live upsert webhook (the same write the FE makes).
@@ -97,18 +109,18 @@ function archiveSafe(id, tries) {
       const r = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
       if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
     } catch {}
-    try { execSync('sleep 1.5'); } catch {}
+    try { _exec('sleep 1.5'); } catch {}
   }
   return false;
 }
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
 // Read a sample_reviews row (or rows) back from Supabase REST.
 function supa(qs) {
-  const out = execSync(`curl -s ${_q(SUPA + '/rest/v1/sample_reviews?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', timeout: 60000 });
+  const out = _exec(`curl -s ${_q(SUPA + '/rest/v1/sample_reviews?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`);
   try { return JSON.parse(out); } catch { return []; }
 }
 function supaEvents(qs) {
-  const out = execSync(`curl -s ${_q(SUPA + '/rest/v1/sample_review_events?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', timeout: 60000 });
+  const out = _exec(`curl -s ${_q(SUPA + '/rest/v1/sample_review_events?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`);
   try { return JSON.parse(out); } catch { return []; }
 }
 async function poll(predFn, ms = 15000, step = 800) {
@@ -128,7 +140,7 @@ function _courierFetch(method, url, headers, postData) {
   if (postData) { const pf = `${TMP}/_pd_${process.pid}_${_seq}.bin`; fs.writeFileSync(pf, postData); args.push('--data-binary', '@' + pf); }
   args.push(url);
   let head = '';
-  try { head = execSync('curl ' + args.map(_q).join(' '), { encoding: 'utf8', timeout: 60000, maxBuffer: 64 * 1024 * 1024 }); }
+  try { head = _exec('curl ' + args.map(_q).join(' '), { maxBuffer: 64 * 1024 * 1024 }); }
   catch (e) { return { status: 502, ctype: 'text/plain', body: Buffer.from('courier-failed: ' + (e.message || '')) }; }
   // Parse the LAST status line's 3-digit code. Capture the code that follows
   // the HTTP version + whitespace — NOT the first digit run, which on an HTTP/2
@@ -202,6 +214,24 @@ async function smm(browser, slug = 'sidneylaruel', opts) {
   const p = await open(browser, `/index.html?sxr=1&v2debug=1#sample-reviews/${slug}`, opts);
   await p.waitForFunction(() => window.sxrV2Status && window.sxrV2Status().ready, { timeout: 15000 }).catch(() => {});
   await p.waitForTimeout(800);
+  // SXR_TRACE_UPSERT=1 → log a JS stack for every sample-review-upsert POST the
+  // page makes (debugging duplicate-create issues). Reads via page console.
+  if (process.env.SXR_TRACE_UPSERT === '1') {
+    p.on('console', m => { const t = m.text(); if (t.startsWith('[TRACE]')) console.log(t); });
+    await p.evaluate(() => {
+      const orig = window.fetch;
+      window.fetch = function (url, opts) {
+        try {
+          if (String(url).includes('sample-review-upsert')) {
+            const body = opts && opts.body ? JSON.parse(opts.body) : {};
+            const s = body.sample || {};
+            console.log('[TRACE] UPSERT id=' + s.id + ' name=' + JSON.stringify(s.name) + ' status=' + s.status + ' at=' + new Date().toISOString().slice(11, 23) + ' stack=' + new Error().stack.split('\n').slice(2, 6).join(' <- ').replace(/https?:\/\/[^)\s]+/g, mm => mm.split('/').pop()));
+          }
+        } catch (e) {}
+        return orig.apply(this, arguments);
+      };
+    });
+  }
   return p;
 }
 // Client share surface for the samples tab.
@@ -219,7 +249,7 @@ async function client(browser, name = 'Sidney Laruel', token, opts) {
 function upCal(post, base) { return nodePost(HOOKS + '/calendar-upsert-post', { client: 'sidneylaruel', post, comments_base_at: base || '' }); }
 // Read a calendar_posts row (or rows) back from Supabase REST.
 function supaCal(qs) {
-  const out = execSync(`curl -s ${_q(SUPA + '/rest/v1/calendar_posts?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`, { encoding: 'utf8', timeout: 60000 });
+  const out = _exec(`curl -s ${_q(SUPA + '/rest/v1/calendar_posts?' + qs)} -H ${_q('apikey: ' + KEY)} -H ${_q('Authorization: Bearer ' + KEY)}`);
   try { return JSON.parse(out); } catch { return []; }
 }
 // Archive a CALENDAR seed and VERIFY it stuck (mirror of archiveSafe for samples).
@@ -231,7 +261,7 @@ function archiveCalSafe(id, tries) {
       const r = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
       if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
     } catch {}
-    try { execSync('sleep 1.5'); } catch {}
+    try { _exec('sleep 1.5'); } catch {}
   }
   return false;
 }

@@ -95,10 +95,13 @@ function profilePlan(profile) {
     };
   }
   // fast (default): the cheap, high-signal subset you run on every change.
+  // create_via_ui = the ghost-card gate (GA day-1 regression: card born in the
+  // browser painted twice in the creating window) — cheap (~40s for both) and
+  // covers the blank→promote→save funnel no seeded scenario can reach.
   return {
     unit: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
-    scenarios: { filter: 'clean_both,smm_request_video,client_approve_video' },
+    scenarios: { filter: 'create_via_ui,clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
 }

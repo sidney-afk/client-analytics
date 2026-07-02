@@ -26941,6 +26941,17 @@
                 realId = _sxrMintId();
                 _sxrPromoteBlankCard(pid, realId);
                 _sxrSaveInFlight[realId] = _sxrSaveInFlight[pid];
+                // GHOST-CARD FIX: addSxrBlankCard pushed the optimistic blank
+                // into sxrState.posts under its __sxrblank__ pid (unlike the
+                // calendar, whose add is DOM-only). _sxrPromoteBlankCard only
+                // rewrites DOM attributes, so without dropping the stale blank
+                // here the findIndex(realId) below misses, the wasNewRow branch
+                // pushes a SECOND post object, and the next render paints the
+                // same card twice in the creating window (the server correctly
+                // has one row — the twin is purely local state). Splice it out
+                // so the save re-adds this card once, under its REAL id.
+                const staleIdx = sxrState.posts.findIndex(p => p.id === pid);
+                if (staleIdx >= 0) sxrState.posts.splice(staleIdx, 1);
             }
             let post;
             const idx = sxrState.posts.findIndex(p => p.id === realId);

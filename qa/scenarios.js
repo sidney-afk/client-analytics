@@ -356,14 +356,21 @@ function base() {
       ['expectKasperCard', 'finished'],
     ] });
 
-  // Kasper Close (X) — hidden until the SMM sends it back to Kasper Approval
-  S.push({ key: 'kasper_close_resurface_video', title: 'Kasper closes the card; SMM re-routes to Kasper → card resurfaces',
+  // Kasper Close (X). The button's tooltip promises "stays hidden until the SMM
+  // sends it back to Kasper Approval" — but _sxrKasperIsClosed (index.html:28216)
+  // only clears on a NEWER MESSAGE, so a re-route does NOT resurface the card
+  // (verified live 2026-07-02 — BUG-6 in qa/OVERNIGHT_TEST_REPORT.md). This
+  // scenario PINS CURRENT BEHAVIOR; when product fixes the predicate (or the
+  // tooltip), flip the last two steps.
+  S.push({ key: 'kasper_close_resurface_video', title: 'Kasper closes the card; re-route does NOT resurface (BUG-6 pin); a new message does',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
     steps: [
       ['kasper.close'], ['expectKasperCard', 'absent'],
       ['smm.status', 'video', 'For SMM Approval'], ['expect', 'video_status', 'For SMM Approval'],
       ['smm.status', 'video', 'Kasper Approval'], ['expect', 'video_status', 'Kasper Approval'],
-      ['expectKasperCard', 'present'],
+      ['expectKasperCard', 'absent'],   // BUG-6: tooltip says it should be present
+      ['smm.note', 'video', 'kasper please take another look', 'internal'],
+      ['expectKasperCard', 'present'],  // a newer message DOES resurface it
     ] });
 
   // ---- Linear sync (ALWAYS mocked+captured by the harness) ----

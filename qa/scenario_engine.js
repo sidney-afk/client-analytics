@@ -220,7 +220,15 @@ async function smmNote(page, id, comp, text, audience) {
   }, [comp, text, audience || 'internal']);
 }
 // Open the Notes modal for a card (Sheet view), optionally selecting the comp tab.
+// Always start from a CLOSED overlay: a prior verb (e.g. resolveVia's chooser)
+// can leave the modal open with a stale feed; a fresh open re-renders from
+// current state.
 async function openNotesModal(page, id, comp) {
+  await page.evaluate(() => {
+    const o = document.getElementById('sxrCommentsOverlay');
+    if (o && o.classList.contains('open') && typeof closeSxrComments === 'function') closeSxrComments();
+  });
+  await sleep(page, 400);
   await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
   await sleep(page, 1700);
   await page.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id, { timeout: 8000 }).catch(() => {});
@@ -255,6 +263,16 @@ async function smmResolveVia(page, id, comp, dest) {
 }
 async function smmReopen(page, id, comp) {
   const o = await openNotesModal(page, id, comp); if (o !== 'ok') return o;
+  // Resolved threads live behind the "Show resolved" history toggle — switch
+  // to the Resolved view before looking for the Reopen action.
+  const hist = await page.evaluate(() => {
+    const b = document.querySelector('#sxrCommentsOverlay .cal-comments-hist');
+    if (!b) return 'no-hist-btn';
+    if (!b.classList.contains('is-active')) b.click();
+    return 'ok';
+  });
+  if (hist !== 'ok') return hist;
+  await sleep(page, 400);
   return page.evaluate(() => { const b = [...document.querySelectorAll('#sxrCommentsFeed .cal-cm-action')].find(x => /Reopen/i.test(x.textContent)); if (b) { b.click(); return 'ok'; } return 'no-reopen'; });
 }
 async function smmReply(page, id, comp, text) {

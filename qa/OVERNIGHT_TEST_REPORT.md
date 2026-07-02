@@ -58,6 +58,23 @@ archived and Linear mocked.
   UNDO also reverts status without pushing the reverted status to Linear
   (index.html:28512-28521) → Linear left stale after an undo.
 
+- **BUG-6 (live-verified) — a closed Kasper card never resurfaces on re-route.**
+  The X button's tooltip promises "stays hidden until the SMM sends it back to
+  Kasper Approval" (index.html:28391), but `_sxrKasperIsClosed`
+  (index.html:28216-28223) clears the closed state only on a NEWER MESSAGE —
+  there is no undecided-component check (its sibling `_sxrKasperIsFinished`
+  HAS one at 28212). Verified live: SMM re-routed video For SMM Approval →
+  Kasper Approval and the card stayed hidden; a new internal note resurfaces it.
+  If Kasper closes a card and the SMM never comments, Kasper never sees it again.
+  Scenario `kasper_close_resurface_video` pins current behavior with a BUG-6 note.
+- **BUG-7 (source-read) — samples Finish diverges from the calendar's product rule.**
+  Calendar `_kasperIsFinished` (index.html:32103-32120) deliberately does NOT
+  resurface a finished card on a new message ("Finish means finished until an
+  explicit For-Kasper-Approval re-route" — the reply-bounce friction was fixed
+  there). Samples `_sxrKasperIsFinished` (index.html:28213) still resurfaces on
+  ANY newer message — the exact behavior the calendar rollout removed
+  (KASPER_REVIEW_GLOBAL_ROLLOUT.md). Clone-parity miss in the rebuild.
+
 ## OBSERVATIONS (product-intent questions, not bugs)
 - **OBS-2 — a client who requests a change loses sight of the thread.** At
   `Tweaks Needed` the card leaves the client Review queue entirely
@@ -98,6 +115,12 @@ archived and Linear mocked.
 | R2-9 | 2026-07-02 | Kasper internal comment: no status change, invisible on client surface after approve | kasper_comment_internal_video | ✅ 6/6 |
 | R2-10 | 2026-07-02 | Audience gating: internal note hidden from client, client note visible | audience_leak_guard_video | ✅ 3/3 |
 | R2-11 | 2026-07-02 | Linear: plain internal note pushes NO status | linear_no_push_on_note | ✅ 3/3 |
+| R2-12 | 2026-07-02 | Resolve chooser → Kasper route (tweak done + status) | resolve_via_kasper_video | ✅ 3/3 |
+| R2-13 | 2026-07-02 | Resolve chooser → Client route | resolve_via_client_video | ✅ 3/3 |
+| R2-14 | 2026-07-02 | Resolve chooser → Approved route | resolve_via_approved_video | ✅ 3/3 |
+| R2-15 | 2026-07-02 | Delete own note via confirm dialog (soft-delete persisted) | delete_comment_video | ✅ 4/4 |
+| R2-16 | 2026-07-02 | Audit trail: status_change event per clean-path transition (SMM→Kasper→Client→Approved) | audit_trail_video | ✅ 9/9 |
+| R2-17 | 2026-07-02 | Kasper close + SMM re-route → card does NOT resurface | kasper_close_resurface_video | 🐞 **BUG-6** (6/7 — re-route resurface fails; tooltip contradicts code) |
 
 ## NOT YET COVERED (resume here)
 - Re-run: linear_push_video_status, kasper_finish_video (SIGKILL'd batch).

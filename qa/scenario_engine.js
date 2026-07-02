@@ -520,6 +520,22 @@ async function clientAct(page, name, comp, kind, text) {
 // excluded — that divergence is by design and visible to the user (free-text
 // edits are intentionally kept locally on a failed save).
 async function divergenceGate(who, page, note) {
+  // Convergence-aware: webhook writes land with ~1-2s latency, so a snapshot
+  // taken between two in-order writes (e.g. create landed, archive still in
+  // flight server-side) is NOT a bug. Re-read both sides for up to 15s and
+  // fail only if the divergence PERSISTS — a real bug in this class (the ghost
+  // card) diverges forever, so persistence is the right discriminator.
+  let verdict = null;
+  const tGate = Date.now();
+  while (Date.now() - tGate < 15000) {
+    verdict = await _divergenceRead(who, page);
+    if (!verdict || verdict.skip || verdict.ok) break;
+    await new Promise(s => setTimeout(s, 1500));
+  }
+  if (!verdict || verdict.skip) return;
+  note(verdict.ok, verdict.msg, verdict.extra);
+}
+async function _divergenceRead(who, page) {
   let st = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 25000) {                       // wait for saves to settle
@@ -546,12 +562,12 @@ async function divergenceGate(who, page, note) {
     if (!st || st.settled) break;
     await new Promise(s => setTimeout(s, 700));
   }
-  if (!st) return;                                        // SXR surface not mounted in this tab — nothing to gate
-  if (st.slug !== 'sidneylaruel') return;                 // safety: only ever judge the test client
-  if (!st.settled) { note(false, `divergenceGate(${who})`, 'saves never settled within 25s'); return; }
+  if (!st) return { skip: true };                         // SXR surface not mounted in this tab — nothing to gate
+  if (st.slug !== 'sidneylaruel') return { skip: true };  // safety: only ever judge the test client
+  if (!st.settled) return { ok: false, msg: `divergenceGate(${who})`, extra: 'saves never settled within 25s' };
   let rows = null;
   try { rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name,order_index'); } catch {}
-  if (!Array.isArray(rows)) { note(false, `divergenceGate(${who})`, 'DB read failed'); return; }
+  if (!Array.isArray(rows)) return { ok: false, msg: `divergenceGate(${who})`, extra: 'DB read failed' };
   const local = st.posts.filter(p => !p.failed);
   const failedNote = st.posts.length !== local.length ? ` (${st.posts.length - local.length} save-failed row(s) excluded)` : '';
   const dbById = new Map(rows.map(r => [r.id, r]));
@@ -568,15 +584,16 @@ async function divergenceGate(who, page, note) {
   const orderMismatch = localSeq !== dbSeq;
   const staleBlanks = st.staleBlanks || [];
   const ok = !extraLocal.length && !extraDb.length && !dupLocal && !nameMismatch.length && !orderMismatch && !staleBlanks.length;
-  note(ok, `divergenceGate(${who}) — local state ≡ DB (${local.length} rows)${failedNote}`,
-    ok ? '' : [
+  return { ok,
+    msg: `divergenceGate(${who}) — local state ≡ DB (${local.length} rows)${failedNote}`,
+    extra: ok ? '' : [
       dupLocal ? 'DUPLICATE id in local state' : '',
       staleBlanks.length ? 'STALE BLANK with content (ghost shape): ' + staleBlanks.join(' ') : '',
       extraLocal.length ? 'local-only: ' + extraLocal.join(' ') : '',
       extraDb.length ? 'db-only: ' + extraDb.join(' ') : '',
       nameMismatch.length ? 'name: ' + nameMismatch.join(' ') : '',
       orderMismatch ? `order: local=[${localSeq}] db=[${dbSeq}]` : '',
-    ].filter(Boolean).join(' · ').slice(0, 400));
+    ].filter(Boolean).join(' · ').slice(0, 400) };
 }
 
 // ---------- the runner ----------

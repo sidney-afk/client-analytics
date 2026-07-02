@@ -104,9 +104,17 @@ Sales Intake tab ─POST {submission}─▶ n8n `sales-intake-submit`
     ├─▶ Supabase `sales_intakes` insert  (audit log / status)
     ├─▶ eSignatures.com API — create contract from the Sales & Service
     │    Agreement template, placeholder_fields from the form,
-    │    signer = client email  (eSignatures emails the signing request)
-    ├─▶ Invoice email to the client with the Stripe payment link
+    │    signer = client email
+    ├─▶ ONE combined email to the client: agreement signing link + the
+    │    Stripe payment link together (decision: Sidney, 2026-07-02)
     └─▶ Slack DM confirmation (mirror the onboarding-submit pattern)
+
+**Combined email — two ways to implement, pick whichever the eSignatures API
+supports more cleanly:** (a) customize the eSignatures signing-request email so its
+body also carries the Stripe payment link, or (b) suppress eSignatures' own email,
+take the signing-page URL from the create-contract response, and send a single email
+from n8n containing both links. Either way the client must receive exactly one
+email with both the agreement and the invoice link.
 ```
 
 - Autosave a draft to localStorage while typing; clear on successful submit; on webhook
@@ -137,9 +145,9 @@ New workflow `sales-intake-submit` (webhook POST), built like `onboarding-submit
   (credential / env), never in `index.html`. Sidney has an eSignatures account invite
   (Kasper sent it by email). Template ID + API token must be collected before this
   node can be finished — build it with a placeholder credential if needed and flag it.
-- **Invoice email** — whatever mailer the existing n8n flows use (see the
-  `content-ready` workflow behind `crSend()` for the email-via-n8n model). Open
-  question below on one email vs two.
+- **Combined email** — one email with the signing link + payment link (see the
+  submit-flow note). If sent from n8n, use whatever mailer the existing flows use
+  (see the `content-ready` workflow behind `crSend()` for the email-via-n8n model).
 
 ## eSignatures template work (separate task, same feature)
 
@@ -180,7 +188,7 @@ the *tab registration/gating* on the Kasper tab.
 - [ ] eSignatures.com API token + Sales & Service Agreement template ID — Sidney will
       paste these into the implementation session; put the token in an n8n
       credential, never in `index.html` or the repo.
-- [ ] Confirm: one combined email (agreement + invoice) or two (eSignatures sends its own signing email; invoice mail separate)?
+- [x] Email shape confirmed: **one combined email** (agreement + payment link together).
 
 ## Out of scope for this feature (tracked from the same calls)
 

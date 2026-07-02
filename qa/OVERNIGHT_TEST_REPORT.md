@@ -1,5 +1,244 @@
 # Overnight Autonomous Test Run — SyncView
 
+---
+
+# RUN 2 — 2026-07-02 · Samples interaction marathon (post-rebuild FE)
+
+**Branch:** `claude/samples-system-testing-vx2moc` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED.
+
+> NOTE: everything below the RUN 1 marker tested the PRE-rebuild samples FE
+> (torn down 2026-06-27, commit adce19b). The current FE is the calendar-clone
+> rebuild; RUN 1 coverage claims do NOT carry over.
+
+## Mission
+Exhaustively test every SMM / Kasper / Client interaction of the new Samples
+system through the real UI (the product owner flagged the comment/tweak/status
+handoffs as the buggiest area), continuously, self-correcting, with seeds
+archived and Linear mocked.
+
+## Tester upgrades made first (this session)
+- **10 new engine verbs** (`qa/scenario_engine.js`): smm.comment / smm.reply /
+  smm.reopen / smm.deleteComment / smm.resolveVia(dest) · kasper.comment /
+  kasper.undo / kasper.finish / kasper.close · client.comment.
+- **5 new assertion verbs**: extended expectComment matchers (body/done/reply/
+  deleted/audience/any), expectEvent (audit rows), expectClientThread (DOM-level
+  client-surface visibility), expectKasperCard (present/absent/finished),
+  expectLinear/expectNoLinear (mocked-capture asserts — plumbing existed, was dead).
+- **Per-scenario 0-JS-errors gate** across all three actor tabs (catches the
+  `_sxrLoadComments` ReferenceError class).
+- **Scenario library 51 → 74 keys** (comment threads, replies, resolve-destination
+  ×4, reopen, delete, Kasper undo/finish/close-resurface, audience leak guards,
+  audit trail, Linear routing family, mixed-state reply visibility).
+- **Scenario tree 6 → 24 leaves**: parameterized over BOTH components; new
+  branches (client comment, SMM reply, resolve loops, Kasper comment/undo/finish).
+- **False-green kills**: 0-matched-spec filter and unknown --lane now exit non-zero.
+- **Fixed stale tree expectation**: kasper_aat leaf expected `For SMM Approval`;
+  the app (and flat scenarios) set `Tweaks Needed` (index.html:28627) — the tree
+  lane could never go green as authored.
+- **Fixed silent no-op scenario**: notes_markdone's single open tweak made
+  "Mark done" open the resolve chooser with nothing asserted; now seeds 2 tweaks
+  (direct done) + asserts done:true, and the chooser paths have their own
+  resolve_via_* scenarios.
+
+## ✅ BUGS FIXED + RE-VERIFIED (2026-07-02 — user-authorized, ready to merge)
+All fixes are surgical, keep the unit gate green (28 suites), and each has a
+probe flipped from "pins the bug" to "proves the fix", re-run green live.
+
+- **BUG-3 FIXED** — defined `_sxrLoadComments(post)` as an alias of
+  `_sxrCommentsFor(post,'video')` (index.html ~26957). Opening Notes on a
+  raw-shaped row no longer throws. Guard: `sxr_bug_repros.js` 4/4.
+- **BUG-4 FIXED** — `_sxrCopyShareLink` now appends `&t=<client_review_token>`
+  when the client has one (mirrors `smCopyShareLink`), so token-guarded clients
+  get a valid link. Guard: `sxr_bug_repros.js`.
+- **BUG-5a FIXED** — `_sxrKasperApproveComp` now stamps `kasper_approved_at` /
+  `_by` in the approve patch (first-wins), so the audit trail records the
+  sign-off. Guard: `sxr_kasper_audit_holes.js` 6/6 (verified persisted live).
+- **BUG-5b FIXED** — `_sxrKasperUndoApprove` now pushes the reverted status to
+  (mocked) Linear, so an undo no longer leaves the issue stale. Guard: same probe.
+- **BUG-7 FIXED** — `_sxrKasperIsFinished` no longer resurfaces a finished card
+  on a mere new message (removed the `latest > stampedAt` clause; kept the
+  undecided-comps re-route clause) — now matches the calendar's decided rule.
+  Guard: `sxr_gating_flags.js` 9/9.
+- **BUG-6 RESOLVED (tooltip)** — the ✕-close tooltip on BOTH calendars promised
+  "stays hidden until sent back to Kasper Approval" but both actually resurface
+  on a NEW MESSAGE (shared, long-standing design). Corrected the tooltip on both
+  to describe the real behavior. **Deeper true-re-route-resurface is left as a
+  shared product question** (needs queue-membership work on both calendars; a
+  freshly-closed card is by definition still undecided, so an undecided-comps
+  check would make Close a no-op) — NOT auto-changed. `kasper_close_resurface_video`
+  asserts the intended message-resurface, 9/9.
+
+Tester robustness: `expectKasperCard` now polls the cross-client queue until it
+settles on the expected state (was a single early read → flaky present/absent).
+
+## OBSERVATIONS still open for YOUR product call (not auto-changed)
+- **OBS-2** — client loses sight of a component's thread at Tweaks Needed until
+  re-offer (dead client tweaks-composer). Shared with calendar.
+- **OBS-3** — client can Approve while their own change request is still open.
+- **BUG-6 deeper** — should a bare re-route (no new message) resurface a closed
+  Kasper card? (tooltip now honest; behavior unchanged pending your decision.)
+- **BUG-1 (RUN 1, pre-rebuild)** — optimistic status not rolled back on save
+  failure; calendar shares the pattern — re-confirm before acting.
+
+## BUGS — historical detail (source-read during tester upgrade; now fixed above)
+- **BUG-3 — `_sxrLoadComments` is called at 6 sites and DEFINED NOWHERE**
+  (index.html:27567, 27629, 27680, 27689, 27709, 27737). Any path where
+  `post.comments` is not already an array (e.g. an unmigrated row arriving via a
+  raw realtime echo) throws ReferenceError inside the Notes modal machinery.
+  Suggested fix: define it (or replace the calls with `_sxrCommentsFor(post,'video')`).
+- **BUG-4 — SMM Share button copies a link that token'd clients can't open.**
+  `_sxrCopyShareLink` (index.html:25580) builds `?sxr=1&c=<client>&v=sample-reviews`
+  with NO `&t=<token>`, while the router (index.html:24893-24899) hard-rejects any
+  client that HAS `client_review_token` when `t` mismatches → "This link isn't
+  valid". Any token'd client gets a broken link from the UI's own Share button.
+  (Clients with no token pass with only a console warning.)
+- **BUG-5 (audit hole) — samples Kasper approve never stamps `kasper_approved_at/by`**
+  (`_sxrKasperApproveComp`, index.html:28490-28511) so a `kasper_approve` audit
+  event can never fire and Kasper history timestamps are synthesized; Kasper
+  UNDO also reverts status without pushing the reverted status to Linear
+  (index.html:28512-28521) → Linear left stale after an undo.
+
+- **BUG-6 (live-verified) — a closed Kasper card never resurfaces on re-route.**
+  The X button's tooltip promises "stays hidden until the SMM sends it back to
+  Kasper Approval" (index.html:28391), but `_sxrKasperIsClosed`
+  (index.html:28216-28223) clears the closed state only on a NEWER MESSAGE —
+  there is no undecided-component check (its sibling `_sxrKasperIsFinished`
+  HAS one at 28212). Verified live: SMM re-routed video For SMM Approval →
+  Kasper Approval and the card stayed hidden; a new internal note resurfaces it.
+  If Kasper closes a card and the SMM never comments, Kasper never sees it again.
+  Scenario `kasper_close_resurface_video` pins current behavior with a BUG-6 note.
+- **BUG-7 (source-read) — samples Finish diverges from the calendar's product rule.**
+  Calendar `_kasperIsFinished` (index.html:32103-32120) deliberately does NOT
+  resurface a finished card on a new message ("Finish means finished until an
+  explicit For-Kasper-Approval re-route" — the reply-bounce friction was fixed
+  there). Samples `_sxrKasperIsFinished` (index.html:28213) still resurfaces on
+  ANY newer message — the exact behavior the calendar rollout removed
+  (KASPER_REVIEW_GLOBAL_ROLLOUT.md). Clone-parity miss in the rebuild.
+
+## OBSERVATIONS (product-intent questions, not bugs)
+- **OBS-2 (sharpened, live-verified both cases) — a client who requests a change
+  loses sight of that component's thread ENTIRELY until re-offer.** At `Tweaks
+  Needed` the component is excluded for client links both from the Review queue
+  (`_sxrReviewComponentActive`, index.html:27034) AND from the card body's panel
+  list on a card that stays visible via its other component
+  (`_sxrReviewCardBody`, index.html:27107-27109). Consequence: the client-facing
+  tweaks-state composer ("The team is working on it. Anything else to add?",
+  index.html:27137) is UNREACHABLE dead code for real client links. The calendar
+  twin has the identical predicate, so this is faithful clone parity — a
+  long-standing product behavior, not a rebuild regression. Product call:
+  either clients should follow the conversation mid-tweak (drop the
+  `!_isClientLink` guard) or the dead tweaks-state client UI should go.
+  Pinned by scenario `client_mixed_gating_video`.
+- **OBS-3 — client CAN approve at `Tweaks Needed`** (canAct includes it,
+  index.html:27130) → straight to Approved with the open tweak left open.
+  Pin/adjust per product intent.
+
+## Validation state (real-browser, live backend)
+| Scenario | Result |
+|---|---|
+| clean_video_only (pre-upgrade smoke) | ✅ 7/7 |
+| resolve_via_stay_video (new chooser verb) | ✅ 3/3 |
+| kasper_undo_video (new toast-undo verb) | ✅ 5/5 |
+| client_comment_video (new comment verb) | ✅ 3/3 |
+| smm_reply_to_client_request_video (fixed, re-offer) | ✅ 8/8 |
+| linear_push_video_status · kasper_finish_video | ⏳ interrupted by env SIGKILL (exit 137) — re-run pending |
+
+`node test/run-all.js` unit gate: **GREEN (28 suites)** after all tester changes.
+
+## Interaction log (running)
+| # | Timestamp (UTC) | Interaction | Scenario/Probe | Result |
+|---|---|---|---|---|
+| R2-1 | 2026-07-02 | Client plain comment, no status change | client_comment_video | ✅ 3/3 |
+| R2-2 | 2026-07-02 | Client request → SMM reply → re-offer → client sees thread | smm_reply_to_client_request_video | ✅ 8/8 |
+| R2-3 | 2026-07-02 | SMM resolve chooser → stay | resolve_via_stay_video | ✅ 3/3 |
+| R2-4 | 2026-07-02 | Kasper approve → toast Undo → status restored | kasper_undo_video | ✅ 5/5 |
+| R2-5 | 2026-07-02 | Kasper request → Finish reviewing → "Sent to SMM" state | kasper_finish_video | ✅ 4/4 |
+| R2-6 | 2026-07-02 | Linear: SMM approve pushes status to VIDEO issue only, no comment | linear_push_video_status | ✅ 4/4 |
+| R2-7 | 2026-07-02 | Linear: Kasper request posts tweak comment to the video issue | linear_tweak_comment_video | ✅ 3/3 |
+| R2-8 | 2026-07-02 | Linear: graphic change routes to GRA issue, never VID (probe bug fixed: expectNoLinear now honors includes filter) | linear_push_graphic_isolated | ✅ 4/4 |
+| R2-9 | 2026-07-02 | Kasper internal comment: no status change, invisible on client surface after approve | kasper_comment_internal_video | ✅ 6/6 |
+| R2-10 | 2026-07-02 | Audience gating: internal note hidden from client, client note visible | audience_leak_guard_video | ✅ 3/3 |
+| R2-11 | 2026-07-02 | Linear: plain internal note pushes NO status | linear_no_push_on_note | ✅ 3/3 |
+| R2-12 | 2026-07-02 | Resolve chooser → Kasper route (tweak done + status) | resolve_via_kasper_video | ✅ 3/3 |
+| R2-13 | 2026-07-02 | Resolve chooser → Client route | resolve_via_client_video | ✅ 3/3 |
+| R2-14 | 2026-07-02 | Resolve chooser → Approved route | resolve_via_approved_video | ✅ 3/3 |
+| R2-15 | 2026-07-02 | Delete own note via confirm dialog (soft-delete persisted) | delete_comment_video | ✅ 4/4 |
+| R2-16 | 2026-07-02 | Audit trail: status_change event per clean-path transition (SMM→Kasper→Client→Approved) | audit_trail_video | ✅ 9/9 |
+| R2-17 | 2026-07-02 | Kasper close + SMM re-route → card does NOT resurface | kasper_close_resurface_video | 🐞 **BUG-6** (6/7 — re-route resurface fails; tooltip contradicts code) |
+| R2-18 | 2026-07-02 | Reopen a resolved tweak (via Show-resolved history view) | reopen_tweak_video | ✅ 5/5 |
+| R2-19 | 2026-07-02 | Mark done with another tweak open (no chooser) — done persisted | notes_markdone | ✅ 2/2 |
+| R2-20 | 2026-07-02 | Resolve chooser on the GRAPHIC component → Kasper | resolve_via_kasper_graphic | ✅ 3/3 |
+| R2-21 | 2026-07-02 | OBS-2 pin: Tweaks-Needed panel hidden from client even on a client-active card; other comp's panel renders | client_mixed_gating_video | ✅ 6/6 |
+| R2-22 | 2026-07-02 | SMM plain review-tab comment — no status change | smm_comment_video | ✅ 3/3 |
+| R2-23 | 2026-07-02 | Client comments then approves (comment must not block approval) | client_comment_then_approve_video | ✅ 5/5 |
+| R2-24 | 2026-07-02 | Client plain comment on the graphic | client_comment_graphic | ✅ 3/3 |
+| R2-25 | 2026-07-02 | FULL SCENARIO TREE, video component (12 root→leaf paths incl. reply loop, resolve loops, Kasper finish/undo/comment through the tree lane) | tree: video__* | ✅ 12/12 paths, 88/88 asserts |
+| R2-26 | 2026-07-02 | FULL SCENARIO TREE, graphic component (same 12 paths — the historically untested twin) | tree: graphic__* | ✅ 12/12 paths, 88/88 asserts |
+| R2-27 | 2026-07-02 | BUG-3 + BUG-4 live repros (ReferenceError fires in-browser on raw-shaped row; share URL provably lacks t=) | sxr_bug_repros.js | ✅ 6/6 (characterization) |
+| R2-28 | 2026-07-02 | Same-tick double Kasper approve → ONE component transition (+ legitimate overall roll-up event) | sxr_concurrency.js | ✅ |
+| R2-29 | 2026-07-02 | Two stale SMM tabs comment same component → comments MERGE, no clobber | sxr_concurrency.js | ✅ |
+| R2-30 | 2026-07-02 | Concurrent Kasper video-approve + SMM graphic re-route → both land; overall heals to worst-of | sxr_concurrency.js | ✅ |
+| R2-31 | 2026-07-02 | Unlinked graphic at Kasper Approval gated OUT of Kasper queue | sxr_gating_flags.js | ✅ |
+| R2-32 | 2026-07-02 | BUG-7 pinned live: new message resurfaces a FINISHED Kasper card (calendar rule would keep it in Tweaks pending) | sxr_gating_flags.js | ✅ pin |
+| R2-33 | 2026-07-02 | Flag-off isolation: _sxrEnabled false, nav hidden, 0 cards, #sample-reviews route refused (hash cleared — rebuilt-FE contract differs from old FE's "is off" page) | sxr_gating_flags.js | ✅ |
+
+| R2-34 | 2026-07-02 | Messy round-trips: full_bounce 22/22, client_request_both_roundtrip 11/11, lifecycle_mixed_kasper 12/12 | scenarios | ✅ 45/45 |
+| R2-35 | 2026-07-02 | AAT + fix-approve loop family (aat_continuation, aat_full_path, smm/kasper/client_request_fix_approve) | scenarios | ✅ 29/29 |
+| R2-36 | 2026-07-02 | COLD-OPEN create journey: Add → type name (blank promoted to real row) → asset url → note → archive → no-resurrect, 0 JS errors | sxr_cold_open.js | ✅ 13/13 |
+| R2-37 | 2026-07-02 | BUG-5a/5b pinned live: approve pushes Linear but never stamps kasper_approved_at; undo reverts DB, pushes NOTHING to Linear (stale issue) | sxr_kasper_audit_holes.js | ✅ 6/6 (pins) |
+| R2-38 | 2026-07-02 | Round numbering: Tweak #1 → #2 on both components | two_round_request_* | ✅ 12/12 |
+
+| R2-39 | 2026-07-02 | Remaining regression batches (worstof/mixed/notes ×7, graphic family ×7, notes+two-round ×7, graphic deep ×8, final ×10) | scenarios | ✅ 149/149 asserts |
+| R2-40 | 2026-07-02 | **MILESTONE: every one of the 74 flat-library keys has run green this session** (+ tree 24/24) | — | ✅ |
+
+| R2-41 | 2026-07-02 | Linear deep: inbound-echo suppression (single-shot), __CLEAR_LINK__ (no push), link uniqueness + "Move it here" relocation, outbox drain | sxr_linear_deep.js | ✅ 16/16 (detector pre-check informational) |
+| R2-42 | 2026-07-02 | **Realtime TWO-SCREEN sim**: cross-screen propagation via _sxrV2OnRealtimeChange (no manual refresh); recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven reload | sxr_realtime_twin.js | ✅ 9/9 |
+
+### Overnight autonomous run (unattended, from 2026-07-02 night)
+`qa/overnight_runner.sh` loops all sxr probes + scenario batches back-to-back
+against a child server, archives stray seeds each round, re-checks the unit gate,
+appends to `qa/overnight_runner.log`, and never stops on its own (a FAIL is logged
+and the loop continues). Phase queue after samples runs dry: realtime two-screen
+depth → content-calendar sweep with the upgraded coverage → twin-check every bug
+across both calendars.
+
+### Flaky-note (infra, watched)
+- One transient: a Kasper approve save silently failed once (DB unchanged, no
+  retry — the catch path only shows "Save failed"); re-run green. Probes now
+  poll-until-landed and self-diagnose (saving-keys / notify / queue state) if
+  it recurs. If it recurs often, the durable-outbox pattern used for Linear
+  pushes may be worth extending to Kasper persists.
+
+## Capstone (2026-07-02 ~04:00 UTC)
+`node qa/master.js --profile=fast` end-to-end through the upgraded master:
+unit ✅ (28) · parity ✅ · scenarios ✅ 3/3 (18/18) · visual 👁 6 shots →
+**vision verdict 6× ✅, 0 ⚠️/❌** (`qa/visual/VISION_VERDICT.md`). Marathon-mode
+(`--repeat/--until` + per-iteration JSON reports) validated separately.
+Running totals this run: **33 interaction rows in the log above, 3 probe files
+added (repros / concurrency / gating-flags), tree 24/24, all lanes green.**
+Non-test row `sr_mqvenh27_jp85b` ("Sample 1", Tweaks Needed) exists on the test
+client — NOT one of this run's seeds; left untouched, flag to owner.
+
+## NOT YET COVERED (resume here)
+- Regression sweep of the remaining pre-existing flat-library keys (full_bounce,
+  lifecycle_mixed_kasper, client_request_both_roundtrip, worstof_*, aat_*,
+  note_* matrix …) — in flight, next batches.
+- Cold-open create journey (rebuild parity of the deleted sxr_cold_open_journey:
+  Add → type → paste links → status → comment → archive, zero seeding).
+- BUG-5 audit-hole live characterization (kasper_approved_at never stamped;
+  undo leaves Linear stale — assert current behavior + Linear capture).
+- Linear deep set: suppression of inbound→outbound echo; link dedup/conflict
+  across two samples; outbox retry under real failure injection (b2-class).
+- Realtime: routeWebSocket push into _sxrV2OnRealtimeChange; recent-save window
+  protects a fresh approval (G-class).
+- Visual lane breadth: enable shots for the new multi-actor scenarios + judge.
+- Full-profile master run (probes+temporal+tree lanes in one pass) once the
+  sandbox has a quiet window (single-run wall-clock ≈ 2-3h here).
+
+---
+
+# RUN 1 — 2026-06-26 (PRE-REBUILD FE — historical)
+
 **Branch:** `claude/overnight-test-8g0bsg` · **Test client:** `sidneylaruel` (Sidney Laruel) ONLY
 **Harness:** real headless Chromium + Node courier → LIVE Supabase/n8n backend; Linear MOCKED.
 **Started:** 2026-06-26 (autonomous /loop)

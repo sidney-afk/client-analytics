@@ -55,63 +55,112 @@ function compile(root) {
 }
 
 // ---------------------------------------------------------------------------
-// The Samples review tree. Models the real decision points of the review
-// lifecycle for the VIDEO component (graphic pinned Approved so the lower-wins
-// overall status tracks video — the same simplification the golden probes use).
-// Each fork is a real user choice; shared prefixes are written once.
+// The Samples review tree, parameterized by COMPONENT ('video' | 'graphic'):
+// the other component is pinned Approved so the lower-wins overall status
+// tracks the branch component (the same simplification the golden probes use).
+// Each fork is a real user choice; shared prefixes are written once. Branch
+// beats cover the full multi-actor interaction set: approvals, change
+// requests, plain comments (client / Kasper-internal), the SMM reply, the
+// resolve-destination chooser loops, Kasper undo and Finish.
 // ---------------------------------------------------------------------------
-function samplesReviewTree() {
+function samplesReviewTree(comp) {
+  const other = comp === 'video' ? 'graphic' : 'video';
+  const compLabel = comp === 'video' ? 'video' : 'thumbnail';
+  const sub = comp + '_status';
   return {
-    key: 'video',
-    title: 'Sample at For SMM Approval (video; thumbnail pre-approved)',
-    seed: { video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval' },
-    shots: true,
+    key: comp,
+    title: `Sample at For SMM Approval (${compLabel}; ${other === 'video' ? 'video' : 'thumbnail'} pre-approved)`,
+    seed: { [sub]: 'For SMM Approval', [other + '_status']: 'Approved', status: 'For SMM Approval' },
+    shots: comp === 'video',   // screenshot one component's tree; the other re-runs the logic
     children: [
       // ---- SMM decides ----
       {
-        key: 'smm_approve', title: 'SMM approves video → Kasper',
-        steps: [['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval']],
+        key: 'smm_approve', title: `SMM approves ${compLabel} → Kasper`,
+        steps: [['smm.approve', comp, 'primary'], ['expect', sub, 'Kasper Approval']],
         children: [
           // ---- Kasper decides (shared SMM-approve prefix above) ----
           {
             key: 'kasper_approve', title: 'Kasper approves → Client',
-            steps: [['kasper.approve', 'video'], ['expect', 'video_status', 'Client Approval']],
+            steps: [['kasper.approve', comp], ['expect', sub, 'Client Approval']],
             children: [
               {
                 key: 'client_approve', title: 'Client approves → Approved',
-                steps: [['client.approve', 'video'], ['expect', 'video_status', 'Approved'], ['expect', 'status', 'Approved']],
+                steps: [['client.approve', comp], ['expect', sub, 'Approved'], ['expect', 'status', 'Approved']],
+              },
+              {
+                key: 'client_comment', title: 'Client comments (no status change) then approves',
+                steps: [['client.comment', comp, 'Client: quick note, all good'], ['expectComment', comp, { role: 'client', is_tweak: false }], ['expect', sub, 'Client Approval'], ['client.approve', comp], ['expect', sub, 'Approved']],
               },
               {
                 key: 'client_request', title: 'Client requests change → Tweaks Needed',
-                steps: [['client.request', 'video', 'Client: please adjust'], ['expect', 'video_status', 'Tweaks Needed'], ['expectComment', 'video', { role: 'client', is_tweak: true }]],
+                steps: [['client.request', comp, 'CLIENT_TREE_ASK please adjust'], ['expect', sub, 'Tweaks Needed'], ['expectComment', comp, { role: 'client', is_tweak: true }]],
+                children: [
+                  {
+                    // At Tweaks Needed the card leaves the client queue, so the
+                    // reply is asserted after the SMM re-offers at Client Approval.
+                    key: 'smm_reply', title: 'SMM replies → re-offer — client sees the answer',
+                    steps: [['smm.reply', comp, 'SMM_TREE_ANSWER fix en route'], ['expectComment', comp, { role: 'smm', reply: true }], ['smm.status', comp, 'Client Approval'], ['expect', sub, 'Client Approval'], ['expectClientThread', comp, { contains: ['CLIENT_TREE_ASK', 'SMM_TREE_ANSWER'] }]],
+                  },
+                  {
+                    key: 'resolve_client', title: 'SMM resolves → chooser → Client → client approves',
+                    steps: [['smm.resolveVia', comp, 'client'], ['expect', sub, 'Client Approval'], ['expectComment', comp, { any: true, done: true }], ['client.approve', comp], ['expect', sub, 'Approved']],
+                  },
+                  {
+                    key: 'resolve_kasper', title: 'SMM resolves → chooser → Kasper re-review',
+                    steps: [['smm.resolveVia', comp, 'kasper'], ['expect', sub, 'Kasper Approval'], ['expectComment', comp, { any: true, done: true }]],
+                  },
+                ],
               },
             ],
           },
           {
             key: 'kasper_request', title: 'Kasper requests change → Tweaks Needed',
-            steps: [['kasper.request', 'video', 'Kasper: needs a tweak'], ['expect', 'video_status', 'Tweaks Needed'], ['expectComment', 'video', { role: 'kasper', is_tweak: true }]],
+            steps: [['kasper.request', comp, 'Kasper: needs a tweak'], ['expect', sub, 'Tweaks Needed'], ['expectComment', comp, { role: 'kasper', is_tweak: true }]],
+            children: [
+              {
+                key: 'finish', title: 'Kasper finishes reviewing → Sent to SMM',
+                steps: [['kasper.finish'], ['expectKasperCard', 'finished']],
+              },
+              {
+                key: 'resolve_back', title: 'SMM resolves → chooser → back to Kasper → Kasper approves',
+                steps: [['smm.resolveVia', comp, 'kasper'], ['expect', sub, 'Kasper Approval'], ['kasper.approve', comp], ['expect', sub, 'Client Approval']],
+              },
+            ],
           },
           {
-            key: 'kasper_aat', title: 'Kasper approve-after-tweaks → back to SMM',
-            steps: [['kasper.aat', 'video', 'Kasper: fix then send to SMM'], ['expect', 'video_status', 'For SMM Approval'], ['expect', 'kasper_approved_after_tweaks', 'video']],
+            // AAT routes the component to TWEAKS NEEDED (the editor applies the
+            // fix first), pre-cleared via kasper_approved_after_tweaks — matches
+            // the flat kasper_aat_* scenarios and the shipping code.
+            key: 'kasper_aat', title: 'Kasper approve-after-tweaks → Tweaks Needed (pre-cleared)',
+            steps: [['kasper.aat', comp, 'Kasper: fix then send on'], ['expect', sub, 'Tweaks Needed'], ['expect', 'kasper_approved_after_tweaks', comp]],
+          },
+          {
+            key: 'kasper_comment', title: 'Kasper internal comment — status unchanged',
+            steps: [['kasper.comment', comp, 'Kasper: internal question'], ['expectComment', comp, { role: 'kasper', is_tweak: false }], ['expect', sub, 'Kasper Approval']],
+          },
+          {
+            key: 'kasper_undo', title: 'Kasper approves then Undo restores Kasper Approval',
+            steps: [['kasper.approve', comp], ['expect', sub, 'Client Approval'], ['kasper.undo'], ['expect', sub, 'Kasper Approval'], ['expectKasperCard', 'present']],
           },
         ],
       },
       // ---- SMM alternate routes (siblings of smm_approve) ----
       {
         key: 'smm_alt', title: 'SMM alt-route → straight to Client',
-        steps: [['smm.approve', 'video', 'alt'], ['expect', 'video_status', 'Client Approval']],
+        steps: [['smm.approve', comp, 'alt'], ['expect', sub, 'Client Approval']],
       },
       {
         key: 'smm_request', title: 'SMM requests change → Tweaks Needed',
-        steps: [['smm.request', 'video', 'Please tighten this'], ['expect', 'video_status', 'Tweaks Needed'], ['expectComment', 'video', { role: 'smm', is_tweak: true }]],
+        steps: [['smm.request', comp, 'Please tighten this'], ['expect', sub, 'Tweaks Needed'], ['expectComment', comp, { role: 'smm', is_tweak: true }]],
       },
     ],
   };
 }
 
 // The runner sources its specs from here when invoked with --tree.
-function base() { return compile(samplesReviewTree()); }
+// Both components get the full tree (interaction symmetry — the graphic
+// pipeline has historically been the less-tested twin).
+function base() { return [...compile(samplesReviewTree('video')), ...compile(samplesReviewTree('graphic'))]; }
 
 module.exports = { compile, samplesReviewTree, base, mergeSeed };
 

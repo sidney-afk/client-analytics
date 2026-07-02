@@ -1,0 +1,53 @@
+name: Samples E2E (nightly)
+
+# The samples (sample-reviews / sxr) twin of calendar-e2e-nightly.yml: drives the
+# REAL index.html in headless Chromium against the LIVE Supabase + n8n backend —
+# the full multi-actor scenario library (74 keys), the branching scenario tree
+# (24 root→leaf paths), and the dedicated sxr probes (bug-fix regression guards,
+# concurrency races, gating/flags, cold-open journey, Linear deep-sync, realtime
+# two-screen). Linear is ALWAYS mocked+captured by the harness. Scoped to the
+# test client `sidneylaruel`; every seed archives itself on exit.
+#
+# Scheduled 2h before the calendar nightly so the two suites never write to the
+# test client concurrently. Runs on GitHub's machines — it does not depend on
+# any dev session being alive.
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 06:00 UTC nightly (calendar E2E runs at 08:00)
+  workflow_dispatch:
+    inputs:
+      scn:
+        description: 'Optional comma-separated scenario key filter (e.g. "kasper_undo,resolve_via")'
+        required: false
+        default: ''
+
+jobs:
+  samples-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright + Chromium
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+      - name: Master lanes — unit, parity, realtime, scenarios, tree
+        env:
+          SXR_COURIER: '0'   # open egress on CI runners — no curl courier needed
+        run: node qa/master.js --lane=unit,parity,realtime,scenarios,tree ${{ github.event.inputs.scn && format('--scn={0}', github.event.inputs.scn) || '' }}
+      - name: Samples probes (regression guards + races + linear + realtime)
+        env:
+          SXR_COURIER: '0'
+        run: |
+          python3 -m http.server 8000 & SRV=$!
+          sleep 2
+          EC=0
+          for p in sxr_bug_repros sxr_concurrency sxr_gating_flags sxr_cold_open sxr_kasper_audit_holes sxr_linear_deep sxr_realtime_twin; do
+            echo "=== $p ==="
+            node "qa/probes/$p.js" || EC=1
+          done
+          kill $SRV || true
+          exit $EC

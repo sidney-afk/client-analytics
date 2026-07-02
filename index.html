@@ -25579,7 +25579,12 @@
        (without it a fresh client browser never mounts the surface). */
     function _sxrCopyShareLink() {
         if (!sxrState.client) return;
-        const url = location.origin + location.pathname + '?sxr=1&c=' + encodeURIComponent(sxrState.client) + '&v=sample-reviews';
+        let url = location.origin + location.pathname + '?sxr=1&c=' + encodeURIComponent(sxrState.client) + '&v=sample-reviews';
+        // Carry the per-client review token when set, or the router rejects the
+        // link with "This link isn't valid" for any token-guarded client (the
+        // router hard-gates on t===client_review_token). Mirrors smCopyShareLink.
+        const token = String((clientMap[sxrState.client] || {}).client_review_token || '').trim();
+        if (token) url += '&t=' + encodeURIComponent(token);
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(() => {}, () => window.prompt('Copy this link:', url));
         else window.prompt('Copy this link:', url);
     }
@@ -26954,6 +26959,11 @@
         if (Array.isArray(post.video_comments)) return post.video_comments;
         return Array.isArray(post.comments) ? post.comments : [];
     }
+    // Video-thread loader used by the Notes modal at 6 call sites as the fallback
+    // when post.comments isn't already an array (e.g. a raw/unmigrated row from a
+    // realtime echo). Was referenced but never defined — a latent ReferenceError
+    // that crashed the modal on those rows. Aliases the shape-agnostic reader.
+    function _sxrLoadComments(post) { return _sxrCommentsFor(post, 'video'); }
     function _sxrSetCommentsFor(post, comp, arr) {
         if (!post) return;
         const list = Array.isArray(arr) ? arr : [];
@@ -28209,8 +28219,13 @@
         const stampedAt = String(post.kasper_finished_at || '');
         const localFin = !!(_sxrKasperState.dismissed && _sxrKasperState.dismissed[post.id]);
         if (!stampedAt && !localFin) return false;
+        // Once finished, the card STAYS in "Tweaks pending" and returns to
+        // "Waiting" ONLY when a component is genuinely re-sent to Kasper Approval
+        // (undecided). A later message — even a client tweak — must NOT pull it
+        // back into his queue: parity with the calendar's _kasperIsFinished, which
+        // deliberately removed the reply-resurfaces-it behaviour (the friction of
+        // finished cards bouncing back on every comment). See KASPER_REVIEW_GLOBAL_ROLLOUT.
         if (stampedAt && _sxrKasperUndecidedComps(post).length) return false;
-        if (stampedAt) { const latest = _sxrKasperLatestMsgAt(post); if (latest && latest > stampedAt) return false; }
         return true;
     }
     function _sxrKasperIsClosed(post) {
@@ -28388,7 +28403,7 @@
                 : `<div class="cal-review-body" onclick="event.stopPropagation();"><div class="cal-empty" style="grid-column:1/-1;padding:12px;">Nothing pending your approval on this card.</div></div>`)
             : '';
         return `<div class="kcard cal-review-card${expanded ? ' expanded' : ''}" data-sxr-kasper-pid="${_sxrEscAttr(pid)}">
-            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It stays hidden until the SMM sends it back to Kasper Approval." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_sxrKasperClose('${_sxrEscAttr(pid)}')" title="Hide this card. It comes back if someone posts a new message on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_sxrKasperToggleCard('${_sxrEscAttr(pid)}')">
                 <div class="kcard-thumb">${thumb}${zoomBtn}</div>
                 <div class="kcard-main">
@@ -28491,7 +28506,16 @@
         const it0 = _sxrKasperFindItem(pid);
         const prevStatus = it0 ? String(it0.post[comp + '_status'] || 'Kasper Approval') : 'Kasper Approval';
         _sxrKasperApplyAndPersist(pid, comp,
-            (p) => { p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p); return { [comp + '_status']: 'Client Approval', status: p.status }; },
+            (p) => {
+                p[comp + '_status'] = 'Client Approval'; p.status = computeSampleOverallStatus(p);
+                const patch = { [comp + '_status']: 'Client Approval', status: p.status };
+                // Stamp the Kasper sign-off (cross-device, mirrors the calendar's
+                // _kasperApproveComp) so the audit trail can record kasper_approve
+                // and history timestamps are real, not synthesized. First-wins.
+                if (!p.kasper_approved_at) { p.kasper_approved_at = new Date().toISOString(); patch.kasper_approved_at = p.kasper_approved_at; }
+                if (!p.kasper_approved_by) { p.kasper_approved_by = 'Kasper'; patch.kasper_approved_by = p.kasper_approved_by; }
+                return patch;
+            },
             null,
             (p, it) => {
                 // Card fully done (nothing at Kasper Approval, no unresolved tweaks)
@@ -28518,6 +28542,11 @@
         if (!_sxrKasperFindItem(p.id)) _sxrKasperState.items.push(item);
         _sxrKasperRenderQueue();
         _sxrKasperPersist(item, { [comp + '_status']: prevStatus, status: p.status }).catch(() => {});
+        // Push the reverted status to Linear too, or the issue is left stale at
+        // Client Approval after an undo (the approve pushed it forward). Mirrors
+        // the approve path's push in _sxrKasperApplyAndPersist.
+        const url = _sxrLinearUrlFor(p, comp);
+        if (url) _sxrPushStatusToLinear(url, prevStatus);
     }
     // Comment — internal-only note. No status change, no Linear ping; the card
     // stays exactly where it is (still awaiting his approval).
@@ -32394,7 +32423,7 @@
             : `<span class="kcard-date is-empty">No date</span>`;
         const expandedHtml = item._expanded ? _kasperRenderExpanded(item) : '';
         return `<div class="kcard${item._expanded ? ' expanded' : ''}" data-kasper-pid="${_calEscAttr(pid)}">
-            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_kasperClose('${_calEscAttr(pid)}')" title="Hide this card. It stays hidden until the SMM sends it back to Kasper Approval." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
+            <button class="kcard-close-btn" type="button" onclick="event.stopPropagation();_kasperClose('${_calEscAttr(pid)}')" title="Hide this card. It comes back if someone posts a new message on it." aria-label="Close card"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg></button>
             <div class="kcard-strip" onclick="_kasperToggleCard('${_calEscAttr(pid)}')">
                 <div class="kcard-thumb${hasThumbUrl || thumbInfo.frame ? '' : ' is-no-image'}">${thumbHtml}${zoomBtnHtml}</div>
                 <div class="kcard-main">

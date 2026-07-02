@@ -61,12 +61,20 @@ const SCN_TIMEOUT_MS = Number(process.env.SCN_TIMEOUT_MS || 1800000); // suites 
 
 // ---------------------------------------------------------------- arg parsing
 function parseArgs(argv) {
-  const a = { profile: 'fast', lanes: null, scn: null, server: true };
+  const a = { profile: 'fast', lanes: null, scn: null, server: true, repeat: 1, untilMs: 0, untilFail: false };
   for (const tok of argv) {
     if (tok === '--no-server') a.server = false;
     else if (tok.startsWith('--profile=')) a.profile = tok.slice(10);
     else if (tok.startsWith('--lane=')) a.lanes = tok.slice(7).split(',').map(s => s.trim()).filter(Boolean);
     else if (tok.startsWith('--scn=')) a.scn = tok.slice(6);
+    else if (tok.startsWith('--repeat=')) a.repeat = Math.max(1, Number(tok.slice(9)) || 1);
+    else if (tok.startsWith('--until=')) {
+      // --until=fail  → loop until a lane fails
+      // --until=90m / --until=6h / --until=45s → loop for a duration
+      const v = tok.slice(8);
+      if (v === 'fail') { a.untilFail = true; a.repeat = Infinity; }
+      else { const m = v.match(/^(\d+)([smh])$/); if (m) { a.untilMs = Number(m[1]) * (m[2] === 's' ? 1e3 : m[2] === 'm' ? 6e4 : 36e5); a.repeat = Infinity; } }
+    }
   }
   return a;
 }
@@ -292,7 +300,11 @@ function laneVisual(cfg) {
   const plan = profilePlan(args.profile);
   if (args.scn != null) { if (plan.scenarios) plan.scenarios.filter = args.scn; if (plan.tree) plan.tree.filter = args.scn; if (plan.visual) plan.visual.filter = args.scn; }
   let lanes = args.lanes || LANE_ORDER.filter(l => plan[l]);
+  const unknown = lanes.filter(l => !LANE_ORDER.includes(l));
   lanes = lanes.filter(l => LANE_ORDER.includes(l));
+  // A --lane list that resolves to nothing is a usage bug, not a green run.
+  if (unknown.length) console.error(`Unknown lane(s): ${unknown.join(', ')} — known: ${LANE_ORDER.join(', ')}`);
+  if (!lanes.length) { console.error('No known lanes selected — exiting.'); process.exit(2); }
 
   const needsBrowser = lanes.some(l => l !== 'unit');
   console.log(`\n🧪 MASTER TESTER — profile=${args.profile}  lanes=[${lanes.join(', ')}]\n`);
@@ -309,24 +321,47 @@ function laneVisual(cfg) {
     }
   }
 
-  const results = {};
-  for (const lane of lanes) {
-    process.stdout.write(`▶ ${lane} … `);
-    let res;
-    try {
-      if (lane === 'unit') res = laneUnit();
-      else if (lane === 'parity') res = laneParity(plan.parity || { files: [] });
-      else if (lane === 'realtime') res = laneRealtime();
-      else if (lane === 'probes') res = laneProbes();
-      else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
-      else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });
-      else if (lane === 'tree') res = laneTree(plan.tree || { filter: null });
-      else if (lane === 'visual') res = laneVisual(plan.visual || { filter: null });
-    } catch (e) { res = { ok: false, summary: 'LANE CRASHED: ' + (e.message || e), ms: 0, tail: '' }; }
-    results[lane] = res;
-    const tag = res.skipped ? '∅' : res.needsVision ? '👁' : res.ok ? '✅' : '❌';
-    console.log(`${tag}  ${res.summary}  (${(res.ms / 1000).toFixed(0)}s)`);
-    if (res.tail) console.log(res.tail + '\n');
+  function runLanesOnce() {
+    const results = {};
+    for (const lane of lanes) {
+      process.stdout.write(`▶ ${lane} … `);
+      let res;
+      try {
+        if (lane === 'unit') res = laneUnit();
+        else if (lane === 'parity') res = laneParity(plan.parity || { files: [] });
+        else if (lane === 'realtime') res = laneRealtime();
+        else if (lane === 'probes') res = laneProbes();
+        else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
+        else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });
+        else if (lane === 'tree') res = laneTree(plan.tree || { filter: null });
+        else if (lane === 'visual') res = laneVisual(plan.visual || { filter: null });
+      } catch (e) { res = { ok: false, summary: 'LANE CRASHED: ' + (e.message || e), ms: 0, tail: '' }; }
+      results[lane] = res;
+      const tag = res.skipped ? '∅' : res.needsVision ? '👁' : res.ok ? '✅' : '❌';
+      console.log(`${tag}  ${res.summary}  (${(res.ms / 1000).toFixed(0)}s)`);
+      if (res.tail) console.log(res.tail + '\n');
+    }
+    return results;
+  }
+
+  // Marathon loop: --repeat=N re-runs the lane set N times; --until=<dur> loops
+  // for a time budget; --until=fail loops until something breaks. Each iteration
+  // stamps fresh scenario ids (the runner does that per invocation), so repeats
+  // never collide. Aggregate exit: non-zero if ANY iteration hard-failed.
+  const startedAt = Date.now();
+  const iterations = [];
+  let results = null, anyFail = false, iter = 0;
+  for (;;) {
+    iter++;
+    if (args.repeat !== 1 || args.untilMs || args.untilFail) console.log(`\n══════ ITERATION ${iter}${Number.isFinite(args.repeat) ? ' / ' + args.repeat : ''} ══════`);
+    results = runLanesOnce();
+    const iterFail = Object.entries(results).some(([, r]) => !r.skipped && !r.ok);
+    anyFail = anyFail || iterFail;
+    iterations.push({ n: iter, failed: iterFail, ms: Date.now() - startedAt, lanes: Object.fromEntries(Object.entries(results).map(([k, r]) => [k, { ok: !!r.ok, skipped: !!r.skipped, needsVision: !!r.needsVision, summary: r.summary, ms: r.ms }])) });
+    writeJsonReport(args, lanes, iterations, anyFail, startedAt);   // durable after EVERY iteration
+    if (args.untilFail && iterFail) break;
+    if (args.untilMs && Date.now() - startedAt >= args.untilMs) break;
+    if (!args.untilMs && !args.untilFail && iter >= args.repeat) break;
   }
 
   killServer();
@@ -335,10 +370,11 @@ function laneVisual(cfg) {
   // means CAPTURE succeeded — a clean capture sets needsVision (shown as 👁, NOT a
   // fail); only a crashed/incomplete capture marks visual !ok and fails the run.
   // (The vision VERDICT itself is downstream — the /master-test skill / a human.)
-  const hardFail = Object.entries(results).some(([, r]) => !r.skipped && !r.ok);
+  const hardFail = anyFail;
   const vis = results.visual;
 
   console.log('\n================= MASTER SUMMARY =================');
+  if (iterations.length > 1) console.log(`  iterations: ${iterations.length} (${iterations.filter(i => i.failed).length} failed)`);
   for (const lane of lanes) {
     const r = results[lane];
     const tag = r.skipped ? '∅ skip' : r.needsVision ? '👁 vision' : r.ok ? '✅ pass' : '❌ FAIL';
@@ -350,16 +386,28 @@ function laneVisual(cfg) {
     console.log(`    run the /master-test skill to have Claude review them, or open them yourself.`);
   }
   console.log('\n' + (hardFail ? '❌ MASTER: one or more lanes FAILED' : '✅ MASTER: all pass/fail lanes green'));
-  writeReport(args, lanes, results, hardFail);
+  writeReport(args, lanes, results, hardFail, iterations);
   process.exit(hardFail ? 1 : 0);
 })().catch(e => { console.error('MASTER ERROR', e && e.stack || e); process.exit(2); });
 
-function writeReport(args, lanes, results, hardFail) {
+// Machine-readable run report, rewritten after every iteration so a killed
+// marathon still leaves its full history on disk.
+function writeJsonReport(args, lanes, iterations, anyFail, startedAt) {
+  try {
+    const dir = path.join(QA, 'reports');
+    fs.mkdirSync(dir, { recursive: true });
+    const f = path.join(dir, 'master-' + new Date(startedAt).toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json');
+    fs.writeFileSync(f, JSON.stringify({ startedAt: new Date(startedAt).toISOString(), profile: args.profile, scn: args.scn, lanes, repeat: args.repeat === Infinity ? 'until' : args.repeat, failed: anyFail, iterations }, null, 1));
+  } catch {}
+}
+
+function writeReport(args, lanes, results, hardFail, iterations) {
   const L = [];
   L.push('# Master tester report');
   L.push('');
   L.push(`- profile: \`${args.profile}\``);
   L.push(`- lanes: \`${lanes.join(', ')}\``);
+  if (iterations && iterations.length > 1) L.push(`- iterations: ${iterations.length} (${iterations.filter(i => i.failed).length} failed)`);
   L.push(`- result: ${hardFail ? '❌ FAILED' : '✅ green'}`);
   L.push('');
   L.push('| lane | status | summary | time |');

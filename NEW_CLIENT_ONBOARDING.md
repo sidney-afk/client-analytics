@@ -35,6 +35,7 @@
 - [ ] **Clients Info** → add a row (name, handles, competitors, keywords, content_description, slack channel id, …). → [§4](#4-clients-info-row-the-big-one)
 - [ ] **Social Media Managers** → add a row (who's their SMM). → [§5](#5-social-media-managers-row)
 - [ ] **FilmingPlans** → create a master filming Google Doc, paste its URL. → [§6a](#6a-filming-plan)
+- [ ] **Monthly Checkup** → add a row (client_name + email) so the client gets the automated monthly check-in email. → [§6j](#6j-monthly-check-in-email)
 - [ ] *(optional, later)* **Templates** → reels/thumbnail font & color prefs. → [§6b](#6b-templates--caption-prompts-optional)
 
 **Slack / Post For Me**
@@ -216,6 +217,16 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 - Confirm the weekly Slack target resolves (`slack_channel_id` set).
 - Next morning, check that **CLIENTS METRICS** / **TOP VIDEOS** produced rows (confirms handles are right). A client with no metrics row still appears via a placeholder, so absence of data ≠ broken.
 
+### 6j. Monthly check-in email
+**Where:** SYNCVIEW sheet → tab **`Monthly Checkup`** — columns `client_name | email`.
+
+The n8n workflow **"Clients — Monthly Check-in"** (`alZ87zcRVKgcGVY7`) runs on the **1st of every month at 8 AM** and emails **every row of this tab** a friendly check-in from `house@synchrosocial.com` with the iClosed booking link (`app.iclosed.io/e/synchrosocial/check-in`). Adding the row is the only wiring — the workflow reads the tab live on each run, no n8n change needed.
+
+1. Add a row: `client_name` (same spelling as Clients Info) + the client's `email` (watch for typos and trailing spaces — this goes straight into the To: field).
+2. **Default: every active client gets added.** If a client shouldn't receive these (special arrangement etc.), flag it with Kasper — but don't block onboarding on the question; removing a row later takes five seconds.
+
+> ⚠️ **Format matters:** the workflow only reads the `client_name` and `email` **columns**, one client per **row**. Don't add clients as extra columns — as of 2026‑07 the tab had client data sitting in the header row, which the automation can't see, so those clients silently received no check-ins.
+
 ---
 
 ## What's automatic (don't waste time on it)
@@ -239,7 +250,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 ## 7. Reference appendix
 
 **IDs & locations**
-- SYNCVIEW Google Sheet: `10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8` — tabs: `Clients Info`, `Social Media Managers`, `FilmingPlans`, `Templates`, `CaptionPrompts`, `Video Editors`, + data tabs (Metrics, TopVideos, Competitor/Market Research, ContentSummaries).
+- SYNCVIEW Google Sheet: `10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8` — tabs: `Clients Info`, `Social Media Managers`, `FilmingPlans`, `Templates`, `CaptionPrompts`, `Video Editors`, `Monthly Checkup`, + data tabs (Metrics, TopVideos, Competitor/Market Research, ContentSummaries).
 - SyncView Calendar Google Sheet (legacy mirror): `1Gsn5xLImJyMhBMCNjK_tigpoUfcSFnvxTQLkk-A9Yps` — `Calendar_<slug>`, `Samples_<slug>`, `TikTokUploads`.
 - Supabase project: `uzltbbrjidmjwwfakwve` — tables `calendar_posts`, `content_samples` (PK `(client, id)`).
 - Frontend: `index.html` → `WL_CLIENT_NAMES` (~`8032`), `wlNormalizeClient` (`8014`). Live at `syncview.synchrosocial.com`.
@@ -254,6 +265,7 @@ New-to-Sandcastles channels are submitted automatically and finish scraping with
 | TOP VIDEOS | `DyVPx0neUZ94R0hJ` | Daily top videos (reads handles) |
 | COMPETITOR RESEARCH / MARKET RESEARCH | `0KMfHmYqVdlr5EhG` / `FD2QUIOlobkdLOgs` | Reads competitors/keywords |
 | Weekly Slack – Top Reel | `BTxic5NSaCMtZMh6` | Posts to `slack_channel_id` |
+| Clients — Monthly Check-in | `alZ87zcRVKgcGVY7` | 1st of month 8 AM — emails every row of the **Monthly Checkup** tab |
 | Filming Plan Tabs | `5S4JyVVR2CpHEv9b` | Reads filming‑Doc month tabs |
 | Calendar / Samples Provision Missing Tabs | `gB17L9M5yYxxk6GT` / `7Pdp6qnkBzwXP3YG` | Legacy Sheet‑tab mirror |
 

@@ -1,0 +1,101 @@
+{
+  "_snapshot": "Live state of hxLFIdKG9hUIzukO on 2026-07-02, BEFORE adding the insert-failure dead-letter branch (duplicate-classify + Data Table capture + Slack alert). Includes the 'Start Provisioning' node added 2026-07-02T17:10 (fire-and-forget executeWorkflow to t2RP7QNHrbQx52f4 after Respond JSON) which the 2026-06-28 created snapshot predates. Credentials are redacted by the n8n API: Insert Submission uses 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT); Notify Sidney uses 'SyncView Bot' (qUlAcjdhd6EpKOTL).",
+  "id": "hxLFIdKG9hUIzukO",
+  "name": "SyncView AI Onboarding — Submit",
+  "active": true,
+  "versionId": "6a2ec7ec-19f7-4f87-a4d6-e1605964a4eb",
+  "updatedAt": "2026-07-02T17:10:28.037Z",
+  "settings": { "executionOrder": "v1", "availableInMCP": true },
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Row", "type": "main", "index": 0 }]] },
+    "Build Row": { "main": [[{ "node": "Insert Submission", "type": "main", "index": 0 }]] },
+    "Insert Submission": { "main": [[{ "node": "Notify Sidney", "type": "main", "index": 0 }]] },
+    "Notify Sidney": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] },
+    "Respond JSON": { "main": [[{ "node": "Start Provisioning", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "c4ae5b34-6a1f-444e-8832-95c8055aeffe",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "ai-onboarding-submit", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } },
+      "webhookId": "cdfb1e33-f201-41c3-bbc5-750d360b11db"
+    },
+    {
+      "id": "8ef70b12-db3c-48f5-8938-658b77c6d0dd",
+      "name": "Build Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": { "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst s = body.submission || {};\nconst email = String(s.email || '').trim();\nif (!email) throw new Error('email required');\nlet id = String(s.id || '').trim();\nif (!id) { id = 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }\nconst now = new Date().toISOString();\nconst row = {\n  id,\n  slug: String(s.slug || '').trim(),\n  first_name: String(s.first_name || '').trim(),\n  last_name: String(s.last_name || '').trim(),\n  email,\n  phone: String(s.phone || '').trim(),\n  ai_avatar: String(s.ai_avatar || 'yes').trim(),\n  funnel: String(s.funnel || 'ai').trim(),\n  answers: (s.answers && typeof s.answers === 'object') ? s.answers : {},\n  status: 'submitted',\n  source: String(s.source || 'syncview-ai-onboarding'),\n  created_at: String(s.created_at || now),\n  updated_at: now\n};\nreturn [{ json: row }];" }
+    },
+    {
+      "id": "91b91fd0-f4cf-4106-b7e6-c0aa480eaca1",
+      "name": "Insert Submission",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, 0],
+      "parameters": { "resource": "row", "operation": "create", "tableId": "ai_client_onboarding", "dataToSend": "autoMapInputData" }
+    },
+    {
+      "id": "6a6dbd2d-c6a8-4fa6-9af4-14615de99533",
+      "name": "Notify Sidney",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [672, 0],
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "authentication": "accessToken",
+        "select": "user",
+        "user": { "__rl": true, "mode": "id", "value": "U0ACW93FS30" },
+        "messageType": "text",
+        "text": "=🤖 *New AI avatar onboarding submitted!*\n\n*Name:* {{ $(\"Receive POST\").item.json.body.submission.first_name }} {{ $(\"Receive POST\").item.json.body.submission.last_name }}\n*Email:* {{ $(\"Receive POST\").item.json.body.submission.email }}\n*Phone:* {{ $(\"Receive POST\").item.json.body.submission.phone }}\n\nSaved to Supabase `ai_client_onboarding` (id `{{ $(\"Build Row\").item.json.id }}`). Full answers + AI avatar brief + credentials are in that record.",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      },
+      "onError": "continueRegularOutput",
+      "webhookId": "f10ed0fb-659c-409b-b3b9-39ebf5e7999c"
+    },
+    {
+      "id": "436c16bd-521c-42be-aded-8a7e26435e1a",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $(\"Build Row\").item.json.id } }}",
+        "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } }
+      }
+    },
+    {
+      "id": "69a3c8ce-11e0-417d-8bb1-8c8364b646a2",
+      "name": "Start Provisioning",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [1104, 0],
+      "parameters": {
+        "mode": "once",
+        "options": { "waitForSubWorkflow": false },
+        "source": "database",
+        "workflowId": { "__rl": true, "cachedResultName": "AI Client — Onboarding Provisioning", "mode": "list", "value": "t2RP7QNHrbQx52f4" },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "first_name", "id": "first_name", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "last_name", "id": "last_name", "required": false, "type": "string" },
+            { "canBeUsedToMatch": true, "defaultMatch": false, "display": true, "displayName": "email", "id": "email", "required": false, "type": "string" }
+          ],
+          "value": {
+            "email": "={{ $('Build Row').item.json.email }}",
+            "first_name": "={{ $('Build Row').item.json.first_name }}",
+            "last_name": "={{ $('Build Row').item.json.last_name }}"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "_snapshot": "Live state of jlVfbg0Njxf1It7h on 2026-07-02, BEFORE adding the onboarding table dumps (client_onboarding + ai_client_onboarding, credential-stripped) to the Supabase dump chain. Identical to syncview-weekly-backup.2026-06-15.post-supabase.json except captured fresh from the live instance (credentials redacted by the n8n API: Google Drive nodes + Export n8n Workflows keep their existing bindings; Supabase dumps use 'Supabase - SyncView Calendar' XdBpJ6Xk8PMpZXXT).",
+  "id": "jlVfbg0Njxf1It7h",
+  "name": "SyncView — Weekly Backup",
+  "active": true,
+  "versionId": "99ebb6fa-fe1f-4ed9-952d-2a1fd4f18a46",
+  "updatedAt": "2026-06-15T16:52:08.123Z",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "connections": {
+    "Weekly Sunday 2AM": { "main": [[{ "node": "Create Dated Folder", "type": "main", "index": 0 }]] },
+    "Create Dated Folder": { "main": [[{ "node": "Copy Main Sheet", "type": "main", "index": 0 }, { "node": "Download GitHub Repo Zip", "type": "main", "index": 0 }, { "node": "Export n8n Workflows", "type": "main", "index": 0 }, { "node": "Dump calendar_posts", "type": "main", "index": 0 }]] },
+    "Download GitHub Repo Zip": { "main": [[{ "node": "Upload Repo Zip", "type": "main", "index": 0 }]] },
+    "Export n8n Workflows": { "main": [[{ "node": "Build Workflows JSON", "type": "main", "index": 0 }]] },
+    "Build Workflows JSON": { "main": [[{ "node": "Upload Workflows JSON", "type": "main", "index": 0 }]] },
+    "Dump calendar_posts": { "main": [[{ "node": "Dump content_samples", "type": "main", "index": 0 }]] },
+    "Dump content_samples": { "main": [[{ "node": "Build Supabase JSON", "type": "main", "index": 0 }]] },
+    "Build Supabase JSON": { "main": [[{ "node": "Upload Supabase JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "id": "80c185f2-8da2-427b-8e2a-69fedd5f494d",
+      "name": "Weekly Sunday 2AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [0, 288],
+      "parameters": { "rule": { "interval": [{ "field": "weeks", "weeksInterval": 1, "triggerAtDay": [0], "triggerAtHour": 2, "triggerAtMinute": 0 }] } }
+    },
+    {
+      "id": "7008f55a-c510-47cf-9145-753d1714c5fa",
+      "name": "Create Dated Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [224, 288],
+      "parameters": { "resource": "folder", "operation": "create", "name": "={{ $now.toFormat(\"yyyy-MM-dd\") }}", "folderId": { "__rl": true, "mode": "id", "value": "15m--zegUJLIX9ND_4LKv3xQC1Oc4SFVJ" }, "options": {} }
+    },
+    {
+      "id": "49e7d0b3-028d-4938-a75c-0f5a17b7a748",
+      "name": "Copy Main Sheet",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [448, 0],
+      "parameters": { "resource": "file", "operation": "copy", "fileId": { "__rl": true, "mode": "id", "value": "10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8" }, "name": "=SyncView Main Sheet — {{ $now.toFormat(\"yyyy-MM-dd\") }}", "sameFolder": false, "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" }, "options": {} },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "350e5fee-ba86-4203-a86a-697aed7e1a28",
+      "name": "Download GitHub Repo Zip",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [448, 384],
+      "parameters": { "method": "GET", "url": "https://github.com/sidney-afk/client-analytics/archive/refs/heads/main.zip", "options": { "response": { "response": { "responseFormat": "file", "outputPropertyName": "data" } }, "redirect": { "redirect": { "followRedirects": true } }, "timeout": 120000 } },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "73ded536-409c-4e8d-b6d7-80efcc1e2cfc",
+      "name": "Upload Repo Zip",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [672, 384],
+      "parameters": { "resource": "file", "operation": "upload", "inputDataFieldName": "data", "name": "=client-analytics-{{ $now.toFormat(\"yyyy-MM-dd\") }}.zip", "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" }, "options": {} },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a43c41a0-aade-4def-9fdf-2596cda2cc1e",
+      "name": "Export n8n Workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [448, 576],
+      "parameters": { "resource": "workflow", "operation": "getAll", "returnAll": true, "filters": { "activeWorkflows": false, "excludePinnedData": true } },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "33b1263e-1f7e-41d5-b5c4-01faf4252307",
+      "name": "Build Workflows JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [672, 576],
+      "parameters": { "mode": "runOnceForAllItems", "language": "javaScript", "jsCode": "const all = $input.all().map(i => i.json);\nconst date = $now.toFormat(\"yyyy-MM-dd\");\nconst payload = { exportedAt: new Date().toISOString(), count: all.length, workflows: all };\nconst text = JSON.stringify(payload, null, 2);\nconst b64 = Buffer.from(text, \"utf8\").toString(\"base64\");\nreturn [{ json: { count: all.length, date }, binary: { data: { data: b64, mimeType: \"application/json\", fileName: \"n8n-workflows-\" + date + \".json\" } } }];" }
+    },
+    {
+      "id": "d13728e0-819c-4ca5-a3dd-8f065b473a35",
+      "name": "Upload Workflows JSON",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [896, 576],
+      "parameters": { "resource": "file", "operation": "upload", "inputDataFieldName": "data", "name": "=n8n-workflows-{{ $now.toFormat(\"yyyy-MM-dd\") }}.json", "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" }, "options": {} },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "1468cfa5-cecb-4d5c-85d5-690ae967cecd",
+      "name": "Sticky Note d836696b",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-50, -50],
+      "parameters": { "content": "## Weekly backup\nEvery Sunday 2 AM, into a dated folder in the SyncView Backups folder (My Drive):\n• Main Google Sheet (copy)\n• GitHub repo zip (client-analytics)\n• All n8n workflows (JSON)\n• Supabase dump — calendar_posts → content_samples → supabase-<date>.json\n\nCalendar Sheet copy retired 2026-06-15: calendar + samples now live in Supabase and are captured by the dump.\n\nThe Supabase tables are dumped in a CHAIN (each getAll after the first is set to Execute Once) so all have run before Build Supabase JSON reads them via $('Dump <table>'). To add a table: insert a Dump <table> (Execute Once) into the chain before Build, then add it to the Build code + counts.", "color": 3, "width": 380, "height": 360 }
+    },
+    {
+      "id": "e90709a5-9ba0-466a-903c-2ed4e4d4961a",
+      "name": "Dump calendar_posts",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, 768],
+      "parameters": { "filterType": "none", "operation": "getAll", "orderBy": "id", "resource": "row", "returnAll": true, "tableId": "calendar_posts" },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "f3671305-62ae-42ac-b575-2910375597b1",
+      "name": "Dump content_samples",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [672, 768],
+      "parameters": { "filterType": "none", "operation": "getAll", "orderBy": "id", "resource": "row", "returnAll": true, "tableId": "content_samples" },
+      "onError": "continueRegularOutput",
+      "executeOnce": true
+    },
+    {
+      "id": "5f96f732-d03b-423a-ba76-a765fca2117d",
+      "name": "Build Supabase JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [896, 792],
+      "parameters": { "jsCode": "const date = $now.toFormat(\"yyyy-MM-dd\");\nconst clean = (arr) => arr.map(i => i.json).filter(r => r && Object.keys(r).length > 0);\nconst cal = clean($('Dump calendar_posts').all());\nconst samples = clean($('Dump content_samples').all());\nconst payload = { exportedAt: new Date().toISOString(), project: \"uzltbbrjidmjwwfakwve\", tables: { calendar_posts: cal, content_samples: samples }, counts: { calendar_posts: cal.length, content_samples: samples.length } };\nconst text = JSON.stringify(payload, null, 2);\nconst b64 = Buffer.from(text, \"utf8\").toString(\"base64\");\nreturn [{ json: { counts: payload.counts, date }, binary: { data: { data: b64, mimeType: \"application/json\", fileName: \"supabase-\" + date + \".json\" } } }];", "language": "javaScript", "mode": "runOnceForAllItems" }
+    },
+    {
+      "id": "823cf653-5334-4031-86c9-0f4ea3a2f9d2",
+      "name": "Upload Supabase JSON",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [1120, 792],
+      "parameters": { "folderId": { "__rl": true, "mode": "id", "value": "={{ $(\"Create Dated Folder\").item.json.id }}" }, "inputDataFieldName": "data", "name": "=supabase-{{ $now.toFormat(\"yyyy-MM-dd\") }}.json", "operation": "upload", "options": {}, "resource": "file" },
+      "onError": "continueRegularOutput"
+    }
+  ]
+}

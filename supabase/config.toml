@@ -1,0 +1,10 @@
+# Supabase CLI config for project uzltbbrjidmjwwfakwve (SyncView).
+# Only used for Edge Function deploys — the database schema is managed by the
+# *-supabase-migration.sql files in the repo root, run by hand in the SQL editor.
+project_id = "uzltbbrjidmjwwfakwve"
+
+# Public capture endpoint: the onboarding form calls it anonymously from the
+# browser, so JWT verification must stay off (the function holds the service
+# role internally and the target table has no anon access).
+[functions.onboarding-capture]
+verify_jwt = false

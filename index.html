@@ -11844,15 +11844,49 @@
        Reachable ONLY via ?onboarding=<token>. Mirrors ?intake=1: bypasses the
        staff password, hides workspace chrome, locks the SPA to this page.
        Submit -> n8n `onboarding-submit` -> Supabase + Slack. Namespaced _ob/OB_.
+       Never-lose-a-submission fallbacks (see ONBOARDING_FALLBACK.md): the submit
+       retries once, then fails over to the Supabase Edge capture, then to the n8n
+       fallback webhook (n8n Data Table `onboarding_fallback`). Drafts sync to the
+       same fallback store while the client types; a successful submit also sends a
+       `submitted` copy there, so every submission exists in two places.
        ============================================================ */
     const ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-submit';
     const AI_ONBOARDING_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-submit';
+    // Backup capture endpoints, tried in order after the primary fails. The Edge
+    // function lives on different infrastructure than n8n (survives n8n outages and
+    // *.n8n.cloud adblock rules); the n8n fallback webhook survives Supabase-side
+    // failures (it writes to an n8n Data Table, not Supabase).
+    const ONBOARDING_EDGE_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/onboarding-capture';
+    const ONBOARDING_FALLBACK_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-fallback';
     // Funnel variant: 'normal' (/onboarding_form) or 'ai' (/ai_onboarding_form). The entry
-    // router sets this (and the matching draft key) before the form mounts.
+    // router sets this (and the matching draft + submission-id keys) before the form mounts.
     let OB_VARIANT = 'normal';
     let OB_DRAFT_KEY = 'syncview_onboarding_draft_v1';
+    let OB_SUBID_KEY = 'syncview_onboarding_subid_v1';
     function _obEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     function _obId(){ return 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }
+    // Stable submission id: minted once per funnel per browser and reused across
+    // submit retries and draft backups, so the server can dedupe by primary key
+    // (a retry after a lost success response answers {ok, duplicate:true} instead
+    // of creating a second row). Falls back to memory when localStorage is out.
+    let _obSubIdMem = '';
+    function _obSubId(){
+      if(_obSubIdMem) return _obSubIdMem;
+      let id=''; try{ id = localStorage.getItem(OB_SUBID_KEY) || ''; }catch(e){}
+      if(!id){ id=_obId(); try{ localStorage.setItem(OB_SUBID_KEY, id); }catch(e){} }
+      _obSubIdMem = id; return id;
+    }
+    function _obClearSubId(){ _obSubIdMem=''; try{ localStorage.removeItem(OB_SUBID_KEY); }catch(e){} }
+    function _obPost(url, payload, ms){
+      const opts={ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) };
+      try{ if(typeof AbortSignal!=='undefined' && AbortSignal.timeout) opts.signal=AbortSignal.timeout(ms||20000); }catch(e){}
+      return fetch(url, opts).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({ok:true})); });
+    }
+    // Backup capture: Edge first (different infra), n8n fallback webhook second.
+    function _obBackupSend(payload, ms){
+      return _obPost(ONBOARDING_EDGE_URL, payload, ms||12000)
+        .catch(()=>_obPost(ONBOARDING_FALLBACK_URL, payload, ms||12000));
+    }
 
     const OB_LOCK_SVG = '<svg class="ob-lock-ic" viewBox="0 0 16 16" width="12" height="12" fill="none" aria-hidden="true"><rect x="3.1" y="7" width="9.8" height="6.4" rx="1.7" stroke="currentColor" stroke-width="1.25"/><path d="M5.4 7V5.1a2.6 2.6 0 0 1 5.2 0V7" stroke="currentColor" stroke-width="1.25" stroke-linecap="round"/></svg>';
     const OB_DRIVE_NOTE = '<div class="ob-drivenote">'+OB_LOCK_SVG+'<span>Any link works — Google Drive, Dropbox, WeTransfer, etc. If it\'s a private file, make sure it\'s shared so anyone with the link can open it.</span></div>';
@@ -12362,7 +12396,15 @@
       });
       const ib=document.getElementById('obAiInfoBtn'); if(ib) ib.addEventListener('click', ()=>{ const p=document.getElementById('obAiInfo'); if(p) p.style.display = p.style.display==='none'?'block':'none'; });
       const sb=document.getElementById('obSubmit'); if(sb) sb.addEventListener('click', _obSubmit);
+      // Last-gasp draft flush when the tab hides or closes (in-app browsers fire
+      // pagehide unreliably, so visibilitychange->hidden is the primary signal).
+      if(!_obBeaconBound){
+        _obBeaconBound=true;
+        window.addEventListener('pagehide', _obDraftBeacon);
+        document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') _obDraftBeacon(); });
+      }
     }
+    let _obBeaconBound=false;
 
     // ---- custom select ----
     function _obToggleSelect(id){ const pan=document.querySelector('[data-cs-panel="'+id+'"]'); if(!pan) return; const open=pan.style.display!=='none'; document.querySelectorAll('.ob-cs-panel').forEach(p=>p.style.display='none'); pan.style.display=open?'none':'block'; }
@@ -12472,14 +12514,53 @@
       const slug=(typeof wlNormalizeClient==='function')?wlNormalizeClient((d.first_name+' '+d.last_name).trim()):'';
       const now=new Date().toISOString();
       const _aiFunnel = (OB_VARIANT==='ai');
-      const submission={ id:_obId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:(_aiFunnel?'yes':'no'), funnel:(_aiFunnel?'ai':'standard'), answers:d, source:(_aiFunnel?'syncview-ai-onboarding':'syncview-onboarding'), created_at:now, updated_at:now };
-      fetch(_aiFunnel?AI_ONBOARDING_SUBMIT_URL:ONBOARDING_SUBMIT_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ submission }) })
-        .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json().catch(()=>({ok:true})); })
-        .then(()=>{ try{ localStorage.removeItem(OB_DRAFT_KEY); }catch(e){} _obThankYou(d); })
-        .catch(e=>{ btn.disabled=false; btn.textContent='Submit'; err.style.display='block'; err.textContent='Something went wrong sending the form — your answers are saved here, please try again.'; console.error('[onboarding] submit failed', e); });
+      const submission={ id:_obSubId(), slug:slug, first_name:d.first_name, last_name:d.last_name, email:d.email, phone:d.phone, ai_avatar:(_aiFunnel?'yes':'no'), funnel:(_aiFunnel?'ai':'standard'), answers:d, source:(_aiFunnel?'syncview-ai-onboarding':'syncview-onboarding'), created_at:now, updated_at:now };
+      const primaryUrl=_aiFunnel?AI_ONBOARDING_SUBMIT_URL:ONBOARDING_SUBMIT_URL;
+      const finish=(via)=>{
+        try{ localStorage.removeItem(OB_DRAFT_KEY); }catch(e){}
+        _obClearSubId();
+        // On primary success, park a `submitted` copy in the fallback store too —
+        // every submission then exists outside Supabase. Fire-and-forget.
+        if(via==='primary'){ try{ _obBackupSend({ kind:'submitted', id:submission.id, funnel:submission.funnel, note:'primary submit succeeded', submission }, 8000).catch(()=>{}); }catch(e){} }
+        _obThankYou(d);
+      };
+      // Primary (retry once for transient blips) -> Edge capture -> n8n fallback -> hard fail.
+      // A fallback capture still counts as delivered: it is durably stored and alerts the team.
+      _obPost(primaryUrl, { submission }, 20000)
+        .then(()=>finish('primary'))
+        .catch(()=> new Promise(res=>setTimeout(res,1500))
+          .then(()=>_obPost(primaryUrl, { submission }, 20000))
+          .then(()=>finish('primary'))
+          .catch(e2=>_obBackupSend({ kind:'submit-fallback', id:submission.id, funnel:submission.funnel, note:'primary submit failed: '+((e2&&e2.message)||'network'), submission }, 15000)
+            .then(()=>finish('fallback'))
+            .catch(e3=>_obSubmitFailed(btn, err, d, e3))));
     }
 
+    function _obDraftWorks(){ try{ const k='__ob_probe__'; localStorage.setItem(k,'1'); localStorage.removeItem(k); return true; }catch(e){ return false; } }
+    function _obSubmitFailed(btn, err, d, e){
+      btn.disabled=false; btn.textContent='Submit';
+      err.style.display='block';
+      // Honest copy: only promise a saved draft when localStorage actually works
+      // (in-app browsers / private mode silently drop it). The download is the
+      // zero-infrastructure last resort that works when every endpoint is down.
+      err.innerHTML='We couldn\'t send the form right now'+(_obDraftWorks()?' — your answers are saved in this browser, please try again in a few minutes':'')+'.'+
+        '<span class="ob-dl-wrap"><button type="button" class="ob-dl" id="obDownload">Download my answers</button>'+
+        '<span class="ob-dl-note">or email the downloaded file to <a href="mailto:house@synchrosocial.com">house@synchrosocial.com</a> and we\'ll take it from there.</span></span>';
+      const dl=document.getElementById('obDownload'); if(dl) dl.addEventListener('click', function(){ _obDownloadAnswers(d); });
+      console.error('[onboarding] submit failed on every path', e);
+    }
+    function _obDownloadAnswers(d){
+      try{
+        const blob=new Blob([JSON.stringify({ funnel:(OB_VARIANT==='ai'?'ai':'standard'), saved_at:new Date().toISOString(), answers:d }, null, 2)], {type:'application/json'});
+        const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+        a.download='synchrosocial-onboarding-'+String(d.first_name||'answers').toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.json';
+        document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+      }catch(e){ console.error('[onboarding] download failed', e); }
+    }
+
+    let _obDone=false;
     function _obThankYou(d){
+      _obDone=true;
       _obResetPlay();
       const card=document.getElementById('obCard'); if(!card) return;
       const t=document.getElementById('obTop'); if(t) t.remove();
@@ -12489,8 +12570,43 @@
     }
 
     let _obDraftT=null;
-    function _obSaveDraftDebounced(){ clearTimeout(_obDraftT); _obDraftT=setTimeout(_obSaveDraft,600); }
+    function _obSaveDraftDebounced(){ clearTimeout(_obDraftT); _obDraftT=setTimeout(_obSaveDraft,600); _obQueueDraftSync(); }
     function _obSaveDraft(){ try{ localStorage.setItem(OB_DRAFT_KEY, JSON.stringify(_obSerialize())); }catch(e){} }
+
+    // ---- draft backup sync ----
+    // The localStorage draft only lives on the client's device (and silently doesn't
+    // exist in private mode / in-app browsers), so meaningful drafts are also synced
+    // to the fallback store (throttled), and flushed via sendBeacon when the tab
+    // hides/closes. One upserted row per submission id; a later submit marks it
+    // `submit-fallback`/`submitted`, so nothing is ever only-on-device for long.
+    const OB_DRAFT_SYNC_MS=25000;
+    let _obDraftSyncTimer=null, _obDraftSyncAt=0, _obLastSyncBody='';
+    function _obDraftPayload(){
+      if(_obDone) return null;
+      let d=null; try{ d=_obSerialize(); }catch(e){ return null; }
+      if(!d || !(d.first_name||d.last_name||d.email||d.phone)) return null;
+      return { kind:'draft', id:_obSubId(), funnel:(OB_VARIANT==='ai'?'ai':'standard'), note:'autosaved draft', draft:d };
+    }
+    function _obQueueDraftSync(){
+      if(_obDraftSyncTimer||_obDone) return;
+      const wait=Math.max(1200, OB_DRAFT_SYNC_MS-(Date.now()-_obDraftSyncAt));
+      _obDraftSyncTimer=setTimeout(_obDraftSync, wait);
+    }
+    function _obDraftSync(){
+      _obDraftSyncTimer=null; _obDraftSyncAt=Date.now();
+      const p=_obDraftPayload(); if(!p) return;
+      const body=JSON.stringify(p); if(body===_obLastSyncBody) return;
+      try{ _obBackupSend(p, 10000).then(function(){ _obLastSyncBody=body; }).catch(function(){}); }catch(e){}
+    }
+    function _obDraftBeacon(){
+      const p=_obDraftPayload(); if(!p) return;
+      const body=JSON.stringify(p); if(body===_obLastSyncBody) return;
+      let sent=false;
+      // text/plain keeps the beacon preflight-free; the fallback webhook parses it.
+      try{ if(navigator.sendBeacon) sent=navigator.sendBeacon(ONBOARDING_FALLBACK_URL, new Blob([body], {type:'text/plain'})); }catch(e){}
+      if(!sent){ try{ fetch(ONBOARDING_FALLBACK_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:body, keepalive:true}).catch(function(){}); }catch(e){} }
+      _obLastSyncBody=body;
+    }
     function _obRebuildRep(rep, arr){
       const cont=document.getElementById(rep==='creators'?'obCreators':'obClips'); if(!cont||!Array.isArray(arr)||!arr.length) return;
       cont.innerHTML=''; arr.forEach((o,i)=>{ cont.insertAdjacentHTML('beforeend', _obRepRowHtml(rep, i===0)); const row=cont.lastElementChild; row.querySelectorAll('[data-rep-k]').forEach(inp=>{ const k=inp.getAttribute('data-rep-k'); if(o[k]!=null) inp.value=o[k]; }); });
@@ -12723,6 +12839,11 @@
       .ob-script p{ margin:0 0 8px; } .ob-script p:last-child{ margin-bottom:0; }
       .ob-footer{ margin-top:28px; padding-top:20px; border-top:1px solid var(--border); }
       .ob-err{ font-size:0.83rem; color:var(--dn); background:var(--dn-bg); border:1px solid var(--dn); border-radius:9px; padding:10px 13px; margin-bottom:12px; }
+      .ob-dl-wrap{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:9px; }
+      .ob-dl{ appearance:none; border:1px solid var(--ob-accent); background:transparent; color:var(--ob-accent); font:inherit; font-size:0.8rem; font-weight:600; border-radius:8px; padding:6px 11px; cursor:pointer; }
+      .ob-dl:hover{ background:var(--ob-accent); color:#fff; }
+      .ob-dl-note{ font-size:0.78rem; color:var(--text-secondary); }
+      .ob-dl-note a{ color:var(--ob-accent); }
       .ob-submit{ width:100%; font-family:inherit; font-size:0.95rem; font-weight:700; color:#fff; background:var(--ob-accent); border:none; border-radius:11px; padding:14px; cursor:pointer; transition:opacity 0.13s; }
       .ob-submit:hover{ opacity:0.88; } .ob-submit:disabled{ opacity:0.5; cursor:default; }
       .ob-q.ob-missing .ob-input,.ob-q.ob-missing .ob-radios,.ob-q.ob-missing .ob-checks,.ob-q.ob-missing .ob-genres,.ob-q.ob-missing .ob-sub-grid,.ob-q.ob-missing .ob-stgrid,.ob-q.ob-missing .ob-cs-btn{ box-shadow:0 0 0 2px var(--dn); border-radius:10px; }
@@ -25325,6 +25446,7 @@
         // never clobber each other's localStorage.
         OB_VARIANT = _isAiOnboarding ? 'ai' : 'normal';
         OB_DRAFT_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_draft_v1' : 'syncview_onboarding_draft_v1';
+        OB_SUBID_KEY = _isAiOnboarding ? 'syncview_ai_onboarding_subid_v1' : 'syncview_onboarding_subid_v1';
         // Both onboarding forms carry SynchroSocial branding (tab title + favicon),
         // distinct from the SyncView dashboard chrome.
         try {

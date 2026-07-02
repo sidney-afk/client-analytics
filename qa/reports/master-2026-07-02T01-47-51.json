@@ -1,0 +1,40 @@
+{
+ "startedAt": "2026-07-02T01:47:51.296Z",
+ "profile": "fast",
+ "scn": null,
+ "lanes": [
+  "unit"
+ ],
+ "repeat": 2,
+ "failed": false,
+ "iterations": [
+  {
+   "n": 1,
+   "failed": false,
+   "ms": 2039,
+   "lanes": {
+    "unit": {
+     "ok": true,
+     "skipped": false,
+     "needsVision": false,
+     "summary": "all 28 unit suites passed",
+     "ms": 2039
+    }
+   }
+  },
+  {
+   "n": 2,
+   "failed": false,
+   "ms": 3984,
+   "lanes": {
+    "unit": {
+     "ok": true,
+     "skipped": false,
+     "needsVision": false,
+     "summary": "all 28 unit suites passed",
+     "ms": 1943
+    }
+   }
+  }
+ ]
+}

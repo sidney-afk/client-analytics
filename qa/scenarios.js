@@ -114,10 +114,13 @@ function base() {
       seed: { [comp + '_status']: 'Client Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Client Approval' },
       steps: [['client.request', comp, 'adjust'], ['expect', comp + '_status', 'Tweaks Needed'], ['smm.status', comp, 'Client Approval'], ['client.approve', comp], ['expect', comp + '_status', 'Approved']] });
 
-    // two-round change request (round numbering)
+    // two-round change request (round numbering: Tweak #1 then Tweak #2)
     S.push({ key: 'two_round_request_' + comp, title: `Two rounds of SMM change requests on ${comp}`,
       seed: { ...FOR_SMM },
-      steps: [['smm.request', comp, 'round one'], ['smm.status', comp, 'For SMM Approval'], ['smm.request', comp, 'round two'], ['expectComment', comp, { role: 'smm', is_tweak: true }]] });
+      steps: [['smm.request', comp, 'round one'], ['expectComment', comp, { is_tweak: true, round: 1 }],
+        ['smm.status', comp, 'For SMM Approval'], ['smm.request', comp, 'round two'],
+        ['expectComment', comp, { role: 'smm', is_tweak: true, round: 2 }],
+        ['expectComment', comp, { any: true, is_tweak: true, round: 1 }]] });
   }
 
   // approve one component, request the other — per actor

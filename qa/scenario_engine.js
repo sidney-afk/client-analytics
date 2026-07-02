@@ -65,6 +65,7 @@ function commentMatches(c, want) {
   if (want.reply !== undefined && !!c.parent_id !== want.reply) return false;
   if (want.deleted !== undefined && !!c.deleted !== want.deleted) return false;
   if (want.audience !== undefined && c.audience !== want.audience) return false;
+  if (want.round !== undefined && Number(c.round) !== want.round) return false;
   return true;
 }
 // Poll the audit trail for an event row matching {action, component, to_status, from_status, role}.

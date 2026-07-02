@@ -40,9 +40,21 @@ async function sendNote(page, text) {
     await kp.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
     await kp.waitForFunction((cid) => (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid), id1, { timeout: 20000 });
     await kp.evaluate((cid) => { _sxrKasperApproveComp(cid, 'video'); _sxrKasperApproveComp(cid, 'video'); }, id1);
-    await sleep(5000);
-    const r1 = row(id1, 'video_status');
-    t(r1 && r1.video_status === 'Client Approval', 'double-approve: video landed at Client Approval', r1 && r1.video_status);
+    // Poll until the write lands (fixed sleeps flake under the courier); on a
+    // miss, capture WHY: did the app surface "Save failed" (transient persist
+    // failure — infra) or is the in-flight guard stuck (product bug)?
+    let landed = false;
+    for (let i = 0; i < 30 && !landed; i++) { const r = row(id1, 'video_status'); landed = !!r && r.video_status === 'Client Approval'; if (!landed) await sleep(1000); }
+    if (!landed) {
+      const diag = await kp.evaluate((cid) => ({
+        savingKeys: Object.keys((_sxrKasperState && _sxrKasperState.saving) || {}).filter(k => _sxrKasperState.saving[k]),
+        saveFailedNotify: !!document.querySelector('.notify, .sv-notify') && /save failed/i.test(document.body.textContent || ''),
+        stillInQueue: (typeof _sxrKasperFindItem === 'function') && !!_sxrKasperFindItem(cid),
+        localStatus: (() => { const it = _sxrKasperFindItem(cid); return it && it.post && it.post.video_status; })(),
+      }), id1);
+      console.log('   double-approve DIAG:', JSON.stringify(diag));
+    }
+    t(landed, 'double-approve: video landed at Client Approval', landed ? '' : String((row(id1, 'video_status') || {}).video_status));
     // One save legitimately writes TWO audit rows: the component transition
     // (component='video') AND the overall roll-up (component=null). Idempotency
     // is judged on the COMPONENT transition alone.

@@ -132,6 +132,22 @@ archived and Linear mocked.
 | R2-22 | 2026-07-02 | SMM plain review-tab comment — no status change | smm_comment_video | ✅ 3/3 |
 | R2-23 | 2026-07-02 | Client comments then approves (comment must not block approval) | client_comment_then_approve_video | ✅ 5/5 |
 | R2-24 | 2026-07-02 | Client plain comment on the graphic | client_comment_graphic | ✅ 3/3 |
+| R2-25 | 2026-07-02 | FULL SCENARIO TREE, video component (12 root→leaf paths incl. reply loop, resolve loops, Kasper finish/undo/comment through the tree lane) | tree: video__* | ✅ 12/12 paths, 88/88 asserts |
+| R2-26 | 2026-07-02 | FULL SCENARIO TREE, graphic component (same 12 paths — the historically untested twin) | tree: graphic__* | ✅ 12/12 paths, 88/88 asserts |
+| R2-27 | 2026-07-02 | BUG-3 + BUG-4 live repros (ReferenceError fires in-browser on raw-shaped row; share URL provably lacks t=) | sxr_bug_repros.js | ✅ 6/6 (characterization) |
+| R2-28 | 2026-07-02 | Same-tick double Kasper approve → ONE component transition (+ legitimate overall roll-up event) | sxr_concurrency.js | ✅ |
+| R2-29 | 2026-07-02 | Two stale SMM tabs comment same component → comments MERGE, no clobber | sxr_concurrency.js | ✅ |
+| R2-30 | 2026-07-02 | Concurrent Kasper video-approve + SMM graphic re-route → both land; overall heals to worst-of | sxr_concurrency.js | ✅ |
+| R2-31 | 2026-07-02 | Unlinked graphic at Kasper Approval gated OUT of Kasper queue | sxr_gating_flags.js | ✅ |
+| R2-32 | 2026-07-02 | BUG-7 pinned live: new message resurfaces a FINISHED Kasper card (calendar rule would keep it in Tweaks pending) | sxr_gating_flags.js | ✅ pin |
+| R2-33 | 2026-07-02 | Flag-off isolation: _sxrEnabled false, nav hidden, 0 cards, #sample-reviews route refused (hash cleared — rebuilt-FE contract differs from old FE's "is off" page) | sxr_gating_flags.js | ✅ |
+
+### Flaky-note (infra, watched)
+- One transient: a Kasper approve save silently failed once (DB unchanged, no
+  retry — the catch path only shows "Save failed"); re-run green. Probes now
+  poll-until-landed and self-diagnose (saving-keys / notify / queue state) if
+  it recurs. If it recurs often, the durable-outbox pattern used for Linear
+  pushes may be worth extending to Kasper persists.
 
 ## NOT YET COVERED (resume here)
 - Re-run: linear_push_video_status, kasper_finish_video (SIGKILL'd batch).

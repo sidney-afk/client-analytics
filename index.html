@@ -4100,10 +4100,10 @@
         .cal-card-notes:hover { border-color: #c7ccda; color: #2b2f38; }
         /* <<< SXR_END */
 
-        /* ===== Sales Intake tab (Kasper-gated) ===== */
-        .si-wrap { max-width: 720px; margin: 0 auto; }
-        .si-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
-        .si-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+        /* ===== Sales Intake (subtab of the Kasper tab) ===== */
+        .si-wrap { max-width: 720px; }
+        .si-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+        .si-title { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
         .si-sub { font-size: 0.85rem; color: var(--text-secondary); }
         .si-card { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; padding: 26px 28px 28px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
         .si-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
@@ -4257,10 +4257,6 @@
         <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
-        </a>
-        <a class="header-nav-btn" id="navSalesIntake" href="#sales-intake" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sales-intake')">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
-            Sales Intake
         </a>
         <a class="header-nav-btn" id="navTiktokPilot" href="#tiktok-pilot" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-pilot')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="#22c55e"/></svg>
@@ -11768,10 +11764,6 @@
         // so every navigation (back button, restored hash, logo) lands on it.
         if (document.body.classList.contains('intake-mode')) page = 'linear';
         if (document.body.classList.contains('onboarding-mode')) page = 'onboarding';
-        // Sales Intake is Kasper-gated: a bare #sales-intake hash (no session
-        // unlock) must not reach the page, so bounce it home here — the nav
-        // button is hidden anyway, this only defends the direct-hash path.
-        if (page === 'sales-intake' && !_kasperUnlocked) page = 'home';
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
@@ -11788,8 +11780,6 @@
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
-        const navSi = document.getElementById('navSalesIntake');
-        if (navSi) navSi.classList.toggle('active', page === 'sales-intake');
         const navTtp = document.getElementById('navTiktokPilot');
         if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
@@ -11881,11 +11871,6 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderKasperView();
             mountKasperView();
-            window.scrollTo({ top: 0, behavior: 'instant' });
-        } else if (page === 'sales-intake') {
-            pageTop.style.display = 'none';
-            content.innerHTML = renderSalesIntakeView();
-            mountSalesIntakeView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'onboarding') {
             pageTop.style.display = 'none';
@@ -25075,14 +25060,9 @@
             const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
             const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
                 && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
-            // Sales Intake shares Kasper's unlock and, like Kasper, has no
-            // analytics dependency (it only posts to its own webhook), so a
-            // refresh straight onto #sales-intake mounts immediately too.
-            const _salesIntakeHashLanding = (hashRaw === 'sales-intake')
-                && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding || _salesIntakeHashLanding);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for the token)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -25249,9 +25229,6 @@
                     _kasperUnlocked=true;
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
-                    // Sales Intake rides the same unlock — one gate, two tabs.
-                    const navSi=document.getElementById('navSalesIntake');
-                    if(navSi) navSi.style.display='';
                 }
             }catch(e){}
 
@@ -25343,8 +25320,6 @@
                     navTo('kasper', false);
                 } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
                     navTo('tiktok-pilot', false);
-                } else if (hashRaw === 'sales-intake' && _kasperUnlocked) {
-                    navTo('sales-intake', false);
                 } else if (hashIsFastTab) {
                     navTo(hashRaw, false);
                 } else {
@@ -25443,7 +25418,6 @@
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
-            if(hash==='sales-intake' && _kasperUnlocked){navTo('sales-intake',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
                 if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
@@ -25473,7 +25447,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='sales-intake'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
@@ -30972,7 +30946,7 @@
        modal too. Status pushes to Linear via the existing webhook.
        ============================================================ */
     /* ============================================================
-       SALES INTAKE MODULE (Kasper-gated in-app tab, page 'sales-intake')
+       SALES INTAKE MODULE (subtab of the Kasper tab, key 'sales-intake')
        Kasper closes a client on a call, fills this form, and submit kicks
        off the whole paperwork chain via n8n `sales-intake-submit`:
        Supabase `sales_intakes` audit row → eSignatures.com agreement from
@@ -30980,9 +30954,10 @@
        client (signing link + Stripe payment link) → Slack DM confirmation.
        Spec: SALES_INTAKE_DESIGN.md. Form mechanics mirror the onboarding
        form (draft autosave, keep-draft-on-failure, required-field
-       validation); tab gating mirrors the Kasper tab. Namespaced _si/SI_.
-       NOTE: the page id is 'sales-intake' — never 'intake', which is the
-       client Linear-submission mode (body.intake-mode).
+       validation); access rides the Kasper unlock because it renders only
+       inside the Kasper page (see _kasperRenderSalesIntake / KASPER_SUBTABS).
+       Namespaced _si/SI_. NOTE: the key is 'sales-intake' — never 'intake',
+       which is the client Linear-submission mode (body.intake-mode).
        ============================================================ */
     const SALES_INTAKE_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sales-intake-submit';
     const SI_DRAFT_KEY = 'syncview_sales_intake_draft_v1';
@@ -31091,8 +31066,8 @@
                     '<textarea class="si-input" data-si="termination_clause_custom" rows="4" placeholder="Paste the custom termination clause…" style="display:none;margin-top:6px"></textarea>'
             });
         return '<div class="si-wrap">' +
-            '<div class="si-head"><div class="si-title">Sales Intake</div>' +
-            '<div class="si-sub">Fill this right after closing a client — it creates the Sales &amp; Service Agreement and emails the client the signing link with their invoice.</div></div>' +
+            '<div class="si-head"><div class="si-title">Fill this right after closing a client</div>' +
+            '<div class="si-sub">It creates the Sales &amp; Service Agreement and emails the client the signing link with their invoice — one email, both links.</div></div>' +
             '<div class="si-card" id="siCard"><form id="siForm" onsubmit="return false;" novalidate>' +
             '<div class="si-grid">' + fields + '</div>' +
             '<div class="si-err" id="siErr"></div>' +
@@ -31151,7 +31126,7 @@
     }
     function _siClearForm() {
         try { localStorage.removeItem(SI_DRAFT_KEY); } catch (e) {}
-        navTo('sales-intake', false);
+        _kasperRenderSalesIntake();
     }
 
     function mountSalesIntakeView() {
@@ -31232,7 +31207,8 @@
         { key: 'review',  label: 'Review Session', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8s2.2-4.5 6-4.5S14 8 14 8s-2.2 4.5-6 4.5S2 8 2 8z"/><circle cx="8" cy="8" r="2"/></svg>' },
         { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
-        { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' }
+        { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
+        { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
@@ -31627,6 +31603,20 @@
         if (_kasperState.tab === 'replies') return _kasperRenderReplies();
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
+        if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
+    }
+
+    // Sales Intake lives as a Kasper subtab (it's Kasper's post-close paperwork
+    // trigger, so it belongs with everything else waiting on him). The form
+    // module itself (_si*/SI_*) is defined next to the other page modules —
+    // this is just the subtab mount. Background review repaints can't clobber
+    // the form: _kasperPaintReview writes into #kasperReviewBody, which doesn't
+    // exist while this subtab is showing.
+    function _kasperRenderSalesIntake() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        el.innerHTML = renderSalesIntakeView();
+        mountSalesIntakeView();
     }
 
     /* ── Filming Plans ─────────────────────────────────────────────

@@ -91,6 +91,13 @@ archived and Linear mocked.
 | R2-2 | 2026-07-02 | Client request → SMM reply → re-offer → client sees thread | smm_reply_to_client_request_video | ✅ 8/8 |
 | R2-3 | 2026-07-02 | SMM resolve chooser → stay | resolve_via_stay_video | ✅ 3/3 |
 | R2-4 | 2026-07-02 | Kasper approve → toast Undo → status restored | kasper_undo_video | ✅ 5/5 |
+| R2-5 | 2026-07-02 | Kasper request → Finish reviewing → "Sent to SMM" state | kasper_finish_video | ✅ 4/4 |
+| R2-6 | 2026-07-02 | Linear: SMM approve pushes status to VIDEO issue only, no comment | linear_push_video_status | ✅ 4/4 |
+| R2-7 | 2026-07-02 | Linear: Kasper request posts tweak comment to the video issue | linear_tweak_comment_video | ✅ 3/3 |
+| R2-8 | 2026-07-02 | Linear: graphic change routes to GRA issue, never VID (probe bug fixed: expectNoLinear now honors includes filter) | linear_push_graphic_isolated | ✅ 4/4 |
+| R2-9 | 2026-07-02 | Kasper internal comment: no status change, invisible on client surface after approve | kasper_comment_internal_video | ✅ 6/6 |
+| R2-10 | 2026-07-02 | Audience gating: internal note hidden from client, client note visible | audience_leak_guard_video | ✅ 3/3 |
+| R2-11 | 2026-07-02 | Linear: plain internal note pushes NO status | linear_no_push_on_note | ✅ 3/3 |
 
 ## NOT YET COVERED (resume here)
 - Re-run: linear_push_video_status, kasper_finish_video (SIGKILL'd batch).

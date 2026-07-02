@@ -441,10 +441,12 @@ async function runScenario(browser, scn, shotDir, doShots) {
           while (Date.now() - t0 < 12000 && !(okk = match())) await new Promise(s => setTimeout(s, 600));
           note(okk, `expectLinear ${args[0]} ${JSON.stringify(want)}`, okk ? '' : `calls: ${JSON.stringify(calls.map(c => c.payload)).slice(0, 200)}`);
         } else {
-          // give any wrong push a beat to land before asserting absence
+          // give any wrong push a beat to land before asserting absence;
+          // an `includes` filter narrows the ban to matching payloads only
           await new Promise(s => setTimeout(s, 4000));
-          const hits = linearCalls().filter(c => c.path === args[0]);
-          note(hits.length === 0, `expectNoLinear ${args[0]}`, hits.length ? `got ${hits.length}: ${JSON.stringify(hits.map(c => c.payload)).slice(0, 200)}` : '');
+          const hits = linearCalls().filter(c => c.path === args[0])
+            .filter(c => { const s = JSON.stringify(c.payload || {}); return (want.includes || []).every(x => s.includes(x)); });
+          note(hits.length === 0, `expectNoLinear ${args[0]} ${JSON.stringify(want)}`, hits.length ? `got ${hits.length}: ${JSON.stringify(hits.map(c => c.payload)).slice(0, 200)}` : '');
         }
         continue;
       }

@@ -1,9 +1,9 @@
 // sxr_gating_flags.js — gating rules + flag isolation on the samples system.
 //   1. UNLINKED gating: with no Linear links, an unlinked graphic at Kasper
 //      Approval is gated OUT of the Kasper queue (unlinked-thumbnail rule).
-//   2. Finished-card resurface-on-reply: after Kasper "Finish", ANY new message
-//      pulls the card back to Waiting on samples — PINS BUG-7 (the calendar's
-//      product rule says only a Kasper-Approval re-route may resurface it).
+//   2. Finished-card stays finished on a new message (BUG-7 FIX): after Kasper
+//      "Finish", a later message must NOT pull the card back to Waiting — only a
+//      genuine Kasper-Approval re-route may. Parity with the calendar rule.
 //   3. Flag-off isolation: without ?sxr=1 the Samples nav is absent and the
 //      sample-reviews route renders the "is off" state with zero cards.
 'use strict';
@@ -60,12 +60,10 @@ async function kasperCardState(page, cid) {
       const send = document.querySelector('#sxrCommentsOverlay .cal-cm-send'); if (send && !send.disabled) send.click();
     });
     await sleep(5000);
-    // …and on SAMPLES that resurfaces the finished card (BUG-7 pin; the
-    // calendar's product rule keeps it in "Tweaks pending" until a re-route).
-    // The cross-client queue reload can outlast a fixed sleep under the courier,
-    // so poll until the queue's in-memory post actually CONTAINS the new
-    // message before judging finished-ness.
-    let stAfter = 'absent';
+    // …and on SAMPLES the finished card STAYS finished (BUG-7 FIX). Poll until the
+    // queue's in-memory post actually CONTAINS the new message, THEN assert it is
+    // still partitioned as finished (not pulled back to Waiting).
+    let stAfter = 'absent', sawMsg = false;
     for (let i = 0; i < 25; i++) {
       await kp.evaluate(() => { if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
       await sleep(2500);
@@ -74,9 +72,10 @@ async function kasperCardState(page, cid) {
         if (!it) return { found: false };
         return { found: true, hasMsg: String(it.post.video_tweaks || JSON.stringify(it.post.comments || '')).includes('new cut uploaded'), fin: _sxrKasperIsFinished(it.post) };
       }, idR);
-      if (seen.found && seen.hasMsg) { stAfter = seen.fin ? 'finished' : 'present'; break; }
+      if (seen.found && seen.hasMsg) { sawMsg = true; stAfter = seen.fin ? 'finished' : 'present'; break; }
     }
-    t(stAfter === 'present', 'BUG-7 PIN: a new message resurfaces the FINISHED card to Waiting (calendar rule would keep it finished)', 'state=' + stAfter);
+    t(sawMsg, 'new SMM message landed on the finished card');
+    t(stAfter === 'finished', 'BUG-7 FIX: a new message does NOT resurface a FINISHED card (stays in Tweaks pending; parity with calendar)', 'state=' + stAfter);
 
     // ---------- 3. flag-off isolation ----------
     const offPage = await open(browser, '/index.html#sample-reviews/sidneylaruel');   // NO ?sxr=1

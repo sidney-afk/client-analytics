@@ -40,7 +40,47 @@ archived and Linear mocked.
   (direct done) + asserts done:true, and the chooser paths have their own
   resolve_via_* scenarios.
 
-## BUGS — NEEDS REVIEW (found by source-read during tester upgrade; live repros pending)
+## ✅ BUGS FIXED + RE-VERIFIED (2026-07-02 — user-authorized, ready to merge)
+All fixes are surgical, keep the unit gate green (28 suites), and each has a
+probe flipped from "pins the bug" to "proves the fix", re-run green live.
+
+- **BUG-3 FIXED** — defined `_sxrLoadComments(post)` as an alias of
+  `_sxrCommentsFor(post,'video')` (index.html ~26957). Opening Notes on a
+  raw-shaped row no longer throws. Guard: `sxr_bug_repros.js` 4/4.
+- **BUG-4 FIXED** — `_sxrCopyShareLink` now appends `&t=<client_review_token>`
+  when the client has one (mirrors `smCopyShareLink`), so token-guarded clients
+  get a valid link. Guard: `sxr_bug_repros.js`.
+- **BUG-5a FIXED** — `_sxrKasperApproveComp` now stamps `kasper_approved_at` /
+  `_by` in the approve patch (first-wins), so the audit trail records the
+  sign-off. Guard: `sxr_kasper_audit_holes.js` 6/6 (verified persisted live).
+- **BUG-5b FIXED** — `_sxrKasperUndoApprove` now pushes the reverted status to
+  (mocked) Linear, so an undo no longer leaves the issue stale. Guard: same probe.
+- **BUG-7 FIXED** — `_sxrKasperIsFinished` no longer resurfaces a finished card
+  on a mere new message (removed the `latest > stampedAt` clause; kept the
+  undecided-comps re-route clause) — now matches the calendar's decided rule.
+  Guard: `sxr_gating_flags.js` 9/9.
+- **BUG-6 RESOLVED (tooltip)** — the ✕-close tooltip on BOTH calendars promised
+  "stays hidden until sent back to Kasper Approval" but both actually resurface
+  on a NEW MESSAGE (shared, long-standing design). Corrected the tooltip on both
+  to describe the real behavior. **Deeper true-re-route-resurface is left as a
+  shared product question** (needs queue-membership work on both calendars; a
+  freshly-closed card is by definition still undecided, so an undecided-comps
+  check would make Close a no-op) — NOT auto-changed. `kasper_close_resurface_video`
+  asserts the intended message-resurface, 9/9.
+
+Tester robustness: `expectKasperCard` now polls the cross-client queue until it
+settles on the expected state (was a single early read → flaky present/absent).
+
+## OBSERVATIONS still open for YOUR product call (not auto-changed)
+- **OBS-2** — client loses sight of a component's thread at Tweaks Needed until
+  re-offer (dead client tweaks-composer). Shared with calendar.
+- **OBS-3** — client can Approve while their own change request is still open.
+- **BUG-6 deeper** — should a bare re-route (no new message) resurface a closed
+  Kasper card? (tooltip now honest; behavior unchanged pending your decision.)
+- **BUG-1 (RUN 1, pre-rebuild)** — optimistic status not rolled back on save
+  failure; calendar shares the pattern — re-confirm before acting.
+
+## BUGS — historical detail (source-read during tester upgrade; now fixed above)
 - **BUG-3 — `_sxrLoadComments` is called at 6 sites and DEFINED NOWHERE**
   (index.html:27567, 27629, 27680, 27689, 27709, 27737). Any path where
   `post.comments` is not already an array (e.g. an unmigrated row arriving via a

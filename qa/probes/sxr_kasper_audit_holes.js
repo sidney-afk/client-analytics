@@ -1,8 +1,7 @@
-// sxr_kasper_audit_holes.js — BUG-5 characterization (see OVERNIGHT_TEST_REPORT
-// RUN 2): samples Kasper approve never stamps kasper_approved_at (so the
-// kasper_approve audit event can never fire), and Kasper UNDO reverts the
-// status without pushing the revert to Linear (issue left stale at the
-// approved status). PASSES while the bugs exist; flip when fixed.
+// sxr_kasper_audit_holes.js — REGRESSION guard for BUG-5 (fixed 2026-07-02;
+// see OVERNIGHT_TEST_REPORT RUN 2). Flipped from characterization to assert the
+// FIX: Kasper approve now STAMPS kasper_approved_at, and Kasper UNDO now PUSHES
+// the reverted status to (mocked) Linear so the issue isn't left stale.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, kasper, up, supa, archiveSafe, linearCalls, resetLinearCalls } = L;
@@ -34,10 +33,10 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     for (let i = 0; i < 12 && !pushed; i++) { pushed = linearCalls().some(c => c.path === 'linear-set-status' && JSON.stringify(c.payload || {}).includes('Client Approval')); if (!pushed) await sleep(1000); }
     t(pushed, 'approve pushed Client Approval to the (mocked) Linear issue');
 
-    // BUG-5a pin: kasper_approved_at is NOT stamped by the samples approve
-    const stamps = row(id, 'kasper_approved_at');
-    const stamped = !!(stamps && String(stamps.kasper_approved_at || '').trim());
-    t(!stamped, 'BUG-5a PIN: kasper_approved_at NOT stamped by samples approve', stamped ? 'now stamped — bug fixed? flip this probe' : '');
+    // BUG-5a FIX: kasper_approved_at IS stamped by the samples approve
+    let stamped = false;
+    for (let i = 0; i < 15 && !stamped; i++) { const s = row(id, 'kasper_approved_at'); stamped = !!(s && String(s.kasper_approved_at || '').trim()); if (!stamped) await sleep(1000); }
+    t(stamped, 'BUG-5a FIX: kasper_approved_at stamped by samples approve', stamped ? String((row(id, 'kasper_approved_at') || {}).kasper_approved_at).slice(0, 24) : 'still empty');
 
     // undo via the toast → status reverts…
     const undo = await kp.waitForFunction(() => !!document.querySelector('.sv-toast-action'), { timeout: 9000 })
@@ -47,10 +46,10 @@ const row = (id, cols) => { const r = supa('id=eq.' + id + '&select=' + cols); r
     for (let i = 0; i < 25 && !reverted; i++) { const r = row(id, 'video_status'); reverted = !!r && r.video_status === 'Kasper Approval'; if (!reverted) await sleep(1000); }
     t(reverted, 'undo reverted the DB status to Kasper Approval');
 
-    // …BUG-5b pin: but NO Linear push of the reverted status — issue left stale
-    await sleep(5000);
-    const revertPushed = linearCalls().some(c => c.path === 'linear-set-status' && JSON.stringify(c.payload || {}).includes('"Kasper Approval"'));
-    t(!revertPushed, 'BUG-5b PIN: undo pushes NOTHING to Linear (issue left stale at Client Approval)', revertPushed ? 'now pushes — bug fixed? flip this probe' : '');
+    // …BUG-5b FIX: undo now pushes the reverted status to (mocked) Linear
+    let revertPushed = false;
+    for (let i = 0; i < 12 && !revertPushed; i++) { revertPushed = linearCalls().some(c => c.path === 'linear-set-status' && JSON.stringify(c.payload || {}).includes('"Kasper Approval"')); if (!revertPushed) await sleep(1000); }
+    t(revertPushed, 'BUG-5b FIX: undo pushes the reverted status (Kasper Approval) to Linear', revertPushed ? '' : 'no revert push captured');
   } catch (e) {
     t(false, 'EXCEPTION: ' + (e && e.message || e));
   } finally {

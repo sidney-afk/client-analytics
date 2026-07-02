@@ -339,16 +339,26 @@ async function kasperCardAction(page, name, which) {
   }, [name, which]);
 }
 // DOM assert on the Kasper queue: is the card present / absent / finished ("Sent to SMM")?
-async function kasperCardState(page, name) {
-  await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
-  await sleep(page, 2500);
-  return page.evaluate((n) => {
-    const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(c => (c.querySelector('.kcard-title') || {}).textContent === n);
-    if (!card) return 'absent';
-    const done = card.querySelector('.kcard-done-btn');
-    if (done && done.disabled && /Sent to SMM/i.test(done.textContent)) return 'finished';
-    return 'present';
-  }, name);
+// The Kasper queue is a CROSS-CLIENT fetch whose background reload can lag several
+// seconds under the courier; when a `want` is given, poll (reloading each round)
+// until the queue settles on it before returning — otherwise a single early read
+// flakes present/absent right after a status change or a note.
+async function kasperCardState(page, name, want) {
+  const readOnce = async () => {
+    await page.evaluate(() => { const b = document.querySelector('.kasper-subtab[data-kasper-tab="samples"]'); if (b) b.click(); if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue(true); });
+    await sleep(page, 2500);
+    return page.evaluate((n) => {
+      const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(c => (c.querySelector('.kcard-title') || {}).textContent === n);
+      if (!card) return 'absent';
+      const done = card.querySelector('.kcard-done-btn');
+      if (done && done.disabled && /Sent to SMM/i.test(done.textContent)) return 'finished';
+      return 'present';
+    }, name);
+  };
+  let state = await readOnce();
+  if (want === undefined) return state;
+  for (let i = 0; i < 12 && state !== want; i++) state = await readOnce();
+  return state;
 }
 // DOM assert on the CLIENT surface: the visible thread text for a component panel.
 async function clientThreadText(page, name, comp) {
@@ -492,7 +502,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
       }
       else if (verb === 'expectKasperCard') {
         const p = await actors.kasper();
-        const state = await kasperCardState(p, name);
+        const state = await kasperCardState(p, name, args[0]);   // polls until it settles on the expected state
         note(state === args[0], `expectKasperCard ${args[0]}`, state === args[0] ? '' : 'got ' + state);
         await shot(p, 'kasper-queue');
         continue;

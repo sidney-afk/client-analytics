@@ -365,13 +365,13 @@ function base() {
       ['expectKasperCard', 'finished'],
     ] });
 
-  // Kasper Close (X). The button's tooltip promises "stays hidden until the SMM
-  // sends it back to Kasper Approval" — but _sxrKasperIsClosed (index.html:28216)
-  // only clears on a NEWER MESSAGE, so a re-route does NOT resurface the card
-  // (verified live 2026-07-02 — BUG-6 in qa/OVERNIGHT_TEST_REPORT.md). This
-  // scenario PINS CURRENT BEHAVIOR; when product fixes the predicate (or the
-  // tooltip), flip the last two steps.
-  S.push({ key: 'kasper_close_resurface_video', title: 'Kasper closes the card; re-route does NOT resurface (BUG-6 pin); a new message does',
+  // Kasper Close (X). Actual behaviour (both calendars, by design): a closed card
+  // resurfaces when a NEW MESSAGE arrives, not on a bare status re-route. BUG-6
+  // was the tooltip promising "until sent back to Kasper Approval"; fixed 2026-07-02
+  // to describe the real message-based resurface. Deeper re-route-resurface is a
+  // shared product question (needs queue-membership work on both calendars) —
+  // left for product. This scenario asserts the intended message-resurface.
+  S.push({ key: 'kasper_close_resurface_video', title: 'Kasper closes the card; a new message resurfaces it (re-route alone does not — intended, shared with calendar)',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
     steps: [
       ['kasper.close'], ['expectKasperCard', 'absent'],

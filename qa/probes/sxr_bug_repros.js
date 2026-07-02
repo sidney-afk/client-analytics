@@ -1,8 +1,10 @@
-// sxr_bug_repros.js — LIVE repros for the two source-read bugs found 2026-07-02
-// (see qa/OVERNIGHT_TEST_REPORT.md RUN 2 → BUG-3, BUG-4). These are
-// CHARACTERIZATION probes: they PASS while the bugs exist (proving the repro
-// is real) and will FAIL loudly once the bugs are fixed — flip the assertions
-// then. All in-page; no client-config rows are mutated.
+// sxr_bug_repros.js — REGRESSION guards for BUG-3 and BUG-4 (fixed 2026-07-02;
+// see qa/OVERNIGHT_TEST_REPORT.md RUN 2). Originally characterization probes
+// that passed WHILE the bugs existed; now flipped to assert the FIX holds:
+//   BUG-3: _sxrLoadComments is defined and opening Notes on a raw-shaped row
+//          does NOT throw.
+//   BUG-4: the copied share URL carries &t=<token> when the client has one.
+// All in-page; no client-config rows are mutated.
 'use strict';
 const L = require('../sxr_courier_lib.js');
 const { launch, smm, up, archiveSafe } = L;
@@ -19,37 +21,36 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
     const page = await smm(browser);
     await page.waitForFunction((cid) => !!document.querySelector(`#sxrStrip .cal-card[data-pid="${cid}"]`), id, { timeout: 15000 }).catch(() => {});
 
-    // ---- BUG-4: _sxrCopyShareLink omits &t= while the router requires it ----
-    // In-page only: read the URL the Share button would copy, and compare with
-    // the router's gate condition. No clipboard, no config writes.
+    // ---- BUG-4 FIX: _sxrCopyShareLink carries &t=<token> when the client has one ----
+    // Inject a token for the test client, capture what the Share button copies.
     const share = await page.evaluate(() => {
-      const url = location.origin + location.pathname + '?sxr=1&c=' + encodeURIComponent(sxrState.client) + '&v=sample-reviews';
-      // reproduce _sxrCopyShareLink's construction (it writes to clipboard, so
-      // we re-derive the same string it builds — source: index.html:25580)
-      const fnSrc = String(_sxrCopyShareLink);
-      return { url, buildsToken: /[?&]t=|client_review_token/.test(fnSrc) };
+      const client = sxrState.client;
+      const prior = clientMap[client] ? clientMap[client].client_review_token : undefined;
+      if (!clientMap[client]) clientMap[client] = {};
+      clientMap[client].client_review_token = 'TESTTOKEN123';
+      let captured = '';
+      const realClip = navigator.clipboard && navigator.clipboard.writeText;
+      try {
+        // stub clipboard to capture the URL the function builds
+        Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: (s) => { captured = s; return Promise.resolve(); } } });
+        _sxrCopyShareLink();
+      } catch (e) { captured = 'ERR:' + (e && e.message); }
+      // restore
+      if (prior === undefined) delete clientMap[client].client_review_token; else clientMap[client].client_review_token = prior;
+      return { captured };
     });
-    t(!share.buildsToken, 'BUG-4 repro: _sxrCopyShareLink builds NO &t= token param', share.buildsToken ? 'now includes token — bug fixed? flip this probe' : '');
-    t(!/[&?]t=/.test(share.url), 'BUG-4 repro: derived share URL has no t= param', share.url);
+    t(/[?&]t=TESTTOKEN123\b/.test(share.captured), 'BUG-4 FIX: share URL carries &t=<token> when the client has one', share.captured);
+    t(/[?&]c=/.test(share.captured) && /v=sample-reviews/.test(share.captured), 'BUG-4 FIX: share URL still carries client + view', share.captured);
 
-    // The router hard-rejects when a token is expected and t mismatches — prove
-    // the gate exists by inspecting the shipped router source in-page.
-    const gate = await page.evaluate(() => {
-      const html = document.documentElement.outerHTML;
-      return /expectedToken && tParam !== expectedToken/.test(html) || /This link isn't valid/.test(html);
+    // ---- BUG-3 FIX: _sxrLoadComments defined; Notes on a raw-shaped row is safe ----
+    const bug3 = await page.evaluate(() => {
+      let defined = false; try { defined = typeof _sxrLoadComments === 'function'; } catch { defined = false; }
+      return { defined };
     });
-    t(gate, 'BUG-4 repro: router token gate present ("This link isn\'t valid" path exists)');
+    t(bug3.defined, 'BUG-3 FIX: _sxrLoadComments is now defined');
 
-    // ---- BUG-3: _sxrLoadComments is called but never defined ----
-    const bug3 = await page.evaluate(() => ({
-      defined: typeof window._sxrLoadComments !== 'undefined' || (() => { try { _sxrLoadComments; return true; } catch { return false; } })(),
-      callSites: (document.documentElement.outerHTML.match(/_sxrLoadComments\(/g) || []).length,
-    }));
-    t(!bug3.defined, 'BUG-3 repro: _sxrLoadComments is UNDEFINED', bug3.defined ? 'now defined — bug fixed? flip this probe' : '');
-    t(bug3.callSites >= 6, `BUG-3 repro: ≥6 call sites reference it (found ${bug3.callSites})`);
-
-    // Trigger the live crash path: strip the comments array (simulating a raw/
-    // unmigrated row, e.g. from a realtime echo) and open the Notes modal.
+    // The former crash path: strip the comments array (raw/unmigrated row) and
+    // open the Notes modal — must NOT throw now.
     const crash = await page.evaluate((cid) => {
       const p = sxrState.posts.find(x => x.id === cid);
       if (!p) return 'no-post';
@@ -57,7 +58,7 @@ const t = (pass, msg, extra) => { console.log(`${pass ? '✓' : '✗'}  ${msg}${
       try { openSxrComments(cid); return 'no-crash'; }
       catch (e) { return String(e && e.message || e); }
     }, id);
-    t(/(_sxrLoadComments|is not defined)/.test(crash), 'BUG-3 repro: opening Notes on a raw-shaped row throws ReferenceError', crash);
+    t(crash === 'no-crash', 'BUG-3 FIX: opening Notes on a raw-shaped row no longer throws', crash);
   } catch (e) {
     t(false, 'EXCEPTION: ' + (e && e.message || e));
   } finally {

@@ -1,0 +1,69 @@
+{
+  "_snapshot": "Live state of ljNY7CKYLKzMOACZ on 2026-07-02, BEFORE adding the insert-failure dead-letter branch (duplicate-classify + Data Table capture + Slack alert). Credentials are redacted by the n8n API: Insert Submission uses 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT); Notify Sidney was noted in the 2026-06-25 snapshot as still bound to 'Slack account 2' (7ARFU5TY2KplygNI), to be switched to 'SyncView Bot' (qUlAcjdhd6EpKOTL).",
+  "id": "ljNY7CKYLKzMOACZ",
+  "name": "SyncView Onboarding — Submit",
+  "active": true,
+  "versionId": "29add335-fc80-4e32-b5f3-111ae7e0f7d3",
+  "updatedAt": "2026-06-25T23:02:37.466Z",
+  "settings": { "executionOrder": "v1", "availableInMCP": true, "binaryMode": "separate" },
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Build Row", "type": "main", "index": 0 }]] },
+    "Build Row": { "main": [[{ "node": "Insert Submission", "type": "main", "index": 0 }]] },
+    "Insert Submission": { "main": [[{ "node": "Notify Sidney", "type": "main", "index": 0 }]] },
+    "Notify Sidney": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "onboarding-submit", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } },
+      "id": "fd96b410-08fc-4dd5-810b-c87879024933",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "e4c5ad34-5697-4f2b-9d6c-0f78552f2395"
+    },
+    {
+      "parameters": { "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst s = body.submission || {};\nconst email = String(s.email || '').trim();\nif (!email) throw new Error('email required');\nlet id = String(s.id || '').trim();\nif (!id) { id = 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }\nconst now = new Date().toISOString();\nconst row = {\n  id,\n  slug: String(s.slug || '').trim(),\n  first_name: String(s.first_name || '').trim(),\n  last_name: String(s.last_name || '').trim(),\n  email,\n  phone: String(s.phone || '').trim(),\n  ai_avatar: String(s.ai_avatar || '').trim(),\n  answers: (s.answers && typeof s.answers === 'object') ? s.answers : {},\n  status: 'submitted',\n  source: String(s.source || 'syncview-onboarding'),\n  created_at: String(s.created_at || now),\n  updated_at: now\n};\nreturn [{ json: row }];" },
+      "id": "4152d322-0b04-4d48-b441-c28cd150fe8f",
+      "name": "Build Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0]
+    },
+    {
+      "parameters": { "tableId": "client_onboarding", "dataToSend": "autoMapInputData" },
+      "id": "b4bd75db-450b-46c8-8932-8df618272b0e",
+      "name": "Insert Submission",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [448, 0]
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": { "__rl": true, "value": "U0ACW93FS30", "mode": "id" },
+        "text": "=🎉 *New onboarding form submitted!*\n\n*Name:* {{ $(\"Receive POST\").item.json.body.submission.first_name }} {{ $(\"Receive POST\").item.json.body.submission.last_name }}\n*Email:* {{ $(\"Receive POST\").item.json.body.submission.email }}\n*Phone:* {{ $(\"Receive POST\").item.json.body.submission.phone }}\n*AI Avatar:* {{ $(\"Receive POST\").item.json.body.submission.ai_avatar }}\n\nSaved to Supabase `client_onboarding` (id `{{ $(\"Build Row\").item.json.id }}`). Full answers + credentials are in that record.",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      },
+      "id": "848bcb37-d667-4433-8633-9fd93bfdb47f",
+      "name": "Notify Sidney",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [672, 0],
+      "webhookId": "704ac78d-ca3b-4e17-8fb4-06eb169d1217",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $(\"Build Row\").item.json.id } }}",
+        "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } }
+      },
+      "id": "2cc96bcc-7431-4614-860a-7baa0f228a5e",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [880, 0]
+    }
+  ]
+}

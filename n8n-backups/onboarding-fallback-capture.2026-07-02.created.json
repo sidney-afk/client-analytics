@@ -1,0 +1,112 @@
+{
+  "_snapshot": "Created state of u4ACOKArXHidVJXl (SyncView Onboarding — Fallback Capture) on 2026-07-02, ACTIVE. Backup capture path: POST /webhook/onboarding-fallback upserts drafts/fallback-submissions/submitted-markers by sub_id into n8n Data Table onboarding_fallback (5dqP1AdgvDtvMboC, project 4dvRQbC5gyJNowXX); Slack-DMs Sidney only on kind=submit-fallback. Handles application/json AND raw text/plain (sendBeacon) bodies. Alert Sidney is bound to 'SyncView Bot' (qUlAcjdhd6EpKOTL), fail-soft. Verified live: JSON draft, text/plain submitted-marker upsert, submit-fallback with Slack DM (executions 166676/166677/166685). Companion changes the same day: dead-letter + duplicate branches added to both submit workflows (see *.2026-07-02.pre-deadletter.json for their rollback anchors) and onboarding tables added to the weekly backup (syncview-weekly-backup.2026-07-02.pre-onboarding-tables.json).",
+  "id": "u4ACOKArXHidVJXl",
+  "name": "SyncView Onboarding — Fallback Capture",
+  "active": true,
+  "connections": {
+    "Receive POST": { "main": [[{ "node": "Normalize Capture", "type": "main", "index": 0 }]] },
+    "Normalize Capture": { "main": [[{ "node": "Save Capture", "type": "main", "index": 0 }]] },
+    "Save Capture": { "main": [[{ "node": "Submit Capture?", "type": "main", "index": 0 }]] },
+    "Submit Capture?": { "main": [[{ "node": "Alert Sidney", "type": "main", "index": 0 }], [{ "node": "Respond JSON", "type": "main", "index": 0 }]] },
+    "Alert Sidney": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    {
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "parameters": { "httpMethod": "POST", "path": "onboarding-fallback", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } }
+    },
+    {
+      "name": "Normalize Capture",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [224, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Accepts JSON fetch bodies AND text/plain sendBeacon bodies (raw string).\n// Shapes: {kind:'submit-fallback', note, submission:{...}} | {kind:'draft', id, funnel, draft:{...}} | {kind:'submitted', submission:{...}}\nconst inp = $input.first().json;\nlet body = inp.body;\nif (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }\nif (!body || typeof body !== 'object') throw new Error('invalid body');\nconst p = body.submission || body.draft || {};\nconst id = String(body.id || p.id || '').trim();\nif (!id) throw new Error('id required');\nlet kind = String(body.kind || '').trim();\nif (!kind) kind = body.submission ? 'submit-fallback' : (body.draft ? 'draft' : 'unknown');\nconst answers = (p.answers && typeof p.answers === 'object') ? p.answers : (body.draft ? p : {});\nconst funnel = String(body.funnel || p.funnel || '').trim();\nconst first = String(p.first_name || answers.first_name || '').trim();\nconst last = String(p.last_name || answers.last_name || '').trim();\nconst email = String(p.email || answers.email || '').trim();\nconst now = new Date().toISOString();\nconst hasPayload = !!((body.submission && typeof body.submission === 'object') || (body.draft && typeof body.draft === 'object'));\nreturn [{ json: {\n  sub_id: id,\n  kind,\n  funnel,\n  client_name: (first + ' ' + last).trim(),\n  email,\n  payload: hasPayload ? JSON.stringify(p) : '',\n  note: String(body.note || ''),\n  created_at: now,\n  updated_at: now\n} }];"
+      }
+    },
+    {
+      "name": "Save Capture",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [448, 0],
+      "parameters": {
+        "resource": "row",
+        "operation": "upsert",
+        "dataTableId": { "__rl": true, "mode": "list", "value": "5dqP1AdgvDtvMboC", "cachedResultName": "onboarding_fallback" },
+        "matchType": "allConditions",
+        "filters": { "conditions": [{ "keyName": "sub_id", "condition": "eq", "keyValue": "={{ $json.sub_id }}" }] },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "sub_id": "={{ $json.sub_id }}",
+            "kind": "={{ $json.kind }}",
+            "funnel": "={{ $json.funnel }}",
+            "client_name": "={{ $json.client_name }}",
+            "email": "={{ $json.email }}",
+            "payload": "={{ $json.payload }}",
+            "note": "={{ $json.note }}",
+            "created_at": "={{ $json.created_at }}",
+            "updated_at": "={{ $json.updated_at }}"
+          },
+          "schema": [
+            { "id": "sub_id", "displayName": "sub_id", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "kind", "displayName": "kind", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "funnel", "displayName": "funnel", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "client_name", "displayName": "client_name", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "email", "displayName": "email", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "payload", "displayName": "payload", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "note", "displayName": "note", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "created_at", "displayName": "created_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true },
+            { "id": "updated_at", "displayName": "updated_at", "required": false, "defaultMatch": false, "display": true, "type": "string", "canBeUsedToMatch": true }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Submit Capture?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [672, 0],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [{ "leftValue": "={{ $('Normalize Capture').item.json.kind }}", "rightValue": "submit-fallback", "operator": { "type": "string", "operation": "equals" } }],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "Alert Sidney",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.5,
+      "position": [896, -128],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "resource": "message",
+        "operation": "post",
+        "authentication": "accessToken",
+        "select": "user",
+        "user": { "__rl": true, "mode": "id", "value": "U0ACW93FS30" },
+        "messageType": "text",
+        "text": "=🛟 *Onboarding fallback capture!* The primary submit webhook failed for a client — their submission was saved by the backup path.\n\n*Name:* {{ $('Normalize Capture').item.json.client_name }}\n*Email:* {{ $('Normalize Capture').item.json.email }}\n*Funnel:* {{ $('Normalize Capture').item.json.funnel }}\n*Why:* {{ $('Normalize Capture').item.json.note }}\n\nFull answers are safe in the n8n Data Table `onboarding_fallback` (sub_id `{{ $('Normalize Capture').item.json.sub_id }}`). Replay it into Supabase once the primary path is fixed — see ONBOARDING_FALLBACK.md in the repo.",
+        "otherOptions": { "includeLinkToWorkflow": false }
+      }
+    },
+    {
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [1120, 0],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $(\"Normalize Capture\").item.json.sub_id, \"kind\": $(\"Normalize Capture\").item.json.kind } }}",
+        "options": { "responseHeaders": { "entries": [{ "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" }] } }
+      }
+    }
+  ]
+}

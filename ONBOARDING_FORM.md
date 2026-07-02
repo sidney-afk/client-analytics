@@ -234,6 +234,14 @@ Standard form ─POST {submission}─▶ n8n `onboarding-submit`     ─▶ Supa
 AI form       ─POST {submission}─▶ n8n `ai-onboarding-submit`  ─▶ Supabase ai_client_onboarding  ─▶ Slack DM (Sidney)
 ```
 
+> **2026-07-02 — never-lose-a-submission layer.** The submit now retries once
+> (20s timeout), then fails over to the Supabase Edge capture and the n8n
+> fallback webhook; drafts sync server-side while the client types (throttled +
+> tab-close beacon); the submission id is stable across retries so duplicates
+> answer `{ok, duplicate:true}`; an insert failure dead-letters the payload and
+> DMs Sidney; and the weekly Drive backup now dumps both onboarding tables
+> (credential fields stripped). Full picture: **ONBOARDING_FALLBACK.md**.
+
 The front-end picks the URL by variant: `_obSubmit` POSTs to `ONBOARDING_SUBMIT_URL`
 (standard) or `AI_ONBOARDING_SUBMIT_URL` (AI), and stamps the payload's `source`
 (`syncview-onboarding` | `syncview-ai-onboarding`), `funnel` (`standard` | `ai`), and

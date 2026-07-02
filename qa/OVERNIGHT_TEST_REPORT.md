@@ -149,16 +149,31 @@ archived and Linear mocked.
   it recurs. If it recurs often, the durable-outbox pattern used for Linear
   pushes may be worth extending to Kasper persists.
 
+## Capstone (2026-07-02 ~04:00 UTC)
+`node qa/master.js --profile=fast` end-to-end through the upgraded master:
+unit ✅ (28) · parity ✅ · scenarios ✅ 3/3 (18/18) · visual 👁 6 shots →
+**vision verdict 6× ✅, 0 ⚠️/❌** (`qa/visual/VISION_VERDICT.md`). Marathon-mode
+(`--repeat/--until` + per-iteration JSON reports) validated separately.
+Running totals this run: **33 interaction rows in the log above, 3 probe files
+added (repros / concurrency / gating-flags), tree 24/24, all lanes green.**
+Non-test row `sr_mqvenh27_jp85b` ("Sample 1", Tweaks Needed) exists on the test
+client — NOT one of this run's seeds; left untouched, flag to owner.
+
 ## NOT YET COVERED (resume here)
-- Re-run: linear_push_video_status, kasper_finish_video (SIGKILL'd batch).
-- Full new-scenario sweep (74 keys), then full tree (24 leaves), in small batches.
-- Live repro probes for BUG-3 (`_sxrLoadComments` via unmigrated-row echo),
-  BUG-4 (share link + token'd client), BUG-5 (audit hole / undo-Linear-stale).
-- Concurrency: comment-merge race (two tabs), double-click idempotency,
-  SMM+Kasper same-component race; unlinked-component gating (seed links='');
-  round numbering fidelity (round 2/3 tags); cold-open create journey
-  (rebuild parity of deleted sxr_cold_open_journey); flag-off isolation;
-  Kasper "New message" resurface-on-reply; visual/vision pass on new flows.
+- Regression sweep of the remaining pre-existing flat-library keys (full_bounce,
+  lifecycle_mixed_kasper, client_request_both_roundtrip, worstof_*, aat_*,
+  note_* matrix …) — in flight, next batches.
+- Cold-open create journey (rebuild parity of the deleted sxr_cold_open_journey:
+  Add → type → paste links → status → comment → archive, zero seeding).
+- BUG-5 audit-hole live characterization (kasper_approved_at never stamped;
+  undo leaves Linear stale — assert current behavior + Linear capture).
+- Linear deep set: suppression of inbound→outbound echo; link dedup/conflict
+  across two samples; outbox retry under real failure injection (b2-class).
+- Realtime: routeWebSocket push into _sxrV2OnRealtimeChange; recent-save window
+  protects a fresh approval (G-class).
+- Visual lane breadth: enable shots for the new multi-actor scenarios + judge.
+- Full-profile master run (probes+temporal+tree lanes in one pass) once the
+  sandbox has a quiet window (single-run wall-clock ≈ 2-3h here).
 
 ---
 

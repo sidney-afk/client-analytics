@@ -11,6 +11,28 @@ function openTweak(id, body, round) {
 
 function base() {
   const S = [];
+  // ---- CREATE VIA THE REAL UI (the GA day-1 ghost-card regression) ----
+  // Born in the browser: "+" → type name → blur. No seeded row (noSeed).
+  // expectCardOnce is the gate: exactly ONE card in the DOM (zero leftover
+  // blanks) and exactly ONE live DB row for that name. Before the fix, the
+  // creating window painted TWO copies of the card (stale __sxrblank__ post
+  // still in sxrState.posts + the re-pushed real row) while other windows —
+  // and the tests, which seeded by API — saw one. shots:true so the visual
+  // lane photographs the strip right after creation.
+  S.push({ key: 'create_via_ui', title: 'Create a card through the real UI — exactly one card, one row', shots: true, noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Create Once'],
+      ['expectCardOnce', 'UI Create Once'],
+    ] });
+  // Same flow but with an immediate second edit racing the first save —
+  // reproduces "create then rename fast" (the exact way the bug was found).
+  S.push({ key: 'create_via_ui_rename', title: 'Create via UI then immediately rename — still exactly one card', shots: true, noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Create Racer'],
+      ['smm.renameCard', 'UI Create Racer', 'UI Create Renamed'],
+      ['expectCardOnce', 'UI Create Renamed'],
+    ] });
+
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,
     // BOTH components linked: an unlinked thumbnail is gated out of the Kasper

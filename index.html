@@ -4099,6 +4099,50 @@
         .cal-card-notes svg { width: 14px; height: 14px; }
         .cal-card-notes:hover { border-color: #c7ccda; color: #2b2f38; }
         /* <<< SXR_END */
+
+        /* ===== Sales Intake tab (Kasper-gated) ===== */
+        .si-wrap { max-width: 720px; margin: 0 auto; }
+        .si-head { display: flex; flex-direction: column; gap: 4px; margin-bottom: 18px; }
+        .si-title { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; }
+        .si-sub { font-size: 0.85rem; color: var(--text-secondary); }
+        .si-card { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; padding: 26px 28px 28px; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+        .si-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
+        .si-q { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .si-q.si-full { grid-column: 1 / -1; }
+        .si-label { font-size: 0.78rem; font-weight: 700; color: var(--text-primary); }
+        .si-req { color: #ef4444; margin-left: 3px; }
+        .si-help { font-size: 0.72rem; color: var(--text-muted); line-height: 1.45; }
+        .si-input { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; color: var(--text-primary); background: var(--white); box-sizing: border-box; }
+        .si-input:focus { outline: none; border-color: #9aa3f0; box-shadow: 0 0 0 2px rgba(94,106,210,.12); }
+        textarea.si-input { resize: vertical; min-height: 92px; line-height: 1.5; }
+        .si-radios { display: flex; flex-wrap: wrap; gap: 8px; }
+        .si-pill { position: relative; }
+        .si-pill input { position: absolute; opacity: 0; pointer-events: none; }
+        .si-pill span { display: inline-flex; align-items: center; padding: 7px 13px; border: 1px solid var(--border); border-radius: 99px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; user-select: none; }
+        .si-pill span:hover { border-color: #aaa; color: var(--text-primary); }
+        .si-pill input:checked + span { border-color: #5e6ad2; background: rgba(94,106,210,.08); color: #4a54b8; }
+        .si-linkprev { font-size: 0.72rem; color: var(--text-muted); word-break: break-all; }
+        .si-linkprev b { color: var(--text-secondary); font-weight: 700; }
+        .si-clause { font-size: 0.74rem; color: var(--text-secondary); line-height: 1.55; background: var(--bg); border: 1px solid var(--border-light); border-radius: 9px; padding: 10px 12px; }
+        .si-q.si-missing .si-input, .si-q.si-missing .si-pill span { border-color: #ef4444; }
+        .si-q.si-missing .si-label { color: #ef4444; }
+        .si-err { display: none; font-size: 0.78rem; font-weight: 600; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 9px; padding: 10px 12px; margin-top: 16px; }
+        .si-actions { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+        .si-btn { border: none; background: #5e6ad2; color: #fff; font: inherit; font-size: 0.85rem; font-weight: 700; padding: 11px 22px; border-radius: 10px; cursor: pointer; transition: background 0.12s; }
+        .si-btn:hover { background: #4a54b8; }
+        .si-btn:disabled { opacity: 0.55; cursor: default; }
+        .si-btn-ghost { border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font: inherit; font-size: 0.78rem; font-weight: 600; padding: 8px 14px; border-radius: 9px; cursor: pointer; }
+        .si-btn-ghost:hover { color: var(--text-primary); border-color: #aaa; }
+        .si-done { background: var(--white); border: 1px solid var(--border-light); border-radius: 14px; padding: 34px 30px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.04); }
+        .si-done-ico { width: 46px; height: 46px; border-radius: 50%; background: #dcfce7; color: #16a34a; font-size: 1.4rem; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+        .si-done h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; }
+        .si-done p { font-size: 0.82rem; color: var(--text-secondary); margin: 0 0 18px; }
+        .si-done-summary { text-align: left; max-width: 430px; margin: 0 auto 22px; border: 1px solid var(--border-light); border-radius: 10px; overflow: hidden; }
+        .si-done-row { display: flex; justify-content: space-between; gap: 14px; padding: 9px 14px; font-size: 0.78rem; border-bottom: 1px solid var(--border-light); }
+        .si-done-row:last-child { border-bottom: none; }
+        .si-done-row .k { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+        .si-done-row .v { color: var(--text-primary); font-weight: 600; text-align: right; word-break: break-all; }
+        @media (max-width: 640px) { .si-grid { grid-template-columns: 1fr; } .si-card { padding: 20px 16px 22px; } }
     </style>
 </head>
 <body>
@@ -4213,6 +4257,10 @@
         <a class="header-nav-btn" id="navKasper" href="#kasper" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('kasper')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.5"/></svg>
             Kasper
+        </a>
+        <a class="header-nav-btn" id="navSalesIntake" href="#sales-intake" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('sales-intake')">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            Sales Intake
         </a>
         <a class="header-nav-btn" id="navTiktokPilot" href="#tiktok-pilot" style="display:none;" onclick="if(_modClick(event))return;event.preventDefault();navTo('tiktok-pilot')">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2v9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M5 8.5L8 11.5L11 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="3" r="2.2" fill="#22c55e"/></svg>
@@ -11720,6 +11768,10 @@
         // so every navigation (back button, restored hash, logo) lands on it.
         if (document.body.classList.contains('intake-mode')) page = 'linear';
         if (document.body.classList.contains('onboarding-mode')) page = 'onboarding';
+        // Sales Intake is Kasper-gated: a bare #sales-intake hash (no session
+        // unlock) must not reach the page, so bounce it home here — the nav
+        // button is hidden anyway, this only defends the direct-hash path.
+        if (page === 'sales-intake' && !_kasperUnlocked) page = 'home';
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
@@ -11736,6 +11788,8 @@
         if (navTk) navTk.classList.toggle('active', page === 'tiktok-upload');
         const navKp = document.getElementById('navKasper');
         if (navKp) navKp.classList.toggle('active', page === 'kasper');
+        const navSi = document.getElementById('navSalesIntake');
+        if (navSi) navSi.classList.toggle('active', page === 'sales-intake');
         const navTtp = document.getElementById('navTiktokPilot');
         if (navTtp) navTtp.classList.toggle('active', page === 'tiktok-pilot');
         const navSxr = document.getElementById('navSxr'); if (navSxr) navSxr.classList.toggle('active', page === 'sample-reviews'); // SXR_LINE
@@ -11827,6 +11881,11 @@
             pageTop.style.display = 'none';
             content.innerHTML = renderKasperView();
             mountKasperView();
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        } else if (page === 'sales-intake') {
+            pageTop.style.display = 'none';
+            content.innerHTML = renderSalesIntakeView();
+            mountSalesIntakeView();
             window.scrollTo({ top: 0, behavior: 'instant' });
         } else if (page === 'onboarding') {
             pageTop.style.display = 'none';
@@ -25016,9 +25075,14 @@
             const _ttpSessionUnlocked = (() => { try { return sessionStorage.getItem(TTP_UNLOCK_KEY) === 'ok'; } catch (e) { return false; } })();
             const _ttpHashLanding = (hashRaw === 'tiktok-pilot')
                 && (_ttpSessionUnlocked || qp.get('ttpilot') === '1');
+            // Sales Intake shares Kasper's unlock and, like Kasper, has no
+            // analytics dependency (it only posts to its own webhook), so a
+            // refresh straight onto #sales-intake mounts immediately too.
+            const _salesIntakeHashLanding = (hashRaw === 'sales-intake')
+                && (_kasperSessionUnlocked || qp.get('Kasper') === '1');
             // ?c=<client> needs allData to validate the token + render — never
             // a fast-tab refresh. history.state.client also needs allData.
-            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding);
+            const skipAwait = !qp.get('c') && !stateClient && (hashIsFastTab || fallbackFast || _kasperHashLanding || _ttpHashLanding || _salesIntakeHashLanding);
             // Client share link landing on the calendar tab: we only need
             // essentials (metrics for clientHistory, clients for the token)
             // to mount; the analytics-heavy extras stream in afterwards so
@@ -25185,6 +25249,9 @@
                     _kasperUnlocked=true;
                     const navKp=document.getElementById('navKasper');
                     if(navKp) navKp.style.display='';
+                    // Sales Intake rides the same unlock — one gate, two tabs.
+                    const navSi=document.getElementById('navSalesIntake');
+                    if(navSi) navSi.style.display='';
                 }
             }catch(e){}
 
@@ -25276,6 +25343,8 @@
                     navTo('kasper', false);
                 } else if (hashRaw === 'tiktok-pilot' && _ttpUnlocked) {
                     navTo('tiktok-pilot', false);
+                } else if (hashRaw === 'sales-intake' && _kasperUnlocked) {
+                    navTo('sales-intake', false);
                 } else if (hashIsFastTab) {
                     navTo(hashRaw, false);
                 } else {
@@ -25374,6 +25443,7 @@
             if(hash==='tiktok-upload'){navTo(hash,false);return;}
             if(hash==='tiktok-pilot' && _ttpUnlocked){navTo('tiktok-pilot',false);return;}
             if(hash==='kasper' && _kasperUnlocked){navTo('kasper',false);return;}
+            if(hash==='sales-intake' && _kasperUnlocked){navTo('sales-intake',false);return;}
             if(hash.startsWith('kasper/') && _kasperUnlocked){
                 const sub=hash.slice('kasper/'.length);
                 if(KASPER_SUBTABS.some(t=>t.key===sub)) _kasperState.tab=sub;
@@ -25403,7 +25473,7 @@
             if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
             if(hash&&clientNames.includes(hash)){render(hash,false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
-            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
+            if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='sales-intake'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
@@ -30901,6 +30971,259 @@
        calendar uses, so they show up in the regular calendar Tweaks
        modal too. Status pushes to Linear via the existing webhook.
        ============================================================ */
+    /* ============================================================
+       SALES INTAKE MODULE (Kasper-gated in-app tab, page 'sales-intake')
+       Kasper closes a client on a call, fills this form, and submit kicks
+       off the whole paperwork chain via n8n `sales-intake-submit`:
+       Supabase `sales_intakes` audit row → eSignatures.com agreement from
+       the Sales & Service Agreement template → ONE combined email to the
+       client (signing link + Stripe payment link) → Slack DM confirmation.
+       Spec: SALES_INTAKE_DESIGN.md. Form mechanics mirror the onboarding
+       form (draft autosave, keep-draft-on-failure, required-field
+       validation); tab gating mirrors the Kasper tab. Namespaced _si/SI_.
+       NOTE: the page id is 'sales-intake' — never 'intake', which is the
+       client Linear-submission mode (body.intake-mode).
+       ============================================================ */
+    const SALES_INTAKE_SUBMIT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sales-intake-submit';
+    const SI_DRAFT_KEY = 'syncview_sales_intake_draft_v1';
+    // Fixed Stripe payment links (from Kasper, 2026-07-02 — SALES_INTAKE_DESIGN.md).
+    // Monthly = per-4-week subscription, Quarterly = per-12-week subscription.
+    // One-time / custom deals get a pasted link instead.
+    const SI_STRIPE_LINKS = {
+        monthly: 'https://buy.stripe.com/00waEW0TI6Sb2Y1cl0ao80g',
+        quarterly: 'https://buy.stripe.com/28E00i6e2ekD569dp4ao80q'
+    };
+    const SI_PRICES = { monthly: 2997, quarterly: 7991 };
+    // Standard termination clause — verbatim from Kasper (2026-07-02). The wording
+    // is quarterly-specific by design; for other deals Kasper picks Custom.
+    const SI_REGULAR_TERMINATION = 'This Agreement may not be terminated during any active Quarterly Term. Upon acceptance, the Client is committed to completing the full three (3) consecutive four-week terms and shall remain responsible for all fees associated with that Quarterly Term, whether billed in advance or outstanding, regardless of whether the Client continues to use the services.';
+    const SI_BILLING_LABELS = { monthly: 'Monthly — $2,997 / 4 weeks', quarterly: 'Quarterly — $7,991 / 12 weeks', one_time: 'One-time project fee' };
+    const SI_LINK_LABELS = { monthly: '4-week Stripe link', quarterly: '12-week Stripe link', custom: 'Custom link' };
+
+    // ---- pure helpers (unit-tested in test/sales-intake-form.js) ----
+    // Which payment-link radio a billing type auto-selects: the two
+    // subscriptions map to their fixed Stripe links; one-time is always a
+    // pasted custom link. Kasper can still override the radio by hand.
+    function _siLinkChoiceForBilling(billing) {
+        return billing === 'monthly' || billing === 'quarterly' ? billing : 'custom';
+    }
+    // Auto-fill amount for the fixed-price subscriptions; '' = free entry.
+    function _siAmountForBilling(billing) {
+        return Object.prototype.hasOwnProperty.call(SI_PRICES, billing) ? String(SI_PRICES[billing]) : '';
+    }
+    // The URL that will actually be emailed to the client.
+    function _siResolvePaymentLink(d) {
+        if (d.payment_link_choice === 'custom') return String(d.payment_link_custom || '').trim();
+        return SI_STRIPE_LINKS[d.payment_link_choice] || '';
+    }
+    function _siValidate(d) {
+        const miss = [];
+        ['client_name', 'closed_by', 'instagram', 'client_email', 'contract_start_date', 'deliverables', 'billing_type', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
+        if (d.client_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(d.client_email).trim())) if (!miss.includes('client_email')) miss.push('client_email');
+        const amt = Number(d.invoice_amount);
+        if (!(amt > 0)) miss.push('invoice_amount');
+        if (!d.payment_link_choice) miss.push('payment_link_choice');
+        else if (d.payment_link_choice === 'custom' && !/^https?:\/\/\S+$/i.test(String(d.payment_link_custom || '').trim())) miss.push('payment_link_custom');
+        if (d.termination_clause_type === 'custom' && !String(d.termination_clause_custom || '').trim()) miss.push('termination_clause_custom');
+        return miss;
+    }
+    // Shape the webhook payload. The regular clause text travels IN the
+    // payload (not just the type) so n8n never needs its own copy of the
+    // wording — the form is the single source of truth.
+    function _siBuildSubmission(d) {
+        return {
+            closed_by: String(d.closed_by || '').trim(),
+            client_name: String(d.client_name || '').trim(),
+            client_email: String(d.client_email || '').trim().toLowerCase(),
+            instagram: String(d.instagram || '').trim(),
+            contract_start_date: String(d.contract_start_date || '').trim(),
+            deliverables: String(d.deliverables || '').trim(),
+            billing_type: d.billing_type,
+            invoice_amount: Number(d.invoice_amount),
+            payment_link: _siResolvePaymentLink(d),
+            termination_clause_type: d.termination_clause_type,
+            termination_clause_text: d.termination_clause_type === 'custom' ? String(d.termination_clause_custom || '').trim() : SI_REGULAR_TERMINATION,
+            referred_by: String(d.referred_by || '').trim(),
+            source: 'syncview-sales-intake',
+            created_at: new Date().toISOString()
+        };
+    }
+    function _siFmtUsd(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
+
+    // ---- view ----
+    function _siField(f) {
+        const req = f.required === false ? '' : '<span class="si-req">*</span>';
+        const help = f.help ? '<div class="si-help">' + f.help + '</div>' : '';
+        let inner;
+        if (f.type === 'textarea') {
+            inner = '<textarea class="si-input" data-si="' + f.id + '" rows="' + (f.rows || 4) + '" placeholder="' + _obEsc(f.placeholder || '') + '"></textarea>';
+        } else if (f.type === 'radio') {
+            inner = '<div class="si-radios" data-si-radio="' + f.id + '">' +
+                f.options.map(o => '<label class="si-pill"><input type="radio" name="si_' + f.id + '" value="' + _obEsc(o[0]) + '"><span>' + _obEsc(o[1]) + '</span></label>').join('') + '</div>';
+        } else {
+            inner = '<input class="si-input" type="' + (f.type || 'text') + '" data-si="' + f.id + '" placeholder="' + _obEsc(f.placeholder || '') + '"' + (f.step ? ' step="' + f.step + '"' : '') + (f.min ? ' min="' + f.min + '"' : '') + '>';
+        }
+        return '<div class="si-q' + (f.full ? ' si-full' : '') + '" data-si-q="' + f.id + '"><label class="si-label">' + _obEsc(f.label) + req + '</label>' + help + inner + (f.after || '') + '</div>';
+    }
+
+    function renderSalesIntakeView() {
+        const fields =
+            _siField({ id: 'client_name', label: 'Client name', placeholder: 'Jane Doe' }) +
+            _siField({ id: 'closed_by', label: 'Who closed the deal?', type: 'radio', options: [['Kasper', 'Kasper']] }) +
+            _siField({ id: 'instagram', label: 'Client Instagram', placeholder: '@handle' }) +
+            _siField({ id: 'client_email', label: 'Client email', type: 'email', placeholder: 'client@email.com', help: 'The agreement + invoice email goes here.' }) +
+            _siField({ id: 'contract_start_date', label: 'Contract start date', type: 'date' }) +
+            _siField({ id: 'referred_by', label: 'Referred by', required: false, placeholder: 'Optional' }) +
+            _siField({ id: 'deliverables', label: 'Deliverables for client', type: 'textarea', full: true, placeholder: 'What the client gets — free text, goes straight into the agreement.' }) +
+            _siField({ id: 'billing_type', label: 'Billing type', type: 'radio', full: true, options: [['monthly', SI_BILLING_LABELS.monthly], ['quarterly', SI_BILLING_LABELS.quarterly], ['one_time', SI_BILLING_LABELS.one_time]] }) +
+            _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'number', step: '0.01', min: '1', placeholder: '0.00', help: 'Auto-fills from the billing type — editable.' }) +
+            _siField({
+                id: 'payment_link_choice', label: 'Payment link', type: 'radio',
+                options: [['monthly', SI_LINK_LABELS.monthly], ['quarterly', SI_LINK_LABELS.quarterly], ['custom', SI_LINK_LABELS.custom]],
+                after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/…" style="display:none;margin-top:6px">' +
+                    '<div class="si-linkprev" id="siLinkPrev"></div>'
+            }) +
+            _siField({
+                id: 'termination_clause_type', label: 'Termination clause', type: 'radio', full: true,
+                options: [['regular', 'Regular'], ['custom', 'Custom']],
+                help: 'Regular is the standard minimum-commitment (quarterly) wording — one-time deals usually need Custom.',
+                after: '<div class="si-clause" id="siClausePrev" style="display:none">' + _obEsc(SI_REGULAR_TERMINATION) + '</div>' +
+                    '<textarea class="si-input" data-si="termination_clause_custom" rows="4" placeholder="Paste the custom termination clause…" style="display:none;margin-top:6px"></textarea>'
+            });
+        return '<div class="si-wrap">' +
+            '<div class="si-head"><div class="si-title">Sales Intake</div>' +
+            '<div class="si-sub">Fill this right after closing a client — it creates the Sales &amp; Service Agreement and emails the client the signing link with their invoice.</div></div>' +
+            '<div class="si-card" id="siCard"><form id="siForm" onsubmit="return false;" novalidate>' +
+            '<div class="si-grid">' + fields + '</div>' +
+            '<div class="si-err" id="siErr"></div>' +
+            '<div class="si-actions"><button type="button" class="si-btn" id="siSubmit" onclick="_siSubmit()">Create agreement &amp; send</button>' +
+            '<button type="button" class="si-btn-ghost" onclick="_siClearForm()">Clear form</button></div>' +
+            '</form></div></div>';
+    }
+
+    function _siSerialize() {
+        const form = document.getElementById('siForm'); const out = {};
+        if (!form) return out;
+        form.querySelectorAll('[data-si]').forEach(el => { out[el.getAttribute('data-si')] = String(el.value || '').trim(); });
+        form.querySelectorAll('[data-si-radio]').forEach(g => { const n = g.getAttribute('data-si-radio'); const s = g.querySelector('input:checked'); out[n] = s ? s.value : ''; });
+        return out;
+    }
+    function _siSetRadio(name, val) {
+        const g = document.querySelector('[data-si-radio="' + name + '"]'); if (!g) return;
+        g.querySelectorAll('input').forEach(i => { i.checked = (i.value === val); });
+    }
+    // Reflect current picks into the dependent controls: custom-link input,
+    // link preview, clause preview/textarea. Never touches the amount — that
+    // only auto-fills on an explicit billing-type change (see _siBillingChanged).
+    function _siSyncVisibility() {
+        const d = _siSerialize();
+        const customUrl = document.querySelector('[data-si="payment_link_custom"]');
+        if (customUrl) customUrl.style.display = d.payment_link_choice === 'custom' ? '' : 'none';
+        const prev = document.getElementById('siLinkPrev');
+        if (prev) {
+            const url = _siResolvePaymentLink(d);
+            prev.innerHTML = url ? '<b>Sends:</b> ' + _obEsc(url) : (d.payment_link_choice === 'custom' ? 'Paste the Stripe link Kasper created for this deal.' : '');
+        }
+        const clausePrev = document.getElementById('siClausePrev');
+        if (clausePrev) clausePrev.style.display = d.termination_clause_type === 'regular' ? '' : 'none';
+        const clauseTa = document.querySelector('[data-si="termination_clause_custom"]');
+        if (clauseTa) clauseTa.style.display = d.termination_clause_type === 'custom' ? '' : 'none';
+    }
+    // Billing type drives the amount AND the link choice (spec fields 7–9):
+    // overwrite both on every explicit change; one-time clears the amount for
+    // free entry and forces the pasted-link path.
+    function _siBillingChanged() {
+        const d = _siSerialize();
+        const amt = document.querySelector('[data-si="invoice_amount"]');
+        if (amt) amt.value = _siAmountForBilling(d.billing_type);
+        _siSetRadio('payment_link_choice', _siLinkChoiceForBilling(d.billing_type));
+        _siSyncVisibility();
+    }
+
+    let _siDraftT = null;
+    function _siSaveDraftDebounced() { clearTimeout(_siDraftT); _siDraftT = setTimeout(() => { try { localStorage.setItem(SI_DRAFT_KEY, JSON.stringify(_siSerialize())); } catch (e) {} }, 500); }
+    function _siRestoreDraft() {
+        let d = null; try { d = JSON.parse(localStorage.getItem(SI_DRAFT_KEY) || 'null'); } catch (e) {}
+        if (!d) return;
+        const form = document.getElementById('siForm'); if (!form) return;
+        form.querySelectorAll('[data-si]').forEach(el => { const k = el.getAttribute('data-si'); if (d[k] != null) el.value = d[k]; });
+        form.querySelectorAll('[data-si-radio]').forEach(g => { const v = d[g.getAttribute('data-si-radio')]; if (v) { const i = g.querySelector('input[value="' + v + '"]'); if (i) i.checked = true; } });
+    }
+    function _siClearForm() {
+        try { localStorage.removeItem(SI_DRAFT_KEY); } catch (e) {}
+        navTo('sales-intake', false);
+    }
+
+    function mountSalesIntakeView() {
+        const form = document.getElementById('siForm'); if (!form) return;
+        _siRestoreDraft();
+        // Defaults AFTER the restore so a saved draft wins over them.
+        const dt = form.querySelector('[data-si="contract_start_date"]');
+        if (dt && !dt.value) dt.value = new Date().toLocaleDateString('en-CA'); // local YYYY-MM-DD — "the day the deal closed"
+        const d = _siSerialize();
+        if (!d.closed_by) _siSetRadio('closed_by', 'Kasper'); // only closer today
+        _siSyncVisibility();
+        form.addEventListener('input', _siSaveDraftDebounced);
+        form.addEventListener('change', e => {
+            const t = e.target;
+            if (t && t.name === 'si_billing_type') _siBillingChanged();
+            else if (t && (t.name === 'si_payment_link_choice' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
+            _siSaveDraftDebounced();
+        });
+        // Live link preview while a custom URL is being typed.
+        const cu = form.querySelector('[data-si="payment_link_custom"]');
+        if (cu) cu.addEventListener('input', _siSyncVisibility);
+    }
+
+    function _siSubmit() {
+        const err = document.getElementById('siErr');
+        const d = _siSerialize();
+        const miss = _siValidate(d);
+        document.querySelectorAll('.si-q.si-missing').forEach(q => q.classList.remove('si-missing'));
+        if (miss.length) {
+            err.style.display = 'block';
+            err.textContent = 'Please fill the highlighted fields (' + miss.length + ' left).';
+            let first = null;
+            miss.forEach(k => { const q = document.querySelector('[data-si-q="' + k + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_choice') + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_type') + '"]'); if (q) { q.classList.add('si-missing'); if (!first) first = q; } });
+            if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        err.style.display = 'none';
+        const btn = document.getElementById('siSubmit');
+        btn.disabled = true; btn.textContent = 'Creating agreement…';
+        const submission = _siBuildSubmission(d);
+        // Draft is only cleared on success — a failed webhook keeps everything
+        // typed so Kasper can just hit the button again (onboarding-form rule).
+        _obPost(SALES_INTAKE_SUBMIT_URL, { submission }, 45000)
+            .then(resp => {
+                try { localStorage.removeItem(SI_DRAFT_KEY); } catch (e) {}
+                _siShowDone(submission, resp || {});
+            })
+            .catch(e => {
+                btn.disabled = false; btn.textContent = 'Create agreement & send';
+                err.style.display = 'block';
+                err.textContent = 'Could not send the intake (' + ((e && e.message) || 'network error') + '). Nothing was lost — your answers are saved in this browser. Try again in a minute.';
+            });
+    }
+
+    function _siShowDone(s, resp) {
+        const card = document.getElementById('siCard'); if (!card) return;
+        const row = (k, v) => '<div class="si-done-row"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>';
+        card.className = 'si-done';
+        card.innerHTML = '<div class="si-done-ico">✓</div><h2>Intake sent</h2>' +
+            '<p>The agreement is being created and ' + _obEsc(s.client_email) + ' gets one email with the signing link and the invoice.</p>' +
+            '<div class="si-done-summary">' +
+            row('Client', _obEsc(s.client_name)) +
+            row('Billing', _obEsc(SI_BILLING_LABELS[s.billing_type] || s.billing_type)) +
+            row('Invoice amount', _siFmtUsd(s.invoice_amount)) +
+            row('Payment link', _obEsc(s.payment_link)) +
+            row('Termination clause', s.termination_clause_type === 'regular' ? 'Regular' : 'Custom') +
+            (resp && resp.contract_id ? row('Contract', _obEsc(String(resp.contract_id))) : '') +
+            '</div>' +
+            '<button type="button" class="si-btn" onclick="_siClearForm()">New intake</button>';
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
     // KASPER_UNLOCK_KEY + _kasperUnlocked were hoisted up to before init()
     // (search for "Kasper unlock state — declared early") so the unlock
     // block at the top of init() can touch _kasperUnlocked without hitting

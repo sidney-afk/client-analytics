@@ -196,6 +196,9 @@ settles on the expected state (was a single early read → flaky present/absent)
 
 | R2-43 | 2026-07-02 | **CALENDAR realtime TWO-SCREEN twin** (cross-screen propagation via _calV2OnRealtimeChange, recent-save window survives concurrent push, pending edit survives push-driven reload) — courier-based, runs in-session AND on CI | cal_realtime_twin.js | ✅ 12/12 |
 
+| R2-44 | 2026-07-02 | **CALENDAR Linear deep twin** (single-shot echo suppression, __CLEAR_LINK__, cross-post link uniqueness + move relocation, outbox drain) | cal_linear_deep.js | ✅ 16/16 |
+| R2-45 | 2026-07-02 | **GA rollout verified**: samples ON by default ("Samples New" beside "Samples Old"), ?sxr=0 opt-out isolation intact | sxr_gating_flags.js | ✅ 13/13 |
+
 ### Overnight autonomous run (unattended, from 2026-07-02 night)
 `qa/overnight_runner.sh` loops all sxr probes + scenario batches back-to-back
 against a child server, archives stray seeds each round, re-checks the unit gate,

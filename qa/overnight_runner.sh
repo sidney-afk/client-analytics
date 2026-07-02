@@ -34,6 +34,7 @@ PROBES=(
 # courier-based probes: the realtime two-screen twin + the realtime handler probe.
 CAL_PROBES=(
   qa/probes/cal_realtime_twin.js
+  qa/probes/cal_linear_deep.js
   qa/probes/p88_realtime_handler.js
 )
 # Scenario batches (small groups so no single process trips SCN_TIMEOUT).

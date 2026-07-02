@@ -142,6 +142,12 @@ archived and Linear mocked.
 | R2-32 | 2026-07-02 | BUG-7 pinned live: new message resurfaces a FINISHED Kasper card (calendar rule would keep it in Tweaks pending) | sxr_gating_flags.js | ✅ pin |
 | R2-33 | 2026-07-02 | Flag-off isolation: _sxrEnabled false, nav hidden, 0 cards, #sample-reviews route refused (hash cleared — rebuilt-FE contract differs from old FE's "is off" page) | sxr_gating_flags.js | ✅ |
 
+| R2-34 | 2026-07-02 | Messy round-trips: full_bounce 22/22, client_request_both_roundtrip 11/11, lifecycle_mixed_kasper 12/12 | scenarios | ✅ 45/45 |
+| R2-35 | 2026-07-02 | AAT + fix-approve loop family (aat_continuation, aat_full_path, smm/kasper/client_request_fix_approve) | scenarios | ✅ 29/29 |
+| R2-36 | 2026-07-02 | COLD-OPEN create journey: Add → type name (blank promoted to real row) → asset url → note → archive → no-resurrect, 0 JS errors | sxr_cold_open.js | ✅ 13/13 |
+| R2-37 | 2026-07-02 | BUG-5a/5b pinned live: approve pushes Linear but never stamps kasper_approved_at; undo reverts DB, pushes NOTHING to Linear (stale issue) | sxr_kasper_audit_holes.js | ✅ 6/6 (pins) |
+| R2-38 | 2026-07-02 | Round numbering: Tweak #1 → #2 on both components | two_round_request_* | ✅ 12/12 |
+
 ### Flaky-note (infra, watched)
 - One transient: a Kasper approve save silently failed once (DB unchanged, no
   retry — the catch path only shows "Save failed"); re-run green. Probes now

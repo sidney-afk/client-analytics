@@ -24491,9 +24491,13 @@
         // so we don't block the navigation back to the Linear list.
         // The helper is mode-aware (wantVideo/wantGraphic) so graphic-only
         // submissions still get calendar rows linked to the GRA sub-issues.
-        _writeLinearVideoCardsToCalendar(client, videos, title, { mode }).catch(e => {
+        // The write is recorded as a durable job first: it takes ~15-120s to
+        // even start POSTing, and if this tab closes in that window the job
+        // is resumed on the next app load instead of silently losing cards.
+        const cardJob = _calCardJobCreate(client, videos, title, mode);
+        _writeLinearVideoCardsToCalendar(client, videos, title, { mode, job: cardJob }).catch(e => {
             console.warn('[SyncView] Background calendar write failed:', e);
-            showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. Open the calendar and use "Import from Linear" with the parent link to backfill them.');
+            showNotify('Calendar sync issue', 'The Linear issues were created, but adding the matching cards to the content calendar failed. SyncView will retry automatically next time the app is opened — or open the calendar and use "Import from Linear" with the parent link to backfill them now.');
         });
 
         localStorage.removeItem(LINEAR_FORM_KEY);
@@ -24519,6 +24523,14 @@
         const mode = (opts && opts.mode) || 'video';
         const wantVideo   = mode === 'video' || mode === 'both';
         const wantGraphic = mode === 'thumbnail' || mode === 'both';
+        // Durable-job bookkeeping (see _resumePendingCalCardJobs). done holds
+        // video numbers whose card write already returned ok, so a resumed
+        // run only writes the missing ones. The heartbeat tells other tabs
+        // this job is actively being worked and shouldn't be double-run.
+        const job = (opts && opts.job) || null;
+        const doneSet = new Set(job && Array.isArray(job.done) ? job.done : []);
+        const beat = () => { if (job) { job.heartbeatAt = Date.now(); _calCardJobSave(job); } };
+        if (job) { job.runs = (job.runs || 0) + 1; beat(); }
 
         // 1. Highest existing order_index → new cards land AFTER any cards
         //    the user already organized.
@@ -24553,7 +24565,18 @@
             const maxAttempts = 20;
             const attemptDelayMs = 5000;
             for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                const { issues } = await loadLinearIssues(true);
+                beat();
+                // Fetch failures are per-attempt: one transient linear-issues
+                // error used to abort the whole poll loop and downgrade every
+                // card to the unlinked/random-id path.
+                let issues = null;
+                let fetchFailed = false;
+                try {
+                    ({ issues } = await loadLinearIssues(true));
+                } catch (e) {
+                    fetchFailed = true;
+                    pollTrace.push({ attempt, error: 'fetch: ' + String((e && e.message) || e) });
+                }
                 if (Array.isArray(issues)) {
                     const matchParent = (teamKey) => issues.find(i => !i.isSubIssue
                         && wlNormalizeClient(i.clientName || '') === slug
@@ -24584,7 +24607,7 @@
                     }
                     pollTrace.push({ attempt, vp: vpIdent, vSubs: videoSubs.length, gp: gpIdent, gSubs: graphicSubs.length });
                     if (videoOk && graphicOk) break;
-                } else {
+                } else if (!fetchFailed) {
                     pollTrace.push({ attempt, error: 'no_issues_array' });
                 }
                 if (attempt + 1 < maxAttempts) await new Promise(r => setTimeout(r, attemptDelayMs));
@@ -24620,6 +24643,7 @@
         for (let i = 0; i < videos.length; i++) {
             const v = videos[i] || {};
             const n = Number(v.number) || (i + 1);
+            if (doneSet.has(n)) continue; // card already landed in a previous run of this job
             const subTitle = 'Video ' + n;
             const vSub = wantVideo
                 ? (videoSubs.find(s => String(s.title || '').trim() === subTitle) || pickByPosition(videoSubs, n))
@@ -24663,7 +24687,11 @@
                     body: JSON.stringify({ client: slug, post })
                 });
                 const json = await resp.json().catch(() => ({}));
-                if (json && json.ok) succeeded++;
+                if (json && json.ok) {
+                    succeeded++;
+                    doneSet.add(n);
+                    if (job) { job.done = Array.from(doneSet); beat(); }
+                }
             } catch (e) {
                 console.warn('[SyncView] calendar write failed for video', n, e);
             }
@@ -24672,6 +24700,17 @@
         console.log('[SyncView] Calendar cards written:', succeeded, '/', videos.length,
             'for', slug, '(video linked:', linkedVideo + '/' + videos.length,
             ', graphic linked:', linkedGraphic + '/' + videos.length + ')');
+        // Settle the durable job: complete jobs are dropped, incomplete ones
+        // stay queued for the next app load — and the shortfall is surfaced
+        // instead of living only in this console.
+        if (doneSet.size >= videos.length) {
+            if (job) _calCardJobRemove(job.id);
+        } else {
+            showNotify('Calendar sync incomplete', 'Only ' + doneSet.size + ' of ' + videos.length
+                + ' calendar cards for ' + clientName + ' were written.'
+                + (job ? ' SyncView will retry the rest automatically next time the app is opened' : '')
+                + ' — or use "Import from Linear" on the calendar to backfill now.');
+        }
         // If the user is already viewing this client's calendar, refresh
         // so the new cards show up without a manual reload.
         try {
@@ -24680,6 +24719,82 @@
                 loadCalendarPosts();
             }
         } catch (e) {}
+    }
+
+    /* ── Durable calendar-card write jobs ──
+       The post-submit card write above lives in the submitting tab's memory
+       for ~15-120s (fixed wait + Linear polling) before the first POST even
+       fires. Closing or refreshing the tab in that window used to lose every
+       card silently — Linear issues created, zero calendar cards (Jesse
+       Israel, 2026-06-30). Each submission now records a job in localStorage,
+       marks video numbers off as their cards land, and any unfinished job is
+       resumed on the next app load. Resumes can't duplicate cards: numbers in
+       done are skipped, and matched cards use deterministic p_lin_ ids so a
+       re-send updates the same row. */
+    const CAL_CARD_JOBS_KEY = 'syncview_calCardJobs_v1';
+    const CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;    // give up after 2 days…
+    const CAL_CARD_JOB_MAX_RUNS = 5;                        // …or 5 attempts
+    const CAL_CARD_JOB_LIVE_HEARTBEAT_MS = 3 * 60 * 1000;   // fresher ⇒ another tab owns it
+
+    function _calCardJobsRead() {
+        try {
+            const list = JSON.parse(localStorage.getItem(CAL_CARD_JOBS_KEY) || '[]');
+            return Array.isArray(list) ? list : [];
+        } catch { return []; }
+    }
+    function _calCardJobsWrite(list) {
+        try { localStorage.setItem(CAL_CARD_JOBS_KEY, JSON.stringify(list)); } catch {}
+    }
+    function _calCardJobSave(job) {
+        const list = _calCardJobsRead().filter(j => j && j.id !== job.id);
+        list.push(job);
+        _calCardJobsWrite(list);
+    }
+    function _calCardJobRemove(jobId) {
+        _calCardJobsWrite(_calCardJobsRead().filter(j => j && j.id !== jobId));
+    }
+    function _calCardJobCreate(clientName, videos, formTitle, mode) {
+        const job = {
+            id: 'ccj_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7),
+            clientName,
+            formTitle,
+            mode,
+            videos: videos.map((v, i) => ({ number: Number(v && v.number) || (i + 1) })),
+            done: [],
+            runs: 0,
+            createdAt: Date.now(),
+            heartbeatAt: 0
+        };
+        _calCardJobSave(job);
+        return job;
+    }
+    let _calCardJobsResumed = false;
+    function _resumePendingCalCardJobs() {
+        if (_calCardJobsResumed) return;
+        _calCardJobsResumed = true;
+        const now = Date.now();
+        _calCardJobsRead().forEach(job => {
+            if (!job || !job.clientName || !Array.isArray(job.videos) || !job.videos.length) {
+                if (job && job.id) _calCardJobRemove(job.id);
+                return;
+            }
+            const remaining = job.videos.filter(v => !(job.done || []).includes(v.number));
+            if (!remaining.length) { _calCardJobRemove(job.id); return; }
+            if ((now - job.createdAt) > CAL_CARD_JOB_MAX_AGE_MS || (job.runs || 0) >= CAL_CARD_JOB_MAX_RUNS) {
+                _calCardJobRemove(job.id);
+                showNotify('Calendar cards missing', 'A Linear submission for ' + job.clientName
+                    + ' still has ' + remaining.length + ' calendar card(s) unwritten and automatic'
+                    + ' retries have stopped. Open the calendar and use "Import from Linear" with'
+                    + ' the parent link to backfill them.');
+                return;
+            }
+            // A fresh heartbeat means another open tab is mid-run on this job.
+            if (job.heartbeatAt && (now - job.heartbeatAt) < CAL_CARD_JOB_LIVE_HEARTBEAT_MS) return;
+            console.log('[SyncView] Resuming calendar card job', job.id, 'for', job.clientName,
+                '(' + remaining.length + '/' + job.videos.length + ' cards outstanding)');
+            _writeLinearVideoCardsToCalendar(job.clientName, job.videos, job.formTitle, { mode: job.mode, job })
+                .catch(e => console.warn('[SyncView] Resumed calendar card job failed:', e));
+        });
     }
 
 
@@ -24731,6 +24846,15 @@
 
         async function init(){
         try{
+            // Resume any calendar-card write job a previous session left
+            // unfinished (tab closed during the post-submit write window).
+            // Scheduled as a delayed macrotask so it runs on EVERY boot path
+            // (deep links, fast tabs, Kasper, analytics) after all top-level
+            // module bindings are initialized, without blocking first paint.
+            setTimeout(() => {
+                try { _resumePendingCalCardJobs(); }
+                catch (e) { console.warn('[SyncView] calendar card job resume failed:', e); }
+            }, 8000);
             const qp = new URLSearchParams(location.search);
             const hashRaw = decodeURIComponent(location.hash.replace('#',''));
             // >>> SXR_BEGIN

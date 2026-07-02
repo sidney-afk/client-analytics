@@ -194,6 +194,8 @@ settles on the expected state (was a single early read → flaky present/absent)
 | R2-41 | 2026-07-02 | Linear deep: inbound-echo suppression (single-shot), __CLEAR_LINK__ (no push), link uniqueness + "Move it here" relocation, outbox drain | sxr_linear_deep.js | ✅ 16/16 (detector pre-check informational) |
 | R2-42 | 2026-07-02 | **Realtime TWO-SCREEN sim**: cross-screen propagation via _sxrV2OnRealtimeChange (no manual refresh); recent-save window protects a fresh edit against a concurrent push; pending unsaved edit survives a push-driven reload | sxr_realtime_twin.js | ✅ 9/9 |
 
+| R2-43 | 2026-07-02 | **CALENDAR realtime TWO-SCREEN twin** (cross-screen propagation via _calV2OnRealtimeChange, recent-save window survives concurrent push, pending edit survives push-driven reload) — courier-based, runs in-session AND on CI | cal_realtime_twin.js | ✅ 12/12 |
+
 ### Overnight autonomous run (unattended, from 2026-07-02 night)
 `qa/overnight_runner.sh` loops all sxr probes + scenario batches back-to-back
 against a child server, archives stray seeds each round, re-checks the unit gate,

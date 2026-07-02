@@ -27,20 +27,13 @@ PROBES=(
 # NOTE: the 6 fixed-bug guards (bug_repros/audit_holes/gating_flags) now assert
 # the FIX holds — a regression re-introducing any bug turns them red in the log.
 
-# CONTENT-CALENDAR sweep (phase 3): the 6 golden review paths + the highest-signal
-# calendar probes (concurrency, approve/undo cycles, realtime handler) run each
-# round alongside the samples set, so BOTH calendars are continuously covered.
-# The full 61-probe calendar manifest stays with the calendar-e2e-nightly CI job.
+# CONTENT-CALENDAR sweep (phase 3), COURIER-COMPATIBLE ONLY: the goldens and the
+# p-manifest drive the browser with DIRECT egress (CI-only — in this sandbox the
+# browser's egress is blocked, so they'd false-FAIL here; they run nightly on
+# calendar-e2e-nightly.yml instead). In-session calendar coverage uses the
+# courier-based probes: the realtime two-screen twin + the realtime handler probe.
 CAL_PROBES=(
-  qa/golden_1_clean_approve.js
-  qa/golden_2_kasper_tweak_loop.js
-  qa/golden_3_client_tweak_loop.js
-  qa/golden_4_approve_after_tweaks.js
-  qa/golden_5_undo_approve.js
-  qa/golden_6_archive_cross_surface.js
-  qa/probes/p42_concurrent_components.js
-  qa/probes/p43_smm_client_concurrent.js
-  qa/probes/p78_approve_undo_reapprove.js
+  qa/probes/cal_realtime_twin.js
   qa/probes/p88_realtime_handler.js
 )
 # Scenario batches (small groups so no single process trips SCN_TIMEOUT).

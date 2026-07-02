@@ -15,10 +15,10 @@ onboarding, and keeping everything in sync with Linear.
 - **Sample & thumbnail review** — Kasper and client approval flows for content samples.
 - **YouTube title review** — title status plus tweak-round tracking.
 - **Client onboarding** — in-app onboarding form and inbox (standard and AI funnels).
-- **Sales intake** — Kasper-only tab (same session unlock as the Kasper tab) filled
-  right after a deal closes; submitting logs the intake to Supabase, creates the
-  Sales & Service Agreement on eSignatures.com, and sends the client one combined
-  email with the signing link + Stripe payment link. See `SALES_INTAKE_DESIGN.md`.
+- **Sales intake** — subtab of the Kasper tab, filled right after a deal closes;
+  submitting logs the intake to Supabase, creates the Sales & Service Agreement
+  on eSignatures.com, and sends the client one combined email with the signing
+  link + Stripe payment link. See `SALES_INTAKE_DESIGN.md`.
 - **Workload view** — derived per-person workload, rebuilt from Linear.
 - **Linear sync** — two-way status sync between the calendar and Linear issues.
 - **Analytics** — follower/engagement metrics, top videos, and competitor /

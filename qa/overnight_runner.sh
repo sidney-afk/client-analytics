@@ -24,6 +24,8 @@ PROBES=(
   qa/probes/sxr_linear_deep.js
   qa/probes/sxr_realtime_twin.js
 )
+# NOTE: the 6 fixed-bug guards (bug_repros/audit_holes/gating_flags) now assert
+# the FIX holds — a regression re-introducing any bug turns them red in the log.
 # Scenario batches (small groups so no single process trips SCN_TIMEOUT).
 SCN_BATCHES=(
   "smm_reply_to_client_request_video,client_mixed_gating_video,audience_leak_guard_video"

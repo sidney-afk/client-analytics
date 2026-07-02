@@ -16,9 +16,11 @@
 Slack is wired into **three surfaces**: n8n workflows (the bulk of it), the SyncView SPA, and the Google
 Sheets identity maps that feed both. After triaging all **72 n8n workflows**, the live Slack footprint is:
 
-- **8 Slack-touching n8n workflows** — 6 obvious from their descriptions + **2 hidden** in null-description
-  workflows (`VIDEO PRODUCTION AUTOMATION`, `AI WORKFLOW`) — spanning **~13 Slack-coupled nodes** (DM sends,
-  channel posts, channel create/invite, one `views.open` modal call) plus Code nodes holding hardcoded Slack-ID maps.
+- **8 Slack-touching n8n workflows** (out of all **72**, each one node-scanned — see **Appendix A**) — 6 obvious
+  from their descriptions + **2 hidden** in null-description workflows (`VIDEO PRODUCTION AUTOMATION`, `AI WORKFLOW`)
+  — spanning **12 native `n8n-nodes-base.slack` nodes + 1 `views.open` HTTP call** (DM sends, channel posts, channel
+  create/invite) plus **3 Code nodes** holding hardcoded Slack-ID maps. **63 workflows are Slack-free**; 1 inactive
+  legacy workflow (`BACKUPS`) is not inspectable via MCP and must be exported to confirm.
 - **3 SPA touchpoints** in `index.html`: the per-client "Send Slack Update" button, the "URGENT TWEAKS NEEDED"
   editor ping (3 entry points → 1 dispatch), and the per-card "Slack" DM deep link.
 - **Google Sheets identity columns** that store Slack identifiers: `Clients Info.slack_channel_id` (populated)
@@ -325,6 +327,54 @@ n8n backups; update docs; remove the defunct README Discord webhook.
 | SPA changes (2 consts + deep-link resolver + labels) | **M** | Med | Roam deep-link format unconfirmed |
 | Channel provisioning + slash-command modal (`AI WORKFLOW`) | **L** | **High** | Create likely; invite + modal unconfirmed; may need manual/web-form fallback |
 | Credentials retire + docs + test + backups | **S** | Low | Cleanup after cutover |
+
+---
+
+## Appendix A — Definitive per-node Slack inventory (all 72 workflows node-scanned)
+
+Every one of the 72 live n8n workflows was opened and its node graph inspected (not just triaged by name).
+This is the **exact replacement checklist**: each row is one node to change. There is no native Roam node, so the
+replacement for every `n8n-nodes-base.slack` node is a **`n8n-nodes-base.httpRequest`** node calling
+`https://api.ro.am/v1/…` with the one Roam HTTP Header Auth credential; Code nodes that hardcode Slack IDs are
+edited in place.
+
+**Result:** 8 workflows touch Slack · **12 native Slack nodes + 1 Slack HTTP node (`views.open`) = 13 Slack-API
+nodes** · **3 Code nodes** carrying hardcoded Slack IDs · **63 workflows Slack-free** · **1 (`BACKUPS`) uninspectable
+via MCP**. No `slackTool` and **no `slackTrigger` (no inbound Slack) anywhere**. Credentials are stripped by the
+n8n API on every node, so per-node credential bindings must be confirmed in the UI.
+
+| # | Workflow (id) | Node | Type (ver) | Slack action today | Target | → Roam replacement |
+|---|---|---|---|---|---|---|
+| 1 | AI Onboarding — Submit (`hxLFIdKG9hUIzukO`) | `Notify Sidney` | slack (2.4) | DM → user | **hardcoded** `U0ACW93FS30` | HTTP `chat.sendMessage` → notifications **channel** (DM dropped) |
+| 2 | Onboarding — Submit (`ljNY7CKYLKzMOACZ`) | `Notify Sidney` | slack (2.4) | DM → user | **hardcoded** `U0ACW93FS30` | HTTP `chat.sendMessage` → notifications **channel** |
+| 3 | New Client → Slack DM (Notion) (`y1bEpXLggfR5HqYV`) | `DM Me via SyncView Bot` | slack (2.4) | DM → user | **hardcoded** `U0ACW93FS30` | HTTP `chat.sendMessage` → notifications **channel** *(trigger currently unconfigured — path is dead)* |
+| 4 | Urgent Tweak → Slack (`TJVMyfwl85qrFGeK`) | `Post to #video-editing` | slack (2.4) | message:post → channel | **hardcoded** `C09QTMZST5J` | HTTP `chat.sendMessage` → Roam #video-editing group + `@editor` |
+| 5 | Urgent Tweak → Slack (`TJVMyfwl85qrFGeK`) | `Build Slack Message` | code | builds channelId + editor `<@id>` mention | **hardcoded** `C09QTMZST5J` **again** + 4 editor IDs `U0ABN1WQ2V8` `U09L10ZG5SS` `U0AGCQACEH4` `U0ABFL52VTM` | Edit channel → Roam group; swap 4 editor IDs → Roam user IDs |
+| 6 | VIDEO PRODUCTION AUTOMATION (`BrJSe8zCKUccfmIq`) | `Send a message` | slack (2.4) | DM → user | expr `smmSlackUserId` (from map below) | HTTP `chat.sendMessage` → channel + `@SMM` |
+| 7 | VIDEO PRODUCTION AUTOMATION (`BrJSe8zCKUccfmIq`) | `Send a message1` | slack (2.4) | DM → user | expr `smmSlackUserId` | HTTP `chat.sendMessage` → channel + `@SMM` |
+| 8 | VIDEO PRODUCTION AUTOMATION (`BrJSe8zCKUccfmIq`) | `Lookup SMM Key` | code | hardcoded 7-SMM → Slack-ID map | analia `U08SLQ4GT39`, laura `U0A73TB2ZEF`, ludmila `U0AJKSL3JHW`, molly `U07E30JN6KD`, raha `U0APYPKTLJH`, sebastian `U09KMKAK4UX`, sidney `U0ACW93FS30` | Rewrite map → Roam user IDs |
+| 9 | VIDEO PRODUCTION AUTOMATION (`BrJSe8zCKUccfmIq`) | `Lookup SMM Key1` | code | **duplicate** 7-SMM map | same 7 IDs | Rewrite map → Roam user IDs (keep both copies in sync) |
+| 10 | Weekly Slack – Top Reel (TEST) (`ukLGHr6uDJIEP1pM`) | `Send Slack Message (TEST CHANNEL)` | slack (2.4) | message:post → channel, **Block Kit** | **hardcoded** `C0B7D49KCD6` | HTTP `chat.sendMessage` → Roam test group; **rewrite Block Kit** |
+| 11 | Weekly Slack – Top Reel (PROD) (`BTxic5NSaCMtZMh6`) | `Send Slack Message` | slack (**2.2**) | message:post → channel, **Block Kit** | dynamic `$json.slack_channel_id` (Clients Info sheet) | HTTP `chat.sendMessage` → `roam_channel_id`; **rewrite Block Kit** |
+| 12 | AI WORKFLOW (`VAqlVLk8wczPq6DQ`) | `Create Public Creative Channel` | slack (2.4) | channel:create (public) | name expr `first-last-creative` | Roam group create *(Alpha `group.create`)* |
+| 13 | AI WORKFLOW (`VAqlVLk8wczPq6DQ`) | `Create Private Client Channel` | slack (2.4) | channel:create (private) | name expr `first-last` | Roam group create *(Alpha)* |
+| 14 | AI WORKFLOW (`VAqlVLk8wczPq6DQ`) | `Invite a user to a creative channel` | slack (2.4) | channel:invite | **hardcoded** `[U0ACW93FS30]` | Roam invite **(feasibility unconfirmed — at risk)** |
+| 15 | AI WORKFLOW (`VAqlVLk8wczPq6DQ`) | `Invite a user to a private channel` | slack (2.4) | channel:invite | **hardcoded** `[U0ACW93FS30, U02RBFE3BK8]` | Roam invite **(at risk)** — identify `U02RBFE3BK8` |
+| 16 | AI WORKFLOW (`VAqlVLk8wczPq6DQ`) | `HTTP Request` | httpRequest (4.4) | POST `slack.com/api/views.open` (modal) | Slack interactivity API | Replace with a Roam command or a web form → existing `content-ready-submit` webhook |
+
+**By operation:** 5 DM nodes (#1,2,3,6,7 → channel posts) · 3 channel-post nodes (#4,10,11) · 2 channel-create
+(#12,13) · 2 channel-invite (#14,15) · 1 modal (#16) · 3 Code nodes carrying IDs (#5,8,9).
+
+**Uninspectable:** `vb3O0wkTK6Q7Rtro` — **BACKUPS** (inactive, `availableInMCP:false`). `get_workflow_details`
+returns "Workflow is not available in MCP." Export it (or flip it available-in-MCP) to confirm it has no Slack node
+before final cutover — low risk, but the only workflow not verified at the node level.
+
+**Confirmed Slack-free (63):** all TikTok Pilot + TikTok Upload workflows, all Calendar CRUD (get/upsert/append/
+delete/reorder/backfill/provision), all Samples + Sample Review workflows, all Caption/Caption-Jobs/Caption-Prompts
+workflows, Workload Reconcile + Tweak Comments, Kasper Queue, Templates Get/Save, Filming Plan Tabs, all Linear
+sync/reconcile/status/comment/sub-issue workflows, Editors Labor Week, Weekly Backup, CLIENTS METRICS (61 nodes),
+MARKET RESEARCH, COMPETITOR RESEARCH, TOP VIDEOS, all Project Central workflows, and the various one-off/test/helper
+workflows. (Full per-workflow confirmation was produced in the scan; every ID above returned "no Slack node.")
 
 ---
 

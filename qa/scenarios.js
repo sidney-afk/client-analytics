@@ -99,6 +99,20 @@ function base() {
       ['expectCardOnce', 'UI Reload Survivor'],
     ] });
 
+  // Several cards in a row: catches blank-sequence/state-array bugs that only
+  // appear after repeated optimistic creates (duplicate temp ids, stale blanks,
+  // local-only rows, or cache twins). The teardown divergence gate then compares
+  // the full DOM/local/DB sets, not just these three names.
+  S.push({ key: 'create_many_via_ui', title: 'Create several cards through the real UI — each appears exactly once', noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Batch One'],
+      ['smm.createCard', 'UI Batch Two'],
+      ['smm.createCard', 'UI Batch Three'],
+      ['expectCardOnce', 'UI Batch One'],
+      ['expectCardOnce', 'UI Batch Two'],
+      ['expectCardOnce', 'UI Batch Three'],
+    ] });
+
 
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,

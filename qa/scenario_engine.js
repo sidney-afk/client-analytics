@@ -536,6 +536,19 @@ async function divergenceGate(who, page, note) {
   note(verdict.ok, verdict.msg, verdict.extra);
 }
 async function _divergenceRead(who, page) {
+  // Put SMM tabs on the Sheet view so the gate can compare the VISIBLE strip
+  // as well as sxrState. Client-link strips intentionally filter to client-ready
+  // rows, so DOM-vs-DB is only enforced on non-client SMM tabs below.
+  try {
+    await page.evaluate(() => {
+      if (typeof _isClientLink !== 'undefined' && _isClientLink) return;
+      if (typeof sxrState === 'object' && sxrState && sxrState.view !== 'organizer') {
+        const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]');
+        if (b) b.click();
+      }
+    });
+    await page.waitForTimeout(250);
+  } catch {}
   let st = null;
   const t0 = Date.now();
   while (Date.now() - t0 < 25000) {                       // wait for saves to settle
@@ -556,8 +569,21 @@ async function _divergenceRead(who, page) {
         .filter(p => p && typeof _sxrIsBlankId === 'function' && _sxrIsBlankId(p.id))
         .filter(p => ['name', 'creative_direction', 'asset_url', 'thumbnail_url'].some(k => String(p[k] || '').trim() !== ''))
         .map(p => p.id + '"' + String(p.name || '') + '"');
+      const strip = document.getElementById('sxrStrip');
+      const domCards = strip ? [...strip.querySelectorAll('.cal-card[data-pid]')].map(c => {
+        const id = c.getAttribute('data-pid') || '';
+        const nameEl = c.querySelector('.cal-fld-name');
+        const cdEl = c.querySelector('.sxr-cd-input');
+        const assetEl = c.querySelector('[data-fld="asset_url"]');
+        const thumbEl = c.querySelector('[data-fld="thumbnail_url"]');
+        const name = nameEl ? String(nameEl.value || '') : '';
+        const hasContent = [name, cdEl && cdEl.value, assetEl && assetEl.value, thumbEl && thumbEl.value].some(v => String(v || '').trim() !== '');
+        const failed = c.classList.contains('is-error');
+        return { id, name, order: Number(((sxrState.posts || []).find(p => p && p.id === id) || {}).order_index || 0), blank: id.startsWith('__sxrblank__'), hasContent, failed };
+      }) : null;
       return { settled: pend === 0 && inflight === 0 && !reordering,
-               posts, staleBlanks, slug: (typeof sxrClientSlug === 'function') ? sxrClientSlug(sxrState.client) : '' };
+               posts, staleBlanks, domCards, isClient: (typeof _isClientLink !== 'undefined' && !!_isClientLink),
+               slug: (typeof sxrClientSlug === 'function') ? sxrClientSlug(sxrState.client) : '' };
     }).catch(() => null);
     if (!st || st.settled) break;
     await new Promise(s => setTimeout(s, 700));
@@ -583,15 +609,32 @@ async function _divergenceRead(who, page) {
   const dbSeq = seq(shared.map(p => dbById.get(p.id)), r => Number(r.order_index || 0));
   const orderMismatch = localSeq !== dbSeq;
   const staleBlanks = st.staleBlanks || [];
-  const ok = !extraLocal.length && !extraDb.length && !dupLocal && !nameMismatch.length && !orderMismatch && !staleBlanks.length;
+  let domExtra = [], domMissing = [], domNameMismatch = [], dupDom = false, domStaleBlanks = [];
+  if (Array.isArray(st.domCards) && !st.isClient) {
+    domStaleBlanks = st.domCards.filter(c => c.blank && c.hasContent).map(c => `${c.id}"${c.name}"`);
+    const localFailedIds = new Set(st.posts.filter(p => p.failed).map(p => p.id));
+    const domReal = st.domCards.filter(c => !c.blank && !c.failed && !localFailedIds.has(c.id));
+    const domById = new Map(domReal.map(c => [c.id, c]));
+    dupDom = domReal.length !== domById.size;
+    domExtra = domReal.filter(c => !dbById.has(c.id)).map(c => `${c.id}"${c.name}"`);
+    domMissing = rows.filter(r => !domById.has(r.id)).map(r => `${r.id}"${r.name}"`);
+    for (const c of domReal) { const r = dbById.get(c.id); if (r && String(r.name || '') !== c.name) domNameMismatch.push(`${c.id} dom="${c.name}" db="${r.name || ''}"`); }
+  }
+  const ok = !extraLocal.length && !extraDb.length && !dupLocal && !nameMismatch.length && !orderMismatch && !staleBlanks.length
+    && !domExtra.length && !domMissing.length && !domNameMismatch.length && !dupDom && !domStaleBlanks.length;
   return { ok,
-    msg: `divergenceGate(${who}) — local state ≡ DB (${local.length} rows)${failedNote}`,
+    msg: `divergenceGate(${who}) — local/DOM state ≡ DB (${local.length} rows)${failedNote}`,
     extra: ok ? '' : [
       dupLocal ? 'DUPLICATE id in local state' : '',
+      dupDom ? 'DUPLICATE id in DOM' : '',
       staleBlanks.length ? 'STALE BLANK with content (ghost shape): ' + staleBlanks.join(' ') : '',
+      domStaleBlanks.length ? 'DOM STALE BLANK with content: ' + domStaleBlanks.join(' ') : '',
       extraLocal.length ? 'local-only: ' + extraLocal.join(' ') : '',
       extraDb.length ? 'db-only: ' + extraDb.join(' ') : '',
       nameMismatch.length ? 'name: ' + nameMismatch.join(' ') : '',
+      domExtra.length ? 'dom-only: ' + domExtra.join(' ') : '',
+      domMissing.length ? 'dom-missing: ' + domMissing.join(' ') : '',
+      domNameMismatch.length ? 'dom-name: ' + domNameMismatch.join(' ') : '',
       orderMismatch ? `order: local=[${localSeq}] db=[${dbSeq}]` : '',
     ].filter(Boolean).join(' · ').slice(0, 400) };
 }
@@ -603,6 +646,12 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const log = []; let nstep = 0; let okCount = 0, failCount = 0;
   const actors = new Actors(browser);
   const extraIds = new Set();   // rows minted BY THE UI during this scenario (no seeded id) — archived in finally
+  const uiNames = new Map();    // logical scenario names → per-run unique names (noSeed UI-born rows)
+  const uniqueUiName = (label) => {
+    if (typeof label !== 'string' || !scn.noSeed) return label;
+    if (!uiNames.has(label)) uiNames.set(label, `${label} ${id.slice(-10)}`);
+    return uiNames.get(label);
+  };
   const note = (pass, msg, extra) => { log.push({ pass, msg, extra }); if (pass) okCount++; else failCount++; };
   const shot = async (page, label) => { if (!doShots) return; try { fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
 
@@ -628,10 +677,10 @@ async function runScenario(browser, scn, shotDir, doShots) {
       const [verb, ...args] = step;
       let res = 'ok';
       if (verb === 'smm.status') { const p = await actors.smm(); res = await smmStatus(p, id, args[0], args[1]); await shot(p, 'smm-status'); }
-      else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, args[0]); await shot(p, 'smm-create'); }
-      else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, args[0], args[1]); await shot(p, 'smm-rename'); }
-      else if (verb === 'smm.archiveCard') { const p = await actors.smm(); res = await smmArchiveCard(p, args[0]); await shot(p, 'smm-archive'); }
-      else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, args[0]); await shot(p, 'smm-drag'); }
+      else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, uniqueUiName(args[0])); await shot(p, 'smm-create'); }
+      else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, uniqueUiName(args[0]), uniqueUiName(args[1])); await shot(p, 'smm-rename'); }
+      else if (verb === 'smm.archiveCard') { const p = await actors.smm(); res = await smmArchiveCard(p, uniqueUiName(args[0])); await shot(p, 'smm-archive'); }
+      else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, uniqueUiName(args[0])); await shot(p, 'smm-drag'); }
       else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
       else if (verb === 'smm.bgReload') { const p = await actors.smm(); res = await smmBgReload(p); await shot(p, 'smm-bgreload'); }
       else if (verb === 'api.seedRow') {
@@ -644,7 +693,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
         // PostgREST's `status=neq.Archived` silently EXCLUDES (null != comparison)
         // while the app's GET still loads it — a harness-side blind spot found
         // when this verb was first run.
-        try { up({ id: xid, name: args[0] || ('XSESSION ' + xid), order_index: 999, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' }); res = 'ok'; }
+        try { up({ id: xid, name: uniqueUiName(args[0]) || ('XSESSION ' + xid), order_index: 999, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' }); res = 'ok'; }
         catch (e) { res = 'seed-failed: ' + (e.message || e); }
         await poll(() => { const r = supa('id=eq.' + xid + '&select=id'); return r[0] || null; }, 12000, 600);
       }
@@ -653,7 +702,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
         // Inverse of expectCardOnce: ZERO cards with this name in the DOM
         // (including blanks) and ZERO live DB rows. The archive-during-create
         // race must not leave either a local twin or an orphaned server row.
-        const wantName = args[0];
+        const wantName = uniqueUiName(args[0]);
         const p = await actors.smm();
         let dom = null, rows = [];
         const t0 = Date.now();
@@ -678,7 +727,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
         // Assert the FIRST draggable card in the strip is this name AND the DB
         // order agrees (this row holds the smallest live order_index) — the
         // reorder-persistence gate after smm.dragToFront (+ optional reload).
-        const wantName = args[0];
+        const wantName = uniqueUiName(args[0]);
         const p = await actors.smm();
         let okDom = false, first = '', okDb = false, dbFirst = '';
         const t0 = Date.now();
@@ -706,7 +755,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
         //          and ZERO leftover __sxrblank__ cards holding it;
         //   DB   — exactly ONE live sample_reviews row with this name.
         // Registers the minted row for cleanup. Fails loud on 0 or 2+.
-        const wantName = args[0];
+        const wantName = uniqueUiName(args[0]);
         const p = await actors.smm();
         let dom = null;
         const t0 = Date.now();

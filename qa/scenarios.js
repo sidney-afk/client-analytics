@@ -3,6 +3,12 @@
 // Statuses: In Progress, For SMM Approval, Kasper Approval, Client Approval, Approved, Tweaks Needed.
 const FOR_SMM = { video_status: 'For SMM Approval', graphic_status: 'For SMM Approval', status: 'For SMM Approval' };
 
+// A seeded OPEN client change-request (the shape the app writes to *_tweaks).
+function openTweak(id, body, round) {
+  const now = new Date().toISOString();
+  return { id, parent_id: null, author: 'Client', role: 'client', is_tweak: true, audience: 'client', round: round || 1, body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' };
+}
+
 function base() {
   const S = [];
   // ---- MAIN FLOWS ----
@@ -75,9 +81,13 @@ function base() {
       ['smm.note', 'graphic', 'Client-facing: does this hook land?', 'client'], ['expectComment', 'graphic', { role: 'smm' }],
     ] });
 
-  S.push({ key: 'notes_markdone', title: 'Notes — mark a change-request done',
-    seed: (() => { const now = new Date().toISOString(); return { video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress', video_tweaks: JSON.stringify([{ id: 'cm_seed', parent_id: null, author: 'Client', role: 'client', is_tweak: true, audience: 'client', round: 1, body: 'Open request', created_at: now, updated_at: now, done: false, done_at: '', done_by: '' }]) }; })(),
-    steps: [['smm.markDone', 'video']] });
+  // Mark done with ANOTHER tweak still open → direct done (no chooser). Marking
+  // the LAST open tweak done defers to the resolve-destination chooser instead —
+  // that path is covered by the resolve_via_* scenarios below.
+  S.push({ key: 'notes_markdone', title: 'Notes — mark a change-request done (another still open → no chooser)',
+    seed: { video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress',
+      video_tweaks: JSON.stringify([openTweak('cm_seed1', 'Open request one', 1), openTweak('cm_seed2', 'Open request two', 2)]) },
+    steps: [['smm.markDone', 'video'], ['expectComment', 'video', { any: true, done: true }]] });
 
   const OTHER = (c) => (c === 'video' ? 'graphic' : 'video');
 
@@ -225,6 +235,181 @@ function base() {
   S.push({ key: 'kasper_approve_v_aat_g', title: 'Kasper approves video, approve-after-tweaks on thumbnail',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', status: 'Kasper Approval' },
     steps: [['kasper.approve', 'video'], ['kasper.aat', 'graphic', 'fix logo then SMM'], ['expect', 'video_status', 'Client Approval'], ['expect', 'graphic_status', 'Tweaks Needed']] });
+
+  // ---- TIER 5: comment threads, replies, resolve destinations, Kasper queue ops ----
+  // (the interactions flagged as the buggiest: comments/tweak-answers across all
+  //  three actors, the SMM resolve chooser, and the Kasper undo/finish/close set)
+
+  // Plain comments per actor — never change status
+  for (const comp of ['video', 'graphic']) {
+    S.push({ key: 'client_comment_' + comp, title: `Client leaves a plain comment on ${comp} — no status change`,
+      seed: { [comp + '_status']: 'Client Approval', [OTHER(comp) + '_status']: 'Approved', status: 'Client Approval' },
+      steps: [['client.comment', comp, 'Client question: is the CTA final?'], ['expectComment', comp, { role: 'client', is_tweak: false }], ['expect', comp + '_status', 'Client Approval']] });
+  }
+  S.push({ key: 'smm_comment_video', title: 'SMM leaves a plain review-tab comment — no status change',
+    seed: { ...FOR_SMM },
+    steps: [['smm.comment', 'video', 'SMM: waiting on the b-roll'], ['expectComment', 'video', { role: 'smm', is_tweak: false }], ['expect', 'video_status', 'For SMM Approval']] });
+  S.push({ key: 'client_comment_then_approve_video', title: 'Client comments then approves — comment must not block approval',
+    seed: { video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval' },
+    steps: [['client.comment', 'video', 'Looks good, just noting the hook is strong'], ['expect', 'video_status', 'Client Approval'], ['client.approve', 'video'], ['expect', 'video_status', 'Approved'], ['expect', 'status', 'Approved']] });
+
+  // Kasper internal comment — stays internal, never reaches the client thread
+  S.push({ key: 'kasper_comment_internal_video', title: 'Kasper internal comment — no status change, never visible to client',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.comment', 'video', 'KASPER_INTERNAL_TOKEN check the licensing'],
+      ['expectComment', 'video', { role: 'kasper', is_tweak: false }],
+      ['expect', 'video_status', 'Kasper Approval'],
+      ['kasper.approve', 'video'], ['expect', 'video_status', 'Client Approval'],
+      ['expectClientThread', 'video', { notContains: ['KASPER_INTERNAL_TOKEN'] }],
+    ] });
+
+  // The user-flagged core loop: client asks → SMM answers → client sees the answer.
+  // NB (verified live): at Tweaks Needed the card leaves the CLIENT's review queue
+  // entirely (_sxrReviewComponentActive excludes Tweaks Needed for client links),
+  // so the client only sees the reply once the SMM re-offers at Client Approval.
+  S.push({ key: 'smm_reply_to_client_request_video', title: 'Client requests change → SMM replies → re-offer → client sees the reply', shots: true,
+    seed: { video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval' },
+    steps: [
+      ['client.request', 'video', 'CLIENT_ASK_TOKEN colour feels off'],
+      ['expect', 'video_status', 'Tweaks Needed'],
+      ['expectComment', 'video', { role: 'client', is_tweak: true }],
+      ['smm.reply', 'video', 'SMM_ANSWER_TOKEN on it — regrade coming today'],
+      ['expectComment', 'video', { role: 'smm', reply: true }],
+      ['smm.status', 'video', 'Client Approval'],   // re-offer after the fix
+      ['expect', 'video_status', 'Client Approval'],
+      ['expectClientThread', 'video', { contains: ['CLIENT_ASK_TOKEN', 'SMM_ANSWER_TOKEN'] }],
+    ] });
+  // Mixed case: the OTHER component still awaits the client, so the card stays
+  // in the client queue and the tweaks-needed panel (follow-up composer) renders.
+  S.push({ key: 'client_sees_reply_mixed_video', title: 'Reply visible at Tweaks Needed when the other component keeps the card client-active',
+    seed: { video_status: 'Client Approval', graphic_status: 'Client Approval', status: 'Client Approval' },
+    steps: [
+      ['client.request', 'video', 'CLIENT_MIX_ASK crop tighter'],
+      ['expect', 'video_status', 'Tweaks Needed'],
+      ['smm.reply', 'video', 'SMM_MIX_ANSWER cropping now'],
+      ['expectClientThread', 'video', { contains: ['CLIENT_MIX_ASK', 'SMM_MIX_ANSWER'] }],
+    ] });
+
+  // Audience gating — internal note never leaks to the client surface
+  S.push({ key: 'audience_leak_guard_video', title: 'Internal note hidden from client; client-audience note visible', shots: true,
+    seed: { video_status: 'Client Approval', graphic_status: 'Approved', status: 'Client Approval' },
+    steps: [
+      ['smm.note', 'video', 'INTERNAL_TOKEN_77 do not show the client', 'internal'],
+      ['smm.note', 'video', 'CLIENT_TOKEN_77 sneak peek of the regrade', 'client'],
+      ['expectClientThread', 'video', { contains: ['CLIENT_TOKEN_77'], notContains: ['INTERNAL_TOKEN_77'] }],
+    ] });
+
+  // SMM resolve-destination chooser — all four routes (Mark done on the LAST open tweak)
+  for (const [dest, wantStatus] of [['kasper', 'Kasper Approval'], ['client', 'Client Approval'], ['approved', 'Approved'], ['stay', 'Tweaks Needed']]) {
+    S.push({ key: 'resolve_via_' + dest + '_video', title: `SMM resolves last tweak → chooser → ${dest}`,
+      seed: { video_status: 'Tweaks Needed', graphic_status: 'Approved', status: 'Tweaks Needed',
+        video_tweaks: JSON.stringify([openTweak('cm_rv_' + dest, 'please fix for ' + dest, 1)]) },
+      steps: [
+        ['smm.resolveVia', 'video', dest],
+        ['expect', 'video_status', wantStatus],
+        ['expectComment', 'video', { any: true, done: true }],
+      ] });
+  }
+  // resolve chooser on the graphic component too (symmetry)
+  S.push({ key: 'resolve_via_kasper_graphic', title: 'SMM resolves last tweak on thumbnail → chooser → Kasper',
+    seed: { graphic_status: 'Tweaks Needed', video_status: 'Approved', status: 'Tweaks Needed',
+      graphic_tweaks: JSON.stringify([openTweak('cm_rvg', 'fix the logo', 1)]) },
+    steps: [['smm.resolveVia', 'graphic', 'kasper'], ['expect', 'graphic_status', 'Kasper Approval'], ['expectComment', 'graphic', { any: true, done: true }]] });
+
+  // Reopen a resolved tweak
+  S.push({ key: 'reopen_tweak_video', title: 'SMM resolves (stay) then reopens the tweak',
+    seed: { video_status: 'Tweaks Needed', graphic_status: 'Approved', status: 'Tweaks Needed',
+      video_tweaks: JSON.stringify([openTweak('cm_reopen', 'needs another pass', 1)]) },
+    steps: [
+      ['smm.resolveVia', 'video', 'stay'], ['expectComment', 'video', { any: true, done: true }],
+      ['smm.reopen', 'video'], ['expectComment', 'video', { any: true, done: false }],
+      ['expect', 'video_status', 'Tweaks Needed'],
+    ] });
+
+  // Delete a comment (soft-delete through the confirm dialog)
+  S.push({ key: 'delete_comment_video', title: 'SMM deletes own note via confirm dialog',
+    seed: { video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' },
+    steps: [
+      ['smm.note', 'video', 'DELETEME_TOKEN scratch note', 'internal'],
+      ['expectComment', 'video', { role: 'smm', body: 'DELETEME_TOKEN' }],
+      ['smm.deleteComment', 'video'],
+      ['expectComment', 'video', { any: true, deleted: true }],
+    ] });
+
+  // Kasper undo-approve — toast Undo restores the pre-approve status
+  S.push({ key: 'kasper_undo_video', title: 'Kasper approves (card completes) then Undo restores Kasper Approval',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.approve', 'video'], ['expect', 'video_status', 'Client Approval'],
+      ['kasper.undo'],
+      ['expect', 'video_status', 'Kasper Approval'],
+      ['expectKasperCard', 'present'],
+    ] });
+
+  // Kasper Finish reviewing — decided card hands off to the SMM ("Sent to SMM")
+  S.push({ key: 'kasper_finish_video', title: 'Kasper requests change then Finish reviewing → Sent to SMM',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.request', 'video', 'tighten the intro'], ['expect', 'video_status', 'Tweaks Needed'],
+      ['kasper.finish'],
+      ['expectKasperCard', 'finished'],
+    ] });
+
+  // Kasper Close (X) — hidden until the SMM sends it back to Kasper Approval
+  S.push({ key: 'kasper_close_resurface_video', title: 'Kasper closes the card; SMM re-routes to Kasper → card resurfaces',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.close'], ['expectKasperCard', 'absent'],
+      ['smm.status', 'video', 'For SMM Approval'], ['expect', 'video_status', 'For SMM Approval'],
+      ['smm.status', 'video', 'Kasper Approval'], ['expect', 'video_status', 'Kasper Approval'],
+      ['expectKasperCard', 'present'],
+    ] });
+
+  // ---- Linear sync (ALWAYS mocked+captured by the harness) ----
+  // Status change on a component pushes to THAT component's issue, never the other's.
+  S.push({ key: 'linear_push_video_status', title: 'Linear — SMM approves video → status push to the VIDEO issue only',
+    seed: { video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval' },
+    steps: [
+      ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
+      ['expectLinear', 'linear-set-status', { includes: ['VID-', 'Kasper Approval'] }],
+      ['expectNoLinear', 'linear-add-comment'],
+    ] });
+  S.push({ key: 'linear_push_graphic_isolated', title: 'Linear — graphic change never touches the video issue',
+    seed: { graphic_status: 'For SMM Approval', video_status: 'Approved', status: 'For SMM Approval' },
+    steps: [
+      ['smm.approve', 'graphic', 'primary'], ['expect', 'graphic_status', 'Kasper Approval'],
+      ['expectLinear', 'linear-set-status', { includes: ['GRA-'] }],
+      ['expectNoLinear', 'linear-set-status', { includes: ['VID-'] }],
+    ] });
+  // A change-request posts the tweak as a Linear comment on the right issue.
+  S.push({ key: 'linear_tweak_comment_video', title: 'Linear — Kasper request-change posts a tweak comment to the video issue',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.request', 'video', 'LINEAR_TWEAK_TOKEN trim the intro'],
+      ['expect', 'video_status', 'Tweaks Needed'],
+      ['expectLinear', 'linear-add-comment', { includes: ['LINEAR_TWEAK_TOKEN'] }],
+    ] });
+  // A plain comment / note must NOT change status; pin whether it posts to Linear.
+  S.push({ key: 'linear_no_push_on_note', title: 'Linear — a plain internal note pushes NO status change',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['smm.note', 'video', 'internal note, no linear status expected', 'internal'],
+      ['expect', 'video_status', 'Kasper Approval'],
+      ['expectNoLinear', 'linear-set-status'],
+    ] });
+
+  // Audit trail — the clean path stamps a status_change event per transition
+  S.push({ key: 'audit_trail_video', title: 'Audit — status_change events land for each clean-path transition',
+    seed: { video_status: 'For SMM Approval', graphic_status: 'Approved', status: 'For SMM Approval' },
+    steps: [
+      ['smm.approve', 'video', 'primary'], ['expect', 'video_status', 'Kasper Approval'],
+      ['expectEvent', 'status_change', { to_status: 'Kasper Approval' }],
+      ['kasper.approve', 'video'], ['expect', 'video_status', 'Client Approval'],
+      ['expectEvent', 'status_change', { to_status: 'Client Approval' }],
+      ['client.approve', 'video'], ['expect', 'video_status', 'Approved'],
+      ['expectEvent', 'status_change', { to_status: 'Approved' }],
+    ] });
 
   return S;
 }

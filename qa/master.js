@@ -292,7 +292,11 @@ function laneVisual(cfg) {
   const plan = profilePlan(args.profile);
   if (args.scn != null) { if (plan.scenarios) plan.scenarios.filter = args.scn; if (plan.tree) plan.tree.filter = args.scn; if (plan.visual) plan.visual.filter = args.scn; }
   let lanes = args.lanes || LANE_ORDER.filter(l => plan[l]);
+  const unknown = lanes.filter(l => !LANE_ORDER.includes(l));
   lanes = lanes.filter(l => LANE_ORDER.includes(l));
+  // A --lane list that resolves to nothing is a usage bug, not a green run.
+  if (unknown.length) console.error(`Unknown lane(s): ${unknown.join(', ')} — known: ${LANE_ORDER.join(', ')}`);
+  if (!lanes.length) { console.error('No known lanes selected — exiting.'); process.exit(2); }
 
   const needsBrowser = lanes.some(l => l !== 'unit');
   console.log(`\n🧪 MASTER TESTER — profile=${args.profile}  lanes=[${lanes.join(', ')}]\n`);

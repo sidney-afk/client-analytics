@@ -16,6 +16,8 @@ const SHOT_DIR = process.env.SXR_SCN_SHOTS || '/tmp/qa/scn';
   const ts = Date.now();
   let specs = base();
   if (filter) { const parts = filter.split(','); specs = specs.filter(s => parts.some(p => s.key.includes(p))); }
+  // A filter that matches nothing is a runner-usage bug (typo'd key), not a green run.
+  if (!specs.length) { console.error(`RUNNER ERROR: filter "${filter || ''}" matched 0 scenarios`); process.exit(2); }
   // stamp unique id + name per scenario
   specs = specs.map((s, i) => ({ ...s, id: 'sr_scn_' + s.key + '_' + ts + '_' + i, name: 'SCN ' + s.key + ' ' + ts }));
 

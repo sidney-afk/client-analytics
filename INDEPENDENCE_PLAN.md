@@ -95,15 +95,22 @@ guard-by-guard analysis remains the reference for port fidelity.
    no documented reason** — an accidental unpublish. It was re-published on 2026-07-03 with the
    known-good post-embed version `2fc824c2-…` (the version documented as live+wiring-tested in
    `SAMPLES_PARITY_LOG.md` 2026-06-26).
-2. **[BLOCKED — needs a human, 2 clicks] Reset the Linear webhook delivery state.** After 5 days
-   of n8n 404s, Linear has stopped delivering (verified live: 4 state-change events produced zero
-   n8n executions even after re-activation, while the webhook object still reports
-   `enabled: true`). Fix: Linear → Settings → API → Webhooks → the "Workload" webhook
-   (id `a4482382-6d44-4c59-89f9-809220f559cb`, URL `…/webhook/linear-status-sync`) → toggle
-   disable → enable (or re-save). Then verify: flip any test issue's state in the
-   "Sidney Laruel" TEST project and confirm an execution appears on workflow `MJbMZ789B5ExZz9x`.
-   Until then the 10-minute reconciler keeps healing statuses, exactly as it has since 06-28 —
-   nothing is broken, just slow.
+2. **[DONE 2026-07-03] Reset the Linear webhook delivery state.** The owner toggled the
+   "Workload" webhook (id `a4482382-6d44-4c59-89f9-809220f559cb`) disable→enable in Linear
+   settings at 19:57 UTC; delivery verified end-to-end at 20:02 with a VID probe issue
+   (n8n executions 190909/190910 on workflow `MJbMZ789B5ExZz9x`, ~1 s latency). Realtime
+   Linear→SyncView sync is live again **for the Video team**.
+2b. **[OPEN — needs a human, 1 edit] Extend webhook coverage to the Graphics team.** Discovery
+   during verification: the webhook is scoped `allPublicTeams: false, team: VID` and was created
+   that way on 2026-05-19 — **Graphics issues have NEVER had realtime sync**; every GRA status
+   change has always waited for the 10-minute reconciler. This explains why both documented
+   drift incidents (`LINEAR_DRIFT_INCIDENT_2026-06-19.md` — GRA-6373; `docs/archive/`
+   `THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md`) involved thumbnail/graphics cards. Fix: in Linear
+   → Settings → API → Webhooks, either edit "Workload" to **All public teams**, or add a second
+   webhook with the same URL scoped to the Graphics team (Issue events). The handler already
+   filters safely (unmatched issues/teams no-op; the workload branch handles any team). Verify
+   afterwards with a GRA test issue in the "Sidney Laruel" project → execution on
+   `MJbMZ789B5ExZz9x`. Until then, the reconciler continues covering Graphics as it always has.
 3. **[Codex, first commit] Recover the live schema.** Dump the live DDL (tables, policies,
    triggers, publication membership) into `migrations/live-schema-baseline-YYYY-MM-DD.sql`.
    The `calendar_posts` base DDL was never committed; `EDGE_FUNCTIONS_MIGRATION.md` flags this as

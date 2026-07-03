@@ -162,8 +162,11 @@ These get deleted in Track B5; port them mechanically, no redesign.
   workload_issues upsert). Internal upserts call the **EF** endpoints (they exist by A3).
   Deploy strategy: create a SECOND Linear webhook pointing at the EF, shadow-run (EF in dry-run
   log-only mode) alongside n8n for a few days, compare, then disable the n8n-pointing webhook.
-  This sidesteps the currently-stuck Linear webhook delivery state (Phase 0.2) — if that manual
-  reset hasn't happened by A3, simply create the new webhook and skip the reset.
+  **Scoping gotcha (learned 2026-07-03, see master plan Phase 0.2/0.2b):** the existing n8n
+  webhook was scoped to the Video team only, which silently deprived Graphics of realtime sync
+  for its entire life. The new EF webhook MUST be created with **All public teams** (or at
+  minimum both GRA and VID), Issue resource type — and the shadow-run comparison must include
+  at least one Graphics state change.
 - **The status mapping** becomes its 4th copy: hardcode in a shared module
   `supabase/functions/_shared/status-map.ts` + a CI test that extracts
   `_calMapLinearStatusStrict`/`CAL_PRIORITY` from `index.html` (the `grabFunc` pattern the tests

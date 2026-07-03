@@ -11117,7 +11117,22 @@
     function _smSavePrefs(){ try { localStorage.setItem(SM_PREFS_KEY, JSON.stringify({ client: smState.client, kind: smState.kind })); } catch(e){} }
     function _smCacheKey(slug){ return SM_CACHE_PREFIX + slug; }
     function _smCacheRead(slug){ try { const r = localStorage.getItem(_smCacheKey(slug)); if(!r) return null; const o = JSON.parse(r); return Array.isArray(o.samples) ? o.samples.map(_smNormalize) : null; } catch(e){ return null; } }
-    function _smCacheWrite(slug, samples){ try { localStorage.setItem(_smCacheKey(slug), JSON.stringify({ samples, at: Date.now() })); } catch(e){} }
+    function _smCacheWrite(slug, samples){
+        const payload = JSON.stringify({ samples, at: Date.now() });
+        try { localStorage.setItem(_smCacheKey(slug), payload); return; } catch(e){}
+        // Quota hit — evict the other clients' sample caches and retry once; if
+        // it still fails, drop this slug's cache so a stale snapshot can't
+        // outlive fresh data (a deleted card would flash on every refresh).
+        try {
+            for(let i = localStorage.length - 1; i >= 0; i--){
+                const k = localStorage.key(i);
+                if(k && k.indexOf(SM_CACHE_PREFIX) === 0 && k !== _smCacheKey(slug)) localStorage.removeItem(k);
+            }
+            localStorage.setItem(_smCacheKey(slug), payload);
+        } catch(e){
+            try { localStorage.removeItem(_smCacheKey(slug)); } catch(e2){}
+        }
+    }
     function _smGetSeen(){ try { return JSON.parse(localStorage.getItem(SM_SEEN_KEY) || '{}') || {}; } catch(e){ return {}; } }
     function _smMarkSeen(id){ const seen = _smGetSeen(); const s = _smFind(id); seen[id] = (s ? _smLastCommentAt(s) : '') || new Date().toISOString(); try { localStorage.setItem(SM_SEEN_KEY, JSON.stringify(seen)); } catch(e){} }
 
@@ -11199,7 +11214,9 @@
     /* Read one client's samples from Supabase REST, shaped like samples-get
        ({ ok, samples[] }). On ANY failure, fall back to the webhook. */
     async function _smV2FetchSamples(slug, signal) {
-        const url = CAL_SUPABASE_URL + '/rest/v1/content_samples?select=*&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
+        // Archived rows are dropped right after this fetch (loadSamples filters
+        // them) — exclude them server-side too (NULL-safe or= form).
+        const url = CAL_SUPABASE_URL + '/rest/v1/content_samples?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug) + '&limit=5000';
         try {
             const resp = await fetch(url, {
                 headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' },
@@ -16947,7 +16964,10 @@
        calendar-get webhook. On ANY failure, fall back to the webhook so a
        Supabase hiccup can never blank the calendar. */
     async function _calV2FetchPosts(slug, signal) {
-        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+        // Archived rows are filtered on every render path; excluding them here
+        // (NULL-safe — PostgREST neq drops NULL-status rows) keeps long-lived
+        // clients from dragging their whole archive over the wire on each load.
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
         try {
             const rows = await _calSupabaseFetchAllRows(baseUrl, signal);
             return { ok: true, posts: rows };
@@ -26210,8 +26230,38 @@
     let _sxrLoadSeq = 0;
     let _sxrBgLoadInFlight = false;
     let _sxrLastNetworkLoadAt = 0;
-    function _sxrCacheRead(slug) { try { const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null'); return (o && Array.isArray(o.posts)) ? o : null; } catch { return null; } }
-    function _sxrCacheWrite(slug, posts) { try { localStorage.setItem(SXR_CACHE_PREFIX + slug, JSON.stringify({ posts, at: Date.now() })); } catch {} }
+    const SXR_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS
+    function _sxrCacheRead(slug) {
+        try {
+            const o = JSON.parse(localStorage.getItem(SXR_CACHE_PREFIX + slug) || 'null');
+            if (!o || !Array.isArray(o.posts)) return null;
+            if (!o.at || (Date.now() - Number(o.at)) > SXR_CACHE_TTL_MS) return null;
+            return o;
+        } catch { return null; }
+    }
+    function _sxrCacheWrite(slug, posts) {
+        // Cache only rows a render can ever paint. Archived rows are filtered on
+        // every read anyway, and a long-lived client can accumulate thousands of
+        // them — enough to blow the localStorage quota, after which the silently
+        // swallowed setItem failure kept a STALE snapshot alive forever (an
+        // archived card flashed on every refresh until the live fetch hid it).
+        const live = (Array.isArray(posts) ? posts : []).filter(p => p && _sxrNormStatus(p.status) !== 'Archived');
+        const key = SXR_CACHE_PREFIX + slug;
+        const payload = JSON.stringify({ posts: live, at: Date.now() });
+        try { localStorage.setItem(key, payload); return; } catch {}
+        // Quota hit — evict the other clients' sample caches and retry once.
+        try {
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                const k = localStorage.key(i);
+                if (k && k.indexOf(SXR_CACHE_PREFIX) === 0 && k !== key) localStorage.removeItem(k);
+            }
+            localStorage.setItem(key, payload);
+        } catch {
+            // Still failing → drop this slug's cache: no cache beats a stale one
+            // (the boot render just waits for the live fetch instead of lying).
+            try { localStorage.removeItem(key); } catch {}
+        }
+    }
     function _sxrIsArchivedRef(p, refs) {
         if (!p) return false;
         if (_sxrNormStatus(p.status) === 'Archived') return true;   // persisted-archived rows must never render, even on a fresh ledger
@@ -26259,7 +26309,12 @@
         if (changed) _sxrArchivedWriteRaw(slug, m);
     }
     async function _sxrFetchPosts(slug, signal) {
-        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&client=eq.' + encodeURIComponent(slug);
+        // status filter: archived rows are never rendered, and long-lived test/QA
+        // clients accumulate thousands of them — without the filter every load
+        // (and the localStorage cache) dragged megabytes of dead rows around.
+        // NULL-safe or= form because PostgREST neq drops NULL-status rows.
+        // Client-side _sxrIsArchivedRef stays as defense for the webhook fallback.
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)&client=eq.' + encodeURIComponent(slug);
         try {
             const rows = await _sxrSupabaseFetchAllRows(baseUrl, signal);
             return { ok: true, posts: rows };
@@ -26387,7 +26442,51 @@
     // _sxrOnFieldInput / _sxrOnFieldBlur / _sxrFlushCardSave / _sxrRetrySave are the
     // real save engine — defined in Surface 3 below.
     // _sxrMarkLocalStatus / _sxrIsLocalStatusFresh — real versions in Surface 7, hoisted.
-    function _sxrUpdateCardStatusDisplay(pid) { /* in-place pill sync — safe no-op until Surface 3/7 */ }
+    /* Refresh just the status pills on a card without re-rendering the whole
+       sheet — used after an auto-status change (e.g. the SMM resolves the last
+       tweak and routes it to Kasper from the Notes modal) so the card behind
+       the modal updates immediately instead of saying "Tweaks Needed" until
+       the next full reload. Port of _calUpdateCardStatusDisplay over the
+       samples card DOM (per-component pills + URGENT badge + client pills;
+       samples have no overall status pill, title square or approve bar). */
+    function _sxrUpdateCardStatusDisplay(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        if (!post) return;
+        const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
+        for (const c of SXR_COMPONENTS) {
+            const subWrap = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${sel}"][data-substatus-comp="${c}"]`);
+            if (!subWrap) continue;
+            const cs = _sxrNormStatus(post[c + '_status'] || post.status || 'In Progress');
+            subWrap.setAttribute('data-val', cs);
+            const trigger = subWrap.querySelector('.cal-fld-substatus-trigger');
+            if (trigger) {
+                Array.from(trigger.classList).forEach(cls => {
+                    if (cls.startsWith('cal-fld-status-')) trigger.classList.remove(cls);
+                });
+                trigger.classList.add('cal-fld-status-' + _sxrStatusSlug(cs));
+                const labelEl = trigger.querySelector('.cal-fld-substatus-label');
+                if (labelEl) labelEl.textContent = _sxrStatusLabel(cs);
+            }
+            // Reconcile the URGENT badge in place, same predicate as the full
+            // render, so it can't linger after the component leaves Tweaks Needed.
+            const showUrgent = _sxrShowUrgent(post, c);
+            subWrap.classList.toggle('has-urgent', showUrgent);
+            const urgentEl = subWrap.querySelector('.cal-urgent-btn');
+            if (showUrgent && !urgentEl) {
+                const escPid = _sxrEscAttr(pid);
+                subWrap.insertAdjacentHTML('beforeend', `<button type="button" class="cal-urgent-btn" data-urgent-pid="${escPid}" onclick="_sxrSendUrgentSlack(event,'${escPid}')" title="Ping the editor in #video-editing that this needs urgent tweaks">URGENT</button>`);
+            } else if (!showUrgent && urgentEl) {
+                urgentEl.remove();
+            }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
+        if (card) {
+            const chip = card.querySelector('.cal-client-status');
+            if (chip) chip.innerHTML = _sxrClientCompPillsHtml(post);
+        }
+        // The Review/Sheet tab badges count by status — keep them in lockstep too.
+        if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+    }
     function _sxrAutosize(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
     /* ── Thumbnail: reuse the pure derivation; FORK only the overlay-preserving
@@ -28722,7 +28821,10 @@
         _sxrKasperState.history = [entry].concat((_sxrKasperState.history || []).filter(x => x.id !== entry.id)).slice(0, 60);
     }
     async function _sxrKasperFetchAllSamples() {
-        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*';
+        // Same archived exclusion as loadSxrCards — Kasper's queue drops archived
+        // rows anyway (see the loop below); fetching them cross-client meant
+        // pulling the WHOLE history of every client on each queue refresh.
+        const baseUrl = CAL_SUPABASE_URL + '/rest/v1/' + SXR_TABLE + '?select=*&or=(status.is.null,status.neq.Archived)';
         return await _sxrSupabaseFetchAllRows(baseUrl);   // cross-client (no client filter)
     }
     async function _sxrKasperLoadQueue(force) {
@@ -32705,7 +32807,7 @@
                 const timer = ctrl ? setTimeout(() => ctrl.abort(), 30000) : null;
                 let allRows;
                 try {
-                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*', ctrl ? ctrl.signal : undefined);
+                    allRows = await _calSupabaseFetchAllRows(CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&or=(status.is.null,status.neq.Archived)', ctrl ? ctrl.signal : undefined);
                 } finally { if (timer) clearTimeout(timer); }
                 if (!Array.isArray(allRows)) throw new Error('Supabase: unexpected payload');
                 const byClient = new Map();

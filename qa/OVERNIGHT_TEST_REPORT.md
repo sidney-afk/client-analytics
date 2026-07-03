@@ -34,6 +34,12 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 04:50 UTC runner hardening
+- Background process `proc_f87649c6c0b9` exited after the long `master:tree` lane started. The useful testing before that was extensive: full scenario-library batches, Calendar probes, realtime multi-tab probe, and `master:fast` all ran; the real red signals found before the exit were logged for follow-up.
+- First cron reviewer already fixed two runner/tester issues and pushed `eb936d5`: Windows path names for very long scenario batches were too long, and `sxr_realtime_twin.js` had a flaky pre-push assertion.
+- I reproduced the remaining stall with a tight command: `SXR_COURIER=0 node qa/master.js --lane=tree` was still running after 600s. For the overnight loop, the tree lane is now opt-in and every command is wrapped in a 20-minute timeout, so no single lane can stop the whole marathon again.
+- Restart plan: continue the high-signal flat scenario batches, probes, Calendar checks, and fast master continuously; keep tree/full master for daytime/manual review unless explicitly enabled.
+
 ## 2026-07-03 04:44 UTC cron tick — tester hardening + runner restart
 - Inspected the live runner on `claude/overnight-syncview-qa-20260702-204925`. Round 2 had broad green coverage through `master:fast` (`all 31 unit suites`, parity, 2 probes, and 12/12 scenarios green), but three tester-side reds needed root-cause work:
   - `sxr_realtime_twin.js` failed twice on `before push: tab A has NOT yet seen B's change`. Focused RED reproduced locally with `SXR_COURIER=0`: `pass=8 fail=1`. Root cause: on Sidney's open-egress Windows machine, the real Supabase websocket can legitimately propagate the backend write before the probe's manual `_sxrV2OnRealtimeChange` fire. The no-refresh product contract was working; the probe assumed sandbox/courier behavior.

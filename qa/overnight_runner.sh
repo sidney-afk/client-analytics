@@ -15,6 +15,7 @@ OUTDIR=${OVERNIGHT_OUTDIR:-qa/overnight-output}
 PORT=${PORT:-8000}
 PYTHON_BIN=${PYTHON_BIN:-python}
 NODE_BIN=${NODE_BIN:-/c/Program Files/nodejs/node.exe}
+COMMAND_TIMEOUT_SECONDS=${COMMAND_TIMEOUT_SECONDS:-1200}
 if [ ! -x "$NODE_BIN" ]; then NODE_BIN=${NODE_BIN_FALLBACK:-node}; fi
 export SXR_COURIER=${SXR_COURIER:-0}
 export MASTER_CHANGE_NOTE=${MASTER_CHANGE_NOTE:-overnight autonomous SyncView QA}
@@ -54,7 +55,11 @@ run_one() {
   out="$OUTDIR/$(date -u +%Y%m%dT%H%M%SZ)_${safe}.log"
   log "START $label"
   start_server || true
-  "$@" >"$out" 2>&1
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --kill-after=30s "$COMMAND_TIMEOUT_SECONDS" "$@" >"$out" 2>&1
+  else
+    "$@" >"$out" 2>&1
+  fi
   ec=$?
   stop_server
   tail=$(grep -E 'PASS |FAIL |pass=|fail=|SUMMARY|MASTER:|scenarios:|assertions:|All .*passed|RESULT:|✗|❌|✅' "$out" | tail -8 | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g')
@@ -162,7 +167,10 @@ while :; do
   if [ "${MASTER_FAST_EVERY:-1}" != "0" ] && [ $((ROUND % MASTER_FAST_EVERY)) -eq 0 ]; then
     run_one "master:fast" env SXR_COURIER="$SXR_COURIER" MASTER_CHANGE_NOTE="$MASTER_CHANGE_NOTE" "$NODE_BIN" qa/master.js --profile=fast --no-server
   fi
-  if [ "${TREE_EVERY:-2}" != "0" ] && [ $((ROUND % TREE_EVERY)) -eq 0 ]; then
+  # Tree/full master are intentionally opt-in for unattended marathons: the flat
+  # library + fast master already cover the same branches continuously, while a
+  # single very-long tree run can stall the loop for hours on Windows.
+  if [ "${TREE_EVERY:-0}" != "0" ] && [ $((ROUND % TREE_EVERY)) -eq 0 ]; then
     run_one "master:tree" env SXR_COURIER="$SXR_COURIER" MASTER_CHANGE_NOTE="$MASTER_CHANGE_NOTE" "$NODE_BIN" qa/master.js --lane=tree --no-server
   fi
   if [ "${FULL_MASTER_EVERY:-0}" != "0" ] && [ $((ROUND % FULL_MASTER_EVERY)) -eq 0 ]; then

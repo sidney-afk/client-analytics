@@ -47,7 +47,7 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 | Calendar writes (upsert/reorder) | n8n webhooks (pre-migration baseline) | n/a — baseline | 2026-07-03 |
 | Samples New (SXR) writes | n8n webhooks (baseline) | n/a — baseline | 2026-07-03 |
 | Samples Old writes | n8n webhooks (baseline; out of migration scope, D4) | n/a | 2026-07-03 |
-| Linear → app realtime sync | n8n workflow `MJbMZ789B5ExZz9x` (re-enabled 2026-07-03); Linear webhook covers **VID only** — Graphics pending Phase 0.2b | Deactivate the workflow in n8n; reconciler continues healing every 10 min regardless | 2026-07-03 (VID, execs 190909/190910) |
+| Linear → app realtime sync | n8n workflow `MJbMZ789B5ExZz9x` (re-enabled 2026-07-03); two Linear webhooks now cover **both VID and GRA** | Deactivate the workflow in n8n; reconciler continues healing every 10 min regardless | 2026-07-03 (VID execs 190909/190910; GRA exec 190952) |
 | App → Linear pushes (set-status/comment) | n8n webhooks + FE localStorage outboxes (baseline) | n/a — baseline | 2026-07-03 |
 | Status drift healing | GitHub Actions reconcilers every ~10 min (n8n triggers `AkiFmromoDkmsh39` active, `ZJOtYpQZj73DcBB1` inactive) | Must stay ACTIVE until Track B5 — this is the global safety net | 2026-07-03 |
 | Templates / caption prompts | Google Sheets via n8n (baseline) | n/a — baseline | 2026-07-03 |

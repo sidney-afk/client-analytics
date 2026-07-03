@@ -100,22 +100,20 @@ guard-by-guard analysis remains the reference for port fidelity.
    settings at 19:57 UTC; delivery verified end-to-end at 20:02 with a VID probe issue
    (n8n executions 190909/190910 on workflow `MJbMZ789B5ExZz9x`, ~1 s latency). Realtime
    Linear→SyncView sync is live again **for the Video team**.
-2b. **[OPEN — needs a human, 1 edit] Extend webhook coverage to the Graphics team.** Discovery
-   during verification: the webhook is scoped `allPublicTeams: false, team: VID` and was created
-   that way on 2026-05-19 — **Graphics issues have NEVER had realtime sync**; every GRA status
-   change has always waited for the 10-minute reconciler. This explains why both documented
+2b. **[DONE 2026-07-03] Extended webhook coverage to the Graphics team.** Discovery during
+   verification: the original webhook was scoped `allPublicTeams: false, team: VID` and had been
+   that way since 2026-05-19 — **Graphics issues had NEVER had realtime sync**; every GRA status
+   change had always waited for the 10-minute reconciler. This explains why both documented
    drift incidents (`LINEAR_DRIFT_INCIDENT_2026-06-19.md` — GRA-6373; `docs/archive/`
    `THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md`) involved thumbnail/graphics cards. Linear's UI
-   confirms **team selection cannot be modified after creation** (verified 2026-07-03), so the
-   fix is a NEW webhook: Linear → Settings → API → Webhooks → New webhook — Label
-   "Workload — Graphics", URL `https://synchrosocial.app.n8n.cloud/webhook/linear-status-sync`,
-   Data change events: **Issues only**, Team: **Graphics**. Keep the existing VID webhook as-is.
-   Do NOT create an "All public teams" webhook while the VID one exists — VID events would be
-   delivered twice. (The signing secret is unused today; n8n doesn't verify signatures — the
-   Track A EF port introduces its own webhook + secret.) The handler already filters safely
-   (unmatched issues no-op; the workload branch handles any team). Verify afterwards with a GRA
-   test issue in the "Sidney Laruel" project → execution on `MJbMZ789B5ExZz9x`. Until then, the
-   reconciler continues covering Graphics as it always has.
+   confirms **team selection cannot be modified after creation**, so the owner created a NEW
+   Graphics-scoped webhook (Label "Workload — Graphics", same URL
+   `…/webhook/linear-status-sync`, Issues only, Team: Graphics) alongside the untouched VID
+   webhook. Verified end-to-end at 20:13 UTC: a GRA probe (state change on GRA-6578 in the
+   "Sidney Laruel" TEST project) produced n8n execution 190952 on `MJbMZ789B5ExZz9x` at ~1 s
+   latency. **Realtime Linear→SyncView sync is now live for BOTH teams for the first time.**
+   Note: the new webhook's signing secret is currently inert (n8n does not verify signatures);
+   the Track A EF port introduces its own HMAC-verified webhook + secret.
 3. **[Codex, first commit] Recover the live schema.** Dump the live DDL (tables, policies,
    triggers, publication membership) into `migrations/live-schema-baseline-YYYY-MM-DD.sql`.
    The `calendar_posts` base DDL was never committed; `EDGE_FUNCTIONS_MIGRATION.md` flags this as

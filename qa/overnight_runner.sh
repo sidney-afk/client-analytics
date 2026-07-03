@@ -166,8 +166,8 @@ MAX_SECONDS=0
 if [ "${RUN_HOURS:-0}" != "0" ]; then MAX_SECONDS=$((RUN_HOURS * 3600)); fi
 acquire_runner_lock
 trap 'stop_server 2>/dev/null || true; release_runner_lock' EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'log "received INT; stopping runner"; exit 130' INT
+trap 'log "received TERM; stopping runner"; exit 143' TERM
 log "==== overnight runner START pid=$$ branch=$(git branch --show-current) node=$NODE_BIN python=$PYTHON_BIN sxr_courier=$SXR_COURIER run_hours=${RUN_HOURS:-infinite} ===="
 
 while :; do

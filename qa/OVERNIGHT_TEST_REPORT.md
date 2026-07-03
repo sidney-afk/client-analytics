@@ -34,6 +34,11 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 06:12 UTC stale runner notification + restart
+- The `proc_6f6378f6f636` exit notification was from the pre-singleton overlapping runner. Its red lines are the same duplicate-runner interference class already fixed by `dc8e327`.
+- The locked runner `proc_f8084a1d6f65` then passed `sxr_bug_repros`, `sxr_concurrency`, `sxr_gating_flags`, and `sxr_cold_open`, but exited `143` after that without a runner-side TERM log. Added explicit INT/TERM log traps so any future external stop is visible in `qa/overnight_runner.log`.
+- Cleaned stale port 8000 server and archived remaining test rows (`sample_reviews=0`, `calendar_posts=0`) before restart.
+
 ## 2026-07-03 05:55 UTC singleton-lock hardening
 - The second exit notification (`proc_4193f6ab15f2`, code 3840) came from a stale duplicate runner that was still using the pre-lock command. It overlapped with the newer runner on the same `sidneylaruel` test client and port 8000, so its red lines were tester interference: one runner stopped the shared static server while the other was navigating, and both runners cleaned/archived each other's scenario rows.
 - Added a singleton lock to `qa/overnight_runner.sh` (`qa/overnight-output/.overnight_runner.lock`) so only one overnight runner can mutate the live test client at a time. A duplicate runner now exits immediately with a clear log line instead of producing false app failures.

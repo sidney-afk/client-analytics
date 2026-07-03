@@ -44,7 +44,7 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 
 | Surface | Current production path | Kill switch / rollback | Last verified |
 |---|---|---|---|
-| Calendar writes (upsert/reorder) | n8n webhooks (pre-migration baseline) | n/a — baseline | 2026-07-03 |
+| Calendar writes (upsert/reorder) | n8n webhooks (baseline). A1 Edge Function code is staged only; no migration/deploy/flag cutover yet. | When A1 support tables exist, set `syncview_runtime_flags.calendar_upsert_ef_clients` to `{"clients":[]}` to force all upsert writes back to n8n. Before that, rollback is PR revert; current production still uses n8n. | 2026-07-03 (`npm test` green; no cutover) |
 | Samples New (SXR) writes | n8n webhooks (baseline) | n/a — baseline | 2026-07-03 |
 | Samples Old writes | n8n webhooks (baseline; out of migration scope, D4) | n/a | 2026-07-03 |
 | Linear → app realtime sync | n8n workflow `MJbMZ789B5ExZz9x` (re-enabled 2026-07-03); two Linear webhooks now cover **both VID and GRA** | Deactivate the workflow in n8n; reconciler continues healing every 10 min regardless | 2026-07-03 (VID execs 190909/190910; GRA exec 190952) |
@@ -79,3 +79,12 @@ kept current the whole time, so nothing is lost.
   `migrations/live-schema-baseline-2026-07-03.sql`; private full n8n export confirmed via
   weekly-backup execution `191240`. Because this repo is public, raw unredacted workflow JSON
   remains private; repo evidence is summarized in `n8n-backups/2026-07-03-phase0-snapshot-status.md`.
+- **Pre-A1 snapshot started 2026-07-03**: git tag `pre-A1` points to `main` commit
+  `ba365410`; `calendar_posts` was dumped privately to
+  `private-backups/2026-07-03-pre-A1/calendar_posts.pre-A1.2026-07-03.json` (outside the
+  public repo). A1-scoped n8n workflow versions are recorded in
+  `n8n-backups/2026-07-03-pre-A1-snapshot-status.md`; raw workflow JSON remains private.
+- **A1 staged rollback point**: the `calendar_upsert_ef_clients` runtime flag is the single
+  flip point for browser and reconciler calendar-upsert routing. The value `{"clients":[]}`
+  means all clients use the old n8n upsert path. Canary may set only `{"clients":["sidneylaruel"]}`;
+  any real-client value requires the owner's next explicit gate approval.

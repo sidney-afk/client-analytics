@@ -62,6 +62,13 @@ globalThis.CAL_CARD_JOB_MAX_AGE_MS = 48 * 60 * 60 * 1000;
 globalThis.CAL_CARD_JOB_MAX_RUNS = 5;
 globalThis.CAL_CARD_JOB_LIVE_HEARTBEAT_MS = 3 * 60 * 1000;
 globalThis.CALENDAR_UPSERT_URL = 'https://n8n.example/webhook/calendar-upsert-post';
+globalThis._calUpsertFetch = async (_clientOrSlug, payload) => {
+  return fetch(CALENDAR_UPSERT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+};
 
 let notifications = [];
 globalThis.showNotify = (title, msg) => notifications.push({ title, msg });

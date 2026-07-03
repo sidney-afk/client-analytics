@@ -13177,7 +13177,9 @@
        with Tweaks Needed lowest).
        ============================================================ */
     const CALENDAR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-get';
-    const CALENDAR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+    const CALENDAR_UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+    const CALENDAR_UPSERT_URL  = CALENDAR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+    const CALENDAR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
     const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
@@ -13236,6 +13238,96 @@
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
+    const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
+    let _calUpsertEfClients = new Set();
+    let _calUpsertFlagPromise = null;
+    let _calUpsertFlagChannel = null;
+    let _calUpsertFlagClient = null;
+    let _calUpsertFlagClientPromise = null;
+    function _calRuntimeFlagClients(value) {
+        const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
+        return raw.map(x => {
+            try { return calClientSlug(String(x || '')); } catch (e) { return String(x || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        }).filter(Boolean);
+    }
+    function _calSetUpsertFlagValue(value) {
+        _calUpsertEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('calendar-upsert EF clients:', Array.from(_calUpsertEfClients).join(',') || '(none)');
+    }
+    async function _calFetchUpsertFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _calSetUpsertFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(CALENDAR_UPSERT_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _calSetUpsertFlagValue({ clients: [] });
+            console.warn('[Calendar] calendar-upsert EF flag read failed; using n8n fallback', e);
+        }
+    }
+    function _calRuntimeFlagClient() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) return Promise.resolve(null);
+        if (_calUpsertFlagClient) return Promise.resolve(_calUpsertFlagClient);
+        if (_calUpsertFlagClientPromise) return _calUpsertFlagClientPromise;
+        _calUpsertFlagClientPromise = _calV2LoadLib().then(lib => {
+            if (!lib || !lib.createClient) return null;
+            _calUpsertFlagClient = lib.createClient(CAL_SUPABASE_URL, CAL_SUPABASE_ANON_KEY, {
+                auth: { persistSession: false, autoRefreshToken: false },
+                realtime: { params: { eventsPerSecond: 2 } }
+            });
+            return _calUpsertFlagClient;
+        }).catch(e => { console.warn('[Calendar] runtime flag realtime init failed', e); _calUpsertFlagClientPromise = null; return null; });
+        return _calUpsertFlagClientPromise;
+    }
+    async function _calSubscribeUpsertFlag() {
+        if (_calUpsertFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _calUpsertFlagChannel) return;
+        try {
+            _calUpsertFlagChannel = client
+                .channel('syncview-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + CALENDAR_UPSERT_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _calSetUpsertFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Calendar] runtime flag realtime subscribe failed', e);
+            _calUpsertFlagChannel = null;
+        }
+    }
+    function _calPrimeUpsertRoutingFlag() {
+        if (!_calUpsertFlagPromise) {
+            _calUpsertFlagPromise = _calFetchUpsertFlagOnce().then(() => _calSubscribeUpsertFlag()).catch(() => null);
+        }
+        return _calUpsertFlagPromise;
+    }
+    function _calUpsertUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _calUpsertEfClients.has(slug);
+    }
+    function _calUpsertUrlForClient(clientOrSlug) {
+        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+    }
+    function _calUpsertHeaders(source) {
+        let role = 'smm';
+        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
+        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' };
+    }
+    function _calUpsertFetch(clientOrSlug, payload, source) {
+        _calPrimeUpsertRoutingFlag();
+        return fetch(_calUpsertUrlForClient(clientOrSlug), {
+            method: 'POST',
+            headers: _calUpsertHeaders(source),
+            body: JSON.stringify(payload)
+        });
+    }
+    _calPrimeUpsertRoutingFlag();
     /* Default Caption Writer prompt — kept in sync with the same string
        baked into the SyncView Calendar — Generate Caption workflow. When
        a client's CaptionPrompts row is empty, both the front-end modal
@@ -14237,10 +14329,7 @@
         const doWrite = async () => {
             for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                    const resp = await fetch(CALENDAR_UPSERT_URL, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: '' })
-                    });
+                    const resp = await _calUpsertFetch(_saveSlug, { client: _saveSlug, post: wirePost, comments_base_at: '' });
                     const j = await resp.json();
                     if (!j || !j.ok) throw new Error((j && j.error) || ('HTTP ' + resp.status));
                     return true;
@@ -16394,7 +16483,8 @@
     async function _calBulkUpsertPosts(posts, progFn) {
         const sendOne = async (post) => {
             try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: calClientSlug(calState.client), post }) });
+                const _bulkSlug = calClientSlug(calState.client);
+                const resp = await _calUpsertFetch(_bulkSlug, { client: _bulkSlug, post });
                 const json = await resp.json();
                 return !!json.ok;
             } catch (e) { return false; }
@@ -20462,10 +20552,7 @@
             // second or two later) doesn't flicker the strip or race a delete.
             _calLastLocalWriteAt = Date.now();
             _calV2Log('SAVE → upsert', _saveSlug, '|', JSON.stringify(wirePost), '| base:', _baseAtToSend);
-            const resp = await fetch(CALENDAR_UPSERT_URL, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend })
-            });
+            const resp = await _calUpsertFetch(_saveSlug, { client: _saveSlug, post: wirePost, comments_base_at: _baseAtToSend });
             // A non-2xx (n8n down, 500 HTML page) would otherwise surface as a
             // cryptic JSON-parse error in the card's save chip.
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -20867,10 +20954,7 @@
         _calFailedNewCards.delete(id);
         const inflight = _calSaveInFlight[id];
         if (inflight) { try { await inflight; } catch (e) {} }
-        const resp = await fetch(CALENDAR_UPSERT_URL, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client: useSlug, post: { id, status: 'Archived' } })
-        });
+        const resp = await _calUpsertFetch(useSlug, { client: useSlug, post: { id, status: 'Archived' } });
         const json = await resp.json();
         if (!json.ok) throw new Error(json.error || 'archive failed');
         // Only mutate calState.posts / cache if the user is still on the
@@ -25154,11 +25238,7 @@
             if (post.linear_issue_id) linkedVideo++;
             if (post.graphic_linear_issue_id) linkedGraphic++;
             try {
-                const resp = await fetch(CALENDAR_UPSERT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client: slug, post })
-                });
+                const resp = await _calUpsertFetch(slug, { client: slug, post });
                 const json = await resp.json().catch(() => ({}));
                 if (json && json.ok) {
                     succeeded++;
@@ -34407,13 +34487,7 @@
         }
         // overall status rides along only when it actually moved (or no snapshot)
         if (!base || overall !== (base.status == null ? '' : String(base.status))) wire.status = overall;
-        const resp = await fetch(CALENDAR_UPSERT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            // comments_base_at lets the upsert 3-way-merge the comment cells so
-            // a client tweak made while the SMM was reviewing isn't clobbered.
-            body: JSON.stringify({ client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') }),
-        });
+        const resp = await _calUpsertFetch(item.slug, { client: item.slug, post: wire, comments_base_at: String(item.post._baseAt || '') });
         const json = await resp.json().catch(() => ({}));
         if (!json || !json.ok) throw new Error((json && json.error) || 'Save failed');
         // Advance the merge base + adopt the server-merged comment cells so a

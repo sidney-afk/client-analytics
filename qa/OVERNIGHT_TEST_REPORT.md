@@ -34,6 +34,12 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 06:20 UTC durable cron chunks
+- `proc_ad44ea6b31cf` received an external `TERM` while running `sxr_gating_flags`; the new trap confirmed the runner itself did not decide to stop. The probes before the signal were green (`sxr_bug_repros`, `sxr_concurrency`).
+- To avoid depending on one long Hermes background terminal, added bounded cron chunks: `qa/overnight_cron_chunk.sh` rotates through probe groups, scenario batches, Calendar probes, and fast master in separate no-agent scheduler ticks.
+- Extended `qa/overnight_runner.sh` with `RUN_PROBES/RUN_SCENARIOS/RUN_CALENDAR/RUN_UNIT` plus offset/limit knobs, so cron can run short non-overlapping slices while keeping the singleton lock and cleanup protections.
+- Validation: shell syntax, dry-run phases 0 and 5, and a focused live one-probe runner chunk passed (`sxr_bug_repros.js`, `pass=4 fail=0`).
+
 ## 2026-07-03 06:12 UTC stale runner notification + restart
 - The `proc_6f6378f6f636` exit notification was from the pre-singleton overlapping runner. Its red lines are the same duplicate-runner interference class already fixed by `dc8e327`.
 - The locked runner `proc_f8084a1d6f65` then passed `sxr_bug_repros`, `sxr_concurrency`, `sxr_gating_flags`, and `sxr_cold_open`, but exited `143` after that without a runner-side TERM log. Added explicit INT/TERM log traps so any future external stop is visible in `qa/overnight_runner.log`.

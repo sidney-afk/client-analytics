@@ -174,28 +174,37 @@ while :; do
   ROUND=$((ROUND + 1))
   log "---- round $ROUND ----"
 
-  i=0
-  for p in "${PROBES[@]}"; do
-    [ -f "$p" ] || continue
-    i=$((i + 1)); [ "${PROBE_LIMIT:-0}" != "0" ] && [ "$i" -gt "${PROBE_LIMIT}" ] && break
-    run_one "probe:$(basename "$p")" "$NODE_BIN" "$p"
-    cleanup_seeds
-  done
+  if [ "${RUN_PROBES:-1}" != "0" ]; then
+    i=0; ran=0
+    for p in "${PROBES[@]}"; do
+      [ -f "$p" ] || continue
+      i=$((i + 1)); [ "$i" -le "${PROBE_OFFSET:-0}" ] && continue
+      ran=$((ran + 1)); [ "${PROBE_LIMIT:-0}" != "0" ] && [ "$ran" -gt "${PROBE_LIMIT}" ] && break
+      run_one "probe:$(basename "$p")" "$NODE_BIN" "$p"
+      cleanup_seeds
+    done
+  fi
 
-  i=0
-  for b in "${SCN_BATCHES[@]}"; do
-    i=$((i + 1)); [ "${SCN_LIMIT:-0}" != "0" ] && [ "$i" -gt "${SCN_LIMIT}" ] && break
-    run_one "scn:$b" "$NODE_BIN" qa/probes/run_scenarios.js "$b"
-    cleanup_seeds
-  done
+  if [ "${RUN_SCENARIOS:-1}" != "0" ]; then
+    i=0; ran=0
+    for b in "${SCN_BATCHES[@]}"; do
+      i=$((i + 1)); [ "$i" -le "${SCN_OFFSET:-0}" ] && continue
+      ran=$((ran + 1)); [ "${SCN_LIMIT:-0}" != "0" ] && [ "$ran" -gt "${SCN_LIMIT}" ] && break
+      run_one "scn:$b" "$NODE_BIN" qa/probes/run_scenarios.js "$b"
+      cleanup_seeds
+    done
+  fi
 
-  i=0
-  for p in "${CAL_PROBES[@]}"; do
-    [ -f "$p" ] || continue
-    i=$((i + 1)); [ "${CAL_LIMIT:-0}" != "0" ] && [ "$i" -gt "${CAL_LIMIT}" ] && break
-    run_one "calendar:$(basename "$p")" "$NODE_BIN" "$p"
-    cleanup_seeds
-  done
+  if [ "${RUN_CALENDAR:-1}" != "0" ]; then
+    i=0; ran=0
+    for p in "${CAL_PROBES[@]}"; do
+      [ -f "$p" ] || continue
+      i=$((i + 1)); [ "$i" -le "${CAL_OFFSET:-0}" ] && continue
+      ran=$((ran + 1)); [ "${CAL_LIMIT:-0}" != "0" ] && [ "$ran" -gt "${CAL_LIMIT}" ] && break
+      run_one "calendar:$(basename "$p")" "$NODE_BIN" "$p"
+      cleanup_seeds
+    done
+  fi
 
   if [ "${MASTER_FAST_EVERY:-1}" != "0" ] && [ $((ROUND % MASTER_FAST_EVERY)) -eq 0 ]; then
     run_one "master:fast" env SXR_COURIER="$SXR_COURIER" MASTER_CHANGE_NOTE="$MASTER_CHANGE_NOTE" "$NODE_BIN" qa/master.js --profile=fast --no-server
@@ -211,7 +220,7 @@ while :; do
   fi
 
   cleanup_seeds
-  run_one "unit:run-all" "$NODE_BIN" test/run-all.js
+  if [ "${RUN_UNIT:-1}" != "0" ]; then run_one "unit:run-all" "$NODE_BIN" test/run-all.js; fi
   log "round $ROUND done"
   maybe_commit_report
 

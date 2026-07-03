@@ -25,6 +25,10 @@
 //   client.request(comp, text)         — Client "Request change"
 //   client.comment(comp, text)         — Client "Comment" (no status change)
 //   expect(field, value)               — assert a live-DB column equals value
+//   expectPill(comp, status)           — DOM assert on the SMM sheet: the component's
+//                                        sub-status pill shows `status` IN PLACE
+//                                        (pre-reload; catches stale-repaint bugs the
+//                                        DB expect is blind to)
 //   expectComment(comp, {role,is_tweak,body,done,reply,deleted,audience,any})
 //                                      — assert the last (or with any:true, some)
 //                                        comment on a component thread
@@ -926,6 +930,24 @@ async function runScenario(browser, scn, shotDir, doShots) {
       else if (verb === 'client.request') { const p = await actors.client(); res = await clientAct(p, name, args[0], 'request', args[1]); await shot(p, 'client-request'); }
       else if (verb === 'client.comment') { const p = await actors.client(); res = await clientAct(p, name, args[0], 'comment', args[1]); await shot(p, 'client-comment'); }
       else if (verb === 'expect') { const okk = await waitCol(id, args[0], args[1]); note(okk, `expect ${args[0]}=${args[1]}`, okk ? '' : 'got ' + (row(id, args[0]) || {})[args[0]]); continue; }
+      else if (verb === 'expectPill') {
+        // DOM assert on the SMM sheet: the component's sub-status pill shows the
+        // expected status IN PLACE — no reload between the action and this check.
+        // The DB `expect` verb is blind to this class of bug: the resolve-and-
+        // route stale-pill bug shipped with the backend perfectly correct while
+        // the pill lied until a refresh. Synchronous read — an in-place repaint
+        // has already happened (or never will) by the time the action verb returns.
+        const p = await actors.smm();
+        const got = await p.evaluate((a) => {
+          const w = document.querySelector(`.cal-fld-substatus-wrap[data-substatus-pid="${a.id}"][data-substatus-comp="${a.comp}"]`);
+          if (!w) return null;
+          const lbl = w.querySelector('.cal-fld-substatus-label');
+          return { val: w.getAttribute('data-val'), label: lbl ? lbl.textContent : '' };
+        }, { id, comp: args[0] });
+        const okk = !!got && got.val === args[1];
+        note(okk, `expectPill ${args[0]}=${args[1]} (in place, pre-reload)`, okk ? '' : `got ${JSON.stringify(got)}`);
+        continue;
+      }
       else if (verb === 'expectComment') {
         const want = args[1] || {};
         // Poll briefly: the comment write is async (save funnel), so the row can lag the click.

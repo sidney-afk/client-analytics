@@ -88,3 +88,7 @@ p89_cal_create_via_ui.js
 p90_merge_midsave_keep.js
 # --- UI-born row adopted/merged by already-open tabs via realtime handler ---
 p91_ui_realtime_multitab.js
+# --- SAMPLES sheet pill updates in place on resolve->route (stale-pill regression) ---
+p92_sxr_resolve_pill_inplace.js
+# --- SAMPLES cache self-heal: archived phantom can't flash on every refresh ---
+p93_sxr_stale_cache_heal.js

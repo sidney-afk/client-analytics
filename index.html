@@ -6,6 +6,100 @@
     <meta name="referrer" content="no-referrer">
     <title>SyncView</title>
     <link rel="icon" type="image/png" href="syncview-favicon.png">
+    <!-- Pre-paint boot gate. The static <body> markup is the staff analytics
+         dashboard, but the code that reroutes special entries (onboarding
+         forms, ?intake=1, ?c= client links, the password gate, hash-tab
+         refreshes) sits at the END of the ~30k-line app script — so without
+         this, every one of those entries flashes the SyncView header +
+         "Client Analytics" chrome before the right view mounts. This script
+         re-derives the same boot mode from the URL + storage and tags <html>
+         (which exists from the first byte — tagging <body> is too late: a
+         paint can slip in between <body> being created and a body-start
+         script running) so the CSS gate rules (see "Pre-paint boot gate" in
+         the style block) suppress the wrong chrome from the very first
+         paint. The app script lifts each tag at the exact point its own
+         show/hide logic takes over: data-boot-nav in navTo()/render() and
+         init()'s catch, boot-password in submitPassword(), boot-client in
+         the ?c= boot block; boot-onboarding and boot-intake are permanent,
+         like the body.onboarding-mode/.intake-mode classes they anticipate. Must
+         never throw and never log — headless probes boot this file
+         unauthenticated + offline and fail on any console error. -->
+    <script>
+    (function () {
+        try {
+            var de = document.documentElement;
+            var q = new URLSearchParams(location.search);
+            // Same detection as the app's entry router (search for
+            // _isAiOnboarding): the /ai_ path can't match the standard regex
+            // (no '/' before 'onboarding_form'), so order doesn't matter.
+            var obParam = q.get('onboarding');
+            var isAiOb = (obParam === 'ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
+            var isOb = isAiOb || (obParam !== null) || /\/onboarding_form\/?$/i.test(location.pathname);
+            if (isOb) {
+                // Brand the tab before first paint too — the entry router
+                // re-applies both later (no-ops by then).
+                de.classList.add('boot-onboarding');
+                document.title = 'SynchroSocial';
+                var fav = document.querySelector('link[rel="icon"]');
+                if (fav) fav.href = 'synchro-social-favicon.png';
+                return;
+            }
+            if (q.get('intake') === '1') { de.classList.add('boot-intake'); return; }
+            if (q.get('c')) { de.classList.add('boot-client'); return; }
+            var authed = false;
+            try { authed = localStorage.getItem('syncview_auth_v1') === 'ok'; } catch (e) {}
+            if (!authed) { de.classList.add('boot-password'); return; }
+            // Authed staff: predict the landing tab (mirror of init()'s
+            // router, conservative — when unsure, tag nothing and boot
+            // exactly as today) so a refresh on e.g. #calendar never paints
+            // the Analytics-active pill + the "Client Analytics" overview
+            // header first.
+            var st = null; try { st = history.state; } catch (e) {}
+            if (st && st.client) return; // client-profile restore keeps #pageTop
+            var hash = location.hash.replace('#', '');
+            try { hash = decodeURIComponent(hash); } catch (e) {}
+            var seg = hash.split('/')[0];
+            var FAST = ['linear', 'workload', 'calendar', 'samples', 'templates', 'tiktok-upload'];
+            var ses = function (k) { try { return sessionStorage.getItem(k) === 'ok'; } catch (e) { return false; } };
+            var kasperOk = function () { return q.get('Kasper') === '1' || ses('syncview_kasper_unlocked'); };
+            var ttpOk = function () { return q.get('ttpilot') === '1' || ses('syncview_ttpilot_unlocked'); };
+            var sxrOn = function () {
+                try {
+                    var sv = q.get('sxr');
+                    return (sv === '1' || sv === 'true') || (sv !== '0' && sv !== 'false' && localStorage.getItem('syncview_sxr_on') === '1' && localStorage.getItem('syncview_sxr_off') !== '1');
+                } catch (e) { return false; }
+            };
+            var target = '';
+            if (!hash && q.get('Kasper') === '1' && !ses('syncview_kasper_unlocked')) {
+                // Bare ?Kasper=1 jumps straight to Kasper only on FIRST
+                // arrival (init()'s _kasperArrivedFromUnlockParam is false
+                // once the session flag is set); mid-session refreshes of a
+                // hashless ?Kasper=1 URL route to savedNav/home instead.
+                target = 'kasper';
+            }
+            else if (FAST.indexOf(hash) >= 0) target = hash; // exact fast-tab hash
+            // Only calendar/samples/templates route sub-path hashes
+            // (init()'s hashIsFastTab); linear/workload/tiktok-upload need
+            // an exact match, so a sub-path there gets no prediction.
+            else if (seg === 'calendar' || seg === 'samples' || seg === 'templates') target = seg;
+            else if (seg === 'kasper' && kasperOk()) target = 'kasper'; // kasper + kasper/<subtab>
+            else if (hash === 'tiktok-pilot' && ttpOk()) target = 'tiktok-pilot'; // exact only
+            else if (seg === 'sample-reviews' && sxrOn()) target = 'sample-reviews';
+            else if (!hash) {
+                var saved = null; try { saved = localStorage.getItem('syncview_nav'); } catch (e) {}
+                var nav = (st && st.nav) || saved;
+                // Mirror of init(): the fast path restores (stateNav ||
+                // savedNav) for FAST tabs even in a NEW tab (fallbackFast —
+                // no history.state needed); the post-await router restores
+                // savedNav kasper/tiktok-pilot only on a real refresh
+                // (history.state present) and only while unlocked.
+                if (FAST.indexOf(nav) >= 0) target = nav;
+                else if (st && st.nav && ((saved === 'kasper' && kasperOk()) || (saved === 'tiktok-pilot' && ttpOk()))) target = saved;
+            }
+            if (target) de.setAttribute('data-boot-nav', target);
+        } catch (e) {}
+    })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://docs.google.com">
@@ -358,6 +452,44 @@
         body.intake-mode #linearFilmingPlansField { display: none !important; }
         body.onboarding-mode .header { display: none !important; }
         body.onboarding-mode #pageTop { display: none !important; }
+        /* Pre-paint boot gate (tags set on <html> by the tiny script in
+           <head> before any body markup exists — see the comment there).
+           Together with the .onboarding-mode/.intake-mode rules above, these
+           keep the wrong view from ever painting on special entries. */
+        /* Onboarding forms are dark; the full theme is injected at mount
+           (_obInjectStyles, #101216) — pre-paint the same bg (on <html> so
+           the canvas is dark even before <body> parses) so the light
+           dashboard canvas never flashes behind the form. */
+        html.boot-onboarding, html.boot-onboarding body { background: #101216; }
+        html.boot-onboarding .header { display: none !important; }
+        html.boot-onboarding #pageTop { display: none !important; }
+        /* Intake is locked to the Linear page, which never shows the header
+           and always hides #pageTop. */
+        html.boot-intake .header { display: none !important; }
+        html.boot-intake #pageTop { display: none !important; }
+        /* Client share links (?c=): staff chrome must never paint. The ?c=
+           boot block removes the class the moment its own inline hides take
+           over, so these rules go inert after boot and the popstate re-show
+           of #pageTop for client profiles keeps working. (.header needs
+           !important pre-paint: its markup carries an inline display:grid.) */
+        html.boot-client .header { display: none !important; }
+        html.boot-client #pageTop { display: none; }
+        /* Unauthenticated staff visit: the opaque password overlay covers
+           from first paint instead of popping in after the app script
+           evaluates (!important beats the overlay's inline display:none;
+           submitPassword removes the class on success). */
+        html.boot-password #passwordOverlay { display: flex !important; }
+        /* Staff refresh landing on a non-home tab: suppress the hardcoded
+           Analytics-active pill and the "Client Analytics" overview header,
+           and pre-light the pill of the tab actually being restored.
+           navTo()/render() remove the attribute when routing takes over. */
+        html[data-boot-nav] #pageTop { display: none; }
+        html[data-boot-nav] #headerNav .header-nav-btn.active { background: var(--white); color: var(--text-secondary); border-color: var(--border); }
+        html[data-boot-nav="linear"] #navLinear, html[data-boot-nav="workload"] #navWorkload,
+        html[data-boot-nav="calendar"] #navCalendar, html[data-boot-nav="samples"] #navSamples,
+        html[data-boot-nav="templates"] #navTemplates, html[data-boot-nav="tiktok-upload"] #navTiktokUpload,
+        html[data-boot-nav="kasper"] #navKasper, html[data-boot-nav="tiktok-pilot"] #navTiktokPilot,
+        html[data-boot-nav="sample-reviews"] #navSxr { background: var(--text-primary); color: var(--white); border-color: var(--text-primary); }
         .view-tab-btn {
             display: inline-flex; align-items: center; gap: 7px;
             padding: 7px 20px; border: none; border-radius: 8px;
@@ -6908,6 +7040,11 @@
     }
 
     function render(sel,clientOnly){
+        // Boot-gate belt-and-braces: today's render()-first boot paths
+        // (client links, history.state.client, client-name hashes) never set
+        // data-boot-nav, but lift it here anyway so a future render()-first
+        // path can't strand the gate (see the <head> boot script).
+        document.documentElement.removeAttribute('data-boot-nav');
         const content=document.getElementById('content'),pageTitle=document.getElementById('pageTitle'),pageSub=document.getElementById('pageSub'),selectorWrap=document.getElementById('selectorWrap'),titleRow=document.getElementById('titleRow'),pageTop=document.getElementById('pageTop');
         const existingBack=titleRow.querySelector('.back-btn');
         if(sel!=='all'&&!clientOnly){
@@ -11720,6 +11857,9 @@
         // so every navigation (back button, restored hash, logo) lands on it.
         if (document.body.classList.contains('intake-mode')) page = 'linear';
         if (document.body.classList.contains('onboarding-mode')) page = 'onboarding';
+        // Routing has decided: hand off from the pre-paint boot gate (the
+        // <head> boot script's data-boot-nav tag) to the real nav toggles below.
+        document.documentElement.removeAttribute('data-boot-nav');
         currentNav = page;
         localStorage.setItem(NAV_KEY, page);
         document.getElementById('navHome').classList.toggle('active', page === 'home');
@@ -25406,6 +25546,10 @@
             if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);
         }catch(err){
+            // Lift the pre-paint boot gate too: routing died before
+            // navTo()/render() could, and the error card should show on the
+            // normal chrome, not a half-gated one.
+            document.documentElement.removeAttribute('data-boot-nav');
             document.getElementById('content').innerHTML=`<div class="error-state">Could not load data. Make sure the Google Sheet is set to "Anyone with the link can view".<br><br><small style="color:#aaa">${err.message}</small></div>`;
         }
     }
@@ -25414,7 +25558,13 @@
     function submitPassword(){
         const v=document.getElementById('passwordInput').value;
         if(v==='synchrosocial2026'){
-            localStorage.setItem(_AUTH_KEY,'ok');
+            // Guarded: with storage blocked (e.g. "Block all cookies") the
+            // setItem throws — auth just won't persist across reloads, but
+            // the overlay must still come down for this session.
+            try { localStorage.setItem(_AUTH_KEY,'ok'); } catch (e) {}
+            // Lift the boot gate's pre-paint overlay rule (display:flex
+            // !important) so the inline hide below actually applies.
+            document.documentElement.classList.remove('boot-password');
             document.getElementById('passwordOverlay').style.display='none';
             init();
         } else {
@@ -25491,6 +25641,10 @@
                 <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="animation:spin 0.9s linear infinite;flex-shrink:0;opacity:0.35"><circle cx="14" cy="14" r="11" stroke="#111" stroke-width="2.5" stroke-dasharray="50 20"/></svg>
                 <span style="font-family:'Plus Jakarta Sans',sans-serif;font-size:0.88rem;color:#aaa;font-weight:500;">${_clientLoaderText}</span>
             </div>`;
+            // The inline hides above now own the chrome; drop the boot gate's
+            // pre-paint class so the popstate handler can re-show #pageTop
+            // for client profiles exactly as before.
+            document.documentElement.classList.remove('boot-client');
         }
         init();
         if(_isIntake){ try{ navTo('linear', false); }catch(e){} }

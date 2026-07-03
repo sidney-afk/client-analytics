@@ -46,6 +46,15 @@ in the main nav — reachable only by knowing the link. Like `?intake=1`, this m
 - loads **no** dashboard/Sheet/Supabase data, so the form works even if the rest of
   the app's data sources are down.
 
+The chrome hide happens **before first paint**: the pre-paint boot gate (a tiny
+script in `<head>` in `index.html`) detects onboarding mode from the URL, tags
+`<html>` with `boot-onboarding`, pre-paints the form's dark background (`#101216`),
+and sets the SynchroSocial tab title + favicon — so the SyncView analytics dashboard
+never flashes while the app script loads. (`404.html`'s interstitial uses the same
+dark background so the redirect hop doesn't shift color.) The step-2 pages on
+synchrosocial.com link straight to the `?onboarding=` query entry to skip the
+404-redirect hop; the address bar is still rewritten to the clean path on mount.
+
 Each funnel autosaves its own draft to `localStorage` — `syncview_onboarding_draft_v1`
 (standard) and `syncview_ai_onboarding_draft_v1` (AI) — so the two never clobber each
 other; the draft clears on a successful submit.

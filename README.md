@@ -23,7 +23,12 @@ onboarding, and keeping everything in sync with Linear.
 ## Architecture
 
 The entire front end is one file, `index.html` (~2 MB): an inline-`<script>` SPA with
-no build step. It talks to three backends.
+no build step. A tiny **pre-paint boot gate** script in `<head>` re-derives the boot
+mode (onboarding form, `?intake=1`, `?c=` client links, password gate, hash-tab
+refresh) from the URL + storage before any body markup exists and tags `<html>`,
+so the staff dashboard chrome never flashes on special entries; the app script lifts
+each tag when its own routing takes over (the onboarding/intake tags are permanent,
+like the body classes they anticipate). The app talks to three backends.
 
 1. **Supabase** (Postgres + realtime) — the live operational store for everything that
    changes frequently: the content calendar, samples, onboarding, Kasper review state,

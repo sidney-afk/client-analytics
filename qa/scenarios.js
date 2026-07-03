@@ -114,6 +114,35 @@ function base() {
     ] });
 
 
+  // A UI-born row then enters the real workflow buttons. This covers the bug
+  // class left after create/rename/archive/reorder: the card starts as an
+  // optimistic browser blank, gets enough backend metadata to become workflowable,
+  // then moves through real request, approve, Kasper approve, and client request
+  // buttons without duplicating or diverging from server truth.
+  S.push({ key: 'create_via_ui_workflow_video', title: 'Create via UI then drive video through request/approve/client-request workflow', shots: true, noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Workflow Video'],
+      ['expectCardOnce', 'UI Workflow Video'],
+      ['smm.editFieldCard', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
+      ['expectCardField', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
+      ['api.patchCardByName', 'UI Workflow Video', { linear_issue_id: 'https://linear.app/x/VID-UI-WORKFLOW' }],
+      ['smm.bgReload'],
+      ['smm.statusCard', 'UI Workflow Video', 'video', 'For SMM Approval'],
+      ['expectCardField', 'UI Workflow Video', 'video_status', 'For SMM Approval'],
+      ['smm.requestCard', 'UI Workflow Video', 'video', 'UI-born SMM request before approve'],
+      ['expectCardField', 'UI Workflow Video', 'video_status', 'Tweaks Needed'],
+      ['expectCardComment', 'UI Workflow Video', 'video', { role: 'smm', is_tweak: true }],
+      ['smm.statusCard', 'UI Workflow Video', 'video', 'For SMM Approval'],
+      ['smm.approveCard', 'UI Workflow Video', 'video', 'primary'],
+      ['expectCardField', 'UI Workflow Video', 'video_status', 'Kasper Approval'],
+      ['kasper.approveCard', 'UI Workflow Video', 'video'],
+      ['expectCardField', 'UI Workflow Video', 'video_status', 'Client Approval'],
+      ['client.requestCard', 'UI Workflow Video', 'video', 'UI-born client request after approval'],
+      ['expectCardField', 'UI Workflow Video', 'video_status', 'Tweaks Needed'],
+      ['expectCardComment', 'UI Workflow Video', 'video', { role: 'client', is_tweak: true }],
+    ] });
+
+
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,
     // BOTH components linked: an unlinked thumbnail is gated out of the Kasper

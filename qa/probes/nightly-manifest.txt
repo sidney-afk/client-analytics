@@ -86,3 +86,5 @@ p87_resolve_on_route.js
 p89_cal_create_via_ui.js
 # --- mid-save merge keep branch, deterministic (delayed-upsert) ---
 p90_merge_midsave_keep.js
+# --- UI-born row adopted/merged by already-open tabs via realtime handler ---
+p91_ui_realtime_multitab.js

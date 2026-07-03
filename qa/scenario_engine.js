@@ -192,6 +192,54 @@ async function smmRenameCard(page, fromName, toName) {
   }, [fromName, toName]);
 }
 
+
+// Set a component status through the real Sheet pill, locating the card by its
+// visible name. This keeps noSeed/UI-born rows in the real UI path without
+// needing to know the minted sr_* id ahead of time.
+async function smmStatusByName(page, cardName, comp, status) {
+  await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+  await sleep(page, 1700);
+  return page.evaluate((args) => {
+    const [nm, comp, status] = args;
+    const strip = document.getElementById('sxrStrip');
+    if (!strip) return 'no-strip';
+    const card = [...strip.querySelectorAll('.cal-card[data-pid]')].find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    if (!card) return 'no-card';
+    const pid = card.getAttribute('data-pid') || '';
+    if (!pid || pid.startsWith('__sxrblank__')) return 'still-blank';
+    const wrap = card.querySelector(`[data-substatus-pid="${pid}"][data-substatus-comp="${comp}"]`);
+    const trig = wrap && wrap.querySelector('.cal-fld-substatus-trigger');
+    if (!trig || trig.disabled) return trig && trig.disabled ? 'locked' : 'no-trigger';
+    trig.click();
+    const items = [...document.querySelectorAll('.cal-fld-status-menu .cal-fld-status-item')];
+    const item = items.find(i => ((i.getAttribute('onclick') || '').includes("'" + status + "'")))
+            || items.find(i => new RegExp('^\s*' + status + '\s*$', 'i').test(i.textContent));
+    if (!item) return 'no-item';
+    item.click();
+    return 'ok';
+  }, [cardName, comp, status]);
+}
+
+// Edit a Sheet field through the real card input by visible card name. Used by
+// UI-born workflow scenarios to make a newborn video/thumbnail reviewable.
+async function smmEditCardField(page, cardName, field, value) {
+  await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]'); if (b) b.click(); if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+  await sleep(page, 1700);
+  return page.evaluate((args) => {
+    const [nm, field, value] = args;
+    const strip = document.getElementById('sxrStrip');
+    if (!strip) return 'no-strip';
+    const card = [...strip.querySelectorAll('.cal-card[data-pid]')].find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    if (!card) return 'no-card';
+    const input = card.querySelector(`[data-fld="${field}"]`);
+    if (!input) return 'no-field';
+    const proto = input.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+    const set = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    input.focus(); set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); input.blur();
+    return 'ok';
+  }, [cardName, field, value]);
+}
+
 // Archive a card by its visible NAME through the real UI (X button → confirm
 // dialog). Used immediately after smm.createCard to race the archive against
 // the in-flight create save — _sxrArchiveOne must await the save, and neither
@@ -652,8 +700,32 @@ async function runScenario(browser, scn, shotDir, doShots) {
     if (!uiNames.has(label)) uiNames.set(label, `${label} ${id.slice(-10)}`);
     return uiNames.get(label);
   };
+  const liveRowsByName = (cardName, cols) => {
+    const rows = supa('client=eq.sidneylaruel&name=eq.' + encodeURIComponent(cardName) + '&or=(status.neq.Archived,status.is.null)&select=' + (cols || '*')) || [];
+    (Array.isArray(rows) ? rows : []).forEach(r => { if (r && r.id) extraIds.add(r.id); });
+    return Array.isArray(rows) ? rows : [];
+  };
   const note = (pass, msg, extra) => { log.push({ pass, msg, extra }); if (pass) okCount++; else failCount++; };
-  const shot = async (page, label) => { if (!doShots) return; try { fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
+  const settleForShot = async (page) => {
+    if (!doShots) return;
+    try {
+      await page.waitForFunction(() => {
+        const count = (o) => o && typeof o === 'object' ? Object.keys(o).length : 0;
+        const any = (o) => o && typeof o === 'object' && Object.values(o).some(Boolean);
+        const sxrPend = count(typeof _sxrPendingEdits !== 'undefined' ? _sxrPendingEdits : null);
+        const sxrInflight = count(typeof _sxrSaveInFlight !== 'undefined' ? _sxrSaveInFlight : null);
+        const sxrTimers = any(typeof _sxrSaveTimers !== 'undefined' ? _sxrSaveTimers : null);
+        const sxrReviewSaving = any((typeof _sxrReviewState !== 'undefined' && _sxrReviewState) ? _sxrReviewState.saving : null);
+        const calPend = count(typeof _calPendingEdits !== 'undefined' ? _calPendingEdits : null);
+        const calInflight = count(typeof _calSaveInFlight !== 'undefined' ? _calSaveInFlight : null);
+        const calTimers = any(typeof _calSaveTimers !== 'undefined' ? _calSaveTimers : null);
+        const calReviewSaving = any((typeof _calReviewState !== 'undefined' && _calReviewState) ? _calReviewState.saving : null);
+        return sxrPend === 0 && sxrInflight === 0 && !sxrTimers && !sxrReviewSaving && calPend === 0 && calInflight === 0 && !calTimers && !calReviewSaving;
+      }, { timeout: 7000 }).catch(() => {});
+      await page.waitForTimeout(700);
+    } catch {}
+  };
+  const shot = async (page, label) => { if (!doShots) return; try { await settleForShot(page); fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
 
   // Fresh Linear capture per scenario (the runner is serial, so the JSONL file
   // is exclusively this scenario's traffic until we finish).
@@ -679,6 +751,13 @@ async function runScenario(browser, scn, shotDir, doShots) {
       if (verb === 'smm.status') { const p = await actors.smm(); res = await smmStatus(p, id, args[0], args[1]); await shot(p, 'smm-status'); }
       else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, uniqueUiName(args[0])); await shot(p, 'smm-create'); }
       else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, uniqueUiName(args[0]), uniqueUiName(args[1])); await shot(p, 'smm-rename'); }
+      else if (verb === 'smm.editFieldCard') { const p = await actors.smm(); res = await smmEditCardField(p, uniqueUiName(args[0]), args[1], args[2]); await shot(p, 'smm-edit-field'); }
+      else if (verb === 'smm.statusCard') { const p = await actors.smm(); res = await smmStatusByName(p, uniqueUiName(args[0]), args[1], args[2]); await shot(p, 'smm-status-card'); }
+      else if (verb === 'smm.approveCard') { const p = await actors.smm(); res = await smmApprove(p, uniqueUiName(args[0]), args[1], args[2]); await shot(p, 'smm-approve-card'); }
+      else if (verb === 'smm.requestCard') { const p = await actors.smm(); res = await smmRequest(p, uniqueUiName(args[0]), args[1], args[2]); await shot(p, 'smm-request-card'); }
+      else if (verb === 'kasper.approveCard') { const p = await actors.kasper(); res = await kasperAct(p, uniqueUiName(args[0]), args[1], 'approve'); await shot(p, 'kasper-approve-card'); }
+      else if (verb === 'client.requestCard') { const p = await actors.client(); res = await clientAct(p, uniqueUiName(args[0]), args[1], 'request', args[2]); await shot(p, 'client-request-card'); }
+      else if (verb === 'client.approveCard') { const p = await actors.client(); res = await clientAct(p, uniqueUiName(args[0]), args[1], 'approve'); await shot(p, 'client-approve-card'); }
       else if (verb === 'smm.archiveCard') { const p = await actors.smm(); res = await smmArchiveCard(p, uniqueUiName(args[0])); await shot(p, 'smm-archive'); }
       else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, uniqueUiName(args[0])); await shot(p, 'smm-drag'); }
       else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
@@ -697,7 +776,48 @@ async function runScenario(browser, scn, shotDir, doShots) {
         catch (e) { res = 'seed-failed: ' + (e.message || e); }
         await poll(() => { const r = supa('id=eq.' + xid + '&select=id'); return r[0] || null; }, 12000, 600);
       }
+      else if (verb === 'api.patchCardByName') {
+        const wantName = uniqueUiName(args[0]);
+        const patch = Object.assign({}, args[1] || {});
+        try {
+          const rows = liveRowsByName(wantName, 'id,name');
+          if (rows.length !== 1) res = 'rows=' + rows.length;
+          else { up(Object.assign({ id: rows[0].id }, patch)); res = 'ok'; }
+        } catch (e) { res = 'patch-failed: ' + (e.message || e); }
+      }
       else if (verb === 'wait') { const p = await actors.smm(); await sleep(p, Number(args[0]) || 1000); }
+      else if (verb === 'expectCardField') {
+        const wantName = uniqueUiName(args[0]);
+        const field = args[1], wantVal = args[2];
+        let rows = [], got = undefined;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 15000) {
+          try { rows = liveRowsByName(wantName, 'id,name,' + field); got = rows[0] && rows[0][field]; } catch { rows = []; got = undefined; }
+          if (rows.length === 1 && String(got) === String(wantVal)) break;
+          await new Promise(s => setTimeout(s, 600));
+        }
+        const okk = rows.length === 1 && String(got) === String(wantVal);
+        note(okk, `expectCardField "${wantName}" ${field}=${wantVal}`, okk ? '' : `rows=${rows.length} got=${got}`);
+        continue;
+      }
+      else if (verb === 'expectCardComment') {
+        const wantName = uniqueUiName(args[0]);
+        const comp = args[1];
+        const want = args[2] || {};
+        let rows = [], list = [], c = null, okk = false;
+        const t0 = Date.now();
+        while (Date.now() - t0 < 15000 && !okk) {
+          try {
+            rows = liveRowsByName(wantName, 'id,name,' + comp + '_tweaks');
+            list = JSON.parse((rows[0] && rows[0][comp + '_tweaks']) || '[]') || [];
+            c = list[list.length - 1] || null;
+            okk = rows.length === 1 && (want.any ? list.some(x => commentMatches(x, want)) : commentMatches(c, want));
+          } catch { rows = []; list = []; c = null; }
+          if (!okk) await new Promise(s => setTimeout(s, 600));
+        }
+        note(okk, `expectCardComment "${wantName}" ${comp} ${JSON.stringify(want)}`, okk ? '' : (c ? `rows=${rows.length} last role=${c.role} tweak=${c.is_tweak} body=${String(c.body || '').slice(0, 40)}` : `rows=${rows.length} none`));
+        continue;
+      }
       else if (verb === 'expectCardGone') {
         // Inverse of expectCardOnce: ZERO cards with this name in the DOM
         // (including blanks) and ZERO live DB rows. The archive-during-create

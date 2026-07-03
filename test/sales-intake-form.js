@@ -30,7 +30,7 @@ function grabFunc(name) {
   throw new Error('unbalanced braces: ' + name);
 }
 function grabConst(name) {
-  const m = INDEX.match(new RegExp('const ' + name + ' = [\\s\\S]*?;\\n'));
+  const m = INDEX.match(new RegExp('const ' + name + ' = [\\s\\S]*?;\\r?\\n'));
   if (!m) throw new Error('const not found: ' + name);
   return m[0];
 }

@@ -102,7 +102,8 @@ function profilePlan(profile) {
   return {
     unit: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
-    scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,clean_both,smm_request_video,client_approve_video' },
+    probes: { files: ['p89_cal_create_via_ui.js', 'p91_ui_realtime_multitab.js'] },
+    scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,create_via_ui_workflow_video,clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
 }
@@ -204,8 +205,8 @@ function readManifest() {
     .map(n => (n.endsWith('.js') ? n : n + '.js'));
 }
 
-function laneProbes() {
-  const probes = readManifest().filter(f => fs.existsSync(path.join(PROBES, f)));
+function laneProbes(cfg = {}) {
+  const probes = (cfg.files || readManifest()).filter(f => fs.existsSync(path.join(PROBES, f)));
   if (!probes.length) return { ok: true, summary: 'no probes', ms: 0, tail: '', skipped: true };
   const failed = []; let ms = 0;
   for (const f of probes) {
@@ -335,7 +336,7 @@ function laneVisual(cfg) {
         if (lane === 'unit') res = laneUnit();
         else if (lane === 'parity') res = laneParity(plan.parity || { files: [] });
         else if (lane === 'realtime') res = laneRealtime();
-        else if (lane === 'probes') res = laneProbes();
+        else if (lane === 'probes') res = laneProbes(plan.probes || {});
         else if (lane === 'temporal') res = laneTemporal(plan.temporal || { glob: /^ot_temporal_.*\.js$/ });
         else if (lane === 'scenarios') res = laneScenarios(plan.scenarios || { filter: null });
         else if (lane === 'tree') res = laneTree(plan.tree || { filter: null });

@@ -24,8 +24,8 @@ compliance — stop and fix it.
    current schema — which is what makes rule 1 honest.
 4. **Snapshot before every phase.** (a) git tag `pre-<phase>` (e.g. `pre-A1`) on `main`;
    (b) JSON export of every n8n workflow the phase touches; (c) Supabase dump (CSV or SQL) of
-   every table the phase writes, stored in the weekly-backup Drive folder
-   (`15m--zegUJLIX9ND_4LKv3xQC1Oc4SFVJ`), and note the file names in `EXECUTION_LOG.md`.
+   every table the phase writes, stored in the private weekly-backup Drive folder, and note the
+   public-safe file names in `EXECUTION_LOG.md`.
 5. **Log everything.** `EXECUTION_LOG.md` (create in the first execution PR) gets a dated entry
    for every deploy, flag flip, n8n change, DB migration, backup taken, incident, and rollback —
    with enough detail to reconstruct events later. This complements the in-app event ledgers
@@ -51,7 +51,7 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 | App → Linear pushes (set-status/comment) | n8n webhooks + FE localStorage outboxes (baseline) | n/a — baseline | 2026-07-03 |
 | Status drift healing | GitHub Actions reconcilers every ~10 min (n8n triggers `AkiFmromoDkmsh39` active, `ZJOtYpQZj73DcBB1` inactive) | Must stay ACTIVE until Track B5 — this is the global safety net | 2026-07-03 |
 | Templates / caption prompts | Google Sheets via n8n (baseline) | n/a — baseline | 2026-07-03 |
-| Filming plans runway | n8n `filming-plan-tabs` (baseline) | n/a — baseline | 2026-07-03 |
+| Filming plans runway | Production still uses n8n `filming-plan-tabs` (baseline). QA/headless harness stubs this endpoint by default to stop cold-cache n8n load; set `SYNCVIEW_QA_LIVE_FILMING_TABS=1` for a deliberate live probe. | Revert the QA harness commit, or run QA with `SYNCVIEW_QA_LIVE_FILMING_TABS=1`. Production rollback remains n/a; baseline n8n path is still live. | 2026-07-03 |
 | Production tab (Track B) | does not exist yet | — | — |
 
 ## 3. Emergency full rollback (worst case, any time during Track A)
@@ -71,10 +71,11 @@ kept current the whole time, so nothing is lost.
 ## 4. Backup inventory (what exists, where)
 
 - **Weekly** (Sun 02:00, n8n `jlVfbg0Njxf1It7h`): main Sheet copy, repo zip, ALL n8n workflow
-  JSONs, Supabase dumps (calendar_posts, content_samples, + onboarding tables) → Drive folder
-  `15m--zegUJLIX9ND_4LKv3xQC1Oc4SFVJ`.
+  JSONs, Supabase dumps (calendar_posts, content_samples, + onboarding tables) → private
+  weekly-backup Drive folder.
 - **Repo**: `n8n-backups/` (point-in-time workflow JSONs), `migrations/` (schema), git history
   + tags. Phase snapshots per rule 4 add to these.
-- **Gap to close in Phase 0**: the live-schema baseline dump (plan §5.3) and a full 87-workflow
-  n8n export into the repo (plan §5.4) — after that, everything needed to rebuild exists in
-  either the repo or the Drive folder.
+- **Phase 0 baseline closed 2026-07-03**: live schema committed at
+  `migrations/live-schema-baseline-2026-07-03.sql`; private full n8n export confirmed via
+  weekly-backup execution `191240`. Because this repo is public, raw unredacted workflow JSON
+  remains private; repo evidence is summarized in `n8n-backups/2026-07-03-phase0-snapshot-status.md`.

@@ -114,13 +114,18 @@ guard-by-guard analysis remains the reference for port fidelity.
    latency. **Realtime Linear→SyncView sync is now live for BOTH teams for the first time.**
    Note: the new webhook's signing secret is currently inert (n8n does not verify signatures);
    the Track A EF port introduces its own HMAC-verified webhook + secret.
-3. **[Codex, first commit] Recover the live schema.** Dump the live DDL (tables, policies,
+3. **[DONE 2026-07-03] Recover the live schema.** Dump the live DDL (tables, policies,
    triggers, publication membership) into `migrations/live-schema-baseline-YYYY-MM-DD.sql`.
-   The `calendar_posts` base DDL was never committed; `EDGE_FUNCTIONS_MIGRATION.md` flags this as
-   a Phase-0 prerequisite. Requires the Supabase dashboard SQL editor or `pg_dump` with owner-held
-   credentials — coordinate with the owner; do not guess the schema.
-4. **[Codex] Snapshot all 87 live n8n workflows** into `n8n-backups/` (dated folder), because
-   ~60 live workflows currently have no repo backup and Track A edits several of them.
+   The owner ran the Supabase catalog query in SQL editor; the schema-only output is committed as
+   `migrations/live-schema-baseline-2026-07-03.sql`. Do not reconstruct live DDL from stale
+   migrations or row-shaped REST responses.
+4. **[DONE 2026-07-03] Snapshot all 87 live n8n workflows.** Raw workflow JSON can contain
+   credentials, tokens, webhook secrets, and private business payloads, while this repo is public.
+   The required full unredacted export therefore stays private in the weekly-backup Drive folder,
+   and the public repo carries only status evidence under `n8n-backups/`. The MCP execution tool
+   rejected a manual run despite owner approval, so the owner ran the backup manually in n8n.
+   Execution `191240` succeeded and produced the private Drive evidence recorded in
+   `n8n-backups/2026-07-03-phase0-snapshot-status.md`.
 5. **[Codex] Stop the QA harness from hammering `filming-plan-tabs`** (D10): the frontend has a
    correct 30-min localStorage cache (`KASPER_FILMING_CACHE_MAX_AGE_MS`, index.html:31548), but
    every fresh headless QA context starts cold and a full pass fires ~1 call per client-with-doc.

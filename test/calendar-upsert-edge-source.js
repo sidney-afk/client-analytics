@@ -67,5 +67,9 @@ ok(/normalizeGenerated/.test(PARITY) && /updated_at/.test(PARITY) && /created_at
   'parity harness must normalize generated timestamps');
 ok(/calendar_post_events/.test(PARITY) && /<generated:id>/.test(PARITY),
   'parity harness must normalize event auto-IDs before diagnostics');
+ok(/comment-merge-video-tweaks/.test(PARITY) && /verifyMergedComments/.test(PARITY),
+  'parity harness must include a threaded comment-merge parity case');
+ok(/comments_base_at: '2026-07-03T01:05:00\.000Z'/.test(PARITY) && /concurrentComment/.test(PARITY),
+  'comment-merge parity must retain a stored comment newer than the editor base');
 
 console.log('calendar-upsert Edge Function source checks passed');

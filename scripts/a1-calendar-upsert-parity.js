@@ -175,6 +175,28 @@ function stable(value) {
   return JSON.stringify(sortObject(value), null, 2);
 }
 
+function parseCell(value) {
+  try {
+    const rows = JSON.parse(value || '[]');
+    return Array.isArray(rows) ? rows : [];
+  } catch (_e) {
+    return [];
+  }
+}
+
+function verifyMergedComments(rowId, expectedIds, oldResult, efResult) {
+  for (const [label, result] of [['n8n', oldResult], ['edge-function', efResult]]) {
+    const row = result.rows.find(r => String(r.id) === rowId);
+    if (!row) return `${label} missing merged comment row ${rowId}`;
+    const ids = new Set(parseCell(row.video_tweaks).map(c => String(c && c.id)));
+    for (const id of expectedIds) {
+      if (!ids.has(id)) return `${label} merged comments missing ${id}`;
+    }
+    if (row.tweaks !== row.video_tweaks) return `${label} legacy tweaks mirror differs from video_tweaks`;
+  }
+  return null;
+}
+
 function baseRow(id, over = {}) {
   return Object.assign({
     client: CLIENT,
@@ -200,6 +222,20 @@ function cases() {
   const p = `a1_parity_${run}`;
   const vid = n => `https://linear.app/synchrosocial/issue/VID-A1P-${run}-${n}/a1-parity-${n}`;
   const gra = n => `https://linear.app/synchrosocial/issue/GRA-A1P-${run}-${n}/a1-parity-${n}`;
+  const comment = (suffix, body, at) => ({
+    id: `c_${run}_${suffix}`,
+    author: 'A1 parity',
+    role: 'smm',
+    body,
+    created_at: at,
+    updated_at: at,
+    audience: 'internal',
+  });
+  const keptComment = comment('kept', 'existing visible comment', '2026-07-03T01:00:00.000Z');
+  const concurrentComment = comment('concurrent', 'stored after editor base', '2026-07-03T01:10:00.000Z');
+  const addedComment = comment('added', 'incoming new comment', '2026-07-03T01:12:00.000Z');
+  const seedComments = JSON.stringify([keptComment, concurrentComment]);
+  const incomingComments = JSON.stringify([keptComment, addedComment]);
   return [
     {
       name: 'create-basic',
@@ -266,6 +302,27 @@ function cases() {
         post: { id: `${p}_conflict`, status: 'Approved' },
       },
     },
+    {
+      name: 'comment-merge-video-tweaks',
+      ids: [`${p}_comments`],
+      seed: [baseRow(`${p}_comments`, {
+        name: 'A1 parity comment merge',
+        video_tweaks: seedComments,
+        tweaks: seedComments,
+        updated_at: '2026-07-03T01:11:00.000Z',
+      })],
+      payload: {
+        client: CLIENT,
+        comments_base_at: '2026-07-03T01:05:00.000Z',
+        post: { id: `${p}_comments`, video_tweaks: incomingComments, tweaks: incomingComments },
+      },
+      verify: (oldResult, efResult) => verifyMergedComments(
+        `${p}_comments`,
+        [keptComment.id, concurrentComment.id, addedComment.id],
+        oldResult,
+        efResult,
+      ),
+    },
   ];
 }
 
@@ -304,6 +361,14 @@ async function runCase(testCase) {
       console.error('--- normalized edge events (not compared to n8n) ---');
       console.error(stable(normalizeGenerated({ calendar_post_events: efResult.events })));
       return false;
+    }
+    if (typeof testCase.verify === 'function') {
+      const verificationError = testCase.verify(oldResult, efResult);
+      if (verificationError) {
+        console.error(`\nFAIL ${testCase.name}`);
+        console.error(verificationError);
+        return false;
+      }
     }
     console.log(`PASS ${testCase.name}`);
     return true;

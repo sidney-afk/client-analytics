@@ -1837,6 +1837,65 @@
         .cal-import-btn-primary { padding: 9px 18px; border-radius: 8px; border: 0; background: var(--text-primary); color: var(--white); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
         .cal-import-btn-primary:disabled { opacity: 0.45; cursor: default; }
         .cal-import-btn-ghost { padding: 9px 16px; border-radius: 8px; border: 1px solid var(--border); background: var(--white); color: var(--text-secondary); font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+
+        /* Client Credentials */
+        .cc-wrap { display: flex; flex-direction: column; gap: 16px; }
+        .cc-topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 16px; background: rgba(255,255,255,0.72); border: 1px solid var(--border); border-radius: 18px; box-shadow: 0 18px 55px rgba(17,17,16,0.06); }
+        .cc-title { margin: 0; font-size: 1.05rem; font-weight: 850; color: var(--text-primary); letter-spacing: -0.02em; }
+        .cc-sub { margin: 4px 0 0; font-size: 0.8rem; line-height: 1.5; color: var(--text-muted); max-width: 720px; }
+        .cc-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+        .cc-search { width: min(360px, 100%); box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); font-family: inherit; font-size: 0.86rem; color: var(--text-primary); outline: none; }
+        .cc-search:focus { border-color: var(--text-primary); }
+        .cc-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--border); border-radius: 10px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.78rem; font-weight: 750; padding: 9px 12px; cursor: pointer; transition: border-color 0.14s, background 0.14s, transform 0.14s; }
+        .cc-btn:hover { border-color: #aaa; background: #fafaf8; transform: translateY(-1px); }
+        .cc-btn.primary { background: #111110; border-color: #111110; color: #fff; }
+        .cc-btn.danger { color: #b91c1c; border-color: #fecaca; background: #fff7f7; }
+        .cc-btn:disabled { opacity: 0.45; cursor: default; transform: none; }
+        .cc-body { display: flex; flex-direction: column; gap: 14px; }
+        .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+        .cc-card { border: 1px solid var(--border); border-radius: 18px; background: rgba(255,255,255,0.82); box-shadow: 0 16px 45px rgba(17,17,16,0.06); overflow: hidden; }
+        .cc-card.needs-review { border-color: #fed7aa; background: linear-gradient(180deg, rgba(255,247,237,0.96), rgba(255,255,255,0.9)); }
+        .cc-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 15px; border-bottom: 1px solid var(--border-light); }
+        .cc-client { font-size: 0.95rem; font-weight: 850; color: var(--text-primary); }
+        .cc-client-meta { margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-muted); }
+        .cc-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 7px; background: var(--bg); color: var(--text-secondary); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
+        .cc-chip.warn { background: #ffedd5; color: #9a3412; }
+        .cc-rows { display: flex; flex-direction: column; gap: 0; }
+        .cc-row { display: grid; grid-template-columns: minmax(86px, 0.8fr) minmax(120px, 1.1fr) minmax(120px, 1.1fr) auto; gap: 10px; align-items: center; padding: 12px 15px; border-bottom: 1px solid var(--border-light); }
+        .cc-row:last-child { border-bottom: 0; }
+        .cc-platform { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .cc-platform strong { color: var(--text-primary); font-size: 0.82rem; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cc-platform span, .cc-muted { color: var(--text-muted); font-size: 0.72rem; }
+        .cc-secret, .cc-handle { display: flex; align-items: center; gap: 7px; min-width: 0; }
+        .cc-secret code, .cc-handle code { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 7px; border-radius: 7px; background: var(--bg); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 700; }
+        .cc-mini { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary); cursor: pointer; font-size: 0.74rem; font-weight: 850; }
+        .cc-mini:hover { color: var(--text-primary); border-color: #aaa; }
+        .cc-row-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+        .cc-updated { grid-column: 1 / -1; margin-top: -4px; font-size: 0.68rem; color: var(--text-muted); }
+        .cc-empty { padding: 46px 20px; text-align: center; border: 1px dashed var(--border); border-radius: 16px; background: rgba(255,255,255,0.5); color: var(--text-muted); line-height: 1.6; }
+        .cc-modal-wide { width: 840px; }
+        .cc-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .cc-field { display: flex; flex-direction: column; gap: 5px; }
+        .cc-field.full { grid-column: 1 / -1; }
+        .cc-field label { font-size: 0.7rem; font-weight: 850; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
+        .cc-field input, .cc-field select, .cc-field textarea { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.84rem; outline: 0; }
+        .cc-field textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
+        .cc-field input:focus, .cc-field select:focus, .cc-field textarea:focus { border-color: var(--text-primary); }
+        .cc-history-list { display: flex; flex-direction: column; gap: 8px; }
+        .cc-event { border: 1px solid var(--border-light); border-radius: 11px; padding: 10px 12px; background: #fff; }
+        .cc-event-head { display: flex; justify-content: space-between; gap: 10px; font-size: 0.76rem; font-weight: 800; color: var(--text-primary); }
+        .cc-event-meta { margin-top: 3px; font-size: 0.68rem; color: var(--text-muted); }
+        .cc-diff { margin-top: 7px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 7px; align-items: center; font-size: 0.74rem; }
+        .cc-diff code { padding: 5px 7px; border-radius: 7px; background: var(--bg); overflow-wrap: anywhere; }
+        .cc-bulk-preview { margin-top: 12px; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .cc-bulk-row { display: grid; grid-template-columns: 42px 1.2fr 0.8fr 1fr 1fr; gap: 9px; padding: 9px 10px; border-top: 1px solid var(--border-light); font-size: 0.76rem; align-items: center; }
+        .cc-bulk-row:first-child { border-top: 0; background: var(--bg); font-weight: 850; color: var(--text-secondary); }
+        .cc-flags { display: flex; flex-wrap: wrap; gap: 4px; }
+        .cc-identity-card { width: 420px; max-width: 92vw; background: var(--white); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,0.28); padding: 22px; }
+        .cc-identity-card h3 { margin: 0; color: var(--text-primary); font-size: 1.05rem; }
+        .cc-identity-card p { margin: 6px 0 16px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
+        @media (max-width: 760px) { .cc-row { grid-template-columns: 1fr; } .cc-row-actions { justify-content: flex-start; } .cc-form-grid { grid-template-columns: 1fr; } .cc-bulk-row { grid-template-columns: 34px 1fr; } }
+
         /* Calendar embedded in a client profile — break out to full width */
         .client-view.cal-tab-view { max-width: none; }
 
@@ -17753,6 +17812,7 @@
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalBulkLinearSync()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8.5L4.5 10.5a2.12 2.12 0 1 1-3-3L3.5 5.5"/><path d="M9.5 7.5l2-2a2.12 2.12 0 1 1 3 3l-2 2"/><path d="M6 10l4-4"/></svg>Bulk Linear sync</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_calOpenCaptionPromptModal()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>Edit caption prompt</button>
                         <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();openCalPlatformsEditor()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>Edit platforms</button>
+                        <button class="cal-kebab-item" type="button" onclick="_calCloseKebab();_ccOpenModal(calState.client)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>Client credentials</button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleCollabMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="11" cy="7" r="1.8"/><path d="M1.8 13.2c.5-2 2-3 3.7-3s3.2 1 3.7 3"/><path d="M9.5 12.5c.4-1.5 1.5-2.3 2.8-2.3s2.4.8 2.8 2.3"/></svg><span class="cal-kebab-label">Collaborative mode</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does Collaborative mode do?">i</span><span class="cal-kebab-info-tip">Lets your client see what you're working on and suggest new posts of their own. With this off, they only see what's finished.</span></span><span class="cal-kebab-switch${_calIsCollabOn() ? ' is-on' : ''}" id="calCollabSwitch"></span></button>
                         <button class="cal-kebab-item cal-kebab-toggle" type="button" onclick="_calToggleTitleReviewMode()"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="3.5" width="13" height="9" rx="2.5"/><path d="M6.6 6.2l3.1 1.8-3.1 1.8z" fill="currentColor" stroke="none"/></svg><span class="cal-kebab-label">YouTube title review</span><span class="cal-kebab-info-wrap" data-no-tip onclick="event.stopPropagation()"><span class="cal-kebab-info-i" aria-label="What does YouTube title review do?">i</span><span class="cal-kebab-info-tip">Adds a title sign-off step on YouTube cards — the SMM sends the title to Kasper, then the client, with its own status and notes. It never affects the card's overall status.</span></span><span class="cal-kebab-switch${_calIsTitleReviewOn() ? ' is-on' : ''}" id="calTitleReviewSwitch"></span></button>
                     </div>
@@ -31219,7 +31279,8 @@
         { key: 'replies', label: 'Messages',       icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h11a1 1 0 0 1 1 1V11a1 1 0 0 1-1 1H7l-3 2.5V12H2.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"/></svg>' },
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
-        { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' }
+        { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
+        { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
     const KASPER_SMM_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Social%20Media%20Managers`;
@@ -31464,6 +31525,7 @@
         _kasperReleasePointer();
         _kasperV2Teardown();
         if (typeof _sxrKasperV2Teardown === 'function') _sxrKasperV2Teardown();
+        if (typeof _ccRevTeardown === 'function') _ccRevTeardown('kasper');
     }
 
     /* Kasper queue realtime (v2). The review queue spans every client, so a
@@ -31615,6 +31677,7 @@
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
+        if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
     }
 
     // Sales Intake lives as a Kasper subtab (it's Kasper's post-close paperwork
@@ -31628,6 +31691,485 @@
         if (!el) return;
         el.innerHTML = renderSalesIntakeView();
         mountSalesIntakeView();
+    }
+
+
+    /* ── Client Credentials ─────────────────────────────────────────
+       Staff-only credentials source of truth. The secret passphrase is never
+       committed: it is typed once per device and sent as X-Syncview-Key to the
+       Edge Function, which uses service-role access to the locked tables. */
+    const CC_EDGE_URL = CAL_SUPABASE_URL + '/functions/v1/client-credentials';
+    const CC_IDENTITY_KEY = 'syncview_client_credentials_identity_v1';
+    const CC_MASK = '••••••';
+    const CC_RT_SELF_ECHO_MS = 4500;
+    const CC_PLATFORM_OPTIONS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'threads', 'x', 'pinterest', 'website'];
+    const _ccState = {
+        kasper: { credentials: [], loading: false, error: null, loaded: false, search: '' },
+        modal: { open: false, client: '', credentials: [], loading: false, error: null, loaded: false },
+    };
+    const _ccRevealed = new Set();
+    let _ccIdentityPromise = null;
+    let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
+    let _ccRevKasperTimer = null, _ccRevModalTimer = null;
+    let _ccLastLocalWriteAt = 0;
+
+    function _ccEsc(s) { return _calEsc(s); }
+    function _ccEscAttr(s) { return _calEscAttr(s); }
+    function _ccKnownClients() { return WL_CLIENT_NAMES.slice().sort((a, b) => a.localeCompare(b)); }
+    function _ccClientNameForSlug(slug) { return WL_CLIENT_CANONICAL.get(String(slug || '').replace(/^unmatched:/, '')) || slug || ''; }
+    function _ccIsUnmatched(r) { return String(r.client_slug || '').startsWith('unmatched:') || r.status === 'needs_review'; }
+    function _ccPrettyDate(v) { if (!v) return 'never'; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    function _ccPlatformLabel(v) { return String(v || 'account').replace(/[_-]+/g, ' '); }
+    function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
+    function _ccIdentityRole(scope) { return scope === 'kasper' ? 'Kasper' : 'SMM'; }
+    function _ccIdentityLoad() { try { return JSON.parse(localStorage.getItem(CC_IDENTITY_KEY) || 'null') || null; } catch { return null; } }
+    function _ccIdentitySave(v) { try { localStorage.setItem(CC_IDENTITY_KEY, JSON.stringify(v)); } catch {} }
+    function _ccIdentityClearKey() { const v = _ccIdentityLoad() || {}; delete v.key; _ccIdentitySave(v); }
+
+    async function _ccNameOptions() {
+        const names = ['Kasper Hytonen', 'Synchro Social'];
+        try {
+            const map = await _kasperLoadSMMMap();
+            map.forEach(v => { if (v && v.name) names.push(v.name); });
+        } catch {}
+        return Array.from(new Set(names.map(x => String(x || '').trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    }
+
+    function _ccPromptIdentity(role, force) {
+        if (_ccIdentityPromise) return _ccIdentityPromise;
+        _ccIdentityPromise = (async () => {
+            const current = _ccIdentityLoad() || {};
+            const opts = await _ccNameOptions();
+            return await new Promise((resolve, reject) => {
+                const ov = document.createElement('div');
+                ov.className = 'cal-import-overlay open';
+                ov.style.zIndex = '9998';
+                const selected = opts.includes(current.name) ? current.name : (opts[0] || 'Synchro Social');
+                ov.innerHTML = `<div class="cc-identity-card" role="dialog" aria-modal="true">
+                    <h3>Client credentials</h3>
+                    <p>${force ? 'That passphrase did not work. Enter the current staff passphrase to continue.' : 'Pick your name and enter the staff passphrase once for this device.'}</p>
+                    <div class="cc-form-grid" style="grid-template-columns:1fr;">
+                        <div class="cc-field"><label>Your name</label><select id="ccIdentityName">${opts.map(n => `<option value="${_ccEscAttr(n)}"${n === selected ? ' selected' : ''}>${_ccEsc(n)}</option>`).join('')}<option value="__other__">Other…</option></select></div>
+                        <div class="cc-field" id="ccIdentityOtherWrap" style="display:none;"><label>Name</label><input id="ccIdentityOther" autocomplete="name" placeholder="Your name"></div>
+                        <div class="cc-field"><label>Staff passphrase</label><input id="ccIdentityKey" type="password" autocomplete="current-password" placeholder="Paste passphrase"></div>
+                    </div>
+                    <div class="cal-import-foot" style="padding:16px 0 0;border-top:0;">
+                        ${current && current.name && current.key && !force ? '<button class="cal-import-btn-ghost" type="button" id="ccIdentityCancel">Cancel</button>' : ''}
+                        <button class="cal-import-btn-primary" type="button" id="ccIdentitySave">Continue</button>
+                    </div>
+                </div>`;
+                document.body.appendChild(ov);
+                const sel = ov.querySelector('#ccIdentityName');
+                const otherWrap = ov.querySelector('#ccIdentityOtherWrap');
+                const other = ov.querySelector('#ccIdentityOther');
+                const key = ov.querySelector('#ccIdentityKey');
+                const syncOther = () => { otherWrap.style.display = sel.value === '__other__' ? '' : 'none'; if (sel.value === '__other__') other.focus(); };
+                sel.addEventListener('change', syncOther);
+                ov.querySelector('#ccIdentitySave').onclick = () => {
+                    const name = (sel.value === '__other__' ? other.value : sel.value).trim();
+                    const pass = key.value.trim();
+                    if (!name) { showToast('Choose your name'); return; }
+                    if (!pass) { showToast('Enter the staff passphrase'); return; }
+                    const ident = { name, role: role || current.role || 'staff', key: pass };
+                    _ccIdentitySave(ident);
+                    ov.remove();
+                    resolve(ident);
+                };
+                const cancel = ov.querySelector('#ccIdentityCancel');
+                if (cancel) cancel.onclick = () => { ov.remove(); reject(new Error('credentials prompt cancelled')); };
+                key.addEventListener('keydown', e => { if (e.key === 'Enter') ov.querySelector('#ccIdentitySave').click(); });
+                setTimeout(() => key.focus(), 30);
+            });
+        })().finally(() => { _ccIdentityPromise = null; });
+        return _ccIdentityPromise;
+    }
+
+    async function _ccEnsureIdentity(role, force) {
+        const current = _ccIdentityLoad();
+        if (!force && current && current.name && current.key) {
+            if (role && current.role !== role) { current.role = role; _ccIdentitySave(current); }
+            return current;
+        }
+        return _ccPromptIdentity(role, force);
+    }
+
+    async function _ccApi(action, payload, opts) {
+        opts = opts || {};
+        const ident = await _ccEnsureIdentity(opts.role || 'staff', !!opts.forceIdentity);
+        const body = Object.assign({}, payload || {}, { action, actor: { name: ident.name, role: opts.role || ident.role || 'staff' } });
+        const resp = await fetch(CC_EDGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Syncview-Key': ident.key },
+            body: JSON.stringify(body),
+        });
+        let json = null;
+        try { json = await resp.json(); } catch { json = null; }
+        if (resp.status === 401 && !opts._retried) {
+            _ccIdentityClearKey();
+            await _ccEnsureIdentity(opts.role || 'staff', true);
+            return _ccApi(action, payload, Object.assign({}, opts, { _retried: true }));
+        }
+        if (!resp.ok || !json || !json.ok) throw new Error((json && json.error) || 'Credentials request failed');
+        return json;
+    }
+
+    function _ccKasperRender() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        el.innerHTML = `<div class="cc-wrap">
+            <div class="cc-topbar">
+                <div><h2 class="cc-title">Client Credentials</h2><p class="cc-sub">The one place for client Instagram, TikTok, Facebook, LinkedIn, YouTube, and custom account logins. Password reveals and every edit are audited.</p></div>
+                <div class="cc-actions">
+                    <input class="cc-search" id="ccKasperSearch" placeholder="Search client, platform, handle, notes…" value="${_ccEscAttr(_ccState.kasper.search)}" oninput="_ccSetKasperSearch(this.value)">
+                    <button class="cc-btn" type="button" onclick="_ccLoadKasper(false)">Refresh</button>
+                    <button class="cc-btn primary" type="button" onclick="_ccOpenEdit('', 'kasper')">Add credential</button>
+                    <button class="cc-btn" type="button" onclick="_ccOpenBulkImport()">Bulk import</button>
+                </div>
+            </div>
+            <div class="cc-body" id="ccKasperBody"></div>
+        </div>`;
+        _ccPaintKasper();
+        _ccRevEnsureSubscribed('kasper');
+        if (!_ccState.kasper.loaded && !_ccState.kasper.loading) _ccLoadKasper(false);
+    }
+
+    function _ccSetKasperSearch(v) { _ccState.kasper.search = v || ''; _ccPaintKasper(); }
+
+    async function _ccLoadKasper(background) {
+        if (_ccState.kasper.loading) return;
+        _ccState.kasper.loading = true; _ccState.kasper.error = null;
+        if (!background) _ccPaintKasper();
+        try {
+            const json = await _ccApi('list', {}, { role: 'Kasper' });
+            _ccState.kasper.credentials = Array.isArray(json.credentials) ? json.credentials : [];
+            _ccState.kasper.loaded = true;
+        } catch (e) {
+            _ccState.kasper.error = e && e.message ? e.message : String(e);
+        } finally {
+            _ccState.kasper.loading = false;
+            _ccPaintKasper();
+        }
+    }
+
+    function _ccFilteredKasperRows() {
+        const q = String(_ccState.kasper.search || '').trim().toLowerCase();
+        let rows = (_ccState.kasper.credentials || []).slice();
+        if (q) rows = rows.filter(r => [r.client_name, r.platform, r.label, r.handle, r.notes, r.status].some(v => String(v || '').toLowerCase().includes(q)));
+        rows.sort((a, b) => {
+            const au = _ccIsUnmatched(a) ? 0 : 1, bu = _ccIsUnmatched(b) ? 0 : 1;
+            if (au !== bu) return au - bu;
+            return String(a.client_name || '').localeCompare(String(b.client_name || '')) || String(a.platform || '').localeCompare(String(b.platform || ''));
+        });
+        return rows;
+    }
+
+    function _ccPaintKasper() {
+        const body = document.getElementById('ccKasperBody');
+        if (!body) return;
+        if (_ccState.kasper.loading && !_ccState.kasper.loaded) { body.innerHTML = _calLoaderHtml('Loading credentials…'); return; }
+        if (_ccState.kasper.error) { body.innerHTML = `<div class="cc-empty"><strong>Could not load credentials.</strong><br>${_ccEsc(_ccState.kasper.error)}</div>`; return; }
+        const rows = _ccFilteredKasperRows();
+        if (!rows.length) { body.innerHTML = `<div class="cc-empty">No credentials found yet.${_ccState.kasper.search ? '<br>Try a different search.' : '<br>Use Add credential or Bulk import to start.'}</div>`; return; }
+        const grouped = new Map();
+        rows.forEach(r => {
+            const key = String(r.client_slug || 'unknown');
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key).push(r);
+        });
+        body.innerHTML = `<div class="cc-grid">${Array.from(grouped.entries()).map(([slug, list]) => _ccClientCardHtml(slug, list, 'kasper')).join('')}</div>`;
+    }
+
+    function _ccClientCardHtml(slug, rows, scope) {
+        const first = rows[0] || {};
+        const unmatched = rows.some(_ccIsUnmatched);
+        const clientName = first.client_name || _ccClientNameForSlug(slug);
+        const addClientArg = _jsAttrArg(slug);
+        return `<div class="cc-card${unmatched ? ' needs-review' : ''}">
+            <div class="cc-card-head">
+                <div><div class="cc-client">${unmatched ? 'Unmatched / needs review: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">needs review</span>' : ''}</div></div>
+                <div class="cc-actions">
+                    ${scope === 'kasper' ? `<button class="cc-btn" type="button" onclick="_ccOpenHistory('', ${addClientArg})">History</button><button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'kasper', ${addClientArg})">Add</button>` : `<button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'modal')">Add</button>`}
+                </div>
+            </div>
+            <div class="cc-rows">${rows.map(r => _ccRowHtml(r, scope)).join('')}</div>
+        </div>`;
+    }
+
+    function _ccRowHtml(r, scope) {
+        const idArg = _jsAttrArg(r.id || '');
+        const scopeArg = _jsAttrArg(scope || 'kasper');
+        const hasPw = String(r.password || '').length > 0;
+        const revealed = _ccRevealed.has(r.id);
+        const pass = hasPw ? (revealed ? _ccEsc(r.password) : CC_MASK) : 'empty';
+        const statusChip = r.status === 'needs_review' ? '<span class="cc-chip warn">needs review</span>' : (r.status === 'archived' ? '<span class="cc-chip">archived</span>' : '');
+        const updated = `Updated ${_ccPrettyDate(r.updated_at)}${r.updated_by ? ' by ' + _ccEsc(r.updated_by) : ''}`;
+        const reassign = (scope === 'kasper' && _ccIsUnmatched(r)) ? _ccReassignHtml(r) : '';
+        return `<div class="cc-row" data-cc-id="${_ccEscAttr(r.id)}">
+            <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong><span>${r.label ? _ccEsc(r.label) : 'primary'} ${statusChip}</span></div>
+            <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">⧉</button>` : ''}</div>
+            <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini" type="button" title="Reveal password" onclick="_ccReveal(${idArg}, ${scopeArg})">👁</button><button class="cc-mini" type="button" title="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">⧉</button>` : ''}</div>
+            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" onclick="_ccOpenHistory(${idArg})">↺</button><button class="cc-mini" type="button" title="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">✎</button>${scope === 'kasper' ? `<button class="cc-mini" type="button" title="Delete" onclick="_ccDelete(${idArg})">×</button>` : ''}</div>
+            <div class="cc-updated">${updated}${r.notes ? ' · ' + _ccEsc(r.notes) : ''}${reassign}</div>
+        </div>`;
+    }
+
+    function _ccReassignHtml(r) {
+        const selId = 'ccReassign_' + String(r.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
+        return `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;"><select id="${_ccEscAttr(selId)}" class="cc-search" style="width:220px;padding:7px 9px;">${_ccKnownClients().map(n => `<option value="${_ccEscAttr(wlNormalizeClient(n) + '|' + n)}">${_ccEsc(n)}</option>`).join('')}</select><button class="cc-btn" type="button" onclick="_ccReassign(${_jsAttrArg(r.id)}, ${_jsAttrArg(selId)})">Assign to client</button></div>`;
+    }
+
+    async function _ccCopyText(text, msg) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(String(text || ''));
+            else window.prompt('Copy:', String(text || ''));
+            showToast(msg || 'Copied');
+        } catch { window.prompt('Copy:', String(text || '')); }
+    }
+
+    async function _ccReveal(id, scope) {
+        const row = _ccFind(id); if (!row || !row.password) return;
+        if (!_ccRevealed.has(id)) {
+            await _ccApi('log_reveal', { credential_id: id }, { role: _ccIdentityRole(scope) });
+            _ccRevealed.add(id);
+        }
+        if (scope === 'modal') _ccPaintModal(); else _ccPaintKasper();
+    }
+
+    async function _ccCopyPassword(id, scope) {
+        const row = _ccFind(id); if (!row || !row.password) return;
+        await _ccReveal(id, scope);
+        await _ccCopyText(row.password, 'Password copied');
+    }
+
+    function _ccKnownClientOptions(selectedSlug) {
+        return _ccKnownClients().map(n => {
+            const slug = wlNormalizeClient(n);
+            return `<option value="${_ccEscAttr(slug + '|' + n)}"${slug === selectedSlug ? ' selected' : ''}>${_ccEsc(n)}</option>`;
+        }).join('');
+    }
+
+    function _ccOpenEdit(id, scope, clientSlug) {
+        scope = scope || 'kasper';
+        const row = id ? _ccFind(id) : null;
+        const fixedClient = scope === 'modal' ? calClientSlug(_ccState.modal.client) : (clientSlug || (row && row.client_slug) || '');
+        const fixedName = scope === 'modal' ? _ccState.modal.client : ((row && row.client_name) || _ccClientNameForSlug(fixedClient));
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open';
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccEditClose">×</button><h3>${row ? 'Edit credential' : 'Add credential'}</h3><p>${scope === 'modal' ? _ccEsc(_ccState.modal.client) : 'Kasper credentials store'}</p></div>
+            <div class="cal-import-body">
+                <div class="cc-form-grid">
+                    <div class="cc-field full" ${fixedClient ? 'style="display:none;"' : ''}><label>Client</label><select id="ccEditClient">${_ccKnownClientOptions(fixedClient)}</select></div>
+                    <div class="cc-field"><label>Platform</label><input id="ccEditPlatform" list="ccPlatformList" value="${_ccEscAttr((row && row.platform) || 'instagram')}" placeholder="instagram"></div>
+                    <div class="cc-field"><label>Label</label><input id="ccEditLabel" value="${_ccEscAttr((row && row.label) || '')}" placeholder="primary, backup, ads account…"></div>
+                    <div class="cc-field"><label>Handle</label><input id="ccEditHandle" value="${_ccEscAttr((row && row.handle) || '')}" placeholder="@client"></div>
+                    <div class="cc-field"><label>Password</label><input id="ccEditPassword" type="password" value="${_ccEscAttr((row && row.password) || '')}" placeholder="Password"></div>
+                    <div class="cc-field"><label>Status</label><select id="ccEditStatus"><option value="active"${!row || row.status === 'active' ? ' selected' : ''}>active</option><option value="needs_review"${row && row.status === 'needs_review' ? ' selected' : ''}>needs review</option></select></div>
+                    <div class="cc-field full"><label>Notes</label><textarea id="ccEditNotes" placeholder="2FA, backup codes, login quirks…">${_ccEsc((row && row.notes) || '')}</textarea></div>
+                </div>
+                <datalist id="ccPlatformList">${CC_PLATFORM_OPTIONS.map(p => `<option value="${p}"></option>`).join('')}</datalist>
+            </div>
+            <div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" id="ccEditCancel">Cancel</button><button class="cal-import-btn-primary" type="button" id="ccEditSave">Save</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccEditClose').onclick = close;
+        ov.querySelector('#ccEditCancel').onclick = close;
+        ov.onclick = e => { if (e.target === ov) close(); };
+        ov.querySelector('#ccEditSave').onclick = async () => {
+            const btn = ov.querySelector('#ccEditSave'); btn.disabled = true;
+            try {
+                let slug = fixedClient, name = fixedName;
+                if (!slug) {
+                    const parts = String(ov.querySelector('#ccEditClient').value || '').split('|');
+                    slug = parts[0]; name = parts.slice(1).join('|');
+                }
+                const credential = {
+                    id: row && row.id,
+                    client_slug: slug,
+                    client_name: name,
+                    platform: ov.querySelector('#ccEditPlatform').value.trim(),
+                    label: ov.querySelector('#ccEditLabel').value.trim(),
+                    handle: ov.querySelector('#ccEditHandle').value.trim(),
+                    password: ov.querySelector('#ccEditPassword').value,
+                    status: ov.querySelector('#ccEditStatus').value,
+                    notes: ov.querySelector('#ccEditNotes').value.trim(),
+                    source: row && row.source ? row.source : 'manual',
+                };
+                await _ccApi('upsert', { credential }, { role: _ccIdentityRole(scope) });
+                _ccLastLocalWriteAt = Date.now();
+                close(); showToast('Credential saved');
+                if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Could not save'); btn.disabled = false; }
+        };
+    }
+
+    async function _ccDelete(id) {
+        if (!id || !window.confirm('Delete this credential? It will be archived and kept in audit history.')) return;
+        try {
+            await _ccApi('delete', { credential_id: id }, { role: 'Kasper' });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Credential deleted');
+            _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not delete'); }
+    }
+
+    async function _ccReassign(id, selectId) {
+        const el = document.getElementById(selectId); if (!el) return;
+        const parts = String(el.value || '').split('|');
+        const client_slug = parts[0], client_name = parts.slice(1).join('|');
+        try {
+            await _ccApi('reassign', { credential_id: id, client_slug, client_name }, { role: 'Kasper' });
+            _ccLastLocalWriteAt = Date.now();
+            showToast('Assigned to ' + client_name);
+            _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not reassign'); }
+    }
+
+    function _ccOpenHistory(id, clientSlug) {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open';
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" id="ccHistClose">×</button><h3>Credential history</h3><p>Every change, reveal, import, and reassignment.</p></div><div class="cal-import-body" id="ccHistBody">${_calLoaderHtml('Loading history…')}</div></div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccHistClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov) close(); };
+        _ccApi('history', id ? { credential_id: id } : { client_slug: clientSlug }, { role: 'Kasper' })
+            .then(json => { const body = ov.querySelector('#ccHistBody'); const events = json.events || []; body.innerHTML = events.length ? `<div class="cc-history-list">${events.map(_ccEventHtml).join('')}</div>` : '<div class="cc-empty">No history yet.</div>'; })
+            .catch(e => { const body = ov.querySelector('#ccHistBody'); body.innerHTML = `<div class="cc-empty">${_ccEsc((e && e.message) || 'Could not load history')}</div>`; });
+    }
+
+    function _ccEventHtml(ev) {
+        const field = ev.field ? `<span class="cc-chip">${_ccEsc(ev.field)}</span>` : '';
+        const diff = ev.field ? `<div class="cc-diff"><code>${_ccEsc(ev.old_value || 'empty')}</code><span>→</span><code>${_ccEsc(ev.new_value || 'empty')}</code></div>` : '';
+        const where = [ev.ip, ev.country].filter(Boolean).join(' · ');
+        return `<div class="cc-event"><div class="cc-event-head"><span>${_ccEsc(ev.action)} ${field}</span><span>${_ccPrettyDate(ev.event_at)}</span></div><div class="cc-event-meta">${_ccEsc(ev.actor || 'unknown')} · ${_ccEsc(ev.actor_role || 'staff')}${where ? ' · ' + _ccEsc(where) : ''}</div>${diff}</div>`;
+    }
+
+    function _ccOpenBulkImport() {
+        const ov = document.createElement('div');
+        ov.className = 'cal-import-overlay open';
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
+            <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccBulkClose">×</button><h3>Bulk import credentials</h3><p>Paste one account per line: Client name | platform | handle | password | notes</p></div>
+            <div class="cal-import-body"><div class="cc-field full"><label>Paste credentials</label><textarea id="ccBulkText" style="min-height:170px;" placeholder="Jane Doe | instagram | @janedoe | password123 | 2FA backup…"></textarea></div><div id="ccBulkPreview"></div></div>
+            <div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" id="ccBulkPreviewBtn">Preview</button><button class="cal-import-btn-primary" type="button" id="ccBulkImportBtn" disabled>Import</button></div>
+        </div>`;
+        document.body.appendChild(ov);
+        const close = () => ov.remove();
+        ov.querySelector('#ccBulkClose').onclick = close;
+        ov.onclick = e => { if (e.target === ov) close(); };
+        let preview = null;
+        const renderPreview = (rows) => {
+            const box = ov.querySelector('#ccBulkPreview');
+            preview = rows || [];
+            ov.querySelector('#ccBulkImportBtn').disabled = !preview.length;
+            box.innerHTML = preview.length ? `<div class="cc-bulk-preview"><div class="cc-bulk-row"><div>#</div><div>Client</div><div>Platform</div><div>Handle</div><div>Flags</div></div>${preview.map(r => `<div class="cc-bulk-row"><div>${r.line}</div><div>${_ccEsc(r.client_name)}</div><div>${_ccEsc(r.platform)}</div><div>${_ccEsc(r.handle || 'empty')}</div><div class="cc-flags">${(r.flags || []).length ? r.flags.map(f => `<span class="cc-chip${f.includes('unknown') || f.includes('missing') ? ' warn' : ''}">${_ccEsc(f)}</span>`).join('') : '<span class="cc-chip">ok</span>'}</div></div>`).join('')}</div>` : '<div class="cc-empty" style="margin-top:12px;">No valid lines found.</div>';
+        };
+        ov.querySelector('#ccBulkPreviewBtn').onclick = async () => {
+            try {
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: true, known_clients: _ccKnownClients() }, { role: 'Kasper' });
+                renderPreview(json.preview || []);
+            } catch (e) { showToast((e && e.message) || 'Preview failed'); }
+        };
+        ov.querySelector('#ccBulkImportBtn').onclick = async () => {
+            if (!preview || !preview.length) return;
+            const btn = ov.querySelector('#ccBulkImportBtn'); btn.disabled = true;
+            try {
+                const json = await _ccApi('bulk_import', { text: ov.querySelector('#ccBulkText').value, dry_run: false, known_clients: _ccKnownClients() }, { role: 'Kasper' });
+                _ccLastLocalWriteAt = Date.now();
+                close(); showToast(`Imported ${json.imported || 0} credentials`); _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Import failed'); btn.disabled = false; }
+        };
+    }
+
+    function _ccOpenModal(clientName) {
+        if (_isClientLink) return;
+        if (!clientName) return;
+        _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
+        let ov = document.getElementById('ccOverlay');
+        if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay open'; document.body.appendChild(ov); }
+        ov.classList.add('open');
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" onclick="_ccCloseModal()">Close</button><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
+        ov.onclick = e => { if (e.target === ov) _ccCloseModal(); };
+        _ccPaintModal(); _ccLoadModal(false); _ccRevEnsureSubscribed('modal');
+    }
+
+    function _ccCloseModal() {
+        const ov = document.getElementById('ccOverlay'); if (ov) ov.remove();
+        _ccState.modal.open = false; _ccRevTeardown('modal');
+    }
+
+    async function _ccLoadModal(background) {
+        if (!_ccState.modal.open || _ccState.modal.loading) return;
+        _ccState.modal.loading = true; _ccState.modal.error = null;
+        if (!background) _ccPaintModal();
+        try {
+            const slug = calClientSlug(_ccState.modal.client);
+            const json = await _ccApi('list', { client_slug: slug }, { role: 'SMM' });
+            _ccState.modal.credentials = Array.isArray(json.credentials) ? json.credentials : [];
+            _ccState.modal.loaded = true;
+        } catch (e) { _ccState.modal.error = e && e.message ? e.message : String(e); }
+        finally { _ccState.modal.loading = false; _ccPaintModal(); }
+    }
+
+    function _ccPaintModal() {
+        const body = document.getElementById('ccModalBody'); if (!body) return;
+        if (_ccState.modal.loading && !_ccState.modal.loaded) { body.innerHTML = _calLoaderHtml('Loading credentials…'); return; }
+        if (_ccState.modal.error) { body.innerHTML = `<div class="cc-empty">${_ccEsc(_ccState.modal.error)}</div>`; return; }
+        const rows = _ccState.modal.credentials || [];
+        if (!rows.length) { body.innerHTML = '<div class="cc-empty">No credentials saved for this client yet.<br>Use Add credential to create the first one.</div>'; return; }
+        body.innerHTML = `<div class="cc-card"><div class="cc-rows">${rows.map(r => _ccRowHtml(r, 'modal')).join('')}</div></div>`;
+    }
+
+    async function _ccRevEnsureSubscribed(scope) {
+        if (!_calV2Ready()) return;
+        const client = await _calV2Client(); if (!client) return;
+        if (scope === 'kasper') {
+            if (_ccRevKasperChannel) return;
+            try {
+                _ccRevKasperChannel = client.channel('client-credentials-rev-kasper').on('postgres_changes', { event: '*', schema: 'public', table: 'client_credentials_rev' }, () => _ccRevChanged('kasper')).subscribe();
+            } catch (e) { console.warn('[Client credentials] realtime subscribe failed', e); _ccRevKasperChannel = null; }
+        } else if (scope === 'modal') {
+            const slug = calClientSlug(_ccState.modal.client);
+            if (!slug) return;
+            if (_ccRevModalChannel && _ccRevModalSlug === slug) return;
+            _ccRevTeardown('modal'); _ccRevModalSlug = slug;
+            try {
+                _ccRevModalChannel = client.channel('client-credentials-rev-' + slug).on('postgres_changes', { event: '*', schema: 'public', table: 'client_credentials_rev', filter: 'client_slug=eq.' + slug }, () => _ccRevChanged('modal')).subscribe();
+            } catch (e) { console.warn('[Client credentials] modal realtime subscribe failed', e); _ccRevModalChannel = null; _ccRevModalSlug = null; }
+        }
+    }
+
+    function _ccRevChanged(scope) {
+        const timerName = scope === 'kasper' ? '_ccRevKasperTimer' : '_ccRevModalTimer';
+        if (scope === 'kasper' && _ccRevKasperTimer) clearTimeout(_ccRevKasperTimer);
+        if (scope === 'modal' && _ccRevModalTimer) clearTimeout(_ccRevModalTimer);
+        const run = function tick() {
+            const since = Date.now() - _ccLastLocalWriteAt;
+            if (since < CC_RT_SELF_ECHO_MS) {
+                const wait = CC_RT_SELF_ECHO_MS - since;
+                if (scope === 'kasper') _ccRevKasperTimer = setTimeout(tick, wait);
+                else _ccRevModalTimer = setTimeout(tick, wait);
+                return;
+            }
+            if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials') _ccLoadKasper(true); }
+            else { _ccRevModalTimer = null; if (_ccState.modal.open) _ccLoadModal(true); }
+        };
+        if (scope === 'kasper') _ccRevKasperTimer = setTimeout(run, 900);
+        else _ccRevModalTimer = setTimeout(run, 900);
+    }
+
+    function _ccRevTeardown(scope) {
+        if ((scope === 'kasper' || !scope) && _ccRevKasperTimer) { clearTimeout(_ccRevKasperTimer); _ccRevKasperTimer = null; }
+        if ((scope === 'modal' || !scope) && _ccRevModalTimer) { clearTimeout(_ccRevModalTimer); _ccRevModalTimer = null; }
+        if ((scope === 'kasper' || !scope) && _ccRevKasperChannel) {
+            try { if (_calV2ClientObj && _calV2ClientObj.removeChannel) _calV2ClientObj.removeChannel(_ccRevKasperChannel); else if (_ccRevKasperChannel.unsubscribe) _ccRevKasperChannel.unsubscribe(); } catch {}
+            _ccRevKasperChannel = null;
+        }
+        if ((scope === 'modal' || !scope) && _ccRevModalChannel) {
+            try { if (_calV2ClientObj && _calV2ClientObj.removeChannel) _calV2ClientObj.removeChannel(_ccRevModalChannel); else if (_ccRevModalChannel.unsubscribe) _ccRevModalChannel.unsubscribe(); } catch {}
+            _ccRevModalChannel = null; _ccRevModalSlug = null;
+        }
     }
 
     /* ── Filming Plans ─────────────────────────────────────────────

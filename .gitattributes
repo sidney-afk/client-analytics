@@ -1,0 +1,8 @@
+# Keep source files LF on Windows. Some unit tests string-extract snippets and
+# expect LF line endings, especially from index.html.
+index.html text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.toml text eol=lf

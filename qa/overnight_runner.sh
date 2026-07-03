@@ -22,7 +22,16 @@ mkdir -p "$OUTDIR"
 
 stamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 log() { echo "[$(stamp)] $*" | tee -a "$LOG"; }
-slug() { echo "$1" | tr ' /,:|*?"' '_________' | tr -cd 'A-Za-z0-9_.=-'; }
+slug() {
+  local safe max tail head
+  safe=$(echo "$1" | tr ' /,:|*?"' '_________' | tr -cd 'A-Za-z0-9_.=-')
+  max=${OVERNIGHT_SAFE_SLUG_MAX:-160}
+  if [ "${#safe}" -le "$max" ]; then printf '%s\n' "$safe"; return; fi
+  tail=24
+  if [ "$max" -le "$tail" ]; then printf '%s\n' "${safe:0:$max}"; return; fi
+  head=$((max - tail - 1))
+  printf '%s_%s\n' "${safe:0:$head}" "${safe: -$tail}"
+}
 port_ready() { curl -s -o /dev/null -w '%{http_code}' "http://localhost:${PORT}/index.html" 2>/dev/null | grep -q '^200$'; }
 
 start_server() {

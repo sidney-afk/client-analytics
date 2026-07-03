@@ -34,6 +34,20 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 04:44 UTC cron tick — tester hardening + runner restart
+- Inspected the live runner on `claude/overnight-syncview-qa-20260702-204925`. Round 2 had broad green coverage through `master:fast` (`all 31 unit suites`, parity, 2 probes, and 12/12 scenarios green), but three tester-side reds needed root-cause work:
+  - `sxr_realtime_twin.js` failed twice on `before push: tab A has NOT yet seen B's change`. Focused RED reproduced locally with `SXR_COURIER=0`: `pass=8 fail=1`. Root cause: on Sidney's open-egress Windows machine, the real Supabase websocket can legitimately propagate the backend write before the probe's manual `_sxrV2OnRealtimeChange` fire. The no-refresh product contract was working; the probe assumed sandbox/courier behavior.
+  - The long `resolve_via_*` scenario batch failed with an empty/missing output log. Tight RED showed the runner output path had `safe_len=237`, `out_len=278`, and bash failed before launching the scenario: `File name too long`.
+  - A stale duplicate overnight/probe process (`sxr_gating_flags.js`, started ~20:53 local) plus an active pre-patch runner were still alive, causing same-client concurrency. A manual resolve-batch rerun during that overlap produced a divergence-gate mismatch involving unrelated scenario rows; treated as runner interference, not a product bug.
+- Fixes committed in this tick:
+  - Added `test/overnight-runner-output-path.js` (RED: `safe=237, basename=258`; GREEN: `safe=160, basename=181`) and capped `qa/overnight_runner.sh` slugs to a Windows-safe 160 chars while preserving the tail for identification.
+  - Updated `qa/probes/sxr_realtime_twin.js` to accept either expected mode: courier/manual push keeps A stale until the explicit handler; open-egress native realtime may update A first. Focused GREEN: `pass=9 fail=0` with `native realtime propagated before manual push`.
+  - Terminated stale/duplicate overnight runner process trees and restarted one patched tracked background runner: `proc_4193f6ab15f2`, command `RUN_HOURS=9 FULL_MASTER_EVERY=2 TREE_EVERY=2 MASTER_FAST_EVERY=1 SXR_COURIER=0 bash qa/overnight_runner.sh`.
+- Validation / cleanup:
+  - `node --check qa/probes/sxr_realtime_twin.js`; `node --check test/overnight-runner-output-path.js`; `bash -n qa/overnight_runner.sh`; `git diff --check` — all clean.
+  - `node test/run-all.js` — `All 32 unit suites passed ✅`.
+  - Cleanup sweep archived 1 stranded sample row and verified `liveS=0`, `liveC=0` for `sidneylaruel` test rows before restarting.
+
 ---
 
 # RUN 2 — 2026-07-02 · Samples interaction marathon (post-rebuild FE)

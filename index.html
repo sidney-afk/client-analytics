@@ -32032,7 +32032,7 @@
             <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
             <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
             <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
-            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button>${scope === 'kasper' ? `<button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccDelete(${idArg})">${CC_ICON_ARCHIVE}</button>` : ''}</div>
+            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
             <div class="cc-updated">${updated}${r.notes ? ' · ' + _ccEsc(r.notes) : ''}${reassign}</div>
         </div>`;
     }
@@ -32129,14 +32129,15 @@
         };
     }
 
-    async function _ccDelete(id) {
-        if (!id || !window.confirm('Delete this credential? It will be archived and kept in audit history.')) return;
+    async function _ccArchive(id, scope) {
+        scope = scope || 'kasper';
+        if (!id || !window.confirm('Archive this credential? It will disappear from the active list but stay in audit history.')) return;
         try {
-            await _ccApi('delete', { credential_id: id }, { role: 'Kasper' });
+            await _ccApi('delete', { credential_id: id }, { role: _ccIdentityRole(scope) });
             _ccLastLocalWriteAt = Date.now();
-            showToast('Credential deleted');
-            _ccLoadKasper(true);
-        } catch (e) { showToast((e && e.message) || 'Could not delete'); }
+            showToast('Credential archived');
+            if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+        } catch (e) { showToast((e && e.message) || 'Could not archive'); }
     }
 
     async function _ccReassign(id, selectId) {

@@ -65,6 +65,8 @@ try { fs.mkdirSync(TMP, { recursive: true }); } catch {}
 // review-* webhooks to the LIVE backend on the same host). linear-subissues
 // (point-adoption) returns a probe-configurable parent status.
 const LINEAR_HOOK = /\/webhook\/(linear-set-status|linear-add-comment|linear-subissues|linear-issue-statuses)\b/;
+const FILMING_TABS_HOOK = /\/webhook\/filming-plan-tabs\b/;
+const LIVE_FILMING_TABS = process.env.SYNCVIEW_QA_LIVE_FILMING_TABS === '1';
 const LINEAR_CALLS_FILE = `${TMP}/linear_calls.jsonl`;
 const SUBISSUES_RESP_FILE = `${TMP}/linear_subissues_resp.json`;
 function resetLinearCalls() { try { fs.unlinkSync(LINEAR_CALLS_FILE); } catch {} }
@@ -77,6 +79,12 @@ function setSubissuesResp(obj) { try { fs.writeFileSync(SUBISSUES_RESP_FILE, JSO
 function _subissuesResp() {
   try { return JSON.parse(fs.readFileSync(SUBISSUES_RESP_FILE, 'utf8')); }
   catch { return { ok: true, parent: { status: 'Kasper Approval', identifier: 'VID-1' }, subIssues: [] }; }
+}
+function _filmingTabsStubPayload(url) {
+  if (LIVE_FILMING_TABS || !FILMING_TABS_HOOK.test(url)) return null;
+  let docId = '';
+  try { docId = new URL(url).searchParams.get('doc') || ''; } catch {}
+  return { ok: true, docId, tabs: [] };
 }
 
 let _seq = 0;
@@ -201,7 +209,19 @@ async function _ctx(browser, opts) {
       const body = (lh[1] === 'linear-subissues') ? _subissuesResp() : { ok: true };
       return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: JSON.stringify(body) });
     }
-    // 2) Other backend hosts → courier to live (when the courier is on).
+    // 2) Filming Plan Tabs -> stub by default. QA cold boots do not exercise
+    // the Google Docs tab parser; let the app
+    // render the empty-state contract without spending n8n executions.
+    const filmingTabsStub = _filmingTabsStubPayload(url);
+    if (filmingTabsStub) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' },
+        body: JSON.stringify(filmingTabsStub),
+      });
+    }
+    // 3) Other backend hosts → courier to live (when the courier is on).
     if (COURIER && EXT.test(url)) {
       const r = _courierFetch(req.method(), url, req.headers(), req.postData());
       return route.fulfill({ status: r.status, contentType: r.ctype, headers: { 'access-control-allow-origin': '*', 'cache-control': 'no-store' }, body: r.body });

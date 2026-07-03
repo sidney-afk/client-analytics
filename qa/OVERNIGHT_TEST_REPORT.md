@@ -34,6 +34,13 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 05:55 UTC singleton-lock hardening
+- The second exit notification (`proc_4193f6ab15f2`, code 3840) came from a stale duplicate runner that was still using the pre-lock command. It overlapped with the newer runner on the same `sidneylaruel` test client and port 8000, so its red lines were tester interference: one runner stopped the shared static server while the other was navigating, and both runners cleaned/archived each other's scenario rows.
+- Added a singleton lock to `qa/overnight_runner.sh` (`qa/overnight-output/.overnight_runner.lock`) so only one overnight runner can mutate the live test client at a time. A duplicate runner now exits immediately with a clear log line instead of producing false app failures.
+- Added `test/overnight-runner-singleton-lock.js` covering fresh lock, live duplicate, and stale-lock recovery.
+- Hardened `archiveSafe` / `archiveCalSafe` so cleanup waits for a row to exist before posting an archive, avoiding status-only phantom cleanup writes during races. Added `test/sxr-courier-archive-safe.js`.
+- Validation: `bash -n qa/overnight_runner.sh`, `test/overnight-runner-output-path.js`, `test/overnight-runner-singleton-lock.js`, `test/sxr-courier-archive-safe.js`, full `test/run-all.js`, and `git diff --check` all passed (`All 34 unit suites passed`).
+
 ## 2026-07-03 04:50 UTC runner hardening
 - Background process `proc_f87649c6c0b9` exited after the long `master:tree` lane started. The useful testing before that was extensive: full scenario-library batches, Calendar probes, realtime multi-tab probe, and `master:fast` all ran; the real red signals found before the exit were logged for follow-up.
 - First cron reviewer already fixed two runner/tester issues and pushed `eb936d5`: Windows path names for very long scenario batches were too long, and `sxr_realtime_twin.js` had a flaky pre-push assertion.

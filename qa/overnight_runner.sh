@@ -20,6 +20,7 @@ if [ ! -x "$NODE_BIN" ]; then NODE_BIN=${NODE_BIN_FALLBACK:-node}; fi
 export SXR_COURIER=${SXR_COURIER:-0}
 export MASTER_CHANGE_NOTE=${MASTER_CHANGE_NOTE:-overnight autonomous SyncView QA}
 mkdir -p "$OUTDIR"
+LOCK_DIR=${OVERNIGHT_LOCK_DIR:-$OUTDIR/.overnight_runner.lock}
 
 stamp() { date -u +"%Y-%m-%dT%H:%M:%SZ"; }
 log() { echo "[$(stamp)] $*" | tee -a "$LOG"; }
@@ -46,6 +47,34 @@ start_server() {
 }
 stop_server() {
   if [ -n "${SRV_PID:-}" ]; then kill "$SRV_PID" 2>/dev/null || true; wait "$SRV_PID" 2>/dev/null || true; SRV_PID=""; fi
+}
+
+acquire_runner_lock() {
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "$$" >"$LOCK_DIR/pid"
+    return 0
+  fi
+
+  local existing
+  existing=$(cat "$LOCK_DIR/pid" 2>/dev/null || true)
+  if [ -n "$existing" ] && kill -0 "$existing" 2>/dev/null; then
+    log "another overnight runner is active pid=$existing; exiting to avoid live-test collisions"
+    exit 0
+  fi
+
+  log "removing stale overnight runner lock pid=${existing:-unknown}"
+  rm -rf "$LOCK_DIR"
+  if mkdir "$LOCK_DIR" 2>/dev/null; then
+    echo "$$" >"$LOCK_DIR/pid"
+    return 0
+  fi
+
+  log "could not acquire overnight runner lock at $LOCK_DIR; exiting"
+  exit 0
+}
+
+release_runner_lock() {
+  rm -rf "$LOCK_DIR" 2>/dev/null || true
 }
 
 run_one() {
@@ -135,6 +164,10 @@ ROUND=0
 START_TS=$(date +%s)
 MAX_SECONDS=0
 if [ "${RUN_HOURS:-0}" != "0" ]; then MAX_SECONDS=$((RUN_HOURS * 3600)); fi
+acquire_runner_lock
+trap 'stop_server 2>/dev/null || true; release_runner_lock' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 log "==== overnight runner START pid=$$ branch=$(git branch --show-current) node=$NODE_BIN python=$PYTHON_BIN sxr_courier=$SXR_COURIER run_hours=${RUN_HOURS:-infinite} ===="
 
 while :; do

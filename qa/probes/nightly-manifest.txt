@@ -82,3 +82,7 @@ p85_review_gate_enforcement.js
 # --- duplicate Linear-issue surfacing (never hide an active card) ---
 p86_hidden_owner_warns.js
 p87_resolve_on_route.js
+# --- create-via-UI on the CONTENT CALENDAR (ghost-card class; samples twin is a scenario) ---
+p89_cal_create_via_ui.js
+# --- mid-save merge keep branch, deterministic (delayed-upsert) ---
+p90_merge_midsave_keep.js

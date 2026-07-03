@@ -33,6 +33,87 @@ function base() {
       ['expectCardOnce', 'UI Create Renamed'],
     ] });
 
+  // ---- THE OPTIMISTIC-STATE DIVERGENCE CLASS (generalized from the ghost card) ----
+  // Every scenario below drives a REAL UI mutation whose optimistic local state
+  // could diverge from the server, and gates on both sides. On top of these,
+  // the runner's teardown divergenceGate covers ALL scenarios for free.
+
+  // Create then archive BEFORE the save settles. _sxrArchiveOne awaits the
+  // in-flight save, so the Archived write must land strictly after the create —
+  // no local twin, no orphaned live DB row.
+  S.push({ key: 'create_then_archive_race', title: 'Create via UI then archive before the save settles — nothing survives', shots: true, noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Create Doomed'],
+      ['smm.archiveCard', 'UI Create Doomed'],   // fires while the first upsert can still be in flight
+      ['expectCardGone', 'UI Create Doomed'],
+    ] });
+
+  // Create then rename TWICE fast — a second edit lands while the first upsert
+  // is still in flight (per-card serialization: the finally re-flush must carry
+  // the newest value, and only ONE row may exist under the final name).
+  S.push({ key: 'create_rename_rename_race', title: 'Create via UI + two rapid renames — last write wins, one card, one row', noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Rapid A'],
+      ['smm.renameCard', 'UI Rapid A', 'UI Rapid B'],
+      ['smm.renameCard', 'UI Rapid B', 'UI Rapid C'],
+      ['expectCardOnce', 'UI Rapid C'],
+      ['expectCardGone', 'UI Rapid A'],
+      ['expectCardGone', 'UI Rapid B'],
+    ] });
+
+  // Create then drag to FRONT while the create save can still be in flight —
+  // then reload and confirm the order PERSISTED (the reorder-optimistic guard
+  // plus _sxrPersistReorder must survive a fresh fetch, and the freshly minted
+  // id must be the one reordered, not the stale blank pid).
+  S.push({ key: 'create_drag_reorder_persist', title: 'Create via UI, drag to front mid-save — order survives a reload', shots: true, noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Drag Newborn'],
+      ['expectCardOnce', 'UI Drag Newborn'],     // wait for the save to settle so the card is draggable
+      ['smm.dragToFront', 'UI Drag Newborn'],
+      ['expectFirstCard', 'UI Drag Newborn'],
+      ['smm.reload'],
+      ['expectFirstCard', 'UI Drag Newborn'],
+      ['expectCardOnce', 'UI Drag Newborn'],     // and the reload didn't resurrect a twin
+    ] });
+
+  // Create while ANOTHER SESSION's row arrives via a background server merge
+  // (_sxrMergeServerRows ~28024). The local-only keep branch (~28039) must keep
+  // the just-created card exactly once, adopt the foreign row exactly once, and
+  // never resurrect the stale blank (its interaction with the ghost-card fix).
+  S.push({ key: 'create_during_remote_merge', title: 'Create via UI while a remote row lands in a background merge — both exactly once', noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Merge Local'],
+      ['api.seedRow', 'XSESSION Merge Remote'],  // "another session" writes a row
+      ['smm.bgReload'],                          // background merge while the create may be settling
+      ['expectCardOnce', 'UI Merge Local'],
+      ['expectCardOnce', 'XSESSION Merge Remote'],
+    ] });
+
+  // Create → settle → full reload. The row must come back from the server
+  // exactly once (no cache/reload twin, no loss).
+  S.push({ key: 'create_survives_reload', title: 'Create via UI then hard reload — exactly one card from server truth', noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Reload Survivor'],
+      ['expectCardOnce', 'UI Reload Survivor'],
+      ['smm.reload'],
+      ['expectCardOnce', 'UI Reload Survivor'],
+    ] });
+
+  // Several cards in a row: catches blank-sequence/state-array bugs that only
+  // appear after repeated optimistic creates (duplicate temp ids, stale blanks,
+  // local-only rows, or cache twins). The teardown divergence gate then compares
+  // the full DOM/local/DB sets, not just these three names.
+  S.push({ key: 'create_many_via_ui', title: 'Create several cards through the real UI — each appears exactly once', noSeed: true,
+    steps: [
+      ['smm.createCard', 'UI Batch One'],
+      ['smm.createCard', 'UI Batch Two'],
+      ['smm.createCard', 'UI Batch Three'],
+      ['expectCardOnce', 'UI Batch One'],
+      ['expectCardOnce', 'UI Batch Two'],
+      ['expectCardOnce', 'UI Batch Three'],
+    ] });
+
+
   // ---- MAIN FLOWS ----
   S.push({ key: 'clean_both', title: 'Clean path — both components SMM→Kasper→Client→Approved', shots: true,
     // BOTH components linked: an unlinked thumbnail is gated out of the Kasper

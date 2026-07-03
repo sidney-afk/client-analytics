@@ -95,13 +95,14 @@ function profilePlan(profile) {
     };
   }
   // fast (default): the cheap, high-signal subset you run on every change.
-  // create_via_ui = the ghost-card gate (GA day-1 regression: card born in the
-  // browser painted twice in the creating window) — cheap (~40s for both) and
-  // covers the blank→promote→save funnel no seeded scenario can reach.
+  // The create_* block is the generalized optimistic-state divergence class:
+  // rows born in the browser, rapid edits, archive race, reorder+reload,
+  // remote/background merge, repeated creates. The teardown divergenceGate also
+  // checks every selected scenario's DOM/local-state/DB agreement.
   return {
     unit: {},
     parity: { files: ['parity_logic.js', 'realtime_parity.js'] },
-    scenarios: { filter: 'create_via_ui,clean_both,smm_request_video,client_approve_video' },
+    scenarios: { filter: 'create_via_ui,create_then_archive_race,create_rename_rename_race,create_drag_reorder_persist,create_during_remote_merge,create_survives_reload,create_many_via_ui,clean_both,smm_request_video,client_approve_video' },
     visual: { filter: 'clean_both' },
   };
 }
@@ -317,7 +318,8 @@ function laneVisual(cfg) {
     if (await serverUp()) { console.log('Static server already up on :' + PORT + '.'); }
     else {
       console.log('Starting static server on :' + PORT + ' …');
-      srv = spawn('python3', ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: true });
+      const py = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3');
+      srv = spawn(py, ['-m', 'http.server', String(PORT)], { cwd: ROOT, stdio: 'ignore', detached: true });
       killServer = () => { try { process.kill(-srv.pid); } catch { try { srv.kill('SIGKILL'); } catch {} } };
       process.on('exit', killServer);
       if (!(await waitForServer())) { console.error('Server never came up on :' + PORT); killServer(); process.exit(2); }

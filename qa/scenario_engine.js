@@ -192,6 +192,71 @@ async function smmRenameCard(page, fromName, toName) {
   }, [fromName, toName]);
 }
 
+// Archive a card by its visible NAME through the real UI (X button → confirm
+// dialog). Used immediately after smm.createCard to race the archive against
+// the in-flight create save — _sxrArchiveOne must await the save, and neither
+// a local twin nor an orphaned live DB row may survive.
+async function smmArchiveCard(page, cardName) {
+  const clicked = await page.evaluate((nm) => {
+    const strip = document.getElementById('sxrStrip');
+    if (!strip) return 'no-strip';
+    const card = [...strip.querySelectorAll('.cal-card[data-pid]')].find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    if (!card) return 'no-card';
+    const del = card.querySelector('.cal-card-del');
+    if (!del) return 'no-del-btn';
+    del.click(); return 'ok';
+  }, cardName);
+  if (clicked !== 'ok') return clicked;
+  const confirmed = await page.waitForFunction(() => { const ov = document.getElementById('confirmOverlay'); return ov && ov.classList.contains('active'); }, { timeout: 6000 }).then(() => true).catch(() => false);
+  if (!confirmed) return 'no-confirm';
+  return page.evaluate(() => {
+    const b = document.querySelector('#confirmOverlay .brief-action-btn.primary');
+    if (!b) return 'no-confirm-btn'; b.click(); return 'ok';
+  });
+}
+
+// Move a card (by name) to the FRONT of the strip and fire the strip's real
+// drop handler — the exact persistence funnel a human drag lands in
+// (_sxrWireStrip's drop → slot recycling → _sxrPersistReorder). HTML5
+// drag events can't be fully synthesized headless, but the drop handler only
+// reads the resulting DOM order, so a DOM move + drop dispatch exercises the
+// entire optimistic-reorder + persist + guard path.
+async function smmDragToFront(page, cardName) {
+  return page.evaluate((nm) => {
+    const strip = document.getElementById('sxrStrip');
+    if (!strip) return 'no-strip';
+    const cards = [...strip.querySelectorAll('.cal-card[draggable="true"]')];
+    const card = cards.find(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+    if (!card) return 'no-card';
+    const first = cards[0];
+    if (!first || first === card) return 'already-first';
+    strip.insertBefore(card, first);
+    strip.dispatchEvent(new Event('drop'));
+    return 'ok';
+  }, cardName);
+}
+
+// Full page reload (the "does it survive a refresh" gate) — everything
+// optimistic is gone; only server truth + cache remain.
+async function smmReloadPage(page) {
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => !!document.querySelector('#sxrStrip .cal-card-add'), { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => { if (typeof loadSxrCards === 'function') loadSxrCards({ skipCache: true }); });
+  await sleep(page, 2000);
+  return 'ok';
+}
+
+// Trigger a BACKGROUND server reload in the SMM tab — the _sxrMergeServerRows
+// path (the local-only-card keep branch at ~28039). Paired with an api-seeded
+// row this simulates "a realtime update from another session lands while my
+// create is in flight" without a tunneled WebSocket.
+async function smmBgReload(page) {
+  await page.evaluate(() => { if (typeof loadSxrCards === 'function') loadSxrCards({ background: true, skipCache: true }); });
+  await sleep(page, 2500);
+  return 'ok';
+}
+
+
 async function smmApprove(page, name, comp, route) {
   await page.evaluate(() => { const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="smmreview"]'); if (b) b.click(); });
   await sleep(page, 1400);   // let any prior action's save+re-render settle before we expand
@@ -442,6 +507,138 @@ async function clientAct(page, name, comp, kind, text) {
   return 'disabled';
 }
 
+// ---------- THE GENERIC STATE-vs-DB DIVERGENCE GATE ----------
+// The ghost-card bug class, generalized: OPTIMISTIC LOCAL STATE diverging from
+// SERVER truth during real UI interaction. After a scenario finishes, every
+// actor tab with the SXR surface loaded must agree with the live sample_reviews
+// rows on (a) the id SET, (b) each row's NAME, (c) the relative ORDER — once
+// all saves have settled. Wired into the runner's teardown so EVERY scenario
+// gets it for free: any future bug in this class trips the suite no matter
+// which scenario exposes it (the ghost card would have tripped it as
+// 'local has 2 entries, DB has 1'). Opt out per scenario with noDivergenceGate.
+// Rows the app is HONESTLY flagging as failed ('Save failed · Retry') are
+// excluded — that divergence is by design and visible to the user (free-text
+// edits are intentionally kept locally on a failed save).
+async function divergenceGate(who, page, note) {
+  // Convergence-aware: webhook writes land with ~1-2s latency, so a snapshot
+  // taken between two in-order writes (e.g. create landed, archive still in
+  // flight server-side) is NOT a bug. Re-read both sides for up to 15s and
+  // fail only if the divergence PERSISTS — a real bug in this class (the ghost
+  // card) diverges forever, so persistence is the right discriminator.
+  let verdict = null;
+  const tGate = Date.now();
+  while (Date.now() - tGate < 15000) {
+    verdict = await _divergenceRead(who, page);
+    if (!verdict || verdict.skip || verdict.ok) break;
+    await new Promise(s => setTimeout(s, 1500));
+  }
+  if (!verdict || verdict.skip) return;
+  note(verdict.ok, verdict.msg, verdict.extra);
+}
+async function _divergenceRead(who, page) {
+  // Put SMM tabs on the Sheet view so the gate can compare the VISIBLE strip
+  // as well as sxrState. Client-link strips intentionally filter to client-ready
+  // rows, so DOM-vs-DB is only enforced on non-client SMM tabs below.
+  try {
+    await page.evaluate(() => {
+      if (typeof _isClientLink !== 'undefined' && _isClientLink) return;
+      if (typeof sxrState === 'object' && sxrState && sxrState.view !== 'organizer') {
+        const b = document.querySelector('#sxrView .cal-view-btn[data-cal-view="organizer"]');
+        if (b) b.click();
+      }
+    });
+    await page.waitForTimeout(250);
+  } catch {}
+  let st = null;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 25000) {                       // wait for saves to settle
+    st = await page.evaluate(() => {
+      if (typeof sxrState === 'undefined' || !sxrState || !Array.isArray(sxrState.posts)) return null;
+      const pend = (typeof _sxrPendingEdits !== 'undefined') ? Object.keys(_sxrPendingEdits).length : 0;
+      const inflight = (typeof _sxrSaveInFlight !== 'undefined') ? Object.keys(_sxrSaveInFlight).length : 0;
+      const reordering = (typeof _sxrReorderInFlight !== 'undefined' && _sxrReorderInFlight)
+                      || (typeof _sxrReorderPending !== 'undefined' && !!_sxrReorderPending);
+      const posts = sxrState.posts
+        .filter(p => p && !(typeof _sxrIsBlankId === 'function' && _sxrIsBlankId(p.id)))
+        .map(p => ({ id: p.id, name: String(p.name || ''), order: Number(p.order_index || 0),
+                     failed: !!p._saveError || (typeof _sxrFailedNewCards !== 'undefined' && _sxrFailedNewCards.has(p.id)) }));
+      // A stale optimistic blank STILL holding content after all saves settled is
+      // the exact ghost-card shape (the pre-#649 bug left the __sxrblank__ twin
+      // in state forever). An EMPTY blank is fine — that's just an untouched "+".
+      const staleBlanks = sxrState.posts
+        .filter(p => p && typeof _sxrIsBlankId === 'function' && _sxrIsBlankId(p.id))
+        .filter(p => ['name', 'creative_direction', 'asset_url', 'thumbnail_url'].some(k => String(p[k] || '').trim() !== ''))
+        .map(p => p.id + '"' + String(p.name || '') + '"');
+      const strip = document.getElementById('sxrStrip');
+      const domCards = strip ? [...strip.querySelectorAll('.cal-card[data-pid]')].map(c => {
+        const id = c.getAttribute('data-pid') || '';
+        const nameEl = c.querySelector('.cal-fld-name');
+        const cdEl = c.querySelector('.sxr-cd-input');
+        const assetEl = c.querySelector('[data-fld="asset_url"]');
+        const thumbEl = c.querySelector('[data-fld="thumbnail_url"]');
+        const name = nameEl ? String(nameEl.value || '') : '';
+        const hasContent = [name, cdEl && cdEl.value, assetEl && assetEl.value, thumbEl && thumbEl.value].some(v => String(v || '').trim() !== '');
+        const failed = c.classList.contains('is-error');
+        return { id, name, order: Number(((sxrState.posts || []).find(p => p && p.id === id) || {}).order_index || 0), blank: id.startsWith('__sxrblank__'), hasContent, failed };
+      }) : null;
+      return { settled: pend === 0 && inflight === 0 && !reordering,
+               posts, staleBlanks, domCards, isClient: (typeof _isClientLink !== 'undefined' && !!_isClientLink),
+               slug: (typeof sxrClientSlug === 'function') ? sxrClientSlug(sxrState.client) : '' };
+    }).catch(() => null);
+    if (!st || st.settled) break;
+    await new Promise(s => setTimeout(s, 700));
+  }
+  if (!st) return { skip: true };                         // SXR surface not mounted in this tab — nothing to gate
+  if (st.slug !== 'sidneylaruel') return { skip: true };  // safety: only ever judge the test client
+  if (!st.settled) return { ok: false, msg: `divergenceGate(${who})`, extra: 'saves never settled within 25s' };
+  let rows = null;
+  try { rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name,order_index'); } catch {}
+  if (!Array.isArray(rows)) return { ok: false, msg: `divergenceGate(${who})`, extra: 'DB read failed' };
+  const local = st.posts.filter(p => !p.failed);
+  const failedNote = st.posts.length !== local.length ? ` (${st.posts.length - local.length} save-failed row(s) excluded)` : '';
+  const dbById = new Map(rows.map(r => [r.id, r]));
+  const locById = new Map(local.map(p => [p.id, p]));
+  const extraLocal = local.filter(p => !dbById.has(p.id)).map(p => `${p.id}"${p.name}"`);
+  const extraDb = rows.filter(r => !locById.has(r.id)).map(r => `${r.id}"${r.name}"`);
+  const dupLocal = local.length !== locById.size;         // same id twice in state = the ghost shape
+  const nameMismatch = [];
+  for (const p of local) { const r = dbById.get(p.id); if (r && String(r.name || '') !== p.name) nameMismatch.push(`${p.id} local="${p.name}" db="${r.name || ''}"`); }
+  const shared = local.filter(p => dbById.has(p.id));
+  const seq = (arr, ord) => arr.slice().sort((a, b) => (ord(a) - ord(b)) || String(a.id).localeCompare(String(b.id))).map(x => x.id).join(',');
+  const localSeq = seq(shared, p => p.order);
+  const dbSeq = seq(shared.map(p => dbById.get(p.id)), r => Number(r.order_index || 0));
+  const orderMismatch = localSeq !== dbSeq;
+  const staleBlanks = st.staleBlanks || [];
+  let domExtra = [], domMissing = [], domNameMismatch = [], dupDom = false, domStaleBlanks = [];
+  if (Array.isArray(st.domCards) && !st.isClient) {
+    domStaleBlanks = st.domCards.filter(c => c.blank && c.hasContent).map(c => `${c.id}"${c.name}"`);
+    const localFailedIds = new Set(st.posts.filter(p => p.failed).map(p => p.id));
+    const domReal = st.domCards.filter(c => !c.blank && !c.failed && !localFailedIds.has(c.id));
+    const domById = new Map(domReal.map(c => [c.id, c]));
+    dupDom = domReal.length !== domById.size;
+    domExtra = domReal.filter(c => !dbById.has(c.id)).map(c => `${c.id}"${c.name}"`);
+    domMissing = rows.filter(r => !domById.has(r.id)).map(r => `${r.id}"${r.name}"`);
+    for (const c of domReal) { const r = dbById.get(c.id); if (r && String(r.name || '') !== c.name) domNameMismatch.push(`${c.id} dom="${c.name}" db="${r.name || ''}"`); }
+  }
+  const ok = !extraLocal.length && !extraDb.length && !dupLocal && !nameMismatch.length && !orderMismatch && !staleBlanks.length
+    && !domExtra.length && !domMissing.length && !domNameMismatch.length && !dupDom && !domStaleBlanks.length;
+  return { ok,
+    msg: `divergenceGate(${who}) — local/DOM state ≡ DB (${local.length} rows)${failedNote}`,
+    extra: ok ? '' : [
+      dupLocal ? 'DUPLICATE id in local state' : '',
+      dupDom ? 'DUPLICATE id in DOM' : '',
+      staleBlanks.length ? 'STALE BLANK with content (ghost shape): ' + staleBlanks.join(' ') : '',
+      domStaleBlanks.length ? 'DOM STALE BLANK with content: ' + domStaleBlanks.join(' ') : '',
+      extraLocal.length ? 'local-only: ' + extraLocal.join(' ') : '',
+      extraDb.length ? 'db-only: ' + extraDb.join(' ') : '',
+      nameMismatch.length ? 'name: ' + nameMismatch.join(' ') : '',
+      domExtra.length ? 'dom-only: ' + domExtra.join(' ') : '',
+      domMissing.length ? 'dom-missing: ' + domMissing.join(' ') : '',
+      domNameMismatch.length ? 'dom-name: ' + domNameMismatch.join(' ') : '',
+      orderMismatch ? `order: local=[${localSeq}] db=[${dbSeq}]` : '',
+    ].filter(Boolean).join(' · ').slice(0, 400) };
+}
+
 // ---------- the runner ----------
 async function runScenario(browser, scn, shotDir, doShots) {
   const fs = require('fs');
@@ -449,6 +646,12 @@ async function runScenario(browser, scn, shotDir, doShots) {
   const log = []; let nstep = 0; let okCount = 0, failCount = 0;
   const actors = new Actors(browser);
   const extraIds = new Set();   // rows minted BY THE UI during this scenario (no seeded id) — archived in finally
+  const uiNames = new Map();    // logical scenario names → per-run unique names (noSeed UI-born rows)
+  const uniqueUiName = (label) => {
+    if (typeof label !== 'string' || !scn.noSeed) return label;
+    if (!uiNames.has(label)) uiNames.set(label, `${label} ${id.slice(-10)}`);
+    return uiNames.get(label);
+  };
   const note = (pass, msg, extra) => { log.push({ pass, msg, extra }); if (pass) okCount++; else failCount++; };
   const shot = async (page, label) => { if (!doShots) return; try { fs.mkdirSync(shotDir, { recursive: true }); await page.screenshot({ path: `${shotDir}/${scn.key}-${String(++nstep).padStart(2, '0')}-${label}.png` }); } catch {} };
 
@@ -474,15 +677,85 @@ async function runScenario(browser, scn, shotDir, doShots) {
       const [verb, ...args] = step;
       let res = 'ok';
       if (verb === 'smm.status') { const p = await actors.smm(); res = await smmStatus(p, id, args[0], args[1]); await shot(p, 'smm-status'); }
-      else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, args[0]); await shot(p, 'smm-create'); }
-      else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, args[0], args[1]); await shot(p, 'smm-rename'); }
+      else if (verb === 'smm.createCard') { const p = await actors.smm(); res = await smmCreateCard(p, uniqueUiName(args[0])); await shot(p, 'smm-create'); }
+      else if (verb === 'smm.renameCard') { const p = await actors.smm(); res = await smmRenameCard(p, uniqueUiName(args[0]), uniqueUiName(args[1])); await shot(p, 'smm-rename'); }
+      else if (verb === 'smm.archiveCard') { const p = await actors.smm(); res = await smmArchiveCard(p, uniqueUiName(args[0])); await shot(p, 'smm-archive'); }
+      else if (verb === 'smm.dragToFront') { const p = await actors.smm(); res = await smmDragToFront(p, uniqueUiName(args[0])); await shot(p, 'smm-drag'); }
+      else if (verb === 'smm.reload') { const p = await actors.smm(); res = await smmReloadPage(p); await shot(p, 'smm-reload'); }
+      else if (verb === 'smm.bgReload') { const p = await actors.smm(); res = await smmBgReload(p); await shot(p, 'smm-bgreload'); }
+      else if (verb === 'api.seedRow') {
+        // Seed an EXTRA row via the API mid-scenario — "another session created
+        // a row while I was working". A following smm.bgReload merges it in
+        // through _sxrMergeServerRows. Registered for teardown archive.
+        const xid = 'sr_scn_x_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+        extraIds.add(xid);
+        // Carry an explicit status: a bare row would land with status NULL, which
+        // PostgREST's `status=neq.Archived` silently EXCLUDES (null != comparison)
+        // while the app's GET still loads it — a harness-side blind spot found
+        // when this verb was first run.
+        try { up({ id: xid, name: uniqueUiName(args[0]) || ('XSESSION ' + xid), order_index: 999, video_status: 'In Progress', graphic_status: 'In Progress', status: 'In Progress' }); res = 'ok'; }
+        catch (e) { res = 'seed-failed: ' + (e.message || e); }
+        await poll(() => { const r = supa('id=eq.' + xid + '&select=id'); return r[0] || null; }, 12000, 600);
+      }
+      else if (verb === 'wait') { const p = await actors.smm(); await sleep(p, Number(args[0]) || 1000); }
+      else if (verb === 'expectCardGone') {
+        // Inverse of expectCardOnce: ZERO cards with this name in the DOM
+        // (including blanks) and ZERO live DB rows. The archive-during-create
+        // race must not leave either a local twin or an orphaned server row.
+        const wantName = uniqueUiName(args[0]);
+        const p = await actors.smm();
+        let dom = null, rows = [];
+        const t0 = Date.now();
+        while (Date.now() - t0 < 20000) {
+          dom = await p.evaluate((nm) => {
+            const strip = document.getElementById('sxrStrip');
+            if (!strip) return { cards: -1 };
+            const named = [...strip.querySelectorAll('.cal-card[data-pid]')].filter(c => { const i = c.querySelector('.cal-fld-name'); return i && i.value === nm; });
+            return { cards: named.length, pids: named.map(c => c.getAttribute('data-pid')) };
+          }, wantName);
+          try { rows = supa('client=eq.sidneylaruel&name=eq.' + encodeURIComponent(wantName) + '&or=(status.neq.Archived,status.is.null)&select=id,name') || []; } catch { rows = []; }
+          (Array.isArray(rows) ? rows : []).forEach(r => extraIds.add(r.id));   // register strays for cleanup even on fail
+          if (dom.cards === 0 && Array.isArray(rows) && rows.length === 0) break;
+          await new Promise(s => setTimeout(s, 700));
+        }
+        const okk = dom && dom.cards === 0 && Array.isArray(rows) && rows.length === 0;
+        note(okk, `expectCardGone "${wantName}"`, okk ? '' : `DOM cards=${dom && dom.cards} pids=${JSON.stringify(dom && dom.pids)} · DB rows=${Array.isArray(rows) ? rows.length : 'err'}`);
+        await shot(p, 'card-gone');
+        continue;
+      }
+      else if (verb === 'expectFirstCard') {
+        // Assert the FIRST draggable card in the strip is this name AND the DB
+        // order agrees (this row holds the smallest live order_index) — the
+        // reorder-persistence gate after smm.dragToFront (+ optional reload).
+        const wantName = uniqueUiName(args[0]);
+        const p = await actors.smm();
+        let okDom = false, first = '', okDb = false, dbFirst = '';
+        const t0 = Date.now();
+        while (Date.now() - t0 < 20000) {
+          first = await p.evaluate(() => {
+            const c = document.querySelector('#sxrStrip .cal-card[draggable="true"]');
+            const i = c && c.querySelector('.cal-fld-name');
+            return i ? i.value : '(none)';
+          });
+          okDom = first === wantName;
+          let rows = [];
+          try { rows = supa('client=eq.sidneylaruel&or=(status.neq.Archived,status.is.null)&select=id,name,order_index&order=order_index.asc&limit=1') || []; } catch {}
+          dbFirst = rows[0] ? rows[0].name : '(none)';
+          okDb = rows.length > 0 && dbFirst === wantName;
+          if (okDom && okDb) break;
+          await new Promise(s => setTimeout(s, 700));
+        }
+        note(okDom && okDb, `expectFirstCard "${wantName}"`, (okDom && okDb) ? '' : `DOM first="${first}" · DB first="${dbFirst}"`);
+        await shot(p, 'first-card');
+        continue;
+      }
       else if (verb === 'expectCardOnce') {
         // The ghost-card gate. Waits for the save to settle, then asserts:
         //   DOM  — exactly ONE .cal-card whose name field carries this name,
         //          and ZERO leftover __sxrblank__ cards holding it;
         //   DB   — exactly ONE live sample_reviews row with this name.
         // Registers the minted row for cleanup. Fails loud on 0 or 2+.
-        const wantName = args[0];
+        const wantName = uniqueUiName(args[0]);
         const p = await actors.smm();
         let dom = null;
         const t0 = Date.now();
@@ -503,7 +776,7 @@ async function runScenario(browser, scn, shotDir, doShots) {
           await new Promise(s => setTimeout(s, 600));
         }
         let rows = [];
-        try { rows = supa('client=eq.sidneylaruel&name=eq.' + encodeURIComponent(wantName) + '&status=neq.Archived&select=id,name') || []; } catch {}
+        try { rows = supa('client=eq.sidneylaruel&name=eq.' + encodeURIComponent(wantName) + '&or=(status.neq.Archived,status.is.null)&select=id,name') || []; } catch {}
         (Array.isArray(rows) ? rows : []).forEach(r => extraIds.add(r.id));
         (dom && dom.pids || []).filter(x => x && !x.startsWith('__sxrblank__')).forEach(x => extraIds.add(x));
         const okDom = dom && dom.cards === 1 && dom.blanks === 0;
@@ -604,6 +877,16 @@ async function runScenario(browser, scn, shotDir, doShots) {
     }
   } catch (e) { note(false, 'EXCEPTION: ' + (e.message || e)); }
   finally {
+    // THE GENERIC DIVERGENCE GATE — every scenario, every open tab, for free.
+    // (client tab is skipped when the SMM archived mid-scenario rows the client
+    // tab can't learn about — realtime isn't tunneled in the harness; scenarios
+    // that need that opt out via noDivergenceGate.)
+    if (!scn.noDivergenceGate) {
+      for (const [who, p] of [['smm', actors._smm], ['client', actors._client]]) {
+        if (!p) continue;
+        try { await divergenceGate(who, p, note); } catch (e) { note(false, `divergenceGate(${who})`, String(e.message || e).slice(0, 200)); }
+      }
+    }
     // 0-JS-errors gate: any real app error on any actor tab fails the scenario
     // (appErrs already filters the expected courier/WebSocket noise).
     for (const [who, p] of [['smm', actors._smm], ['kasper', actors._kasper], ['client', actors._client]]) {

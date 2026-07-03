@@ -63,7 +63,7 @@ ok(/\[functions\.calendar-upsert\]\s*verify_jwt = false/.test(CFG), 'calendar-up
 
 ok(/A1_PARITY_CONFIRM/.test(PARITY) && /sidneylaruel/.test(PARITY),
   'parity harness must require explicit TEST-client confirmation');
-ok(/normalizeGenerated/.test(PARITY) && /updated_at/.test(PARITY) && /created_at/.test(PARITY) && /ts/.test(PARITY),
+ok(/normalizeGenerated/.test(PARITY) && /updated_at/.test(PARITY) && /created_at/.test(PARITY) && /ts/.test(PARITY) && /_status_at/.test(PARITY),
   'parity harness must normalize generated timestamps');
 ok(/calendar_post_events/.test(PARITY) && /<generated:id>/.test(PARITY),
   'parity harness must normalize event auto-IDs before diagnostics');

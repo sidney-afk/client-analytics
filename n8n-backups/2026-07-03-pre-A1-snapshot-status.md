@@ -19,9 +19,14 @@ repository.
   2026-07-03 workflow export for all 87 live workflows.
 - Before A1 work started, both A1-scoped workflow version IDs above were re-read from live n8n
   and still matched the versions covered by that private backup.
-- No n8n workflow has been edited for A1 yet.
+- A1 later edited only `MJbMZ789B5ExZz9x` (`Handle Linear Event`) to add per-client
+  `calendar_upsert_ef_clients` routing. The old calendar-upsert n8n URL remains the default
+  path when the flag is empty or unreadable.
+- The edited draft was published on 2026-07-03; live `versionId` and `activeVersionId` both
+  became `ece94b2c-cdba-46b3-a1e5-966abda0e8f6`.
+- `pWSqaqVw7dmqhYOA` (`SyncView Calendar - Upsert Post`) was not edited during A1.
 
-## Required Before Any A1 n8n Edit
+## Required Before Any Further A1 n8n Edit
 
 - Re-read the target workflow immediately before editing it.
 - If the live version ID differs from the table above, stop and take a fresh private workflow

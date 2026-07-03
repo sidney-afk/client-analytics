@@ -141,7 +141,7 @@ async function callEndpoint(url, payload, label) {
   const text = await resp.text();
   let body = null;
   try { body = text ? JSON.parse(text) : null; } catch (_e) { body = text; }
-  return { label, http_status: resp.status, body };
+  return { http_status: resp.status, body };
 }
 
 function sortObject(value) {
@@ -160,7 +160,7 @@ function normalizeGenerated(value, opts = {}, path = []) {
   for (const [key, raw] of Object.entries(value)) {
     const nextPath = path.concat(key);
     const inEvent = path.includes('events') || path.includes('calendar_post_events');
-    if (key === 'updated_at' || key === 'created_at' || key === 'ts') {
+    if (key === 'updated_at' || key === 'created_at' || key === 'ts' || /_status_at$/.test(key)) {
       out[key] = '<generated:timestamp>';
     } else if (key === 'id' && (inEvent || opts.normalizePostId)) {
       out[key] = '<generated:id>';

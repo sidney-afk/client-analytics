@@ -11116,7 +11116,8 @@
     function _smLoadPrefs(){ try { return JSON.parse(localStorage.getItem(SM_PREFS_KEY) || '{}') || {}; } catch(e){ return {}; } }
     function _smSavePrefs(){ try { localStorage.setItem(SM_PREFS_KEY, JSON.stringify({ client: smState.client, kind: smState.kind })); } catch(e){} }
     function _smCacheKey(slug){ return SM_CACHE_PREFIX + slug; }
-    function _smCacheRead(slug){ try { const r = localStorage.getItem(_smCacheKey(slug)); if(!r) return null; const o = JSON.parse(r); return Array.isArray(o.samples) ? o.samples.map(_smNormalize) : null; } catch(e){ return null; } }
+    const SM_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;   // parity with CAL_CACHE_TTL_MS / SXR_CACHE_TTL_MS
+    function _smCacheRead(slug){ try { const r = localStorage.getItem(_smCacheKey(slug)); if(!r) return null; const o = JSON.parse(r); if(!o || !o.at || (Date.now() - Number(o.at)) > SM_CACHE_TTL_MS) return null; return Array.isArray(o.samples) ? o.samples.map(_smNormalize) : null; } catch(e){ return null; } }
     function _smCacheWrite(slug, samples){
         const payload = JSON.stringify({ samples, at: Date.now() });
         try { localStorage.setItem(_smCacheKey(slug), payload); return; } catch(e){}
@@ -14643,6 +14644,14 @@
                 changed = true;
             });
         });
+        // Hard TTL: the ledger is a 60s propagation guard, but refs whose rows
+        // stay archived (or were deleted) never return "live" and used to pile
+        // up forever. A day after the archive the guard's job is long done —
+        // server-side status is authoritative — so age everything else out.
+        const ttlCutoff = Date.now() - 24 * 60 * 60 * 1000;
+        Object.keys(m).forEach(k => {
+            if ((m[k] || 0) < ttlCutoff) { delete m[k]; changed = true; }
+        });
         if (changed) _calArchivedWriteRaw(slug, m);
     }
     function _calRefsForPost(p) {
@@ -16801,7 +16810,7 @@
         try { localStorage.setItem(_calCacheKey(slug), payload); return; }
         catch (e) {
             // QuotaExceededError or similar — drop oldest entries with our
-            // prefix until the write fits, or silently give up.
+            // prefix until the write fits.
             try {
                 const entries = [];
                 for (let i = 0; i < localStorage.length; i++) {
@@ -16818,6 +16827,10 @@
                     try { localStorage.setItem(_calCacheKey(slug), payload); return; } catch {}
                 }
             } catch {}
+            // Still failing (quota held by keys outside our prefix) — drop this
+            // slug's cache rather than keep a stale snapshot seeding every boot
+            // paint (same drop-on-final-fail as _sxrCacheWrite/_smCacheWrite).
+            try { localStorage.removeItem(_calCacheKey(slug)); } catch {}
         }
     }
 
@@ -19200,6 +19213,9 @@
         // only reloads the <img> in place — the page itself does not refresh.
         if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') {
             _calForceThumbRefresh(input.dataset.pid);
+            // Media presence gates SMM-review eligibility (_calHasMedia), so the
+            // Review tab badge count can change with this edit — sync it in place.
+            if (typeof _calUpdateReviewBadge === 'function') _calUpdateReviewBadge();
         }
         const field = input.closest('.cal-link-field');
         if (!field) return;
@@ -24541,6 +24557,12 @@
             titleSq.classList.add('cal-fld-status-' + _calStatusSlug(tcs));
             titleSq.setAttribute('title', 'YouTube title — ' + _calStatusLabel(tcs));
         }
+        // The Review tab badge counts by status — keep it in lockstep with the
+        // in-place status change too (back-port of the samples port's tail call;
+        // without it a client change-request from the Notes modal left the badge
+        // at the old count until the next full re-render). Before the early
+        // return: the badge is toolbar DOM, independent of this card's element.
+        if (typeof _calUpdateReviewBadge === 'function') _calUpdateReviewBadge();
         const card = document.querySelector(`.cal-card[data-pid="${sel}"]`);
         if (!card) return;
         const chip = card.querySelector('.cal-client-status');
@@ -26317,6 +26339,9 @@
         });
         let changed = false;
         Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > SXR_ARCHIVE_GRACE_MS && liveRefs.has(ref)) { delete m[ref]; changed = true; } });
+        // Hard TTL (mirror of _calCleanArchiveLedger): refs whose rows stay
+        // archived never come back "live", so without this they piled up forever.
+        Object.keys(m).forEach(ref => { if ((now - (m[ref] || 0)) > 24 * 60 * 60 * 1000) { delete m[ref]; changed = true; } });
         if (changed) _sxrArchivedWriteRaw(slug, m);
     }
     async function _sxrFetchPosts(slug, signal) {
@@ -26571,7 +26596,14 @@
     function _sxrOnLinkInput(input) { _sxrOnFieldInput(input); }
     function _sxrOnLinkBlur(input) {
         _sxrOnFieldBlur(input);
-        if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') _sxrForceThumbRefresh(input.dataset.pid);
+        if (input.dataset.fld === 'thumbnail_url' || input.dataset.fld === 'asset_url') {
+            _sxrForceThumbRefresh(input.dataset.pid);
+            // Media presence gates SMM-review eligibility (_sxrHasMedia), so the
+            // Review tab badge count can change with this edit — sync it in place
+            // (the optimistic value is already in sxrState.posts, and a background
+            // self-echo skips the full repaint via _sxrPostsEqualForRender).
+            if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+        }
         const field = input.closest('.cal-link-field');
         if (field) field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false);
     }
@@ -29121,7 +29153,14 @@
                 // calendar). Otherwise keep it pinned so he can keep deciding.
                 const stillKasper = SXR_REVIEW_COMPONENTS.some(c => _sxrNormStatus(p[c + '_status'] || '') === 'Kasper Approval');
                 const stillTweaks = _sxrKasperPostHasUnresolvedKasperTweak(p);
-                if (stillKasper || stillTweaks) return false;
+                if (stillKasper || stillTweaks) {
+                    // Partial approve — the card stays for the remaining decisions,
+                    // but Kasper still gets the confirmation + Undo (the calendar's
+                    // toast shows in BOTH branches; without it a partial approve
+                    // gave no feedback and no way back).
+                    if (typeof showToast === 'function') showToast(COMP_LABELS[comp] + ' approved — sent to client', { actionLabel: 'Undo', onAction: () => _sxrKasperUndoApprove(it, comp, prevStatus, null) });
+                    return false;
+                }
                 const entry = _sxrKasperHistoryEntryFromPost(p, it.client, it.slug, new Date().toISOString());
                 _sxrKasperRecordHistory(entry);
                 const removed = it;
@@ -29238,7 +29277,23 @@
             list.push({ id: _sxrMintCommentId(), parent_id: null, author: 'Kasper', role: 'kasper', is_tweak: true, audience: 'internal', round: _sxrNextTweakRound(p, comp), body, created_at: now, updated_at: now, done: false, done_at: '', done_by: '' });
             _sxrSetCommentsFor(p, comp, list);
             p[comp + '_status'] = 'Tweaks Needed'; p.status = computeSampleOverallStatus(p);
-            return { [comp + '_status']: 'Tweaks Needed', status: p.status, [comp + '_tweaks']: _sxrStringifyComments(list) };
+            // A plain "Request change" supersedes any prior "approve after tweaks"
+            // pre-clearance on this component (mirror of the calendar's
+            // _calClearApprovedAfterTweaks call) — otherwise the SMM still saw
+            // the pre-clear badge and the resolve chooser recommended skipping
+            // Kasper's re-review.
+            const aat = new Set(String(p.kasper_approved_after_tweaks || '').split(',').map(s => s.trim()).filter(Boolean));
+            const hadAat = aat.delete(comp);
+            if (hadAat) p.kasper_approved_after_tweaks = SXR_COMPONENTS.filter(c => aat.has(c)).join(',');
+            // Kasper just moved a sub to Tweaks Needed — stale client/Kasper
+            // approval stamps must clear too (mirror of _calClearStaleApprovals
+            // in the calendar handler), folded into the persisted patch.
+            const stale = {};
+            _sxrClearStaleApprovals(p, stale);
+            return Object.assign(
+                { [comp + '_status']: 'Tweaks Needed', status: p.status, [comp + '_tweaks']: _sxrStringifyComments(list) },
+                hadAat ? { kasper_approved_after_tweaks: p.kasper_approved_after_tweaks } : {},
+                stale);
         }, body);
     }
     function _sxrKasperApproveAfterTweaksComp(pid, comp) {
@@ -31689,6 +31744,18 @@
         // Replies was excluded before, so the inbox stayed frozen until you left
         // the tab and came back — incoming SMM/client replies never arrived live.
         if (!document.getElementById('kasperContent')) return;
+        // Samples sub-tab: same tab-return catch-up as Review/Replies below —
+        // without it the samples queue had NO refetch on any return path (its
+        // realtime socket can suspend in a backgrounded tab and miss events),
+        // so cards the SMM routed to Kasper while he was away never appeared
+        // until a manual reload.
+        if (_kasperState.tab === 'samples') {
+            if (typeof _sxrKasperState === 'undefined' || !_sxrKasperState || _sxrKasperState.loading) return;
+            const ta = document.activeElement;
+            if (ta && ta.tagName === 'TEXTAREA' && ta.closest && ta.closest('#kasperContent')) return;
+            if (typeof _sxrKasperLoadQueue === 'function') _sxrKasperLoadQueue();
+            return;
+        }
         if (_kasperState.tab !== 'review' && _kasperState.tab !== 'replies') return;
         if (_kasperState.loading) return;
         // Skip while the user is actively typing in a panel textarea so a
@@ -32308,8 +32375,10 @@
         // every load already calls. Deliberately NOT painted here: it isn't part of
         // the entry cache, so doing so would flash a stale 0 before the first fetch.
         // samples = samples awaiting review (only present when that subtab exists).
+        // Count only the WAITING partition — finished/"Tweaks pending" cards are
+        // not awaiting Kasper, same rule as the review count above.
         if (typeof _sxrKasperState !== 'undefined' && _sxrKasperState && _sxrKasperState.loaded) {
-            _kasperSetTabCount('samples', (_sxrKasperState.items || []).length);
+            _kasperSetTabCount('samples', _sxrKasperPartitionItems(_sxrKasperState.items || []).waiting.length);
         }
         // filming = clients not yet covered (a plan is needed now or soon).
         const fd = _kasperState.filmingData;

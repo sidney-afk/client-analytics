@@ -105,12 +105,17 @@ guard-by-guard analysis remains the reference for port fidelity.
    that way on 2026-05-19 — **Graphics issues have NEVER had realtime sync**; every GRA status
    change has always waited for the 10-minute reconciler. This explains why both documented
    drift incidents (`LINEAR_DRIFT_INCIDENT_2026-06-19.md` — GRA-6373; `docs/archive/`
-   `THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md`) involved thumbnail/graphics cards. Fix: in Linear
-   → Settings → API → Webhooks, either edit "Workload" to **All public teams**, or add a second
-   webhook with the same URL scoped to the Graphics team (Issue events). The handler already
-   filters safely (unmatched issues/teams no-op; the workload branch handles any team). Verify
-   afterwards with a GRA test issue in the "Sidney Laruel" project → execution on
-   `MJbMZ789B5ExZz9x`. Until then, the reconciler continues covering Graphics as it always has.
+   `THUMBNAIL_DESYNC_INCIDENT_2026-06-24.md`) involved thumbnail/graphics cards. Linear's UI
+   confirms **team selection cannot be modified after creation** (verified 2026-07-03), so the
+   fix is a NEW webhook: Linear → Settings → API → Webhooks → New webhook — Label
+   "Workload — Graphics", URL `https://synchrosocial.app.n8n.cloud/webhook/linear-status-sync`,
+   Data change events: **Issues only**, Team: **Graphics**. Keep the existing VID webhook as-is.
+   Do NOT create an "All public teams" webhook while the VID one exists — VID events would be
+   delivered twice. (The signing secret is unused today; n8n doesn't verify signatures — the
+   Track A EF port introduces its own webhook + secret.) The handler already filters safely
+   (unmatched issues no-op; the workload branch handles any team). Verify afterwards with a GRA
+   test issue in the "Sidney Laruel" project → execution on `MJbMZ789B5ExZz9x`. Until then, the
+   reconciler continues covering Graphics as it always has.
 3. **[Codex, first commit] Recover the live schema.** Dump the live DDL (tables, policies,
    triggers, publication membership) into `migrations/live-schema-baseline-YYYY-MM-DD.sql`.
    The `calendar_posts` base DDL was never committed; `EDGE_FUNCTIONS_MIGRATION.md` flags this as
@@ -160,7 +165,18 @@ Rules that keep this safe:
 - **The repo is public.** No secrets in code, docs, or commits — Edge Function secrets go in
   Supabase function env, QA secrets in GitHub Actions secrets.
 
-## 7. Risk register (top items)
+## 7. Rollback & backup doctrine — NON-NEGOTIABLE
+
+The owner's hard requirement: **at any moment, one step must return the business to a fully
+working website**, with backups of everything and a written trail of every action. The complete
+doctrine and the always-current Live State table live in **`ROLLBACK.md`** — read it before
+executing anything, keep its table updated in the same PR as every change, and treat its 8
+standing rules (one-step rollback, old path stays alive, additive-only DB changes, snapshot
+before every phase, log everything in `EXECUTION_LOG.md`, hard gates, rehearse the rollback,
+no secrets) as blocking requirements. A phase that cannot articulate its one-step rollback in
+`ROLLBACK.md` does not ship.
+
+## 8. Risk register (top items)
 
 | Risk | Mitigation |
 |---|---|
@@ -172,7 +188,7 @@ Rules that keep this safe:
 | Track B pilot drifts from Linear during parallel run | New system is the single source of truth from pilot start; mirror-to-Linear is one-way display-only; weekly diff script during pilot |
 | Client links fail open when the Sheet token column is empty (existing bug) | Fixed in B0 when tokens move to the `clients` table — enforcement becomes deny-by-default |
 
-## 8. Verification
+## 9. Verification
 
 - Unit: `npm test` (30+ offline suites; they extract functions from `index.html` by name).
 - E2E: `qa/master.js` lanes + the calendar/samples nightly probes (see

@@ -10,6 +10,18 @@ read it first and sanity-check this plan against it. If any part of this plan se
 the owner's intent or the code you find, stop and ask the owner rather than following the plan
 blindly.**
 
+> **MANDATORY FIRST STEP — RE-AUDIT.** The audit reports in `docs/audits/2026-07-03-*.md` and
+> every fact in this plan are a snapshot of **2026-07-03**. This system changes daily (live n8n
+> workflows, Linear state, Supabase schema, `index.html`, Sheets). Before executing anything,
+> re-run the full audit — repo code, live n8n workflow inventory + the specific workflows named
+> in the Track A spec, live Linear workspace, Supabase schema, and the Google Sheets — and diff
+> the findings against the 2026-07-03 reports. Anything that changed invalidates the
+> corresponding assumptions here (endpoint payloads, ALLOWED column lists, workflow ids,
+> active/inactive states, call-site line numbers, table shapes). Update this plan and the track
+> specs to match reality before touching anything, and flag material changes to the owner.
+> Line numbers cited anywhere in these docs are 2026-07-03 positions — always re-locate by
+> symbol/string, never trust the number.
+
 ---
 
 ## 1. The two goals (owner's words, condensed)

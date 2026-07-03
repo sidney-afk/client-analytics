@@ -2,7 +2,10 @@
 
 **Parent doc:** `INDEPENDENCE_PLAN.md`. **Starts only after Track A gate A3 passes.**
 **Ground truth:** `docs/audits/2026-07-03-linear.md` (what Linear actually does for this team)
-and `docs/audits/2026-07-03-supabase.md` §6b (what's missing schema-wise). Key sizing facts:
+and `docs/audits/2026-07-03-supabase.md` §6b (what's missing schema-wise). **These audits are a
+2026-07-03 snapshot — the master plan's MANDATORY FIRST STEP (re-audit and diff) applies; by the
+time Track B starts, re-audit Linear especially (projects, users, volumes, state names) since
+weeks will have passed.** Key sizing facts:
 2 live teams (Graphics/GRA, Video/VID), 48 projects-as-clients (~20 active), ~120 new
 sub-issues/week, ~1,075 non-completed issues in current cycles, 5 active editors/designers.
 Fields actually used on deliverables: **state, assignee, due date, comments** (labels, priority,

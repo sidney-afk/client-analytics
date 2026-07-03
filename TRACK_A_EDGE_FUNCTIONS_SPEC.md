@@ -8,6 +8,10 @@ changes one decision: **both Phase 1 and Phase 2 of that doc are now committed, 
 **Ground truth:** `docs/audits/2026-07-03-n8n.md` (live workflow inventory + node detail),
 `docs/audits/2026-07-03-code.md` (every FE call site), `docs/audits/2026-07-03-supabase.md`
 (schema + what n8n enforces that the DB does not).
+**These audits are a 2026-07-03 snapshot — the master plan's MANDATORY FIRST STEP (re-audit and
+diff) applies before executing anything in this spec.** In particular: re-export the live n8n
+workflows named below (guards/ALLOWED lists drift), and re-locate every `index.html` reference by
+symbol, not line number.
 
 ## 1. Endpoint disposition table
 

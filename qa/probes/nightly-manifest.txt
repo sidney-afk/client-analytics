@@ -92,3 +92,5 @@ p91_ui_realtime_multitab.js
 p92_sxr_resolve_pill_inplace.js
 # --- SAMPLES cache self-heal: archived phantom can't flash on every refresh ---
 p93_sxr_stale_cache_heal.js
+# --- navigation survives a FULL localStorage (QuotaExceededError in navTo) ---
+p94_nav_full_quota.js

@@ -8,3 +8,8 @@ project_id = "uzltbbrjidmjwwfakwve"
 # role internally and the target table has no anon access).
 [functions.onboarding-capture]
 verify_jwt = false
+
+# Staff-only credentials gateway. Browser calls it anonymously, but every action
+# must include X-Syncview-Key matching the CREDENTIALS_STAFF_KEY Edge secret.
+[functions.client-credentials]
+verify_jwt = false

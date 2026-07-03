@@ -1,0 +1,81 @@
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const root = path.resolve(__dirname, '..');
+const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml' };
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://127.0.0.1');
+  let file = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
+  file = path.join(root, file);
+  if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end('not found'); return; }
+  res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' });
+  fs.createReadStream(file).pipe(res);
+});
+
+(async () => {
+  await new Promise(resolve => server.listen(8123, '127.0.0.1', resolve));
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  const errors = [];
+  const calls = [];
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  await page.addInitScript(() => {
+    localStorage.setItem('syncview_auth_v1', 'ok');
+    localStorage.setItem('syncview_client_credentials_identity_v1', JSON.stringify({ name: 'Smoke Tester', role: 'Kasper', key: 'fake-key' }));
+    sessionStorage.setItem('syncview_kasper_unlocked', 'ok');
+  });
+  await page.route('**/functions/v1/client-credentials', async route => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    calls.push(body.action);
+    if (body.action === 'list') {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, credentials: [
+        { id: 'cred-1', client_slug: 'bayavoce', client_name: 'Baya Voce', platform: 'instagram', label: '', handle: '@bayavoce', password: 'fake-pass-1', notes: '2FA in 1Password', status: 'active', source: 'manual', updated_at: '2026-07-02T12:00:00Z', updated_by: 'Smoke Tester' },
+        { id: 'cred-2', client_slug: 'unmatched:janedoe', client_name: 'Jane Doe', platform: 'tiktok', label: 'backup', handle: '@jane', password: 'fake-pass-2', notes: 'raw onboarding text', status: 'needs_review', source: 'onboarding', updated_at: '2026-07-02T13:00:00Z', updated_by: 'Onboarding' }
+      ] }) });
+    } else if (body.action === 'history') {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, events: [] }) });
+    } else {
+      await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+    }
+  });
+  await page.goto('http://127.0.0.1:8123/?Kasper=1#kasper/client-credentials', { waitUntil: 'domcontentloaded' });
+  try {
+    await page.waitForSelector('.cc-wrap', { timeout: 20000 });
+  } catch (e) {
+    console.error('url=' + page.url());
+    console.error('errors=' + errors.join(' | '));
+    console.error('body=' + (await page.locator('body').innerText({ timeout: 1000 }).catch(() => '')).slice(0, 1000));
+    await page.screenshot({ path: path.join(root, 'qa', 'cc-smoke-failure.png'), fullPage: true }).catch(() => {});
+    throw e;
+  }
+  await page.waitForSelector('text=@bayavoce', { timeout: 20000 });
+  const masked = await page.locator('.cc-secret code').first().innerText();
+  if (masked !== '••••••') throw new Error('password was not masked initially: ' + masked);
+  await page.locator('.cc-row', { hasText: '@bayavoce' }).locator('button[title="Reveal password"]').click();
+  try {
+    await page.waitForFunction(() => Array.from(document.querySelectorAll('.cc-secret code')).some(x => x.textContent === 'fake-pass-1'), null, { timeout: 10000 });
+  } catch (e) {
+    console.error('after reveal calls=' + calls.join(','));
+    console.error('after reveal errors=' + errors.join(' | '));
+    console.error('secrets=' + await page.locator('.cc-secret code').evaluateAll(nodes => nodes.map(n => n.textContent).join('|')).catch(() => 'n/a'));
+    throw e;
+  }
+  if (!calls.includes('log_reveal')) throw new Error('reveal was not logged');
+  await page.evaluate(() => { window.calState = window.calState || {}; calState.client = 'Baya Voce'; _ccOpenModal('Baya Voce'); });
+  await page.locator('#ccModalBody').getByText('@bayavoce').waitFor({ timeout: 10000 });
+  const modalTitle = await page.locator('#ccOverlay h3').innerText();
+  if (!/Baya Voce credentials/.test(modalTitle)) throw new Error('SMM modal did not open');
+  if (errors.length) throw new Error('browser errors: ' + errors.join(' | '));
+  await browser.close();
+  server.close();
+  console.log('client credentials smoke passed; actions=' + calls.join(','));
+})().catch(async err => {
+  try { await page?.screenshot({ path: path.join(root, 'qa', 'cc-smoke-failure.png'), fullPage: true }); } catch {}
+  try { await browser?.close(); } catch {}
+  server.close();
+  console.error(err.stack || err.message || err);
+  process.exit(1);
+});

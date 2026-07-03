@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ljNY7CKYLKzMOACZ",
+    "name": "SyncView Onboarding — Submit",
+    "active": true,
+    "nodes": 11,
+    "path": "F:\\SIDNEY LARUEL\\Documents\\SYNCVIEW\\client-analytics\\n8n-backups\\20260703T024508Z\\syncview-onboarding-submit.ljNY7CKYLKzMOACZ.json",
+    "node_names": [
+      "Receive POST",
+      "Build Row",
+      "Insert Submission",
+      "Notify Sidney",
+      "Respond JSON",
+      "Duplicate Insert?",
+      "Dead-letter Capture",
+      "Alert Insert Failure",
+      "Respond Duplicate OK",
+      "Respond Insert Error",
+      "Start Provisioning"
+    ]
+  },
+  {
+    "id": "hxLFIdKG9hUIzukO",
+    "name": "SyncView AI Onboarding — Submit",
+    "active": true,
+    "nodes": 11,
+    "path": "F:\\SIDNEY LARUEL\\Documents\\SYNCVIEW\\client-analytics\\n8n-backups\\20260703T024508Z\\syncview-ai-onboarding-submit.hxLFIdKG9hUIzukO.json",
+    "node_names": [
+      "Receive POST",
+      "Build Row",
+      "Insert Submission",
+      "Notify Sidney",
+      "Respond JSON",
+      "Start Provisioning",
+      "Duplicate Insert?",
+      "Dead-letter Capture",
+      "Alert Insert Failure",
+      "Respond Duplicate OK",
+      "Respond Insert Error"
+    ]
+  }
+]

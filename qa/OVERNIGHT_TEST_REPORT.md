@@ -34,6 +34,17 @@ real bugs instead of guessing.
 ## Live log
 See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
 
+## 2026-07-03 06:50 UTC morning handoff checkpoint
+- Stopped the overlapping local cron/runner activity before the controlled pass, then archived all live test rows matching the QA naming/id patterns. Final cleanup sweep: `sample_reviews=0`, `calendar_posts=0` active test leftovers.
+- Root-caused the remaining `master --profile=fast` red to the tester scenario `create_via_ui_workflow_video`, not app code: the scenario intended a video-only UI-born workflow but left the thumbnail component `In Progress`, so the sample's overall/worst-of state never became client-reviewable after Kasper approval. The Kasper/client empty states were therefore expected. Fixed the scenario seed patch to mark `graphic_status: 'Approved'`, matching the existing video-only scenario pattern.
+- Focused verification: `SXR_COURIER=0 node qa/probes/run_scenarios.js create_via_ui_workflow_video` → ✅ `21/21` assertions.
+- Full fast master verification with an already-running static server: `MASTER_CHANGE_NOTE="harness cleanup no phantom archive posts singleton overnight runner and video-only UI workflow fix" SXR_COURIER=0 node qa/master.js --profile=fast --no-server` → ✅ unit `34/34`, parity ✅, probes ✅, scenarios `12/12` and `87/87`, visual capture `1/1` and `15/15`; pass/fail lanes all green.
+- Visual review: inspected all 6 `clean_both` screenshots from `/tmp/qa/scn`; verdict ✅ pass. Captured states show expected approval, saving, and empty-queue transitions with no clipping, broken layout, or error UI. Notes recorded in `qa/visual/VISUAL_REVIEW.md`.
+- n8n check: recent failure `180057` on `Sample Review — Upsert` was a `Build Row From Patch` Code-node runner timeout after 60s for a cleanup archive payload, not an app assertion failure. Final repo-side cleanup still verified zero active QA leftovers. Keep watching n8n task-runner capacity if these recur.
+- Risk controls used: live mutations limited to the `sidneylaruel` QA client, `SXR_COURIER=0`, Linear mocked by the harness, no n8n workflow edits, no production app-code changes, cleanup after each run, and singleton runner lock to prevent duplicate same-client mutation.
+- Current intentional code delta: `qa/scenarios.js` only. Report/visual-review notes are documentation artifacts for this handoff.
+- Rollback if needed: `git checkout -- qa/scenarios.js qa/OVERNIGHT_TEST_REPORT.md qa/visual/VISUAL_REVIEW.md`.
+
 ## 2026-07-03 06:20 UTC durable cron chunks
 - `proc_ad44ea6b31cf` received an external `TERM` while running `sxr_gating_flags`; the new trap confirmed the runner itself did not decide to stop. The probes before the signal were green (`sxr_bug_repros`, `sxr_concurrency`).
 - To avoid depending on one long Hermes background terminal, added bounded cron chunks: `qa/overnight_cron_chunk.sh` rotates through probe groups, scenario batches, Calendar probes, and fast master in separate no-agent scheduler ticks.

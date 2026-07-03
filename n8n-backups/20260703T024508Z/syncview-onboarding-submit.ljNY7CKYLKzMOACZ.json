@@ -1,0 +1,1218 @@
+{
+  "updatedAt": "2026-07-02T23:35:30.503Z",
+  "createdAt": "2026-06-25T22:13:28.738Z",
+  "id": "ljNY7CKYLKzMOACZ",
+  "name": "SyncView Onboarding — Submit",
+  "description": "POST /webhook/onboarding-submit. Body {submission}. Inserts the onboarding submission into Supabase client_onboarding (service role) and DMs Sidney on Slack. Supabase write gates the 200 so a submission is never silently lost.",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "onboarding-submit",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "fd96b410-08fc-4dd5-810b-c87879024933",
+      "name": "Receive POST",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "e4c5ad34-5697-4f2b-9d6c-0f78552f2395"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst s = body.submission || {};\nconst email = String(s.email || '').trim();\nif (!email) throw new Error('email required');\nlet id = String(s.id || '').trim();\nif (!id) { id = 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }\nconst now = new Date().toISOString();\nconst row = {\n  id,\n  slug: String(s.slug || '').trim(),\n  first_name: String(s.first_name || '').trim(),\n  last_name: String(s.last_name || '').trim(),\n  email,\n  phone: String(s.phone || '').trim(),\n  ai_avatar: String(s.ai_avatar || '').trim(),\n  answers: (s.answers && typeof s.answers === 'object') ? s.answers : {},\n  status: 'submitted',\n  source: String(s.source || 'syncview-onboarding'),\n  created_at: String(s.created_at || now),\n  updated_at: now\n};\nreturn [{ json: row }];"
+      },
+      "id": "4152d322-0b04-4d48-b441-c28cd150fe8f",
+      "name": "Build Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "tableId": "client_onboarding",
+        "dataToSend": "autoMapInputData"
+      },
+      "id": "b4bd75db-450b-46c8-8932-8df618272b0e",
+      "name": "Insert Submission",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "XdBpJ6Xk8PMpZXXT",
+          "name": "Supabase - SyncView Calendar"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "select": "user",
+        "user": {
+          "__rl": true,
+          "value": "U0ACW93FS30",
+          "mode": "id"
+        },
+        "text": "=🎉 *New onboarding form submitted!*\n\n*Name:* {{ $(\"Receive POST\").item.json.body.submission.first_name }} {{ $(\"Receive POST\").item.json.body.submission.last_name }}\n*Email:* {{ $(\"Receive POST\").item.json.body.submission.email }}\n*Phone:* {{ $(\"Receive POST\").item.json.body.submission.phone }}\n*AI Avatar:* {{ $(\"Receive POST\").item.json.body.submission.ai_avatar }}\n\nSaved to Supabase `client_onboarding` (id `{{ $(\"Build Row\").item.json.id }}`). Full answers + credentials are in that record.",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        },
+        "authentication": "accessToken",
+        "messageType": "text",
+        "operation": "post",
+        "resource": "message"
+      },
+      "id": "848bcb37-d667-4433-8633-9fd93bfdb47f",
+      "name": "Notify Sidney",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        672,
+        0
+      ],
+      "webhookId": "704ac78d-ca3b-4e17-8fb4-06eb169d1217",
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $(\"Build Row\").item.json.id } }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        }
+      },
+      "id": "2cc96bcc-7431-4614-860a-7baa0f228a5e",
+      "name": "Respond JSON",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "id": "ab86c3d2-c513-44e4-879d-4e1f66dfa7fc",
+      "name": "Duplicate Insert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        672,
+        224
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "or",
+          "conditions": [
+            {
+              "id": "dup-msg",
+              "leftValue": "={{ JSON.stringify($json) }}",
+              "operator": {
+                "operation": "contains",
+                "type": "string"
+              },
+              "rightValue": "duplicate key"
+            },
+            {
+              "id": "dup-code",
+              "leftValue": "={{ JSON.stringify($json) }}",
+              "operator": {
+                "operation": "contains",
+                "type": "string"
+              },
+              "rightValue": "23505"
+            }
+          ],
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          }
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "740e8de5-96fb-43a2-835e-427b9d788828",
+      "name": "Dead-letter Capture",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        128
+      ],
+      "parameters": {
+        "columns": {
+          "mappingMode": "defineBelow",
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "sub_id",
+              "id": "sub_id",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "kind",
+              "id": "kind",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "funnel",
+              "id": "funnel",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "client_name",
+              "id": "client_name",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "email",
+              "id": "email",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "payload",
+              "id": "payload",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "note",
+              "id": "note",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "created_at",
+              "id": "created_at",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "updated_at",
+              "id": "updated_at",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "client_name": "={{ ($('Build Row').item.json.first_name + ' ' + $('Build Row').item.json.last_name).trim() }}",
+            "created_at": "={{ $now.toISO() }}",
+            "email": "={{ $('Build Row').item.json.email }}",
+            "funnel": "standard",
+            "kind": "deadletter",
+            "note": "={{ 'primary insert failed: ' + JSON.stringify($json.error ?? $json).slice(0, 600) }}",
+            "payload": "={{ JSON.stringify($('Build Row').item.json) }}",
+            "sub_id": "={{ $('Build Row').item.json.id }}",
+            "updated_at": "={{ $now.toISO() }}"
+          }
+        },
+        "dataTableId": {
+          "__rl": true,
+          "cachedResultName": "onboarding_fallback",
+          "mode": "list",
+          "value": "5dqP1AdgvDtvMboC"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "condition": "eq",
+              "keyName": "sub_id",
+              "keyValue": "={{ $('Build Row').item.json.id }}"
+            }
+          ]
+        },
+        "matchType": "allConditions",
+        "operation": "upsert",
+        "options": {},
+        "resource": "row"
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "5cc9de43-e510-4866-9ac7-e10947964644",
+      "name": "Alert Insert Failure",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        1120,
+        128
+      ],
+      "parameters": {
+        "authentication": "accessToken",
+        "messageType": "text",
+        "operation": "post",
+        "otherOptions": {
+          "includeLinkToWorkflow": false
+        },
+        "resource": "message",
+        "select": "user",
+        "text": "=🚨 *Onboarding INSERT FAILED* (standard funnel) — a client hit Submit but the Supabase insert errored. Their browser shows the retry screen and will also send the answers to the fallback endpoint.\n\n*Name:* {{ $('Build Row').item.json.first_name }} {{ $('Build Row').item.json.last_name }}\n*Email:* {{ $('Build Row').item.json.email }}\n*Phone:* {{ $('Build Row').item.json.phone }}\n\nFull payload captured in Data Table `onboarding_fallback` (kind `deadletter`, sub_id `{{ $('Build Row').item.json.id }}`).\n{{ $json.note ?? '' }}\n\nFix the insert, then replay — see ONBOARDING_FALLBACK.md.",
+        "user": {
+          "__rl": true,
+          "mode": "id",
+          "value": "U0ACW93FS30"
+        }
+      },
+      "credentials": {
+        "slackApi": {
+          "id": "qUlAcjdhd6EpKOTL",
+          "name": "SyncView Bot"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "webhookId": "9220025e-f6a6-4201-9d12-3e8e2f172fc5"
+    },
+    {
+      "id": "0a53ea31-0e52-481c-80ec-f8790abb97ec",
+      "name": "Respond Duplicate OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        896,
+        352
+      ],
+      "parameters": {
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        },
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": true, \"id\": $('Build Row').item.json.id, \"duplicate\": true } }}"
+      }
+    },
+    {
+      "id": "41df0ad2-89cc-41a2-9c18-c1c295d59216",
+      "name": "Respond Insert Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1344,
+        128
+      ],
+      "parameters": {
+        "options": {
+          "responseCode": 500,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Cache-Control",
+                "value": "no-store"
+              }
+            ]
+          }
+        },
+        "respondWith": "json",
+        "responseBody": "={{ { \"ok\": false, \"error\": \"insert_failed\", \"id\": $('Build Row').item.json.id } }}"
+      }
+    },
+    {
+      "id": "79d60b9c-6aad-4e76-86b0-54432704b993",
+      "name": "Start Provisioning",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1104,
+        0
+      ],
+      "parameters": {
+        "mode": "once",
+        "options": {
+          "waitForSubWorkflow": false
+        },
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "cachedResultName": "AI Client — Onboarding Provisioning",
+          "mode": "list",
+          "value": "t2RP7QNHrbQx52f4"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [],
+          "schema": [
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "first_name",
+              "id": "first_name",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "last_name",
+              "id": "last_name",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "email",
+              "id": "email",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "phone",
+              "id": "phone",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "funnel",
+              "id": "funnel",
+              "required": false,
+              "type": "string"
+            },
+            {
+              "canBeUsedToMatch": true,
+              "defaultMatch": false,
+              "display": true,
+              "displayName": "answers_json",
+              "id": "answers_json",
+              "required": false,
+              "type": "string"
+            }
+          ],
+          "value": {
+            "email": "={{ $('Build Row').item.json.email }}",
+            "first_name": "={{ $('Build Row').item.json.first_name }}",
+            "last_name": "={{ $('Build Row').item.json.last_name }}",
+            "answers_json": "={{ JSON.stringify($('Build Row').item.json.answers || {}) }}",
+            "funnel": "standard",
+            "phone": "={{ $('Build Row').item.json.phone }}"
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Receive POST": {
+      "main": [
+        [
+          {
+            "node": "Build Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Row": {
+      "main": [
+        [
+          {
+            "node": "Insert Submission",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Submission": {
+      "main": [
+        [
+          {
+            "node": "Notify Sidney",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Duplicate Insert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Sidney": {
+      "main": [
+        [
+          {
+            "node": "Respond JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Duplicate Insert?": {
+      "main": [
+        [
+          {
+            "node": "Respond Duplicate OK",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dead-letter Capture",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dead-letter Capture": {
+      "main": [
+        [
+          {
+            "node": "Alert Insert Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert Insert Failure": {
+      "main": [
+        [
+          {
+            "node": "Respond Insert Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond JSON": {
+      "main": [
+        [
+          {
+            "node": "Start Provisioning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true,
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": {
+    "aiBuilderAssisted": true,
+    "builderVariant": "mcp"
+  },
+  "nodeGroups": [],
+  "pinData": {},
+  "versionId": "ec4b1749-6c2b-4484-87b6-a25bca60d62a",
+  "activeVersionId": "ec4b1749-6c2b-4484-87b6-a25bca60d62a",
+  "versionCounter": 9,
+  "triggerCount": 1,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-06-25T22:13:28.741Z",
+      "createdAt": "2026-06-25T22:13:28.741Z",
+      "role": "workflow:owner",
+      "workflowId": "ljNY7CKYLKzMOACZ",
+      "projectId": "4dvRQbC5gyJNowXX",
+      "project": {
+        "updatedAt": "2026-02-21T14:46:16.720Z",
+        "createdAt": "2026-02-21T14:46:11.399Z",
+        "id": "4dvRQbC5gyJNowXX",
+        "name": "SynchroSocial   <house@synchrosocial.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "4a9e3962-f026-4a76-aff6-dd6c2e055de6"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-07-02T23:35:30.504Z",
+    "createdAt": "2026-07-02T23:35:30.504Z",
+    "versionId": "ec4b1749-6c2b-4484-87b6-a25bca60d62a",
+    "workflowId": "ljNY7CKYLKzMOACZ",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "onboarding-submit",
+          "responseMode": "responseNode",
+          "options": {
+            "allowedOrigins": "*"
+          }
+        },
+        "id": "fd96b410-08fc-4dd5-810b-c87879024933",
+        "name": "Receive POST",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          0,
+          0
+        ],
+        "webhookId": "e4c5ad34-5697-4f2b-9d6c-0f78552f2395"
+      },
+      {
+        "parameters": {
+          "jsCode": "const body = ($input.first() && $input.first().json && $input.first().json.body) || {};\nconst s = body.submission || {};\nconst email = String(s.email || '').trim();\nif (!email) throw new Error('email required');\nlet id = String(s.id || '').trim();\nif (!id) { id = 'o_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,8); }\nconst now = new Date().toISOString();\nconst row = {\n  id,\n  slug: String(s.slug || '').trim(),\n  first_name: String(s.first_name || '').trim(),\n  last_name: String(s.last_name || '').trim(),\n  email,\n  phone: String(s.phone || '').trim(),\n  ai_avatar: String(s.ai_avatar || '').trim(),\n  answers: (s.answers && typeof s.answers === 'object') ? s.answers : {},\n  status: 'submitted',\n  source: String(s.source || 'syncview-onboarding'),\n  created_at: String(s.created_at || now),\n  updated_at: now\n};\nreturn [{ json: row }];"
+        },
+        "id": "4152d322-0b04-4d48-b441-c28cd150fe8f",
+        "name": "Build Row",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          224,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "tableId": "client_onboarding",
+          "dataToSend": "autoMapInputData"
+        },
+        "id": "b4bd75db-450b-46c8-8932-8df618272b0e",
+        "name": "Insert Submission",
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          448,
+          0
+        ],
+        "credentials": {
+          "supabaseApi": {
+            "id": "XdBpJ6Xk8PMpZXXT",
+            "name": "Supabase - SyncView Calendar"
+          }
+        },
+        "onError": "continueErrorOutput"
+      },
+      {
+        "parameters": {
+          "select": "user",
+          "user": {
+            "__rl": true,
+            "value": "U0ACW93FS30",
+            "mode": "id"
+          },
+          "text": "=🎉 *New onboarding form submitted!*\n\n*Name:* {{ $(\"Receive POST\").item.json.body.submission.first_name }} {{ $(\"Receive POST\").item.json.body.submission.last_name }}\n*Email:* {{ $(\"Receive POST\").item.json.body.submission.email }}\n*Phone:* {{ $(\"Receive POST\").item.json.body.submission.phone }}\n*AI Avatar:* {{ $(\"Receive POST\").item.json.body.submission.ai_avatar }}\n\nSaved to Supabase `client_onboarding` (id `{{ $(\"Build Row\").item.json.id }}`). Full answers + credentials are in that record.",
+          "otherOptions": {
+            "includeLinkToWorkflow": false
+          },
+          "authentication": "accessToken",
+          "messageType": "text",
+          "operation": "post",
+          "resource": "message"
+        },
+        "id": "848bcb37-d667-4433-8633-9fd93bfdb47f",
+        "name": "Notify Sidney",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.4,
+        "position": [
+          672,
+          0
+        ],
+        "webhookId": "704ac78d-ca3b-4e17-8fb4-06eb169d1217",
+        "credentials": {
+          "slackApi": {
+            "id": "qUlAcjdhd6EpKOTL",
+            "name": "SyncView Bot"
+          }
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ { \"ok\": true, \"id\": $(\"Build Row\").item.json.id } }}",
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Access-Control-Allow-Origin",
+                  "value": "*"
+                },
+                {
+                  "name": "Cache-Control",
+                  "value": "no-store"
+                }
+              ]
+            }
+          }
+        },
+        "id": "2cc96bcc-7431-4614-860a-7baa0f228a5e",
+        "name": "Respond JSON",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          880,
+          0
+        ]
+      },
+      {
+        "id": "ab86c3d2-c513-44e4-879d-4e1f66dfa7fc",
+        "name": "Duplicate Insert?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          672,
+          224
+        ],
+        "parameters": {
+          "conditions": {
+            "combinator": "or",
+            "conditions": [
+              {
+                "id": "dup-msg",
+                "leftValue": "={{ JSON.stringify($json) }}",
+                "operator": {
+                  "operation": "contains",
+                  "type": "string"
+                },
+                "rightValue": "duplicate key"
+              },
+              {
+                "id": "dup-code",
+                "leftValue": "={{ JSON.stringify($json) }}",
+                "operator": {
+                  "operation": "contains",
+                  "type": "string"
+                },
+                "rightValue": "23505"
+              }
+            ],
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "loose",
+              "version": 2
+            }
+          },
+          "options": {}
+        }
+      },
+      {
+        "id": "740e8de5-96fb-43a2-835e-427b9d788828",
+        "name": "Dead-letter Capture",
+        "type": "n8n-nodes-base.dataTable",
+        "typeVersion": 1.1,
+        "position": [
+          896,
+          128
+        ],
+        "parameters": {
+          "columns": {
+            "mappingMode": "defineBelow",
+            "schema": [
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "sub_id",
+                "id": "sub_id",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "kind",
+                "id": "kind",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "funnel",
+                "id": "funnel",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "client_name",
+                "id": "client_name",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "email",
+                "id": "email",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "payload",
+                "id": "payload",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "note",
+                "id": "note",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "created_at",
+                "id": "created_at",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "updated_at",
+                "id": "updated_at",
+                "required": false,
+                "type": "string"
+              }
+            ],
+            "value": {
+              "client_name": "={{ ($('Build Row').item.json.first_name + ' ' + $('Build Row').item.json.last_name).trim() }}",
+              "created_at": "={{ $now.toISO() }}",
+              "email": "={{ $('Build Row').item.json.email }}",
+              "funnel": "standard",
+              "kind": "deadletter",
+              "note": "={{ 'primary insert failed: ' + JSON.stringify($json.error ?? $json).slice(0, 600) }}",
+              "payload": "={{ JSON.stringify($('Build Row').item.json) }}",
+              "sub_id": "={{ $('Build Row').item.json.id }}",
+              "updated_at": "={{ $now.toISO() }}"
+            }
+          },
+          "dataTableId": {
+            "__rl": true,
+            "cachedResultName": "onboarding_fallback",
+            "mode": "list",
+            "value": "5dqP1AdgvDtvMboC"
+          },
+          "filters": {
+            "conditions": [
+              {
+                "condition": "eq",
+                "keyName": "sub_id",
+                "keyValue": "={{ $('Build Row').item.json.id }}"
+              }
+            ]
+          },
+          "matchType": "allConditions",
+          "operation": "upsert",
+          "options": {},
+          "resource": "row"
+        },
+        "onError": "continueRegularOutput"
+      },
+      {
+        "id": "5cc9de43-e510-4866-9ac7-e10947964644",
+        "name": "Alert Insert Failure",
+        "type": "n8n-nodes-base.slack",
+        "typeVersion": 2.4,
+        "position": [
+          1120,
+          128
+        ],
+        "parameters": {
+          "authentication": "accessToken",
+          "messageType": "text",
+          "operation": "post",
+          "otherOptions": {
+            "includeLinkToWorkflow": false
+          },
+          "resource": "message",
+          "select": "user",
+          "text": "=🚨 *Onboarding INSERT FAILED* (standard funnel) — a client hit Submit but the Supabase insert errored. Their browser shows the retry screen and will also send the answers to the fallback endpoint.\n\n*Name:* {{ $('Build Row').item.json.first_name }} {{ $('Build Row').item.json.last_name }}\n*Email:* {{ $('Build Row').item.json.email }}\n*Phone:* {{ $('Build Row').item.json.phone }}\n\nFull payload captured in Data Table `onboarding_fallback` (kind `deadletter`, sub_id `{{ $('Build Row').item.json.id }}`).\n{{ $json.note ?? '' }}\n\nFix the insert, then replay — see ONBOARDING_FALLBACK.md.",
+          "user": {
+            "__rl": true,
+            "mode": "id",
+            "value": "U0ACW93FS30"
+          }
+        },
+        "credentials": {
+          "slackApi": {
+            "id": "qUlAcjdhd6EpKOTL",
+            "name": "SyncView Bot"
+          }
+        },
+        "onError": "continueRegularOutput",
+        "webhookId": "9220025e-f6a6-4201-9d12-3e8e2f172fc5"
+      },
+      {
+        "id": "0a53ea31-0e52-481c-80ec-f8790abb97ec",
+        "name": "Respond Duplicate OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          896,
+          352
+        ],
+        "parameters": {
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Access-Control-Allow-Origin",
+                  "value": "*"
+                },
+                {
+                  "name": "Cache-Control",
+                  "value": "no-store"
+                }
+              ]
+            }
+          },
+          "respondWith": "json",
+          "responseBody": "={{ { \"ok\": true, \"id\": $('Build Row').item.json.id, \"duplicate\": true } }}"
+        }
+      },
+      {
+        "id": "41df0ad2-89cc-41a2-9c18-c1c295d59216",
+        "name": "Respond Insert Error",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.5,
+        "position": [
+          1344,
+          128
+        ],
+        "parameters": {
+          "options": {
+            "responseCode": 500,
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Access-Control-Allow-Origin",
+                  "value": "*"
+                },
+                {
+                  "name": "Cache-Control",
+                  "value": "no-store"
+                }
+              ]
+            }
+          },
+          "respondWith": "json",
+          "responseBody": "={{ { \"ok\": false, \"error\": \"insert_failed\", \"id\": $('Build Row').item.json.id } }}"
+        }
+      },
+      {
+        "id": "79d60b9c-6aad-4e76-86b0-54432704b993",
+        "name": "Start Provisioning",
+        "type": "n8n-nodes-base.executeWorkflow",
+        "typeVersion": 1.3,
+        "position": [
+          1104,
+          0
+        ],
+        "parameters": {
+          "mode": "once",
+          "options": {
+            "waitForSubWorkflow": false
+          },
+          "source": "database",
+          "workflowId": {
+            "__rl": true,
+            "cachedResultName": "AI Client — Onboarding Provisioning",
+            "mode": "list",
+            "value": "t2RP7QNHrbQx52f4"
+          },
+          "workflowInputs": {
+            "mappingMode": "defineBelow",
+            "matchingColumns": [],
+            "schema": [
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "first_name",
+                "id": "first_name",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "last_name",
+                "id": "last_name",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "email",
+                "id": "email",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "phone",
+                "id": "phone",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "funnel",
+                "id": "funnel",
+                "required": false,
+                "type": "string"
+              },
+              {
+                "canBeUsedToMatch": true,
+                "defaultMatch": false,
+                "display": true,
+                "displayName": "answers_json",
+                "id": "answers_json",
+                "required": false,
+                "type": "string"
+              }
+            ],
+            "value": {
+              "email": "={{ $('Build Row').item.json.email }}",
+              "first_name": "={{ $('Build Row').item.json.first_name }}",
+              "last_name": "={{ $('Build Row').item.json.last_name }}",
+              "answers_json": "={{ JSON.stringify($('Build Row').item.json.answers || {}) }}",
+              "funnel": "standard",
+              "phone": "={{ $('Build Row').item.json.phone }}"
+            }
+          }
+        },
+        "onError": "continueRegularOutput"
+      }
+    ],
+    "connections": {
+      "Receive POST": {
+        "main": [
+          [
+            {
+              "node": "Build Row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Row": {
+        "main": [
+          [
+            {
+              "node": "Insert Submission",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Insert Submission": {
+        "main": [
+          [
+            {
+              "node": "Notify Sidney",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Duplicate Insert?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notify Sidney": {
+        "main": [
+          [
+            {
+              "node": "Respond JSON",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Duplicate Insert?": {
+        "main": [
+          [
+            {
+              "node": "Respond Duplicate OK",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Dead-letter Capture",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dead-letter Capture": {
+        "main": [
+          [
+            {
+              "node": "Alert Insert Failure",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Alert Insert Failure": {
+        "main": [
+          [
+            {
+              "node": "Respond Insert Error",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Respond JSON": {
+        "main": [
+          [
+            {
+              "node": "Start Provisioning",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "nodeGroups": [],
+    "authors": "SynchroSocial  ",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-07-02T23:38:40.411Z",
+        "id": 1495,
+        "workflowId": "ljNY7CKYLKzMOACZ",
+        "versionId": "ec4b1749-6c2b-4484-87b6-a25bca60d62a",
+        "event": "activated",
+        "userId": "4a9e3962-f026-4a76-aff6-dd6c2e055de6"
+      }
+    ]
+  }
+}

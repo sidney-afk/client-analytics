@@ -1,9 +1,12 @@
 // sxr_realtime_twin.js — TWO screens updating live at the same time.
-// The real Supabase WebSocket can't tunnel in the sandbox, so we drive the
-// exact handler the WS would call (_sxrV2OnRealtimeChange) to simulate a push.
+// In sandbox/courier runs the real Supabase WebSocket can't tunnel, so we drive
+// the exact handler the WS would call (_sxrV2OnRealtimeChange) to simulate a
+// push. In open-egress local/CI runs, native realtime may propagate the backend
+// write before the manual handler fire; that is also a pass because it proves the
+// same no-refresh contract.
 //   1. Cross-screen propagation: actor B changes status via the backend; tab A
-//      receives a "push" and background-reloads to show B's change WITHOUT a
-//      manual refresh and WITHOUT losing its place.
+//      receives a native or manually-fired "push" and background-reloads to show
+//      B's change WITHOUT a manual refresh and WITHOUT losing its place.
 //   2. Recent-save window: tab A makes a fresh local status change, THEN a push
 //      arrives carrying the STALE pre-change server row — A's fresh edit must
 //      survive (recent-save guard), not get clobbered.
@@ -48,13 +51,17 @@ async function firePush(page) {
     t((await memStatus(A, id, 'video')) === 'In Progress', 'tab A starts with video = In Progress');
 
     // ---------- 1. cross-screen propagation ----------
-    // Actor B writes directly to the backend (as another screen would), then A
-    // gets a realtime "push".
+    // Actor B writes directly to the backend (as another screen would). In
+    // courier/sandbox runs A stays stale until we manually fire the realtime
+    // handler; in open-egress runs the native Supabase WS may update A first.
     up({ id, video_status: 'For SMM Approval', status: 'For SMM Approval' });
     await sleep(1500);
-    t((await memStatus(A, id, 'video')) === 'In Progress', 'before push: tab A has NOT yet seen B\'s change (no manual refresh)');
+    const beforePush = await memStatus(A, id, 'video');
+    const nativePropagated = beforePush === 'For SMM Approval';
+    t(beforePush === 'In Progress' || nativePropagated,
+      nativePropagated ? 'native realtime propagated before manual push' : 'before manual push: tab A remains stale', beforePush);
     t((await firePush(A)) === 'fired', 'realtime push fired at tab A');
-    let propagated = false;
+    let propagated = nativePropagated;
     for (let i = 0; i < 20 && !propagated; i++) { propagated = (await memStatus(A, id, 'video')) === 'For SMM Approval'; if (!propagated) await sleep(1000); }
     t(propagated, 'cross-screen: tab A background-reloaded and now shows B\'s change');
 

@@ -2,6 +2,89 @@
 
 ---
 
+# RUN 3 — 2026-07-03 · Full SyncView overnight QA loop
+
+**Branch:** `claude/overnight-syncview-qa-20260702-204925` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness.
+
+## Mission
+Run continuously while Sidney sleeps across the Social Media Manager calendar,
+Kasper review, Client review, Samples New, realtime/two-tab adoption, Calendar
+create-via-UI, and master tester lanes. The goal is not just a green smoke pass:
+log every red case, keep cleanup safe, and leave enough evidence tomorrow to fix
+real bugs instead of guessing.
+
+## Runner upgrade before start
+- Updated `qa/overnight_runner.sh` for Sidney's Windows/Git Bash setup: uses
+  `python` instead of missing `python3`, and the full Node path instead of the
+  `winpty node` alias that dies in background shells.
+- Added the post-PR #656 guards to the loop: `p90_merge_midsave_keep.js`,
+  `p91_ui_realtime_multitab.js`, `p89_cal_create_via_ui.js`, fresh-card workflow
+  scenarios, create/archive/rename/reorder/reload/remote-merge scenarios, and
+  fast master.
+- Added persistent per-command logs under `qa/overnight-output/` and a compact
+  summary stream in `qa/overnight_runner.log`.
+- Cleanup sweeps both `sample_reviews` and `calendar_posts` test rows after each
+  probe/batch and reports live leftovers.
+
+## Initial smoke before unattended start
+- `sxr_bug_repros.js` passed: `pass=4 fail=0`.
+- `sxr_concurrency.js` passed: `pass=8 fail=0`.
+- cleanup after both: `live_test_rows sample_reviews=0 calendar_posts=0`.
+
+## Live log
+See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
+
+## 2026-07-03 06:50 UTC morning handoff checkpoint
+- Stopped the overlapping local cron/runner activity before the controlled pass, then archived all live test rows matching the QA naming/id patterns. Final cleanup sweep: `sample_reviews=0`, `calendar_posts=0` active test leftovers.
+- Root-caused the remaining `master --profile=fast` red to the tester scenario `create_via_ui_workflow_video`, not app code: the scenario intended a video-only UI-born workflow but left the thumbnail component `In Progress`, so the sample's overall/worst-of state never became client-reviewable after Kasper approval. The Kasper/client empty states were therefore expected. Fixed the scenario seed patch to mark `graphic_status: 'Approved'`, matching the existing video-only scenario pattern.
+- Focused verification: `SXR_COURIER=0 node qa/probes/run_scenarios.js create_via_ui_workflow_video` → ✅ `21/21` assertions.
+- Full fast master verification with an already-running static server: `MASTER_CHANGE_NOTE="harness cleanup no phantom archive posts singleton overnight runner and video-only UI workflow fix" SXR_COURIER=0 node qa/master.js --profile=fast --no-server` → ✅ unit `34/34`, parity ✅, probes ✅, scenarios `12/12` and `87/87`, visual capture `1/1` and `15/15`; pass/fail lanes all green.
+- Visual review: inspected all 6 `clean_both` screenshots from `/tmp/qa/scn`; verdict ✅ pass. Captured states show expected approval, saving, and empty-queue transitions with no clipping, broken layout, or error UI. Notes recorded in `qa/visual/VISUAL_REVIEW.md`.
+- n8n check: recent failure `180057` on `Sample Review — Upsert` was a `Build Row From Patch` Code-node runner timeout after 60s for a cleanup archive payload, not an app assertion failure. Final repo-side cleanup still verified zero active QA leftovers. Keep watching n8n task-runner capacity if these recur.
+- Risk controls used: live mutations limited to the `sidneylaruel` QA client, `SXR_COURIER=0`, Linear mocked by the harness, no n8n workflow edits, no production app-code changes, cleanup after each run, and singleton runner lock to prevent duplicate same-client mutation.
+- Current intentional code delta: `qa/scenarios.js` only. Report/visual-review notes are documentation artifacts for this handoff.
+- Rollback if needed: `git checkout -- qa/scenarios.js qa/OVERNIGHT_TEST_REPORT.md qa/visual/VISUAL_REVIEW.md`.
+
+## 2026-07-03 06:20 UTC durable cron chunks
+- `proc_ad44ea6b31cf` received an external `TERM` while running `sxr_gating_flags`; the new trap confirmed the runner itself did not decide to stop. The probes before the signal were green (`sxr_bug_repros`, `sxr_concurrency`).
+- To avoid depending on one long Hermes background terminal, added bounded cron chunks: `qa/overnight_cron_chunk.sh` rotates through probe groups, scenario batches, Calendar probes, and fast master in separate no-agent scheduler ticks.
+- Extended `qa/overnight_runner.sh` with `RUN_PROBES/RUN_SCENARIOS/RUN_CALENDAR/RUN_UNIT` plus offset/limit knobs, so cron can run short non-overlapping slices while keeping the singleton lock and cleanup protections.
+- Validation: shell syntax, dry-run phases 0 and 5, and a focused live one-probe runner chunk passed (`sxr_bug_repros.js`, `pass=4 fail=0`).
+
+## 2026-07-03 06:12 UTC stale runner notification + restart
+- The `proc_6f6378f6f636` exit notification was from the pre-singleton overlapping runner. Its red lines are the same duplicate-runner interference class already fixed by `dc8e327`.
+- The locked runner `proc_f8084a1d6f65` then passed `sxr_bug_repros`, `sxr_concurrency`, `sxr_gating_flags`, and `sxr_cold_open`, but exited `143` after that without a runner-side TERM log. Added explicit INT/TERM log traps so any future external stop is visible in `qa/overnight_runner.log`.
+- Cleaned stale port 8000 server and archived remaining test rows (`sample_reviews=0`, `calendar_posts=0`) before restart.
+
+## 2026-07-03 05:55 UTC singleton-lock hardening
+- The second exit notification (`proc_4193f6ab15f2`, code 3840) came from a stale duplicate runner that was still using the pre-lock command. It overlapped with the newer runner on the same `sidneylaruel` test client and port 8000, so its red lines were tester interference: one runner stopped the shared static server while the other was navigating, and both runners cleaned/archived each other's scenario rows.
+- Added a singleton lock to `qa/overnight_runner.sh` (`qa/overnight-output/.overnight_runner.lock`) so only one overnight runner can mutate the live test client at a time. A duplicate runner now exits immediately with a clear log line instead of producing false app failures.
+- Added `test/overnight-runner-singleton-lock.js` covering fresh lock, live duplicate, and stale-lock recovery.
+- Hardened `archiveSafe` / `archiveCalSafe` so cleanup waits for a row to exist before posting an archive, avoiding status-only phantom cleanup writes during races. Added `test/sxr-courier-archive-safe.js`.
+- Validation: `bash -n qa/overnight_runner.sh`, `test/overnight-runner-output-path.js`, `test/overnight-runner-singleton-lock.js`, `test/sxr-courier-archive-safe.js`, full `test/run-all.js`, and `git diff --check` all passed (`All 34 unit suites passed`).
+
+## 2026-07-03 04:50 UTC runner hardening
+- Background process `proc_f87649c6c0b9` exited after the long `master:tree` lane started. The useful testing before that was extensive: full scenario-library batches, Calendar probes, realtime multi-tab probe, and `master:fast` all ran; the real red signals found before the exit were logged for follow-up.
+- First cron reviewer already fixed two runner/tester issues and pushed `eb936d5`: Windows path names for very long scenario batches were too long, and `sxr_realtime_twin.js` had a flaky pre-push assertion.
+- I reproduced the remaining stall with a tight command: `SXR_COURIER=0 node qa/master.js --lane=tree` was still running after 600s. For the overnight loop, the tree lane is now opt-in and every command is wrapped in a 20-minute timeout, so no single lane can stop the whole marathon again.
+- Restart plan: continue the high-signal flat scenario batches, probes, Calendar checks, and fast master continuously; keep tree/full master for daytime/manual review unless explicitly enabled.
+
+## 2026-07-03 04:44 UTC cron tick — tester hardening + runner restart
+- Inspected the live runner on `claude/overnight-syncview-qa-20260702-204925`. Round 2 had broad green coverage through `master:fast` (`all 31 unit suites`, parity, 2 probes, and 12/12 scenarios green), but three tester-side reds needed root-cause work:
+  - `sxr_realtime_twin.js` failed twice on `before push: tab A has NOT yet seen B's change`. Focused RED reproduced locally with `SXR_COURIER=0`: `pass=8 fail=1`. Root cause: on Sidney's open-egress Windows machine, the real Supabase websocket can legitimately propagate the backend write before the probe's manual `_sxrV2OnRealtimeChange` fire. The no-refresh product contract was working; the probe assumed sandbox/courier behavior.
+  - The long `resolve_via_*` scenario batch failed with an empty/missing output log. Tight RED showed the runner output path had `safe_len=237`, `out_len=278`, and bash failed before launching the scenario: `File name too long`.
+  - A stale duplicate overnight/probe process (`sxr_gating_flags.js`, started ~20:53 local) plus an active pre-patch runner were still alive, causing same-client concurrency. A manual resolve-batch rerun during that overlap produced a divergence-gate mismatch involving unrelated scenario rows; treated as runner interference, not a product bug.
+- Fixes committed in this tick:
+  - Added `test/overnight-runner-output-path.js` (RED: `safe=237, basename=258`; GREEN: `safe=160, basename=181`) and capped `qa/overnight_runner.sh` slugs to a Windows-safe 160 chars while preserving the tail for identification.
+  - Updated `qa/probes/sxr_realtime_twin.js` to accept either expected mode: courier/manual push keeps A stale until the explicit handler; open-egress native realtime may update A first. Focused GREEN: `pass=9 fail=0` with `native realtime propagated before manual push`.
+  - Terminated stale/duplicate overnight runner process trees and restarted one patched tracked background runner: `proc_4193f6ab15f2`, command `RUN_HOURS=9 FULL_MASTER_EVERY=2 TREE_EVERY=2 MASTER_FAST_EVERY=1 SXR_COURIER=0 bash qa/overnight_runner.sh`.
+- Validation / cleanup:
+  - `node --check qa/probes/sxr_realtime_twin.js`; `node --check test/overnight-runner-output-path.js`; `bash -n qa/overnight_runner.sh`; `git diff --check` — all clean.
+  - `node test/run-all.js` — `All 32 unit suites passed ✅`.
+  - Cleanup sweep archived 1 stranded sample row and verified `liveS=0`, `liveC=0` for `sidneylaruel` test rows before restarting.
+
+---
+
 # RUN 2 — 2026-07-02 · Samples interaction marathon (post-rebuild FE)
 
 **Branch:** `claude/samples-system-testing-vx2moc` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED.

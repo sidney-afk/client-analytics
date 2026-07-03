@@ -125,7 +125,7 @@ function base() {
       ['expectCardOnce', 'UI Workflow Video'],
       ['smm.editFieldCard', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
       ['expectCardField', 'UI Workflow Video', 'asset_url', 'https://frame.io/x/ui-workflow'],
-      ['api.patchCardByName', 'UI Workflow Video', { linear_issue_id: 'https://linear.app/x/VID-UI-WORKFLOW' }],
+      ['api.patchCardByName', 'UI Workflow Video', { linear_issue_id: 'https://linear.app/x/VID-UI-WORKFLOW', graphic_status: 'Approved' }],
       ['smm.bgReload'],
       ['smm.statusCard', 'UI Workflow Video', 'video', 'For SMM Approval'],
       ['expectCardField', 'UI Workflow Video', 'video_status', 'For SMM Approval'],

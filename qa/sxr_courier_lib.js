@@ -103,15 +103,24 @@ function up(sample, base) { return nodePost(SXR_UPSERT, { client: 'sidneylaruel'
 // then it confirms the row reads Archived (re-archiving if a late write clobbered).
 function archiveSafe(id, tries) {
   tries = tries || 4;
+  let sawRow = false;
   for (let i = 0; i < tries; i++) {
-    try { up({ id, status: 'Archived' }); } catch {}
     try {
       const r = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
-      if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
+      const row = Array.isArray(r) && r[0] ? r[0] : null;
+      if (!row) {
+        try { _exec('sleep 1.5'); } catch {}
+        continue;
+      }
+      sawRow = true;
+      if (String(row.status) === 'Archived') return true;
+      try { up({ id, status: 'Archived' }); } catch {}
+      const after = supa('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      if (Array.isArray(after) && after[0] && String(after[0].status) === 'Archived') return true;
     } catch {}
     try { _exec('sleep 1.5'); } catch {}
   }
-  return false;
+  return !sawRow;
 }
 function reorder(items) { return nodePost(SXR_REORDER, { client: 'sidneylaruel', items }); }
 // Read a sample_reviews row (or rows) back from Supabase REST.
@@ -255,15 +264,24 @@ function supaCal(qs) {
 // Archive a CALENDAR seed and VERIFY it stuck (mirror of archiveSafe for samples).
 function archiveCalSafe(id, tries) {
   tries = tries || 4;
+  let sawRow = false;
   for (let i = 0; i < tries; i++) {
-    try { upCal({ id, status: 'Archived' }); } catch {}
     try {
       const r = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
-      if (Array.isArray(r) && r[0] && String(r[0].status) === 'Archived') return true;
+      const row = Array.isArray(r) && r[0] ? r[0] : null;
+      if (!row) {
+        try { _exec('sleep 1.5'); } catch {}
+        continue;
+      }
+      sawRow = true;
+      if (String(row.status) === 'Archived') return true;
+      try { upCal({ id, status: 'Archived' }); } catch {}
+      const after = supaCal('id=eq.' + encodeURIComponent(id) + '&client=eq.sidneylaruel&select=status');
+      if (Array.isArray(after) && after[0] && String(after[0].status) === 'Archived') return true;
     } catch {}
     try { _exec('sleep 1.5'); } catch {}
   }
-  return false;
+  return !sawRow;
 }
 
 // ============================================================================

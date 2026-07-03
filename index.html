@@ -1999,20 +1999,40 @@
         .cc-platform strong { color: var(--text-primary); font-size: 0.82rem; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cc-platform span, .cc-muted { color: var(--text-muted); font-size: 0.72rem; }
         .cc-secret, .cc-handle { display: flex; align-items: center; gap: 7px; min-width: 0; }
-        .cc-secret code, .cc-handle code { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 7px; border-radius: 7px; background: var(--bg); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 700; }
-        .cc-mini { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 8px; background: var(--white); color: var(--text-secondary); cursor: pointer; font-size: 0.74rem; font-weight: 850; }
-        .cc-mini:hover { color: var(--text-primary); border-color: #aaa; }
+        .cc-secret code, .cc-handle code { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 9px; background: #f6f6f3; color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 750; }
+        .cc-mini { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #dfdfdb; border-radius: 9px; background: linear-gradient(180deg, #fff, #fafaf8); color: var(--text-secondary); cursor: pointer; padding: 0; transition: color 0.14s, border-color 0.14s, background 0.14s, transform 0.14s; }
+        .cc-mini:hover { color: var(--text-primary); border-color: #b9b9b4; background: #fff; transform: translateY(-1px); }
+        .cc-mini svg { width: 14px; height: 14px; display: block; stroke-width: 1.8; }
+        .cc-mini.is-active { color: #fff; border-color: #111110; background: #111110; }
         .cc-row-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
         .cc-updated { grid-column: 1 / -1; margin-top: -4px; font-size: 0.68rem; color: var(--text-muted); }
         .cc-empty { padding: 46px 20px; text-align: center; border: 1px dashed var(--border); border-radius: 16px; background: rgba(255,255,255,0.5); color: var(--text-muted); line-height: 1.6; }
         .cc-modal-wide { width: 840px; }
         .cc-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .cc-field { display: flex; flex-direction: column; gap: 5px; }
+        .cc-field { display: flex; flex-direction: column; gap: 5px; position: relative; }
         .cc-field.full { grid-column: 1 / -1; }
         .cc-field label { font-size: 0.7rem; font-weight: 850; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
-        .cc-field input, .cc-field select, .cc-field textarea { width: 100%; box-sizing: border-box; padding: 10px 11px; border: 1px solid var(--border); border-radius: 9px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.84rem; outline: 0; }
+        .cc-field input:not([type="hidden"]), .cc-field textarea { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1px solid var(--border); border-radius: 11px; background: var(--white); color: var(--text-primary); font-family: inherit; font-size: 0.86rem; outline: 0; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
         .cc-field textarea { min-height: 92px; resize: vertical; line-height: 1.45; }
-        .cc-field input:focus, .cc-field select:focus, .cc-field textarea:focus { border-color: var(--text-primary); }
+        .cc-field input:not([type="hidden"]):focus, .cc-field textarea:focus, .cc-select-trigger:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px rgba(17,17,16,0.07); }
+        .cc-select { position: relative; width: 100%; }
+        .cc-select-trigger { width: 100%; min-height: 41px; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--border); border-radius: 11px; background: linear-gradient(180deg, #fff, #fbfbfa); color: var(--text-primary); font-family: inherit; font-size: 0.86rem; font-weight: 650; outline: 0; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; transition: border-color 0.14s, box-shadow 0.14s, background 0.14s; }
+        .cc-select-trigger:hover { border-color: #b9b9b4; background: #fff; }
+        .cc-select-trigger svg { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); transition: transform 0.16s ease, color 0.16s ease; }
+        .cc-select.open .cc-select-trigger svg { transform: rotate(180deg); color: var(--text-primary); }
+        .cc-select-menu { position: absolute; z-index: 620; top: calc(100% + 7px); left: 0; right: 0; max-height: 240px; overflow: auto; padding: 6px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,0.98); box-shadow: 0 18px 48px rgba(17,17,16,0.16); opacity: 0; transform: translateY(-4px) scale(0.985); pointer-events: none; visibility: hidden; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s linear 0.13s; }
+        .cc-select.open .cc-select-menu { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; visibility: visible; transition: opacity 0.13s ease, transform 0.13s ease, visibility 0s; }
+        .cc-select-menu::-webkit-scrollbar { width: 6px; }
+        .cc-select-menu::-webkit-scrollbar-thumb { background: #d8d8d4; border-radius: 99px; }
+        .cc-select-option { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 650; text-align: left; cursor: pointer; }
+        .cc-select-option:hover { background: var(--bg); color: var(--text-primary); }
+        .cc-select-option.active { background: #111110; color: #fff; }
+        .cc-select-option svg { width: 12px; height: 12px; opacity: 0.9; }
+        .cc-password-wrap { position: relative; display: flex; align-items: center; }
+        .cc-password-wrap input { padding-right: 44px !important; }
+        .cc-pass-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; border: 0; border-radius: 9px; background: transparent; color: var(--text-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.14s, color 0.14s; }
+        .cc-pass-toggle:hover { background: var(--bg); color: var(--text-primary); }
+        .cc-pass-toggle svg { width: 17px; height: 17px; display: block; }
         .cc-history-list { display: flex; flex-direction: column; gap: 8px; }
         .cc-event { border: 1px solid var(--border-light); border-radius: 11px; padding: 10px 12px; background: #fff; }
         .cc-event-head { display: flex; justify-content: space-between; gap: 10px; font-size: 0.76rem; font-weight: 800; color: var(--text-primary); }
@@ -2023,7 +2043,10 @@
         .cc-bulk-row { display: grid; grid-template-columns: 42px 1.2fr 0.8fr 1fr 1fr; gap: 9px; padding: 9px 10px; border-top: 1px solid var(--border-light); font-size: 0.76rem; align-items: center; }
         .cc-bulk-row:first-child { border-top: 0; background: var(--bg); font-weight: 850; color: var(--text-secondary); }
         .cc-flags { display: flex; flex-wrap: wrap; gap: 4px; }
-        .cc-identity-card { width: 420px; max-width: 92vw; background: var(--white); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,0.28); padding: 22px; }
+        .cc-identity-card { width: 420px; max-width: 92vw; background: var(--white); border-radius: 18px; box-shadow: 0 24px 70px rgba(0,0,0,0.28); padding: 22px; position: relative; }
+        .cc-identity-x { position: absolute; top: 12px; right: 12px; width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--bg); color: var(--text-secondary); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: background 0.14s, color 0.14s; }
+        .cc-identity-x:hover { background: #e8e8e4; color: var(--text-primary); }
+        .cc-identity-x svg { width: 12px; height: 12px; display: block; }
         .cc-identity-card h3 { margin: 0; color: var(--text-primary); font-size: 1.05rem; }
         .cc-identity-card p { margin: 6px 0 16px; color: var(--text-muted); font-size: 0.8rem; line-height: 1.5; }
         @media (max-width: 760px) { .cc-row { grid-template-columns: 1fr; } .cc-row-actions { justify-content: flex-start; } .cc-form-grid { grid-template-columns: 1fr; } .cc-bulk-row { grid-template-columns: 34px 1fr; } }
@@ -14850,6 +14873,30 @@
         _calOpenClientTab(match);
     }
 
+    /* If someone unlocks a fresh/private tab and clicks Calendar before the
+       Clients Info sheet has finished merging into WL_CLIENT_NAMES, the first
+       render can land with no active client, so the right-side More/kebab menu
+       is missing until a refresh. Once the data arrives, promote the saved or
+       pinned client into the live calendar and repaint the shell. */
+    function _calResolveClientAfterDataReady() {
+        if (currentNav !== 'calendar' || calState.embedded || calState.client || _calPendingDeepLink) return;
+        if (!document.getElementById('calView')) return;
+        const prefs = _calLoadPrefs();
+        const pins = _calGetPins();
+        let next = null;
+        if (prefs.client && (pins.includes(prefs.client) || wlIsAllowedClient(prefs.client))) next = wlCanonicalClient(prefs.client);
+        else if (pins.length) next = pins[0];
+        if (!next) return;
+        const savedPins = _calGetPins();
+        if (!savedPins.includes(next)) { savedPins.unshift(next); _calSavePins(savedPins); }
+        calState.client = next;
+        _calLoadClientFilters(next);
+        _calSavePrefs();
+        _calRenderShell();
+        _calSyncUrlClient();
+        loadCalendarPosts();
+    }
+
     function renderCalendarView() {
         return `<div class="cal-view" id="calView">${_calLoaderHtml()}</div>`;
     }
@@ -25191,6 +25238,7 @@
                 if (dates[0] && el) el.textContent = `Updated ${fmtDate(dates[0])}`;
             } catch {}
             try { renderPins(); } catch {}
+            try { _calResolveClientAfterDataReady(); } catch {}
         }
 
         function _resumePendingBriefPolling() {
@@ -31857,6 +31905,15 @@
     const CC_MASK = '••••••';
     const CC_RT_SELF_ECHO_MS = 4500;
     const CC_PLATFORM_OPTIONS = ['instagram', 'tiktok', 'facebook', 'linkedin', 'youtube', 'threads', 'x', 'pinterest', 'website'];
+    const CC_ICON_CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5 6 7.5l3-3"/></svg>';
+    const CC_ICON_CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2 5 8.7 9.5 3.5"/></svg>';
+    const CC_ICON_COPY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="5" width="7" height="8" rx="1.5"/><path d="M3 10.5V4a1.5 1.5 0 0 1 1.5-1.5H10"/></svg>';
+    const CC_ICON_EYE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.7 8s2.4-4 6.3-4 6.3 4 6.3 4-2.4 4-6.3 4-6.3-4-6.3-4Z"/><circle cx="8" cy="8" r="1.8"/></svg>';
+    const CC_ICON_EYE_OFF = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.2 2.2 13.8 13.8"/><path d="M6.7 4.2A6.9 6.9 0 0 1 8 4c3.9 0 6.3 4 6.3 4a9.3 9.3 0 0 1-1.8 2.2"/><path d="M9.4 11.8A7 7 0 0 1 8 12c-3.9 0-6.3-4-6.3-4a9.6 9.6 0 0 1 2-2.3"/></svg>';
+    const CC_ICON_HISTORY = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 5.2a5.3 5.3 0 1 1 .5 6"/><path d="M3 2.5v3h3"/><path d="M8 5.5V8l1.8 1.2"/></svg>';
+    const CC_ICON_EDIT = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.7 2.7 13.3 5.3 6 12.6l-3.2.6.6-3.2 7.3-7.3Z"/><path d="m9.7 3.7 2.6 2.6"/></svg>';
+    const CC_ICON_ARCHIVE = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4.5h10"/><rect x="3.8" y="4.5" width="8.4" height="8.2" rx="1.5"/><path d="M6.2 7.2h3.6"/></svg>';
+    const CC_ICON_X = '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" aria-hidden="true"><path d="M3.5 3.5l7 7M10.5 3.5l-7 7"/></svg>';
     const _ccState = {
         kasper: { credentials: [], loading: false, error: null, loaded: false, search: '' },
         modal: { open: false, client: '', credentials: [], loading: false, error: null, loaded: false },
@@ -31866,6 +31923,7 @@
     let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
     let _ccRevKasperTimer = null, _ccRevModalTimer = null;
     let _ccLastLocalWriteAt = 0;
+    let _ccOpenSelectId = null;
 
     function _ccEsc(s) { return _calEsc(s); }
     function _ccEscAttr(s) { return _calEscAttr(s); }
@@ -31874,6 +31932,65 @@
     function _ccIsUnmatched(r) { return String(r.client_slug || '').startsWith('unmatched:') || r.status === 'needs_review'; }
     function _ccPrettyDate(v) { if (!v) return 'never'; const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
     function _ccPlatformLabel(v) { return String(v || 'account').replace(/[_-]+/g, ' '); }
+    function _ccSelectItemsFromValues(values) { return values.map(v => ({ value: v, label: _ccPlatformLabel(v) })); }
+    function _ccClientSelectItems(selectedSlug) { return _ccKnownClients().map(n => ({ value: wlNormalizeClient(n) + '|' + n, label: n, active: wlNormalizeClient(n) === selectedSlug })); }
+    function _ccSelectHtml(id, items, selectedValue, placeholder) {
+        items = Array.isArray(items) ? items : [];
+        let active = items.find(x => String(x.value) === String(selectedValue)) || items.find(x => x.active) || items[0] || { value: '', label: placeholder || 'Choose' };
+        const opts = items.map(x => {
+            const on = String(x.value) === String(active.value);
+            return `<button class="cc-select-option${on ? ' active' : ''}" type="button" data-cc-select-option data-value="${_ccEscAttr(x.value)}" onclick="_ccPickSelect(event, ${_jsAttrArg(id)}, ${_jsAttrArg(x.value)}, ${_jsAttrArg(x.label)})"><span>${_ccEsc(x.label)}</span>${on ? CC_ICON_CHECK : ''}</button>`;
+        }).join('');
+        return `<div class="cc-select" id="${_ccEscAttr(id)}Wrap" data-cc-select><button class="cc-select-trigger" type="button" id="${_ccEscAttr(id)}Btn" aria-haspopup="listbox" aria-expanded="false" onclick="_ccToggleSelect(event, ${_jsAttrArg(id)})"><span id="${_ccEscAttr(id)}Label">${_ccEsc(active.label || placeholder || 'Choose')}</span>${CC_ICON_CHEV}</button><input type="hidden" id="${_ccEscAttr(id)}" value="${_ccEscAttr(active.value)}"><div class="cc-select-menu" id="${_ccEscAttr(id)}Menu" role="listbox">${opts}</div></div>`;
+    }
+    function _ccCloseSelect(id) {
+        id = id || _ccOpenSelectId;
+        if (!id) return;
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (wrap) wrap.classList.remove('open');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+        if (_ccOpenSelectId === id) {
+            document.removeEventListener('mousedown', _ccSelectOutside);
+            _ccOpenSelectId = null;
+        }
+    }
+    function _ccSelectOutside(e) { if (!e.target.closest('[data-cc-select]')) _ccCloseSelect(); }
+    function _ccToggleSelect(e, id) {
+        if (e) e.stopPropagation();
+        const wrap = document.getElementById(id + 'Wrap');
+        const btn = document.getElementById(id + 'Btn');
+        if (!wrap || !btn) return;
+        const opening = !wrap.classList.contains('open');
+        if (_ccOpenSelectId && _ccOpenSelectId !== id) _ccCloseSelect(_ccOpenSelectId);
+        wrap.classList.toggle('open', opening);
+        btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (opening) {
+            _ccOpenSelectId = id;
+            setTimeout(() => document.addEventListener('mousedown', _ccSelectOutside), 0);
+        } else _ccCloseSelect(id);
+    }
+    function _ccPickSelect(e, id, value, label) {
+        if (e) e.stopPropagation();
+        const input = document.getElementById(id);
+        const lab = document.getElementById(id + 'Label');
+        const menu = document.getElementById(id + 'Menu');
+        if (input) { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (lab) lab.textContent = label;
+        if (menu) menu.querySelectorAll('[data-cc-select-option]').forEach(btn => {
+            const on = btn.getAttribute('data-value') === String(value);
+            btn.classList.toggle('active', on);
+            const span = btn.querySelector('span');
+            btn.innerHTML = (span ? span.outerHTML : `<span>${_ccEsc(label)}</span>`) + (on ? CC_ICON_CHECK : '');
+        });
+        _ccCloseSelect(id);
+    }
+    function _ccTogglePasswordField(id, btn) {
+        const input = document.getElementById(id); if (!input) return;
+        const show = input.type === 'password';
+        input.type = show ? 'text' : 'password';
+        if (btn) { btn.innerHTML = show ? CC_ICON_EYE_OFF : CC_ICON_EYE; btn.setAttribute('aria-pressed', show ? 'true' : 'false'); btn.title = show ? 'Hide password' : 'Show password'; }
+    }
     function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
     function _ccIdentityRole(scope) { return scope === 'kasper' ? 'Kasper' : 'SMM'; }
     function _ccIdentityLoad() { try { return JSON.parse(localStorage.getItem(CC_IDENTITY_KEY) || 'null') || null; } catch { return null; } }
@@ -31898,12 +32015,15 @@
                 const ov = document.createElement('div');
                 ov.className = 'cal-import-overlay open';
                 ov.style.zIndex = '9998';
-                const selected = opts.includes(current.name) ? current.name : (opts[0] || 'Synchro Social');
+                const selected = current.name && !opts.includes(current.name) ? '__other__' : (opts.includes(current.name) ? current.name : (opts[0] || 'Synchro Social'));
+                const nameItems = opts.map(n => ({ value: n, label: n })).concat([{ value: '__other__', label: 'Other…' }]);
+                const cancelPrompt = () => { _ccCloseSelect(); ov.remove(); reject(new Error('credentials prompt cancelled')); };
                 ov.innerHTML = `<div class="cc-identity-card" role="dialog" aria-modal="true">
+                    <button class="cc-identity-x" type="button" id="ccIdentityClose" aria-label="Close">${CC_ICON_X}</button>
                     <h3>Client credentials</h3>
                     <p>${force ? 'That passphrase did not work. Enter the current staff passphrase to continue.' : 'Pick your name and enter the staff passphrase once for this device.'}</p>
                     <div class="cc-form-grid" style="grid-template-columns:1fr;">
-                        <div class="cc-field"><label>Your name</label><select id="ccIdentityName">${opts.map(n => `<option value="${_ccEscAttr(n)}"${n === selected ? ' selected' : ''}>${_ccEsc(n)}</option>`).join('')}<option value="__other__">Other…</option></select></div>
+                        <div class="cc-field"><label>Your name</label>${_ccSelectHtml('ccIdentityName', nameItems, selected, 'Choose your name')}</div>
                         <div class="cc-field" id="ccIdentityOtherWrap" style="display:none;"><label>Name</label><input id="ccIdentityOther" autocomplete="name" placeholder="Your name"></div>
                         <div class="cc-field"><label>Staff passphrase</label><input id="ccIdentityKey" type="password" autocomplete="current-password" placeholder="Paste passphrase"></div>
                     </div>
@@ -31917,8 +32037,12 @@
                 const otherWrap = ov.querySelector('#ccIdentityOtherWrap');
                 const other = ov.querySelector('#ccIdentityOther');
                 const key = ov.querySelector('#ccIdentityKey');
+                if (selected === '__other__' && current.name) other.value = current.name;
                 const syncOther = () => { otherWrap.style.display = sel.value === '__other__' ? '' : 'none'; if (sel.value === '__other__') other.focus(); };
                 sel.addEventListener('change', syncOther);
+                syncOther();
+                ov.querySelector('#ccIdentityClose').onclick = cancelPrompt;
+                ov.onclick = e => { if (e.target === ov) cancelPrompt(); };
                 ov.querySelector('#ccIdentitySave').onclick = () => {
                     const name = (sel.value === '__other__' ? other.value : sel.value).trim();
                     const pass = key.value.trim();
@@ -31930,7 +32054,7 @@
                     resolve(ident);
                 };
                 const cancel = ov.querySelector('#ccIdentityCancel');
-                if (cancel) cancel.onclick = () => { ov.remove(); reject(new Error('credentials prompt cancelled')); };
+                if (cancel) cancel.onclick = cancelPrompt;
                 key.addEventListener('keydown', e => { if (e.key === 'Enter') ov.querySelector('#ccIdentitySave').click(); });
                 setTimeout(() => key.focus(), 30);
             });
@@ -32059,17 +32183,17 @@
         const updated = `Updated ${_ccPrettyDate(r.updated_at)}${r.updated_by ? ' by ' + _ccEsc(r.updated_by) : ''}`;
         const reassign = (scope === 'kasper' && _ccIsUnmatched(r)) ? _ccReassignHtml(r) : '';
         return `<div class="cc-row" data-cc-id="${_ccEscAttr(r.id)}">
-            <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong><span>${r.label ? _ccEsc(r.label) : 'primary'} ${statusChip}</span></div>
-            <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">⧉</button>` : ''}</div>
-            <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini" type="button" title="Reveal password" onclick="_ccReveal(${idArg}, ${scopeArg})">👁</button><button class="cc-mini" type="button" title="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">⧉</button>` : ''}</div>
-            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" onclick="_ccOpenHistory(${idArg})">↺</button><button class="cc-mini" type="button" title="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">✎</button>${scope === 'kasper' ? `<button class="cc-mini" type="button" title="Delete" onclick="_ccDelete(${idArg})">×</button>` : ''}</div>
+            <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
+            <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
+            <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
+            <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button>${scope === 'kasper' ? `<button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccDelete(${idArg})">${CC_ICON_ARCHIVE}</button>` : ''}</div>
             <div class="cc-updated">${updated}${r.notes ? ' · ' + _ccEsc(r.notes) : ''}${reassign}</div>
         </div>`;
     }
 
     function _ccReassignHtml(r) {
         const selId = 'ccReassign_' + String(r.id || '').replace(/[^a-zA-Z0-9_-]/g, '');
-        return `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;"><select id="${_ccEscAttr(selId)}" class="cc-search" style="width:220px;padding:7px 9px;">${_ccKnownClients().map(n => `<option value="${_ccEscAttr(wlNormalizeClient(n) + '|' + n)}">${_ccEsc(n)}</option>`).join('')}</select><button class="cc-btn" type="button" onclick="_ccReassign(${_jsAttrArg(r.id)}, ${_jsAttrArg(selId)})">Assign to client</button></div>`;
+        return `<div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap;"><div style="width:220px;">${_ccSelectHtml(selId, _ccClientSelectItems(''), '', 'Assign client')}</div><button class="cc-btn" type="button" onclick="_ccReassign(${_jsAttrArg(r.id)}, ${_jsAttrArg(selId)})">Assign to client</button></div>`;
     }
 
     async function _ccCopyText(text, msg) {
@@ -32082,7 +32206,9 @@
 
     async function _ccReveal(id, scope) {
         const row = _ccFind(id); if (!row || !row.password) return;
-        if (!_ccRevealed.has(id)) {
+        if (_ccRevealed.has(id)) {
+            _ccRevealed.delete(id);
+        } else {
             await _ccApi('log_reveal', { credential_id: id }, { role: _ccIdentityRole(scope) });
             _ccRevealed.add(id);
         }
@@ -32091,7 +32217,7 @@
 
     async function _ccCopyPassword(id, scope) {
         const row = _ccFind(id); if (!row || !row.password) return;
-        await _ccReveal(id, scope);
+        if (!_ccRevealed.has(id)) await _ccReveal(id, scope);
         await _ccCopyText(row.password, 'Password copied');
     }
 
@@ -32107,26 +32233,25 @@
         const row = id ? _ccFind(id) : null;
         const fixedClient = scope === 'modal' ? calClientSlug(_ccState.modal.client) : (clientSlug || (row && row.client_slug) || '');
         const fixedName = scope === 'modal' ? _ccState.modal.client : ((row && row.client_name) || _ccClientNameForSlug(fixedClient));
+        const platformValue = String((row && row.platform) || 'instagram').trim().toLowerCase();
+        const platformItems = (CC_PLATFORM_OPTIONS.includes(platformValue) ? CC_PLATFORM_OPTIONS : [platformValue].concat(CC_PLATFORM_OPTIONS)).filter(Boolean);
         const ov = document.createElement('div');
         ov.className = 'cal-import-overlay open';
         ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true">
             <div class="cal-import-head"><button class="cal-import-x" type="button" id="ccEditClose">×</button><h3>${row ? 'Edit credential' : 'Add credential'}</h3><p>${scope === 'modal' ? _ccEsc(_ccState.modal.client) : 'Kasper credentials store'}</p></div>
             <div class="cal-import-body">
                 <div class="cc-form-grid">
-                    <div class="cc-field full" ${fixedClient ? 'style="display:none;"' : ''}><label>Client</label><select id="ccEditClient">${_ccKnownClientOptions(fixedClient)}</select></div>
-                    <div class="cc-field"><label>Platform</label><input id="ccEditPlatform" list="ccPlatformList" value="${_ccEscAttr((row && row.platform) || 'instagram')}" placeholder="instagram"></div>
-                    <div class="cc-field"><label>Label</label><input id="ccEditLabel" value="${_ccEscAttr((row && row.label) || '')}" placeholder="primary, backup, ads account…"></div>
+                    <div class="cc-field full" ${fixedClient ? 'style="display:none;"' : ''}><label>Client</label>${_ccSelectHtml('ccEditClient', _ccClientSelectItems(fixedClient), '', 'Choose client')}</div>
+                    <div class="cc-field"><label>Platform</label>${_ccSelectHtml('ccEditPlatform', _ccSelectItemsFromValues(platformItems), platformValue, 'Choose platform')}</div>
                     <div class="cc-field"><label>Handle</label><input id="ccEditHandle" value="${_ccEscAttr((row && row.handle) || '')}" placeholder="@client"></div>
-                    <div class="cc-field"><label>Password</label><input id="ccEditPassword" type="password" value="${_ccEscAttr((row && row.password) || '')}" placeholder="Password"></div>
-                    <div class="cc-field"><label>Status</label><select id="ccEditStatus"><option value="active"${!row || row.status === 'active' ? ' selected' : ''}>active</option><option value="needs_review"${row && row.status === 'needs_review' ? ' selected' : ''}>needs review</option></select></div>
+                    <div class="cc-field full"><label>Password</label><div class="cc-password-wrap"><input id="ccEditPassword" type="password" value="${_ccEscAttr((row && row.password) || '')}" placeholder="Password"><button class="cc-pass-toggle" type="button" title="Show password" aria-label="Show password" aria-pressed="false" onclick="_ccTogglePasswordField('ccEditPassword', this)">${CC_ICON_EYE}</button></div></div>
                     <div class="cc-field full"><label>Notes</label><textarea id="ccEditNotes" placeholder="2FA, backup codes, login quirks…">${_ccEsc((row && row.notes) || '')}</textarea></div>
                 </div>
-                <datalist id="ccPlatformList">${CC_PLATFORM_OPTIONS.map(p => `<option value="${p}"></option>`).join('')}</datalist>
             </div>
             <div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" id="ccEditCancel">Cancel</button><button class="cal-import-btn-primary" type="button" id="ccEditSave">Save</button></div>
         </div>`;
         document.body.appendChild(ov);
-        const close = () => ov.remove();
+        const close = () => { _ccCloseSelect(); ov.remove(); };
         ov.querySelector('#ccEditClose').onclick = close;
         ov.querySelector('#ccEditCancel').onclick = close;
         ov.onclick = e => { if (e.target === ov) close(); };
@@ -32143,10 +32268,10 @@
                     client_slug: slug,
                     client_name: name,
                     platform: ov.querySelector('#ccEditPlatform').value.trim(),
-                    label: ov.querySelector('#ccEditLabel').value.trim(),
+                    label: '',
                     handle: ov.querySelector('#ccEditHandle').value.trim(),
                     password: ov.querySelector('#ccEditPassword').value,
-                    status: ov.querySelector('#ccEditStatus').value,
+                    status: (row && row.status) || 'active',
                     notes: ov.querySelector('#ccEditNotes').value.trim(),
                     source: row && row.source ? row.source : 'manual',
                 };
@@ -32236,9 +32361,11 @@
         };
     }
 
-    function _ccOpenModal(clientName) {
+    async function _ccOpenModal(clientName) {
         if (_isClientLink) return;
         if (!clientName) return;
+        try { await _ccEnsureIdentity('SMM'); }
+        catch (e) { return; }
         _ccState.modal.open = true; _ccState.modal.client = clientName; _ccState.modal.loaded = false; _ccState.modal.credentials = [];
         let ov = document.getElementById('ccOverlay');
         if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay open'; document.body.appendChild(ov); }

@@ -12,7 +12,7 @@
 // Run: node qa/probes/parity_logic.js
 const http = require('http'), fs = require('fs'), path = require('path');
 let PW; try { PW = require('playwright'); } catch { PW = require('/opt/node22/lib/node_modules/playwright'); }
-const ROOT = '/home/user/client-analytics';
+const ROOT = path.resolve(__dirname, '..', '..');
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
 
 (async () => {

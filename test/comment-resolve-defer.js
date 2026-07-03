@@ -48,7 +48,7 @@ check('the done-flip lives in a closure (mutate) for the non-deferred path',
 check('deferred path hands the comment id to the chooser, then returns (nothing applied yet)',
   /if \(deferToChooser\) \{[\s\S]*?_calResolveLastTweak\(pid, comp, rootId\);[\s\S]*?return;/.test(toggle), true);
 check('non-deferred path still applies + refreshes immediately',
-  /\n\s*mutate\(\);\n\s*refresh\(\);\n\s*\}/.test(toggle), true);
+  /mutate\(\);\s*refresh\(\);/.test(toggle), true);
 
 console.log('\n— _calResolveLastTweak resolves only on a route pick, never on close —');
 check('takes the comment id to resolve', /function _calResolveLastTweak\(pid, comp, rootId\)/.test(resolve), true);

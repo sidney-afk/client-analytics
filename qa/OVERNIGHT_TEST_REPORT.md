@@ -2,6 +2,40 @@
 
 ---
 
+# RUN 3 — 2026-07-03 · Full SyncView overnight QA loop
+
+**Branch:** `claude/overnight-syncview-qa-20260702-204925` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED via harness.
+
+## Mission
+Run continuously while Sidney sleeps across the Social Media Manager calendar,
+Kasper review, Client review, Samples New, realtime/two-tab adoption, Calendar
+create-via-UI, and master tester lanes. The goal is not just a green smoke pass:
+log every red case, keep cleanup safe, and leave enough evidence tomorrow to fix
+real bugs instead of guessing.
+
+## Runner upgrade before start
+- Updated `qa/overnight_runner.sh` for Sidney's Windows/Git Bash setup: uses
+  `python` instead of missing `python3`, and the full Node path instead of the
+  `winpty node` alias that dies in background shells.
+- Added the post-PR #656 guards to the loop: `p90_merge_midsave_keep.js`,
+  `p91_ui_realtime_multitab.js`, `p89_cal_create_via_ui.js`, fresh-card workflow
+  scenarios, create/archive/rename/reorder/reload/remote-merge scenarios, and
+  fast master.
+- Added persistent per-command logs under `qa/overnight-output/` and a compact
+  summary stream in `qa/overnight_runner.log`.
+- Cleanup sweeps both `sample_reviews` and `calendar_posts` test rows after each
+  probe/batch and reports live leftovers.
+
+## Initial smoke before unattended start
+- `sxr_bug_repros.js` passed: `pass=4 fail=0`.
+- `sxr_concurrency.js` passed: `pass=8 fail=0`.
+- cleanup after both: `live_test_rows sample_reviews=0 calendar_posts=0`.
+
+## Live log
+See `qa/overnight_runner.log` and `qa/overnight-output/*.log`.
+
+---
+
 # RUN 2 — 2026-07-02 · Samples interaction marathon (post-rebuild FE)
 
 **Branch:** `claude/samples-system-testing-vx2moc` · **Test client:** `sidneylaruel` ONLY · Linear MOCKED.

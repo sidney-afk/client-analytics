@@ -90,6 +90,35 @@ npm run test:master # the full master tester — node qa/master.js
   tunnels every backend call through Node/curl. Correct, but slower — prefer a
   small `--scn` set while iterating.
 
+## Known blind spots (and what covers them now)
+
+Two bugs shipped in 2026-07 that every lane missed; each exposed a structural
+blind spot worth knowing when you write new tests:
+
+1. **"Does the screen tell the truth?" vs "is the state right?"** The
+   `resolve_via_*` scenarios drove the exact broken flow (SMM resolves the last
+   tweak → chooser → Kasper) with real DOM clicks — and passed, because every
+   assertion read the **live DB**, which was correct; the sheet pill on screen
+   lied until a refresh (`_sxrUpdateCardStatusDisplay` was a stub). The
+   `temporal` lane asserts optimistic pills, but only on the status-menu path
+   (full re-render — never broken). **Now:** the `expectPill` verb asserts the
+   rendered pill *in place, pre-reload*; every mutation step that changes a
+   visible status should pair with a DOM-level expect. Probe `p92` guards the
+   original flow.
+2. **Fresh-profile testing can't see cross-session staleness.** Every lane
+   boots a fresh browser context (empty localStorage), so a stale cached
+   snapshot + a server-side archive this browser never saw + quota pressure —
+   the exact recipe behind the "phantom card flashes on every refresh" bug —
+   cannot exist in any test run. Worse, the suite *manufactured* the bug for
+   real users: thousands of archived QA rows bloated the per-client cache to
+   quota scale. **Now:** probe `p93` seeds a stale cache + quota-stuffed
+   storage and asserts the phantom heals after one boot and never re-renders.
+   When adding cache/ledger features, add a dirty-profile probe like it.
+
+Also remember the vision caveat below: the `visual` lane **captures** the
+evidence but nothing judges it unattended unless `MASTER_VISION` is set — a
+screenshot of a broken screen in `qa/visual/` is not a failed test.
+
 ## The vision pass (the "eyes")
 
 The `visual` lane **captures**; it does not auto-judge. After a run it writes:

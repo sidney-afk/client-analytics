@@ -367,6 +367,19 @@ function base() {
     ] });
 
   // kasper approve one, AAT the other
+  // A plain "Request change" SUPERSEDES a prior approve-after-tweaks pre-clearance
+  // on the same component (calendar parity). Without the clear, the SMM still saw
+  // the pre-clear badge and the resolve chooser recommended skipping Kasper's
+  // re-review after Kasper had explicitly asked to see it again.
+  S.push({ key: 'aat_superseded_by_request_video', title: 'Kasper AAT then Request change — pre-clearance clears',
+    seed: { video_status: 'Kasper Approval', graphic_status: 'Approved', status: 'Kasper Approval' },
+    steps: [
+      ['kasper.aat', 'video', 'fix the audio then send'],
+      ['expect', 'kasper_approved_after_tweaks', 'video'],
+      ['kasper.request', 'video', 'actually I want to re-review this one'],
+      ['expect', 'video_status', 'Tweaks Needed'],
+      ['expect', 'kasper_approved_after_tweaks', ''],
+    ] });
   S.push({ key: 'kasper_approve_v_aat_g', title: 'Kasper approves video, approve-after-tweaks on thumbnail',
     seed: { video_status: 'Kasper Approval', graphic_status: 'Kasper Approval', status: 'Kasper Approval' },
     steps: [['kasper.approve', 'video'], ['kasper.aat', 'graphic', 'fix logo then SMM'], ['expect', 'video_status', 'Client Approval'], ['expect', 'graphic_status', 'Tweaks Needed']] });
@@ -448,6 +461,9 @@ function base() {
         video_tweaks: JSON.stringify([openTweak('cm_rv_' + dest, 'please fix for ' + dest, 1)]) },
       steps: [
         ['smm.resolveVia', 'video', dest],
+        // The pill must reflect the route IN PLACE, before any reload — the DB
+        // expect below was green while the pill lied (the stale-pill bug).
+        ['expectPill', 'video', wantStatus],
         ['expect', 'video_status', wantStatus],
         ['expectComment', 'video', { any: true, done: true }],
       ] });
@@ -456,7 +472,7 @@ function base() {
   S.push({ key: 'resolve_via_kasper_graphic', title: 'SMM resolves last tweak on thumbnail → chooser → Kasper',
     seed: { graphic_status: 'Tweaks Needed', video_status: 'Approved', status: 'Tweaks Needed',
       graphic_tweaks: JSON.stringify([openTweak('cm_rvg', 'fix the logo', 1)]) },
-    steps: [['smm.resolveVia', 'graphic', 'kasper'], ['expect', 'graphic_status', 'Kasper Approval'], ['expectComment', 'graphic', { any: true, done: true }]] });
+    steps: [['smm.resolveVia', 'graphic', 'kasper'], ['expectPill', 'graphic', 'Kasper Approval'], ['expect', 'graphic_status', 'Kasper Approval'], ['expectComment', 'graphic', { any: true, done: true }]] });
 
   // Reopen a resolved tweak
   S.push({ key: 'reopen_tweak_video', title: 'SMM resolves (stay) then reopens the tweak',

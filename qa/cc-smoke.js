@@ -70,6 +70,7 @@ const server = http.createServer((req, res) => {
   await page.locator('#ccModalBody').getByText('@bayavoce').waitFor({ timeout: 10000 });
   const modalTitle = await page.locator('#ccOverlay h3').innerText();
   if (!/Baya Voce credentials/.test(modalTitle)) throw new Error('SMM modal did not open');
+  if (await page.locator('#ccOverlay .cc-row button[title="Archive"]').count() < 1) throw new Error('SMM modal should expose archive action');
   await page.locator('#ccOverlay button', { hasText: 'Add credential' }).click();
   await page.locator('#ccEditPlatformBtn').waitFor({ timeout: 10000 });
   if (await page.locator('#ccEditLabel').count()) throw new Error('label field should not render');

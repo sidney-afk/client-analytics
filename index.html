@@ -7219,7 +7219,7 @@
         if(state&&state.client){
             const nav=state.nav||'home';
             currentNav=nav;
-            localStorage.setItem(NAV_KEY,nav);
+            try{localStorage.setItem(NAV_KEY,nav);}catch(e){}   // full quota must not break Back/Forward nav
             document.getElementById('navHome').classList.toggle('active',nav==='home');
             document.getElementById('navLinear').classList.remove('active');
             const navTpl=document.getElementById('navTemplates');
@@ -7257,7 +7257,7 @@
 
     const RECENT_KEY='syncview_recent_searches';
     function getRecent(){try{return JSON.parse(localStorage.getItem(RECENT_KEY)||'[]');}catch{return[];}}
-    function addRecent(name){let r=getRecent().filter(n=>n!==name);r.unshift(name);r=r.slice(0,3);localStorage.setItem(RECENT_KEY,JSON.stringify(r));}
+    function addRecent(name){let r=getRecent().filter(n=>n!==name);r.unshift(name);r=r.slice(0,3);try{localStorage.setItem(RECENT_KEY,JSON.stringify(r));}catch(e){}}
     function openSearchDropdown(){const box=document.getElementById('searchBox');if(!box||box.classList.contains('open'))return;box.classList.add('open');const close=(e)=>{const wrap=document.getElementById('searchWrap');if(wrap&&!wrap.contains(e.target)){box.classList.remove('open');document.removeEventListener('click',close);}};setTimeout(()=>document.addEventListener('click',close),0);}
     function onSearchFocus(){renderSearchResults(document.getElementById('searchInput')?.value||'');openSearchDropdown();}
     function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[...starts,...contains][0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
@@ -7276,7 +7276,7 @@
     const PEN_ICON_SVG='<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     const CHECK_SVG='<svg width="8" height="8" viewBox="0 0 10 10" fill="none"><path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     function getPins(){try{return JSON.parse(localStorage.getItem(PINS_KEY)||'[]');}catch{return[];}}
-    function savePins(pins){localStorage.setItem(PINS_KEY,JSON.stringify(pins));}
+    function savePins(pins){try{localStorage.setItem(PINS_KEY,JSON.stringify(pins));}catch(e){}}
     function togglePin(name){let pins=getPins();if(pins.includes(name))pins=pins.filter(p=>p!==name);else{if(pins.length>=MAX_PINS)return;pins.push(name);}savePins(pins);renderPins();}
     function removePin(name){const pins=getPins().filter(p=>p!==name);savePins(pins);if(pins.length===0)pinsEditMode=false;pinSelectorOpen=false;renderPins();}
     function togglePinsEdit(){pinsEditMode=!pinsEditMode;pinSelectorOpen=false;renderPins();}
@@ -12005,7 +12005,13 @@
         // <head> boot script's data-boot-nav tag) to the real nav toggles below.
         document.documentElement.removeAttribute('data-boot-nav');
         currentNav = page;
-        localStorage.setItem(NAV_KEY, page);
+        // Guarded: on a FULL localStorage (a heavy user whose caches filled the
+        // quota) this setItem throws QuotaExceededError, and unguarded it aborted
+        // the REST of navTo — so every tab click silently did nothing until the
+        // user cleared storage. Persisting the last tab is a nice-to-have; never
+        // let it break navigation. (Every other localStorage write here is
+        // likewise wrapped — this one was the lone gap.)
+        try { localStorage.setItem(NAV_KEY, page); } catch (e) {}
         document.getElementById('navHome').classList.toggle('active', page === 'home');
         document.getElementById('navLinear').classList.toggle('active', page === 'linear');
         const navTpl = document.getElementById('navTemplates');
@@ -25826,7 +25832,7 @@
             // other tab/page is reachable from this link.
             const _h=document.querySelector('header.header'); if(_h) _h.style.display='none';
             const _pt=document.getElementById('pageTop'); if(_pt) _pt.style.display='none';
-            localStorage.setItem(NAV_KEY,'linear');
+            try{localStorage.setItem(NAV_KEY,'linear');}catch(e){}
             history.replaceState({nav:'linear',client:null},'',location.pathname+location.search+'#linear');
         }
         if(_isClientLink){

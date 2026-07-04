@@ -7339,19 +7339,26 @@
         const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const rows = await resp.json();
-        if (!Array.isArray(rows) || !rows.length) throw new Error('No Supabase templates yet');
         const out = {};
-        rows.forEach(row => {
+        (Array.isArray(rows) ? rows : []).forEach(row => {
             const data = row && row.data && typeof row.data === 'object' ? row.data : {};
             const name = String(data.client_name || row.client_slug || '').trim();
             if (!name) return;
+            if (!_settingsUseEf(row.client_slug || name)) return;
             out[name] = Object.assign({}, data, { updated_at: row.updated_at || data.updated_at || '' });
         });
         return out;
     }
+    async function _tplLoadFromN8n() {
+        const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'Unknown error');
+        return json.templates || {};
+    }
 
     async function _tplSubscribeSupabase() {
         if (_tplRealtimeChannel) return;
+        if (!_settingsEfClients.size) return;
         const client = await _calRuntimeFlagClient();
         if (!client || _tplRealtimeChannel) return;
         try {
@@ -7362,6 +7369,7 @@
                     const data = row && row.data && typeof row.data === 'object' ? row.data : null;
                     const name = data ? String(data.client_name || row.client_slug || '').trim() : '';
                     if (!name) return;
+                    if (!_settingsUseEf(row.client_slug || name)) return;
                     templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
                     _maybeRerenderTemplates();
                 })
@@ -7375,15 +7383,17 @@
     async function loadTemplates() {
         if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
         try {
+            const baseTemplates = await _tplLoadFromN8n();
+            templatesData = baseTemplates;
             try {
-                templatesData = await _tplLoadFromSupabase();
-                _tplSubscribeSupabase();
+                await _settingsPrimeRoutingFlag();
+                if (_settingsEfClients.size) {
+                    const supaTemplates = await _tplLoadFromSupabase();
+                    templatesData = Object.assign({}, baseTemplates, supaTemplates);
+                    _tplSubscribeSupabase();
+                }
             } catch (supaError) {
-                console.warn('[SyncView] Supabase templates load failed; using n8n fallback:', supaError);
-                const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
-                const json = await resp.json();
-                if (!json.ok) throw new Error(json.error || 'Unknown error');
-                templatesData = json.templates || {};
+                console.warn('[SyncView] Supabase templates overlay failed; using n8n base:', supaError);
             }
             templatesLoaded = true;
             templatesLoadError = null;
@@ -21248,28 +21258,35 @@
         const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const rows = await resp.json();
-        if (!Array.isArray(rows) || !rows.length) throw new Error('No Supabase caption prompts yet');
         const prompts = {};
-        rows.forEach(row => {
+        (Array.isArray(rows) ? rows : []).forEach(row => {
             const slug = String((row && row.client_slug) || '').trim();
+            if (!slug || !_settingsUseEf(slug)) return;
             if (slug) prompts[slug] = String(row.prompt || '');
         });
         return prompts;
+    }
+    async function _calLoadCaptionPromptsFromN8n() {
+        const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
+        const j = await r.json();
+        if (j && j.ok && j.prompts && typeof j.prompts === 'object') return j.prompts;
+        throw new Error((j && j.error) || 'caption-prompts-get failed');
     }
     async function _calLoadCaptionPrompts() {
         if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calCaptionPromptsInFlight = (async () => {
             try {
+                const basePrompts = await _calLoadCaptionPromptsFromN8n();
+                _calCaptionPrompts = basePrompts;
                 try {
-                    _calCaptionPrompts = await _calLoadCaptionPromptsFromSupabase();
-                } catch (supaError) {
-                    console.warn('[Calendar] Supabase caption prompts load failed; using n8n fallback', supaError);
-                    const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
-                    const j = await r.json();
-                    if (j && j.ok && j.prompts && typeof j.prompts === 'object') {
-                        _calCaptionPrompts = j.prompts;
+                    await _settingsPrimeRoutingFlag();
+                    if (_settingsEfClients.size) {
+                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
+                        _calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);
                     }
+                } catch (supaError) {
+                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
                 _calCaptionPromptsLoaded = true;
             } catch (e) {

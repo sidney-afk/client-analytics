@@ -14,8 +14,14 @@ const migration = fs.readFileSync(path.join(root, 'migrations/2026-07-04-a4-sett
 assert(index.includes("const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';"), 'frontend must use settings_ef_clients');
 assert(index.includes('TEMPLATES_SAVE_EF_URL'), 'templates EF URL missing');
 assert(index.includes('CAPTION_PROMPTS_SAVE_EF_URL'), 'caption prompts EF URL missing');
-assert(index.includes('_tplLoadFromSupabase'), 'templates must prefer Supabase reads');
-assert(index.includes('_calLoadCaptionPromptsFromSupabase'), 'caption prompts must prefer Supabase reads');
+assert(index.includes('_tplLoadFromSupabase'), 'templates Supabase overlay helper missing');
+assert(index.includes('_calLoadCaptionPromptsFromSupabase'), 'caption prompts Supabase overlay helper missing');
+assert(index.includes('const baseTemplates = await _tplLoadFromN8n();'), 'templates must load n8n as the base store');
+assert(index.includes('templatesData = Object.assign({}, baseTemplates, supaTemplates);'), 'templates must overlay flagged Supabase rows on n8n base');
+assert(index.includes('if (!_settingsUseEf(row.client_slug || name)) return;'), 'templates Supabase rows must be gated by settings_ef_clients');
+assert(index.includes('const basePrompts = await _calLoadCaptionPromptsFromN8n();'), 'caption prompts must load n8n as the base store');
+assert(index.includes('_calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);'), 'caption prompts must overlay flagged Supabase rows on n8n base');
+assert(index.includes('if (!slug || !_settingsUseEf(slug)) return;'), 'caption prompt Supabase rows must be gated by settings_ef_clients');
 assert(index.includes('_settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL)'), 'templates write must be flag-routed with n8n fallback');
 assert(index.includes('_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL)'), 'caption prompt write must be flag-routed with n8n fallback');
 assert(index.includes("const GENERATE_CAPTION_URL       = 'https://synchrosocial.app.n8n.cloud/webhook/generate-caption';"), 'caption generation URL must remain n8n');

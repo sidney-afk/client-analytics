@@ -5,8 +5,7 @@ Public-safe evidence for draft PR #673 (`codex/a4-settings-edge-functions`).
 ## PR state
 
 - PR #673 remains draft, open, and unmerged.
-- Remote head checked: `ce86f10b2236f6eb0c21330a021163c9521dea32`.
-- Hosted GitHub Actions run `28714721464` (`Calendar unit tests`) passed on the PR head.
+- Hosted GitHub Actions passed on the A4 PR branch before the read-routing fix; the PR description records the current head and latest hosted check after each push.
 
 ## Runtime flags
 
@@ -17,6 +16,16 @@ Readback at `2026-07-04T18:10:28Z`:
 - `settings_ef_clients={"clients":[]}`
 
 No real client is enabled for A4. A1/A2 remain TEST-client only.
+
+## Read/write routing fix
+
+The A4 staged frontend reads n8n as the base store and overlays Supabase rows only for clients listed in `settings_ef_clients`, using the same runtime flag as the write path:
+
+- Staff Templates bulk-load: n8n map first, then Supabase overlay for flagged clients only.
+- Caption prompts: n8n map first, then Supabase overlay for flagged clients only.
+- Empty flag, flag-read failure, or Supabase read failure leaves the n8n base in place.
+
+This prevents unflagged clients from writing to Google Sheets through n8n while reading stale Supabase backfill data on reload.
 
 ## A4 fallback state
 

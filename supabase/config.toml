@@ -30,3 +30,11 @@ verify_jwt = false
 
 [functions.sample-review-reorder]
 verify_jwt = false
+
+# A4 settings writer ports. Browser callers route here only through
+# settings_ef_clients; old n8n Sheets writers stay live as fallback.
+[functions.templates-save]
+verify_jwt = false
+
+[functions.caption-prompts-save]
+verify_jwt = false

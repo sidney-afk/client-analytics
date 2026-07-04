@@ -50,5 +50,18 @@ check('different client → drop the stale button and rebuild',
 check('no longer the blanket "if (existing) return;" that froze the handles',
   /if \(existing\) return;/.test(sync), false);
 
+check('canonical client roster accessor exists',
+  /function getClientRoster\(\) \{\s*return \[\.\.\.new Set\(WL_CLIENT_NAMES\.map\(wlCanonicalClient\)\)\]\.sort\(\(a, b\) => a\.localeCompare\(b\)\);/.test(INDEX), true);
+check('Templates roster uses getClientRoster',
+  INDEX.includes('function _tplAllNames() { return getClientRoster(); }'), true);
+check('analytics search and pin lists use getClientRoster',
+  (INDEX.match(/const allNames=getClientRoster\(\);/g) || []).length >= 5, true);
+check('Templates deep links canonicalize through wlCanonicalClient',
+  (INDEX.match(/_templatesSelected=wlCanonicalClient\(tn\)/g) || []).length >= 2, true);
+check('allowed roster clients without metrics get a blank analytics row',
+  INDEX.includes('if(!deduped.length && wlIsAllowedClient(name)) return [_blankAnalyticsRow(wlCanonicalClient(name))];'), true);
+check('data-less analytics clients render an empty state',
+  INDEX.includes('No analytics yet'), true);
+
 if (failures) { console.error(`\n${failures} check(s) failed.`); process.exit(1); }
 console.log('\nAll client-links-refresh checks passed.');

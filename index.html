@@ -7308,6 +7308,7 @@
     */
     const TEMPLATES_GET_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/templates-get';
     const TEMPLATES_SAVE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/templates-save';
+    const TEMPLATES_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/templates-save';
 
     const TEMPLATE_FIELDS = [
         'filming_plans_link',
@@ -7330,14 +7331,70 @@
     const TPL_MAX_PINS   = 5;
     let _tplPinsEditMode = false;
     let _tplPinSelectorOpen = false;
+    let _tplRealtimeChannel = null;
+
+    async function _tplLoadFromSupabase() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
+        const url = CAL_SUPABASE_URL + '/rest/v1/templates?select=client_slug,data,updated_at&order=client_slug.asc';
+        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        const out = {};
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const data = row && row.data && typeof row.data === 'object' ? row.data : {};
+            const name = String(data.client_name || row.client_slug || '').trim();
+            if (!name) return;
+            if (!_settingsUseEf(row.client_slug || name)) return;
+            out[name] = Object.assign({}, data, { updated_at: row.updated_at || data.updated_at || '' });
+        });
+        return out;
+    }
+    async function _tplLoadFromN8n() {
+        const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
+        const json = await resp.json();
+        if (!json.ok) throw new Error(json.error || 'Unknown error');
+        return json.templates || {};
+    }
+
+    async function _tplSubscribeSupabase() {
+        if (_tplRealtimeChannel) return;
+        if (!_settingsEfClients.size) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _tplRealtimeChannel) return;
+        try {
+            _tplRealtimeChannel = client
+                .channel('syncview-templates')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'templates' }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    const data = row && row.data && typeof row.data === 'object' ? row.data : null;
+                    const name = data ? String(data.client_name || row.client_slug || '').trim() : '';
+                    if (!name) return;
+                    if (!_settingsUseEf(row.client_slug || name)) return;
+                    templatesData[name] = Object.assign({}, templatesData[name] || {}, data, { updated_at: row.updated_at || data.updated_at || '' });
+                    _maybeRerenderTemplates();
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[SyncView] templates realtime subscribe failed', e);
+            _tplRealtimeChannel = null;
+        }
+    }
 
     async function loadTemplates() {
         if (!TEMPLATES_GET_URL) { templatesLoadError = 'not-configured'; _maybeRerenderTemplates(); return; }
         try {
-            const resp = await fetch(TEMPLATES_GET_URL + '?_t=' + Date.now(), { method: 'GET' });
-            const json = await resp.json();
-            if (!json.ok) throw new Error(json.error || 'Unknown error');
-            templatesData = json.templates || {};
+            const baseTemplates = await _tplLoadFromN8n();
+            templatesData = baseTemplates;
+            try {
+                await _settingsPrimeRoutingFlag();
+                if (_settingsEfClients.size) {
+                    const supaTemplates = await _tplLoadFromSupabase();
+                    templatesData = Object.assign({}, baseTemplates, supaTemplates);
+                    _tplSubscribeSupabase();
+                }
+            } catch (supaError) {
+                console.warn('[SyncView] Supabase templates overlay failed; using n8n base:', supaError);
+            }
             templatesLoaded = true;
             templatesLoadError = null;
         } catch (e) {
@@ -7394,9 +7451,9 @@
         _setTplStatus('saving');
         let ok = false;
         try {
-            const resp = await fetch(TEMPLATES_SAVE_URL, {
+            const resp = await fetch(_settingsWriteUrlForClient(name, TEMPLATES_SAVE_EF_URL, TEMPLATES_SAVE_URL), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _settingsWriteHeaders('templates'),
                 body: JSON.stringify({ clientName: name, patch }),
             });
             const json = await resp.json();
@@ -13208,6 +13265,7 @@
        connections — and posts cancel_requested to the update webhook. */
     const CAPTION_JOB_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-status';
     const CAPTION_JOB_UPDATE_URL = 'https://synchrosocial.app.n8n.cloud/webhook/caption-job-update';
+    const CAPTION_PROMPTS_SAVE_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/caption-prompts-save';
     /* "URGENT TWEAKS NEEDED" ping. The front-end sends only the video
        sub-issue's Linear URL + client name; the send-urgent-slack workflow
        validates the URL, resolves the editor from Linear, maps them to a Slack
@@ -13240,11 +13298,15 @@
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
     const CALENDAR_UPSERT_FLAG_KEY = 'calendar_upsert_ef_clients';
+    const SETTINGS_EF_FLAG_KEY = 'settings_ef_clients';
     let _calUpsertEfClients = new Set();
     let _calUpsertFlagPromise = null;
     let _calUpsertFlagChannel = null;
     let _calUpsertFlagClient = null;
     let _calUpsertFlagClientPromise = null;
+    let _settingsEfClients = new Set();
+    let _settingsFlagPromise = null;
+    let _settingsFlagChannel = null;
     function _calRuntimeFlagClients(value) {
         const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
         return raw.map(x => {
@@ -13332,6 +13394,60 @@
         });
     }
     _calPrimeUpsertRoutingFlag();
+    function _settingsSetFlagValue(value) {
+        _settingsEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('settings EF clients:', Array.from(_settingsEfClients).join(',') || '(none)');
+    }
+    async function _settingsFetchFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _settingsSetFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SETTINGS_EF_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _settingsSetFlagValue({ clients: [] });
+            console.warn('[Settings] settings EF flag read failed; using n8n fallback', e);
+        }
+    }
+    async function _settingsSubscribeFlag() {
+        if (_settingsFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _settingsFlagChannel) return;
+        try {
+            _settingsFlagChannel = client
+                .channel('syncview-settings-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SETTINGS_EF_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _settingsSetFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Settings] runtime flag realtime subscribe failed', e);
+            _settingsFlagChannel = null;
+        }
+    }
+    function _settingsPrimeRoutingFlag() {
+        if (!_settingsFlagPromise) {
+            _settingsFlagPromise = _settingsFetchFlagOnce().then(() => _settingsSubscribeFlag()).catch(() => null);
+        }
+        return _settingsFlagPromise;
+    }
+    function _settingsUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = calClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _settingsEfClients.has(slug);
+    }
+    function _settingsWriteUrlForClient(clientOrSlug, efUrl, n8nUrl) {
+        _settingsPrimeRoutingFlag();
+        return _settingsUseEf(clientOrSlug) ? efUrl : n8nUrl;
+    }
+    function _settingsWriteHeaders(source) {
+        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': 'SyncView', 'X-Syncview-Role': 'smm', 'X-Syncview-Source': source || 'settings' };
+    }
+    _settingsPrimeRoutingFlag();
     /* Default Caption Writer prompt — kept in sync with the same string
        baked into the SyncView Calendar — Generate Caption workflow. When
        a client's CaptionPrompts row is empty, both the front-end modal
@@ -21136,15 +21252,41 @@
        SyncView Calendar Sheet. The Edit caption prompt modal in
        the per-card kebab edits that tab via caption-prompts-save.
        ============================================================ */
+    async function _calLoadCaptionPromptsFromSupabase() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase not configured');
+        const url = CAL_SUPABASE_URL + '/rest/v1/caption_prompts?select=client_slug,prompt&order=client_slug.asc';
+        const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const rows = await resp.json();
+        const prompts = {};
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const slug = String((row && row.client_slug) || '').trim();
+            if (!slug || !_settingsUseEf(slug)) return;
+            if (slug) prompts[slug] = String(row.prompt || '');
+        });
+        return prompts;
+    }
+    async function _calLoadCaptionPromptsFromN8n() {
+        const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
+        const j = await r.json();
+        if (j && j.ok && j.prompts && typeof j.prompts === 'object') return j.prompts;
+        throw new Error((j && j.error) || 'caption-prompts-get failed');
+    }
     async function _calLoadCaptionPrompts() {
         if (_calCaptionPromptsLoaded) return _calCaptionPrompts;
         if (_calCaptionPromptsInFlight) return _calCaptionPromptsInFlight;
         _calCaptionPromptsInFlight = (async () => {
             try {
-                const r = await fetch(CAPTION_PROMPTS_GET_URL + '?_t=' + Date.now());
-                const j = await r.json();
-                if (j && j.ok && j.prompts && typeof j.prompts === 'object') {
-                    _calCaptionPrompts = j.prompts;
+                const basePrompts = await _calLoadCaptionPromptsFromN8n();
+                _calCaptionPrompts = basePrompts;
+                try {
+                    await _settingsPrimeRoutingFlag();
+                    if (_settingsEfClients.size) {
+                        const supaPrompts = await _calLoadCaptionPromptsFromSupabase();
+                        _calCaptionPrompts = Object.assign({}, basePrompts, supaPrompts);
+                    }
+                } catch (supaError) {
+                    console.warn('[Calendar] Supabase caption prompts overlay failed; using n8n base', supaError);
                 }
                 _calCaptionPromptsLoaded = true;
             } catch (e) {
@@ -21824,9 +21966,9 @@
         btn.disabled = true;
         btn.textContent = 'Saving…';
         try {
-            const r = await fetch(CAPTION_PROMPTS_SAVE_URL, {
+            const r = await fetch(_settingsWriteUrlForClient(client, CAPTION_PROMPTS_SAVE_EF_URL, CAPTION_PROMPTS_SAVE_URL), {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: _settingsWriteHeaders('caption-prompts'),
                 body: JSON.stringify({ client: calClientSlug(client), prompt: promptText })
             });
             const j = await r.json();

@@ -92,6 +92,36 @@ The inbound `linear-status-sync` has a different deployment model: the spec requ
 webhook pointing at the Edge Function in dry-run/shadow mode, covering all public teams or at least
 VID and GRA, with comparison evidence before disabling the n8n webhook.
 
+## Conservative canary shape for A3
+
+If the owner approves a TEST-only A3 canary, the safest routing shape is a new additive runtime flag
+for the Linear bridges, defaulting to `{"clients":[]}`. Do not reuse the calendar/sample writer
+flags: A3 has different blast radius and different rollback evidence.
+
+Recommended fail-safe rules:
+
+- Browser status/comment writes include the current client slug in the payload or in a routing
+  wrapper. Missing, blank, unreadable, or unlisted client routes to n8n.
+- Calendar outbox entries and Samples outbox entries that were queued before A3 and have no client
+  field route to n8n. New entries can carry the client slug.
+- Browser `linear-issue-statuses` reads for a single open client may route by that open client; if
+  the client is missing or unlisted, use n8n.
+- `scripts/linear-sync-reconcile.js` and `scripts/sample-linear-reconcile.js` must not send a mixed
+  all-client batch to the Edge Function. They need to group issue links by card/sample client,
+  route each group by the flag, and then merge the returned `statuses`, `meta`, and `missing`
+  envelopes.
+- Reconciler status pushes to `linear-set-status` route per card/sample client. Missing client data
+  falls back to n8n.
+- On any flag-read failure, EF non-2xx response, malformed response, or parity mismatch, fallback is
+  n8n. For browser writes, the existing durable outbox stays the retry layer.
+- The one-step rollback for outbound A3 canary should be setting the new Linear-bridge flag to
+  `{"clients":[]}`. That rollback must be rehearsed on `sidneylaruel` before canary evidence is
+  collected.
+
+This means the TEST canary is not just a URL-constant change. The reconciler grouping is the
+load-bearing part: without it, one all-client `linear-issue-statuses` batch could accidentally
+exercise the Edge Function for real-client issue links.
+
 ## A3 prerequisites before implementation
 
 - A2 PR #670 must be owner-reviewed, merged, deployed, and gated before A3 starts.

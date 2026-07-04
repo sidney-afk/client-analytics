@@ -48,8 +48,12 @@ const TIE_MS = 120 * 1000;
 const SUPA_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/calendar_posts';
 const SUPA_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';   // publishable/anon key — already public in index.html
 const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
-const UPSERT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+const UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-upsert-post';
+const UPSERT_URL = UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+const UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-upsert';
+const UPSERT_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.calendar_upsert_ef_clients&limit=1';
 const SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
+let UPSERT_EF_CLIENTS = new Set();
 
 // ---- canonical logic, extracted verbatim from index.html (stays in lock-step) ----
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -140,6 +144,30 @@ function decide(led, cardCal, linCal) {
 async function pushCardToLinear(url, cal) {
   return fetch(SET_STATUS_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ issue: url, status: cal }) }).then(r => r.json());
 }
+function routeSlug(s) {
+  return String(s || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/^dr\.?\s+/, '').replace(/\s+(?:and|&)\s+/g, '&').replace(/[^a-z0-9&]+/g, '');
+}
+async function loadUpsertEfClients() {
+  try {
+    const rows = await fetch(UPSERT_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+    const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+    const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
+    UPSERT_EF_CLIENTS = new Set(raw.map(routeSlug).filter(Boolean));
+  } catch (e) {
+    UPSERT_EF_CLIENTS = new Set();
+    log(`calendar-upsert EF flag read failed; using n8n fallback (${e.message})`);
+  }
+  log(`calendar-upsert EF clients: ${[...UPSERT_EF_CLIENTS].join(',') || '(none)'}`);
+}
+function upsertUrlForClient(client) {
+  return UPSERT_EF_CLIENTS.has(routeSlug(client)) ? UPSERT_EF_URL : UPSERT_N8N_URL;
+}
+function upsertHeaders() {
+  return { 'Content-Type': 'application/json', 'X-Syncview-Actor': 'Linear reconciler', 'X-Syncview-Role': 'system', 'X-Syncview-Source': 'reconcile' };
+}
 async function pullLinearToCard(card, comp, linCal) {
   const clone = JSON.parse(JSON.stringify(card)); const pending = {};
   clone[comp + '_status'] = linCal; pending[comp + '_status'] = linCal;
@@ -148,7 +176,7 @@ async function pullLinearToCard(card, comp, linCal) {
   const patch = { id: card.id, [comp + '_status']: linCal };
   for (const k of Object.keys(pending)) if (/_approved_at$/.test(k)) patch[k] = pending[k];
   if (_calNormStatus(card.status || '') !== overall) patch.status = overall;
-  const res = await fetch(UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: card.client, post: patch }) }).then(r => r.json());
+  const res = await fetch(upsertUrlForClient(card.client), { method: 'POST', headers: upsertHeaders(), body: JSON.stringify({ client: card.client, post: patch }) }).then(r => r.json());
   return { res, patch };
 }
 
@@ -182,6 +210,7 @@ const log = (s) => { console.log(s); lines.push(s); };
 
 (async () => {
   log(`MODE: ${APPLY ? 'APPLY' : 'DRY-RUN'}  cap=${SAFETY_CAP}  ledger=${LEDGER_PATH}`);
+  await loadUpsertEfClients();
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
   const cards = await fetchAllCards();

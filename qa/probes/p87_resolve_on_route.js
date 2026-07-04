@@ -8,8 +8,8 @@
 //      → chooser shows a 2-item checklist → SMM un-ticks one → route to Kasper:
 //      the TICKED one is resolved, the UN-ticked one stays open (selective),
 //      caption routes to Kasper Approval. (This is the redundancy fix.)
-//   C) ✕ close → "Keep editing" returns to the chooser; ✕ → "Discard & close"
-//      applies nothing — the change-request stays open and the status is unchanged.
+//   C) ✕ close is non-destructive: it closes the chooser without applying
+//      anything, so the change-request stays open and the status is unchanged.
 const Q = require('./lib.js');
 const TS = Math.floor(Date.now() / 1000);
 const now = () => new Date().toISOString();
@@ -84,7 +84,7 @@ async function cleanup(pid) {
     S.ok((await isDone(PIDB, TB2)) === true, 'B: the TICKED change-request is resolved');
     S.ok((await isDone(PIDB, TB1)) === false, 'B: the UN-ticked change-request stays open (selective resolve)');
 
-    // ─────────────────────── C: ✕ close → keep / discard ──────────────────────
+    // ─────────────────────── C: ✕ close is non-destructive ─────────────────────
     await Q.up(Object.assign({ id: PIDC, name: 'RR-C ' + TS, platforms: 'instagram', scheduled_date: '2026-06-29',
       video_status: 'Approved', graphic_status: 'Approved', caption_status: 'Tweaks Needed', status: 'Tweaks Needed',
       caption_tweaks: JSON.stringify([tweak(TC, 'CR gamma ' + TS, 1)]) }, MEDIA));
@@ -95,20 +95,19 @@ async function cleanup(pid) {
       try { openCalComments(a.pid); _calToggleCommentDone(a.id); } catch (e) { return 'ERR ' + e.message; }
       const ov = document.getElementById('resolveDestOverlay');
       document.getElementById('resolveDestClose').click();
-      const discardShown = !document.getElementById('resolveDestDiscard').hidden && document.getElementById('resolveDestMain').hidden;
-      document.getElementById('resolveDestKeep').click();
-      const backToMain = !document.getElementById('resolveDestMain').hidden && document.getElementById('resolveDestDiscard').hidden && ov.classList.contains('active');
-      document.getElementById('resolveDestClose').click();
-      document.getElementById('resolveDestDiscardYes').click();
-      return { discardShown, backToMain, active: ov.classList.contains('active') };
+      return {
+        opened: !!ov,
+        active: !!(ov && ov.classList.contains('active')),
+        hasLegacyDiscard: !!document.getElementById('resolveDestDiscard')
+      };
     }, { pid: PIDC, id: TC });
-    S.ok(oc && oc.discardShown === true, 'C: ✕ close shows the discard-confirm screen');
-    S.ok(oc.backToMain === true, 'C: "Keep editing" returns to the chooser');
-    S.ok(oc.active === false, 'C: "Discard & close" closes the chooser');
+    S.ok(oc && oc.opened === true, 'C: chooser opened before close');
+    S.ok(oc.active === false, 'C: ✕ close closes the chooser');
+    S.ok(oc.hasLegacyDiscard === false, 'C: no legacy discard-confirm screen is required');
     await smm.waitForTimeout(1800);
     const rC = await Q.rawRow(PIDC, 'caption_status,caption_tweaks');
-    S.ok((await isDone(PIDC, TC)) === false, 'C: discarding leaves the change-request OPEN (nothing applied)');
-    S.ok(rC.caption_status === 'Tweaks Needed', 'C: discarding leaves the status unchanged');
+    S.ok((await isDone(PIDC, TC)) === false, 'C: closing leaves the change-request OPEN (nothing applied)');
+    S.ok(rC.caption_status === 'Tweaks Needed', 'C: closing leaves the status unchanged');
 
     // ─────────── D: "Mark done — don't change the status" (no route) ───────────
     // Component already routed onward (Kasper Approval) but the comment lingers

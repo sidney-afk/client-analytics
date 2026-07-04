@@ -44,10 +44,10 @@ Update in the same PR as any change. "Rollback" must be executable by the owner 
 
 | Surface | Current production path | Kill switch / rollback | Last verified |
 |---|---|---|---|
-| Calendar writes (upsert/reorder) | n8n webhooks (pre-migration baseline) | n/a — baseline | 2026-07-03 |
+| Calendar writes (upsert/reorder) | n8n webhooks for all real clients. A1 support tables and the `calendar-upsert` Edge Function are deployed, but `syncview_runtime_flags.calendar_upsert_ef_clients` is `{"clients":[]}` and PR #668 is unmerged, so no real client routes to the Edge Function. Fresh TEST-only browser canary for `sidneylaruel` passed 67/67 on both the empty-flag n8n baseline and the EF-flagged path, then the flag was rolled back to empty. | Set `syncview_runtime_flags.calendar_upsert_ef_clients` to `{"clients":[]}` to force all calendar upserts back to n8n. This rollback was rehearsed and executed on TEST by flipping `sidneylaruel` on, verifying, then flipping back to empty. If PR #668 later causes frontend/reconciler trouble, keep the flag empty and revert PR #668. | 2026-07-04 (fresh TEST browser canary green; flag empty) |
 | Samples New (SXR) writes | n8n webhooks (baseline) | n/a — baseline | 2026-07-03 |
 | Samples Old writes | n8n webhooks (baseline; out of migration scope, D4) | n/a | 2026-07-03 |
-| Linear → app realtime sync | n8n workflow `MJbMZ789B5ExZz9x` (re-enabled 2026-07-03); two Linear webhooks now cover **both VID and GRA** | Deactivate the workflow in n8n; reconciler continues healing every 10 min regardless | 2026-07-03 (VID execs 190909/190910; GRA exec 190952) |
+| Linear -> app realtime sync | n8n workflow `MJbMZ789B5ExZz9x` active version `ece94b2c-cdba-46b3-a1e5-966abda0e8f6`; two Linear webhooks cover both VID and GRA. Its calendar-upsert call is runtime-flagged and currently falls back to n8n because the flag is empty. | Keep `calendar_upsert_ef_clients` empty for immediate rollback. If the n8n routing edit itself fails, publish the backed-up previous version `2fc824c2-1b60-413a-b2c3-e51135f7448a` or deactivate the workflow; reconciler continues healing every 10 min regardless. | 2026-07-04 (flag empty after fresh TEST browser canary) |
 | App → Linear pushes (set-status/comment) | n8n webhooks + FE localStorage outboxes (baseline) | n/a — baseline | 2026-07-03 |
 | Status drift healing | GitHub Actions reconcilers every ~10 min (n8n triggers `AkiFmromoDkmsh39` active, `ZJOtYpQZj73DcBB1` inactive) | Must stay ACTIVE until Track B5 — this is the global safety net | 2026-07-03 |
 | Templates / caption prompts | Google Sheets via n8n (baseline) | n/a — baseline | 2026-07-03 |
@@ -79,3 +79,25 @@ kept current the whole time, so nothing is lost.
   `migrations/live-schema-baseline-2026-07-03.sql`; private full n8n export confirmed via
   weekly-backup execution `191240`. Because this repo is public, raw unredacted workflow JSON
   remains private; repo evidence is summarized in `n8n-backups/2026-07-03-phase0-snapshot-status.md`.
+- **Pre-A1 snapshot started 2026-07-03**: git tag `pre-A1` points to `main` commit
+  `ba365410`; `calendar_posts` was dumped privately to
+  `private-backups/2026-07-03-pre-A1/calendar_posts.pre-A1.2026-07-03.json` (outside the
+  public repo). A1-scoped n8n workflow versions are recorded in
+  `n8n-backups/2026-07-03-pre-A1-snapshot-status.md`; raw workflow JSON remains private.
+- **A1 staged rollback point**: the `calendar_upsert_ef_clients` runtime flag is the single
+  flip point for browser and reconciler calendar-upsert routing. The value `{"clients":[]}`
+  means all clients use the old n8n upsert path. Canary may set only `{"clients":["sidneylaruel"]}`;
+  any real-client value requires the owner's next explicit gate approval.
+- **A1 TEST deploy/parity status 2026-07-03**: additive A1 support tables are live, the
+  `calendar-upsert` Edge Function is deployed, and n8n workflow `MJbMZ789B5ExZz9x` is published
+  with flag-based routing. Rollback was rehearsed with `sidneylaruel` and returned to
+  `{"clients":[]}`. Final TEST parity passed all six cases, including comment merge; no real
+  client is enabled.
+- **A1 TEST browser canary status 2026-07-04**: after fixing the stale `p87` probe,
+  GitHub Actions `calendar-e2e-nightly.yml` baseline run `28690695855` with the flag empty
+  and EF run `28691435661` with only `sidneylaruel` flagged both completed green on current
+  PR head `ee2de4dd76fe0e96745ac1b1085d3c4c7cff6234`. Both logs report `All 67 probes
+  passed`; A1-relevant probes `p89`-`p94` passed on both paths. Rollback was executed
+  immediately after the EF run: `calendar_upsert_ef_clients` is `{"clients":[]}` and no real
+  client is enabled. `Calendar E2E (nightly)` and `Samples E2E (nightly)` are both
+  `disabled_manually`.

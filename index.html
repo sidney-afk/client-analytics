@@ -5256,7 +5256,7 @@
             if (currentNav !== 'home') return;
             const sc = window.scrollY;
             const c = history.state && history.state.client;
-            if (c && allData.some(r => r.client_name === c)) render(c, false);
+            if (c && wlIsAllowedClient(c)) render(wlCanonicalClient(c), false);
             else if (!c) navTo('home', false);
             else return;
             window.scrollTo({ top: sc, behavior: 'instant' });
@@ -5282,7 +5282,7 @@
         const metricsClients=new Set(allData.map(r=>r.client_name));
         Object.keys(clientMap).forEach(name=>{
             if(!metricsClients.has(name)){
-                allData.push({client_name:name,date:'',ig_followers:'',ig_views_this_month:'',ig_views_gained_today:'',tiktok_followers:'',tiktok_plays_this_month:'',tiktok_plays_gained_today:'',yt_subscribers:'',yt_total_views:'',yt_views_gained_today:''});
+                allData.push(_blankAnalyticsRow(name));
                 console.log('[SyncView] Added placeholder for new client:',name);
             }
         });
@@ -5408,6 +5408,14 @@
     }
     function getWeekRow(history){ return _findRowDaysAgo(history, 7); }
     function getMonthRow(history){ return _findRowDaysAgo(history, 30); }
+    function _blankAnalyticsRow(name){
+        return {
+            client_name:name,date:'',
+            ig_followers:'',ig_avg_views:'',ig_avg_likes:'',ig_views_this_month:'',ig_views_gained_today:'',
+            tiktok_followers:'',tiktok_avg_plays:'',tiktok_plays_this_month:'',tiktok_plays_gained_today:'',
+            yt_subscribers:'',yt_total_views:'',yt_views_gained_today:''
+        };
+    }
     // Compute weekly view delta that correctly handles month-boundary resets.
     // ig_views_this_month / tiktok_plays_this_month are cumulative counters that
     // reset on the 1st, so a simple subtraction breaks when the reference row is
@@ -5438,6 +5446,7 @@
                 deduped.push(indexed[i]);
             }
         }
+        if(!deduped.length && wlIsAllowedClient(name)) return [_blankAnalyticsRow(wlCanonicalClient(name))];
         return deduped.map(x=>x.r);
     }
     function _prevPerClientDaysAgo(daysAgo){
@@ -6920,7 +6929,8 @@
         const info=clientMap[name]||{};
         const igHandle=info.instagram_handle||'',ttHandle=info.tiktok_handle||'',ytId=info.youtube_channel_id||'';
         const hasIG=n(today.ig_followers)||n(today.ig_avg_views),hasTT=n(today.tiktok_followers)||n(today.tiktok_avg_plays),hasYT=n(today.yt_subscribers)||n(today.yt_total_views);
-        const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:`<em>daily changes show after 2+ days</em>`;
+        const hasAnyAnalytics=!!(hasIG||hasTT||hasYT);
+        const compareNote=prev?`comparing vs ${fmtDate(prev.date)}`:(hasAnyAnalytics?`<em>daily changes show after 2+ days</em>`:`<em>no analytics yet</em>`);
         const availPlats=[hasIG&&'ig',hasTT&&'tt',hasYT&&'yt'].filter(Boolean);
         if(!availPlats.includes(followersPlat))followersPlat=availPlats[0]||'ig';
         if(viewsPlat!=='all'&&!availPlats.includes(viewsPlat))viewsPlat='all';
@@ -6945,6 +6955,7 @@
 
         const _clientDesc=clientMap[name]?.content_description||'';
         const _infoIcon=_clientDesc?`<button class="detail-info-btn" title="About this client" onclick="event.stopPropagation();showClientInfoModal(${_jsAttrArg(name)})">i</button>`:'';
+        const noAnalyticsState=hasAnyAnalytics?'':`<div style="background:var(--white);border:1px dashed var(--border);border-radius:12px;padding:34px;text-align:center;color:var(--text-muted);font-size:0.9rem;font-weight:600;">No analytics yet</div>`;
         const analyticsContent=`
             <div class="detail-hero">
                 <div>
@@ -6953,6 +6964,7 @@
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">${shareBtnHtml}${slackBtnHtml}</div>
             </div>
+            ${noAnalyticsState}
             ${gainsBar(today,prev,weekRow,null,null,'day',name)}
             ${weekRow?gainsBar(today,prev,weekRow,null,null,'week',name):''}
             ${buildContentSummarySection(name)}
@@ -7244,11 +7256,10 @@
             navTo(state.nav,false);
         } else {
             const hash=decodeURIComponent(location.hash.replace('#',''));
-            const clientNames=[...new Set(allData.map(r=>r.client_name))];
             if(hash==='templates'){_templatesSelected=null;navTo('templates',false);return;}
-            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
-            if(hash&&clientNames.includes(hash)){
-                render(hash,false);window.scrollTo({top:0,behavior:'instant'});
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(hash&&wlIsAllowedClient(hash)){
+                render(wlCanonicalClient(hash),false);window.scrollTo({top:0,behavior:'instant'});
             } else {
                 render('all');window.scrollTo({top:0,behavior:'instant'});
             }
@@ -7260,12 +7271,12 @@
     function addRecent(name){let r=getRecent().filter(n=>n!==name);r.unshift(name);r=r.slice(0,3);try{localStorage.setItem(RECENT_KEY,JSON.stringify(r));}catch(e){}}
     function openSearchDropdown(){const box=document.getElementById('searchBox');if(!box||box.classList.contains('open'))return;box.classList.add('open');const close=(e)=>{const wrap=document.getElementById('searchWrap');if(wrap&&!wrap.contains(e.target)){box.classList.remove('open');document.removeEventListener('click',close);}};setTimeout(()=>document.addEventListener('click',close),0);}
     function onSearchFocus(){renderSearchResults(document.getElementById('searchInput')?.value||'');openSearchDropdown();}
-    function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[...starts,...contains][0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
+    function onSearchIconClick(){const inp=document.getElementById('searchInput');const q=inp?.value.trim();if(q){const allNames=getClientRoster();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[...starts,...contains][0];if(first){searchGoTo(first);return;}}inp?.focus();openSearchDropdown();}
     function onSearchInput(){const q=document.getElementById('searchInput').value;renderSearchResults(q);updateSearchGhost(q);openSearchDropdown();}
-    function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const q2=q.trim().toLowerCase();if(!q2){ghost.innerHTML='';return;}const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const first=[...starts,...contains][0];if(!first){ghost.innerHTML='';return;}if(first.toLowerCase().startsWith(q2)){const typed=first.slice(0,q.length);const rest=first.slice(q.length);ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;}else{ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;}}
-    function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
+    function updateSearchGhost(q){const ghost=document.getElementById('searchGhost');const inp=document.getElementById('searchInput');if(!ghost||!inp)return;const q2=q.trim().toLowerCase();if(!q2){ghost.innerHTML='';return;}const allNames=getClientRoster();const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const first=[...starts,...contains][0];if(!first){ghost.innerHTML='';return;}if(first.toLowerCase().startsWith(q2)){const typed=first.slice(0,q.length);const rest=first.slice(q.length);ghost.innerHTML=`<span style="color:transparent;white-space:pre">${typed}</span><span style="color:var(--text-muted);opacity:0.55;white-space:pre">${rest}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵</span>`;}else{ghost.innerHTML=`<span style="color:transparent;white-space:pre">${q}</span><span style="margin-left:8px;font-size:0.65rem;color:var(--text-muted);opacity:0.4;background:var(--border);border-radius:3px;padding:1px 5px;flex-shrink:0;">↵ ${first}</span>`;}}
+    function onSearchKey(e){if(e.key==='Escape'){const box=document.getElementById('searchBox');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(ghost)ghost.innerHTML='';document.getElementById('searchInput')?.blur();return;}if(e.key!=='Enter')return;const q=document.getElementById('searchInput')?.value.trim();if(!q)return;const allNames=getClientRoster();const _starts=allNames.filter(n=>n.toLowerCase().startsWith(q.toLowerCase()));const _contains=allNames.filter(n=>!n.toLowerCase().startsWith(q.toLowerCase())&&n.toLowerCase().includes(q.toLowerCase()));const first=[..._starts,..._contains][0];if(first)searchGoTo(first);}
     function highlightMatch(name,q){if(!q)return name;const idx=name.toLowerCase().indexOf(q.toLowerCase());if(idx<0)return name;return name.slice(0,idx)+`<span class="s-match">`+name.slice(idx,idx+q.length)+`</span>`+name.slice(idx+q.length);}
-    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=[...new Set(allData.map(r=>r.client_name))].sort();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">↩</span><span>${_calEsc(name)}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
+    function renderSearchResults(q){const el=document.getElementById('searchResults');if(!el)return;const allNames=getClientRoster();const recent=getRecent().filter(n=>allNames.includes(n));const q2=q.trim().toLowerCase();if(!q2){if(!recent.length){el.innerHTML='';return;}el.innerHTML=`<div class="search-section-label">Recent</div>`+recent.map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">↩</span><span>${_calEsc(name)}</span></div>`).join('');}else{const starts=allNames.filter(n=>n.toLowerCase().startsWith(q2));const contains=allNames.filter(n=>!n.toLowerCase().startsWith(q2)&&n.toLowerCase().includes(q2));const matches=[...starts,...contains];if(!matches.length){el.innerHTML=`<div class="search-empty">No clients found</div>`;}else{el.innerHTML=matches.slice(0,6).map(name=>`<div class="search-suggestion" onclick="searchGoTo(${_jsAttrArg(name)})"><span class="s-icon">👤</span><span>${highlightMatch(name,q.trim())}</span></div>`).join('');}}}
     function searchGoTo(name){addRecent(name);const box=document.getElementById('searchBox');const inp=document.getElementById('searchInput');const ghost=document.getElementById('searchGhost');if(box)box.classList.remove('open');if(inp){inp.value='';inp.blur();}if(ghost)ghost.innerHTML='';selectClient(name);}
 
     const PINS_KEY='syncview_pinned_clients';
@@ -7294,7 +7305,7 @@
         if(showAddBtn){const addBtn=document.createElement('button');addBtn.className='pin-add-btn';addBtn.title='Pin a client';addBtn.innerHTML=PIN_ICON_SVG+' Pin client <span style="opacity:0.6;font-size:0.68rem;">'+pins.length+'/'+MAX_PINS+'</span>';addBtn.onclick=togglePinSelector;addRow.appendChild(addBtn);const dd=document.createElement('div');dd.className='pin-selector-dropdown'+(pinSelectorOpen?' open':'');dd.id='pinSelectorDropdown';const hdr=document.createElement('div');hdr.className='pin-selector-header';hdr.innerHTML='<span class="pin-selector-title">Pin a client</span><div style="display:flex;align-items:center;gap:8px;"><span class="pin-selector-count">'+pins.length+' / '+MAX_PINS+'</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);display:inline-flex;align-items:center;padding:0;transition:color 0.13s;" id="pinDropCloseBtn" title="Close"><svg width="9" height="9" viewBox="0 0 10 10" fill="none"><line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button></div>';dd.appendChild(hdr);const list=document.createElement('div');list.className='pin-selector-list';list.id='pinSelectorList';dd.appendChild(list);addRow.appendChild(dd);const closeBtn=dd.querySelector('#pinDropCloseBtn');if(closeBtn)closeBtn.onclick=(e)=>{e.stopPropagation();closePinSelector();};if(pinSelectorOpen)renderPinSelectorList();}else if(!showAddBtn&&pinSelectorOpen){pinSelectorOpen=false;}
         if(area)area.style.display='';
     }
-    function renderPinSelectorList(){const list=document.getElementById('pinSelectorList');if(!list)return;const pins=getPins();const allNames=[...new Set(allData.map(r=>r.client_name))].sort();list.innerHTML='';allNames.forEach(name=>{const isPinned=pins.includes(name);const disabled=!isPinned&&pins.length>=MAX_PINS;const item=document.createElement('div');item.className='pin-selector-item'+(isPinned?' pinned':'');if(disabled)item.style.cssText='opacity:0.35;cursor:default;';const nameSpan=document.createElement('span');nameSpan.textContent=name;const check=document.createElement('span');check.className='pin-check';if(isPinned)check.innerHTML=CHECK_SVG;item.appendChild(nameSpan);item.appendChild(check);if(!disabled)item.onclick=(e)=>{e.stopPropagation();togglePin(name);};list.appendChild(item);});}
+    function renderPinSelectorList(){const list=document.getElementById('pinSelectorList');if(!list)return;const pins=getPins();const allNames=getClientRoster();list.innerHTML='';allNames.forEach(name=>{const isPinned=pins.includes(name);const disabled=!isPinned&&pins.length>=MAX_PINS;const item=document.createElement('div');item.className='pin-selector-item'+(isPinned?' pinned':'');if(disabled)item.style.cssText='opacity:0.35;cursor:default;';const nameSpan=document.createElement('span');nameSpan.textContent=name;const check=document.createElement('span');check.className='pin-check';if(isPinned)check.innerHTML=CHECK_SVG;item.appendChild(nameSpan);item.appendChild(check);if(!disabled)item.onclick=(e)=>{e.stopPropagation();togglePin(name);};list.appendChild(item);});}
 
     function goHome(){navTo('home');}
 
@@ -8143,7 +8154,7 @@
     /* ── Templates search bar (mirrors the analytics search bar) ────────── */
     function _tplGetRecent() { try { return JSON.parse(localStorage.getItem(TPL_RECENT_KEY) || '[]'); } catch { return []; } }
     function _tplAddRecent(name) { let r = _tplGetRecent().filter(n => n !== name); r.unshift(name); r = r.slice(0,3); localStorage.setItem(TPL_RECENT_KEY, JSON.stringify(r)); }
-    function _tplAllNames() { return [...new Set(allData.map(r => r.client_name))].sort(); }
+    function _tplAllNames() { return getClientRoster(); }
     function _tplMatches(q) {
         const allNames = _tplAllNames();
         const q2 = (q || '').trim().toLowerCase();
@@ -9048,6 +9059,14 @@
     }
     function wlIsAllowedClient(name) {
         return WL_CLIENT_CANONICAL.has(wlNormalizeClient(name));
+    }
+    // CANONICAL client-list accessor — the single source for "which clients exist".
+    // Every surface that lists or searches clients MUST call this. Do NOT derive a
+    // client list from allData (sheet metrics) or iterate WL_CLIENT_NAMES directly.
+    // Source of truth: WL_CLIENT_NAMES (hardcoded seed ∪ Clients Info sheet, merged
+    // by wlMergeClientsFromSheet on each load).
+    function getClientRoster() {
+        return [...new Set(WL_CLIENT_NAMES.map(wlCanonicalClient))].sort((a, b) => a.localeCompare(b));
     }
     // Sheet-driven onboarding: merge any client_name from the "Clients Info"
     // sheet that isn't already known into the allowlist, so a new sheet row goes
@@ -25847,9 +25866,8 @@
                     navTo('templates', false);
                     dataPromise.then(() => {
                         const tn = hashRaw.slice('templates/'.length);
-                        const names = [...new Set(allData.map(r => r.client_name))];
-                        if (names.includes(tn)) {
-                            _templatesSelected = tn;
+                        if (wlIsAllowedClient(tn)) {
+                            _templatesSelected = wlCanonicalClient(tn);
                             navTo('templates', false);
                         }
                     });
@@ -25896,17 +25914,18 @@
             // Load shared client templates from the Apps Script backend (non-blocking).
             loadTemplates();
             _applyAllDataDependentChrome();
-            const clientNames=[...new Set(allData.map(r=>r.client_name))];
+            const clientNames=getClientRoster();
             const qParam=new URLSearchParams(location.search).get('c');
             const clientFromQuery=qParam?decodeURIComponent(qParam):null;
-            if(clientFromQuery&&clientNames.includes(clientFromQuery)){
+            const clientFromQueryCanonical=clientFromQuery&&wlIsAllowedClient(clientFromQuery)?wlCanonicalClient(clientFromQuery):null;
+            if(clientFromQueryCanonical){
                 // Per-client opaque token gate. The token is stored in the
                 // Clients Info sheet column `client_review_token`. URLs the
                 // SMM hands out look like ?c=<name>&t=<token>. If the
                 // column is empty for this client, fail open with a
                 // console warning so existing links keep working until
                 // tokens are populated.
-                const expectedToken=String(clientMap[clientFromQuery]?.client_review_token||'').trim();
+                const expectedToken=String(clientMap[clientFromQueryCanonical]?.client_review_token||'').trim();
                 const tParam=String(new URLSearchParams(location.search).get('t')||'').trim();
                 if(expectedToken && tParam!==expectedToken){
                     document.querySelector('header.header').style.display='none';
@@ -25925,8 +25944,8 @@
                 document.getElementById('pageTitle').textContent='Your Analytics';
                 document.querySelector('header.header').style.display='none';
                 const vParam=new URLSearchParams(location.search).get('v');
-                if(vParam==='calendar')clientViewTab[clientFromQuery]='calendar';
-                render(clientFromQuery,true);return;
+                if(vParam==='calendar')clientViewTab[clientFromQueryCanonical]='calendar';
+                render(clientFromQueryCanonical,true);return;
             }
             // hash is hashRaw from the top of init() — alias kept for the
             // existing routing branches below. The Kasper unlock setup now
@@ -25943,8 +25962,8 @@
                 navTo('kasper',false);return;
             }
             // On page refresh, restore exact state from history.state
-            if(history.state&&history.state.client&&clientNames.includes(history.state.client)){
-                const s=history.state,c=s.client;
+            if(history.state&&history.state.client&&wlIsAllowedClient(history.state.client)){
+                const s=history.state,c=wlCanonicalClient(s.client);
                 const tab=s.clientTab||'analytics';
                 clientViewTab[c]=tab;
                 if(s.briefSection)activeBriefSection[c]=s.briefSection;
@@ -25986,8 +26005,8 @@
                 if(match){_smFocusRequest={client:match,cardId:cardId||null};}
                 navTo('samples',false);return;
             }
-            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(clientNames.includes(tn)){_templatesSelected=tn;navTo('templates',false);return;}}
-            if(hash&&clientNames.includes(hash)){render(hash,false);return;}
+            if(hash.startsWith('templates/')){const tn=hash.slice('templates/'.length);if(wlIsAllowedClient(tn)){_templatesSelected=wlCanonicalClient(tn);navTo('templates',false);return;}}
+            if(hash&&wlIsAllowedClient(hash)){render(wlCanonicalClient(hash),false);return;}
             // Only restore savedNav on page refresh (history.state exists), not new tabs
             if(history.state&&history.state.nav&&(savedNav==='linear'||savedNav==='workload'||savedNav==='calendar'||savedNav==='samples'||savedNav==='templates'||savedNav==='tiktok-upload'||(savedNav==='kasper'&&_kasperUnlocked)||(savedNav==='tiktok-pilot'&&_ttpUnlocked))){navTo(savedNav,false);return;}
             navTo('home',false);

@@ -47,7 +47,10 @@ const TIE_MS = 120 * 1000;
 const SUPA_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/sample_reviews';
 const SUPA_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA';   // publishable/anon key — already public in index.html
 const LINEAR_STATUSES_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-issue-statuses';
-const UPSERT_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+const UPSERT_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+const UPSERT_URL = UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+const UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
+const UPSERT_FLAG_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/rest/v1/syncview_runtime_flags?select=value&key=eq.sample_review_ef_clients&limit=1';
 const SET_STATUS_URL = 'https://synchrosocial.app.n8n.cloud/webhook/linear-set-status';
 
 // ---- canonical logic, extracted verbatim from index.html (stays in lock-step) ----
@@ -69,6 +72,37 @@ const { CAL_PRIORITY, SXR_COMPONENTS, _calNormStatus, computeSampleOverallStatus
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const NOW = () => new Date().toISOString();
+let UPSERT_EF_CLIENTS = new Set();
+
+function routeSlug(name) {
+  let s = String(name || '').toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/^dr\.?\s+/, '');
+  s = s.replace(/\s+(?:and|&)\s+/g, '&');
+  s = s.replace(/[^a-z0-9&]+/g, '');
+  return s;
+}
+
+async function loadUpsertEfClients() {
+  try {
+    const rows = await fetch(UPSERT_FLAG_URL, { headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + SUPA_KEY, Accept: 'application/json' } }).then(r => {
+      if (!r.ok) throw new Error('flag HTTP ' + r.status);
+      return r.json();
+    });
+    const value = Array.isArray(rows) && rows[0] ? rows[0].value : null;
+    const raw = Array.isArray(value) ? value : (value && Array.isArray(value.clients) ? value.clients : []);
+    UPSERT_EF_CLIENTS = new Set(raw.map(routeSlug).filter(Boolean));
+  } catch (e) {
+    UPSERT_EF_CLIENTS = new Set();
+  }
+}
+
+function upsertUrlForClient(client) {
+  return UPSERT_EF_CLIENTS.has(routeSlug(client)) ? UPSERT_EF_URL : UPSERT_N8N_URL;
+}
+
+function upsertHeaders() {
+  return { 'Content-Type': 'application/json', 'X-Syncview-Actor': 'Samples reconciler', 'X-Syncview-Role': 'system', 'X-Syncview-Source': 'reconcile' };
+}
 
 async function fetchAllCards() {
   const base = ['id','name','client','status','video_status','graphic_status',
@@ -148,7 +182,7 @@ async function pullLinearToCard(card, comp, linCal) {
   for (const k of Object.keys(pending)) if (/_approved_at$/.test(k)) patch[k] = pending[k];
   if (_calNormStatus(card.status || '') !== overall) patch.status = overall;
   // The samples upsert expects { client, sample, comments_base_at } (NOT { client, post }).
-  const res = await fetch(UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: card.client, sample: patch, comments_base_at: '' }) }).then(r => r.json());
+  const res = await fetch(upsertUrlForClient(card.client), { method: 'POST', headers: upsertHeaders(), body: JSON.stringify({ client: card.client, sample: patch, comments_base_at: '' }) }).then(r => r.json());
   return { res, patch };
 }
 
@@ -181,6 +215,7 @@ const log = (s) => { console.log(s); lines.push(s); };
 
 (async () => {
   log(`MODE: ${APPLY ? 'APPLY' : 'DRY-RUN'}  cap=${SAFETY_CAP}  ledger=${LEDGER_PATH}`);
+  await loadUpsertEfClients();
   const ledger = loadLedger();
   const fresh = !Object.keys(ledger).length;
   const cards = await fetchAllCards();

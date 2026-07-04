@@ -18,3 +18,15 @@ verify_jwt = false
 # the runtime canary flag; old n8n calendar-upsert-post stays live as fallback.
 [functions.calendar-upsert]
 verify_jwt = false
+
+# A2 calendar reorder port. Shares calendar_upsert_ef_clients with calendar saves.
+[functions.calendar-reorder]
+verify_jwt = false
+
+# A2 samples writer ports. Browser/reconciler/n8n callers route here only through
+# sample_review_ef_clients; old sample-review n8n webhooks stay live as fallback.
+[functions.sample-review-upsert]
+verify_jwt = false
+
+[functions.sample-review-reorder]
+verify_jwt = false

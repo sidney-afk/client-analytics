@@ -13183,6 +13183,7 @@
     const CALENDAR_APPEND_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-append-post';
     const CALENDAR_DELETE_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-delete-post';
     const CALENDAR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/calendar-reorder';
+    const CALENDAR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/calendar-reorder';
     // Batched reorder: same contract, but the workflow writes every
     // order_index in ONE values:batchUpdate (3 fixed API calls instead of
     // one per row). Falls back to CALENDAR_REORDER_URL when unavailable.
@@ -13312,6 +13313,9 @@
     }
     function _calUpsertUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_UPSERT_EF_URL : CALENDAR_UPSERT_N8N_URL;
+    }
+    function _calReorderUrlForClient(clientOrSlug) {
+        return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
     }
     function _calUpsertHeaders(source) {
         let role = 'smm';
@@ -22086,22 +22090,31 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calLastLocalWriteAt = Date.now();
         try {
-            // Batched endpoint first (one atomic write); original per-row
-            // endpoint as fallback so a batch outage never blocks reorders.
+            // Edge Function for flagged clients; otherwise batched n8n first
+            // (one atomic write), with original per-row n8n as fallback so a
+            // batch outage never blocks reorders.
             let json = null;
-            try {
-                const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+            if (_calUpsertUseEf(slug)) {
+                const resp = await fetch(_calReorderUrlForClient(slug), {
+                    method: 'POST', headers: _calUpsertHeaders('ui'),
                     body: JSON.stringify({ client: slug, items })
                 });
                 json = await resp.json();
-            } catch (e) { json = null; }
-            if (!json || !json.ok) {
-                const resp = await fetch(CALENDAR_REORDER_URL, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client: slug, items })
-                });
-                json = await resp.json();
+            } else {
+                try {
+                    const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client: slug, items })
+                    });
+                    json = await resp.json();
+                } catch (e) { json = null; }
+                if (!json || !json.ok) {
+                    const resp = await fetch(CALENDAR_REORDER_URL, {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client: slug, items })
+                    });
+                    json = await resp.json();
+                }
             }
             if (!json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
@@ -25968,12 +25981,17 @@
        the get webhook; writes are field-level patches to the upsert webhook. The
        Supabase project + anon key are SHARED with the calendar (same browser key). */
     const SXR_GET_URL     = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-get';
-    const SXR_UPSERT_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
-    const SXR_REORDER_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
+    const SXR_UPSERT_N8N_URL  = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-upsert';
+    const SXR_UPSERT_URL  = SXR_UPSERT_N8N_URL; // legacy fallback alias; do not fetch directly
+    const SXR_UPSERT_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-upsert';
+    const SXR_REORDER_N8N_URL = 'https://synchrosocial.app.n8n.cloud/webhook/sample-review-reorder';
+    const SXR_REORDER_URL = SXR_REORDER_N8N_URL; // legacy fallback alias; do not fetch directly
+    const SXR_REORDER_EF_URL = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1/sample-review-reorder';
     const SXR_TABLE       = 'sample_reviews';
     const SXR_RT_CHANNEL_PREFIX = 'sxr-';
     const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
     const SXR_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients';
 
     /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
        of cloning keeps the cloned surfaces uniformly `_sxr*` (clean grep/teardown)
@@ -26033,6 +26051,84 @@
 
     /* Slug for a client name/object (samples reuse the shared normalizer). */
     function sxrClientSlug(c) { return _sxrNormalizeClient(c && c.name ? c.name : c); }
+    let _sxrSampleEfClients = new Set();
+    let _sxrSampleFlagPromise = null;
+    let _sxrSampleFlagChannel = null;
+    function _sxrSetSampleFlagValue(value) {
+        _sxrSampleEfClients = new Set(_calRuntimeFlagClients(value));
+        _calV2Log('sample-review EF clients:', Array.from(_sxrSampleEfClients).join(',') || '(none)');
+    }
+    async function _sxrFetchSampleFlagOnce() {
+        if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) { _sxrSetSampleFlagValue({ clients: [] }); return; }
+        try {
+            const url = CAL_SUPABASE_URL + '/rest/v1/syncview_runtime_flags?select=value&key=eq.' + encodeURIComponent(SXR_SAMPLE_REVIEW_FLAG_KEY) + '&limit=1';
+            const resp = await fetch(url, { headers: { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' } });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const rows = await resp.json();
+            const row = Array.isArray(rows) ? rows[0] : null;
+            _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
+        } catch (e) {
+            _sxrSetSampleFlagValue({ clients: [] });
+            console.warn('[Samples] sample-review EF flag read failed; using n8n fallback', e);
+        }
+    }
+    async function _sxrSubscribeSampleFlag() {
+        if (_sxrSampleFlagChannel) return;
+        const client = await _calRuntimeFlagClient();
+        if (!client || _sxrSampleFlagChannel) return;
+        try {
+            _sxrSampleFlagChannel = client
+                .channel('syncview-sample-runtime-flags')
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'syncview_runtime_flags', filter: 'key=eq.' + SXR_SAMPLE_REVIEW_FLAG_KEY }, (payload) => {
+                    const row = payload && payload.new ? payload.new : null;
+                    _sxrSetSampleFlagValue(row && row.value ? row.value : { clients: [] });
+                })
+                .subscribe();
+        } catch (e) {
+            console.warn('[Samples] sample-review EF flag realtime subscribe failed', e);
+            _sxrSampleFlagChannel = null;
+        }
+    }
+    function _sxrPrimeSampleRoutingFlag() {
+        if (!_sxrSampleFlagPromise) {
+            _sxrSampleFlagPromise = _sxrFetchSampleFlagOnce().then(() => _sxrSubscribeSampleFlag()).catch(() => null);
+        }
+        return _sxrSampleFlagPromise;
+    }
+    function _sxrSampleUseEf(clientOrSlug) {
+        let slug = '';
+        try { slug = sxrClientSlug(clientOrSlug); } catch (e) { slug = String(clientOrSlug || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        return !!slug && _sxrSampleEfClients.has(slug);
+    }
+    function _sxrUpsertUrlForClient(clientOrSlug) {
+        return _sxrSampleUseEf(clientOrSlug) ? SXR_UPSERT_EF_URL : SXR_UPSERT_N8N_URL;
+    }
+    function _sxrReorderUrlForClient(clientOrSlug) {
+        return _sxrSampleUseEf(clientOrSlug) ? SXR_REORDER_EF_URL : SXR_REORDER_N8N_URL;
+    }
+    function _sxrWriteHeaders(source) {
+        let role = 'smm';
+        try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
+        const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
+        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' };
+    }
+    function _sxrUpsertFetch(clientOrSlug, payload, source) {
+        _sxrPrimeSampleRoutingFlag();
+        return fetch(_sxrUpsertUrlForClient(clientOrSlug), {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source),
+            body: JSON.stringify(payload)
+        });
+    }
+    function _sxrReorderFetch(clientOrSlug, payload, source) {
+        _sxrPrimeSampleRoutingFlag();
+        return fetch(_sxrReorderUrlForClient(clientOrSlug), {
+            method: 'POST',
+            headers: _sxrWriteHeaders(source),
+            body: JSON.stringify(payload)
+        });
+    }
+    _sxrPrimeSampleRoutingFlag();
 
     /* Map a legacy/external status string onto the samples set. Clone of
        _calNormStatus minus the Scheduled/Posted members (which samples reject). */
@@ -27287,7 +27383,7 @@
     async function _sxrArchiveOne(pid, slug) {
         delete _sxrPendingEdits[pid];
         if (typeof _sxrSaveInFlight[pid] !== 'undefined') { try { await _sxrSaveInFlight[pid]; } catch (e) {} }
-        const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }) });
+        const resp = await _sxrUpsertFetch(slug, { client: slug, sample: { id: pid, status: 'Archived', updated_at: new Date().toISOString() }, comments_base_at: '' }, 'ui');
         if (!resp.ok) throw new Error('archive HTTP ' + resp.status);
     }
     function _sxrCardSelectClick(e, pid) {
@@ -27501,7 +27597,7 @@
         _sxrReorderInFlight = true;
         _sxrLastLocalWriteAt = Date.now();   // treat as a local write so our own realtime echo defers (Surface 7)
         try {
-            const resp = await fetch(SXR_REORDER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: slug, items }) });
+            const resp = await _sxrReorderFetch(slug, { client: slug, items }, 'ui');
             if (!resp.ok) throw new Error('reorder HTTP ' + resp.status);
             _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
         } catch (e) {
@@ -27683,7 +27779,7 @@
                     delete wirePost._baseAt; delete wirePost._saveError;
                 }
                 _sxrLastLocalWriteAt = Date.now();
-                const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: _saveSlug, sample: wirePost, comments_base_at: '' }) });
+                const resp = await _sxrUpsertFetch(_saveSlug, { client: _saveSlug, sample: wirePost, comments_base_at: '' }, 'ui');
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 const json = await resp.json();
                 if (!json.ok) throw new Error(json.error || 'save failed');
@@ -29298,7 +29394,7 @@
     }
     async function _sxrKasperPersist(item, patch) {
         const sample = Object.assign({ id: item.post.id }, patch);
-        const resp = await fetch(SXR_UPSERT_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client: item.slug, sample, comments_base_at: '' }) });
+        const resp = await _sxrUpsertFetch(item.slug, { client: item.slug, sample, comments_base_at: '' }, 'ui');
         if (!resp.ok) throw new Error('http ' + resp.status);
         const j = await resp.json(); if (!j.ok) throw new Error(j.error || 'save failed');
         return j.sample || sample;

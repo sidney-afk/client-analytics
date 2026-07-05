@@ -1000,7 +1000,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-1 | Supabase plan: Pro + PITR vs free | §7.1; also 500 MB cap vs archive | Upgrade before B1 | B1 |
 | D-2 | Ratify status slugs + mappings (§2.1), incl. the Triage no-op (adopting Triage→In-Progress projection would be a NEW divergence, not parity) and the D-10 outbound split | three vocabularies measured | as specced | B0 |
 | D-3 | Priority: mirror-only (hidden) vs surfaced | in active use again; locked design has no priority UI | mirror-only + URGENT; revisit after pilot | B1 |
-| D-4 | Pre-migration Linear cleanup (824 zombies + 336 stale-WIP) | §5.1 | yes — owner triage pass before B1 | B1 |
+| D-4 | Pre-migration Linear cleanup (824 zombies + 336 stale-WIP) | §5.1 — **OPTIONAL**: the migration cutoff already sends old open issues to the archive, not the live board, so skipping this loses nothing; a cleanup only makes Linear itself tidier during the mirror phase | default = skip unless the owner wants Linear tidied; a ready-made issue list can be generated on request | — |
 | D-5 | Intake extras: port Claude graphics-titles? confirm AI-thumbnail chain stays dead? | §9.1 | port titles via EF secret; thumbnails dead | B2 |
 | D-6 | Ratify §9.5 single-writer comment design | card thread stays the store; Kasper inbox intact | as specced | B1 |
 | D-7 | Deliverable display identifiers | §10.3 — seeds computed at flip, never constants | per-team sequences, seed = flip-time Linear max + 5,000 | B1 (design) / B4 (seed) |
@@ -1011,7 +1011,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-12 | Inbound comment-image fidelity | Linear image URLs expire | best-effort for new comments; rescue pass covers briefs | B3 |
 | D-13 | Legacy title mismatches at B4 | §9.4 | badge + report, no mass rename | B4 |
 | D-14 | Linear→Slack project integration replacement scope | §11 | owner inspects one channel | B3 |
-| D-15 | **Rotate the 7 public per-SMM Linear keys + remove the sheet column NOW** | publicly readable via gviz today | immediately; independent of Track B | now |
+| D-15 | Rotate the 7 public per-SMM Linear keys + remove the sheet column | publicly readable via gviz today | **DECLINED by owner 2026-07-05** ("I don't care about it") — risk accepted, same posture as D9 (hardcoded house key). Keys become moot at B5 when Linear is retired; the sheet column is still removed at §13.6 cleanup | — |
 | D-16 | §3 owner review list (Coleman, Burch, terrinamar, junk quarantine) | §3 | — | B1 |
 | D-17 | **Copy the design-kit behavioral suites into the repo** (`behav.js`, `qa-features.js`, `sweep.js`, parity-audit workflow → `docs/syncview-design/tests/`) | they exist only on the design machine; the B2 gate needs them | owner copies from `C:\Users\Sidney\linear-design-probe\` | B2 |
 | D-18 | Mirror identity: dedicated Linear user seat vs OAuth-app actor | §4.2/§4.4 — must be distinct from sidney@ for echo-dropping | OAuth-app actor if available; else a machine user seat | B4 |

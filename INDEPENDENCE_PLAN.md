@@ -21,6 +21,14 @@ blindly.**
 > specs to match reality before touching anything, and flag material changes to the owner.
 > Line numbers cited anywhere in these docs are 2026-07-03 positions — always re-locate by
 > symbol/string, never trust the number.
+>
+> **2026-07-05 update:** the Track B planning pass re-ran the full audit — see
+> `docs/audits/2026-07-05-*.md` (live-system diffs vs 2026-07-03 + the four logic maps, indexed by
+> `2026-07-05-reaudit-summary.md`). Material corrections found there (Linear sizing ~2× larger,
+> review tokens nonexistent → client links fail open, per-SMM Linear API keys publicly readable in
+> the SMM sheet tab, PITR unavailable on the current plan tier) are folded into
+> `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`; the SMM-key rotation (spec §14 D-15) should not wait for
+> Track B.
 
 ---
 
@@ -145,15 +153,17 @@ TRACK A
                                                        for 72h with realtime sync live
   A4 templates/caption-prompts tables + EFs,     GATE: Sheets tabs read-only for 1 week with
      filming-plan-tabs EF with cache                   no complaints; then mirrors retired
-TRACK B (starts only after A3 gate passes)
-  B0 role auth + clients/team_members tables
-  B1 batches/deliverables/deliverable_events + backfill from Linear
-  B2 Production tab UI + batch intake (behind flag, staff-only)
-  B3 Graphics-team pilot (mirror to Linear ON)   GATE: 2 full batch cycles with zero
-                                                       lost/wrong statuses; designer OK
-  B4 Video team joins                            GATE: same, 2 cycles
-  B5 Cutover: stop Linear creation, retire       GATE: owner sign-off; Linear export archived
-     bridges/reconcilers/workload job/mapping
+TRACK B — SUPERSEDED SUMMARY: the authoritative phase model now lives in
+  TRACK_B_LINEAR_REPLACEMENT_SPEC.md §1 (updated 2026-07-05; A3 was SKIPPED by
+  owner decision, so Track B starts after A4, which is merged). In short:
+  B0 role auth + tokens + vocabulary lock        B0.5 all real clients onto the
+  Track A Edge-Function write paths (prerequisite discovered 2026-07-05)
+  B1 schema + backfill from Linear               B2 Production tab behind flag
+  B3 read-only evaluation mirror (Linear stays authoritative; inbound only)
+  B4 per-team authoritative pilot (Supabase authoritative; outbound mirror)
+  B5 cutover + teardown + grace period
+  Gates for every phase: spec §14. Where this block and the spec disagree,
+  THE SPEC WINS.
 ```
 
 Rules that keep this safe:
@@ -188,8 +198,8 @@ no secrets) as blocking requirements. A phase that cannot articulate its one-ste
 | Edge Functions have no durable retry (n8n retried via runner queue) | Frontend already has per-card retry + localStorage outboxes; upserts are idempotent; reconciler backstop stays until B5 |
 | Renaming load-bearing symbols breaks reconciler/tests silently (`grabFunc` extracts FE functions **by name**: `computeOverallStatus`, `_calMapLinearStatusStrict`, `CAL_PRIORITY`, …) | Do not rename; CI unit suite (`npm test`) plus `qa/master.js` must pass on every PR |
 | Supabase free-tier limits (500 MB DB is the documented forcing function; EF invocation quota) | Fix D10 first (QA traffic is the only heavy consumer); monitor usage after A1; upgrading the plan is an accepted cost if needed |
-| Track B pilot drifts from Linear during parallel run | New system is the single source of truth from pilot start; mirror-to-Linear is one-way display-only; weekly diff script during pilot |
-| Client links fail open when the Sheet token column is empty (existing bug) | Fixed in B0 when tokens move to the `clients` table — enforcement becomes deny-by-default |
+| Track B pilot drifts from Linear during parallel run | Per-team single-authority model (spec §1, 2026-07-05): B3 = read-only inbound mirror (Linear authoritative), B4 = per-team flip to Supabase-authoritative with one-way outbound mirror; continuous reconciler v2 + detect-only foreign-write alerting |
+| Client links fail open (2026-07-05 re-audit: the Sheet token column NEVER EXISTED — 0/29 tokens, every client link is unguarded today) | Fixed in B0: tokens are MINTED into a service-role-only `client_access` table, links re-issued per client, then enforcement flips deny-by-default (spec §6.4) |
 
 ## 9. Verification
 

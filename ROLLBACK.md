@@ -17,7 +17,10 @@ compliance — stop and fix it.
 2. **The old path stays alive until the new path has baked.** n8n workflows being replaced are
    left ACTIVE during canary, then only DEACTIVATED (never deleted) after their gate passes,
    then archived only at final cleanup. Rollback = one click ("Activate") in n8n. Before
-   touching ANY n8n workflow, export its JSON to `n8n-backups/` (dated) in the same PR.
+   touching ANY n8n workflow, export its JSON — **raw workflow JSON contains hardcoded keys and
+   must NEVER be committed to this public repo (rule 8 wins): export to the private weekly-backup
+   Drive folder and commit only a public-safe status stub to `n8n-backups/` (dated), the
+   Phase-0/A2 precedent** — in the same PR as the change.
 3. **Additive-only database changes during the entire migration.** New tables and new columns
    are allowed; DROP/RENAME/type-changes are forbidden until the final cleanup phase after
    everything has baked. This guarantees the old code path always still works against the

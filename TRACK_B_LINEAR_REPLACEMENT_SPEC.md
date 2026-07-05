@@ -681,7 +681,7 @@ false for exactly the rows that matter. Therefore:
 - Only then does the §6.2 permissive window start counting: role keys **permissive** (missing
   key ⇒ allowed + logged) until the log shows **zero unkeyed writes for 72 h over real-client
   traffic**, then flip `auth_enforcement` to enforced (§1.6 flip point).
-- **Retire the open n8n card-write doors at B5** (§13.4h-bis): once all clients are EF-routed and
+- **Retire the open n8n card-write doors at B5** (§13.4.h): once all clients are EF-routed and
   baked, the unauthenticated `calendar-upsert-post`/`sample-review-upsert`/reorder webhooks are
   deactivated — until then, fail-closed tokens coexist with those legacy doors (accepted,
   time-boxed, stated).
@@ -844,7 +844,7 @@ EF reading `team_members.slack_user_id` (the sheet never had Slack ids). Same co
 unchanged, now also showing editor replies. No rebuild.
 
 **9.10 Workload tab re-point** (per team at flip): read `deliverables` (+`team_members`) for
-flipped teams; CON/STR filtered; realtime可 ON (row-level writes); allowlists retire into
+flipped teams; CON/STR filtered; realtime can finally turn ON (row-level writes); allowlists retire into
 `team_members`.
 
 **9.11 `editors-week` replacement (B5) — corrected semantics (critic catch):** a "delivery" is a
@@ -997,7 +997,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 
 | # | Decision | Context | Recommendation | Blocks |
 |---|---|---|---|---|
-| D-1 | PITR add-on: yes/no/when | **Owner confirmed Pro plan 2026-07-05** (good — daily backups + 7-day retention already included). PITR costs **$100/mo (7-day)** + requires Small compute (~$5/mo net after Pro credits) — it's billed **prorated to the hour**, which enables a cheap middle path | (a) NOW: add a free 6-hourly export (GH Action) → RPO ≤ 6 h; (b) enable PITR **temporarily** around the risky windows only (B1 backfill days, each B4 flip week) and disable after — prorated cost ≈ a few dollars per window; (c) revisit keeping PITR permanently at B5, when Linear stops being a live second copy. Owner to OK | B1 |
+| D-1 | PITR add-on: yes/no/when | **Owner confirmed Pro plan 2026-07-05** (good — daily backups + 7-day retention already included). PITR costs **$100/mo (7-day)** + requires Small compute (~$5/mo net after Pro credits) — it's billed **prorated to the hour**, which enables a cheap middle path | (a) NOW: add a free 6-hourly export (GH Action) → RPO ≤ 6 h; (b) enable PITR **temporarily** around the risky windows only (B1 backfill days, each B4 flip week) and disable after — prorated cost ≈ a few dollars per window; (c) revisit keeping PITR permanently at B5, when Linear stops being a live second copy. **APPROVED by owner 2026-07-05** ("enable it [per this plan]; I'm not going to pay $100/mo") — i.e. no permanent add-on; 6-hourly export ships in B0; PITR toggled on only for the named windows | B1 ✅ |
 | D-2 | Ratify status slugs + mappings (§2.1), incl. the Triage no-op and the D-10 outbound split | three vocabularies measured | **RATIFIED by owner 2026-07-05** ("yeah okay, do that — smartly"). His follow-up question — should the CARD pills gain the Linear-only statuses (Backlog/Canceled/…)? — answered as specced: **no; cards keep today's 8-status review vocabulary unchanged** (zero behavior risk to the review flows); the Production tab carries the full 13; the projection shows Backlog/Todo/Triage as "In Progress" on cards exactly as the Linear sync does today. If SMMs later want a "not started yet" hint on cards, it can be added as a display badge without touching the vocabulary | B0 ✅ |
 | D-3 | Priority: mirror-only (hidden) vs surfaced | in active use again; locked design has no priority UI | mirror-only + URGENT; revisit after pilot | B1 |
 | D-4 | Pre-migration Linear cleanup (824 zombies + 336 stale-WIP) | §5.1 — **OPTIONAL**: the migration cutoff already sends old open issues to the archive, not the live board, so skipping this loses nothing; a cleanup only makes Linear itself tidier during the mirror phase | default = skip unless the owner wants Linear tidied; a ready-made issue list can be generated on request | — |
@@ -1005,7 +1005,7 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
 | D-6 | Ratify §9.5 single-writer comment design | card thread stays the store; Kasper inbox intact | as specced | B1 |
 | D-7 | Deliverable display identifiers | §10.3 — seeds computed at flip, never constants | per-team sequences, seed = flip-time Linear max + 5,000 | B1 (design) / B4 (seed) |
 | D-8 | Overdue: visible state, no auto-bump | old bumper half-dead + inconsistent | confirm | B2 |
-| D-9 | Identify the ~23:45 UTC roller actor | NOT n8n (measured); owner says "certainly something we've done… probably the workload calendar." Signature narrowed 2026-07-05 from the bumped-cohort data: fires 23:45:0x–2x UTC with sub-second spacing; touches ONLY review-state issues (For SMM/Client approval, Tweak Needed) of active calendar clients; rolls due-today → tomorrow; the set shrinks night-over-night (15 → 2) — consistent with a script reading a stale external list, e.g. **an Apps Script bound to one of the Google Sheets** (owner's hunch fits). Owner checks: (1) script.google.com → My projects → Triggers; (2) each sheet (SYNCVIEW master, SyncView Calendar, the legacy content-calendar sheet) → Extensions → Apps Script; (3) Linear Settings → API → personal keys/apps | still a B4 flip-gate item with the same fallback (rotate remaining personal Linear keys + scoped due-date tolerance in detect-only alerting) if not found | B4 |
+| D-9 | Identify the ~23:45 UTC roller actor | NOT n8n (measured); owner says "certainly something we've done… probably the workload calendar." Signature narrowed 2026-07-05 from the bumped-cohort data: fires 23:45:0x–2x UTC with sub-second spacing; touches ONLY review-state issues (For SMM/Client approval, Tweak Needed) of active calendar clients; rolls due-today → tomorrow; the set shrinks night-over-night (15 → 2) — consistent with a script reading a stale external list, e.g. **an Apps Script bound to one of the Google Sheets** (owner's hunch fits). Owner's personal-account Apps Script checked 2026-07-05: only one unrelated trigger ("Kenya CV", last run 11:28 PM local — wrong time, unrelated). REMAINING checks: the same Triggers page while logged in as **sidney@synchrosocial.com** and **house@synchrosocial.com** (the sheets are owned by the workspace account, so a bound script would live there, not on the gmail account), the sheets' Extensions → Apps Script, and Linear Settings → API → personal keys/apps | still a B4 flip-gate item with the same fallback (rotate remaining personal Linear keys + scoped due-date tolerance in detect-only alerting) if not found | B4 |
 | D-10 | In-Progress→Todo outbound asymmetry | §2.1 — split rule: legacy card path keeps it, deliverable-native maps straight | as specced | B0 |
 | D-11 | CON/STR scope | §2.9 (measure active split at B1) | out of scope; archived at B5 | B1 |
 | D-12 | Inbound comment-image fidelity | Linear image URLs expire | best-effort for new comments; rescue pass covers briefs | B3 |

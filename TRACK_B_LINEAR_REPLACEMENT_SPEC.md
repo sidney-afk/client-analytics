@@ -427,6 +427,12 @@ links + origin labels (§9.3), name-sync (§9.4), internal comments (§9.5), rol
 transitions (§6), realtime data, intake auto-assign ("freest editor"), and the workload tab
 re-point from `workload_issues` to `deliverables`.
 
+**No mock data ships.** The prototype's hardcoded sample issues/projects/editors/links exist only
+to demo behavior — **none of it goes to production.** The real build binds every surface to live,
+Supabase-backed data **fully migrated from Linear** (operational rows + archive, §5); there is no
+placeholder content in the shipped tab. (Also reconcile the exact **status-name strings** against
+the live calendar + Linear at B0 — the prototype's labels are indicative, not authoritative.)
+
 ---
 
 ## 11. Notifications

@@ -21,6 +21,14 @@ blindly.**
 > specs to match reality before touching anything, and flag material changes to the owner.
 > Line numbers cited anywhere in these docs are 2026-07-03 positions — always re-locate by
 > symbol/string, never trust the number.
+>
+> **2026-07-05 update:** the Track B planning pass re-ran the full audit — see
+> `docs/audits/2026-07-05-*.md` (live-system diffs vs 2026-07-03 + the four logic maps, indexed by
+> `2026-07-05-reaudit-summary.md`). Material corrections found there (Linear sizing ~2× larger,
+> review tokens nonexistent → client links fail open, per-SMM Linear API keys publicly readable in
+> the SMM sheet tab, PITR unavailable on the current plan tier) are folded into
+> `TRACK_B_LINEAR_REPLACEMENT_SPEC.md`; the SMM-key rotation (spec §14 D-15) should not wait for
+> Track B.
 
 ---
 

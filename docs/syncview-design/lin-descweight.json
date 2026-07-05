@@ -1,0 +1,56 @@
+[
+  {
+    "tag": "DIV",
+    "cls": "sc-jbIXHz sx-1hx0egp sx-1nzvdv",
+    "fw": "450",
+    "fs": "15px",
+    "ls": "normal",
+    "color": "lch(19.788 1.25 282)",
+    "text": "John Wineland | June 5 | Long forms YT"
+  },
+  {
+    "tag": "P",
+    "cls": "text-node",
+    "fw": "450",
+    "fs": "15px",
+    "ls": "-0.1px",
+    "color": "lch(19.788 1.25 282)",
+    "text": "Hi Iara, we will do the last forms for John, "
+  },
+  {
+    "tag": "A",
+    "cls": "",
+    "fw": "450",
+    "fs": "15px",
+    "ls": "-0.1px",
+    "color": "lch(44.523 70 286.91)",
+    "text": "house@synchrosocial.com"
+  },
+  {
+    "tag": "U",
+    "cls": "",
+    "fw": "450",
+    "fs": "15px",
+    "ls": "-0.1px",
+    "color": "lch(44.523 70 286.91)",
+    "text": "house@synchrosocial.com"
+  },
+  {
+    "tag": "STRONG",
+    "cls": "",
+    "fw": "600",
+    "fs": "15px",
+    "ls": "-0.1px",
+    "color": "lch(19.788 1.25 282)",
+    "text": "Timestamp:"
+  },
+  {
+    "tag": "DIV",
+    "cls": "sx-s83m0k sx-v6h07y",
+    "fw": "400",
+    "fs": "15px",
+    "ls": "normal",
+    "color": "lch(9.894 0 282)",
+    "text": "https://next.frame.io/project/f6649ca0-fc11-4"
+  }
+]

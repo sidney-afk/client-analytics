@@ -32,12 +32,21 @@ assignee, due date, comments**. Labels, priority, estimates, attachments, milest
    reads only from it.
 4. **Auth is built first (B0)** (§6). The whole audit trail depends on knowing *who* did *what*,
    so login is the foundation, not a later add-on. Client review links stay no-login (§6.4).
-5. Carried from earlier: 3-role auth not per-person (D6); Slack notifications now, ro.am later
+5. **UI/interaction design is LOCKED** (§10) — pixel- and behavior-matched Linear prototype in
+   `docs/syncview-design/`. Deliberately **simpler than Linear** (no priority/labels/cycles/extra
+   nav); the build wires logic to it, does not redesign it. In Phase 1 our mirror must reflect
+   Linear **exactly** until authority flips (the simpler feature set is a *view* choice, never a
+   data-loss — every Linear field we don't show is still stored/mirrored).
+6. **Deliverable ↔ card are interconnected** (§9): a deliverable deep-links to its source card in
+   the content-calendar or samples calendar and is **labeled by origin** (Sample / off-calendar);
+   its **title is the same value as the card's name** (incl. YouTube titles), synced both ways.
+7. **Comments go internal** (§9.5): client/Kasper/SMM feedback writes straight to the deliverable's
+   Supabase thread (faster than the Linear round-trip), mirrored to Linear only during transition.
+8. Carried from earlier: 3-role auth not per-person (D6); Slack notifications now, ro.am later
    (D8); everything attributable with timestamps (D7); keep the team's exact status vocabulary.
 
 **Still open** (tracked in §14): final history cutoff (3/6/12 mo — decide from real counts);
-overdue-due-date behavior; the entire **UI/interaction layer**, which the owner is designing
-(look *and* every front-end behavior). §10 is a deliberate placeholder until that design lands.
+overdue-due-date behavior. The UI layer is now locked, so §10 is a reference, not a placeholder.
 
 ---
 
@@ -68,9 +77,20 @@ occur. The moment it becomes authoritative (B4), Linear flips to a passive mirro
 instant, one side is truth and the other is a copy. If any phase misbehaves, flip the flag and
 the previous authoritative side is intact.
 
+**Exact reflection in Phase 1 (owner requirement).** During B3 the new tab must reflect Linear
+**exactly** — every live issue, status, assignee, due date, and comment. The prototype's simpler
+feature set (no priority/labels/cycles) is a *display* choice only: those Linear fields are still
+**stored and kept in sync** underneath, so nothing is lost and the flip to authoritative later is
+lossless. "Simpler UI" never means "less data."
+
 ---
 
 ## 2. Data model (the new database)
+
+**Hierarchy (mirrors Linear):** two **teams** (`video`/VID, `graphics`/GRA) → **clients**
+(= Linear projects, team-agnostic; one client can have work on both teams) → **batches** (= parent
+issues, team-scoped) → **deliverables** (= sub-issues, team-scoped). A deliverable belongs to one
+team; a client spans both. The board is team-scoped (like the prototype's sidebar teams).
 
 Additive-only (ROLLBACK rule 3). All new tables; anon `SELECT using(true)` for parity with the
 rest of the app; **writes are Edge-Function-only, gated by role keys** (§6). Realtime publication
@@ -119,16 +139,18 @@ create table deliverables (               -- Linear "sub-issue" = one video / th
   client_slug text not null references clients(slug),
   team text not null check (team in ('video','graphics')),
   kind text not null check (kind in ('video','thumbnail')),
-  title text not null,
+  title text not null,                    -- MUST equal the linked card's name (§9 name-sync)
   brief text,
-  status text not null default 'In Progress' check (status in
-    ('Backlog','In Progress','For SMM Approval','Kasper Approval','Client Approval',
-     'Tweaks Needed','Approved','Scheduled','Posted','Canceled')),
+  status text not null default 'In Progress' check (status in     -- match the prototype/Linear set exactly (reconcile at B0)
+    ('Triage','Backlog','Todo','In Progress','For SMM Approval','Kasper Approval',
+     'Client Approval','Tweaks Needed','Approved','Scheduled','Posted','Canceled')),
   status_at timestamptz,                  -- stamped by trigger (reuse the *_status_at pattern)
   assignee_id uuid references team_members(id),
   due_date date,                          -- drives the workload / planned view
   file_url text,                          -- per-deliverable delivery link
   comments text,                          -- JSON thread; reuse the merge-RPC pattern from samples
+  origin text not null default 'manual' check (origin in ('calendar','samples','manual')),  -- §9 deep-link + label
+  card_id text,                           -- the calendar_posts / sample_reviews row this mirrors (null when origin='manual')
   sort_key numeric,
   sync_state text not null default 'clean' check (sync_state in ('clean','pending','error')),
   created_by text, created_at timestamptz not null default now(),
@@ -326,46 +348,84 @@ detect fast, recover fast, and keep the old net up while it's scary.** Defense i
 
 ---
 
-## 9. Creation & interaction flows (LOGIC — UI layout pending design, §10)
+## 9. Creation & interaction flows (LOGIC — UI layout in the locked design, §10)
 
-The data-flow rules the front end must satisfy (these are design-independent; the buttons that
-express them come from the owner's design):
+The data-flow rules the front end must satisfy. The *look* of the buttons/labels is fixed by the
+locked design (`docs/syncview-design/`); the *behavior* below is what the build wires.
 
-- **Creating a calendar/sample card → a deliverable.** A new card can (a) attach to an **existing
-  batch** or (b) spin up a **new batch**. Batches are just "a group of content," so the flow needs
-  a batch picker + "new batch" affordance. In B3 (Linear authoritative) creation still happens via
-  the current intake→Linear path and mirrors in; from B4 (Supabase authoritative for the team) the
-  card creates the `deliverable` (+ batch) natively and the mirror pushes it to Linear.
-- **The link buttons.** Today the card has two buttons (video link, graphic link) that open Linear
-  sub-issues. Target end state: the same two buttons open **our** deliverable in the Production tab.
-  **No four-button period** — during transition the button resolves through the phase/team flag
-  (points at Linear while that team is Linear-authoritative, at the Production tab once it flips),
-  so the card always shows exactly two buttons that "do the right thing."
-- **Assignment & due date** edits write the single `deliverables` row → workload tab and calendar
-  update via realtime (§2).
-- **Delivery flows preserved** (§ owner answers): video = one frame.io folder link on the batch +
-  status → For SMM Approval; graphics = Drive folder on batch + per-deliverable file link + status
-  → For SMM Approval.
+**9.1 Creating a card → a deliverable.** A new content-calendar card or new sample can (a) attach
+to an **existing batch** or (b) spin up a **new batch** (batches = "a group of content", so the
+flow needs a batch picker + "new batch" affordance — matches the prototype's no-manual-issue
+model). The deliverable is stamped `origin='calendar'|'samples'` and `card_id` = the source row.
+In B3 (Linear authoritative) creation still flows through the current intake→Linear path and
+mirrors in; from B4 (Supabase authoritative for that team) the card creates the `deliverable`
+(+ batch) natively and the mirror pushes it to Linear.
+
+**9.2 The card's link buttons (calendar/samples → Production).** Today a card has two buttons
+(video link, graphic link) that open Linear sub-issues. End state: the same two buttons open **our**
+deliverable in the Production tab. **No four-button period** — each button resolves through the
+phase/team flag (points at Linear while that team is Linear-authoritative, at the Production tab
+once it flips), so a card always shows exactly two buttons that do the right thing.
+
+**9.3 The deliverable's back-link + origin label (Production → calendar/samples).** The reverse
+link the owner asked for: every deliverable in the Production tab shows a control to **open its
+source card** — in the *content calendar* if `origin='calendar'`, in the *samples calendar* if
+`origin='samples'` (via `card_id`). And it is **labeled by origin**: a samples deliverable shows a
+visible **"Sample"** tag; a `origin='manual'` deliverable (created directly, not from either
+calendar) shows an **"Off-calendar / no card"** tag so it's never mistaken for a tracked card.
+This removes the confusion of a sub-issue with no obvious home.
+
+**9.4 Name interconnection (title is one value, shown in two places).** A deliverable's `title`
+**must always equal its linked card's name** — they are the same string surfaced in two UIs, not
+two fields that can drift. Editing the name on either side updates the other (through the
+authoritative side per phase, then mirrored). This explicitly includes **YouTube titles**: when a
+card's YouTube title is tweaked/updated, the linked deliverable's title updates too (and vice
+versa). One rename, consistent everywhere — no "which name is right?" ambiguity.
+
+**9.5 Comments/notes become internal (and faster).** Today the client-review, Kasper-review, and
+SMM comment/notes systems post through n8n into Linear comments. Post-migration they write
+**directly to the deliverable's `comments` thread in Supabase** — no n8n/Linear round-trip, so
+feedback appears immediately (the owner's "faster like this" intuition is correct: an EF write +
+realtime beats a webhook→Linear hop). During transition the same comment is **mirrored to Linear**
+(so the non-pilot world still sees it); after cutover the Linear write drops. Merge/concurrency
+reuses the samples comment-merge RPC.
+
+**9.6 Assignment & due date** edits write the single `deliverables` row → the workload tab and the
+calendar card update via realtime (§2), because it's one row, not fan-out copies.
+
+**9.7 Delivery flows preserved** (owner's answers): video = one frame.io folder link on the batch
++ status → For SMM Approval; graphics = Drive folder on the batch + per-deliverable `file_url` +
+status → For SMM Approval.
 
 ---
 
-## 10. UI — the Production tab (PLACEHOLDER, pending owner's design)
+## 10. UI — the Production tab (DESIGN LOCKED — `docs/syncview-design/`)
 
-> **The owner is designing this layer in full** — the look *and* every front-end interaction,
-> button, and state. This section will be rewritten from that design. Below is only the functional
-> skeleton we already know must exist (from the Linear audit + owner answers), so the backend above
-> is built to serve it. Do not finalize UI code until the design lands.
+**The design is done.** A dedicated session pixel- **and** behavior-matched a full prototype to
+real Linear (11 adversarial re-audits, a 138-assertion behavioral suite green). It lives in
+[`docs/syncview-design/`](docs/syncview-design/) — `SyncView.html` is the behavior source of truth,
+`linear-design-tokens.md` is the visual build spec, `PARITY.md`/`PARITY-LOOP.md` document every
+interaction. The build session's job is to **rebuild this into the repo (`_prod*` namespace, flag
+`?prod=1`, role-gated) and wire it to real data** — not to redesign it.
 
-Known-required surfaces (functional requirements, not final design): **board view** (columns =
-statuses, cards = deliverables, "Mine" default, sortable by due date, filters My/Team/Client);
-**batch view** (batch header with description/filming-doc/footage/delivery folder above its
-deliverables); **deliverable detail** (status chips with role-gated transitions, comment thread,
-file link, due date, assignee, per-deliverable history from `deliverable_events`); **intake**
-(smm/admin "new batch" form replacing the `linear` tab's forms — creates batch + N deliverables in
-one EF call, ported "freest editor" auto-assign); **calendar/SXR card integration** (editor name +
-batch color chip; deliverable picker replacing the Linear-URL paste); **workload tab** re-pointed
-from `workload_issues` to `deliverables`. Namespace `_prod*`, flag `?prod=1`, role-gated (SXR
-rebuild playbook is the how-to).
+**Surfaces the prototype delivers** (all built + parity-checked): sidebar (brand/nav/teams/
+collapse), list view (`sub-title › parent batch` rows, status group headers, chips/due/avatar),
+projects board (columns + cards + drag), issue/sub-issue **detail** (inline-editable description,
+properties panel, comment composer + activity feed, sub-issue list, back-stack), project detail,
+and the full interaction layer — status/assignee/project/**due-calendar** pickers, right-click
+context menus + submenus, **multi-select** (list + board) with a floating bulk-action bar, the
+**⌘K command palette**, an extensive **keyboard model** (j/k, Enter, s/a/⇧D, ⌘A, Escape hierarchy),
+**delete + Undo (⌘Z)**, truncation-aware tooltips, filter/group menus, and contextual empty states.
+
+**Deliberately simpler than Linear** (the owner's "too many options" concern, §0): **removed** —
+priority, labels, cycles, the Triage/Views/Inbox/Invite nav, the workspace switcher, and manual
+"new issue"; **kept** — the Triage *status* (for migrating existing data). Light theme now; dark
+mode is a later whole-site pass (needs re-measuring Linear's dark palette).
+
+**Still to wire (logic, not look), on top of the prototype:** the calendar/samples ↔ deliverable
+links + origin labels (§9.3), name-sync (§9.4), internal comments (§9.5), role gating on status
+transitions (§6), realtime data, intake auto-assign ("freest editor"), and the workload tab
+re-point from `workload_issues` to `deliverables`.
 
 ---
 
@@ -428,10 +488,13 @@ verified) before cancelling Linear.
 
 ## 15. Planning process (how this doc gets to "perfect")
 
-1. This rewrite → owner reacts; owner delivers the UI/interaction design.
-2. Fold the design into §9/§10; then **depth-pass each subsystem** (§2–§8) until each has an
-   execution-ready spec + its own rollback + its gate.
-3. **Adversarial "what's missing" pass** each round (a Fable-5 pass is ideal) — deliberately hunt
-   the things neither of us thought of; add them here.
-4. Repeat until every section is execution-ready. **Only then** does Codex build, phase by phase,
-   under Track A's gate discipline. Everything stays in THIS doc — no scattered new files.
+- ✅ Rewrite around the locked decisions (this doc). ✅ Design delivered and folded into §9/§10
+  (`docs/syncview-design/`). ✅ Owner's interconnection/label/comment rules captured (§9).
+- **NEXT — the deep-audit + verification pass** (handoff: `docs/TRACK_B_FABLE5_HANDOFF.md`). A
+  fresh Fable-5 session re-audits the *entire* live system (website, n8n, Supabase, Linear, every
+  doc), maps the real logic of the content calendar + samples + all three review flows (client /
+  Kasper / SMM), then **verifies and improves this plan** — connecting the locked new-Linear design
+  to how the current system actually behaves, and hunting everything neither of us thought of.
+- Then **depth-pass each subsystem** (§2–§8) until each has an execution-ready spec + its own
+  rollback + gate. **Only then** does the build session implement, phase by phase, under Track A's
+  gate discipline. Everything stays in THIS doc + `docs/syncview-design/` — no scattered new files.

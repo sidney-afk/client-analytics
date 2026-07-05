@@ -1,0 +1,32 @@
+[
+  {
+    "al": "Copy issue URL",
+    "cx": 1269,
+    "cy": 75,
+    "w": 28
+  },
+  {
+    "al": "Copy issue ID",
+    "cx": 1303,
+    "cy": 75,
+    "w": 28
+  },
+  {
+    "al": "Copy branch name",
+    "cx": 1337,
+    "cy": 75,
+    "w": 28
+  },
+  {
+    "al": "Copy as prompt",
+    "cx": 1372,
+    "cy": 75,
+    "w": 28
+  },
+  {
+    "al": "Work on issue",
+    "cx": 1401,
+    "cy": 75,
+    "w": 28
+  }
+]

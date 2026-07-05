@@ -1,0 +1,13 @@
+{
+  "x": 130,
+  "y": 300,
+  "chain": [
+    {
+      "tag": "a",
+      "bg": "lch(93.14 0.5 282)",
+      "bgHex": "#ebebec",
+      "h": 28,
+      "cls": "sx-6s0dn4 sx-1i9j6mr sx-vijh9v sx-1ty9z6"
+    }
+  ]
+}

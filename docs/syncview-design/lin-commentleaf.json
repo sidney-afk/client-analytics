@@ -1,0 +1,12 @@
+[
+  {
+    "tag": "P",
+    "cls": "text-node",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "-0.1px",
+    "color": "lch(20 1 282)",
+    "text": "Same font changes"
+  }
+]

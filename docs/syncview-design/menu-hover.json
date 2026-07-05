@@ -1,0 +1,27 @@
+{
+  "x": 800,
+  "y": 300,
+  "chain": [
+    {
+      "tag": "div",
+      "bg": "lch(96 0 282)",
+      "bgHex": "#f3f3f3",
+      "h": 32,
+      "cls": "sx-10l6tqk sx-13vifvy sx-clnmbr sx-1ey2m"
+    },
+    {
+      "tag": "ul",
+      "bg": "lch(100 0 0 / 0)",
+      "bgHex": "#f3f3f3",
+      "h": 572,
+      "cls": "sx-1ghz6dp sx-g0xzth sx-5yr21d sx-2ix84p"
+    },
+    {
+      "tag": "div",
+      "bg": "lch(100 0 282)",
+      "bgHex": "#ffffff",
+      "h": 573,
+      "cls": "sx-1lmytr0 sx-8du1vd sx-1uvtmcs sx-k2swo"
+    }
+  ]
+}

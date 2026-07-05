@@ -1,0 +1,79 @@
+[
+  {
+    "role": "editable",
+    "tag": "DIV",
+    "cls": "ProseMirror editor sx-o45g",
+    "fw": "600",
+    "fs": "24px",
+    "lh": "38.4px",
+    "ls": "-0.1px",
+    "ph": "",
+    "t": "Video 2"
+  },
+  {
+    "role": "editable",
+    "tag": "DIV",
+    "cls": "ProseMirror editor sx-o45g",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "normal",
+    "ph": "",
+    "t": "Main Camera: https://driv"
+  },
+  {
+    "role": "editable",
+    "tag": "SPAN",
+    "cls": "",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "-0.1px",
+    "ph": "",
+    "t": ""
+  },
+  {
+    "role": "editable",
+    "tag": "SPAN",
+    "cls": "ProseMirror-widget",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "-0.1px",
+    "ph": "",
+    "t": "​"
+  },
+  {
+    "role": "editable",
+    "tag": "SPAN",
+    "cls": "",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "-0.1px",
+    "ph": "",
+    "t": ""
+  },
+  {
+    "role": "editable",
+    "tag": "SPAN",
+    "cls": "ProseMirror-widget",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "-0.1px",
+    "ph": "",
+    "t": "​"
+  },
+  {
+    "role": "editable",
+    "tag": "DIV",
+    "cls": "ProseMirror editor sx-o45g",
+    "fw": "450",
+    "fs": "15px",
+    "lh": "24px",
+    "ls": "normal",
+    "ph": "",
+    "t": "Lily Baker (via SyncView)"
+  }
+]

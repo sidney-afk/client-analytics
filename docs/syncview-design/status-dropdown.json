@@ -1,0 +1,620 @@
+{
+  "states": [
+    {
+      "name": "Triage",
+      "x": 57,
+      "y": 237,
+      "labelFs": "13px",
+      "labelFw": "500",
+      "labelColor": "lch(38.376 1.25 282)",
+      "labelColorHex": "#5a5a5c",
+      "iconColor": "lch(38.376 1.25 282)",
+      "iconColorHex": "#5a5a5c",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(38.376 1.25 282)",
+        "colorHex": "#5a5a5c",
+        "fill": "lch(38.376 1.25 282)",
+        "fillHex": "#5a5a5c",
+        "w": 14,
+        "h": 14,
+        "x": 37,
+        "viewBox": "0 0 16 16",
+        "style": "--x---icon-default-color: lch(38.376% 1.25 282 / 1);",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "lch(38.376 1.25 282)",
+            "fillHex": "#5a5a5c",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M6.85714 7.375V6.03197C6.85714 5.55898 6.30618 5.32211 5.98395 5.65656L4.14982 7.56027C3.95006 7.76761 3.95006 8.10376 4.14982 8.31109L6.133",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "lch(38.376 1.25 282)",
+            "fillHex": "#5a5a5c",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M15 8C15 11.866 11.866 15 8 15C4.13401 15 1 11.866 1 8C1 4.13401 4.13401 1 8 1C11.866 1 15 4.13401 15 8ZM13.5 8C13.5 11.0376 11.0376 13.5 8 ",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-13wgh6h sx-31pjnn sx-m5nenu sx-1fwcy2r sx-13jp3wb sx-18202ia sx-ge2tmq\" fill=\"lch(38.376% 1.25 282 / 1)\" style=\"--x---icon-default-color: lch(38.376% 1.25 282 / 1);\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M6.85714 7.375V6.03197C6.85714 5.55898 6.30618 5.32211 5.98395 5.65656L4.14982 7.56027C3.95006 7.76761 3.95006 8.10376 4.14982 8.31109L6.13377 10.3703C6.40071 10.6474 6.85714 10.4511 6.85714 10.0593V8.625H9.14286V9.96803C9.14286 10.441 9.69382 10.6779 10.016 10.3434L11.8502 8.43972C12.0499 8.23239 12.0499 7.89624 11.8502 7.68891L9.86623 5.6297C9.59929 5.35263 9.14286 5.54886 9.14286 5.9407V7.375H6.85714Z\"></path><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M15 8C15 11.866 11.866 15 8 15C4.13401 15 1 11.866 1 8C1 "
+      }
+    },
+    {
+      "name": "Backlog",
+      "x": 1195,
+      "y": 144,
+      "labelFs": "13px",
+      "labelFw": "500",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "none",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1174,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "circle",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "lch(68.75% 3.577 260.65)",
+            "strokeHex": "#a4a8ae",
+            "sw": "1.5",
+            "dash": "1.4 1.74",
+            "d": "",
+            "r": "6",
+            "cx": "7",
+            "cy": "7"
+          },
+          {
+            "tag": "circle",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "lch(68.75% 3.577 260.65)",
+            "strokeHex": "#a4a8ae",
+            "sw": "4",
+            "dash": "12.189379495928398 24.378758991856795",
+            "d": "",
+            "r": "2",
+            "cx": "7",
+            "cy": "7"
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" fill=\"none\" class=\"sx-dj266r sx-lkxg1q sx-at24cr sx-gsvwom color-override\"><circle cx=\"7\" cy=\"7\" r=\"6\" fill=\"none\" stroke=\"lch(68.75% 3.577 260.65)\" stroke-width=\"1.5\" stroke-dasharray=\"1.4 1.74\" stroke-dashoffset=\"0.65\"></circle><circle cx=\"7\" cy=\"7\" r=\"2\" fill=\"none\" stroke=\"lch(68.75% 3.577 260.65)\" stroke-width=\"4\" stroke-dasharray=\"12.189379495928398 24.378758991856795\" stroke-dashoffset=\"12.189379495928398\" transform=\"rotate(-90 7 7)\"></circle></svg>"
+      }
+    },
+    {
+      "name": "Todo",
+      "x": 1206,
+      "y": 254,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "lch(68.75% 0 139.088)",
+            "strokeHex": "#a8a8a8",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "lch(68.75% 0 139.088)",
+            "fillHex": "#a8a8a8",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 0 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"Todo\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"lch(68.75% 0 139.088)\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"lch(68.75% 0 139.088)\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 0 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "In Progress",
+      "x": 1206,
+      "y": 286,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "lch(68.75% 59.803 84.978)",
+            "strokeHex": "#c6a333",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "lch(68.75% 59.803 84.978)",
+            "fillHex": "#c6a333",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"In Progress\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"lch(68.75% 59.803 84.978)\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"lch(68.75% 59.803 84.978)\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "For SMM approval",
+      "x": 1206,
+      "y": 318,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "lch(68.75% 46.344 347.544)",
+            "strokeHex": "#ed86bc",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "lch(68.75% 46.344 347.544)",
+            "fillHex": "#ed86bc",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"In Progress\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"lch(68.75% 46.344 347.544)\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"lch(68.75% 46.344 347.544)\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "For Kasper approval",
+      "x": 1206,
+      "y": 350,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "#eb5757",
+            "strokeHex": "#eb5757",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "#eb5757",
+            "fillHex": "#eb5757",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"In Progress\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"#eb5757\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"#eb5757\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "Tweak Needed",
+      "x": 1206,
+      "y": 382,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "#db6e1f",
+            "strokeHex": "#db6e1f",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "#db6e1f",
+            "fillHex": "#db6e1f",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 5.249999999999998 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"In Progress\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"#db6e1f\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"#db6e1f\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 5.249999999999998 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "For Client Approval",
+      "x": 1206,
+      "y": 414,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 0, 0)",
+        "fillHex": "#000000",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": null,
+        "shapes": [
+          {
+            "tag": "rect",
+            "fill": "none",
+            "fillHex": "#000000",
+            "stroke": "#ff0016",
+            "strokeHex": "#ff0016",
+            "sw": "1.5",
+            "dash": null,
+            "d": "",
+            "r": null,
+            "cx": null,
+            "cy": null
+          },
+          {
+            "tag": "path",
+            "fill": "#ff0016",
+            "fillHex": "#ff0016",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg aria-label=\"In Progress\" width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" xmlns=\"http://www.w3.org/2000/svg\" class=\"color-override\"><rect x=\"1\" y=\"1\" width=\"12\" height=\"12\" rx=\"6\" stroke=\"#ff0016\" stroke-width=\"1.5\" fill=\"none\"></rect><path fill=\"#ff0016\" stroke=\"none\" d=\"M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z\" transform=\"translate(3.5,3.5)\"></path></svg>"
+      }
+    },
+    {
+      "name": "Approved",
+      "x": 1206,
+      "y": 446,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "lch(68 64.37 141.95)",
+        "fillHex": "#43bc58",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": "--x-fill: lch(68% 64.37 141.95); --x---icon-color: lch(68% 64.37 141.95); --x---icon-default-color: lch(68% 64.37 141.95);",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "lch(68 64.37 141.95)",
+            "fillHex": "#43bc58",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-19zyb68 sx-1khkorv sx-m5nenu color-override\" fill=\"lch(68% 64.37 141.95)\" style=\"--x-fill: lch(68% 64.37 141.95); --x---icon-color: lch(68% 64.37 141.95); --x---icon-default-color: lch(68% 64.37 141.95);\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433 4.23091 11.101 3.89896C10.7691 3.56701 10.2309 3.56701 9.89896 3.89896L5.5 8.29792L4.10104 6.89896C3.7691 6.56701 3.2309 6.56701 2.89896 6.89896C2.56701 7.2309 2.56701 7.7691 2.89896 8.10104L4.89896 10.101C5.2309 10.433 5.7691 10.433 6.10104 10.101L11.101 5.10104Z\"></path></svg>"
+      }
+    },
+    {
+      "name": "Scheduled",
+      "x": 1206,
+      "y": 478,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(0, 68, 255)",
+        "fillHex": "#0044ff",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": "--x-fill: #0044ff; --x---icon-color: #0044ff; --x---icon-default-color: #0044ff;",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "rgb(0, 68, 255)",
+            "fillHex": "#0044ff",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-19zyb68 sx-1khkorv sx-m5nenu color-override\" fill=\"#0044ff\" style=\"--x-fill: #0044ff; --x---icon-color: #0044ff; --x---icon-default-color: #0044ff;\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433 4.23091 11.101 3.89896C10.7691 3.56701 10.2309 3.56701 9.89896 3.89896L5.5 8.29792L4.10104 6.89896C3.7691 6.56701 3.2309 6.56701 2.89896 6.89896C2.56701 7.2309 2.56701 7.7691 2.89896 8.10104L4.89896 10.101C5.2309 10.433 5.7691 10.433 6.10104 10.101L11.101 5.10104Z\"></path></svg>"
+      }
+    },
+    {
+      "name": "Posted",
+      "x": 1206,
+      "y": 510,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "lch(48 59.31 288.43)",
+        "fillHex": "#5e6ad2",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": "--x-fill: lch(48% 59.31 288.43); --x---icon-color: lch(48% 59.31 288.43); --x---icon-default-color: lch(48% 59.31 288.43);",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "lch(48 59.31 288.43)",
+            "fillHex": "#5e6ad2",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-19zyb68 sx-1khkorv sx-m5nenu color-override\" fill=\"lch(48% 59.31 288.43)\" style=\"--x-fill: lch(48% 59.31 288.43); --x---icon-color: lch(48% 59.31 288.43); --x---icon-default-color: lch(48% 59.31 288.43);\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433 4.23091 11.101 3.89896C10.7691 3.56701 10.2309 3.56701 9.89896 3.89896L5.5 8.29792L4.10104 6.89896C3.7691 6.56701 3.2309 6.56701 2.89896 6.89896C2.56701 7.2309 2.56701 7.7691 2.89896 8.10104L4.89896 10.101C5.2309 10.433 5.7691 10.433 6.10104 10.101L11.101 5.10104Z\"></path></svg>"
+      }
+    },
+    {
+      "name": "Canceled",
+      "x": 1206,
+      "y": 542,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(149, 162, 179)",
+        "fillHex": "#95a2b3",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": "--x-fill: #95a2b3; --x---icon-color: #95a2b3; --x---icon-default-color: #95a2b3;",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "rgb(149, 162, 179)",
+            "fillHex": "#95a2b3",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14ZM5.03033 3.96967C4.73744 3.67678 4.2",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-19zyb68 sx-1khkorv sx-m5nenu color-override\" fill=\"#95a2b3\" style=\"--x-fill: #95a2b3; --x---icon-color: #95a2b3; --x---icon-default-color: #95a2b3;\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14ZM5.03033 3.96967C4.73744 3.67678 4.26256 3.67678 3.96967 3.96967C3.67678 4.26256 3.67678 4.73744 3.96967 5.03033L5.93934 7L3.96967 8.96967C3.67678 9.26256 3.67678 9.73744 3.96967 10.0303C4.26256 10.3232 4.73744 10.3232 5.03033 10.0303L7 8.06066L8.96967 10.0303C9.26256 10.3232 9.73744 10.3232 10.0303 10.0303C10.3232 9.73744 10.3232 9.26256 10.0303 8.96967L8.06066 7L10.0303 5.03033C10.3232 4.73744 10.3232 4.26256 10.0303 3.96967C9.73"
+      }
+    },
+    {
+      "name": "Duplicate",
+      "x": 1206,
+      "y": 574,
+      "labelFs": "13px",
+      "labelFw": "450",
+      "labelColor": "lch(20 1 282)",
+      "labelColorHex": "#303032",
+      "iconColor": "lch(20 1 282)",
+      "iconColorHex": "#303032",
+      "iconW": 14,
+      "icon": {
+        "color": "lch(20 1 282)",
+        "colorHex": "#303032",
+        "fill": "rgb(149, 162, 179)",
+        "fillHex": "#95a2b3",
+        "w": 14,
+        "h": 14,
+        "x": 1183,
+        "viewBox": "0 0 14 14",
+        "style": "--x-fill: #95a2b3; --x---icon-color: #95a2b3; --x---icon-default-color: #95a2b3;",
+        "shapes": [
+          {
+            "tag": "path",
+            "fill": "rgb(149, 162, 179)",
+            "fillHex": "#95a2b3",
+            "stroke": "none",
+            "strokeHex": "#000000",
+            "sw": "1px",
+            "dash": null,
+            "d": "M7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14ZM9.5791 5.71973C9.872 5.42684 10.346",
+            "r": null,
+            "cx": null,
+            "cy": null
+          }
+        ],
+        "svg": "<svg width=\"14\" height=\"14\" viewBox=\"0 0 14 14\" role=\"img\" focusable=\"false\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\" class=\"sx-1fwcy2r sx-13jp3wb sx-19zyb68 sx-1khkorv sx-m5nenu color-override\" fill=\"#95a2b3\" style=\"--x-fill: #95a2b3; --x---icon-color: #95a2b3; --x---icon-default-color: #95a2b3;\"><path fill-rule=\"evenodd\" clip-rule=\"evenodd\" d=\"M7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14ZM9.5791 5.71973C9.872 5.42684 10.3468 5.42686 10.6396 5.71973C10.9325 6.01262 10.9325 6.48738 10.6396 6.78027L6.78027 10.6396C6.48738 10.9325 6.01262 10.9325 5.71973 10.6396C5.42686 10.3468 5.42684 9.872 5.71973 9.5791L9.5791 5.71973ZM7.21973 3.36035C7.51261 3.06746 7.98738 3.06747 8.28027 3.36035C8.57315 3.65325 8.57316 4.12801 8.28027 4.4209L4.4209 8.28027C4.12801 8.57316 3.65325 8.57315 3.36035 8.28027C3.06747 7.98738 3.06746 7."
+      }
+    }
+  ],
+  "clicked": {
+    "x": 1219.9375,
+    "y": 151.5,
+    "text": "Backlog"
+  }
+}

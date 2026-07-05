@@ -1,0 +1,14 @@
+{
+  "leafText": "Jul 2",
+  "leafFs": "12px",
+  "leafFw": "450",
+  "leafCol": "lch(39.576 1.25 282)",
+  "pill": {
+    "h": "24.0",
+    "rad": "48px",
+    "bd": "1px",
+    "pad": "0px/8px",
+    "fs": "16px"
+  },
+  "rowH": "44.0"
+}

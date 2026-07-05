@@ -1,0 +1,11 @@
+[
+  {
+    "w": 181,
+    "h": 637,
+    "radius": "12px",
+    "shadow": "lch(0 0 0 / 0.02) 0px 6px 18px 0px, lch(0 0 0 / 0.04) 0px 3px 9px 0px, lch(0 0 0 / 0.04) 0",
+    "borderHex": "#e8e8e8",
+    "bw": "1px",
+    "bgHex": "#ffffff"
+  }
+]

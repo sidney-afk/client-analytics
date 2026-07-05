@@ -38,3 +38,11 @@ verify_jwt = false
 
 [functions.caption-prompts-save]
 verify_jwt = false
+
+# Track B B0 auth verifiers. Both are callable from the static browser app and
+# enforce/log with the service role internally; JWT verification stays off.
+[functions.client-token-verify]
+verify_jwt = false
+
+[functions.key-verify]
+verify_jwt = false

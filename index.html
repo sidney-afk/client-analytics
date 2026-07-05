@@ -13313,6 +13313,7 @@
     const CAL_SUPABASE_URL      = 'https://uzltbbrjidmjwwfakwve.supabase.co';
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
+    const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
@@ -13398,17 +13399,31 @@
     function _calReorderUrlForClient(clientOrSlug) {
         return _calUpsertUseEf(clientOrSlug) ? CALENDAR_REORDER_EF_URL : CALENDAR_REORDER_BATCH_URL;
     }
-    function _calUpsertHeaders(source) {
+    function _syncviewClientWriteToken() {
+        try { return String(new URLSearchParams(location.search).get('t') || '').trim(); } catch (e) { return ''; }
+    }
+    function _syncviewEfHeaders(headers, url) {
+        const out = Object.assign({}, headers || {});
+        try {
+            if (_isClientLink && String(url || '').indexOf(CAL_SUPABASE_URL + '/functions/v1/') === 0) {
+                const token = _syncviewClientWriteToken();
+                if (token) out['X-Syncview-Client-Token'] = token;
+            }
+        } catch (e) {}
+        return out;
+    }
+    function _calUpsertHeaders(source, url) {
         let role = 'smm';
         try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
-        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' };
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
     function _calUpsertFetch(clientOrSlug, payload, source) {
         _calPrimeUpsertRoutingFlag();
-        return fetch(_calUpsertUrlForClient(clientOrSlug), {
+        const url = _calUpsertUrlForClient(clientOrSlug);
+        return fetch(url, {
             method: 'POST',
-            headers: _calUpsertHeaders(source),
+            headers: _calUpsertHeaders(source, url),
             body: JSON.stringify(payload)
         });
     }
@@ -25674,6 +25689,7 @@
                     if (!expectedToken) {
                         console.warn('[SyncView] No client_review_token set for "' + clientFromQuery + '" — link is unguarded.');
                     }
+                    if (!(await _syncviewVerifyClientLinkAccess(_calLinkClient))) return;
                     document.getElementById('selectorWrap').style.display = 'none';
                     document.getElementById('pageSub').style.display = 'none';
                     document.getElementById('pageTitle').textContent = 'Your Analytics';
@@ -25717,6 +25733,7 @@
                     if (!expectedToken) {
                         console.warn('[SyncView] No client_review_token set for "' + clientFromQuery + '" — samples link is unguarded.');
                     }
+                    if (!(await _syncviewVerifyClientLinkAccess(_smLink))) return;
                     document.getElementById('selectorWrap').style.display = 'none';
                     document.getElementById('pageSub').style.display = 'none';
                     document.querySelector('header.header').style.display = 'none';
@@ -25751,6 +25768,7 @@
                             return;
                         }
                         if (!expectedToken) console.warn('[Samples] No client_review_token set for "' + clientFromQuery + '" — sample-reviews link is unguarded.');
+                        if (!(await _syncviewVerifyClientLinkAccess(_sxrLink))) return;
                         const _h = document.querySelector('header.header'); if (_h) _h.style.display = 'none';
                         const _sw = document.getElementById('selectorWrap'); if (_sw) _sw.style.display = 'none';
                         const _ps = document.getElementById('pageSub'); if (_ps) _ps.style.display = 'none';
@@ -25939,6 +25957,7 @@
                 if(!expectedToken){
                     console.warn('[SyncView] No client_review_token set for "'+clientFromQuery+'" — link is unguarded. Add a token to the Clients Info sheet to enforce it.');
                 }
+                if(!(await _syncviewVerifyClientLinkAccess(clientFromQueryCanonical))) return;
                 document.getElementById('selectorWrap').style.display='none';
                 document.getElementById('pageSub').style.display='none';
                 document.getElementById('pageTitle').textContent='Your Analytics';
@@ -26037,6 +26056,49 @@
             document.getElementById('passwordInput').value='';
             document.getElementById('passwordInput').style.borderColor='#dc2626';
             setTimeout(()=>document.getElementById('passwordInput').style.borderColor='#e0e0de',1500);
+        }
+    }
+    const _CLIENT_TOKEN_SESSION_KEY = 'syncview_client_token_verify_v1';
+    function _syncviewInvalidClientLinkScreen() {
+        const h = document.querySelector('header.header'); if (h) h.style.display = 'none';
+        const pt = document.getElementById('pageTop'); if (pt) pt.style.display = 'none';
+        const content = document.getElementById('content');
+        if (content) content.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;gap:14px;padding:40px;text-align:center;font-family:'Plus Jakarta Sans',sans-serif;">
+            <div style="font-size:1.15rem;font-weight:700;color:#111;">This link isn't valid</div>
+            <div style="font-size:0.9rem;color:#777;max-width:380px;line-height:1.45;">Please ask your social media manager for an updated link.</div>
+        </div>`;
+    }
+    async function _syncviewVerifyClientLinkAccess(clientName) {
+        if (!_isClientLink || !clientName || !CLIENT_TOKEN_VERIFY_URL) return true;
+        const token = _syncviewClientWriteToken();
+        let slug = '';
+        try { slug = calClientSlug(clientName); } catch (e) {
+            try { slug = wlNormalizeClient(clientName); } catch (e2) { slug = String(clientName || '').toLowerCase().replace(/[^a-z0-9&]+/g, ''); }
+        }
+        const cacheKey = slug + '|' + token;
+        try {
+            const cached = JSON.parse(sessionStorage.getItem(_CLIENT_TOKEN_SESSION_KEY) || '{}') || {};
+            if (cached[cacheKey] === true) return true;
+            if (cached[cacheKey] === false) { _syncviewInvalidClientLinkScreen(); return false; }
+        } catch (e) {}
+        try {
+            const resp = await fetch(CLIENT_TOKEN_VERIFY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: clientName, slug, token })
+            });
+            let json = null; try { json = await resp.json(); } catch (e) {}
+            const blocked = (resp.status === 401 || resp.status === 410) || (json && json.ok === false && json.mode === 'enforced');
+            if (blocked) {
+                try { const cached = JSON.parse(sessionStorage.getItem(_CLIENT_TOKEN_SESSION_KEY) || '{}') || {}; cached[cacheKey] = false; sessionStorage.setItem(_CLIENT_TOKEN_SESSION_KEY, JSON.stringify(cached)); } catch (e) {}
+                _syncviewInvalidClientLinkScreen();
+                return false;
+            }
+            try { const cached = JSON.parse(sessionStorage.getItem(_CLIENT_TOKEN_SESSION_KEY) || '{}') || {}; cached[cacheKey] = true; sessionStorage.setItem(_CLIENT_TOKEN_SESSION_KEY, JSON.stringify(cached)); } catch (e) {}
+            return true;
+        } catch (e) {
+            console.warn('[SyncView] client-token verifier unavailable; preserving permissive client-link behavior', e);
+            return true;
         }
     }
     const _isClientLink=!!new URLSearchParams(location.search).get('c');
@@ -26267,25 +26329,27 @@
     function _sxrReorderUrlForClient(clientOrSlug) {
         return _sxrSampleUseEf(clientOrSlug) ? SXR_REORDER_EF_URL : SXR_REORDER_N8N_URL;
     }
-    function _sxrWriteHeaders(source) {
+    function _sxrWriteHeaders(source, url) {
         let role = 'smm';
         try { if (_isClientLink) role = 'client'; else if (location.hash === '#kasper' || new URLSearchParams(location.search).get('Kasper') === '1') role = 'kasper'; } catch (e) {}
         const actor = role === 'client' ? 'Client' : (role === 'kasper' ? 'Kasper' : 'SyncView');
-        return { 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' };
+        return _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Actor': actor, 'X-Syncview-Role': role, 'X-Syncview-Source': source || 'ui' }, url);
     }
     function _sxrUpsertFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        return fetch(_sxrUpsertUrlForClient(clientOrSlug), {
+        const url = _sxrUpsertUrlForClient(clientOrSlug);
+        return fetch(url, {
             method: 'POST',
-            headers: _sxrWriteHeaders(source),
+            headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
         });
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        return fetch(_sxrReorderUrlForClient(clientOrSlug), {
+        const url = _sxrReorderUrlForClient(clientOrSlug);
+        return fetch(url, {
             method: 'POST',
-            headers: _sxrWriteHeaders(source),
+            headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
         });
     }

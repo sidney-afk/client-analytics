@@ -14,7 +14,7 @@ import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.49.8";
 const CORS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-syncview-actor, x-syncview-role, x-syncview-source, x-syncview-client-token",
   "Cache-Control": "no-store",
 };
 

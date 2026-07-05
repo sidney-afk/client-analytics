@@ -32,7 +32,7 @@ Rollback posture:
 - No n8n workflow was edited, deactivated, or deleted during the B0 auth scaffold work in this PR.
 - B0 database changes are additive. The auth kill switch is
   `syncview_runtime_flags.auth_enforcement={"mode":"permissive"}`.
-- The B0 n8n hard-gate item remains open: `SyncView - Error Alerts -> DM Sidney`
-  (`itqDXSl2ybsRSAiQ`) exists and is active, but workflow-level `errorWorkflow` settings are still
-  not wired because the current n8n MCP update surface does not expose workflow settings and no
-  local n8n REST API key is available.
+- The B0 n8n hard-gate item was cleared after this snapshot: `SyncView - Error Alerts -> DM
+  Sidney` (`itqDXSl2ybsRSAiQ`) exists, is active, and is now wired as workflow-level
+  `errorWorkflow` on the critical B0 workflow set. A throwaway error workflow verified the alert
+  path without forcing a production workflow error.

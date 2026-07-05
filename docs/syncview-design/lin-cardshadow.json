@@ -1,0 +1,8 @@
+{
+  "rad": "8px",
+  "border": "0px none lch(9.894 0 282)",
+  "bg": "lch(100 0 282)",
+  "boxShadow": "lch(0 0 0 / 0.02) 0px 3px 6px -2px, lch(0 0 0 / 0.04) 0px 1px 1px 0px",
+  "pad": "0px",
+  "gap": "normal"
+}

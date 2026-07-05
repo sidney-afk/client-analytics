@@ -1,0 +1,35 @@
+{
+  "heads": [
+    {
+      "t": "Sub-issues0/5Edward ",
+      "s": "16px/400/lch(9.894 0 282)",
+      "tag": "DIV"
+    },
+    {
+      "t": "Sub-issues0/5",
+      "s": "16px/400/lch(9.894 0 282)",
+      "tag": "DIV"
+    },
+    {
+      "t": "Sub-issues0/5",
+      "s": "16px/400/lch(9.894 0 282)",
+      "tag": "DIV"
+    },
+    {
+      "t": "Sub-issues",
+      "s": "12px/500/lch(19.788 1.25 282)",
+      "tag": "BUTTON"
+    },
+    {
+      "t": "Sub-issues",
+      "s": "12px/500/lch(39.576 1.25 282)",
+      "tag": "SPAN"
+    },
+    {
+      "t": "Activity",
+      "s": "15px/600/lch(9.894 0 282)",
+      "tag": "SPAN"
+    }
+  ],
+  "subLabelish": []
+}

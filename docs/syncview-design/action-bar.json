@@ -1,0 +1,20 @@
+{
+  "x": 837,
+  "y": 824,
+  "chain": [
+    {
+      "tag": "button",
+      "bg": "lch(97.257 0 282)",
+      "bgHex": "#f7f7f7",
+      "h": 28,
+      "cls": "sx-3nfvp2 sx-16dsc37 sx-6s0dn4 sx-l56j7k"
+    },
+    {
+      "tag": "div",
+      "bg": "lch(100 0 282)",
+      "bgHex": "#ffffff",
+      "h": 44,
+      "cls": "sx-78zum5 sx-vx4679 sx-1q0g3np sx-6s0dn4"
+    }
+  ]
+}

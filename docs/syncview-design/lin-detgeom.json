@@ -1,0 +1,10 @@
+{
+  "commentAvatar": "no img in comment box",
+  "propCard": {
+    "rad": "9999px",
+    "bd": "0px rgb(0, 0, 0)",
+    "bg": "rgba(0, 0, 0, 0)",
+    "shadow": "none",
+    "w": "239"
+  }
+}

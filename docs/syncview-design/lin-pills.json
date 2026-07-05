@@ -1,0 +1,24 @@
+{
+  "due": {
+    "text": "Jul 2",
+    "h": 24,
+    "radius": "48px",
+    "pad": "0px 8px",
+    "borderW": "1px",
+    "borderC": "lch(85.44 0 282)",
+    "fs": "16px",
+    "fw": "400",
+    "color": "lch(9.894 0 282)"
+  },
+  "chip": {
+    "text": "🦷Dr. Sonia Chopra",
+    "h": 24,
+    "radius": "48px",
+    "pad": "0px 8px",
+    "borderW": "1px",
+    "borderC": "lch(85.44 0 282)",
+    "fs": "16px",
+    "fw": "400",
+    "color": "lch(9.894 0 282)"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "colHead": {
+    "t": "Backlog",
+    "s": "13px/500/lch(19.788 1.25 282)"
+  },
+  "colCount": {
+    "t": "34",
+    "s": "13px/450/lch(39.576 1.25 282)"
+  },
+  "cardName": {
+    "t": "Danny Morel",
+    "s": "13px/500/lch(20 1 282)"
+  },
+  "meta": {
+    "t": "1036 issues",
+    "s": "12px/450/lch(40 1 282)"
+  }
+}

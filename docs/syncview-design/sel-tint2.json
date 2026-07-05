@@ -1,0 +1,100 @@
+[
+  {
+    "tag": "SPAN",
+    "bgHex": "#00000000",
+    "beforeHex": "#00000000",
+    "afterHex": "#00000000",
+    "cls": "sx-1j61x8r sx-ggjnk3 sx-16"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "sx-vx4679 sx-1q0g3np sx-1j"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "sx-78zum5 sx-vx4679 sx-1q0"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "sx-78zum5 sx-vx4679 sx-1q0"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "_deprioritizedRendering_1c"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "sx-78zum5 sx-vx4679 sx-1q0"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#eaebf6",
+    "afterHex": "#eaebf6",
+    "cls": "sc-jBmsoO dHLGkG"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#eaebf6",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "sc-hOqrIi mPieX"
+  },
+  {
+    "tag": "A",
+    "bgHex": "#e4e5f1",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "_gridRowShared_trzdj_65"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#e4e5f1",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "theme-provider-9fe488dba54"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#e4e5f1",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "sx-rvj5dj sx-4w6khx sx-1os"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#e4e5f1",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "sx-1n2onr6 sx-rvj5dj sx-4w"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#e4e5f1",
+    "beforeHex": "#e4e5f1",
+    "afterHex": "#e4e5f1",
+    "cls": "sx-rvj5dj sx-4w6khx sx-1os"
+  },
+  {
+    "tag": "DIV",
+    "bgHex": "#fcfcfd",
+    "beforeHex": "#fcfcfd",
+    "afterHex": "#fcfcfd",
+    "cls": "sc-ckPLQu cnTyoj"
+  }
+]

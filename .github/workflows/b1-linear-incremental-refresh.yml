@@ -27,19 +27,17 @@ jobs:
         with:
           node-version: 22
 
-      - name: Skip until secrets are present
-        id: secrets
+      - name: Require refresh secrets
         shell: bash
         run: |
+          missing=0
           if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$LINEAR_API_KEY" ]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Missing SUPABASE_SERVICE_ROLE_KEY or LINEAR_API_KEY; skipping."
-          else
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY or LINEAR_API_KEY; refusing to report a green refresh."
+            missing=1
           fi
+          exit "$missing"
 
       - name: Run incremental refresh
-        if: steps.secrets.outputs.ready == 'true'
         shell: bash
         run: |
           mkdir -p artifacts

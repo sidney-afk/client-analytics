@@ -932,10 +932,13 @@ with a flip-checklist assertion that the seed range collides with nothing in
 **10.5 Kept/removed** (unchanged): no priority/labels/cycles/inbox/triage-nav/manual new-issue;
 Triage *status* kept for migrated data. Light theme now.
 
-**10.6 The behavioral test suites are NOT in this repo** — `behav.js`/`qa-features.js`/`sweep.js`
-+ the parity-audit workflow live on the design machine only. **This is an OWNER action, not a
-build-session task (D-17): copy them into `docs/syncview-design/tests/` before B2.** The B2 gate
-depends on it.
+**10.6 The behavioral test suites are in-repo (D-17 resolved 2026-07-05):**
+`behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit
+workflow live at `docs/syncview-design/tests/`, plus the wired-tab lanes added in B2:
+`prod-readonly-smoke.js` and `prod-structure-subset.js` (read-only structural subset of
+behav/sweep adapted to the `_prod*` DOM). The pixel-measurement method doc referenced by
+`linear-design-tokens.md` lives in the **other repo** — `synchrosocial/docs/pixel-matching-playbook.md`
+— it is not missing from this one.
 
 **10.7 Still to wire** (with owners): §9.2–9.3 links/labels/predicates; §9.4 name-sync; §9.5
 threads; §6 role gating + D4 transition enforcement; realtime; §9.1 intake; §9.10 workload;
@@ -943,6 +946,25 @@ reorder persistence (`sort_key`); archive view (**read-only surface over `linear
 role-gated EF** — the table is service-role-only, §2.7); the **staff diagnostic page** (both FE
 outbox depths incl. the new `peekSxrLinearOutbox()` helper, role-key status, flag/authority
 state, `min_app_version`) — it is the named evidence mechanism for §1.5 steps 2/5.
+
+**10.8 B2 design-fidelity gate (NON-OPTIONAL — added after the #686 divergence incident):**
+the first B2 build (#686) was written from this spec's prose instead of ported from the
+artifact, and review checked safety but not fidelity — the tab shipped structurally wrong and
+had to be rebuilt (#689). To make that unrepeatable:
+- `docs/syncview-design/SyncView.html` is the **source of truth** for every Production-tab UI
+  change. Where any prose (this spec, a prompt, a review note) conflicts with the artifact,
+  **the artifact wins**. Build = port the artifact's render functions
+  (`renderSidebar`/`rowHTML`/`renderList`/`renderProjects`/`renderDetail`/`statusSVG`), not a
+  re-description of them.
+- Every PR touching `_prod*` render code must pass `prod-structure-subset.js` AND
+  `prod-readonly-smoke.js` on the wired tab, and the reviewer must diff the change **against
+  the artifact's own functions**, not against the PR description.
+- Standing exception (owner, 2026-07-06): the wired tab keeps the app's own typography —
+  fidelity is structural/behavioral, not pixel-identical.
+- At B3, when interactions go live, the full `behav.js`/`sweep.js` suites (selectors adapted
+  per §10.1 status-key renames) replace the read-only subset as the gate.
+- Current gap backlog: `docs/audits/2026-07-06-prod-parity-gaps.md` (seed list for the
+  autonomous parity loop; read-only-safe items only during B2).
 
 ---
 
@@ -974,8 +996,10 @@ are the replacement — confirm sufficiency with the pilot team during B3.
 - **Migration dry-run** (B1 gate): counts vs audit numbers; 20-issue spot parity; repair queue;
   idempotency (second run = zero changes); rate-budget compliance.
 - **DR drill** (§7.5) + replay-verify green.
-- **Behavioral parity:** the design-kit suites (once in-repo, D-17) re-run against the wired tab
-  with selectors adapted to the renamed status keys (§10.1).
+- **Behavioral parity (see §10.8 — non-optional):** during B2, every `_prod*` render PR runs
+  `prod-structure-subset.js` + `prod-readonly-smoke.js` against the wired tab; at B3 the full
+  in-repo `behav.js`/`sweep.js` suites re-run against it with selectors adapted to the renamed
+  status keys (§10.1). Review is against `SyncView.html`, never against prose.
 - `npm test` + `qa/master.js` green throughout; no renames of the 11 grabFunc-extracted symbols
   until §13 retires the reconcilers.
 - **Track A latent bugs fixed in B0.5** (bulk-import verify; EF reorder fallback) — verified by
@@ -1027,8 +1051,11 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   non-zero violation count carrying an approved handling rule**; 20-issue spot parity; repair
   queue + `active=false` list reviewed (D-16); replay-verify green; CON/STR active split
   measured (D-11).
-- **B2 →**: tab renders real migrated data behind `?prod=1` for admin; design-kit suites
-  in-repo (D-17) and green on the wired tab; staff diagnostic page live.
+- **B2 →**: tab renders real migrated data behind `?prod=1` for admin ✅ (#686, rebuilt to the
+  artifact in #689 after the §10.8 divergence incident); design-kit suites in-repo (D-17 ✅) and
+  the wired read-only lanes green ✅ (`prod-structure-subset.js` + `prod-readonly-smoke.js`;
+  full behav/sweep re-run lands at B3 per §10.8); **staff diagnostic page live — STILL OPEN**;
+  parity-gap backlog worked down per `docs/audits/2026-07-06-prod-parity-gaps.md`.
 - **B3 →**: comments webhook subscribed + catch-up pull run (§4.3.4); mirror zero-diff (modulo
   §1.4) 7 consecutive days; echo probe green (§12); editor/SMM UX feedback collected.
 - **B3→B4 per team**: §1.5 checklist artifacts (outbox drain, zero-diff + linkage-zero report,

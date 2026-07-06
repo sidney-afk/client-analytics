@@ -1367,6 +1367,74 @@
         .prod-composer-box { flex: 1; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); padding: 9px 10px; color: var(--prod-faint); font-size: 13px; }
         .prod-empty, .prod-error, .prod-loading { margin: auto; max-width: 420px; text-align: center; color: var(--prod-muted); font-size: 13px; line-height: 1.5; padding: 40px; }
         .prod-error { color: #b45309; }
+        /* Production preview artifact-structure layer, sourced from docs/syncview-design/SyncView.html. */
+        .prod-view svg { display: block; }
+        .prod-side { padding: 8px 7px 6px; gap: 0; background: var(--prod-bg); }
+        .prod-side-top { display: flex; align-items: center; gap: 6px; padding: 2px 5px 9px; }
+        .prod-brand { flex: 1; min-width: 0; min-height: 26px; padding: 3px 5px; margin: -3px -5px; border-radius: 6px; }
+        .prod-brand:hover { background: var(--prod-hover); }
+        .prod-brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prod-preview-chip { white-space: nowrap; flex: none; }
+        .prod-search-btn, .prod-icon-btn { width: 25px; height: 25px; border: 0; border-radius: 6px; display: grid; place-items: center; color: var(--prod-muted); background: transparent; font: inherit; cursor: pointer; }
+        .prod-search-btn:hover, .prod-icon-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
+        .prod-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-top: 2px; }
+        .prod-nav { display: flex; flex-direction: column; gap: 1px; }
+        .prod-nav-section { display: flex; align-items: center; gap: 4px; width: 100%; padding: 14px 8px 4px; color: var(--prod-dim); font: inherit; font-size: 12px; font-weight: 500; background: transparent; border: 0; text-align: left; cursor: pointer; }
+        .prod-nav-section .prod-section-label { flex: 1; }
+        .prod-section-chev { color: var(--prod-faint); transition: transform .12s; }
+        .prod-nav-section.collapsed .prod-section-chev, .prod-team-hd.collapsed .prod-section-chev { transform: rotate(-90deg); }
+        .prod-nav-btn { width: 100%; }
+        .prod-nav-btn.child { padding-left: 27px; }
+        .prod-nav-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); }
+        .prod-nav-btn.active .prod-nav-ico, .prod-nav-btn:hover .prod-nav-ico { color: var(--prod-dim); }
+        .prod-team-hd { height: 28px; border: 0; border-radius: 5px; background: transparent; display: flex; align-items: center; gap: 8px; padding: 0 8px; width: 100%; font: inherit; cursor: pointer; color: var(--prod-dim); }
+        .prod-team-hd:hover { background: var(--prod-hover); color: var(--prod-text); }
+        .prod-team-emoji { width: 16px; height: 16px; flex: none; display: grid; place-items: center; font-size: 11px; }
+        .prod-team-name { flex: 1; text-align: left; font-size: 13px; font-weight: 500; }
+        .prod-main { border-left: 1px solid var(--prod-border); border-top: 1px solid var(--prod-border); border-top-left-radius: 8px; margin-top: 8px; }
+        .prod-topbar { gap: 7px; }
+        .prod-crumb-sep { color: var(--prod-faint); display: inline-flex; }
+        .prod-subbar { height: 44px; flex: none; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 7px; padding: 0 16px; }
+        .prod-filter-pills { display: flex; align-items: center; gap: 6px; margin-left: 6px; flex-wrap: wrap; }
+        .prod-filter-pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 1px solid var(--prod-border); border-radius: 6px; background: var(--prod-surface); color: var(--prod-strong); font-size: 12px; font-weight: 500; white-space: nowrap; }
+        .prod-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); }
+        .prod-status svg { width: 14px; height: 14px; }
+        .prod-group { cursor: default; }
+        .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
+        .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; }
+        .prod-row:hover .prod-check { opacity: 1; }
+        .prod-title { gap: 0; }
+        .prod-title .prod-parent-title { color: var(--prod-muted); font-weight: 450; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .prod-title .prod-parent-title::before { content: "> "; color: var(--prod-faint); }
+        .prod-subchip { display: inline-flex; align-items: center; gap: 3px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
+        .prod-client-dot { font-size: 10px; }
+        .prod-due { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
+        .prod-due.over { color: #b45309; border-color: rgba(180,83,9,.28); background: rgba(180,83,9,.06); }
+        .prod-created { width: 42px; flex: none; text-align: right; color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+        .prod-board { background: var(--prod-content); }
+        .prod-col { background: transparent; }
+        .prod-col-head .prod-icon-btn { width: 22px; height: 22px; color: var(--prod-faint); }
+        .prod-card { cursor: pointer; }
+        .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; }
+        .prod-card:hover .prod-card-check { opacity: 1; }
+        .prod-card-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); font-size: 13px; }
+        .prod-card-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+        .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
+        .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
+        .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-detail-inner { max-width: 760px; }
+        .prod-desc { margin-bottom: 16px; }
+        .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
+        .prod-file-line b { font-weight: 600; }
+        .prod-subrow .prod-title { flex: 1; }
+        .prod-right { padding: 18px 14px; }
+        .prod-side-card { border: 0; border-radius: 8px; background: transparent; margin-bottom: 12px; }
+        .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
+        .prod-side-row { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--prod-strong); font-size: 13px; }
+        .prod-side-row.muted { color: var(--prod-muted); }
+        .prod-parent-link { border: 0; background: transparent; padding: 0; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; }
+        .prod-parent-link:hover { text-decoration: underline; }
+        .prod-composer-box { text-align: left; cursor: not-allowed; }
         @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; } .prod-chip.optional { display: none; } }
 
         /* Workload calendar */
@@ -25736,6 +25804,21 @@
             duplicate: 'Duplicate'
         };
         const PROD_STATUS_ORDER = ['triage','backlog','todo','in_progress','smm_approval','kasper_approval','client_approval','tweak','approved','scheduled','posted','canceled','duplicate'];
+        const PROD_STATUS_META = {
+            triage: { type: 'triage', color: '#f2994a' },
+            backlog: { type: 'backlog', color: '#a4a8ae' },
+            todo: { type: 'unstarted', color: '#a8a8a8' },
+            in_progress: { type: 'started', color: '#c6a333', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z' },
+            smm_approval: { type: 'started', color: '#ed86bc', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z' },
+            kasper_approval: { type: 'started', color: '#eb5757', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z' },
+            tweak: { type: 'started', color: '#db6e1f', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 5.249999999999998 z' },
+            client_approval: { type: 'started', color: '#ff0016', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z' },
+            approved: { type: 'completed', color: '#43bc58' },
+            scheduled: { type: 'completed', color: '#0044ff' },
+            posted: { type: 'completed', color: '#5e6ad2' },
+            canceled: { type: 'canceled', color: '#95a2b3' },
+            duplicate: { type: 'duplicate', color: '#95a2b3' }
+        };
         const PROD_BOARD_STATUS = {
             backlog: 'Backlog',
             planned: 'Planned',
@@ -25754,6 +25837,9 @@
             clientSlug: '',
             openId: '',
             openBatchId: '',
+            tab: 'active',
+            secOpen: { fav: true, ws: true, teams: true },
+            teamOpen: { video: true, graphics: true },
             clients: [],
             members: [],
             batches: [],
@@ -25832,10 +25918,82 @@
             const p = s.split('-');
             return p.length === 3 ? (p[1] + '/' + p[2]) : s;
         }
+        function _prodStatusType(status) {
+            const m = PROD_STATUS_META[status] || {};
+            return m.type || 'unstarted';
+        }
+        function _prodIsDone(status) {
+            return ['completed','canceled','duplicate'].includes(_prodStatusType(status)) || status === 'posted' || status === 'scheduled' || status === 'approved';
+        }
+        function _prodStatusSVG(status) {
+            const m = PROD_STATUS_META[status] || { type: 'unstarted', color: '#a8a8a8' };
+            const c = m.color;
+            if (m.type === 'triage') {
+                return '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" fill="' + c + '" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14m1.013-4.492V8.982H6.987v1.526c0 .421-.51.647-.838.37L3.174 8.372a.482.482 0 0 1 0-.742L6.15 5.121c.328-.276.838-.05.838.371v1.526h2.026V5.492c0-.421.51-.647.838-.37l2.975 2.507a.48.48 0 0 1 0 .742L9.85 10.879c-.328.276-.838.05-.838-.371"/></svg>';
+            }
+            let inner = '';
+            if (m.type === 'backlog') inner = '<circle cx="7" cy="7" r="6" fill="none" stroke="' + c + '" stroke-width="1.5" stroke-dasharray="1.4 1.74"/>';
+            else if (m.type === 'started') inner = '<rect x="1" y="1" width="12" height="12" rx="6" fill="none" stroke="' + c + '" stroke-width="1.5"/><path fill="' + c + '" transform="translate(3.5,3.5)" d="' + (m.pie || '') + '"/>';
+            else if (m.type === 'completed') inner = '<path fill-rule="evenodd" fill="' + c + '" d="M7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0ZM11.101 5.10104C11.433 4.76909 11.433 4.23091 11.101 3.89896C10.7691 3.56701 10.2309 3.56701 9.89896 3.89896L5.5 8.29792L4.10104 6.89896C3.7691 6.56701 3.2309 6.56701 2.89896 6.89896C2.56701 7.2309 2.56701 7.7691 2.89896 8.10104L4.89896 10.101C5.2309 10.433 5.7691 10.433 6.10104 10.101L11.101 5.10104Z"/>';
+            else if (m.type === 'canceled') inner = '<path fill-rule="evenodd" fill="' + c + '" d="M7 14C10.866 14 14 10.866 14 7C14 3.13401 10.866 0 7 0C3.13401 0 0 3.13401 0 7C0 10.866 3.13401 14 7 14ZM5.03033 3.96967C4.73744 3.67678 4.26256 3.67678 3.96967 3.96967C3.67678 4.26256 3.67678 4.73744 3.96967 5.03033L5.93934 7L3.96967 8.96967C3.67678 9.26256 3.67678 9.73744 3.96967 10.0303C4.26256 10.3232 4.73744 10.3232 5.03033 10.0303L7 8.06066L8.96967 10.0303C9.26256 10.3232 9.73744 10.3232 10.0303 10.0303C10.3232 9.73744 10.3232 9.26256 10.0303 8.96967L8.06066 7L10.0303 5.03033C10.3232 4.73744 10.3232 4.26256 10.0303 3.96967C9.73744 3.67678 9.26256 3.67678 8.96967 3.96967L7 5.93934L5.03033 3.96967Z"/>';
+            else if (m.type === 'duplicate') inner = '<circle cx="7" cy="7" r="7" fill="' + c + '"/><path d="M4.6 9.4 9.4 4.6" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>';
+            else inner = '<rect x="1" y="1" width="12" height="12" rx="6" fill="none" stroke="' + c + '" stroke-width="1.5"/>';
+            return '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + inner + '</svg>';
+        }
+        function _prodStatusIcon(status) {
+            return '<span class="prod-status" data-status="' + _calEscAttr(status || '') + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '">' + _prodStatusSVG(status) + '</span>';
+        }
+        function _prodIcon(name) {
+            if (name === 'search') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2 13 13"/></svg>';
+            if (name === 'issues') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M4 3.5h8M4 8h8M4 12.5h8"/></svg>';
+            if (name === 'project') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M3 4.5 8 2l5 2.5v7L8 14l-5-2.5z"/></svg>';
+            if (name === 'chevD') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m4.5 6 3.5 3.5L11.5 6"/></svg>';
+            if (name === 'chevR') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m6 4.5 3.5 3.5L6 11.5"/></svg>';
+            if (name === 'plus') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>';
+            if (name === 'dots') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="4" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12" cy="8" r="1.2"/></svg>';
+            if (name === 'cal') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35"><rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M5 2.5v2M11 2.5v2M2.5 6.5h11"/></svg>';
+            if (name === 'filter') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M3 4h10M5 8h6M7 12h2"/></svg>';
+            if (name === 'display') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M6 3v10M2.5 7h11"/></svg>';
+            if (name === 'star') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="m8 2.2 1.65 3.35 3.7.54-2.68 2.6.63 3.68L8 10.63l-3.3 1.74.63-3.68-2.68-2.6 3.7-.54z"/></svg>';
+            if (name === 'bell') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M5 12h6M6 12a2 2 0 0 0 4 0M4.5 10.5h7l-.8-1.2V6.7a2.7 2.7 0 0 0-5.4 0v2.6z"/></svg>';
+            if (name === 'back') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>';
+            return '';
+        }
+        function _prodClientEmoji(slug) {
+            const c = _prodClient(slug);
+            return c && c.emoji ? c.emoji : 'S';
+        }
+        function _prodBatchRows(batchId) {
+            return _prodState.deliverables.filter(d => batchId && d.batch_id === batchId);
+        }
+        function _prodSubProgress(d) {
+            const rows = _prodBatchRows(d && d.batch_id).filter(x => x.id !== d.id);
+            if (!rows.length) return null;
+            return { done: rows.filter(x => _prodIsDone(x.status)).length, total: rows.length };
+        }
+        function _prodOverdue(v, status) {
+            if (!v || _prodIsDone(status)) return false;
+            const day = String(v).slice(0, 10);
+            return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < new Date().toISOString().slice(0, 10);
+        }
+        function _prodTabAllows(status) {
+            if (_prodState.tab === 'backlog') return status === 'backlog' || status === 'triage';
+            if (_prodState.tab === 'all') return true;
+            return ['todo','in_progress','smm_approval','kasper_approval','client_approval','tweak','approved','scheduled'].includes(status || '');
+        }
+        function _prodMyMemberId() {
+            const withRows = new Set(_prodState.deliverables.map(d => d.assignee_id).filter(Boolean));
+            const sidney = _prodState.members.find(m => /sidney/i.test(String(m.name || m.email || '')) && withRows.has(m.id));
+            if (sidney) return sidney.id;
+            const active = _prodState.members.find(m => m.active !== false && withRows.has(m.id));
+            return active ? active.id : '';
+        }
         function _prodIssueRows() {
             const rows = _prodState.deliverables.slice();
             return rows.filter(d => _prodState.team === 'all' || d.team === _prodState.team)
                 .filter(d => !_prodState.clientSlug || d.client_slug === _prodState.clientSlug)
+                .filter(d => _prodState.view !== 'my' || (d.assignee_id && d.assignee_id === _prodMyMemberId()))
+                .filter(d => _prodState.view === 'detail' || _prodState.view === 'batch' || _prodState.view === 'board' || _prodTabAllows(d.status))
                 .sort((a, b) => {
                     const s = PROD_STATUS_ORDER.indexOf(a.status) - PROD_STATUS_ORDER.indexOf(b.status);
                     if (s) return s;
@@ -25866,6 +26024,10 @@
                 const q = new URLSearchParams(location.search);
                 const team = q.get('team');
                 if (team === 'video' || team === 'graphics') _prodState.team = team;
+                const view = q.get('view');
+                if (view === 'my' || view === 'board' || view === 'list') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : 'list';
+                const tab = q.get('issues');
+                if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
                 const client = q.get('client');
                 if (client) _prodState.clientSlug = client;
                 const d = q.get('d');
@@ -25883,8 +26045,13 @@
                 q.delete('batch');
                 q.delete('team');
                 q.delete('client');
+                q.delete('view');
+                q.delete('issues');
                 if (_prodState.team !== 'all') q.set('team', _prodState.team);
                 if (_prodState.clientSlug) q.set('client', _prodState.clientSlug);
+                if (_prodState.view === 'my') q.set('view', 'my');
+                if (_prodState.view === 'board') q.set('view', 'board');
+                if (_prodState.tab !== 'active' && (_prodState.view === 'list' || _prodState.view === 'my')) q.set('issues', _prodState.tab);
                 Object.entries(extra || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
                 const url = location.pathname + '?' + q.toString() + '#production';
                 const state = { nav: 'production', client: null };
@@ -25948,8 +26115,34 @@
             _prodRender();
         }
         function _prodSetView(view) {
-            _prodState.view = view === 'board' ? 'board' : 'list';
+            _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : 'list';
             if (_prodState.view === 'board') _prodState.clientSlug = '';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetTab(tab) {
+            _prodState.tab = tab === 'backlog' ? 'backlog' : tab === 'all' ? 'all' : 'active';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodToggleSection(section) {
+            if (!_prodState.secOpen[section]) _prodState.secOpen[section] = true;
+            else _prodState.secOpen[section] = false;
+            _prodRender();
+        }
+        function _prodToggleTeam(team) {
+            if (!_prodState.teamOpen[team]) _prodState.teamOpen[team] = true;
+            else _prodState.teamOpen[team] = false;
+            _prodRender();
+        }
+        function _prodOpenTeamView(team, view) {
+            _prodState.team = team === 'video' || team === 'graphics' ? team : 'all';
+            _prodState.view = view === 'board' ? 'board' : 'list';
+            _prodState.clientSlug = '';
             _prodState.openId = '';
             _prodState.openBatchId = '';
             _prodSetQuery({}, true);
@@ -25989,25 +26182,54 @@
             root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             if (_prodState.view === 'detail' && _prodState.openId && _prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
         }
+        function _prodNavItem(icon, label, active, onClick, cls, count) {
+            return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span>' + (count !== undefined ? '<span class="prod-nav-count">' + count + '</span>' : '') + '</button>';
+        }
         function _prodSidebar() {
             const c = _prodCounts();
-            const btn = (team, label, count, icon) => '<button class="prod-nav-btn' + (_prodState.team === team ? ' active' : '') + '" type="button" onclick="_prodSetTeam(' + _jsAttrArg(team) + ')">' + icon + '<span>' + _calEsc(label) + '</span><span class="prod-nav-count">' + count + '</span></button>';
-            return '<aside class="prod-side"><div class="prod-brand"><span class="prod-brand-mark">S</span><span>SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div>'
-                + '<div class="prod-side-section"><div class="prod-side-label">Workspace</div>'
-                + btn('all', 'All issues', c.all, '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M3 8h10M3 11.5h10"/></svg>')
-                + btn('video', 'Video', c.video, '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="4" width="8" height="8" rx="1.5"/><path d="M10.5 6.5l3-1.8v6.6l-3-1.8"/></svg>')
-                + btn('graphics', 'Graphics', c.graphics, '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="M5.5 10.5l2-2 1.5 1.5 1.5-2 2 2.5"/></svg>')
-                + '</div><div class="prod-side-section"><div class="prod-side-label">Views</div>'
-                + '<button class="prod-nav-btn' + (_prodState.view !== 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M3 8h10M3 12h10"/></svg><span>List</span></button>'
-                + '<button class="prod-nav-btn' + (_prodState.view === 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3" width="3" height="10" rx="1"/><rect x="6.5" y="3" width="3" height="10" rx="1"/><rect x="10.5" y="3" width="3" height="10" rx="1"/></svg><span>Board</span></button>'
+            const favIssues = _prodState.deliverables.filter(d => d.favorite || d.fav);
+            const favHTML = favIssues.length
+                ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                    + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
+                : '';
+            const teamBlock = team => {
+                const open = _prodState.teamOpen[team] !== false;
+                const label = _prodTeamLabel(team);
+                const emoji = team === 'video' ? '📽️' : '🎨';
+                return '<div class="prod-nav"><button class="prod-team-hd' + (open ? '' : ' collapsed') + '" type="button" onclick="_prodToggleTeam(' + _jsAttrArg(team) + ')"><span class="prod-team-emoji">' + emoji + '</span><span class="prod-team-name">' + label + '</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                    + (open
+                        ? _prodNavItem(_prodIcon('issues'), 'Issues', (_prodState.view === 'list' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('list') + ')', 'child', c[team])
+                            + _prodNavItem(_prodIcon('project'), 'Projects', (_prodState.view === 'board' && _prodState.team === team), '_prodOpenTeamView(' + _jsAttrArg(team) + ',' + _jsAttrArg('board') + ')', 'child')
+                        : '')
+                    + '</div>';
+            };
+            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div><button class="prod-search-btn" type="button" title="Search (⌘K)">' + _prodIcon('search') + '</button></div>'
+                + '<div class="prod-side-scroll"><div class="prod-nav">'
+                + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
+                + '</div>' + favHTML
+                + '<button class="prod-nav-section' + (_prodState.secOpen.ws ? '' : ' collapsed') + '" type="button" onclick="_prodToggleSection(' + _jsAttrArg('ws') + ')"><span class="prod-section-label">Workspace</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                + (_prodState.secOpen.ws ? '<div class="prod-nav">' + _prodNavItem(_prodIcon('project'), 'Projects', _prodState.view === 'board' && _prodState.team === 'all', '_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')') + '</div>' : '')
+                + '<button class="prod-nav-section' + (_prodState.secOpen.teams ? '' : ' collapsed') + '" type="button" onclick="_prodToggleSection(' + _jsAttrArg('teams') + ')"><span class="prod-section-label">Your teams</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
+                + (_prodState.secOpen.teams ? teamBlock('video') + teamBlock('graphics') : '')
                 + '</div></aside>';
         }
         function _prodTopbar() {
-            const viewName = _prodState.view === 'board' ? 'Board' : _prodState.view === 'detail' ? 'Issue detail' : _prodState.view === 'batch' ? 'Batch detail' : 'List';
+            if (_prodState.view === 'detail' || _prodState.view === 'batch') return _prodDetailTopbar();
+            const viewName = _prodState.view === 'board' ? 'Projects' : _prodState.view === 'my' ? 'My issues' : 'Issues';
             const clientFilter = _prodClientFilterLabel();
-            return '<div class="prod-topbar"><div class="prod-crumb"><span>Production</span><span style="color:var(--prod-faint)">/</span><span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span>' + (clientFilter ? '<span style="color:var(--prod-faint)">/</span><span>' + _calEsc(clientFilter) + '</span>' : '') + '<span style="color:var(--prod-faint)">/</span><span>' + _calEsc(viewName) + '</span></div>'
-                + '<div class="prod-tabs"><button class="prod-tab' + (_prodState.view !== 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')">All issues</button><button class="prod-tab' + (_prodState.view === 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')">Clients</button></div>'
-                + '<div class="prod-spacer"></div><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>';
+            const crumb = '<div class="prod-crumb"><span>Production</span><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span>' + (clientFilter ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(clientFilter) + '</span>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(viewName) + '</span></div>';
+            const tabs = _prodState.view === 'board'
+                ? '<div class="prod-tabs"><button class="prod-tab active" type="button">All projects</button></div>'
+                : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
+            const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills"><span class="prod-filter-pill">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></span>' + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '') + '</div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('display') + '</button></div>';
+            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>' + subbar;
+        }
+        function _prodDetailTopbar() {
+            const d = _prodState.openId ? _prodState.deliverables.find(x => x.id === _prodState.openId) : null;
+            const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batch_id) : null;
+            const clientSlug = d ? d.client_slug : batch ? batch.client_slug : '';
+            const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span>' + (batch ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(batch.name || 'Batch') + '</span>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return '<div class="prod-loading">Loading migrated production data...</div>';
@@ -26027,22 +26249,39 @@
                 if (!grouped.has(k)) grouped.set(k, []);
                 grouped.get(k).push(r);
             });
-            return '<div class="prod-listwrap">' + Array.from(grouped.entries()).map(([status, items]) =>
-                '<div class="prod-group" data-prod-group="' + _calEscAttr(status) + '"><span class="prod-status-dot" data-status="' + _calEscAttr(status) + '"></span><span class="prod-group-title">' + _calEsc(_prodStatusLabel(status)) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">+</button></div>'
-                + items.map(_prodRow).join('')
-            ).join('') + '</div>';
+            const keys = PROD_STATUS_ORDER.filter(k => grouped.has(k)).concat([...grouped.keys()].filter(k => !PROD_STATUS_ORDER.includes(k)));
+            return '<div class="prod-listwrap">' + keys.map(status => {
+                const items = grouped.get(status) || [];
+                return '<div class="prod-group" data-prod-group="' + _calEscAttr(status) + '">' + _prodStatusIcon(status) + '<span class="prod-group-title">' + _calEsc(_prodStatusLabel(status)) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
+                    + items.map(_prodRow).join('');
+            }).join('') + '</div>';
         }
         function _prodRow(d) {
             const assignee = _prodMember(d.assignee_id);
             const batch = _prodBatch(d.batch_id);
+            const sub = _prodSubProgress(d);
+            const clientName = _prodDisplayClient(d.client_slug);
             return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.client_slug || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-status-dot" data-status="' + _calEscAttr(d.status) + '" title="' + _calEscAttr(_prodStatusLabel(d.status)) + '"></span>'
+                + '<span class="prod-check" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
-                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch ? '<span class="prod-subtle">/ ' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
-                + '<span class="prod-chip optional">' + _calEsc(_prodDisplayClient(d.client_slug)) + '</span>'
-                + (d.due_date ? '<span class="prod-chip">' + _calEsc(_prodFmtDate(d.due_date)) + '</span>' : '<span class="prod-chip optional">No due date</span>')
-                + '<span class="prod-chip">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'Unassigned') + '</span></span>'
+                + _prodStatusIcon(d.status)
+                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch ? '<span class="prod-parent-title">' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
+                + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
+                + '<span class="prod-spacer"></span><span class="prod-chip optional"><span class="prod-client-dot">' + _calEsc(_prodClientEmoji(d.client_slug)) + '</span><span>' + _calEsc(clientName) + '</span></span>'
+                + (d.due_date ? '<span class="prod-due' + (_prodOverdue(d.due_date, d.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(d.due_date)) + '</span>' : '<span class="prod-due optional">' + _prodIcon('cal') + '</span>')
+                + '<span title="' + _calEscAttr(assignee ? assignee.name : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
+                + '<span class="prod-created">' + _calEsc(_prodFmtDate(d.created_at)) + '</span>'
                 + '</div>';
+        }
+        function _prodProjectStatusIcon(status) {
+            const color = status === 'backlog' ? '#d9863a' : status === 'in_progress' ? '#e0b83a' : status === 'completed' ? '#5e6ad2' : status === 'canceled' ? '#8a8f98' : '#a5a6ab';
+            const extra = status === 'in_progress' ? '<circle cx="7" cy="7" r="2.4" fill="' + color + '"/>'
+                : status === 'completed' ? '<path d="M4.6 7.1 6.2 8.7 9.4 5.3" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+                : status === 'paused' ? '<rect x="5.4" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/><rect x="7.6" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/>'
+                : status === 'canceled' ? '<path d="M5.4 5.4 8.6 8.6M8.6 5.4 5.4 8.6" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"/>'
+                : '';
+            const dash = status === 'backlog' ? ' stroke-dasharray="1.65 1.35"' : '';
+            return '<svg width="16" height="16" viewBox="-1 -1 16 16" aria-hidden="true"><path d="M2.95778 3.02069L5.70777 1.36023C6.50244 0.88041 7.49756 0.88041 8.29223 1.36024L11.0422 3.02074C11.7918 3.47336 12.25 4.2852 12.25 5.16086V8.84803C12.25 9.7251 11.7904 10.5381 11.0388 10.9902L8.29114 12.6433C7.49693 13.1211 6.50355 13.1203 5.71011 12.6412L2.95775 10.9792C2.20815 10.5266 1.75 9.7148 1.75 8.83911V5.16082C1.75 4.28516 2.20816 3.47332 2.95778 3.02069Z" fill="none" stroke="' + color + '" stroke-width="1.4" stroke-linejoin="round"' + dash + '/>' + extra + '</svg>';
         }
         function _prodBoard() {
             const rows = _prodIssueRows();
@@ -26050,14 +26289,15 @@
             rows.forEach(d => byClient.set(d.client_slug, (byClient.get(d.client_slug) || 0) + 1));
             return '<div class="prod-board">' + PROD_BOARD_ORDER.map(status => {
                 const cards = _prodState.clients.filter(c => (c.board_status || 'in_progress') === status && byClient.has(c.slug));
-                return '<section class="prod-col" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><span class="prod-status-dot" data-status="' + (status === 'in_progress' ? 'in_progress' : 'todo') + '"></span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">+</button></div><div class="prod-cards">'
-                    + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.slug) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No clients</div>')
+                return '<section class="prod-col" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div><div class="prod-cards">'
+                    + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.slug) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No projects</div>')
                     + '</div></section>';
             }).join('') + '</div>';
         }
         function _prodClientCard(c, count) {
             const lead = _prodMember(c.lead_member_id);
-            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.slug || '') + ')"><div class="prod-card-head"><span style="font-size:13px">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-status-dot" data-status="in_progress"></span>' + _prodAvatar(lead, 17) + '</div>'
+            const status = c.board_status || 'in_progress';
+            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.slug || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
                 + (c.board_desc ? '<div class="prod-card-desc">' + _calEsc(c.board_desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target_date ? '<span>' + _calEsc(_prodFmtDate(c.target_date)) + '</span>' : '') + '</div></article>';
         }
@@ -26072,10 +26312,9 @@
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + '<div class="prod-desc">' + (d.brief ? _calEsc(d.brief) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
-                + (file ? '<div class="prod-subsection"><a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">Open delivery link</a></div>' : '')
-                + (batch ? '<div class="prod-subsection"><div class="prod-subhead">Batch <span class="prod-group-count">1</span></div><div class="prod-subrow" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')"><span class="prod-status-dot" data-status="' + _calEscAttr(d.status) + '"></span><span class="prod-id">' + _calEsc(batch.team || 'mixed') + '</span><span class="prod-title"><b>' + _calEsc(batch.name) + '</b></span></div></div>' : '')
-                + (kids.length ? '<div class="prod-subsection"><div class="prod-subhead">Related deliverables <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')"><span class="prod-status-dot" data-status="' + _calEscAttr(k.status) + '"></span><span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span></div>').join('') + '</div>' : '')
-                + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><div class="prod-composer-box">Commenting is disabled in this preview.</div></div></div>'
+                + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
+                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + (kids.length ? kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due_date ? '<span class="prod-due' + (_prodOverdue(k.due_date, k.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(k.due_date)) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee_id), 18) + '</span></div>').join('') : '<div style="color:var(--prod-faint);font-size:12.5px;padding:10px 0">No sub-issues in this batch.</div>') + '</div>'
+                + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" disabled title="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, batch, assignee, file) + '</aside></div>';
         }
         function _prodBatchDetail() {
@@ -26084,7 +26323,7 @@
             const rows = _prodState.deliverables.filter(d => d.batch_id === batch.id);
             return '<div class="prod-detail"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + (batch.description ? _calEsc(batch.description) : '<span style="color:var(--prod-faint)">No batch description.</span>') + '</div>'
-                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')"><span class="prod-status-dot" data-status="' + _calEscAttr(d.status) + '"></span><span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'
@@ -26092,20 +26331,17 @@
                 + '</div></aside></div>';
         }
         function _prodProps(d, batch, assignee, file) {
-            const prop = (label, value) => '<div class="prod-prop"><span class="prod-prop-label">' + _calEsc(label) + '</span><span>' + (value || '<span style="color:var(--prod-faint)">None</span>') + '</span></div>';
+            const client = _prodClient(d.client_slug);
+            const sideRow = value => '<div class="prod-side-row">' + value + '</div>';
+            const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
             return '<div class="prod-props">'
-                + prop('Status', '<span class="prod-status-dot" data-status="' + _calEscAttr(d.status) + '" style="display:inline-grid;vertical-align:middle;margin-right:6px"></span>' + _calEsc(_prodStatusLabel(d.status)))
-                + prop('Assignee', _prodAvatar(assignee, 18) + ' ' + _calEsc(assignee ? assignee.name : 'Unassigned'))
-                + prop('Due date', _calEsc(d.due_date || ''))
-                + prop('Client', _calEsc(_prodDisplayClient(d.client_slug)))
-                + prop('Team', _calEsc(_prodTeamLabel(d.team)))
-                + prop('Kind', _calEsc(d.kind || 'other'))
-                + prop('Batch', batch ? '<button class="prod-readonly-control" type="button" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')">' + _calEsc(batch.name) + '</button>' : '')
-                + prop('Origin', _calEsc(d.origin || 'manual'))
-                + prop('Sync', _calEsc(d.sync_state || 'clean'))
-                + prop('Linear', d.linear_issue_url ? '<a class="prod-link" href="' + _calEscAttr(d.linear_issue_url) + '" target="_blank" rel="noopener">' + _calEsc(d.linear_identifier || 'Open') + '</a>' : _calEsc(d.linear_identifier || ''))
-                + prop('File', file ? '<a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">Open</a>' : '')
-                + '<div class="prod-prop"><span class="prod-prop-label">Controls</span><span class="prod-disabled-pill"><button type="button" data-prod-disabled="detail-controls" disabled title="' + _prodPreviewText() + '">Disabled</button></span></div>'
+                + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
+                + sideRow(_prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span>')
+                + sideRow(_prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span>')
+                + sideRow(_prodIcon('cal') + '<span>' + (d.due_date ? _calEsc(_prodFmtDate(d.due_date)) : muted('Add due date')) + '</span>')
+                + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="detail-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div>'
+                + (batch ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(batch.name || 'Batch') + '</span></button></div></div>' : '')
+                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><span class="prod-card-ico">' + _calEsc(client && client.emoji ? client.emoji : 'S') + '</span><span>' + _calEsc(_prodDisplayClient(d.client_slug)) + '</span></div></div>'
                 + '</div>';
         }
         function _prodActivity(events) {

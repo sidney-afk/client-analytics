@@ -7,7 +7,7 @@
  * checks the wired SyncView Production preview surface instead:
  *   - ?prod=1 mounts without the analytics data path
  *   - migrated B1 rows render in the list
- *   - team filters, detail, batch links, and deep links work
+ *   - team filters, client-board filters, detail, batch links, and deep links work
  *   - the client board renders all locked columns
  *   - visible write affordances remain disabled
  *   - the preview makes no non-GET/HEAD/OPTIONS browser requests
@@ -139,9 +139,18 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('[data-prod-client-card]').count() < 1) throw new Error('Client board rendered no real-data client cards');
     await maybeShot(page, 'prod-board');
 
+    const clientSlug = await page.locator('[data-prod-client-card]').first().getAttribute('data-prod-client-card');
+    if (!clientSlug) throw new Error('Client board cards do not expose stable client slugs');
+    await page.locator('[data-prod-client-card]').first().click();
+    await page.waitForSelector('.prod-row', { timeout: 10000 });
+    const clientUrl = new URL(page.url());
+    if (clientUrl.searchParams.get('client') !== clientSlug) throw new Error('Client board card did not write a stable ?prod=1&client=... URL');
+    const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
+    if (badClientRows) throw new Error('Client-filtered list included another client');
+
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
-    console.log('prod-readonly-smoke: list, team filter, detail, deep link, batch link, board, disabled controls, no-write requests, and console checks passed');
+    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, board, disabled controls, no-write requests, and console checks passed');
   } finally {
     await browser.close().catch(() => {});
     server.close();

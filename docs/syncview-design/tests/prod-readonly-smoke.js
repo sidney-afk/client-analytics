@@ -121,6 +121,10 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (disabledControls < 1) throw new Error('No disabled write affordances were rendered');
     if (await page.locator('[data-prod-disabled]:not(:disabled)').count()) throw new Error('A write affordance is not disabled');
     if (!(await text(page, '.prod-composer-box')).includes('disabled')) throw new Error('Comment composer did not render the read-only hint');
+    await page.waitForFunction(() => {
+      const activity = document.querySelector('.prod-activity');
+      return activity && !activity.textContent.includes('Loading activity');
+    }, { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 
     const batchBtn = page.locator('.prod-prop').filter({ hasText: 'Batch' }).locator('button').first();

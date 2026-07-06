@@ -7,8 +7,8 @@
  * checks the wired SyncView Production preview surface instead:
  *   - ?prod=1 mounts without the analytics data path
  *   - migrated B1 rows render in the list
- *   - team filters, client-board filters, detail, batch links, and deep links work
- *   - the client board renders all locked columns
+ *   - team filters, project-board filters, detail, batch links, and deep links work
+ *   - the projects board renders all locked columns
  *   - visible write affordances remain disabled
  *   - the preview makes no non-GET/HEAD/OPTIONS browser requests
  *   - a mobile viewport can open list and detail without errors
@@ -99,7 +99,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (!rowStatuses.length) throw new Error('Production rows did not expose migrated status slugs');
     await maybeShot(page, 'prod-list');
 
-    await page.locator('.prod-nav-btn', { hasText: 'Video' }).first().click();
+    await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Issues' }).first().click();
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
     if (!new URL(page.url()).searchParams.has('team')) throw new Error('Video team filter did not preserve ?prod=1&team=...');
     const videoRows = await page.locator('.prod-row').count();
@@ -107,7 +107,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
       const badTeamRows = await page.locator('.prod-row').evaluateAll(nodes => nodes.filter(n => n.getAttribute('data-prod-team') !== 'video').length);
       if (badTeamRows) throw new Error('Video team view included non-video deliverables');
     }
-    await page.locator('.prod-nav-btn', { hasText: 'All issues' }).first().click();
+    await page.evaluate(() => window._prodOpenTeamView('all', 'list'));
     await page.waitForSelector('.prod-row', { timeout: 10000 });
 
     await page.locator('.prod-row').first().click();
@@ -127,7 +127,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     }, { timeout: 15000 });
     await maybeShot(page, 'prod-detail');
 
-    const batchBtn = page.locator('.prod-prop').filter({ hasText: 'Batch' }).locator('button').first();
+    const batchBtn = page.locator('.prod-parent-link').first();
     if (await batchBtn.count()) {
       await batchBtn.click();
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
@@ -140,21 +140,21 @@ async function newAuthedPage(browser, viewport, errors, requests) {
       throw new Error('Direct deliverable deep link did not open the requested row');
     }
 
-    await page.locator('.prod-tab', { hasText: 'Clients' }).first().click();
+    await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });
-    if (await page.locator('.prod-col').count() !== 6) throw new Error('Client board columns did not render');
+    if (await page.locator('.prod-col').count() !== 6) throw new Error('Projects board columns did not render');
     const boardCols = await page.locator('.prod-col').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-prod-col')));
     const expectedCols = ['backlog', 'planned', 'in_progress', 'paused', 'completed', 'canceled'];
-    if (expectedCols.some(c => !boardCols.includes(c))) throw new Error('Client board is missing expected columns: ' + boardCols.join(','));
-    if (await page.locator('[data-prod-client-card]').count() < 1) throw new Error('Client board rendered no real-data client cards');
+    if (expectedCols.some(c => !boardCols.includes(c))) throw new Error('Projects board is missing expected columns: ' + boardCols.join(','));
+    if (await page.locator('[data-prod-client-card]').count() < 1) throw new Error('Projects board rendered no real-data project cards');
     await maybeShot(page, 'prod-board');
 
     const clientSlug = await page.locator('[data-prod-client-card]').first().getAttribute('data-prod-client-card');
-    if (!clientSlug) throw new Error('Client board cards do not expose stable client slugs');
+    if (!clientSlug) throw new Error('Projects board cards do not expose stable client slugs');
     await page.locator('[data-prod-client-card]').first().click();
     await page.waitForSelector('.prod-row', { timeout: 10000 });
     const clientUrl = new URL(page.url());
-    if (clientUrl.searchParams.get('client') !== clientSlug) throw new Error('Client board card did not write a stable ?prod=1&client=... URL');
+    if (clientUrl.searchParams.get('client') !== clientSlug) throw new Error('Projects board card did not write a stable ?prod=1&client=... URL');
     const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
     if (badClientRows) throw new Error('Client-filtered list included another client');
 
@@ -176,7 +176,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
 
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
-    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, board, mobile, disabled controls, no-write requests, and console checks passed');
+    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, projects board, mobile, disabled controls, no-write requests, and console checks passed');
   } finally {
     await browser.close().catch(() => {});
     server.close();

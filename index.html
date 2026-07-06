@@ -21246,7 +21246,7 @@
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
         }
-        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid)}`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
@@ -22504,9 +22504,20 @@
                   tooltip (title) + aria-label
        Respects prefers-reduced-motion (CSS drops the rotation; state reads by
        colour only) and is themed entirely through CSS variables (light + dark). */
-    function _svSaveIndHtml(id, attr) {
+    function _svSaveIndHtml(id, attr, errorDetail) {
         const a = attr || 'data-sv-save-ind';
-        return `<span class="sv-save-ind" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" hidden>`
+        // When the surface persists a save-error flag, render the indicator
+        // ALREADY in its error state: a failed save re-renders the card (the
+        // element is destroyed and re-emitted), so a plain hidden span would
+        // drop the red ring before it ever paints. Rendering the error state
+        // from the persisted flag — exactly like the foot Save-failed chip —
+        // makes it survive that re-render. With no error it starts hidden and
+        // _svSaveIndApply drives the live saving/saved transitions.
+        const err = errorDetail ? String(errorDetail) : '';
+        const open = err
+            ? `<span class="sv-save-ind is-error" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" title="${_calEscAttr(err)}" aria-label="${_calEscAttr('Save failed: ' + err)}">`
+            : `<span class="sv-save-ind" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" hidden>`;
+        return open
             + `<svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">`
             + `<circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"/>`
             + `<circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"/>`

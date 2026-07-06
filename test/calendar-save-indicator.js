@@ -109,10 +109,22 @@ const _svSaveIndHtml = new Function('_calEscAttr', 'return (' + grabFunc('_svSav
   check('indicator is a polite status region for screen readers',
     /role="status"/.test(h) && /aria-live="polite"/.test(h));
 }
+{
+  // Error persistence: with a save-error detail the indicator renders ALREADY in
+  // its error state (not hidden), so it survives the re-render that follows a
+  // failed save instead of resetting to a fresh hidden span.
+  const h = _svSaveIndHtml('vid_abc123', null, 'HTTP 500 upsert failed');
+  check('error-detail render is NOT hidden', !/class="sv-save-ind[^"]*"[^>]*\shidden/.test(h));
+  check('error-detail render carries the is-error state', /class="sv-save-ind is-error"/.test(h));
+  check('error-detail render puts the detail in the tooltip', /title="HTTP 500 upsert failed"/.test(h));
+  check('error-detail render sets an aria-label with the detail', /aria-label="Save failed: HTTP 500 upsert failed"/.test(h));
+}
 
 // ── Calendar wiring + preserved affordances (source assertions) ──────────────
 check('the calendar title row renders the reusable indicator at its end',
-  INDEX.includes('${_svSaveIndHtml(pid)}'));
+  INDEX.includes('${_svSaveIndHtml(pid, null, p && p._saveError'));
+check('the title-row indicator persists its error state across the post-failure re-render (from p._saveError)',
+  /_svSaveIndHtml\(pid, null, p && p\._saveError \? \(typeof p\._saveError === 'string' \? p\._saveError : 'Save failed'\)/.test(INDEX));
 check('the title row wraps the name input for the fade + indicator',
   INDEX.includes('cal-title-name-wrap') && INDEX.includes('cal-title-fade'));
 check('_calSetCardStatus drives the reusable indicator by card id',

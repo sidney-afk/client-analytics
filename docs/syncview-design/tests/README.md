@@ -6,6 +6,7 @@ session re-runs against the wired Production tab (spec §10.6/§12, decision D-1
 
 | File | What | How to run |
 |---|---|---|
+| `prod-readonly-smoke.js` | B2 wired-tab read-only suite. Runs against `index.html?prod=1`, verifies real migrated rows, team filters, detail/deep links, batch links, board columns, disabled write affordances, no write-like browser requests, and 0 page/console errors. | `node docs/syncview-design/tests/prod-readonly-smoke.js` |
 | `behav.js` | The primary behavioral regression suite — **138 assertions**, one per shipped interaction (list/board/detail/pickers/palette/keyboard/multi-select/undo). Prints `ALL N BEHAVIORS PASS` + `JS ERRORS: 0`. | `node behav.js` (needs Playwright + a built prototype) |
 | `qa-features.js` | Self-verify harness — drives every feature + menu regression sweep, asserts zero page/console errors. Prints `ALL GREEN`. | `node qa-features.js` |
 | `sweep.js` | Interaction fuzz sweep — hovers/clicks every interactive element on all 6 surfaces, asserts 0 JS errors. Prints `SWEEP CLEAN`. | `node sweep.js` |
@@ -17,6 +18,11 @@ session re-runs against the wired Production tab (spec §10.6/§12, decision D-1
 are `docs/syncview-design/SyncView.html` (built) and `docs/syncview-design/syncview-app.src.html`
 (source with the `__INTER_B64__` placeholder — `build.js` needs the Inter woff2, which is
 embedded in the built `SyncView.html` and can be extracted from its `@font-face` base64).
+For B2, the shipped Production tab is intentionally read-only while Linear remains authoritative,
+so the mutating prototype assertions stay on the standalone prototype. The wired-tab gate is
+`prod-readonly-smoke.js`; the original mutating suites become the B3/B4 gate when writes are
+intentionally enabled.
+
 When the Production tab is wired, the suites' selectors must also be adapted to the renamed
 status keys (spec §10.1: prototype `prog`/`smm`/`kasper`/`client` → slugs
 `in_progress`/`smm_approval`/`kasper_approval`/`client_approval`) — that adaptation is part of

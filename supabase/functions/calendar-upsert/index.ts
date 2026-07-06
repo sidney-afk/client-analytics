@@ -23,10 +23,10 @@ const CORS: Record<string, string> = {
 
 const ALLOWED = [
   "order_index", "scheduled_date", "name", "asset_url", "thumbnail_url",
-  "caption", "caption_alt", "caption_alt_platform", "post_url", "cta", "tweaks", "status", "linear_issue_id",
+  "caption", "caption_alt", "caption_alt_platform", "post_url", "cta", "tweaks", "status", "linear_issue_id", "video_deliverable_id",
   "kasper_approved_at", "posted_at", "platform", "platforms", "color",
   "video_status", "graphic_status", "caption_status",
-  "graphic_linear_issue_id",
+  "graphic_linear_issue_id", "graphic_deliverable_id",
   "video_tweaks", "graphic_tweaks", "caption_tweaks",
   "client_video_approved_at", "client_graphic_approved_at", "client_caption_approved_at",
   "title_status", "title_tweaks", "client_title_approved_at",
@@ -43,7 +43,8 @@ const CONTENT_FIELDS = [
 const SCALAR_FIELDS = [
   "scheduled_date", "name", "caption", "caption_alt", "caption_alt_platform", "asset_url", "thumbnail_url",
   "post_url", "cta", "status", "video_status", "graphic_status", "caption_status", "linear_issue_id",
-  "graphic_linear_issue_id", "platform", "platforms", "color", "kasper_approved_at", "posted_at",
+  "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id",
+  "platform", "platforms", "color", "kasper_approved_at", "posted_at",
 ];
 
 const READ_FAILURE_MESSAGE = "Not saved \u2014 the calendar store was briefly unavailable. Your text is kept; please try again in a moment.";

@@ -20,7 +20,8 @@ const CORS: Record<string, string> = {
 
 const ALLOWED = [
   "order_index", "name", "asset_url", "thumbnail_url", "status", "creative_direction", "hide_creative_direction",
-  "linear_issue_id", "graphic_linear_issue_id", "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
+  "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id",
+  "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
   "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev", "created_at",
 ] as const;
@@ -28,11 +29,12 @@ const ALLOWED = [
 const CONTENT_FIELDS = ["name", "asset_url", "thumbnail_url", "creative_direction", "video_tweaks", "graphic_tweaks"];
 const SCALAR_FIELDS = [
   "name", "asset_url", "thumbnail_url", "status", "video_status", "graphic_status", "creative_direction",
-  "linear_issue_id", "graphic_linear_issue_id", "kasper_approved_at",
+  "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id", "kasper_approved_at",
 ];
 const MIRROR_COLS = [
   "id", "order_index", "name", "asset_url", "thumbnail_url", "status", "creative_direction", "hide_creative_direction",
-  "linear_issue_id", "graphic_linear_issue_id", "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
+  "linear_issue_id", "video_deliverable_id", "graphic_linear_issue_id", "graphic_deliverable_id",
+  "video_status", "graphic_status", "video_tweaks", "graphic_tweaks",
   "client_video_approved_at", "client_graphic_approved_at", "kasper_approved_at", "kasper_approved_by", "kasper_seen",
   "kasper_approved_after_tweaks", "kasper_finished_at", "kasper_closed_at", "thumb_rev", "created_at", "updated_at",
 ];

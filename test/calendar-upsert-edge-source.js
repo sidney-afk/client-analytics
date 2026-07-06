@@ -19,7 +19,8 @@ function ok(cond, msg) {
 [
   'order_index', 'scheduled_date', 'name', 'asset_url', 'thumbnail_url',
   'caption', 'caption_alt', 'caption_alt_platform', 'post_url', 'cta',
-  'tweaks', 'status', 'linear_issue_id', 'graphic_linear_issue_id',
+  'tweaks', 'status', 'linear_issue_id', 'video_deliverable_id',
+  'graphic_linear_issue_id', 'graphic_deliverable_id',
   'video_status', 'graphic_status', 'caption_status',
   'video_tweaks', 'graphic_tweaks', 'caption_tweaks',
   'title_status', 'title_tweaks', 'client_title_approved_at',

@@ -11,6 +11,7 @@
  *   - the client board renders all locked columns
  *   - visible write affordances remain disabled
  *   - the preview makes no non-GET/HEAD/OPTIONS browser requests
+ *   - a mobile viewport can open list and detail without errors
  *   - no console/page errors fire
  *
  * Optional: set SYNCVIEW_PROD_SCREENSHOT_DIR to save screenshots.
@@ -66,17 +67,22 @@ async function assertNoWriteRequests(requests) {
   }
 }
 
-(async () => {
-  const server = await serve();
-  const port = server.address().port;
-  const browser = await chromium.launch({ headless: true });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
-  const errors = [];
-  const requests = [];
+async function newAuthedPage(browser, viewport, errors, requests) {
+  const page = await browser.newPage(viewport);
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
   await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  return page;
+}
+
+(async () => {
+  const server = await serve();
+  const port = server.address().port;
+  const browser = await chromium.launch({ headless: true });
+  const errors = [];
+  const requests = [];
+  const page = await newAuthedPage(browser, { viewport: { width: 1440, height: 950 } }, errors, requests);
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
@@ -148,9 +154,25 @@ async function assertNoWriteRequests(requests) {
     const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
     if (badClientRows) throw new Error('Client-filtered list included another client');
 
+    const mobile = await newAuthedPage(browser, {
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+    }, errors, requests);
+    await mobile.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+    await mobile.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
+    if (await mobile.locator('.prod-error').count()) throw new Error('Mobile Production preview rendered an error card');
+    if (await mobile.locator('.prod-row').count() < 1) throw new Error('Mobile Production preview rendered no migrated rows');
+    await maybeShot(mobile, 'prod-mobile-list');
+    await mobile.locator('.prod-row').first().click();
+    await mobile.waitForSelector('.prod-detail-title', { timeout: 10000 });
+    if (await mobile.locator('.prod-detail-title').count() !== 1) throw new Error('Mobile detail view did not open');
+    await maybeShot(mobile, 'prod-mobile-detail');
+    await mobile.close();
+
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));
-    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, board, disabled controls, no-write requests, and console checks passed');
+    console.log('prod-readonly-smoke: list, team filter, client filter, detail, deep link, batch link, board, mobile, disabled controls, no-write requests, and console checks passed');
   } finally {
     await browser.close().catch(() => {});
     server.close();

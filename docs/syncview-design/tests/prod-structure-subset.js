@@ -129,6 +129,41 @@ async function assertNoWriteRequests(requests) {
 
     await expectCount(page, '.prod-group .prod-status svg', 1, 'status-group glyphs');
     await expectCount(page, '.prod-group [data-prod-disabled="add-deliverable"][title="Preview - read-only"]', 1, 'disabled group add controls');
+    const beforeCollapse = await page.locator('.prod-row').count();
+    await page.locator('.prod-group').first().click();
+    const afterCollapse = await page.locator('.prod-row').count();
+    if (!(afterCollapse < beforeCollapse) || !(await page.locator('.prod-group.collapsed .prod-group-chev').count())) throw new Error('Group header did not collapse with chevron state');
+    await page.locator('.prod-group').first().click();
+    await page.locator('.prod-group-check').first().click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Group checkbox did not guard read-only selection');
+    await page.keyboard.press('Escape');
+    await page.locator('#prodFilterBtn').click();
+    await expectCount(page, '.prod-pop [data-prod-ffield="status"]', 1, 'Filter menu status condition');
+    await expectCount(page, '.prod-pop [data-prod-ffield="assignee"] .mic svg', 1, 'Filter menu assignee uses person icon');
+    await page.locator('.prod-pop [data-prod-ffield="status"]').hover();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-search]', 1, 'Filter value picker is searchable');
+    await page.locator('#prodLayer .prod-pop [data-prod-fv]').first().click();
+    await expectCount(page, '.prod-filter-pill.interactive', 1, 'Filter pill after applying condition');
+    await page.locator('.prod-filter-pill .fx').first().click();
+    await expectExactCount(page, '.prod-filter-pill.interactive', 0, 'Remove filter clears pill');
+    await page.locator('#prodGroupBtn').click();
+    await expectCount(page, '.prod-pop [data-prod-grp="status"]', 1, 'Display menu status grouping');
+    await page.locator('.prod-pop [data-prod-grp="assignee"]').click();
+    if (!(await page.evaluate(() => _prodState.groupBy === 'assignee'))) throw new Error('Display menu did not switch to assignee grouping');
+    await page.locator('#prodGroupBtn').click();
+    await page.locator('.prod-pop [data-prod-grp="client"]').click();
+    if (!(await page.evaluate(() => _prodState.groupBy === 'client'))) throw new Error('Display menu did not switch to client grouping');
+    await page.evaluate(() => { _prodState.groupBy = 'status'; _prodRender(); });
+    await page.locator('.prod-search-btn').click();
+    await expectCount(page, '.prod-cmd .prod-cmd-input', 1, 'Command palette input');
+    await page.fill('.prod-cmd-input', await page.locator('.prod-row .prod-id').first().textContent());
+    await expectCount(page, '.prod-cmd-item', 1, 'Command palette results');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { _prodState.filters = [{ field: 'status', values: ['__none__'] }]; _prodRender(); });
+    await expectCount(page, '[data-prod-empty-state] .es-clear', 1, 'Filtered empty state with Clear filters');
+    await page.locator('.es-clear').click();
+    await expectExactCount(page, '[data-prod-empty-state]', 0, 'Clear filters exits empty state');
     const row = page.locator('.prod-row').first();
     if (!(await row.count())) throw new Error('No migrated rows rendered');
     const firstRowId = await row.getAttribute('data-prod-row');
@@ -145,6 +180,8 @@ async function assertNoWriteRequests(requests) {
     await page.keyboard.press('Escape');
     await row.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
+    const contextText = await text(page, '.prod-pop');
+    if (!contextText.includes('⇧D') || !contextText.includes('Ctrl ⌫')) throw new Error('Context menu keyboard hints do not match artifact glyphs');
     const popBg = await page.locator('.prod-pop').first().evaluate(el => getComputedStyle(el).backgroundColor);
     if (!popBg || popBg === 'rgba(0, 0, 0, 0)' || popBg === 'transparent') throw new Error('Production context menu background is transparent');
     await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
@@ -228,6 +265,9 @@ async function assertNoWriteRequests(requests) {
     for (const col of ['backlog', 'planned', 'prog', 'paused', 'completed', 'canceled']) {
       if (!columns.includes(col)) throw new Error('Projects board missing column: ' + col);
     }
+    await page.locator('[data-prod-pcolcollapse]').first().click();
+    await expectCount(page, '.prod-col.collapsed .prod-col-rail', 1, 'collapsed board column rail');
+    await page.locator('[data-prod-pcolcollapse]').first().click();
     await expectCount(page, '.prod-col-head [data-prod-disabled="add-client-board-card"][title="Preview - read-only"]', 1, 'disabled board add controls');
     await expectCount(page, '[data-prod-client-card]', 1, 'project cards');
     const card = page.locator('[data-prod-client-card]').first();

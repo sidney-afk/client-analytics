@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const outDir = process.env.SYNCVIEW_PROD_PARITY_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PARITY_SHOTS)
-  : path.join(root, '.codex-tmp', 'prod-parity-foundation');
+  : path.join(root, '.codex-tmp', 'prod-parity-converge-session-2');
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -112,6 +112,69 @@ async function safe(page, fn) {
       await wired.evaluate(() => window._prodOpenTeamView('video', 'board'));
       await wired.waitForSelector('.prod-board', { timeout: 10000 });
       await shot(wired, 'wired-05-projects-board');
+    });
+
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.open = null; S.filters = []; render(); });
+      await artifact.locator('#filterbtn').click();
+      await artifact.locator('[data-ffield="status"]').first().hover();
+      await shot(artifact, 'artifact-06-filters-open');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => window._prodOpenTeamView('video', 'list'));
+      await wired.waitForSelector('.prod-row, .prod-empty-state', { timeout: 10000 });
+      await wired.locator('#prodFilterBtn').click();
+      await wired.locator('[data-prod-ffield="status"]').first().hover();
+      await shot(wired, 'wired-06-filters-open');
+    });
+
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.locator('#groupbtn').click();
+      await shot(artifact, 'artifact-07-group-by-menu');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.locator('#prodGroupBtn').click();
+      await shot(wired, 'wired-07-group-by-menu');
+    });
+
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; S.colCollapsed = new Set(); render(); });
+      await artifact.locator('[data-pcolcollapse]').first().click();
+      await shot(artifact, 'artifact-08-collapsed-column');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'board'); });
+      await wired.waitForSelector('.prod-board', { timeout: 10000 });
+      await wired.locator('[data-prod-pcolcollapse]').first().click();
+      await shot(wired, 'wired-08-collapsed-column');
+    });
+
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.locator('.sb-icobtn').click();
+      await shot(artifact, 'artifact-09-palette');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.locator('.prod-search-btn').click();
+      await shot(wired, 'wired-09-palette');
+    });
+
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.tab = 'active'; S.filters = [{ field: 'status', values: ['backlog'] }]; render(); });
+      await shot(artifact, 'artifact-10-empty-state');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { _prodState.view = 'list'; _prodState.team = 'video'; _prodState.clientSlug = ''; _prodState.tab = 'active'; _prodState.filters = [{ field: 'status', values: ['backlog'] }]; _prodRender(); });
+      await shot(wired, 'wired-10-empty-state');
     });
 
     console.log('prod-parity-screenshots wrote paired shots to ' + outDir);

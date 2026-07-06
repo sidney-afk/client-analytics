@@ -51,6 +51,7 @@ for (let i = 2; i < process.argv.length; i++) {
 
 const APPLY = args.has('--apply');
 const APPLY_RECONCILIATION_ONLY = args.has('--apply-reconciliation-only');
+const INCREMENTAL = args.has('--incremental');
 
 function fail(message) {
   console.error('B1 Linear backfill failed:', message);
@@ -417,13 +418,14 @@ async function linear(query, variables) {
   return json.data;
 }
 
-async function loadIssues() {
+async function loadIssues(options = {}) {
   const nodes = [];
   let after = null;
   const delay = Math.max(0, Number(args.get('--page-delay-ms') || 280));
+  const filter = options.updatedSince ? { updatedAt: { gte: options.updatedSince } } : null;
   const query = `
-    query B1BackfillIssues($after: String) {
-      issues(first: 100, after: $after, includeArchived: true) {
+    query B1BackfillIssues($after: String, $filter: IssueFilter) {
+      issues(first: 100, after: $after, includeArchived: true, filter: $filter) {
         nodes {
           id identifier title description url priority createdAt updatedAt completedAt archivedAt canceledAt dueDate
           team { id key name }
@@ -441,7 +443,7 @@ async function loadIssues() {
       }
     }`;
   for (;;) {
-    const data = await linear(query, { after });
+    const data = await linear(query, { after, filter });
     nodes.push(...data.issues.nodes);
     if (!data.issues.pageInfo.hasNextPage) break;
     after = data.issues.pageInfo.endCursor;
@@ -543,6 +545,38 @@ async function supabaseRpc(name, body) {
   });
   if (!resp.ok) throw new Error(`Supabase rpc ${name} HTTP ${resp.status}: ${(await resp.text()).slice(0, 500)}`);
   return resp.json();
+}
+
+async function writeSystemEvent(action, payload) {
+  await supabaseInsert('deliverable_events', [{
+    client_slug: '_system',
+    action,
+    source: 'system',
+    payload,
+  }]);
+}
+
+async function latestIncrementalEvent() {
+  const rows = await supabaseRows(
+    'deliverable_events',
+    'id,ts,payload',
+    '&source=eq.system&action=eq.linear_incremental_refresh&order=ts.desc&limit=1',
+  );
+  return rows[0] || null;
+}
+
+function minutesAgoIso(minutes) {
+  return new Date(Date.now() - Math.max(0, Number(minutes || 0)) * 60000).toISOString();
+}
+
+async function incrementalChangedSince() {
+  const explicit = clean(args.get('--changed-since'));
+  if (explicit) return new Date(explicit).toISOString();
+  const last = await latestIncrementalEvent();
+  const overlap = Math.max(0, Number(args.get('--overlap-minutes') || 5));
+  const lastFinished = last && last.payload && clean(last.payload.finished_at || last.payload.started_at || last.ts);
+  if (lastFinished) return new Date(new Date(lastFinished).getTime() - overlap * 60000).toISOString();
+  return minutesAgoIso(Number(args.get('--since-minutes') || 30));
 }
 
 function activeCardRows(calendarRows, sampleRows) {
@@ -921,6 +955,204 @@ function batchShapeSummary(batches) {
   };
 }
 
+function softClosedDeliverableRow(issue, existing) {
+  const fallbackStatus = issue.state && issue.state.type === 'canceled'
+    ? 'canceled'
+    : issue.state && issue.state.type === 'completed'
+      ? 'approved'
+      : existing.status || 'approved';
+  return {
+    id: existing.id,
+    identifier: existing.identifier || clean(issue.identifier),
+    batch_id: existing.batch_id,
+    client_slug: existing.client_slug,
+    team: existing.team || linearTeam(issue),
+    kind: existing.kind || classifyKind(issue),
+    title: clean(issue.title || existing.title || issue.identifier || 'Untitled deliverable'),
+    brief: clean(issue.description || ''),
+    status: linearStatusSlug(issue) || fallbackStatus,
+    status_at: issue.updatedAt || new Date().toISOString(),
+    assignee_id: existing.assignee_id || null,
+    due_date: clean(issue.dueDate) || null,
+    priority: issue.priority == null ? null : Number(issue.priority),
+    origin: existing.origin || 'manual',
+    card_id: existing.card_id || null,
+    sync_state: 'clean',
+    created_by: existing.created_by || 'linear-backfill',
+    created_at: existing.created_at || issue.createdAt || new Date().toISOString(),
+    linear_issue_uuid: clean(issue.id),
+    linear_identifier: clean(issue.identifier),
+    linear_issue_url: clean(issue.url),
+    linear_aliases: { identifier: issue.identifier, url: issue.url },
+    linear_raw: {
+      issue,
+      incremental_refresh: {
+        soft_handled: true,
+        reason: closedAt(issue) ? 'closed_or_archived' : 'outside_operational_window',
+      },
+    },
+  };
+}
+
+async function buildIncrementalPlan() {
+  const startedAt = new Date().toISOString();
+  const asOf = args.get('--as-of') || startedAt;
+  const cutoffMonths = Number(args.get('--cutoff-months') || 12);
+  const changedSince = await incrementalChangedSince();
+  const [
+    issues,
+    clients,
+    members,
+    calendarRows,
+    sampleRows,
+    existingBatches,
+    existingDeliverables,
+    existingArchive,
+  ] = await Promise.all([
+    loadIssues({ updatedSince: changedSince }),
+    supabaseRows('clients', 'slug,display_name,kind,active,source,linear_project_ids'),
+    supabaseRows('team_members', 'id,name,email,role,team,linear_user_id,active'),
+    supabaseRows('calendar_posts', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
+    supabaseRows('sample_reviews', 'client,id,status,linear_issue_id,graphic_linear_issue_id'),
+    supabaseRows('batches', 'id,client_slug,team,name,description,status,created_by,linear_parent_ids'),
+    supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,created_by,created_at,linear_issue_uuid,linear_identifier,linear_issue_url'),
+    supabaseRows('linear_archive', 'linear_uuid,identifier,title,state,client_slug,team'),
+  ]);
+
+  const cards = activeCardRows(calendarRows, sampleRows);
+  const linksByIdentifier = cardLinkMap(cards);
+  const linkedIdentifiers = new Set(Array.from(linksByIdentifier.keys()));
+  const existingDeliverableByUuid = new Map(existingDeliverables.map(r => [clean(r.linear_issue_uuid), r]).filter(([k]) => k));
+  const operational = issues.filter(issue => {
+    if (!isTrackIssue(issue) || !isOpenIssue(issue)) return false;
+    const created = issue.createdAt ? new Date(issue.createdAt) : null;
+    const linked = linkedIdentifiers.has(clean(issue.identifier).toUpperCase());
+    const alreadyTracked = existingDeliverableByUuid.has(clean(issue.id));
+    const cutoff = new Date(asOf);
+    cutoff.setUTCMonth(cutoff.getUTCMonth() - cutoffMonths);
+    return linked || alreadyTracked || (created && created >= cutoff);
+  });
+  const operationalSet = new Set(operational.map(i => i.id));
+  const operationalById = new Map(operational.map(i => [clean(i.id), i]));
+  const nonOperational = issues.filter(issue => !operationalById.has(clean(issue.id)));
+  const batches = batchRowsFor(operational);
+  const batchByKey = new Map();
+  for (const b of batches) for (const issue of b._issues) batchByKey.set(batchGroupKey(issue), b);
+
+  const missingClients = missingClientPlans(operational, batches, clients);
+  const { byLinear: memberByLinear, byEmail: memberByEmail } = memberLookups(members);
+  const deliverables = operational.map(issue => deliverableRow(issue, batchByKey, memberByLinear, memberByEmail, linksByIdentifier));
+  const softHandledDeliverables = nonOperational
+    .map(issue => ({ issue, existing: existingDeliverableByUuid.get(clean(issue.id)) }))
+    .filter(row => row.existing)
+    .map(row => softClosedDeliverableRow(row.issue, row.existing));
+  const archive = nonOperational.map(issue => archiveRow(issue, operationalSet));
+
+  const existingBatchById = new Map(existingBatches.map(r => [r.id, r]));
+  const existingDeliverableById = new Map(existingDeliverables.map(r => [r.id, r]));
+  const existingArchiveById = new Map(existingArchive.map(r => [r.linear_uuid, r]));
+  const batchFields = ['client_slug', 'team', 'name', 'description', 'status', 'created_by'];
+  const deliverableFields = ['identifier', 'batch_id', 'client_slug', 'team', 'kind', 'title', 'status', 'assignee_id', 'due_date', 'priority', 'origin', 'card_id', 'linear_issue_uuid', 'linear_identifier', 'linear_issue_url'];
+  const archiveFields = ['identifier', 'title', 'state', 'client_slug', 'team'];
+  const deliverableCandidates = [...deliverables, ...softHandledDeliverables];
+
+  return {
+    generated_at: startedAt,
+    mode: 'incremental',
+    as_of: asOf,
+    cutoff_months: cutoffMonths,
+    changed_since: changedSince,
+    changed_issue_count: issues.length,
+    operational_count: operational.length,
+    soft_handled_count: softHandledDeliverables.length,
+    archive_count: archive.length,
+    writes: {
+      clients: missingClients.map(publicClientRow),
+      batches: batches.filter(r => !compareRow(existingBatchById.get(r.id), r, batchFields)).map(({ _issues, ...r }) => r),
+      deliverables: deliverableCandidates.filter(r => !compareRow(existingDeliverableById.get(r.id), r, deliverableFields)),
+      linear_archive: archive.filter(r => !compareRow(existingArchiveById.get(r.linear_uuid), r, archiveFields)),
+    },
+    raw: { issues },
+  };
+}
+
+async function applyIncrementalPlan(plan) {
+  const startedAt = new Date().toISOString();
+  let result = {
+    inserted_clients: 0,
+    batch_rpc_writes: 0,
+    deliverable_rpc_writes: 0,
+    archive_upserts: 0,
+    summary_event_written: 0,
+  };
+  try {
+    await supabaseInsert('clients', plan.writes.clients);
+    result.inserted_clients = plan.writes.clients.length;
+
+    for (const batch of plan.writes.batches) {
+      await supabaseRpc('batch_write', {
+        p_row: batch,
+        p_event: {
+          source: 'system',
+          action: 'linear_incremental_batch_refresh',
+          actor: 'codex-b1-incremental',
+          payload: { incremental: true, idempotent_id: batch.id, changed_since: plan.changed_since },
+        },
+      });
+      result.batch_rpc_writes++;
+    }
+
+    for (const deliverable of plan.writes.deliverables) {
+      await supabaseRpc('deliverable_write', {
+        p_row: deliverable,
+        p_event: {
+          source: 'system',
+          action: 'linear_incremental_refresh',
+          actor: 'codex-b1-incremental',
+          payload: {
+            incremental: true,
+            linear_issue_uuid: deliverable.linear_issue_uuid,
+            changed_since: plan.changed_since,
+          },
+        },
+      });
+      result.deliverable_rpc_writes++;
+    }
+
+    const archiveRows = plan.writes.linear_archive.map(row => {
+      const { linear_raw, ...out } = row;
+      return out;
+    });
+    result.archive_upserts = (await supabaseUpsert('linear_archive', archiveRows, 'linear_uuid')).length;
+    const finishedAt = new Date().toISOString();
+    await writeSystemEvent('linear_incremental_refresh', {
+      ok: true,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      changed_since: plan.changed_since,
+      changed_issue_count: plan.changed_issue_count,
+      operational_count: plan.operational_count,
+      soft_handled_count: plan.soft_handled_count,
+      archive_count: plan.archive_count,
+      writes: result,
+    });
+    result.summary_event_written = 1;
+    return result;
+  } catch (err) {
+    const message = err && err.message ? err.message : String(err);
+    await writeSystemEvent('linear_incremental_refresh', {
+      ok: false,
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      changed_since: plan.changed_since,
+      changed_issue_count: plan.changed_issue_count,
+      error: message.slice(0, 500),
+      writes: result,
+    }).catch(() => {});
+    throw err;
+  }
+}
+
 async function applyReconciliation(plan) {
   if (plan.unhandled_assignees.length) {
     fail(`unhandled assignees detected; refusing to apply: ${plan.unhandled_assignees.map(a => a.name).join(', ')}`);
@@ -1036,8 +1268,9 @@ async function verify(plan) {
     acc[e.source] = (acc[e.source] || 0) + 1;
     return acc;
   }, {});
-  const deliverableEventIds = new Set(events.filter(e => e.source === 'backfill' && e.deliverable_id).map(e => e.deliverable_id));
-  const batchEventIds = new Set(events.filter(e => e.source === 'backfill' && e.batch_id && !e.deliverable_id).map(e => e.batch_id));
+  const migrationEvent = e => (e.source === 'backfill' || e.source === 'system');
+  const deliverableEventIds = new Set(events.filter(e => migrationEvent(e) && e.deliverable_id).map(e => e.deliverable_id));
+  const batchEventIds = new Set(events.filter(e => migrationEvent(e) && e.batch_id && !e.deliverable_id).map(e => e.batch_id));
   return {
     counts: {
       batches: batches.length,
@@ -1051,7 +1284,7 @@ async function verify(plan) {
       linear_archive: plan.archive.length,
     },
     event_source_counts: eventSourceCounts,
-    all_events_backfill: Object.keys(eventSourceCounts).every(k => k === 'backfill'),
+    all_events_backfill: Object.keys(eventSourceCounts).every(k => k === 'backfill' || k === 'system'),
     deliverables_with_backfill_event: deliverables.filter(d => deliverableEventIds.has(d.id)).length,
     batches_with_backfill_event: batches.filter(b => batchEventIds.has(b.id)).length,
     spot_parity: spots,
@@ -1121,7 +1354,7 @@ function render(plan, applyResult, verification) {
       ['deliverable_events', '>= batches + deliverables', verification.counts.deliverable_events],
     ]));
     lines.push('');
-    lines.push(`Events all source='backfill': ${verification.all_events_backfill ? 'yes' : 'NO'} (${JSON.stringify(verification.event_source_counts)})`);
+    lines.push(`Events all migration-safe sources (backfill/system): ${verification.all_events_backfill ? 'yes' : 'NO'} (${JSON.stringify(verification.event_source_counts)})`);
     lines.push(`Backfill event coverage: deliverables ${verification.deliverables_with_backfill_event}/${verification.counts.deliverables}; batches ${verification.batches_with_backfill_event}/${verification.counts.batches}`);
     lines.push(`20-issue spot parity: ${verification.spot_parity_passed}/${verification.spot_parity.length}`);
     lines.push(`Replay verify: ${JSON.stringify(verification.replay_verify)}`);
@@ -1138,7 +1371,52 @@ function render(plan, applyResult, verification) {
   return lines.join('\n');
 }
 
+function renderIncremental(plan, applyResult) {
+  const lines = [];
+  lines.push('# B1 Linear Incremental Refresh');
+  lines.push('');
+  lines.push(`Generated: ${plan.generated_at}`);
+  lines.push(`Changed since: ${plan.changed_since}`);
+  lines.push(`Changed issues pulled: ${plan.changed_issue_count}`);
+  lines.push(`Operational changed issues: ${plan.operational_count}`);
+  lines.push(`Soft-handled existing deliverables: ${plan.soft_handled_count}`);
+  lines.push(`Archive candidates: ${plan.archive_count}`);
+  lines.push('');
+  lines.push('## Planned Writes');
+  lines.push('');
+  lines.push(mdTable(['Target', 'Count'], Object.entries(plan.writes).map(([k, v]) => [k, v.length])));
+  if (applyResult) {
+    lines.push('');
+    lines.push('## Apply Result');
+    lines.push('');
+    lines.push(mdTable(['Write', 'Count'], Object.entries(applyResult).map(([k, v]) => [k, v])));
+  }
+  lines.push('');
+  lines.push('Incremental mode only writes dormant B1 tables and system-source ledger events. It does not change runtime flags, n8n workflows, auth, or Linear.');
+  return lines.join('\n');
+}
+
 async function main() {
+  if (INCREMENTAL) {
+    const plan = await buildIncrementalPlan();
+    const applyResult = APPLY ? await applyIncrementalPlan(plan) : null;
+    const jsonPath = args.get('--json-out');
+    if (jsonPath) {
+      const full = path.resolve(jsonPath);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      const { raw, ...safePlan } = plan;
+      fs.writeFileSync(full, JSON.stringify({ plan: safePlan, apply: applyResult }, null, 2));
+    }
+    const report = renderIncremental(plan, applyResult);
+    const out = args.get('--out');
+    if (out) {
+      const full = path.resolve(out);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, report);
+    }
+    console.log(report);
+    return;
+  }
   const plan = await buildPlan();
   let applyResult = null;
   if (APPLY_RECONCILIATION_ONLY) applyResult = await applyReconciliation(plan);

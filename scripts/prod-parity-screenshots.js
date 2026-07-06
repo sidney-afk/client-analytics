@@ -11,7 +11,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const outDir = process.env.SYNCVIEW_PROD_PARITY_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PARITY_SHOTS)
-  : path.join(root, '.codex-tmp', 'prod-parity-converge-session-2');
+  : path.join(root, '.codex-tmp', 'prod-parity-coverage-round');
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -73,14 +73,36 @@ async function safe(page, fn) {
     await shot(wired, 'wired-01-list');
 
     await safe(artifact, async () => {
+      await artifact.locator('.row [data-assign]').first().click();
+      await shot(artifact, 'artifact-11-row-assignee-picker');
+    });
+    await safe(wired, async () => {
+      await wired.locator('.prod-row [data-prod-assign]').first().click();
+      await shot(wired, 'wired-11-row-assignee-picker');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.keyboard.press('Control+a');
+      await shot(artifact, 'artifact-12-multi-select');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.keyboard.press('Control+a');
+      await shot(wired, 'wired-12-multi-select');
+    });
+
+    await safe(artifact, async () => {
       await artifact.locator('.row').first().click({ button: 'right' });
       await artifact.locator('[data-ctx="status"]').first().hover();
       await shot(artifact, 'artifact-02-context-status');
+      await artifact.keyboard.press('Escape');
     });
     await safe(wired, async () => {
       await wired.locator('.prod-row').first().click({ button: 'right' });
       await wired.locator('[data-prod-ctx="status"]').first().hover();
       await shot(wired, 'wired-02-context-status');
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     });
 
     await safe(artifact, async () => {
@@ -98,6 +120,7 @@ async function safe(page, fn) {
       await wired.evaluate(rowId => window._prodOpenDeliverable(rowId), id);
       await wired.waitForSelector('.prod-detail-title', { timeout: 10000 });
       await shot(wired, 'wired-03-detail');
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
       await wired.locator('[data-prod-prop="due"]').first().click();
       await wired.locator('[data-prod-set="__custom__"]').first().click();
       await shot(wired, 'wired-04-due-calendar');
@@ -107,11 +130,18 @@ async function safe(page, fn) {
       await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.open = null; render(); });
       await artifact.waitForSelector('.board', { timeout: 10000 });
       await shot(artifact, 'artifact-05-projects-board');
+      await artifact.locator('.pcard-status[data-pstatus]').first().click();
+      await shot(artifact, 'artifact-13-project-status-picker');
     });
     await safe(wired, async () => {
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
       await wired.evaluate(() => window._prodOpenTeamView('video', 'board'));
       await wired.waitForSelector('.prod-board', { timeout: 10000 });
       await shot(wired, 'wired-05-projects-board');
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+      await wired.locator('.prod-card-status[data-prod-pstatus]').first().click();
+      await shot(wired, 'wired-13-project-status-picker');
     });
 
     await safe(artifact, async () => {

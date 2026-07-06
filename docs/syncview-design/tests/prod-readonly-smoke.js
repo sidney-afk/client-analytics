@@ -119,7 +119,13 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     if (detailUrl.searchParams.get('prod') !== '1' || !detailUrl.searchParams.get('d')) throw new Error('Detail view did not write a stable ?prod=1&d=... URL');
     const disabledControls = await page.locator('[data-prod-disabled]').count();
     if (disabledControls < 1) throw new Error('No disabled write affordances were rendered');
-    if (await page.locator('[data-prod-disabled]:not(:disabled)').count()) throw new Error('A write affordance is not disabled');
+    const unguarded = await page.locator('[data-prod-disabled]').evaluateAll(nodes => nodes.filter(n => {
+      if (n.disabled) return false;
+      const titleOk = n.getAttribute('title') === 'Preview - read-only' || n.getAttribute('data-prod-tip') === 'Preview - read-only';
+      const guardOk = String(n.getAttribute('onclick') || '').includes('_prodReadonlyGuard');
+      return !(titleOk && guardOk);
+    }).length);
+    if (unguarded) throw new Error('A read-only write affordance is neither disabled nor guarded');
     if (!(await text(page, '.prod-composer-box')).includes('disabled')) throw new Error('Comment composer did not render the read-only hint');
     await page.waitForFunction(() => {
       const activity = document.querySelector('.prod-activity');

@@ -293,7 +293,11 @@ create table deliverables (
   batch_id text not null references batches(id),
   client_slug text not null references clients(slug),
   team text not null check (team in ('video','graphics')),
-  kind text not null check (kind in ('video','thumbnail')),
+  kind text not null check (kind in ('video','thumbnail','other')),
+    -- 'other' added 2026-07-06: the B1 constraint preflight measured 28 operational issues
+    -- that are neither (GRA banners/carousels/brand-kit tasks, VID scripts/admin). Backfill
+    -- defaults them to 'other' (list posted in the B1 gate PR); reclassify in-app later.
+    -- UI: generic icon, excluded from kind-specific review logic.
   title text not null,
   brief text,
   status text not null default 'in_progress' check (status in

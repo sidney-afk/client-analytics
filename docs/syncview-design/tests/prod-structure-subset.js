@@ -87,6 +87,33 @@ async function assertNoWriteRequests(requests) {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+    const adapterFixture = await page.evaluate(() => {
+      const adapted = window._prodAdapter({
+        clients: [{ slug: 'noemoji', display_name: 'No Emoji', board_status: 'in_progress' }],
+        members: [{ id: 'm1', name: 'Maya Singh' }],
+        batches: [{ id: 'b1', client_slug: 'noemoji', team: 'video', name: 'Root Batch' }],
+        deliverables: [
+          { id: 'parent', identifier: 'VID-1', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Root Batch', status: 'in_progress', assignee_id: 'm1' },
+          { id: 'child-a', identifier: 'VID-2', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child A', status: 'smm_approval', assignee_id: 'm1' },
+          { id: 'child-b', identifier: 'VID-3', batch_id: 'b1', client_slug: 'noemoji', team: 'video', title: 'Child B', status: 'client_approval', assignee_id: 'm1' },
+        ],
+      });
+      return {
+        parentChildren: adapted.ISSUES.filter(i => i.parent === 'parent').map(i => i.id).sort(),
+        childAChildren: adapted.ISSUES.filter(i => i.parent === 'child-a').length,
+        statusKeys: adapted.ISSUES.map(i => i.status),
+        projectEmoji: adapted.PROJECTS.noemoji.emoji,
+        boardStatus: adapted.CLIENTS[0].status,
+        editorInit: adapted.EDITORS.m1.init,
+        editorColor: adapted.EDITORS.m1.color,
+      };
+    });
+    if (adapterFixture.parentChildren.join(',') !== 'child-a,child-b') throw new Error('Adapter did not put children only under the batch-parent issue');
+    if (adapterFixture.childAChildren !== 0) throw new Error('Adapter let a sibling list another sibling as a child');
+    if (!adapterFixture.statusKeys.includes('prog') || !adapterFixture.statusKeys.includes('smm') || !adapterFixture.statusKeys.includes('client')) throw new Error('Adapter did not map B1 status slugs to artifact keys');
+    if (adapterFixture.projectEmoji !== '') throw new Error('Adapter should preserve missing emoji as empty so the project glyph fallback renders');
+    if (adapterFixture.boardStatus !== 'prog') throw new Error('Adapter did not map board in_progress to artifact prog');
+    if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');
 
     if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
@@ -108,8 +135,21 @@ async function assertNoWriteRequests(requests) {
     for (const sel of ['.prod-check', '.prod-id', '.prod-status svg', '.prod-title b', '.prod-chip', '.prod-due', '.prod-avatar', '.prod-created']) {
       if (!(await row.locator(sel).count())) throw new Error('List row missing artifact part: ' + sel);
     }
+    await row.locator('.prod-status').click();
+    await expectCount(page, '.prod-pop [data-prod-pick]', 1, 'row status click opens status picker');
+    const statusPickerUrl = new URL(page.url());
+    if (statusPickerUrl.searchParams.get('d')) throw new Error('Clicking row status icon navigated the row instead of opening the picker');
+    await page.locator('.prod-pop [data-prod-pick]').first().click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Status picker did not route to read-only guard');
+    await page.keyboard.press('Escape');
     await row.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
+    const popBg = await page.locator('.prod-pop').first().evaluate(el => getComputedStyle(el).backgroundColor);
+    if (!popBg || popBg === 'rgba(0, 0, 0, 0)' || popBg === 'transparent') throw new Error('Production context menu background is transparent');
+    await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'context Status hover opens submenu picker');
+    await expectCount(page, '#prodLayer .prod-pop .tick', 1, 'context picker marks current value');
     await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'row context disabled mutation items');
     await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -139,10 +179,10 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-pop', 0, 'Escape closes detail context menu');
     if (await page.locator('[data-prod-crumb-batch]').count()) {
       await page.locator('[data-prod-crumb-batch]').first().click();
-      await page.waitForSelector('[data-prod-batch-detail]', { timeout: 10000 });
-      const batchUrl = new URL(page.url());
-      if (batchUrl.searchParams.get('prod') !== '1' || !batchUrl.searchParams.get('batch')) {
-        throw new Error('Parent breadcrumb did not navigate to ?prod=1 batch detail');
+      await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+      const parentUrl = new URL(page.url());
+      if (parentUrl.searchParams.get('prod') !== '1' || !parentUrl.searchParams.get('d')) {
+        throw new Error('Parent breadcrumb did not navigate to a ?prod=1 parent issue detail');
       }
       await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
@@ -152,6 +192,12 @@ async function assertNoWriteRequests(requests) {
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
     if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled composer missing');
     if (!(await page.locator('[data-prod-disabled="detail-controls"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled detail controls missing');
+    await page.locator('[data-prod-prop="due"]').first().click();
+    await expectCount(page, '.prod-duepop .prod-cal, .prod-duepop [data-prod-set="__custom__"]', 1, 'detail due property opens due popover');
+    await page.locator('.prod-duepop [data-prod-set="__custom__"]').first().click().catch(() => {});
+    await expectCount(page, '.prod-duepop .prod-cal', 1, 'due custom opens artifact calendar');
+    await page.locator('.prod-duepop [data-prod-day]').first().click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     if (await page.locator('.prod-parent-link').count()) {
       await expectCount(page, '[data-prod-detail-card="parent"]', 1, 'Parent issue detail card');
     }
@@ -179,7 +225,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });
     const columns = await page.locator('.prod-col').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-prod-col')));
-    for (const col of ['backlog', 'planned', 'in_progress', 'paused', 'completed', 'canceled']) {
+    for (const col of ['backlog', 'planned', 'prog', 'paused', 'completed', 'canceled']) {
       if (!columns.includes(col)) throw new Error('Projects board missing column: ' + col);
     }
     await expectCount(page, '.prod-col-head [data-prod-disabled="add-client-board-card"][title="Preview - read-only"]', 1, 'disabled board add controls');
@@ -188,6 +234,8 @@ async function assertNoWriteRequests(requests) {
     for (const sel of ['.prod-card-check', '.prod-card-ico', '.prod-card-title', '.prod-card-status svg', '.prod-avatar']) {
       if (!(await card.locator(sel).count())) throw new Error('Project card missing artifact part: ' + sel);
     }
+    const cardIconBadFallback = await page.locator('[data-prod-client-card] .prod-card-ico').evaluateAll(nodes => nodes.some(n => (n.textContent || '').trim() === 'S' && !n.querySelector('svg')));
+    if (cardIconBadFallback) throw new Error('Project card icon fell back to the letter S instead of the artifact project glyph');
     await card.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'project card context Copy link item');
     await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'project card context disabled mutation items');

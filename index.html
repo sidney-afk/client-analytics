@@ -2439,7 +2439,8 @@
         .linear-search-loading { padding: 12px; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
 
         /* Production preview (Track B B2) - hidden unless ?prod=1. */
-        .prod-view { --prod-bg:#f3f3f4; --prod-content:#fcfcfd; --prod-surface:#fff; --prod-column:#f6f6f7; --prod-hover:#ebebec; --prod-selected:#eaebf6; --prod-border:#d5d5d5; --prod-divider:#e5e5e5; --prod-text:#1b1b1b; --prod-strong:#2e2e30; --prod-dim:#5a5a5c; --prod-muted:#5d5d5f; --prod-faint:#9e9ea1; --prod-accent:#5e6ad2; --prod-link:#4162db; --prod-st-backlog:#a4a8ae; --prod-st-todo:#a8a8a8; --prod-st-in-progress:#c6a333; --prod-st-smm-approval:#ed86bc; --prod-st-kasper-approval:#eb5757; --prod-st-tweak:#db6e1f; --prod-st-client-approval:#ff0016; --prod-st-approved:#43bc58; --prod-st-scheduled:#0044ff; --prod-st-posted:#5e6ad2; --prod-st-canceled:#95a2b3; --prod-st-duplicate:#95a2b3; --prod-st-triage:#f2994a; min-height: calc(100vh - 64px); margin: -24px -24px 0; background: var(--prod-bg); color: var(--prod-text); font-family: "Inter Variable", "SF Pro Display", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; overflow: hidden; }
+        .prod-view, .prod-layer, .prod-tip, .prod-toast { --prod-bg:#f3f3f4; --prod-content:#fcfcfd; --prod-surface:#fff; --prod-column:#f6f6f7; --prod-hover:#ebebec; --prod-selected:#eaebf6; --prod-border:#d5d5d5; --prod-divider:#e5e5e5; --prod-text:#1b1b1b; --prod-strong:#2e2e30; --prod-dim:#5a5a5c; --prod-muted:#5d5d5f; --prod-faint:#9e9ea1; --prod-accent:#5e6ad2; --prod-link:#4162db; --prod-st-backlog:#a4a8ae; --prod-st-todo:#a8a8a8; --prod-st-in-progress:#c6a333; --prod-st-smm-approval:#ed86bc; --prod-st-kasper-approval:#eb5757; --prod-st-tweak:#db6e1f; --prod-st-client-approval:#ff0016; --prod-st-approved:#43bc58; --prod-st-scheduled:#0044ff; --prod-st-posted:#5e6ad2; --prod-st-canceled:#95a2b3; --prod-st-duplicate:#95a2b3; --prod-st-triage:#f2994a; }
+        .prod-view { min-height: calc(100vh - 64px); margin: -24px -24px 0; background: var(--prod-bg); color: var(--prod-text); font-family: "Inter Variable", "SF Pro Display", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; overflow: hidden; }
         .prod-side { width: 244px; flex: 0 0 244px; border-right: 1px solid var(--prod-divider); padding: 12px; display: flex; flex-direction: column; gap: 16px; min-height: calc(100vh - 64px); }
         .prod-brand { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 2px 4px; font-size: 14px; font-weight: 550; color: var(--prod-strong); }
         .prod-brand-mark { width: 18px; height: 18px; border-radius: 5px; background: var(--prod-accent); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
@@ -2590,6 +2591,8 @@
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
         .prod-side-row { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--prod-strong); font-size: 13px; }
         .prod-side-row.muted { color: var(--prod-muted); }
+        .prod-prop-btn { min-width: 0; width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; display: flex; align-items: center; gap: 8px; padding: 0; text-align: left; cursor: pointer; }
+        .prod-prop-btn:hover { background: var(--prod-hover); }
         .prod-parent-link { border: 0; background: transparent; padding: 0; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; }
         .prod-parent-link:hover { text-decoration: underline; }
         .prod-composer-box { text-align: left; cursor: not-allowed; }
@@ -2598,8 +2601,12 @@
         .prod-layer { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
         .prod-pop-bd { position: fixed; inset: 0; }
         .prod-pop { position: absolute; min-width: 190px; padding: 5px; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08); font-size: 13px; }
+        .prod-pop-hd { padding: 7px 9px; color: var(--prod-muted); font-size: 12px; font-weight: 500; }
+        .prod-pop-search { padding: 4px; }
+        .prod-pop-search input { width: 100%; box-sizing: border-box; height: 30px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; padding: 0 8px; outline: 0; }
+        .prod-pop-search input:focus { border-color: var(--prod-accent); }
         .prod-mi { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border-radius: 6px; white-space: nowrap; cursor: default; }
-        .prod-mi:not(.disabled):hover { background: var(--prod-hover); }
+        .prod-mi:not(.disabled):hover, .prod-mi.sel { background: var(--prod-hover); }
         .prod-mi.disabled { color: var(--prod-faint); cursor: not-allowed; opacity: .72; }
         .prod-mi.danger { color: #b45309; }
         .prod-mi .mic { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); }
@@ -2607,7 +2614,22 @@
         .prod-mi .mlbl { flex: 1; }
         .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; }
         .prod-mi .chev { color: var(--prod-faint); display: flex; margin-left: 6px; }
+        .prod-mi .tick { color: var(--prod-accent); display: flex; margin-left: 12px; }
+        .prod-mi .dres { color: var(--prod-faint); font-size: 11px; margin-left: 14px; }
         .prod-msep { height: 1px; margin: 5px 6px; background: var(--prod-divider); }
+        .prod-duepop { width: 286px; }
+        .prod-cal { padding: 8px; }
+        .prod-cal-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+        .prod-cal-nav { width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-muted); cursor: pointer; }
+        .prod-cal-nav:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-cal-mo { font-weight: 600; font-size: 13px; color: var(--prod-strong); }
+        .prod-cal-wk, .prod-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .prod-cal-wk span { text-align: center; font-size: 10px; font-weight: 700; color: var(--prod-faint); text-transform: uppercase; }
+        .prod-cal-d { height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--prod-strong); font-size: 12px; cursor: pointer; }
+        .prod-cal-d:not(.empty):hover, .prod-cal-d.focus { background: var(--prod-hover); }
+        .prod-cal-d.today { box-shadow: inset 0 0 0 1px var(--prod-accent); font-weight: 700; }
+        .prod-cal-d.sel { background: var(--prod-accent); color: var(--prod-surface); font-weight: 700; }
+        .prod-cal-d.empty { cursor: default; }
         .prod-toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px); z-index: 10000; min-height: 34px; max-width: min(420px, calc(100vw - 32px)); padding: 8px 13px; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.16); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; }
         .prod-toast.show { opacity: 1; transform: translate(-50%, 0); }
         .prod-tip { position: fixed; z-index: 10001; padding: 5px 8px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 10px 28px rgba(0,0,0,.13); font-size: 11px; font-weight: 450; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .1s, transform .1s; }
@@ -27031,14 +27053,48 @@
            No write paths, realtime subscriptions, runtime flag changes, or
            n8n/Linear side effects are wired in this phase.
            ============================================================ */
+        const PROD_STATUS_TO_ARTIFACT = {
+            triage: 'triage',
+            backlog: 'backlog',
+            todo: 'todo',
+            in_progress: 'prog',
+            smm_approval: 'smm',
+            kasper_approval: 'kasper',
+            client_approval: 'client',
+            tweak: 'tweak',
+            approved: 'approved',
+            scheduled: 'scheduled',
+            posted: 'posted',
+            canceled: 'canceled',
+            duplicate: 'duplicate',
+            prog: 'prog',
+            smm: 'smm',
+            kasper: 'kasper',
+            client: 'client'
+        };
+        const PROD_STATUS_FROM_ARTIFACT = {
+            triage: 'triage',
+            backlog: 'backlog',
+            todo: 'todo',
+            prog: 'in_progress',
+            smm: 'smm_approval',
+            kasper: 'kasper_approval',
+            client: 'client_approval',
+            tweak: 'tweak',
+            approved: 'approved',
+            scheduled: 'scheduled',
+            posted: 'posted',
+            canceled: 'canceled',
+            duplicate: 'duplicate'
+        };
         const PROD_STATUS = {
             triage: 'Triage',
             backlog: 'Backlog',
             todo: 'Todo',
-            in_progress: 'In Progress',
-            smm_approval: 'For SMM approval',
-            kasper_approval: 'For Kasper approval',
-            client_approval: 'For Client Approval',
+            prog: 'In Progress',
+            smm: 'For SMM approval',
+            kasper: 'For Kasper approval',
+            client: 'For Client Approval',
             tweak: 'Tweak Needed',
             approved: 'Approved',
             scheduled: 'Scheduled',
@@ -27046,17 +27102,17 @@
             canceled: 'Canceled',
             duplicate: 'Duplicate'
         };
-        const PROD_STATUS_ORDER = ['triage','backlog','todo','in_progress','smm_approval','kasper_approval','client_approval','tweak','approved','scheduled','posted','canceled','duplicate'];
+        const PROD_STATUS_ORDER = ['triage','backlog','todo','prog','smm','kasper','client','tweak','approved','scheduled','posted','canceled','duplicate'];
         // no-hardcoded-colors: allow-start (artifact-locked, light-only)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },
             backlog: { type: 'backlog', color: '#a4a8ae' },
             todo: { type: 'unstarted', color: '#a8a8a8' },
-            in_progress: { type: 'started', color: '#c6a333', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z' },
-            smm_approval: { type: 'started', color: '#ed86bc', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z' },
-            kasper_approval: { type: 'started', color: '#eb5757', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z' },
+            prog: { type: 'started', color: '#c6a333', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 1.749999999999999 z' },
+            smm: { type: 'started', color: '#ed86bc', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 6.531088913245535, 5.249999999999998 z' },
+            kasper: { type: 'started', color: '#eb5757', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 0,1 3.5, 7 z' },
             tweak: { type: 'started', color: '#db6e1f', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 5.249999999999998 z' },
-            client_approval: { type: 'started', color: '#ff0016', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z' },
+            client: { type: 'started', color: '#ff0016', pie: 'M 3.5,3.5 L3.5,0 A3.5,3.5 0 1,1 0.4689110867544648, 1.749999999999999 z' },
             approved: { type: 'completed', color: '#43bc58' },
             scheduled: { type: 'completed', color: '#0044ff' },
             posted: { type: 'completed', color: '#5e6ad2' },
@@ -27066,12 +27122,14 @@
         const PROD_BOARD_STATUS = {
             backlog: 'Backlog',
             planned: 'Planned',
-            in_progress: 'In Progress',
+            prog: 'In Progress',
             paused: 'Paused',
             completed: 'Completed',
             canceled: 'Canceled'
         };
-        const PROD_BOARD_ORDER = ['backlog','planned','in_progress','paused','completed','canceled'];
+        const PROD_BOARD_ORDER = ['backlog','planned','prog','paused','completed','canceled'];
+        const PROD_BOARD_STATUS_TO_ARTIFACT = { in_progress: 'prog', prog: 'prog', backlog: 'backlog', planned: 'planned', paused: 'paused', completed: 'completed', canceled: 'canceled' };
+        const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
         const _prodState = {
             loaded: false,
             loading: false,
@@ -27088,6 +27146,7 @@
             members: [],
             batches: [],
             deliverables: [],
+            adapter: null,
             events: new Map()
         };
         function _prodEnabled() {
@@ -27122,39 +27181,173 @@
         function _prodById(rows, key) {
             return new Map((rows || []).map(r => [String(r && r[key] || ''), r]).filter(([k]) => k));
         }
+        function _prodNormKey(v) {
+            return String(v || '').trim().toLowerCase();
+        }
+        function _prodArtifactStatus(status) {
+            return PROD_STATUS_TO_ARTIFACT[String(status || '').trim()] || String(status || '').trim() || 'todo';
+        }
+        function _prodBoardStatus(status) {
+            return PROD_BOARD_STATUS_TO_ARTIFACT[String(status || '').trim()] || 'prog';
+        }
+        function _prodHashText(text) {
+            const s = String(text || '');
+            let h = 0;
+            for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+            return Math.abs(h);
+        }
+        function _prodInitials(name) {
+            const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+            return ((parts[0] ? parts[0][0] : '?') + (parts[1] ? parts[1][0] : '')).toUpperCase();
+        }
+        function _prodAdapter(input) {
+            const raw = input || _prodState;
+            const clients = raw.clients || [];
+            const members = raw.members || [];
+            const batches = raw.batches || [];
+            const deliverables = raw.deliverables || [];
+            const BATCHES = {};
+            batches.forEach(b => {
+                if (!b || !b.id) return;
+                BATCHES[String(b.id)] = Object.assign({}, b);
+            });
+            const EDITORS = {};
+            members.forEach(m => {
+                if (!m || !m.id) return;
+                const name = m.name || m.email || 'Unknown';
+                const color = /^#[0-9a-f]{6}$/i.test(String(m.avatar_color || ''))
+                    ? m.avatar_color
+                    : PROD_EDITOR_COLORS[_prodHashText(name) % PROD_EDITOR_COLORS.length];
+                EDITORS[String(m.id)] = { id: String(m.id), name, init: _prodInitials(name), color, active: m.active !== false, raw: m };
+            });
+            const PROJECTS = {};
+            clients.forEach(c => {
+                if (!c || !c.slug) return;
+                const slug = String(c.slug);
+                PROJECTS[slug] = {
+                    id: slug,
+                    client: slug,
+                    name: c.display_name || slug,
+                    emoji: c.emoji || '',
+                    team: c.kind === 'graphics' ? 'graphics' : c.kind === 'video' ? 'video' : '',
+                    raw: c
+                };
+            });
+            const byBatch = new Map();
+            deliverables.forEach(d => {
+                const key = String(d && d.batch_id || '');
+                if (!key) return;
+                if (!byBatch.has(key)) byBatch.set(key, []);
+                byBatch.get(key).push(d);
+            });
+            const batchParent = new Map();
+            byBatch.forEach((rows, batchId) => {
+                const batch = BATCHES[batchId];
+                const parent = batch && rows.find(d => _prodNormKey(d && d.title) === _prodNormKey(batch.name));
+                if (parent && parent.id) batchParent.set(batchId, String(parent.id));
+            });
+            const ISSUES = deliverables.map(d => {
+                const batchId = String(d && d.batch_id || '');
+                const parentId = batchParent.get(batchId) || '';
+                const isBatchParent = !!(parentId && String(d.id) === parentId);
+                const batch = BATCHES[batchId] || null;
+                const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
+                const issue = {
+                    id: String(d.id || ''),
+                    displayId: d.identifier || d.linear_identifier || d.id || '',
+                    rawId: String(d.id || ''),
+                    team: d.team || (batch && batch.team) || '',
+                    project: d.client_slug || (batch && batch.client_slug) || '',
+                    title: d.title || '',
+                    parent: isBatchParent || !parentId ? null : parentId,
+                    status: _prodArtifactStatus(d.status),
+                    sourceStatus: d.status || '',
+                    assignee: d.assignee_id || '',
+                    due: _prodFmtDate(d.due_date),
+                    dueRaw: d.due_date || '',
+                    created: _prodFmtDate(d.created_at),
+                    createdRaw: d.created_at || '',
+                    sub: null,
+                    desc: d.brief || '',
+                    file,
+                    comments: [],
+                    batchId,
+                    batchName: batch ? (batch.name || '') : '',
+                    isBatchParent,
+                    raw: d
+                };
+                return issue;
+            }).filter(i => i.id);
+            const parentSet = new Set(ISSUES.filter(i => i.parent).map(i => i.parent));
+            ISSUES.forEach(i => {
+                if (parentSet.has(i.id)) {
+                    const kids = ISSUES.filter(k => k.parent === i.id);
+                    i.sub = [kids.filter(k => _prodIsDone(k.status)).length, kids.length];
+                }
+            });
+            const issueCounts = ISSUES.reduce((acc, i) => {
+                if (!i.parent) acc[i.project] = (acc[i.project] || 0) + 1;
+                return acc;
+            }, {});
+            const CLIENTS = clients.map(c => {
+                const slug = String(c && c.slug || '');
+                if (!slug) return null;
+                return {
+                    id: slug,
+                    client: slug,
+                    name: c.display_name || slug,
+                    status: _prodBoardStatus(c.board_status),
+                    lead: c.lead_member_id || '',
+                    issues: issueCounts[slug] || 0,
+                    target: _prodFmtDate(c.target_date),
+                    desc: c.board_desc || '',
+                    emoji: c.emoji || '',
+                    raw: c
+                };
+            }).filter(Boolean);
+            return { ISSUES, PROJECTS, CLIENTS, EDITORS, BATCHES };
+        }
+        function _prodData() {
+            if (!_prodState.adapter) _prodState.adapter = _prodAdapter();
+            return _prodState.adapter;
+        }
+        function _prodIssues() { return _prodData().ISSUES || []; }
+        function _prodProjects() { return _prodData().PROJECTS || {}; }
+        function _prodClients() { return _prodData().CLIENTS || []; }
+        function _prodEditors() { return _prodData().EDITORS || {}; }
+        function _prodIssue(id) {
+            const sid = String(id || '');
+            return _prodIssues().find(i => i.id === sid || i.displayId === sid) || null;
+        }
         function _prodClient(slug) {
-            return _prodById(_prodState.clients, 'slug').get(String(slug || '')) || null;
+            return _prodProjects()[String(slug || '')] || null;
         }
         function _prodBatch(id) {
-            return _prodById(_prodState.batches, 'id').get(String(id || '')) || null;
+            return _prodData().BATCHES[String(id || '')] || null;
         }
         function _prodMember(id) {
-            return _prodById(_prodState.members, 'id').get(String(id || '')) || null;
+            return _prodEditors()[String(id || '')] || null;
         }
         function _prodDisplayClient(slug) {
             const c = _prodClient(slug);
-            return c ? (c.display_name || c.slug) : (slug || 'Unknown client');
+            return c ? (c.name || c.id) : (slug || 'Unknown client');
         }
-        function _prodStatusLabel(status) { return PROD_STATUS[status] || status || 'Unknown'; }
-        function _prodBoardLabel(status) { return PROD_BOARD_STATUS[status] || status || 'Unknown'; }
+        function _prodStatusLabel(status) { return PROD_STATUS[_prodArtifactStatus(status)] || status || 'Unknown'; }
+        function _prodBoardLabel(status) { return PROD_BOARD_STATUS[_prodBoardStatus(status)] || status || 'Unknown'; }
         function _prodTeamLabel(team) {
             return team === 'video' ? 'Video' : team === 'graphics' ? 'Graphics' : 'All teams';
         }
         function _prodClientFilterLabel() {
             return _prodState.clientSlug ? _prodDisplayClient(_prodState.clientSlug) : '';
         }
-        function _prodInitials(name) {
-            const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-            return (parts[0] ? parts[0][0] : '?') + (parts[1] ? parts[1][0] : '');
-        }
         function _prodAvatar(member, size) {
             const s = size || 18;
-            if (!member) return '<span class="prod-avatar empty" style="width:' + s + 'px;height:' + s + 'px">?</span>';
-            const color = /^#[0-9a-f]{6}$/i.test(String(member.avatar_color || '')) ? member.avatar_color : 'var(--prod-accent)';
-            return '<span class="prod-avatar" style="width:' + s + 'px;height:' + s + 'px;background:' + color + ';font-size:' + Math.max(8, Math.round(s * .42)) + 'px">' + _calEsc(_prodInitials(member.name).toUpperCase()) + '</span>';
+            if (!member) return '<span class="prod-avatar empty" style="width:' + s + 'px;height:' + s + 'px">' + _prodIcon('assign') + '</span>';
+            const color = /^#[0-9a-f]{6}$/i.test(String(member.color || '')) ? member.color : 'var(--prod-accent)';
+            return '<span class="prod-avatar" style="width:' + s + 'px;height:' + s + 'px;background:' + color + ';font-size:' + Math.max(8, Math.round(s * .42)) + 'px">' + _calEsc(member.init || _prodInitials(member.name)) + '</span>';
         }
         function _prodIssueLabel(d) {
-            return d && (d.identifier || d.linear_identifier || d.id) || '';
+            return d && (d.displayId || d.identifier || d.linear_identifier || d.id) || '';
         }
         function _prodFmtDate(v) {
             if (!v) return '';
@@ -27163,14 +27356,14 @@
             return p.length === 3 ? (p[1] + '/' + p[2]) : s;
         }
         function _prodStatusType(status) {
-            const m = PROD_STATUS_META[status] || {};
+            const m = PROD_STATUS_META[_prodArtifactStatus(status)] || {};
             return m.type || 'unstarted';
         }
         function _prodIsDone(status) {
             return ['completed','canceled','duplicate'].includes(_prodStatusType(status)) || status === 'posted' || status === 'scheduled' || status === 'approved';
         }
         function _prodStatusSVG(status) {
-            const m = PROD_STATUS_META[status] || { type: 'unstarted', color: '#a8a8a8' };
+            const m = PROD_STATUS_META[_prodArtifactStatus(status)] || { type: 'unstarted', color: '#a8a8a8' };
             const c = m.color;
             if (m.type === 'triage') {
                 return '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" clip-rule="evenodd" fill="' + c + '" d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14m1.013-4.492V8.982H6.987v1.526c0 .421-.51.647-.838.37L3.174 8.372a.482.482 0 0 1 0-.742L6.15 5.121c.328-.276.838-.05.838.371v1.526h2.026V5.492c0-.421.51-.647.838-.37l2.975 2.507a.48.48 0 0 1 0 .742L9.85 10.879c-.328.276-.838.05-.838-.371"/></svg>';
@@ -27184,13 +27377,15 @@
             else inner = '<rect x="1" y="1" width="12" height="12" rx="6" fill="none" stroke="' + c + '" stroke-width="1.5"/>';
             return '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + inner + '</svg>';
         }
-        function _prodStatusIcon(status) {
-            return '<span class="prod-status" data-status="' + _calEscAttr(status || '') + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '">' + _prodStatusSVG(status) + '</span>';
+        function _prodStatusIcon(status, id) {
+            return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(_prodArtifactStatus(status)) + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '"' + (id ? ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(id) + ')" data-prod-tip="Change status"' : '') + '>' + _prodStatusSVG(status) + '</span>';
         }
         function _prodIcon(name) {
             if (name === 'search') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2 13 13"/></svg>';
             if (name === 'issues') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M4 3.5h8M4 8h8M4 12.5h8"/></svg>';
             if (name === 'project') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M3 4.5 8 2l5 2.5v7L8 14l-5-2.5z"/></svg>';
+            if (name === 'assign') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><circle cx="8" cy="5.6" r="2.4"/><path d="M3.8 13a4.2 4.2 0 0 1 8.4 0"/></svg>';
+            if (name === 'check') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.2 6.5 11 12.5 5"/></svg>';
             if (name === 'chevD') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m4.5 6 3.5 3.5L11.5 6"/></svg>';
             if (name === 'chevR') return '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m6 4.5 3.5 3.5L6 11.5"/></svg>';
             if (name === 'plus') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>';
@@ -27208,13 +27403,20 @@
         }
         function _prodClientEmoji(slug) {
             const c = _prodClient(slug);
-            return c && c.emoji ? c.emoji : 'S';
+            return c && c.emoji ? c.emoji : '';
+        }
+        function _prodProjectGlyph(project) {
+            const p = typeof project === 'string' ? _prodClient(project) : project;
+            return p && p.emoji ? _calEsc(p.emoji) : _prodIcon('project');
         }
         function _prodBatchRows(batchId) {
-            return _prodState.deliverables.filter(d => batchId && d.batch_id === batchId);
+            return _prodIssues().filter(d => batchId && d.batchId === batchId);
+        }
+        function _prodChildrenOf(id) {
+            return _prodIssues().filter(d => d.parent === id);
         }
         function _prodSubProgress(d) {
-            const rows = _prodBatchRows(d && d.batch_id).filter(x => x.id !== d.id);
+            const rows = _prodChildrenOf(d && d.id);
             if (!rows.length) return null;
             return { done: rows.filter(x => _prodIsDone(x.status)).length, total: rows.length };
         }
@@ -27227,7 +27429,7 @@
             return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
         }
         function _prodIsBatchParent(d, batch) {
-            return !!(d && batch && _prodSameTitle(d.title, batch.name));
+            return !!(d && d.isBatchParent) || !!(d && batch && _prodSameTitle(d.title, batch.name));
         }
         function _prodEnsureOverlays() {
             let layer = document.getElementById('prodLayer');
@@ -27280,6 +27482,7 @@
                 layer.innerHTML = '';
                 layer.style.pointerEvents = 'none';
             }
+            _prodSubPop = null;
             _prodHideTip();
         }
         function _prodShowTip(el) {
@@ -27340,6 +27543,10 @@
                 fail();
             }
         }
+        function _prodReadonlyGuard() {
+            _prodToast(_prodPreviewText());
+            return false;
+        }
         function _prodLayerPop(html, x, y) {
             _prodEnsureOverlays();
             const layer = document.getElementById('prodLayer');
@@ -27366,21 +27573,301 @@
             pop.style.visibility = 'visible';
             return pop;
         }
+        let _prodSubPop = null;
+        function _prodCloseSub() {
+            if (_prodSubPop) {
+                _prodSubPop.remove();
+                _prodSubPop = null;
+            }
+        }
+        function _prodTargetIds(id) {
+            return [String(id || '')].filter(Boolean);
+        }
+        function _prodCurVal(kind, id) {
+            const it = _prodIssue(id);
+            if (!it) return null;
+            if (kind === 'status') return it.status;
+            if (kind === 'assign') return it.assignee || '_';
+            if (kind === 'proj') return it.project;
+            if (kind === 'due') return it.due || '';
+            return null;
+        }
+        function _prodPickerSpec(kind) {
+            if (kind === 'status') {
+                return {
+                    hd: 'Change status...',
+                    search: true,
+                    items: PROD_STATUS_ORDER.map(k => ({
+                        v: k,
+                        label: _prodStatusLabel(k),
+                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span>'
+                    }))
+                };
+            }
+            if (kind === 'assign') {
+                const editors = _prodEditors();
+                return {
+                    hd: 'Assign to...',
+                    search: true,
+                    items: [{ v: '_', label: 'Unassigned', html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">Unassigned</span>' }]
+                        .concat(Object.keys(editors).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
+                            v: k,
+                            label: editors[k].name,
+                            html: '<span class="mic">' + _prodAvatar(editors[k], 16) + '</span><span class="mlbl">' + _calEsc(editors[k].name) + '</span>'
+                        })))
+                };
+            }
+            if (kind === 'proj') {
+                const projects = _prodProjects();
+                return {
+                    hd: 'Move to project...',
+                    search: true,
+                    items: Object.keys(projects).sort((a, b) => String(projects[a].name).localeCompare(String(projects[b].name))).map(k => ({
+                        v: k,
+                        label: projects[k].name,
+                        html: '<span class="mic">' + _prodProjectGlyph(projects[k]) + '</span><span class="mlbl">' + _calEsc(projects[k].name) + '</span>'
+                    }))
+                };
+            }
+            return {
+                hd: 'Set due date...',
+                ph: 'Type a date, e.g. Jul 20',
+                custom: true,
+                items: [
+                    ['Today', _prodFmtDue(new Date())],
+                    ['Tomorrow', _prodFmtDue(_prodAddDays(new Date(), 1))],
+                    ['Next week', _prodFmtDue(_prodAddDays(new Date(), 7))],
+                    ['No due date', '']
+                ].map(o => ({ v: o[1], label: o[0], html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span>' }))
+            };
+        }
+        function _prodPickerHTML(kind, cur) {
+            const d = _prodPickerSpec(kind);
+            const search = d.search || d.custom;
+            return (search ? '<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.ph || d.hd) + '"></div>' : '<div class="prod-pop-hd">' + _calEsc(d.hd) + '</div>')
+                + '<div class="prod-pop-list">' + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '">'
+                    + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>';
+        }
+        function _prodWirePicker(pop, kind, ids) {
+            const d = _prodPickerSpec(kind);
+            const pick = () => {
+                _prodReadonlyGuard();
+                _prodClearLayer();
+            };
+            pop.querySelectorAll('[data-prod-pick]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                pick();
+            }));
+            const visible = () => Array.from(pop.querySelectorAll('[data-prod-pick]')).filter(el => el.style.display !== 'none');
+            let sel = 0;
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = Math.max(0, Math.min(n, rows.length - 1));
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            pop.querySelectorAll('[data-prod-pick]').forEach(el => el.addEventListener('mousemove', () => {
+                const rows = visible();
+                const ix = rows.indexOf(el);
+                if (ix >= 0 && ix !== sel) {
+                    sel = ix;
+                    rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                }
+            }));
+            const inp = pop.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.toLowerCase();
+                    pop.querySelectorAll('[data-prod-pick]').forEach(el => {
+                        const it = d.items[+el.getAttribute('data-prod-pick')];
+                        el.style.display = it.label.toLowerCase().includes(q) ? '' : 'none';
+                    });
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Escape') { _prodClearLayer(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); pick(); }
+                });
+                try { inp.focus(); } catch (e) {}
+                setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+            }
+            const rows = visible();
+            const tick = rows.findIndex(el => !!el.querySelector('.tick'));
+            hi(tick >= 0 ? tick : 0);
+        }
+        function _prodOpenSub(parentEl, kind, ids) {
+            _prodCloseSub();
+            const p = document.createElement('div');
+            p.className = 'prod-pop' + (kind === 'due' ? ' prod-duepop' : '');
+            p.style.visibility = 'hidden';
+            p.addEventListener('click', e => e.stopPropagation());
+            document.getElementById('prodLayer').appendChild(p);
+            const r = parentEl.getBoundingClientRect();
+            if (kind === 'due') {
+                _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: r.right - 4, y: r.top - 6, flipX: r.left });
+                _prodSubPop = p;
+                return;
+            }
+            p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null);
+            const pr = p.getBoundingClientRect();
+            let x = r.right - 4;
+            let y = r.top - 6;
+            if (x + pr.width > innerWidth - 8) x = r.left - pr.width + 4;
+            if (y + pr.height > innerHeight - 8) y = Math.max(8, innerHeight - pr.height - 8);
+            p.style.left = x + 'px';
+            p.style.top = y + 'px';
+            p.style.visibility = 'visible';
+            _prodWirePicker(p, kind, ids);
+            _prodSubPop = p;
+        }
+        function _prodOpenPicker(kind, ev, id) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const ids = _prodTargetIds(id);
+            const p = _prodLayerPop('', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160, true);
+            if (kind === 'due') {
+                p.classList.add('prod-duepop');
+                _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: ev ? ev.clientX : innerWidth / 2, y: ev ? ev.clientY : 160 });
+            } else {
+                p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null);
+                _prodWirePicker(p, kind, ids);
+            }
+            return false;
+        }
+        function _prodOpenStatusMenu(ev, id) { return _prodOpenPicker('status', ev, id); }
+        function _prodOpenAssignMenu(ev, id) { return _prodOpenPicker('assign', ev, id); }
+        function _prodOpenDueMenu(ev, id) { return _prodOpenPicker('due', ev, id); }
+        function _prodOpenProjectMenu(ev, id) { return _prodOpenPicker('proj', ev, id); }
+        const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        function _prodAddDays(d, n) {
+            const x = new Date(d);
+            x.setDate(x.getDate() + n);
+            return x;
+        }
+        function _prodFmtDue(d) {
+            return PROD_MON[d.getMonth()] + ' ' + d.getDate();
+        }
+        function _prodFmtWk(d) {
+            return PROD_WK[d.getDay()] + ', ' + d.getDate() + ' ' + PROD_MON[d.getMonth()];
+        }
+        function _prodParseDue(s) {
+            s = String(s || '').trim().toLowerCase();
+            if (!s) return null;
+            const today = new Date();
+            const M = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+            let m;
+            if (s === 'today') return today;
+            if (s === 'tomorrow') return _prodAddDays(today, 1);
+            if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})$/)) {
+                const mo = M[m[1].slice(0, 3)];
+                if (mo != null) return new Date(today.getFullYear(), mo, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
+            return null;
+        }
+        function _prodBuildDue(pop, cur, ids, anchor) {
+            let view = 'quick';
+            const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
+            let calM = new Date((parsed || new Date()).getFullYear(), (parsed || new Date()).getMonth(), 1);
+            let focusDay = parsed || new Date();
+            const guard = () => {
+                _prodReadonlyGuard();
+                _prodClearLayer();
+            };
+            const quick = () => {
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20..."></div><div class="prod-pop-list">';
+                if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
+                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom...</span></div>';
+                [['Tomorrow', _prodAddDays(new Date(), 1)], ['End of this week', _prodAddDays(new Date(), (5 - new Date().getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(new Date(), 7)]].forEach(o => {
+                    h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodFmtDue(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
+                });
+                return h + '</div>';
+            };
+            const cal = () => {
+                const start = new Date(calM).getDay();
+                const dim = new Date(calM.getFullYear(), calM.getMonth() + 1, 0).getDate();
+                let cells = '';
+                for (let i = 0; i < start; i++) cells += '<div class="prod-cal-d empty"></div>';
+                for (let d = 1; d <= dim; d++) {
+                    const dt = new Date(calM.getFullYear(), calM.getMonth(), d);
+                    const today = dt.toDateString() === new Date().toDateString();
+                    const selected = cur && cur.due === _prodFmtDue(dt);
+                    const focused = focusDay && dt.toDateString() === focusDay.toDateString();
+                    cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(_prodFmtDue(dt)) + '">' + d + '</div>';
+                }
+                return '<div class="prod-pop-search"><input data-prod-search placeholder="Type a date, e.g. Jul 20"></div><div class="prod-cal"><div class="prod-cal-hd"><button class="prod-cal-nav" type="button" data-prod-cal="-1">&lsaquo;</button><span class="prod-cal-mo">' + PROD_MON_FULL[calM.getMonth()] + ' ' + calM.getFullYear() + '</span><button class="prod-cal-nav" type="button" data-prod-cal="1">&rsaquo;</button></div><div class="prod-cal-wk"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div><div class="prod-cal-grid">' + cells + '</div></div>';
+            };
+            const pos = () => {
+                const pr = pop.getBoundingClientRect();
+                let nx = anchor.x;
+                let ny = anchor.y;
+                if (nx + pr.width > innerWidth - 8) nx = anchor.flipX != null ? Math.max(8, anchor.flipX - pr.width + 4) : innerWidth - pr.width - 8;
+                if (ny + pr.height > innerHeight - 8) ny = Math.max(8, innerHeight - pr.height - 8);
+                pop.style.left = nx + 'px';
+                pop.style.top = ny + 'px';
+            };
+            const draw = () => {
+                pop.innerHTML = view === 'quick' ? quick() : cal();
+                pop.querySelectorAll('[data-prod-day]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    guard();
+                }));
+                pop.querySelectorAll('[data-prod-set]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    if (el.getAttribute('data-prod-set') === '__custom__') {
+                        view = 'calendar';
+                        draw();
+                    } else {
+                        guard();
+                    }
+                }));
+                pop.querySelectorAll('[data-prod-cal]').forEach(el => el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    calM = new Date(calM.getFullYear(), calM.getMonth() + (+el.getAttribute('data-prod-cal')), 1);
+                    draw();
+                }));
+                const inp = pop.querySelector('[data-prod-search]');
+                if (inp) {
+                    inp.addEventListener('keydown', e => {
+                        e.stopPropagation();
+                        if (e.key === 'Escape') { _prodClearLayer(); return; }
+                        if (e.key === 'Enter' && _prodParseDue(inp.value)) guard();
+                    });
+                    try { inp.focus(); } catch (e) {}
+                }
+                pop.style.visibility = 'visible';
+                pos();
+            };
+            pop.style.visibility = 'hidden';
+            draw();
+        }
         function _prodOpenContextMenu(ev, kind, id) {
             if (ev) {
                 ev.preventDefault();
                 ev.stopPropagation();
             }
             const preview = _prodPreviewText();
+            const hasSub = { status: 1, assign: 1, due: 1, proj: 1 };
+            const menuItem = (label, icon, kbd, act) =>
+                '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const disabled = (label, icon, kbd, danger) =>
                 '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
             const active = (label, icon, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
             const issueMenu = [
-                disabled('Status', _prodIcon('issues'), 'S'),
-                disabled('Assignee', _prodIcon('project'), 'A'),
-                disabled('Due date', _prodIcon('cal'), 'Shift+D'),
-                disabled('Project', _prodIcon('project'), 'Shift+P'),
+                menuItem('Status', _prodIcon('issues'), 'S', 'status'),
+                menuItem('Assignee', _prodIcon('assign'), 'A', 'assign'),
+                menuItem('Due date', _prodIcon('cal'), 'Shift+D', 'due'),
+                menuItem('Project', _prodIcon('project'), 'Shift+P', 'proj'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
                 disabled('Move', _prodIcon('move'), ''),
@@ -27389,46 +27876,66 @@
             ];
             const projectMenu = [
                 disabled('Change status', _prodIcon('issues'), 'S'),
-                disabled('Set lead', _prodIcon('project'), 'A'),
+                disabled('Set lead', _prodIcon('assign'), 'A'),
                 disabled('Set target', _prodIcon('cal'), 'Shift+D'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy')
             ];
             const pop = _prodLayerPop((kind === 'client' ? projectMenu : issueMenu).join(''), ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
-            const copy = pop.querySelector('[data-prod-ctx="copy"]');
-            if (copy) copy.addEventListener('click', () => {
-                _prodClearLayer();
-                _prodCopyLink(kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue', id);
+            pop.querySelectorAll('[data-prod-ctx]').forEach(el => {
+                const act = el.getAttribute('data-prod-ctx');
+                if (hasSub[act]) {
+                    el.addEventListener('mouseenter', () => _prodOpenSub(el, act, _prodTargetIds(id)));
+                    el.addEventListener('click', e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        _prodOpenSub(el, act, _prodTargetIds(id));
+                    });
+                    return;
+                }
+                if (act === 'copy') el.addEventListener('click', () => {
+                    _prodClearLayer();
+                    _prodCopyLink(kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue', id);
+                });
+            });
+            pop.querySelectorAll('[data-prod-disabled]').forEach(el => {
+                el.addEventListener('mouseenter', _prodCloseSub);
+                el.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    _prodReadonlyGuard();
+                });
             });
             return false;
         }
         function _prodTabAllows(status) {
             if (_prodState.tab === 'backlog') return status === 'backlog' || status === 'triage';
             if (_prodState.tab === 'all') return true;
-            return ['todo','in_progress','smm_approval','kasper_approval','client_approval','tweak','approved','scheduled'].includes(status || '');
+            return ['todo','prog','smm','kasper','client','tweak','approved','scheduled'].includes(_prodArtifactStatus(status));
         }
         function _prodMyMemberId() {
-            const withRows = new Set(_prodState.deliverables.map(d => d.assignee_id).filter(Boolean));
-            const sidney = _prodState.members.find(m => /sidney/i.test(String(m.name || m.email || '')) && withRows.has(m.id));
+            const withRows = new Set(_prodIssues().map(d => d.assignee).filter(Boolean));
+            const editors = _prodEditors();
+            const sidney = Object.values(editors).find(m => /sidney/i.test(String(m.name || '')) && withRows.has(m.id));
             if (sidney) return sidney.id;
-            const active = _prodState.members.find(m => m.active !== false && withRows.has(m.id));
+            const active = Object.values(editors).find(m => m.active !== false && withRows.has(m.id));
             return active ? active.id : '';
         }
         function _prodIssueRows() {
-            const rows = _prodState.deliverables.slice();
+            const rows = _prodIssues().slice();
             return rows.filter(d => _prodState.team === 'all' || d.team === _prodState.team)
-                .filter(d => !_prodState.clientSlug || d.client_slug === _prodState.clientSlug)
-                .filter(d => _prodState.view !== 'my' || (d.assignee_id && d.assignee_id === _prodMyMemberId()))
+                .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
+                .filter(d => _prodState.view !== 'my' || (d.assignee && d.assignee === _prodMyMemberId()))
                 .filter(d => _prodState.view === 'detail' || _prodState.view === 'batch' || _prodState.view === 'board' || _prodTabAllows(d.status))
                 .sort((a, b) => {
-                    const s = PROD_STATUS_ORDER.indexOf(a.status) - PROD_STATUS_ORDER.indexOf(b.status);
+                    const s = PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(a.status)) - PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(b.status));
                     if (s) return s;
-                    return String(a.due_date || '9999-99-99').localeCompare(String(b.due_date || '9999-99-99'))
+                    return String(a.dueRaw || '9999-99-99').localeCompare(String(b.dueRaw || '9999-99-99'))
                         || String(_prodIssueLabel(a)).localeCompare(String(_prodIssueLabel(b)));
                 });
         }
         function _prodCounts() {
-            const all = _prodState.deliverables || [];
+            const all = _prodIssues();
             return {
                 all: all.length,
                 video: all.filter(d => d.team === 'video').length,
@@ -27500,13 +28007,14 @@
                 _prodState.members = members;
                 _prodState.batches = batches;
                 _prodState.deliverables = deliverables;
+                _prodState.adapter = _prodAdapter({ clients, members, batches, deliverables });
                 _prodState.loaded = true;
                 _prodState.loading = false;
-                if (_prodState.openId && !_prodState.deliverables.find(d => d.id === _prodState.openId)) {
+                if (_prodState.openId && !_prodIssue(_prodState.openId)) {
                     _prodState.openId = '';
                     _prodState.view = 'list';
                 }
-                if (_prodState.openBatchId && !_prodState.batches.find(b => b.id === _prodState.openBatchId)) {
+                if (_prodState.openBatchId && !_prodBatch(_prodState.openBatchId)) {
                     _prodState.openBatchId = '';
                     _prodState.view = 'list';
                 }
@@ -27599,6 +28107,7 @@
         }
         function _prodRefresh() {
             _prodState.loaded = false;
+            _prodState.adapter = null;
             _prodState.events = new Map();
             _prodLoadData();
         }
@@ -27614,7 +28123,7 @@
         }
         function _prodSidebar() {
             const c = _prodCounts();
-            const favIssues = _prodState.deliverables.filter(d => d.favorite || d.fav);
+            const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
             const favHTML = favIssues.length
                 ? '<button class="prod-nav-section' + (_prodState.secOpen.fav ? '' : ' collapsed') + '" type="button" onclick="_prodToggleSection(' + _jsAttrArg('fav') + ')"><span class="prod-section-label">Favorites</span><span class="prod-section-chev">' + _prodIcon('chevD') + '</span></button>'
                     + (_prodState.secOpen.fav ? '<div class="prod-nav">' + favIssues.slice(0, 6).map(d => _prodNavItem(_prodStatusSVG(d.status), d.title || _prodIssueLabel(d), _prodState.openId === d.id, '_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')', 'child')).join('') + '</div>' : '')
@@ -27652,16 +28161,17 @@
             return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
-            const d = _prodState.openId ? _prodState.deliverables.find(x => x.id === _prodState.openId) : null;
-            const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batch_id) : null;
-            const clientSlug = d ? d.client_slug : batch ? batch.client_slug : '';
+            const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
+            const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batchId) : null;
+            const parent = d && d.parent ? _prodIssue(d.parent) : null;
+            const clientSlug = d ? d.project : batch ? batch.client_slug : '';
             const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
-            const showBatchParent = !!(batch && d && !_prodIsBatchParent(d, batch));
+            const showParent = !!parent;
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
-                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenClient(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Client: ' + _calEscAttr(_prodDisplayClient(clientSlug)) + '"><span style="font-size:12px">' + _calEsc(_prodClientEmoji(clientSlug)) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
-                + (showBatchParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(batch.id) + '" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')" data-prod-tip="Open parent">' + _calEsc(batch.name || 'Batch') + '</button>' : '')
+                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenClient(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Client: ' + _calEscAttr(_prodDisplayClient(clientSlug)) + '"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
@@ -27690,27 +28200,28 @@
             }).join('') + '</div>';
         }
         function _prodRow(d) {
-            const assignee = _prodMember(d.assignee_id);
-            const batch = _prodBatch(d.batch_id);
+            const assignee = _prodMember(d.assignee);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
             const sub = _prodSubProgress(d);
-            const clientName = _prodDisplayClient(d.client_slug);
-            const isBatchParent = _prodIsBatchParent(d, batch);
+            const clientName = _prodDisplayClient(d.project);
+            const isBatchParent = !!d.isBatchParent;
             const childCount = sub ? sub.total : 0;
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.client_slug || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
-                + _prodStatusIcon(d.status)
-                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch && !isBatchParent ? '<span class="prod-parent-title">' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
+                + _prodStatusIcon(d.status, d.id)
+                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
-                + '<span class="prod-spacer"></span><span class="prod-chip optional"><span class="prod-client-dot">' + _calEsc(_prodClientEmoji(d.client_slug)) + '</span><span>' + _calEsc(clientName) + '</span></span>'
-                + (d.due_date ? '<span class="prod-due' + (_prodOverdue(d.due_date, d.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(d.due_date)) + '</span>' : '<span class="prod-due optional">' + _prodIcon('cal') + '</span>')
+                + '<span class="prod-spacer"></span><span class="prod-chip optional"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
+                + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
                 + '<span title="' + _calEscAttr(assignee ? assignee.name : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
-                + '<span class="prod-created">' + _calEsc(_prodFmtDate(d.created_at)) + '</span>'
+                + '<span class="prod-created">' + _calEsc(d.created) + '</span>'
                 + '</div>';
         }
         function _prodProjectStatusIcon(status) {
-            const color = status === 'backlog' ? '#d9863a' : status === 'in_progress' ? '#e0b83a' : status === 'completed' ? '#5e6ad2' : status === 'canceled' ? '#8a8f98' : '#a5a6ab';
-            const extra = status === 'in_progress' ? '<circle cx="7" cy="7" r="2.4" fill="' + color + '"/>'
+            status = _prodBoardStatus(status);
+            const color = status === 'backlog' ? '#d9863a' : status === 'prog' ? '#e0b83a' : status === 'completed' ? '#5e6ad2' : status === 'canceled' ? '#8a8f98' : '#a5a6ab';
+            const extra = status === 'prog' ? '<circle cx="7" cy="7" r="2.4" fill="' + color + '"/>'
                 : status === 'completed' ? '<path d="M4.6 7.1 6.2 8.7 9.4 5.3" fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
                 : status === 'paused' ? '<rect x="5.4" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/><rect x="7.6" y="5" width="1.4" height="4" rx=".6" fill="' + color + '"/>'
                 : status === 'canceled' ? '<path d="M5.4 5.4 8.6 8.6M8.6 5.4 5.4 8.6" stroke="' + color + '" stroke-width="1.4" stroke-linecap="round"/>'
@@ -27721,67 +28232,66 @@
         function _prodBoard() {
             const rows = _prodIssueRows();
             const byClient = new Map();
-            rows.forEach(d => byClient.set(d.client_slug, (byClient.get(d.client_slug) || 0) + 1));
+            rows.forEach(d => byClient.set(d.project, (byClient.get(d.project) || 0) + 1));
             return '<div class="prod-board">' + PROD_BOARD_ORDER.map(status => {
-                const cards = _prodState.clients.filter(c => (c.board_status || 'in_progress') === status && byClient.has(c.slug));
+                const cards = _prodClients().filter(c => (c.status || 'prog') === status && byClient.has(c.id));
                 return '<section class="prod-col" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div><div class="prod-cards">'
-                    + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.slug) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No projects</div>')
+                    + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.id) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No projects</div>')
                     + '</div></section>';
             }).join('') + '</div>';
         }
         function _prodClientCard(c, count) {
-            const lead = _prodMember(c.lead_member_id);
-            const status = c.board_status || 'in_progress';
-            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.slug || '') + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.slug || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.slug || '') + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
-                + (c.board_desc ? '<div class="prod-card-desc">' + _calEsc(c.board_desc) + '</div>' : '')
-                + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target_date ? '<span>' + _calEsc(_prodFmtDate(c.target_date)) + '</span>' : '') + '</div></article>';
+            const lead = _prodMember(c.lead);
+            const status = c.status || 'prog';
+            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.id || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.id || '') + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title">' + _calEsc(c.name || c.id) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
+                + (c.desc ? '<div class="prod-card-desc">' + _calEsc(c.desc) + '</div>' : '')
+                + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target ? '<span>' + _calEsc(c.target) + '</span>' : '') + '</div></article>';
         }
         function _prodDetail() {
-            const d = _prodState.deliverables.find(x => x.id === _prodState.openId);
+            const d = _prodIssue(_prodState.openId);
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
-            const batch = _prodBatch(d.batch_id);
-            const assignee = _prodMember(d.assignee_id);
-            const kids = batch ? _prodState.deliverables.filter(x => x.batch_id === batch.id && x.id !== d.id) : [];
-            const isBatchParent = _prodIsBatchParent(d, batch);
-            const showBatchParent = !!(batch && !isBatchParent);
+            const assignee = _prodMember(d.assignee);
+            const kids = _prodChildrenOf(d.id);
+            const parent = d.parent ? _prodIssue(d.parent) : null;
+            const isBatchParent = !!d.isBatchParent;
             const events = _prodState.events.get(d.id);
-            const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
+            const file = d.file || '';
             const subSection = kids.length
-                ? '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due_date ? '<span class="prod-due' + (_prodOverdue(k.due_date, k.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(k.due_date)) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee_id), 18) + '</span></div>').join('') + '</div>'
+                ? '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status, k.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due ? '<span class="prod-due' + (_prodOverdue(k.dueRaw, k.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee), 18) + '</span></div>').join('') + '</div>'
                 : '';
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
-                + '<div class="prod-desc">' + (d.brief ? _calEsc(d.brief) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
+                + '<div class="prod-desc">' + (d.desc ? _calEsc(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" disabled title="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
-                + '</div></div><aside class="prod-right">' + _prodProps(d, batch, assignee, file, showBatchParent) + '</aside></div>';
+                + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, file) + '</aside></div>';
         }
         function _prodBatchDetail() {
             const batch = _prodBatch(_prodState.openBatchId);
             if (!batch) return '<div class="prod-empty">Batch not found.</div>';
-            const rows = _prodState.deliverables.filter(d => d.batch_id === batch.id);
+            const rows = _prodBatchRows(batch.id);
             return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + (batch.description ? _calEsc(batch.description) : '<span style="color:var(--prod-faint)">No batch description.</span>') + '</div>'
-                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+                + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Team</span><span>' + _calEsc(_prodTeamLabel(batch.team)) + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Status</span><span>' + _calEsc(batch.status || 'active') + '</span></div>'
                 + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span>' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
                 + '</div></aside></div>';
         }
-        function _prodProps(d, batch, assignee, file, showBatchParent) {
-            const client = _prodClient(d.client_slug);
+        function _prodProps(d, parent, assignee, file) {
+            const client = _prodClient(d.project);
             const sideRow = value => '<div class="prod-side-row">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
             return '<div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
-                + sideRow(_prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span>')
-                + sideRow(_prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span>')
-                + sideRow(_prodIcon('cal') + '<span>' + (d.due_date ? _calEsc(_prodFmtDate(d.due_date)) : muted('Add due date')) + '</span>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="status" onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(_prodStatusLabel(d.status)) + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="assignee" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span></button>')
+                + sideRow('<button type="button" class="prod-prop-btn" data-prod-prop="due" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')">' + _prodIcon('cal') + '<span>' + (d.due ? _calEsc(d.due) : muted('Add due date')) + '</span></button>')
                 + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="detail-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div>'
-                + (showBatchParent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(batch.name || 'Batch') + '</span></button></div></div>' : '')
-                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><span class="prod-card-ico">' + _calEsc(client && client.emoji ? client.emoji : 'S') + '</span><span>' + _calEsc(_prodDisplayClient(d.client_slug)) + '</span></div></div>'
+                + (parent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(parent.status) + '<span>' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</span></button></div></div>' : '')
+                + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-prop="project" onclick="return _prodOpenProjectMenu(event,' + _jsAttrArg(d.id) + ')"><span class="prod-card-ico">' + _prodProjectGlyph(client) + '</span><span>' + _calEsc(_prodDisplayClient(d.project)) + '</span></button></div></div>'
                 + '</div>';
         }
         function _prodActivity(events) {
@@ -38437,6 +38947,9 @@
             // area) sets data-no-tip so the global handler doesn't
             // double up on its hover.
             if (el.closest && el.closest('[data-no-tip]')) return true;
+            // Production preview owns its artifact-style tooltip layer through
+            // data-prod-tip; the global title tooltip would double-paint there.
+            if (el.closest && el.closest('.prod-view, .prod-layer, .prod-tip, .prod-toast')) return true;
             const tag = el.tagName;
             // Form fields: title may be used for HTML5 validation messages
             // or accessibility hints — leave them alone.

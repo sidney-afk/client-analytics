@@ -648,6 +648,35 @@ Resolve card link URLs (direct or alias) → set both card columns + deliverable
 
 Pre-B1 snapshot per ROLLBACK rule 4 (git tag `pre-B1`, official Linear export → private Drive,
 Supabase dump). Only new tables are written. Every backfill row events `source='backfill'`.
+"Only new tables" explicitly INCLUDES the additive `clients` / `team_members` reconciliation
+inserts of §5.3 — those are Track B tables and their rows MUST land **before** `deliverables`
+(FK dependency), or the backfill rejects real work. Insertion order is derived from the FK
+graph: `clients` → `team_members` → `batches` → `deliverables` → `deliverable_events`.
+
+### 5.6 Constraint preflight (MANDATORY before the first backfill write)
+
+*Added 2026-07-06 after the clients-FK near-miss: the audit had found the facts (85 operational
+issues under client slugs absent from `clients`, 60 of them project-less), but no step traced
+those facts to their schema consequences, and the backfill would have failed or silently dropped
+rows. The fix is mechanical, not editorial:*
+
+Before the first write, the backfill tooling must enumerate **every constraint on every target
+table** — each foreign key, NOT NULL, CHECK (status enum, team, kind), and unique index across
+`batches` / `deliverables` / `deliverable_events` / `linear_archive` / `mirror_outbox` — and
+compute, **from the real pulled data**, the violation count for each, plus a written handling
+rule for every non-zero count. Expected classes (non-exhaustive — the sweep is the point):
+missing client rows; assignees not in `team_members` (ghost/departed users → NULL + note, or
+inactive member rows); sub-issues whose parent is completed / out-of-window / absent (→ the
+§5.1 synthetic-batch rule); state names outside the §2.1 enum; duplicate `linear_issue_id`;
+card-linkage rows whose card client ≠ deliverable client. The preflight report is a required
+**B1 gate addendum**; the backfill runs only after every non-zero count has an approved rule.
+A violation discovered mid-run is a stop-and-report, never a silent drop.
+
+The full assumption sweep that motivated this section lives in
+`docs/audits/2026-07-06-data-assumption-sweep.md` — 12 ranked items. Items 1/2/5/6/7/8 there
+are covered by this mechanical preflight; items 3/9/10/11/12 are semantic and are hereby
+attached to their phase gates (9 → B0.5 canary evidence; 11 → B1 backfill; 3/10 → B3 gate;
+12 → B4 flip checklist).
 
 ---
 
@@ -979,8 +1008,10 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   trigger + `flag_flips` live; n8n errorWorkflow wired (§8.2).
 - **B0.5 →**: Track A latent bugs fixed; all real clients on all three EF flags for 1 week,
   zero regressions; THEN permissive-key log clean 72 h over real traffic → enforced.
-- **B1 →**: dry-run counts match audit; 20-issue spot parity; repair queue + `active=false`
-  list reviewed (D-16); replay-verify green; CON/STR active split measured (D-11).
+- **B1 →**: dry-run counts match audit; **constraint preflight (§5.6) posted with every
+  non-zero violation count carrying an approved handling rule**; 20-issue spot parity; repair
+  queue + `active=false` list reviewed (D-16); replay-verify green; CON/STR active split
+  measured (D-11).
 - **B2 →**: tab renders real migrated data behind `?prod=1` for admin; design-kit suites
   in-repo (D-17) and green on the wired tab; staff diagnostic page live.
 - **B3 →**: comments webhook subscribed + catch-up pull run (§4.3.4); mirror zero-diff (modulo
@@ -1032,6 +1063,13 @@ before start + ROLLBACK.md Live State updated in the same PR (§1.6).
   seeds, §2.6 transaction mechanics, CAS on deliverable writes, per-phase flip points, drill
   granularity, editors-week semantics, prototype status-key rename map, comment-history
   handling, archive privacy, QA/monitoring isolation, and the D-17/D-18 additions.
+- ✅ **2026-07-06: the clients-FK near-miss → standing rule.** The B1 backfill preflight caught
+  85 operational issues whose client slugs were absent from `clients` (the audit knew the facts;
+  no step had traced them to their schema consequences). Lesson made permanent:
+  **STANDING RULE — every phase's tooling must validate ALL schema constraints and referential
+  closure against the real data before its first write** (§5.6 is the B1 instance; B2 card-wiring,
+  B3's inbound writer, and B4's flip checklists each get the same treatment before they run).
+  "Audit found the fact" is not enough — a machine check must connect facts to consequences.
 - **NEXT:** owner answers §14 (D-15 immediately; D-1/D-2/D-4/D-6/D-17 before B0–B2); then the
   build session implements phase by phase under Track A's gate discipline. Everything stays in
   THIS doc + `docs/syncview-design/` + `docs/audits/` — no scattered new files.

@@ -9,6 +9,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
+const bashCheck = spawnSync('bash', ['--version'], { encoding: 'utf8' });
+if (bashCheck.error && bashCheck.error.code === 'ENOENT') {
+  console.log('overnight-runner-singleton-lock: skipped (bash unavailable)');
+  process.exit(0);
+}
+
 const root = path.resolve(__dirname, '..');
 const runner = path.join(root, 'qa', 'overnight_runner.sh');
 const src = fs.readFileSync(runner, 'utf8');

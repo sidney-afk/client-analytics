@@ -34,13 +34,18 @@ check('Production nav click still routes through navTo()', /id="navProd"[\s\S]{0
 check('_prodEnabled is query-flagged on ?prod=1', /function _prodEnabled\(\) \{\s*try \{ return new URLSearchParams\(location\.search\)\.get\('prod'\) === '1'; \}/.test(index));
 check('navTo hard-falls back when ?prod=1 is absent', /if \(page === 'production' && !_prodEnabled\(\)\) page = 'home';/.test(index));
 check('navTo toggles Production nav visibility from _prodEnabled()', /navProd\.style\.display = _prodEnabled\(\) \? '' : 'none';/.test(index));
-check('init fast-mounts Production only when _prodEnabled()', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,180}if \(_prodEnabled\(\)\) \{[\s\S]{0,180}navTo\('production', false\)/.test(index));
+check('init fast-mounts Production only when _prodEnabled()', /else if \(_prodEnabled\(\)\) _setBootLoadingText\('Loading Production preview\.\.\.'\);[\s\S]{0,220}if \(_prodEnabled\(\)\) \{[\s\S]{0,220}navTo\('production', false\)/.test(index));
+check('Production preview suppresses queued calendar-card writers', /setTimeout\(\(\) => \{\s*if \(_prodEnabled\(\)\) return;[\s\S]{0,120}_resumePendingCalCardJobs\(\)/.test(index));
+check('Production preview starts essentials for clean nav-out', /if \(_prodEnabled\(\)\) \{[\s\S]{0,260}fetchEssentials\(\)\.then/.test(index));
 check('FAST_TABS does not include production', /const FAST_TABS = \[[^\]]+\]/.test(index) && !/const FAST_TABS = \[[^\]]*production/.test(index));
 
 check('preview reads B1 dormant tables', /_prodRestRows\('clients'/.test(prodBlock) && /_prodRestRows\('batches'/.test(prodBlock) && /_prodRestRows\('deliverables'/.test(prodBlock));
 check('preview does not expose service-role-only archive table', !/linear_archive/.test(prodBlock));
 check('preview does not read or write runtime flags', !/syncview_runtime_flags/.test(prodBlock));
 check('preview fetch helper uses default GET', /fetch\(url, \{ headers: _prodHeaders\(\) \}\)/.test(prodBlock));
+check('preview read helper takes explicit page size and max page cap', /async function _prodRestRows\(table, select, params, pageSize, maxPages\)/.test(prodBlock) && /page < cap/.test(prodBlock) && /read exceeded pagination cap/.test(prodBlock));
+check('preview read helper strips duplicate limit and offset params', prodBlock.includes('!/^limit=|^offset=/.test(p)'));
+check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,240}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 check('preview block has no explicit browser write methods', !/['"`](POST|PUT|PATCH|DELETE)['"`]/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
 check('visible write affordances are tagged disabled', /data-prod-disabled="new-issue" disabled/.test(prodBlock) && /data-prod-disabled="detail-controls" disabled/.test(prodBlock));

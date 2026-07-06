@@ -25761,21 +25761,24 @@
         function _prodHeaders() {
             return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         }
-        async function _prodRestRows(table, select, params) {
+        async function _prodRestRows(table, select, params, pageSize, maxPages) {
             if (!CAL_SUPABASE_URL || !CAL_SUPABASE_ANON_KEY) throw new Error('Supabase is not configured');
             const rows = [];
-            const limit = 1000;
-            for (let offset = 0;; offset += limit) {
+            const limit = Math.max(1, Math.min(1000, Number(pageSize || 1000)));
+            const cap = Math.max(1, Number(maxPages || 100));
+            const cleanParams = String(params || '').split('&').filter(p => p && !/^limit=|^offset=/.test(p)).join('&');
+            for (let page = 0, offset = 0; page < cap; page++, offset += limit) {
                 const url = CAL_SUPABASE_URL + '/rest/v1/' + table
                     + '?select=' + encodeURIComponent(select)
                     + '&limit=' + limit
                     + '&offset=' + offset
-                    + (params ? '&' + params : '');
+                    + (cleanParams ? '&' + cleanParams : '');
                 const resp = await fetch(url, { headers: _prodHeaders() });
                 if (!resp.ok) throw new Error(table + ' read failed: HTTP ' + resp.status);
                 const batch = await resp.json();
                 rows.push(...batch);
                 if (!Array.isArray(batch) || batch.length < limit) break;
+                if (page === cap - 1) throw new Error(table + ' read exceeded pagination cap');
             }
             return rows;
         }
@@ -25888,10 +25891,10 @@
             _prodRender();
             try {
                 const [clients, members, batches, deliverables] = await Promise.all([
-                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc'),
-                    _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc'),
-                    _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc'),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,brief,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url', 'order=team.asc,status.asc,due_date.asc')
+                    _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
+                    _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
+                    _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,brief,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
                 ]);
                 _prodState.clients = clients;
                 _prodState.members = members;
@@ -25919,7 +25922,7 @@
             _prodState.events.set(id, null);
             _prodRender();
             try {
-                const rows = await _prodRestRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,ts,actor,role,action,from_status,to_status,source,payload', 'deliverable_id=eq.' + encodeURIComponent(id) + '&order=ts.desc&limit=30');
+                const rows = await _prodRestRows('deliverable_events', 'id,deliverable_id,batch_id,client_slug,ts,actor,role,action,from_status,to_status,source,payload', 'deliverable_id=eq.' + encodeURIComponent(id) + '&order=ts.desc', 30, 2);
                 _prodState.events.set(id, rows);
             } catch (e) {
                 console.warn('[Production] deliverable event read failed', e);
@@ -26118,6 +26121,7 @@
             // (deep links, fast tabs, Kasper, analytics) after all top-level
             // module bindings are initialized, without blocking first paint.
             setTimeout(() => {
+                if (_prodEnabled()) return;
                 try { _resumePendingCalCardJobs(); }
                 catch (e) { console.warn('[SyncView] calendar card job resume failed:', e); }
             }, 8000);
@@ -26182,6 +26186,12 @@
 
             if (_prodEnabled()) {
                 setTimeout(function () { try { navTo('production', false); } catch (e) { console.error('[Production] mount failed', e); } }, 0);
+                fetchEssentials().then(() => {
+                    try { _resumePendingBriefPolling(); } catch (e) {}
+                    _applyAllDataDependentChrome();
+                }, err => {
+                    console.warn('[SyncView] Production preview background essentials failed', err);
+                });
                 return;
             }
 

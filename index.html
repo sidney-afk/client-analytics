@@ -13766,6 +13766,7 @@
         // it, so existing / non-YouTube cards never surface a title review and
         // computeOverallStatus (which ignores it anyway) is unaffected.
         p.title_status = String(p.title_status || '').trim() ? _calNormStatus(p.title_status) : '';
+        ['video_deliverable_id', 'graphic_deliverable_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
         p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
         p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
         p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
@@ -18845,7 +18846,7 @@
         // colour must update).
         const keys = ['id','order_index','scheduled_date','status','name',
                       'asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','cta',
-                      'linear_issue_id','graphic_linear_issue_id',
+                      'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status','caption_status','title_status',
                       'updated_at'];
         for (let i = 0; i < a.length; i++) {
@@ -20635,7 +20636,7 @@
     const _CAL_ROLLBACK_FIELDS = [
         'video_status', 'graphic_status', 'caption_status', 'title_status', 'status',
         'order_index', 'scheduled_date',
-        'linear_issue_id', 'graphic_linear_issue_id',
+        'linear_issue_id', 'video_deliverable_id', 'graphic_linear_issue_id', 'graphic_deliverable_id',
         'client_video_approved_at', 'client_graphic_approved_at', 'client_caption_approved_at',
         'kasper_approved_at', 'posted_at', 'kasper_approved_after_tweaks',
     ];
@@ -20646,6 +20647,16 @@
        actually clears a link (and a "move" can't free it off the old card). The
        workflow clears the column only when it receives this exact value. */
     const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const CAL_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _calApplyClearSentinels(wirePost, touched) {
+        CAL_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
+                wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
+            }
+        });
+    }
 
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
@@ -20769,12 +20780,7 @@
                 // field-level patch: a link column is present here only when it
                 // was actually edited, so an empty value is unambiguously a real
                 // clear — not a stale whole-card echo.
-                ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
-                    if (Object.prototype.hasOwnProperty.call(wirePost, lk)
-                        && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
-                        wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
-                    }
-                });
+                _calApplyClearSentinels(wirePost);
             } else {
                 wirePost = Object.assign({}, post);
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
@@ -20789,6 +20795,7 @@
                 delete wirePost.title_comments;
                 delete wirePost._baseAt;
                 delete wirePost._saveError;
+                _calApplyClearSentinels(wirePost, edits);
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
@@ -26753,6 +26760,14 @@
     const SXR_RT_CHANNEL_PREFIX = 'sxr-';
     const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
     const SXR_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const SXR_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _sxrApplyClearSentinels(wirePost, touched) {
+        SXR_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
+        });
+    }
     const SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients';
 
     /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
@@ -27370,7 +27385,7 @@
     function _sxrMigrateShape(p) {
         if (!p) return p;
         SXR_COMPONENTS.forEach(c => { if (p[c + '_status'] == null || p[c + '_status'] === '') p[c + '_status'] = 'In Progress'; });
-        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','graphic_linear_issue_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
         // Parse the per-component comment threads from the *_tweaks string columns
         // (so the Review/Notes surfaces can read them); seed the local kasper-seen
         // cache from the cross-device kasper_seen CSV.
@@ -28280,7 +28295,7 @@
        caption/title/scheduled_date/posted_at. */
     const _SXR_ROLLBACK_FIELDS = [
         'video_status', 'graphic_status', 'status', 'order_index',
-        'linear_issue_id', 'graphic_linear_issue_id',
+        'linear_issue_id', 'video_deliverable_id', 'graphic_linear_issue_id', 'graphic_deliverable_id',
         'client_video_approved_at', 'client_graphic_approved_at',
         'kasper_approved_at', 'kasper_approved_after_tweaks',
     ];
@@ -28540,9 +28555,7 @@
                     if ('video_status' in edits || 'graphic_status' in edits) wirePost.status = post.status;
                     if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
-                    ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
-                        if (Object.prototype.hasOwnProperty.call(wirePost, lk) && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
-                    });
+                    _sxrApplyClearSentinels(wirePost);
                 } else {
                     // Whole card (new row, or a forced retry with empty edits).
                     wirePost = Object.assign({}, post);
@@ -28551,6 +28564,7 @@
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
                     delete wirePost._baseAt; delete wirePost._saveError;
+                    _sxrApplyClearSentinels(wirePost, edits);
                 }
                 _sxrLastLocalWriteAt = Date.now();
                 const resp = await _sxrUpsertFetch(_saveSlug, { client: _saveSlug, sample: wirePost, comments_base_at: '' }, 'ui');
@@ -29556,7 +29570,7 @@
         if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
         const keys = ['id','order_index','status','name',
                       'asset_url','thumbnail_url','creative_direction','hide_creative_direction',
-                      'linear_issue_id','graphic_linear_issue_id',
+                      'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status',
                       'updated_at'];
         for (let i = 0; i < a.length; i++) {
@@ -35310,7 +35324,7 @@
        caption) that Kasper's row still carries a stale value for is NOT
        clobbered. (`status` is derived and handled separately from
        computeOverallStatus; comment cells are always sent and server-merged.) */
-    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
+    const KASPER_PATCH_SCALARS = ['order_index','scheduled_date','name','asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','post_url','cta','linear_issue_id','video_deliverable_id','kasper_approved_at','posted_at','platform','platforms','color','video_status','graphic_status','caption_status','graphic_linear_issue_id','graphic_deliverable_id','client_video_approved_at','client_graphic_approved_at','client_caption_approved_at','title_status','client_title_approved_at','kasper_seen','kasper_approved_after_tweaks','thumb_rev','kasper_finished_at','kasper_closed_at','kasper_finish_log'];
     function _kasperPatchSnapshot(post) {
         const s = {};
         for (const k of KASPER_PATCH_SCALARS) s[k] = (post && post[k] != null) ? String(post[k]) : '';

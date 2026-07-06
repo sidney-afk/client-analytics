@@ -389,8 +389,10 @@ ok(!/Link anyway/i.test(INDEX), 'no "Link anyway" escape hatch was added');
 ok(/\.cal-link-conflict\s*\{/.test(INDEX), 'the conflict-prompt CSS is present');
 // the empty→sentinel translation in the save funnel (so a clear actually clears)
 const flushSrc = grabFunc('_calFlushCardSave');
-ok(/CAL_CLEAR_LINK_SENTINEL/.test(flushSrc) && /'linear_issue_id', 'graphic_linear_issue_id'/.test(flushSrc),
-   '_calFlushCardSave translates an emptied link patch to the __CLEAR_LINK__ sentinel');
+ok(/_calApplyClearSentinels\(wirePost\)/.test(flushSrc)
+   && /_calApplyClearSentinels\(wirePost, edits\)/.test(flushSrc)
+   && INDEX.includes("const CAL_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];"),
+   '_calFlushCardSave routes all link clears through the __CLEAR_LINK__ sentinel helper');
 ok(/const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';/.test(INDEX), 'the clear sentinel constant is defined');
 
 console.log(`\ncalendar-linear-link-move: ${pass} passed, ${fail} failed  ${fail ? '❌' : '✅'}`);

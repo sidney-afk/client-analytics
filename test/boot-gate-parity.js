@@ -94,7 +94,7 @@ check('?c= boot block lifts boot-client',
 
 // 6. The CSS gate rules the tags rely on must exist in the static style block.
 for (const rule of [
-  'html.boot-onboarding, html.boot-onboarding body { background: #101216; }',
+  'html.boot-onboarding, html.boot-onboarding body { background: var(--sv-bg-101216); }',
   'html.boot-onboarding .header { display: none !important; }',
   'html.boot-intake .header { display: none !important; }',
   'html.boot-client .header { display: none !important; }',

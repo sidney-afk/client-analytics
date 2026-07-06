@@ -25977,7 +25977,7 @@
             const viewName = _prodState.view === 'board' ? 'Board' : _prodState.view === 'detail' ? 'Issue detail' : _prodState.view === 'batch' ? 'Batch detail' : 'List';
             return '<div class="prod-topbar"><div class="prod-crumb"><span>Production</span><span style="color:var(--prod-faint)">/</span><span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span><span style="color:var(--prod-faint)">/</span><span>' + _calEsc(viewName) + '</span></div>'
                 + '<div class="prod-tabs"><button class="prod-tab' + (_prodState.view !== 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')">All issues</button><button class="prod-tab' + (_prodState.view === 'board' ? ' active' : '') + '" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')">Clients</button></div>'
-                + '<div class="prod-spacer"></div><span class="prod-disabled-pill"><button type="button" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>';
+                + '<div class="prod-spacer"></div><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return '<div class="prod-loading">Loading migrated production data...</div>';
@@ -25998,14 +25998,14 @@
                 grouped.get(k).push(r);
             });
             return '<div class="prod-listwrap">' + Array.from(grouped.entries()).map(([status, items]) =>
-                '<div class="prod-group"><span class="prod-status-dot" data-status="' + _calEscAttr(status) + '"></span><span class="prod-group-title">' + _calEsc(_prodStatusLabel(status)) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" disabled title="' + _prodPreviewText() + '">+</button></div>'
+                '<div class="prod-group" data-prod-group="' + _calEscAttr(status) + '"><span class="prod-status-dot" data-status="' + _calEscAttr(status) + '"></span><span class="prod-group-title">' + _calEsc(_prodStatusLabel(status)) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">+</button></div>'
                 + items.map(_prodRow).join('')
             ).join('') + '</div>';
         }
         function _prodRow(d) {
             const assignee = _prodMember(d.assignee_id);
             const batch = _prodBatch(d.batch_id);
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">'
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.client_slug || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-status-dot" data-status="' + _calEscAttr(d.status) + '" title="' + _calEscAttr(_prodStatusLabel(d.status)) + '"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch ? '<span class="prod-subtle">/ ' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
@@ -26020,14 +26020,14 @@
             rows.forEach(d => byClient.set(d.client_slug, (byClient.get(d.client_slug) || 0) + 1));
             return '<div class="prod-board">' + PROD_BOARD_ORDER.map(status => {
                 const cards = _prodState.clients.filter(c => (c.board_status || 'in_progress') === status && byClient.has(c.slug));
-                return '<section class="prod-col"><div class="prod-col-head"><span class="prod-status-dot" data-status="' + (status === 'in_progress' ? 'in_progress' : 'todo') + '"></span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" disabled title="' + _prodPreviewText() + '">+</button></div><div class="prod-cards">'
+                return '<section class="prod-col" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><span class="prod-status-dot" data-status="' + (status === 'in_progress' ? 'in_progress' : 'todo') + '"></span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">+</button></div><div class="prod-cards">'
                     + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.slug) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No clients</div>')
                     + '</div></section>';
             }).join('') + '</div>';
         }
         function _prodClientCard(c, count) {
             const lead = _prodMember(c.lead_member_id);
-            return '<article class="prod-card" onclick="_prodSetTeam(' + _jsAttrArg(_prodState.team) + ')"><div class="prod-card-head"><span style="font-size:13px">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-status-dot" data-status="in_progress"></span>' + _prodAvatar(lead, 17) + '</div>'
+            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodSetTeam(' + _jsAttrArg(_prodState.team) + ')"><div class="prod-card-head"><span style="font-size:13px">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-status-dot" data-status="in_progress"></span>' + _prodAvatar(lead, 17) + '</div>'
                 + (c.board_desc ? '<div class="prod-card-desc">' + _calEsc(c.board_desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target_date ? '<span>' + _calEsc(_prodFmtDate(c.target_date)) + '</span>' : '') + '</div></article>';
         }
@@ -26039,7 +26039,7 @@
             const kids = batch ? _prodState.deliverables.filter(x => x.batch_id === batch.id && x.id !== d.id) : [];
             const events = _prodState.events.get(d.id);
             const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
-            return '<div class="prod-detail"><div class="prod-detail-main"><div class="prod-detail-inner">'
+            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + '<div class="prod-desc">' + (d.brief ? _calEsc(d.brief) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
                 + (file ? '<div class="prod-subsection"><a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">Open delivery link</a></div>' : '')
@@ -26075,7 +26075,7 @@
                 + prop('Sync', _calEsc(d.sync_state || 'clean'))
                 + prop('Linear', d.linear_issue_url ? '<a class="prod-link" href="' + _calEscAttr(d.linear_issue_url) + '" target="_blank" rel="noopener">' + _calEsc(d.linear_identifier || 'Open') + '</a>' : _calEsc(d.linear_identifier || ''))
                 + prop('File', file ? '<a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">Open</a>' : '')
-                + '<div class="prod-prop"><span class="prod-prop-label">Controls</span><span class="prod-disabled-pill"><button type="button" disabled title="' + _prodPreviewText() + '">Disabled</button></span></div>'
+                + '<div class="prod-prop"><span class="prod-prop-label">Controls</span><span class="prod-disabled-pill"><button type="button" data-prod-disabled="detail-controls" disabled title="' + _prodPreviewText() + '">Disabled</button></span></div>'
                 + '</div>';
         }
         function _prodActivity(events) {

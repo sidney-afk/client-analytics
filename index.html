@@ -2985,6 +2985,14 @@
         .tpl-link-open:hover { background: var(--sv-bg-111110); color: var(--sv-fg-fff); }
         .tpl-link-open.disabled { opacity: 0.35; pointer-events: none; }
 
+        /* Multiple links per link field — same add/remove UX as color sets. */
+        .tpl-links-edit { display: flex; flex-direction: column; gap: 8px; }
+        .tpl-link-set-row { display: flex; align-items: center; gap: 8px; }
+        .tpl-link-set-row .tpl-link-row { flex: 1; min-width: 0; }
+        .tpl-links-edit .tpl-set-remove { margin-top: 0; }
+        .tpl-links-edit .tpl-set-add { align-self: flex-start; margin-top: 2px; }
+        .tpl-view-links { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
         /* Skeleton (loading) */
         .tpl-skeleton { background: linear-gradient(90deg, var(--bg) 0%, var(--sv-bg-ededea) 50%, var(--bg) 100%); background-size: 200% 100%; border-radius: 8px; animation: tpl-shimmer 1.4s ease-in-out infinite; }
         .tpl-skeleton-pill { border-radius: 99px; }
@@ -8828,7 +8836,10 @@
         const content = document.getElementById('content');
         if (!content) return;
         const ae = document.activeElement;
-        if (ae && ae.hasAttribute && ae.hasAttribute('data-tpl-field')) return;
+        // Don't yank the caret out of a field the user is actively editing when
+        // a realtime echo lands: covers plain fields, the color-set inputs, and
+        // the multiple-link inputs (each keyed by its own data-attr).
+        if (ae && ae.hasAttribute && (ae.hasAttribute('data-tpl-field') || ae.hasAttribute('data-tpl-set') || ae.hasAttribute('data-tpl-link-set'))) return;
         content.innerHTML = renderTemplatesView();
         mountTemplatesView();
     }
@@ -9124,6 +9135,114 @@
         return `<div class="tpl-view-field tpl-view-color-sets-field">
             <div class="tpl-view-label">Color sets</div>
             <div class="tpl-color-sets-view">${cards}</div>
+        </div>`;
+    }
+
+    /* ── Multiple links per link field (client photos, thumbnail, reference reel)
+       ─────────────────────────────────────────────────────────────────────
+       Same additive pattern as the thumbnails color sets above, and the SAME
+       add/remove UX ("+ Add link" button, per-row remove). The full list lives
+       in a new sibling JSON column `<field>_list`, while the legacy single
+       `<field>` column stays populated with the FIRST link so anything still
+       reading that Sheet cell — an external consumer, an old row, or an
+       unflagged n8n client — keeps working untouched. On read, a legacy single
+       value with no `_list` yet renders as a one-item list. Saving rides the
+       existing _tplQueueSave → _tplFlush path (both the n8n Sheet webhook and
+       the templates-save Edge Function accept arbitrary string patch keys), so
+       no endpoint or Edge Function change is needed. */
+    const TPL_MAX_LINKS = 8;
+    function _tplGetLinks(name, field) {
+        const raw = _tplGet(name, field + '_list');
+        if (raw && typeof raw === 'string') {
+            try {
+                const arr = JSON.parse(raw);
+                if (Array.isArray(arr) && arr.length) {
+                    return arr.map(v => String(v == null ? '' : v));
+                }
+            } catch {}
+        }
+        // Migration: fall back to the legacy single-link column when no JSON yet.
+        const single = _tplGet(name, field);
+        if (single) return [String(single)];
+        return [''];
+    }
+    function _tplSaveLinks(name, field, links) {
+        const cleaned = (links && links.length ? links : [''])
+            .map(v => String(v == null ? '' : v));
+        // Persist the full list in the new sibling column…
+        _tplQueueSave(name, field + '_list', JSON.stringify(cleaned), false);
+        // …and mirror the FIRST link into the legacy single column so external
+        // consumers / old readers / unflagged n8n clients keep working.
+        _tplQueueSave(name, field, cleaned[0] || '', false);
+    }
+    function _tplAddLink(name, field) {
+        const links = _tplGetLinks(name, field);
+        if (links.length >= TPL_MAX_LINKS) return;
+        links.push('');
+        _tplSaveLinks(name, field, links);
+        if (_templatesSelected === name) {
+            const content = document.getElementById('content');
+            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+        }
+    }
+    function _tplRemoveLink(name, field, index) {
+        const links = _tplGetLinks(name, field);
+        if (index < 0 || index >= links.length) return;
+        links.splice(index, 1);
+        if (links.length === 0) links.push('');
+        _tplSaveLinks(name, field, links);
+        if (_templatesSelected === name) {
+            const content = document.getElementById('content');
+            if (content) { content.innerHTML = renderClientTemplate(name); mountTemplatesView(); }
+        }
+    }
+    const _TPL_LINK_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    function _tplRenderLinksEdit(name, field, label, placeholder) {
+        const links = _tplGetLinks(name, field);
+        const rows = links.map((v, i) => {
+            const isUrl = /^https?:\/\//i.test(v);
+            const removeBtn = links.length > 1
+                ? `<button class="tpl-set-remove" onclick="_tplRemoveLink(${_jsAttrArg(name)}, '${field}', ${i})" title="Remove this link"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="2.5" y1="2.5" x2="9.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="9.5" y1="2.5" x2="2.5" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>`
+                : '';
+            return `<div class="tpl-link-set-row" data-tpl-link-index="${i}">
+                <div class="tpl-link-row">
+                    <input class="tpl-input" type="url" data-tpl-link-set="${i}"
+                           value="${_tplEsc(v)}" placeholder="${_tplEsc(placeholder || 'https://…')}" />
+                    <a class="tpl-link-open${isUrl ? '' : ' disabled'}" href="${isUrl ? _tplEsc(v) : '#'}" target="_blank" rel="noopener" title="Open link" data-tpl-link-open="${i}">${_TPL_LINK_ICON}</a>
+                </div>
+                ${removeBtn}
+            </div>`;
+        }).join('');
+        const canAddMore = links.length < TPL_MAX_LINKS;
+        const addBtn = canAddMore
+            ? `<button class="tpl-set-add" onclick="_tplAddLink(${_jsAttrArg(name)}, '${field}')"><svg width="11" height="11" viewBox="0 0 12 12" fill="none"><line x1="6" y1="2.5" x2="6" y2="9.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><line x1="2.5" y1="6" x2="9.5" y2="6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg> Add link</button>`
+            : `<div class="tpl-set-add-max">Max ${TPL_MAX_LINKS} links</div>`;
+        return `<div class="tpl-field"><label class="tpl-field-label">${label}</label>
+            <div class="tpl-links-edit" data-tpl-links data-tpl-client="${_tplEsc(name)}" data-tpl-link-field="${field}">
+                ${rows}
+                ${addBtn}
+            </div></div>`;
+    }
+    function _tplRenderLinksView(name, field, label, openLabel) {
+        const links = _tplGetLinks(name, field).filter(v => /^https?:\/\//i.test(v));
+        if (!links.length) {
+            return `<div class="tpl-view-field">
+                <div class="tpl-view-label">${label}</div>
+                <div class="tpl-view-value">${_NOT_SET}</div>
+            </div>`;
+        }
+        const items = links.map(v => {
+            let host = '';
+            try { host = new URL(v).hostname.replace(/^www\./, ''); } catch {}
+            return `<a class="tpl-view-link" href="${_tplEsc(v)}" target="_blank" rel="noopener">
+                ${openLabel || 'Open'}
+                ${host ? `<span class="tpl-view-link-host">${_tplEsc(host)}</span>` : ''}
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5h4v4M13.5 2.5L7 9M11 8.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>`;
+        }).join('');
+        return `<div class="tpl-view-field">
+            <div class="tpl-view-label">${label}</div>
+            <div class="tpl-view-value tpl-view-links">${items}</div>
         </div>`;
     }
 
@@ -9724,7 +9843,7 @@
                     <div class="tpl-section-title">Subtitles</div>
                     <div class="tpl-fields two">
                         ${_tplFieldText(name, 'reels_subtitle_font', 'Font', 'e.g. TheBoldFont, Inter Bold')}
-                        ${_tplFieldLink(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
+                        ${_tplRenderLinksEdit(name, 'reels_reference_link', 'Reference reel (placement & sizing)', 'https://instagram.com/reel/…')}
                     </div>
                     <div class="tpl-fields two" style="margin-top:14px;">
                         ${_tplFieldColor(name, 'reels_subtitle_main_color', 'Main color')}
@@ -9744,7 +9863,7 @@
                     <div class="tpl-section-title">Subtitles</div>
                     <div class="tpl-view-grid">
                         ${_tplViewText(name, 'reels_subtitle_font', 'Font')}
-                        ${_tplViewLink(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
+                        ${_tplRenderLinksView(name, 'reels_reference_link', 'Reference reel', 'Open reference')}
                         ${_tplViewColor(name, 'reels_subtitle_main_color', 'Main color')}
                         ${hl}
                     </div>
@@ -9779,8 +9898,8 @@
                         ${_tplRenderColorSetsEdit(name, colorSets, thumbsHlOff)}
                     </div>
                     <div class="tpl-fields two" style="margin-top:14px;">
-                        ${_tplFieldLink(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
-                        ${_tplFieldLink(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
+                        ${_tplRenderLinksEdit(name, 'thumbnails_photos_link', 'Client photos (Drive / Dropbox)', 'https://drive.google.com/…')}
+                        ${_tplRenderLinksEdit(name, 'thumbnails_canva_link', 'Editable Canva link', 'https://canva.com/design/…')}
                     </div>
                 </div>
                 <div class="tpl-section">
@@ -9795,8 +9914,8 @@
                     <div class="tpl-section-title">Thumbnails</div>
                     <div class="tpl-view-grid">
                         ${_tplViewText(name, 'thumbnails_title_font', 'Title font')}
-                        ${_tplViewLink(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
-                        ${_tplViewLink(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
+                        ${_tplRenderLinksView(name, 'thumbnails_photos_link', 'Client photos', 'Open photos')}
+                        ${_tplRenderLinksView(name, 'thumbnails_canva_link', 'Editable Canva', 'Open Canva')}
                     </div>
                     <div class="tpl-view-color-sets-wrap">
                         ${_tplRenderColorSetsView(name, thumbsHlOff)}
@@ -9977,6 +10096,34 @@
                     while (sets.length <= idx) sets.push({ title: '', highlight: '' });
                     sets[idx][key] = v;
                     _tplSaveColorSets(cName, sets);
+                });
+                el.addEventListener('blur', () => {
+                    if (_tplDirty[cName] && Object.keys(_tplDirty[cName]).length) _tplFlush(cName);
+                });
+            });
+        });
+
+        // Per-field multiple-link inputs. Each container owns one link field;
+        // its rows carry data-tpl-link-set (their index). Mirrors the color-sets
+        // wiring above and the legacy single-link handler (open-button state +
+        // debounced save through _tplQueueSave → _tplFlush).
+        root.querySelectorAll('[data-tpl-links]').forEach(container => {
+            const cName = container.getAttribute('data-tpl-client');
+            const field = container.getAttribute('data-tpl-link-field');
+            container.querySelectorAll('[data-tpl-link-set]').forEach(el => {
+                const idx = parseInt(el.getAttribute('data-tpl-link-set'), 10);
+                el.addEventListener('input', () => {
+                    const v = el.value;
+                    const opener = container.querySelector(`[data-tpl-link-open="${idx}"]`);
+                    if (opener) {
+                        const ok = /^https?:\/\//i.test(v);
+                        opener.classList.toggle('disabled', !ok);
+                        opener.setAttribute('href', ok ? v : '#');
+                    }
+                    const links = _tplGetLinks(cName, field);
+                    while (links.length <= idx) links.push('');
+                    links[idx] = v;
+                    _tplSaveLinks(cName, field, links);
                 });
                 el.addEventListener('blur', () => {
                     if (_tplDirty[cName] && Object.keys(_tplDirty[cName]).length) _tplFlush(cName);

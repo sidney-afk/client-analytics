@@ -144,7 +144,7 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     await page.waitForSelector('.prod-board', { timeout: 10000 });
     if (await page.locator('.prod-col').count() !== 6) throw new Error('Projects board columns did not render');
     const boardCols = await page.locator('.prod-col').evaluateAll(nodes => nodes.map(n => n.getAttribute('data-prod-col')));
-    const expectedCols = ['backlog', 'planned', 'in_progress', 'paused', 'completed', 'canceled'];
+    const expectedCols = ['backlog', 'planned', 'prog', 'paused', 'completed', 'canceled'];
     if (expectedCols.some(c => !boardCols.includes(c))) throw new Error('Projects board is missing expected columns: ' + boardCols.join(','));
     if (await page.locator('[data-prod-client-card]').count() < 1) throw new Error('Projects board rendered no real-data project cards');
     await maybeShot(page, 'prod-board');

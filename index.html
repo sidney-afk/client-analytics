@@ -4074,18 +4074,17 @@
         .sv-save-ind-svg { display: block; overflow: visible; }
         .sv-save-ind-track { stroke: var(--border); }
         .sv-save-ind-arc { stroke: var(--text-muted); stroke-dasharray: 34 57; opacity: 0; }
-        .sv-save-ind-check { stroke: var(--up); stroke-dasharray: 16; stroke-dashoffset: 16; opacity: 0; }
-        .sv-save-ind-bang { stroke: var(--dn); opacity: 0; }
+        /* The glyphs sit on a SOLID colour disc, so they are white. */
+        .sv-save-ind-check { stroke: var(--text-inverse); stroke-dasharray: 16; stroke-dashoffset: 16; opacity: 0; }
+        .sv-save-ind-bang { stroke: var(--text-inverse); opacity: 0; }
         /* saving — a subtle partial arc rotating around the ring */
         .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin 0.75s linear infinite; }
         .sv-save-ind.is-saving .sv-save-ind-arc { opacity: 1; }
-        /* saved — the ring completes in green and a check draws in */
-        .sv-save-ind.is-saved .sv-save-ind-track { stroke: var(--up); opacity: 0.4; }
-        .sv-save-ind.is-saved .sv-save-ind-arc { opacity: 1; stroke: var(--up); stroke-dasharray: 57; }
+        /* saved — a SOLID green disc with a white check that draws in */
+        .sv-save-ind.is-saved .sv-save-ind-track { fill: var(--up); stroke: var(--up); }
         .sv-save-ind.is-saved .sv-save-ind-check { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.25s ease 0.05s; }
-        /* error — a persistent red ring + exclamation */
-        .sv-save-ind.is-error .sv-save-ind-track { stroke: var(--dn); opacity: 0.45; }
-        .sv-save-ind.is-error .sv-save-ind-arc { opacity: 1; stroke: var(--dn); stroke-dasharray: 57; }
+        /* error — a persistent SOLID red disc with a white exclamation */
+        .sv-save-ind.is-error .sv-save-ind-track { fill: var(--dn); stroke: var(--dn); }
         .sv-save-ind.is-error .sv-save-ind-bang { opacity: 1; }
         @media (prefers-reduced-motion: reduce) {
             .sv-save-ind.is-saving .sv-save-ind-svg { animation: none; }

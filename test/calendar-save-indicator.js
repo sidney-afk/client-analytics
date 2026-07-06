@@ -139,10 +139,12 @@ check('the Save-failed · Retry affordance (chip + retry) is preserved',
 check('the indicator honours prefers-reduced-motion (rotation dropped)',
   INDEX.includes('prefers-reduced-motion: reduce') &&
   /\.sv-save-ind\.is-saving \.sv-save-ind-svg \{ animation: none/.test(INDEX));
-check('the indicator colours come from theme variables (light + dark, no hardcoded colors)',
-  /\.sv-save-ind-track \{ stroke: var\(--border\)/.test(INDEX) &&
-  /\.sv-save-ind-check \{ stroke: var\(--up\)/.test(INDEX) &&
-  /\.sv-save-ind-bang \{ stroke: var\(--dn\)/.test(INDEX));
+check('saved/error are SOLID colour discs with a white glyph, all from theme variables (light + dark)',
+  /\.sv-save-ind\.is-saved \.sv-save-ind-track \{ fill: var\(--up\)/.test(INDEX) &&
+  /\.sv-save-ind\.is-error \.sv-save-ind-track \{ fill: var\(--dn\)/.test(INDEX) &&
+  /\.sv-save-ind-check \{ stroke: var\(--text-inverse\)/.test(INDEX) &&
+  /\.sv-save-ind-bang \{ stroke: var\(--text-inverse\)/.test(INDEX) &&
+  /\.sv-save-ind-track \{ stroke: var\(--border\)/.test(INDEX));
 
 if (failures) { console.error(`\n${failures} check(s) failed ❌`); process.exit(1); }
 console.log('\nAll calendar-save-indicator checks passed ✅');

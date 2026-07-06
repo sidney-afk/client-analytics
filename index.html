@@ -1435,6 +1435,26 @@
         .prod-parent-link { border: 0; background: transparent; padding: 0; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; }
         .prod-parent-link:hover { text-decoration: underline; }
         .prod-composer-box { text-align: left; cursor: not-allowed; }
+        .prod-crumb-link { border: 0; background: transparent; color: var(--prod-strong); font: inherit; font-size: 12px; font-weight: 500; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 260px; }
+        .prod-crumb-link:hover { text-decoration: underline; }
+        .prod-layer { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
+        .prod-pop-bd { position: fixed; inset: 0; }
+        .prod-pop { position: absolute; min-width: 190px; padding: 5px; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08); font-size: 13px; }
+        .prod-mi { height: 32px; display: flex; align-items: center; gap: 9px; padding: 0 8px; border-radius: 6px; white-space: nowrap; cursor: default; }
+        .prod-mi:not(.disabled):hover { background: var(--prod-hover); }
+        .prod-mi.disabled { color: var(--prod-faint); cursor: not-allowed; opacity: .72; }
+        .prod-mi.danger { color: #b45309; }
+        .prod-mi .mic { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); }
+        .prod-mi.disabled .mic { color: var(--prod-faint); }
+        .prod-mi .mlbl { flex: 1; }
+        .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; }
+        .prod-mi .chev { color: var(--prod-faint); display: flex; margin-left: 6px; }
+        .prod-msep { height: 1px; margin: 5px 6px; background: var(--prod-divider); }
+        .prod-toast { position: fixed; left: 50%; bottom: 22px; transform: translate(-50%, 8px); z-index: 10000; min-height: 34px; max-width: min(420px, calc(100vw - 32px)); padding: 8px 13px; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.16); font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .12s, transform .12s; }
+        .prod-toast.show { opacity: 1; transform: translate(-50%, 0); }
+        .prod-tip { position: fixed; z-index: 10001; padding: 5px 8px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 10px 28px rgba(0,0,0,.13); font-size: 11px; font-weight: 450; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .1s, transform .1s; }
+        .prod-tip.show { opacity: 1; transform: translateY(0); }
+        .prod-tip .tk { color: var(--prod-muted); margin-left: 6px; }
         @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; } .prod-chip.optional { display: none; } }
 
         /* Workload calendar */
@@ -25957,6 +25977,9 @@
             if (name === 'star') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="m8 2.2 1.65 3.35 3.7.54-2.68 2.6.63 3.68L8 10.63l-3.3 1.74.63-3.68-2.68-2.6 3.7-.54z"/></svg>';
             if (name === 'bell') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M5 12h6M6 12a2 2 0 0 0 4 0M4.5 10.5h7l-.8-1.2V6.7a2.7 2.7 0 0 0-5.4 0v2.6z"/></svg>';
             if (name === 'back') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>';
+            if (name === 'copy') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><rect x="5" y="4" width="8" height="9" rx="1.8"/><path d="M3 10.5V4a2 2 0 0 1 2-2h5.5"/></svg>';
+            if (name === 'move') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M8 2v12M2 8h12M5.5 4.5 8 2l2.5 2.5M5.5 11.5 8 14l2.5-2.5M4.5 5.5 2 8l2.5 2.5M11.5 5.5 14 8l-2.5 2.5"/></svg>';
+            if (name === 'trash') return '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.45"><path d="M3 4.5h10M6.5 2.5h3M5 4.5l.5 8h5l.5-8"/></svg>';
             return '';
         }
         function _prodClientEmoji(slug) {
@@ -25975,6 +25998,185 @@
             if (!v || _prodIsDone(status)) return false;
             const day = String(v).slice(0, 10);
             return /^\d{4}-\d{2}-\d{2}$/.test(day) && day < new Date().toISOString().slice(0, 10);
+        }
+        function _prodSameTitle(a, b) {
+            return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+        }
+        function _prodIsBatchParent(d, batch) {
+            return !!(d && batch && _prodSameTitle(d.title, batch.name));
+        }
+        function _prodEnsureOverlays() {
+            let layer = document.getElementById('prodLayer');
+            if (!layer) {
+                layer = document.createElement('div');
+                layer.id = 'prodLayer';
+                layer.className = 'prod-layer';
+                document.body.appendChild(layer);
+            }
+            let tip = document.getElementById('prodTip');
+            if (!tip) {
+                tip = document.createElement('div');
+                tip.id = 'prodTip';
+                tip.className = 'prod-tip';
+                document.body.appendChild(tip);
+            }
+            let toast = document.getElementById('prodToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'prodToast';
+                toast.className = 'prod-toast';
+                document.body.appendChild(toast);
+            }
+            if (!_prodState.overlayWired) {
+                _prodState.overlayWired = true;
+                document.addEventListener('keydown', e => {
+                    if (e.key === 'Escape' && document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) {
+                        _prodClearLayer();
+                    }
+                });
+                document.addEventListener('mouseover', e => {
+                    const el = e.target && e.target.closest ? e.target.closest('[data-prod-tip]') : null;
+                    if (!el || !document.getElementById('prodRoot')) return;
+                    if (document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) return;
+                    clearTimeout(_prodState.tipTimer);
+                    _prodState.tipEl = el;
+                    _prodState.tipTimer = setTimeout(() => {
+                        if (_prodState.tipEl === el) _prodShowTip(el);
+                    }, 380);
+                });
+                document.addEventListener('mouseout', e => {
+                    const el = e.target && e.target.closest ? e.target.closest('[data-prod-tip]') : null;
+                    if (el && el === _prodState.tipEl) _prodHideTip();
+                });
+            }
+        }
+        function _prodClearLayer() {
+            const layer = document.getElementById('prodLayer');
+            if (layer) {
+                layer.innerHTML = '';
+                layer.style.pointerEvents = 'none';
+            }
+            _prodHideTip();
+        }
+        function _prodShowTip(el) {
+            const raw = el && el.getAttribute('data-prod-tip');
+            const tip = document.getElementById('prodTip');
+            if (!raw || !tip) return;
+            const parts = raw.split('|');
+            const r = el.getBoundingClientRect();
+            tip.innerHTML = _calEsc(parts[0]) + (parts[1] ? '<span class="tk">' + _calEsc(parts[1]) + '</span>' : '');
+            tip.style.left = '-9999px';
+            tip.style.top = '0';
+            tip.classList.add('show');
+            const tr = tip.getBoundingClientRect();
+            let x = r.left + r.width / 2 - tr.width / 2;
+            let y = r.bottom + 7;
+            if (y + tr.height > innerHeight - 6) y = r.top - tr.height - 7;
+            x = Math.max(6, Math.min(x, innerWidth - tr.width - 6));
+            tip.style.left = x + 'px';
+            tip.style.top = y + 'px';
+        }
+        function _prodHideTip() {
+            const tip = document.getElementById('prodTip');
+            if (tip) tip.classList.remove('show');
+            clearTimeout(_prodState.tipTimer);
+            _prodState.tipEl = null;
+        }
+        function _prodToast(message) {
+            _prodEnsureOverlays();
+            const toast = document.getElementById('prodToast');
+            if (!toast) return;
+            toast.textContent = message || '';
+            toast.classList.add('show');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => toast.classList.remove('show'), 1600);
+        }
+        function _prodLinkFor(kind, id) {
+            const q = new URLSearchParams();
+            q.set('prod', '1');
+            if (kind === 'client') {
+                q.set('client', String(id || ''));
+                q.set('view', 'list');
+            } else if (kind === 'batch') {
+                q.set('batch', String(id || ''));
+            } else {
+                q.set('d', String(id || ''));
+            }
+            return location.origin + location.pathname + '?' + q.toString() + '#production';
+        }
+        function _prodCopyLink(kind, id) {
+            const url = _prodLinkFor(kind, id);
+            try { window.__prodLastCopied = url; } catch (e) {}
+            const done = () => _prodToast('Link copied');
+            const fail = () => _prodToast('Copy failed');
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fail);
+                else done();
+            } catch (e) {
+                fail();
+            }
+        }
+        function _prodLayerPop(html, x, y) {
+            _prodEnsureOverlays();
+            const layer = document.getElementById('prodLayer');
+            layer.innerHTML = '';
+            layer.style.pointerEvents = 'auto';
+            const bd = document.createElement('div');
+            bd.className = 'prod-pop-bd';
+            bd.addEventListener('click', _prodClearLayer);
+            bd.addEventListener('contextmenu', e => { e.preventDefault(); _prodClearLayer(); });
+            layer.appendChild(bd);
+            const pop = document.createElement('div');
+            pop.className = 'prod-pop';
+            pop.innerHTML = html;
+            pop.style.visibility = 'hidden';
+            pop.addEventListener('click', e => e.stopPropagation());
+            pop.addEventListener('contextmenu', e => e.preventDefault());
+            layer.appendChild(pop);
+            const r = pop.getBoundingClientRect();
+            let nx = x, ny = y;
+            if (nx + r.width > innerWidth - 8) nx = innerWidth - r.width - 8;
+            if (ny + r.height > innerHeight - 8) ny = Math.max(8, innerHeight - r.height - 8);
+            pop.style.left = nx + 'px';
+            pop.style.top = ny + 'px';
+            pop.style.visibility = 'visible';
+            return pop;
+        }
+        function _prodOpenContextMenu(ev, kind, id) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const preview = _prodPreviewText();
+            const disabled = (label, icon, kbd, danger) =>
+                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
+            const active = (label, icon, act) =>
+                '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
+            const issueMenu = [
+                disabled('Status', _prodIcon('issues'), 'S'),
+                disabled('Assignee', _prodIcon('project'), 'A'),
+                disabled('Due date', _prodIcon('cal'), 'Shift+D'),
+                disabled('Project', _prodIcon('project'), 'Shift+P'),
+                '<div class="prod-msep"></div>',
+                active('Copy link', _prodIcon('copy'), 'copy'),
+                disabled('Move', _prodIcon('move'), ''),
+                '<div class="prod-msep"></div>',
+                disabled('Delete', _prodIcon('trash'), 'Ctrl Backspace', true)
+            ];
+            const projectMenu = [
+                disabled('Change status', _prodIcon('issues'), 'S'),
+                disabled('Set lead', _prodIcon('project'), 'A'),
+                disabled('Set target', _prodIcon('cal'), 'Shift+D'),
+                '<div class="prod-msep"></div>',
+                active('Copy link', _prodIcon('copy'), 'copy')
+            ];
+            const pop = _prodLayerPop((kind === 'client' ? projectMenu : issueMenu).join(''), ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
+            const copy = pop.querySelector('[data-prod-ctx="copy"]');
+            if (copy) copy.addEventListener('click', () => {
+                _prodClearLayer();
+                _prodCopyLink(kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue', id);
+            });
+            return false;
         }
         function _prodTabAllows(status) {
             if (_prodState.tab === 'backlog') return status === 'backlog' || status === 'triage';
@@ -26179,6 +26381,7 @@
         function _prodRender() {
             const root = document.getElementById('prodRoot');
             if (!root) return;
+            _prodEnsureOverlays();
             root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             if (_prodState.view === 'detail' && _prodState.openId && _prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
         }
@@ -26229,7 +26432,13 @@
             const batch = _prodState.openBatchId ? _prodBatch(_prodState.openBatchId) : d ? _prodBatch(d.batch_id) : null;
             const clientSlug = d ? d.client_slug : batch ? batch.client_slug : '';
             const title = d ? (d.title || _prodIssueLabel(d)) : batch ? (batch.name || 'Batch') : 'Detail';
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span>' + (batch ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(batch.name || 'Batch') + '</span>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button></div>';
+            const showBatchParent = !!(batch && d && !_prodIsBatchParent(d, batch));
+            const ctxKind = d ? 'issue' : 'batch';
+            const ctxId = d ? d.id : batch ? batch.id : '';
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
+                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenClient(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Client: ' + _calEscAttr(_prodDisplayClient(clientSlug)) + '"><span style="font-size:12px">' + _calEsc(_prodClientEmoji(clientSlug)) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
+                + (showBatchParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(batch.id) + '" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')" data-prod-tip="Open parent">' + _calEsc(batch.name || 'Batch') + '</button>' : '')
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return '<div class="prod-loading">Loading migrated production data...</div>';
@@ -26261,11 +26470,13 @@
             const batch = _prodBatch(d.batch_id);
             const sub = _prodSubProgress(d);
             const clientName = _prodDisplayClient(d.client_slug);
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.client_slug || '') + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">'
+            const isBatchParent = _prodIsBatchParent(d, batch);
+            const childCount = sub ? sub.total : 0;
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.client_slug || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
                 + '<span class="prod-check" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status)
-                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch ? '<span class="prod-parent-title">' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
+                + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (batch && !isBatchParent ? '<span class="prod-parent-title">' + _calEsc(batch.name || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
                 + '<span class="prod-spacer"></span><span class="prod-chip optional"><span class="prod-client-dot">' + _calEsc(_prodClientEmoji(d.client_slug)) + '</span><span>' + _calEsc(clientName) + '</span></span>'
                 + (d.due_date ? '<span class="prod-due' + (_prodOverdue(d.due_date, d.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(d.due_date)) + '</span>' : '<span class="prod-due optional">' + _prodIcon('cal') + '</span>')
@@ -26297,7 +26508,7 @@
         function _prodClientCard(c, count) {
             const lead = _prodMember(c.lead_member_id);
             const status = c.board_status || 'in_progress';
-            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.slug || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
+            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.slug || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.slug || '') + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.slug || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _calEsc(c.emoji || 'S') + '</span><span class="prod-card-title">' + _calEsc(c.display_name || c.slug) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.slug || '') + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
                 + (c.board_desc ? '<div class="prod-card-desc">' + _calEsc(c.board_desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target_date ? '<span>' + _calEsc(_prodFmtDate(c.target_date)) + '</span>' : '') + '</div></article>';
         }
@@ -26307,21 +26518,26 @@
             const batch = _prodBatch(d.batch_id);
             const assignee = _prodMember(d.assignee_id);
             const kids = batch ? _prodState.deliverables.filter(x => x.batch_id === batch.id && x.id !== d.id) : [];
+            const isBatchParent = _prodIsBatchParent(d, batch);
+            const showBatchParent = !!(batch && !isBatchParent);
             const events = _prodState.events.get(d.id);
             const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
-            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
+            const subSection = kids.length
+                ? '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due_date ? '<span class="prod-due' + (_prodOverdue(k.due_date, k.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(k.due_date)) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee_id), 18) + '</span></div>').join('') + '</div>'
+                : '';
+            return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + '<div class="prod-desc">' + (d.brief ? _calEsc(d.brief) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
-                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + (kids.length ? kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due_date ? '<span class="prod-due' + (_prodOverdue(k.due_date, k.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(_prodFmtDate(k.due_date)) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee_id), 18) + '</span></div>').join('') : '<div style="color:var(--prod-faint);font-size:12.5px;padding:10px 0">No sub-issues in this batch.</div>') + '</div>'
+                + subSection
                 + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" disabled title="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
-                + '</div></div><aside class="prod-right">' + _prodProps(d, batch, assignee, file) + '</aside></div>';
+                + '</div></div><aside class="prod-right">' + _prodProps(d, batch, assignee, file, showBatchParent) + '</aside></div>';
         }
         function _prodBatchDetail() {
             const batch = _prodBatch(_prodState.openBatchId);
             if (!batch) return '<div class="prod-empty">Batch not found.</div>';
             const rows = _prodState.deliverables.filter(d => d.batch_id === batch.id);
-            return '<div class="prod-detail"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
+            return '<div class="prod-detail" data-prod-batch-detail="' + _calEscAttr(batch.id) + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('batch') + ',' + _jsAttrArg(batch.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner"><div class="prod-detail-id">' + _calEsc(batch.team || 'mixed') + ' batch</div><h1 class="prod-detail-title">' + _calEsc(batch.name || 'Untitled batch') + '</h1>'
                 + '<div class="prod-desc">' + (batch.description ? _calEsc(batch.description) : '<span style="color:var(--prod-faint)">No batch description.</span>') + '</div>'
                 + '<div class="prod-subsection"><div class="prod-subhead">Deliverables <span class="prod-group-count">' + rows.length + '</span></div>' + rows.map(d => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-chip">' + _calEsc(_prodStatusLabel(d.status)) + '</span></div>').join('') + '</div></div></div><aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-prop"><span class="prod-prop-label">Client</span><span>' + _calEsc(_prodDisplayClient(batch.client_slug)) + '</span></div>'
@@ -26330,7 +26546,7 @@
                 + '<div class="prod-prop"><span class="prod-prop-label">Updated</span><span>' + _calEsc(_prodFmtDate(batch.updated_at)) + '</span></div>'
                 + '</div></aside></div>';
         }
-        function _prodProps(d, batch, assignee, file) {
+        function _prodProps(d, batch, assignee, file, showBatchParent) {
             const client = _prodClient(d.client_slug);
             const sideRow = value => '<div class="prod-side-row">' + value + '</div>';
             const muted = text => '<span class="muted">' + _calEsc(text) + '</span>';
@@ -26340,7 +26556,7 @@
                 + sideRow(_prodAvatar(assignee, 18) + '<span>' + _calEsc(assignee ? assignee.name : 'No assignee') + '</span>')
                 + sideRow(_prodIcon('cal') + '<span>' + (d.due_date ? _calEsc(_prodFmtDate(d.due_date)) : muted('Add due date')) + '</span>')
                 + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="detail-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div>'
-                + (batch ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(batch.name || 'Batch') + '</span></button></div></div>' : '')
+                + (showBatchParent ? '<div class="prod-side-card" data-prod-detail-card="parent"><div class="prod-side-card-head"><span>Parent issue</span></div><div class="prod-side-row"><button class="prod-parent-link" type="button" onclick="_prodOpenBatch(' + _jsAttrArg(batch.id) + ')" data-prod-tip="Open parent">' + _prodStatusIcon(d.status) + '<span>' + _calEsc(batch.name || 'Batch') + '</span></button></div></div>' : '')
                 + '<div class="prod-side-card" data-prod-detail-card="project"><div class="prod-side-card-head"><span>Project</span></div><div class="prod-side-row"><span class="prod-card-ico">' + _calEsc(client && client.emoji ? client.emoji : 'S') + '</span><span>' + _calEsc(_prodDisplayClient(d.client_slug)) + '</span></div></div>'
                 + '</div>';
         }

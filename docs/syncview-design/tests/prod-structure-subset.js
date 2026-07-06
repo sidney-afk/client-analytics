@@ -49,6 +49,12 @@ async function expectCount(page, sel, min, label) {
   return n;
 }
 
+async function expectExactCount(page, sel, expected, label) {
+  const n = await page.locator(sel).count();
+  if (n !== expected) throw new Error(label + ' expected ' + expected + ', saw ' + n);
+  return n;
+}
+
 async function assertNoWriteRequests(requests) {
   const writes = requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method));
   if (writes.length) {
@@ -67,7 +73,15 @@ async function assertNoWriteRequests(requests) {
   page.on('pageerror', err => errors.push(err.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
-  await page.addInitScript(() => localStorage.setItem('syncview_auth_v1', 'ok'));
+  await page.addInitScript(() => {
+    localStorage.setItem('syncview_auth_v1', 'ok');
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async text => { window.__prodCopied = text; } },
+      });
+    } catch (_) {}
+  });
 
   try {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
@@ -90,25 +104,76 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '.prod-group [data-prod-disabled="add-deliverable"][title="Preview - read-only"]', 1, 'disabled group add controls');
     const row = page.locator('.prod-row').first();
     if (!(await row.count())) throw new Error('No migrated rows rendered');
+    const firstRowId = await row.getAttribute('data-prod-row');
     for (const sel of ['.prod-check', '.prod-id', '.prod-status svg', '.prod-title b', '.prod-chip', '.prod-due', '.prod-avatar', '.prod-created']) {
       if (!(await row.locator(sel).count())) throw new Error('List row missing artifact part: ' + sel);
     }
+    await row.click({ button: 'right' });
+    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
+    await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'row context disabled mutation items');
+    await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    const copiedIssueLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
+    if (!copiedIssueLink.includes('?prod=1') || !copiedIssueLink.includes('d=')) throw new Error('Row Copy link did not create a ?prod=1&d= deep link');
+    await expectExactCount(page, '.prod-pop', 0, 'context menu closed after Copy link');
 
     for (const tab of ['Active', 'Backlog', 'All issues']) {
       if (!(await page.locator('.prod-tab', { hasText: tab }).count())) throw new Error('Issue tab missing: ' + tab);
     }
     if (!(await page.locator('.prod-icon-btn[title="Preview - read-only"]').count())) throw new Error('Topbar inert controls missing');
 
-    await row.click();
+    await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+    await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');
+    await page.locator('[data-prod-crumb-client]').first().click();
+    await page.waitForSelector('.prod-listwrap, .prod-empty', { timeout: 10000 });
+    const clientUrl = new URL(page.url());
+    if (clientUrl.searchParams.get('prod') !== '1' || !clientUrl.searchParams.get('client')) {
+      throw new Error('Client breadcrumb did not navigate to ?prod=1 client view');
+    }
+    await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
+    await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+    await page.locator('.prod-detail').click({ button: 'right', position: { x: 18, y: 18 } });
+    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'detail context Copy link item');
+    await page.keyboard.press('Escape');
+    await expectExactCount(page, '.prod-pop', 0, 'Escape closes detail context menu');
+    if (await page.locator('[data-prod-crumb-batch]').count()) {
+      await page.locator('[data-prod-crumb-batch]').first().click();
+      await page.waitForSelector('[data-prod-batch-detail]', { timeout: 10000 });
+      const batchUrl = new URL(page.url());
+      if (batchUrl.searchParams.get('prod') !== '1' || !batchUrl.searchParams.get('batch')) {
+        throw new Error('Parent breadcrumb did not navigate to ?prod=1 batch detail');
+      }
+      await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
+      await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+    }
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
-    await expectCount(page, '.prod-subsection', 1, 'Sub-issues/detail sections');
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
     if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled composer missing');
     if (!(await page.locator('[data-prod-disabled="detail-controls"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled detail controls missing');
     if (await page.locator('.prod-parent-link').count()) {
       await expectCount(page, '[data-prod-detail-card="parent"]', 1, 'Parent issue detail card');
+    }
+    await page.evaluate(() => window._prodSetView('list'));
+    await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
+    const zeroChildRow = page.locator('.prod-row[data-prod-child-count="0"]').first();
+    if (await zeroChildRow.count()) {
+      await zeroChildRow.click();
+      await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+      if (await page.locator('[data-prod-section="subissues"]').count()) {
+        throw new Error('Empty Sub-issues section should be hidden');
+      }
+    }
+    await page.evaluate(() => window._prodSetView('list'));
+    await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
+    const selfParentRow = page.locator('.prod-row[data-prod-self-parent="1"]').first();
+    if (await selfParentRow.count()) {
+      await selfParentRow.click();
+      await page.waitForSelector('.prod-detail[data-prod-self-parent="1"]', { timeout: 10000 });
+      if (await page.locator('[data-prod-crumb-batch], [data-prod-detail-card="parent"]').count()) {
+        throw new Error('Self-referential batch parent crumb/card should be suppressed');
+      }
     }
 
     await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -123,6 +188,13 @@ async function assertNoWriteRequests(requests) {
     for (const sel of ['.prod-card-check', '.prod-card-ico', '.prod-card-title', '.prod-card-status svg', '.prod-avatar']) {
       if (!(await card.locator(sel).count())) throw new Error('Project card missing artifact part: ' + sel);
     }
+    await card.click({ button: 'right' });
+    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'project card context Copy link item');
+    await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'project card context disabled mutation items');
+    await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
+    if (!copiedProjectLink.includes('?prod=1') || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a ?prod=1 client deep link');
 
     await page.locator('.prod-nav').filter({ hasText: 'Video' }).locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
     await page.waitForSelector('.prod-board', { timeout: 10000 });

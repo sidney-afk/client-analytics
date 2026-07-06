@@ -947,24 +947,60 @@ role-gated EF** — the table is service-role-only, §2.7); the **staff diagnost
 outbox depths incl. the new `peekSxrLinearOutbox()` helper, role-key status, flag/authority
 state, `min_app_version`) — it is the named evidence mechanism for §1.5 steps 2/5.
 
-**10.8 B2 design-fidelity gate (NON-OPTIONAL — added after the #686 divergence incident):**
-the first B2 build (#686) was written from this spec's prose instead of ported from the
-artifact, and review checked safety but not fidelity — the tab shipped structurally wrong and
-had to be rebuilt (#689). To make that unrepeatable:
-- `docs/syncview-design/SyncView.html` is the **source of truth** for every Production-tab UI
-  change. Where any prose (this spec, a prompt, a review note) conflicts with the artifact,
-  **the artifact wins**. Build = port the artifact's render functions
-  (`renderSidebar`/`rowHTML`/`renderList`/`renderProjects`/`renderDetail`/`statusSVG`), not a
-  re-description of them.
-- Every PR touching `_prod*` render code must pass `prod-structure-subset.js` AND
-  `prod-readonly-smoke.js` on the wired tab, and the reviewer must diff the change **against
-  the artifact's own functions**, not against the PR description.
-- Standing exception (owner, 2026-07-06): the wired tab keeps the app's own typography —
-  fidelity is structural/behavioral, not pixel-identical.
-- At B3, when interactions go live, the full `behav.js`/`sweep.js` suites (selectors adapted
-  per §10.1 status-key renames) replace the read-only subset as the gate.
-- Current gap backlog: `docs/audits/2026-07-06-prod-parity-gaps.md` (seed list for the
-  autonomous parity loop; read-only-safe items only during B2).
+**10.8 B2 design-fidelity protocol: TRANSPLANT → ADAPT → PROVE (NON-OPTIONAL):**
+three build rounds produced three classes of fidelity failure — #686 (built from prose, wrong
+structure), #689 (retyped artifact values, byte-level slips), #693 (re-implemented behaviors:
+un-scoped CSS vars → transparent menus, sibling-as-children data model, missing picker
+submenus, wrong icon fallbacks). The autopsy found five systematic failure modes: (F1)
+transcription instead of copying, (F2) unstated environment differences between the standalone
+artifact and the embedded tab, (F3) no written data-mapping contract, (F4) no exhaustive
+behavior inventory so "done" tracked the prompt not the artifact, (F5) verification that
+checks DOM structure but cannot see rendered output. This protocol retires all five. It is
+owner-ratified (2026-07-06): the goal is OUR implementation converged to the artifact —
+provably — as the floor on which later improvements are built.
+
+- **Source of truth (unchanged):** `docs/syncview-design/SyncView.html`. Where any prose
+  (this spec, a prompt, a review note, the ledger) conflicts with the artifact, the artifact
+  wins.
+- **10.8.1 Adapter Contract (kills F3):** `docs/syncview-design/ADAPTER.md` is the definitive
+  B1→artifact data mapping, implemented as ONE function (`_prodAdapter()`) that converts the
+  B1 tables into the artifact's exact data shapes (ISSUES/PROJECTS/CLIENTS/EDITORS field
+  names). All `_prod*` render code consumes artifact-shaped objects only. Every mapping
+  decision is written in the contract (parent/children semantics: children exist ONLY under a
+  batch-parent row, a sibling never lists a sibling; icon fallbacks: missing client emoji →
+  the artifact's project glyph, never a letter; the status slug↔artifact-key table; member →
+  EDITORS color/initials derivation; self-parent rule: `title == batch.name`).
+- **10.8.2 Verbatim-transplant rule (kills F1):** ported functions are byte-copies of the
+  artifact's, with exactly three allowed edits: the `_prod` name prefix, the state-object
+  reference, and mutation-call sites replaced by the single read-only guard. Any other
+  deviation must carry a `// PORT-DELTA:` comment stating the reason (the typography override
+  is one standing PORT-DELTA; the owner's exception of 2026-07-06 remains in force).
+- **10.8.3 Mechanical fidelity checker (enforces 10.8.2):** `test/port-fidelity-check.js`
+  pairs each ported function with its artifact original and FAILS on any unmarked difference.
+  Runs in `npm test`. "Was it copied faithfully" is a red/green lane, not a review opinion.
+- **10.8.4 Environment shim (kills F2):** ADAPTER.md's environment section enumerates every
+  assumption the artifact makes of its host page (root-scoped CSS variables, body-mounted
+  `#layer`/`#toast`/tooltip, document-level keyboard listeners, history API, z-index map) and
+  states how the embedded tab satisfies each (e.g. `--prod-*` variables must resolve on every
+  overlay mount point, not only inside `.prod-view`). New body-mounted elements are added to
+  this list in the same PR that adds them.
+- **10.8.5 Parity ledger (kills F4):** `docs/syncview-design/WIRED-PARITY.md` lists every
+  artifact behavior (seeded from `behav.js`'s assertion inventory + `PARITY.md` + the
+  2026-07-06 gap audit) with status ✅ ported / 🔒 deferred-B3 (write-path) / ⬜ pending.
+  Every Production-tab PR updates it. **Definition of done for B2 fidelity: every row ✅
+  or 🔒.** The ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` as the
+  tracking surface.
+- **10.8.6 Verification that can see (kills F5):** every `_prod*` PR must pass, in addition
+  to `prod-structure-subset.js` + `prod-readonly-smoke.js`: (a) `behav-wired` — the artifact's
+  own 138-assertion `behav.js` adapted to run against the wired `?prod=1` tab via a selector
+  map, with mutation assertions run in guard mode (assert the read-only toast and no state
+  change) — the pass-count is reported in the PR and may only go up; (b) a scripted
+  side-by-side screenshot pass (same interaction script driven on the artifact and the wired
+  tab, paired shots) whose pairs are reviewed by the REVIEWER, never self-graded by the
+  builder. The reviewer's verdict is issued against the ledger and the checker output, not
+  the PR description.
+- At B3, when interactions go live, guard-mode assertions flip to real-mutation assertions
+  one ledger row at a time (🔒 → ✅), keeping the same suite as the gate through B4.
 
 ---
 

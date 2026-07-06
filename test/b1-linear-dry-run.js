@@ -74,8 +74,8 @@ const issues = [
 ];
 const projects = [
   { id: 'alpha', name: 'Alpha Client', state: 'In Progress', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null, archivedAt: null, targetDate: null, lead: null, teams: { nodes: [] } },
-  { id: 'terrinamar-a', name: 'Terrina Mar', state: 'In Progress', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null, archivedAt: null, targetDate: null, lead: null, teams: { nodes: [] } },
-  { id: 'terrinamar-b', name: 'Terrina-mar', state: 'In Progress', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null, archivedAt: null, targetDate: null, lead: null, teams: { nodes: [] } },
+  { id: 'variant-a', name: 'Variant Client', state: 'In Progress', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null, archivedAt: null, targetDate: null, lead: null, teams: { nodes: [] } },
+  { id: 'variant-b', name: 'Variant-client', state: 'In Progress', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', completedAt: null, archivedAt: null, targetDate: null, lead: null, teams: { nodes: [] } },
 ];
 const workload = [
   { team_key: 'VID', active: true },
@@ -90,12 +90,12 @@ const projectsFile = writeJson(tmp, 'projects.json', projects);
 const linkedFile = writeJson(tmp, 'linked.json', ['VID-OLD']);
 const clientsInfoFile = writeJson(tmp, 'clients-info.json', [
   { client_name: 'Alpha Client', slack_channel_id: 'C123' },
-  { client_name: 'Coleman', slack_channel_id: '' },
+  { client_name: 'Review Alpha', slack_channel_id: '' },
 ]);
 const smmsFile = writeJson(tmp, 'smms.json', [
-  { client_name: 'Morgan Burch' },
+  { client_name: 'Review Beta' },
 ]);
-const seedFile = writeJson(tmp, 'seed.json', ['Sidney Laruel', 'Kasper Hytonen']);
+const seedFile = writeJson(tmp, 'seed.json', ['Review Seed', 'Internal Seed']);
 const workloadFile = writeJson(tmp, 'workload.json', workload);
 const outFile = path.join(tmp, 'report.md');
 const jsonOut = path.join(tmp, 'report.json');
@@ -107,6 +107,7 @@ const env = {
   LINEAR_KEY: '',
   LINEAR_TOKEN: '',
   SUPABASE_SERVICE_ROLE_KEY: '',
+  B1_OWNER_REVIEW_SLUGS: 'reviewbeta,reviewseed',
 };
 const result = spawnSync(process.execPath, [
   SCRIPT,
@@ -136,8 +137,8 @@ ok(json.cutoffs[0].linked_live_card_included === 1, 'linked live-card inclusion 
 ok(json.cutoffs[0].completedAt_within_cutoff === 1, 'recent closed issue must count by completedAt');
 ok(json.workloadIssues.all.VID === 2 && json.workloadIssues.active.VID === 1, 'workload VID all/active split wrong');
 ok(json.workloadIssues.all.CON === 1 && json.workloadIssues.active.CON === 1, 'workload CON split wrong');
-ok(json.clients.ownerReview.some(r => r.slug === 'morganburch'), 'D-16 owner review should include Morgan Burch');
-ok(json.clients.ownerReview.some(r => r.slug === 'sidneylaruel'), 'D-16 owner review should include Sidney Laruel');
+ok(json.clients.ownerReview.some(r => r.slug === 'reviewbeta'), 'D-16 owner review should include explicit review SMM-only slug');
+ok(json.clients.ownerReview.some(r => r.slug === 'reviewseed'), 'D-16 owner review should include explicit review seed-only slug');
 ok(report.includes('Open Track total (VID+GRA)'), 'report must label Track total clearly');
 ok(report.includes('D-11 CON/STR Scope Check'), 'report must include D-11 section');
 ok(report.includes('Card linkage: card-to-deliverable resolution uses'), 'report must include card-linkage confirmation');

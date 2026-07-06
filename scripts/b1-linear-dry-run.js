@@ -416,31 +416,21 @@ async function clientReconciliation(projects) {
     return acc;
   }, {});
 
-  const bySlug = new Map(rows.map(r => [r.slug, r]));
-  const reviewSlugs = [
-    'jessicaencellcoleman',
-    'morganburch',
-    'terrinamar',
-    'terrinammar',
-    'testproject',
-    'clientexample',
-    'onboardingale',
-    'synchrohouse',
-    'alyssanobriga',
-    'jordanmarks',
-    'kasperhytonen',
-    'sidneylaruel',
-    'unattributed',
-  ];
-  const ownerReview = reviewSlugs.map(slug => bySlug.get(slug)).filter(Boolean);
   const activeFalseCandidates = rows.filter(row => {
     const sources = new Set(row.sources);
-    if (['kasperhytonen', 'sidneylaruel', 'unattributed'].includes(row.slug)) return false;
-    if (['testproject', 'clientexample', 'onboardingale', 'synchrohouse'].includes(row.slug)) return true;
+    if (row.slug === 'unattributed') return false;
     if (sources.has('seed') && !sources.has('clients_info') && !sources.has('linear_project')) return true;
     if (sources.has('linear_project') && !sources.has('clients_info') && !sources.has('seed') && !sources.has('smm_sheet')) return true;
     return false;
   });
+  const bySlug = new Map(rows.map(r => [r.slug, r]));
+  const explicitReviewSlugs = String(process.env.B1_OWNER_REVIEW_SLUGS || '')
+    .split(',')
+    .map(s => wlNormalizeClient(s))
+    .filter(Boolean);
+  const ownerReview = explicitReviewSlugs.length
+    ? explicitReviewSlugs.map(slug => bySlug.get(slug)).filter(Boolean)
+    : activeFalseCandidates;
 
   return { total: rows.length, summary, rows, ownerReview, activeFalseCandidates };
 }

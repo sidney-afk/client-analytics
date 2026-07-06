@@ -28868,14 +28868,22 @@
                     if (match) _smFocusRequest = { client: match, cardId: cardId || null };
                     navTo('samples', false);
                 } else if (hashRaw.startsWith('templates/')) {
-                    // Templates name lookup needs allData — wait for it before
-                    // setting the selected client, but mount the tab now.
+                    // Open straight to the deep-linked client so a refresh doesn't
+                    // flash the templates index first: seed the selection from the
+                    // hash now (renderClientTemplate shows the client's loading
+                    // skeleton with its name), then canonicalize / drop it once the
+                    // client roster (allData) has loaded.
+                    const tn = hashRaw.slice('templates/'.length);
+                    let seed = tn; try { seed = decodeURIComponent(tn); } catch (e) {}
+                    if (seed) _templatesSelected = seed;
                     navTo('templates', false);
                     dataPromise.then(() => {
-                        const tn = hashRaw.slice('templates/'.length);
                         if (wlIsAllowedClient(tn)) {
-                            _templatesSelected = wlCanonicalClient(tn);
-                            navTo('templates', false);
+                            const canon = wlCanonicalClient(tn);
+                            if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
+                        } else if (_templatesSelected) {
+                            // Deep-link no longer resolves to a real client → index.
+                            _templatesSelected = null; navTo('templates', false);
                         }
                     });
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {

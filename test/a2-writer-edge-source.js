@@ -72,6 +72,8 @@ ok(/showNotify\("Couldn't save the new order", 'It was put back/.test(INDEX),
   'kasper_finished_at',
   'kasper_closed_at',
   'created_at',
+  'video_deliverable_id',
+  'graphic_deliverable_id',
 ].forEach(col => ok(SXR_UPSERT.includes(JSON.stringify(col)), 'sample upsert allowed/mirror column missing: ' + col));
 
 ok(!/"video_status_at"/.test(SXR_UPSERT) && !/"graphic_status_at"/.test(SXR_UPSERT),

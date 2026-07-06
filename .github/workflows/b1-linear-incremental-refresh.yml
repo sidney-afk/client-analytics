@@ -1,0 +1,58 @@
+name: B1 Linear Incremental Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: b1-linear-incremental-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Skip until secrets are present
+        id: secrets
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$LINEAR_API_KEY" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Missing SUPABASE_SERVICE_ROLE_KEY or LINEAR_API_KEY; skipping."
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run incremental refresh
+        if: steps.secrets.outputs.ready == 'true'
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          node scripts/b1-linear-backfill.js \
+            --incremental \
+            --apply \
+            --page-delay-ms 500 \
+            --out artifacts/b1-linear-incremental-refresh.md \
+            --json-out artifacts/b1-linear-incremental-refresh.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: b1-linear-incremental-refresh
+          path: artifacts/
+          if-no-files-found: ignore

@@ -74,6 +74,8 @@ async function txt(page, sel) {
       window._prodClearLayer && window._prodClearLayer();
       const cmd = document.querySelector('.prod-cmd-bd');
       if (cmd) cmd.remove();
+      const toast = document.getElementById('prodToast');
+      if (toast) { toast.classList.remove('show'); toast.textContent = ''; }
       _prodState.view = 'list';
       _prodState.team = 'video';
       _prodState.clientSlug = '';
@@ -105,6 +107,174 @@ async function txt(page, sel) {
     await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
     if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+
+    // Artifact-order coverage batch: behav.js chip -> kfocusShortcut,
+    // with mutation checks adapted to read-only guard mode.
+    await ok('chip', async () => {
+      const slug = await page.locator('.prod-row').first().getAttribute('data-prod-client');
+      await page.locator('.prod-row .prod-chip-client').first().click();
+      return await page.evaluate(s => _prodState.clientSlug === s && _prodState.view === 'list' && !_prodState.openId, slug);
+    }); await reset();
+    await ok('due', async () => {
+      await page.locator('.prod-row .prod-due').first().click();
+      return await page.locator('#prodLayer .prod-pop').count() === 1 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('avatar', async () => {
+      await page.locator('.prod-row [data-prod-assign]').first().click();
+      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+    }); await reset();
+    await ok('rowStatus', async () => {
+      await page.locator('.prod-row .prod-status[data-st]').first().click();
+      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('subLive', async () => {
+      const parentId = await page.evaluate(() => {
+        const row = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
+        return row ? row.id : '';
+      });
+      if (!parentId) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), parentId);
+      await page.waitForSelector('.prod-detail');
+      const before = await txt(page, '[data-prod-section="subissues"] .prod-group-count');
+      const controls = await page.locator('.prod-subrow .prod-status[data-st]').count() > 0
+        && await page.locator('.prod-subrow .prod-due').count() > 0
+        && await page.locator('.prod-subrow [data-prod-assign]').count() > 0;
+      const snapshot = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
+      await page.locator('.prod-subrow .prod-status[data-st]').first().click();
+      await page.locator('#prodLayer .prod-pop [data-prod-pick]').first().click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const after = await txt(page, '[data-prod-section="subissues"] .prod-group-count');
+      const snapshot2 = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status, i.assignee, i.due, i.project])));
+      return controls && before === after && snapshot === snapshot2;
+    }); await reset();
+    await ok('palette', async () => { await page.locator('.prod-search-btn').click(); return await page.locator('.prod-cmd').count() === 1; }); await reset();
+    await ok('paletteSearch', async () => {
+      await page.locator('.prod-search-btn').click();
+      await page.fill('.prod-cmd-input', await page.locator('.prod-row .prod-id').first().textContent());
+      return await page.locator('.prod-cmd-item').count() > 0;
+    }); await reset();
+    await ok('cmdkKey', async () => { await page.keyboard.press('Control+k'); return await page.locator('.prod-cmd').count() === 1; }); await reset();
+    await ok('team', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      const video = await page.locator('.prod-card').count();
+      await page.locator('.prod-team-hd', { hasText: 'Graphics' }).click();
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).last().click();
+      await page.waitForSelector('.prod-board');
+      const graphics = await page.locator('.prod-card').count();
+      return video >= 0 && graphics >= 0 && await page.locator('.prod-col').count() >= 6;
+    }); await reset();
+    await ok('star', async () => {
+      await page.locator('.prod-row').first().click();
+      await page.waitForSelector('.prod-detail');
+      await page.locator('[data-prod-disabled="favorite-issue"]').click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('chevron', async () => {
+      const key = await page.locator('.prod-group').first().getAttribute('data-prod-group');
+      await page.locator('.prod-group [data-prod-group-toggle]').first().click();
+      return await page.evaluate(k => _prodState.collapsed.has(k), key);
+    }); await reset();
+    await ok('pring', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('.prod-card-status[data-prod-pstatus]').first().click();
+      return await page.locator('#prodLayer .prod-pop [data-prod-ppick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('tabs', async () => (await page.locator('.prod-tabs .prod-tab').allTextContents()).join(',') === 'Active,Backlog,All issues'); await reset();
+    await ok('my', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'My issues' }).click();
+      return await page.evaluate(() => _prodState.view === 'my');
+    }); await reset();
+    await ok('kbStatus', async () => { await page.keyboard.press('s'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
+    await ok('kbAssign', async () => { await page.keyboard.press('a'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
+    await ok('kbDue', async () => { await page.keyboard.press('Shift+d'); return await page.locator('#prodLayer .prod-duepop').count() > 0; }); await reset();
+    await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
+    await ok('kbSelectAll', async () => {
+      await page.keyboard.press('Control+a');
+      return await page.evaluate(() => _prodState.selected.size === _prodFlatOrder().length && _prodState.selected.size > 0)
+        && (await txt(page, '[data-prod-select-count]')).endsWith('selected');
+    }); await reset();
+    await ok('kbDelete', async () => {
+      await page.keyboard.press('Control+a');
+      const before = await page.evaluate(() => _prodIssues().length);
+      await page.keyboard.press('Control+Backspace');
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const after = await page.evaluate(() => _prodIssues().length);
+      return before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('pickerNum', async () => {
+      const before = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status])));
+      await page.locator('.prod-row .prod-status[data-st]').first().click();
+      await page.locator('#prodLayer [data-prod-search]').press('2');
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const after = await page.evaluate(() => JSON.stringify(window._prodIssues().map(i => [i.id, i.status])));
+      return before === after;
+    }); await reset();
+    await ok('pickerArrow', async () => {
+      await page.locator('.prod-row .prod-status[data-st]').first().click();
+      const i0 = await page.locator('#prodLayer [data-prod-pick].sel').first().getAttribute('data-prod-pick');
+      await page.locator('#prodLayer [data-prod-search]').press('ArrowDown');
+      const i1 = await page.locator('#prodLayer [data-prod-pick].sel').first().getAttribute('data-prod-pick');
+      return i0 !== i1;
+    }); await reset();
+    await ok('composerEsc', async () => {
+      await page.locator('.prod-row').first().click();
+      await page.waitForSelector('.prod-detail');
+      await page.locator('[data-prod-disabled="composer"]').click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      return await page.locator('.prod-detail-title').count() === 1;
+    }); await reset();
+    await ok('selPersist', async () => {
+      await page.keyboard.press('Control+a');
+      const before = await page.evaluate(() => _prodState.selected.size);
+      await page.locator('#prodBulkAssign').click();
+      await page.locator('#prodLayer [data-prod-search]').press('Enter');
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const after = await page.evaluate(() => _prodState.selected.size);
+      return before > 1 && after === before;
+    }); await reset();
+    await ok('copyCount', async () => {
+      await page.keyboard.press('Control+a');
+      await page.locator('.prod-row').first().click({ button: 'right' });
+      await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const copied = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
+      return (await txt(page, '#prodToast')).includes('links copied') && copied.split('\n').length > 1;
+    }); await reset();
+    await ok('personCross', async () => {
+      const name = await page.evaluate(() => {
+        const id = _prodIssues().find(i => i.assignee)?.assignee;
+        const ed = id && _prodEditors()[id];
+        return ed ? ed.name.split(' ')[0].toLowerCase() : '';
+      });
+      if (!name) return true;
+      await page.locator('.prod-search-btn').click();
+      await page.fill('.prod-cmd-input', name);
+      await page.keyboard.press('Enter');
+      return await page.evaluate(() => _prodState.filters.some(f => f.field === 'assignee') && _prodIssueRows().length > 0);
+    }); await reset();
+    await ok('jkNav', async () => {
+      await page.keyboard.press('j');
+      const first = await page.locator('.prod-row.kfocus').getAttribute('data-prod-row');
+      await page.keyboard.press('j');
+      const second = await page.locator('.prod-row.kfocus').getAttribute('data-prod-row');
+      await page.keyboard.press('k');
+      const third = await page.locator('.prod-row.kfocus').getAttribute('data-prod-row');
+      return !!first && !!second && first !== second && third === first;
+    }); await reset();
+    await ok('enterFocusOpen', async () => {
+      await page.keyboard.press('j');
+      const id = await page.locator('.prod-row.kfocus').getAttribute('data-prod-row');
+      await page.keyboard.press('Enter');
+      return await page.locator('[data-prod-detail="' + id + '"]').count() === 1;
+    }); await reset();
+    await ok('kfocusShortcut', async () => {
+      await page.keyboard.press('j');
+      await page.keyboard.press('s');
+      return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
 
     await ok('sidebarMyIssues', async () => await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count() > 0);
     await ok('sidebarTeamProjects', async () => await page.locator('.prod-team-hd', { hasText: 'Video' }).count() > 0 && await page.locator('.prod-nav-btn', { hasText: 'Projects' }).count() > 0);

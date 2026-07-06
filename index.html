@@ -2540,6 +2540,7 @@
         .prod-preview-chip { white-space: nowrap; flex: none; }
         .prod-search-btn, .prod-icon-btn { width: 25px; height: 25px; border: 0; border-radius: 6px; display: grid; place-items: center; color: var(--prod-muted); background: transparent; font: inherit; cursor: pointer; }
         .prod-search-btn:hover, .prod-icon-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
+        .prod-icon-btn[data-prod-disabled] { color: var(--prod-faint); }
         .prod-side-scroll { flex: 1; min-height: 0; overflow: auto; padding-top: 2px; }
         .prod-nav { display: flex; flex-direction: column; gap: 1px; }
         .prod-nav-section { display: flex; align-items: center; gap: 4px; width: 100%; padding: 14px 8px 4px; color: var(--prod-dim); font: inherit; font-size: 12px; font-weight: 500; background: transparent; border: 0; text-align: left; cursor: pointer; }
@@ -2600,6 +2601,7 @@
         .prod-card:hover .prod-card-check { opacity: 1; }
         .prod-card-ico { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); font-size: 13px; }
         .prod-card-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+        .prod-card-status[data-prod-pstatus], .prod-card-lead, .prod-card-target, .prod-chip-client, .prod-assign-hot { cursor: pointer; }
         .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
         .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -2608,6 +2610,9 @@
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
         .prod-file-line b { font-weight: 600; }
         .prod-subrow .prod-title { flex: 1; }
+        .prod-actionbar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 2000; min-height: 36px; border: 1px solid var(--prod-border); border-radius: 10px; background: var(--prod-surface); display: flex; align-items: center; gap: 8px; padding: 7px 10px; color: var(--prod-strong); font-size: 12px; }
+        .prod-actionbar button { height: 24px; border: 1px solid var(--prod-border); border-radius: 7px; background: var(--prod-content); color: var(--prod-muted); font: inherit; cursor: pointer; padding: 0 8px; }
+        .prod-actionbar button:hover { background: var(--prod-hover); color: var(--prod-text); }
         .prod-right { padding: 18px 14px; }
         .prod-side-card { border: 0; border-radius: 8px; background: transparent; margin-bottom: 12px; }
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
@@ -28095,6 +28100,19 @@
                         return;
                     }
                     if (typing || _prodState.paletteOpen) return;
+                    if ((_prodState.view === 'list' || _prodState.view === 'my') && (e.ctrlKey || e.metaKey) && String(e.key || '').toLowerCase() === 'a') {
+                        e.preventDefault();
+                        _prodState.selected = new Set(_prodFlatOrder());
+                        _prodRender();
+                        return;
+                    }
+                    if ((_prodState.view === 'list' || _prodState.view === 'my') && (e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) {
+                        if (_prodState.selected && _prodState.selected.size) {
+                            e.preventDefault();
+                            _prodReadonlyGuard();
+                            return;
+                        }
+                    }
                     if (e.key === 'Escape') {
                         if (_prodState.view === 'detail' || _prodState.view === 'batch') {
                             e.preventDefault();
@@ -28191,9 +28209,11 @@
             return location.origin + location.pathname + '?' + q.toString() + '#production';
         }
         function _prodCopyLink(kind, id) {
-            const url = _prodLinkFor(kind, id);
+            const ids = Array.isArray(id) ? id.filter(Boolean) : [id].filter(Boolean);
+            const urls = ids.length ? ids.map(x => _prodLinkFor(kind, x)) : [_prodLinkFor(kind, id)];
+            const url = urls.join('\n');
             try { window.__prodLastCopied = url; } catch (e) {}
-            const done = () => _prodToast('Link copied');
+            const done = () => _prodToast(ids.length > 1 ? ids.length + ' links copied' : 'Link copied');
             const fail = () => _prodToast('Copy failed');
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fail);
@@ -28241,7 +28261,14 @@
             }
         }
         function _prodTargetIds(id) {
-            return [String(id || '')].filter(Boolean);
+            const sid = String(id || '');
+            const selected = _prodState.selected || new Set();
+            if (sid && selected.has(sid) && selected.size > 1) {
+                const visible = new Set(_prodFlatOrder());
+                const ids = Array.from(selected).filter(x => visible.has(x));
+                if (ids.length) return ids;
+            }
+            return [sid].filter(Boolean);
         }
         function _prodCurVal(kind, id) {
             const it = _prodIssue(id);
@@ -28348,9 +28375,18 @@
                 });
                 inp.addEventListener('keydown', e => {
                     e.stopPropagation();
-                    if (e.key === 'Escape') { _prodClearLayer(); return; }
+                    if (e.key === 'Tab') { e.preventDefault(); return; }
+                    if (e.key === 'Escape') { if (_prodSubPop && _prodSubPop === pop) _prodCloseSub(); else _prodClearLayer(); return; }
                     if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
                     if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (kind === 'status' && /^[0-9]$/.test(e.key)) {
+                        const idx = e.key === '0' ? 9 : (+e.key - 1);
+                        if (idx >= 0 && idx < d.items.length) {
+                            e.preventDefault();
+                            pick();
+                            return;
+                        }
+                    }
                     if (e.key === 'Enter') { e.preventDefault(); pick(); }
                 });
                 try { inp.focus(); } catch (e) {}
@@ -28406,6 +28442,110 @@
         function _prodOpenAssignMenu(ev, id) { return _prodOpenPicker('assign', ev, id); }
         function _prodOpenDueMenu(ev, id) { return _prodOpenPicker('due', ev, id); }
         function _prodOpenProjectMenu(ev, id) { return _prodOpenPicker('proj', ev, id); }
+        // PORT-DELTA: artifact project pickers are preserved as read-only card/client controls.
+        function _prodProjectPickerSpec(kind) {
+            if (kind === 'pstatus') {
+                return {
+                    hd: 'Change status...',
+                    items: PROD_BOARD_ORDER.map(k => ({
+                        v: k,
+                        label: _prodBoardLabel(k),
+                        html: '<span class="mic">' + _prodProjectStatusIcon(k) + '</span><span class="mlbl">' + _calEsc(_prodBoardLabel(k)) + '</span>'
+                    }))
+                };
+            }
+            if (kind === 'plead') {
+                const editors = _prodEditors();
+                return {
+                    hd: 'Set lead...',
+                    items: [{ v: '_', label: 'No lead', html: '<span class="mic">' + _prodIcon('assign') + '</span><span class="mlbl">No lead</span>' }]
+                        .concat(Object.keys(editors).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name))).map(k => ({
+                            v: k,
+                            label: editors[k].name,
+                            html: '<span class="mic">' + _prodAvatar(editors[k], 16) + '</span><span class="mlbl">' + _calEsc(editors[k].name) + '</span>'
+                        })))
+                };
+            }
+            return {
+                hd: 'Set target...',
+                items: [
+                    { v: '', label: 'No target', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">No target</span>' },
+                    { v: _prodFmtDue(_prodAddDays(new Date(), 1)), label: 'Tomorrow', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Tomorrow</span>' },
+                    { v: _prodFmtDue(_prodAddDays(new Date(), 7)), label: 'Next week', html: '<span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Next week</span>' }
+                ]
+            };
+        }
+        function _prodOpenProjectPicker(kind, ev, slug) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const client = _prodClient(slug);
+            if (!client) return false;
+            const d = _prodProjectPickerSpec(kind);
+            const cur = kind === 'pstatus' ? (client.status || 'prog') : kind === 'plead' ? (client.lead || '_') : (client.target || '');
+            const p = _prodLayerPop('<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(d.hd) + '"></div><div class="prod-pop-list">'
+                + d.items.map((it, i) => '<div class="prod-mi" data-prod-pick="' + i + '" data-prod-ppick="' + i + '">' + it.html + (it.v === cur ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('')
+                + '</div>', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
+            const visible = () => Array.from(p.querySelectorAll('[data-prod-ppick]')).filter(el => el.style.display !== 'none');
+            let sel = Math.max(0, visible().findIndex(el => !!el.querySelector('.tick')));
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = Math.max(0, Math.min(n, rows.length - 1));
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            const pick = () => {
+                _prodReadonlyGuard();
+                _prodClearLayer();
+            };
+            p.querySelectorAll('[data-prod-ppick]').forEach(el => {
+                el.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    pick();
+                });
+                el.addEventListener('mousemove', () => {
+                    const rows = visible();
+                    const ix = rows.indexOf(el);
+                    if (ix >= 0 && ix !== sel) {
+                        sel = ix;
+                        rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                    }
+                });
+            });
+            const inp = p.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.toLowerCase();
+                    let shown = 0;
+                    p.querySelectorAll('[data-prod-ppick]').forEach(el => {
+                        const it = d.items[+el.getAttribute('data-prod-ppick')];
+                        const match = it.label.toLowerCase().includes(q);
+                        el.style.display = match ? '' : 'none';
+                        if (match) shown++;
+                    });
+                    _prodPickerEmptyState(p, shown);
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Tab') { e.preventDefault(); return; }
+                    if (e.key === 'Escape') { _prodClearLayer(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); pick(); }
+                });
+                try { inp.focus(); } catch (e) {}
+                setTimeout(() => { try { inp.focus(); } catch (e) {} }, 20);
+            }
+            hi(sel);
+            return false;
+        }
+        function _prodOpenProjectStatusPicker(ev, slug) { return _prodOpenProjectPicker('pstatus', ev, slug); }
+        function _prodOpenProjectLeadPicker(ev, slug) { return _prodOpenProjectPicker('plead', ev, slug); }
+        function _prodOpenProjectTargetPicker(ev, slug) { return _prodOpenProjectPicker('ptarget', ev, slug); }
         const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -28558,7 +28698,9 @@
                 }
                 if (act === 'copy') el.addEventListener('click', () => {
                     _prodClearLayer();
-                    _prodCopyLink(kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue', id);
+                    const copyKind = kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue';
+                    const copyIds = copyKind === 'issue' ? _prodTargetIds(id) : [id];
+                    _prodCopyLink(copyKind, copyIds.length > 1 ? copyIds : id);
                 });
             });
             pop.querySelectorAll('[data-prod-disabled]').forEach(el => {
@@ -28911,7 +29053,7 @@
                 + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '')
                 + _prodPillsHTML();
             const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
-            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>' + subbar;
+            return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-view" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
             const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
@@ -28925,7 +29067,7 @@
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenClient(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Client: ' + _calEscAttr(_prodDisplayClient(clientSlug)) + '"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
-                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return '<div class="prod-loading">Loading migrated production data...</div>';
@@ -28935,6 +29077,15 @@
             if (_prodState.view === 'detail') return _prodDetail();
             if (_prodState.view === 'batch') return _prodBatchDetail();
             return _prodList();
+        }
+        function _prodSelectionBar() {
+            const n = _prodState.selected ? _prodState.selected.size : 0;
+            if (!n) return '';
+            const first = Array.from(_prodState.selected)[0] || '';
+            return '<div class="prod-actionbar" data-prod-actionbar><span data-prod-select-count>' + n + ' selected</span>'
+                + '<button type="button" id="prodBulkStatus" onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '">Status</button>'
+                + '<button type="button" id="prodBulkAssign" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '">Assignee</button>'
+                + '<button type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodRender();">Clear</button></div>';
         }
         // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
         function _prodList() {
@@ -28955,7 +29106,7 @@
                 const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
                 return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
                     + (collapsed ? '' : items.map(_prodRow).join(''));
-            }).join('') + '</div>';
+            }).join('') + '</div>' + _prodSelectionBar();
         }
         // PORT-DELTA: rowHTML uses live ids/displayIds and read-only picker hooks.
         function _prodRow(d) {
@@ -28973,9 +29124,9 @@
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
-                + '<span class="prod-spacer"></span><span class="prod-chip optional"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
+                + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenClient(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
-                + '<span title="' + _calEscAttr(assignee ? assignee.name : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
+                + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" title="' + _calEscAttr(assignee ? assignee.name : 'Unassigned') + '" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
                 + '<span class="prod-created">' + _calEsc(d.created) + '</span>'
                 + '</div>';
         }
@@ -29006,9 +29157,9 @@
         function _prodClientCard(c, count) {
             const lead = _prodMember(c.lead);
             const status = c.status || 'prog';
-            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.id || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.id || '') + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title">' + _calEsc(c.name || c.id) + '</span><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button>' + _prodAvatar(lead, 17) + '</div>'
+            return '<article class="prod-card" data-prod-client-card="' + _calEscAttr(c.id || '') + '" onclick="_prodOpenClient(' + _jsAttrArg(c.id || '') + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')"><div class="prod-card-head"><span class="prod-card-check" aria-hidden="true"></span><span class="prod-card-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title" data-prod-card-title="' + _calEscAttr(c.id || '') + '" data-fulltitle="' + _calEscAttr(c.name || c.id) + '">' + _calEsc(c.name || c.id) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(c.id || '') + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id || '') + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c.id || '') + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(c.id || '') + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(c.id || '') + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + (c.desc ? '<div class="prod-card-desc">' + _calEsc(c.desc) + '</div>' : '')
-                + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target ? '<span>' + _calEsc(c.target) + '</span>' : '') + '</div></article>';
+                + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span><span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(c.id || '') + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(c.id || '') + ')" data-prod-tip="Set target">' + (c.target ? _prodIcon('cal') + ' ' + _calEsc(c.target) : 'No target') + '</span></div></article>';
         }
         // PORT-DELTA: renderDetail uses live event reads and disables composer/write controls.
         function _prodDetail() {
@@ -29021,14 +29172,14 @@
             const events = _prodState.events.get(d.id);
             const file = d.file || '';
             const subSection = kids.length
-                ? '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => '<div class="prod-subrow" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status, k.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due ? '<span class="prod-due' + (_prodOverdue(k.dueRaw, k.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '') + '<span>' + _prodAvatar(_prodMember(k.assignee), 18) + '</span></div>').join('') + '</div>'
+                ? '<div class="prod-subsection" data-prod-section="subissues"><div class="prod-subhead">' + _prodIcon('issues') + ' Sub-issues <span class="prod-group-count">' + kids.length + '</span></div>' + kids.map(k => { const ka = _prodMember(k.assignee); return '<div class="prod-subrow" data-prod-subrow="' + _calEscAttr(k.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(k.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(k.id) + ')">' + _prodStatusIcon(k.status, k.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(k)) + '</span><span class="prod-title"><b>' + _calEsc(k.title || '') + '</b></span><span class="prod-spacer"></span>' + (k.due ? '<span class="prod-due' + (_prodOverdue(k.dueRaw, k.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(k.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(k.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>') + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(k.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(k.id) + ')" data-prod-tip="' + _calEscAttr(ka ? ('Assignee: ' + ka.name) : 'Unassigned') + '">' + _prodAvatar(ka, 18) + '</span></div>'; }).join('') + '</div>'
                 : '';
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
                 + '<div class="prod-desc">' + (d.desc ? _calEsc(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
                 + subSection
-                + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" disabled title="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
+                + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'
                 + '</div></div><aside class="prod-right">' + _prodProps(d, parent, assignee, file) + '</aside></div>';
         }
         function _prodBatchDetail() {

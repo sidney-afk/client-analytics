@@ -170,6 +170,14 @@ async function assertNoWriteRequests(requests) {
     for (const sel of ['.prod-check', '.prod-id', '.prod-status svg', '.prod-title b', '.prod-chip', '.prod-due', '.prod-avatar', '.prod-created']) {
       if (!(await row.locator(sel).count())) throw new Error('List row missing artifact part: ' + sel);
     }
+    await expectCount(page, '.prod-row .prod-chip-client[data-prod-crumbclient]', 1, 'row client chip navigation control');
+    await expectCount(page, '.prod-row [data-prod-assign]', 1, 'row assignee picker control');
+    await page.keyboard.press('Control+a');
+    await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
+    await page.locator('#prodBulkStatus').click();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();
     await expectCount(page, '.prod-pop [data-prod-pick]', 1, 'row status click opens status picker');
     const statusPickerUrl = new URL(page.url());
@@ -227,7 +235,10 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
-    if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled composer missing');
+    if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]').count())) throw new Error('Guarded composer missing');
+    await page.locator('[data-prod-disabled="composer"]').click();
+    await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+    if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Composer did not route to read-only guard');
     if (!(await page.locator('[data-prod-disabled="detail-controls"][title="Preview - read-only"]:disabled').count())) throw new Error('Disabled detail controls missing');
     await page.locator('[data-prod-prop="due"]').first().click();
     await expectCount(page, '.prod-duepop .prod-cal, .prod-duepop [data-prod-set="__custom__"]', 1, 'detail due property opens due popover');
@@ -274,6 +285,12 @@ async function assertNoWriteRequests(requests) {
     for (const sel of ['.prod-card-check', '.prod-card-ico', '.prod-card-title', '.prod-card-status svg', '.prod-avatar']) {
       if (!(await card.locator(sel).count())) throw new Error('Project card missing artifact part: ' + sel);
     }
+    await expectCount(page, '[data-prod-client-card] [data-prod-pstatus]', 1, 'project card status picker control');
+    await expectCount(page, '[data-prod-client-card] [data-prod-plead]', 1, 'project card lead picker control');
+    await expectCount(page, '[data-prod-client-card] [data-prod-ptarget]', 1, 'project card target picker control');
+    await page.locator('[data-prod-client-card] [data-prod-pstatus]').first().click();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-ppick]', 1, 'project card guarded status picker');
+    await page.keyboard.press('Escape');
     const cardIconBadFallback = await page.locator('[data-prod-client-card] .prod-card-ico').evaluateAll(nodes => nodes.some(n => (n.textContent || '').trim() === 'S' && !n.querySelector('svg')));
     if (cardIconBadFallback) throw new Error('Project card icon fell back to the letter S instead of the artifact project glyph');
     await card.click({ button: 'right' });

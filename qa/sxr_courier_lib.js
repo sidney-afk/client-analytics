@@ -46,6 +46,9 @@ const SXR_REORDER = HOOKS + '/sample-review-reorder';
 // the bytes via Node and fulfils them back into the page.
 const EXT = /(supabase\.co|synchrosocial\.app\.n8n\.cloud|cdn\.jsdelivr\.net|docs\.google\.com|drive\.google\.com|googleusercontent\.com|ytimg\.com|youtube\.com|ggpht\.com|vimeocdn\.com|frame\.io|placeholder\.com|imgur\.com)/;
 const COURIER = process.env.SXR_COURIER !== '0';  // on by default; 0 in open-egress envs
+const QA_THEME = /^(dark|light)$/i.test(process.env.SYNCVIEW_QA_THEME || '')
+  ? String(process.env.SYNCVIEW_QA_THEME).toLowerCase()
+  : '';
 // TMP must be a path BOTH Node (fs.writeFileSync) and the curl-under-bash
 // calls resolve to the same place. On win32 Node maps '/tmp' to <drive>:\tmp
 // while git-bash maps it to its own msys tmp — use os.tmpdir() with forward
@@ -195,7 +198,13 @@ function appErrs(page) {
 
 async function _ctx(browser, opts) {
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 950 }, ignoreHTTPSErrors: true, ...(opts || {}) });
-  await ctx.addInitScript(() => { try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {} });
+  await ctx.addInitScript((theme) => {
+    try { localStorage.setItem('syncview_auth_v1', 'ok'); } catch (e) {}
+    try {
+      if (theme === 'dark') localStorage.setItem('syncview_theme', 'dark');
+      else if (theme === 'light') localStorage.removeItem('syncview_theme');
+    } catch (e) {}
+  }, QA_THEME);
   // Always install the route: it MOCKS the linear-* webhooks (never live) and,
   // when the courier is on, tunnels every OTHER backend host to live via Node.
   await ctx.route('**/*', async (route) => {

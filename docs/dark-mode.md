@@ -50,6 +50,8 @@ Platform colors keep brand identity while dark mode swaps pale fills to dark tin
 
 Status colors use the same scheme: vivid foreground/accent tokens plus dark-tinted background tokens. Positive, warning, danger, info, purple, and neutral states map to readable dark foregrounds and subdued dark fills.
 
+Calendar status pills use dedicated `--cal-status-*` variables. Light values map to the original status palette; dark values use more saturated foregrounds on deeper fills so component pills, dropdown rows, review pills, and title-status squares stay distinct against dark cards. Notes notifications use `--cal-notes-*` variables for the unread dot, count badge, and active/open state.
+
 ## Variable Map
 
 Hardcoded colors are migrated into variables in three layers:
@@ -72,6 +74,8 @@ Examples:
 | `rgba(0,0,0,0.08)` used as shadow | `--sv-shadow-rgba-0-0-0-0_08` |
 
 The generated tokens are a compatibility bridge for this single-file app. New work should prefer semantic tokens instead of adding more generated one-offs.
+
+In dark mode, generated background rgba tokens that encoded white or near-white light overlays are retinted to dark surface RGB with their original alpha preserved. Generated white border rgba tokens are retinted to the dark border RGB for subtle outlines. Foreground white rgba tokens intentionally remain white because they are used as text/icons over dark media and analytics panels, not as surface overlays.
 
 ## Charts
 

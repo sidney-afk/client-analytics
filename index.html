@@ -2439,7 +2439,7 @@
         .linear-search-loading { padding: 12px; font-size: 0.78rem; color: var(--text-muted); text-align: center; }
 
         /* Production preview (Track B B2) - hidden unless ?prod=1. */
-        .prod-view, .prod-layer, .prod-tip, .prod-toast { --prod-bg:#f3f3f4; --prod-content:#fcfcfd; --prod-surface:#fff; --prod-column:#f6f6f7; --prod-hover:#ebebec; --prod-selected:#eaebf6; --prod-border:#d5d5d5; --prod-divider:#e5e5e5; --prod-text:#1b1b1b; --prod-strong:#2e2e30; --prod-dim:#5a5a5c; --prod-muted:#5d5d5f; --prod-faint:#9e9ea1; --prod-accent:#5e6ad2; --prod-link:#4162db; --prod-st-backlog:#a4a8ae; --prod-st-todo:#a8a8a8; --prod-st-in-progress:#c6a333; --prod-st-smm-approval:#ed86bc; --prod-st-kasper-approval:#eb5757; --prod-st-tweak:#db6e1f; --prod-st-client-approval:#ff0016; --prod-st-approved:#43bc58; --prod-st-scheduled:#0044ff; --prod-st-posted:#5e6ad2; --prod-st-canceled:#95a2b3; --prod-st-duplicate:#95a2b3; --prod-st-triage:#f2994a; }
+        .prod-view, .prod-layer, .prod-tip, .prod-toast, .prod-cmd-bd { --prod-bg:#f3f3f4; --prod-content:#fcfcfd; --prod-surface:#fff; --prod-column:#f6f6f7; --prod-hover:#ebebec; --prod-selected:#eaebf6; --prod-border:#d5d5d5; --prod-divider:#e5e5e5; --prod-text:#1b1b1b; --prod-strong:#2e2e30; --prod-dim:#5a5a5c; --prod-muted:#5d5d5f; --prod-faint:#9e9ea1; --prod-accent:#5e6ad2; --prod-link:#4162db; --prod-st-backlog:#a4a8ae; --prod-st-todo:#a8a8a8; --prod-st-in-progress:#c6a333; --prod-st-smm-approval:#ed86bc; --prod-st-kasper-approval:#eb5757; --prod-st-tweak:#db6e1f; --prod-st-client-approval:#ff0016; --prod-st-approved:#43bc58; --prod-st-scheduled:#0044ff; --prod-st-posted:#5e6ad2; --prod-st-canceled:#95a2b3; --prod-st-duplicate:#95a2b3; --prod-st-triage:#f2994a; }
         .prod-view { min-height: calc(100vh - 64px); margin: -24px -24px 0; background: var(--prod-bg); color: var(--prod-text); font-family: "Inter Variable", "SF Pro Display", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; overflow: hidden; }
         .prod-side { width: 244px; flex: 0 0 244px; border-right: 1px solid var(--prod-divider); padding: 12px; display: flex; flex-direction: column; gap: 16px; min-height: calc(100vh - 64px); }
         .prod-brand { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 2px 4px; font-size: 14px; font-weight: 550; color: var(--prod-strong); }
@@ -2464,11 +2464,15 @@
         .prod-content { flex: 1; min-height: 0; overflow: hidden; display: flex; }
         .prod-listwrap { flex: 1; overflow: auto; }
         .prod-group { position: sticky; top: 0; z-index: 1; height: 30px; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--prod-content); border-bottom: 1px solid var(--prod-divider); }
+        .prod-group:hover { background: var(--prod-column); }
+        .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
+        .prod-group.collapsed .prod-group-chev { transform: rotate(-90deg); }
         .prod-group-title { font-size: 13px; font-weight: 500; color: var(--prod-strong); }
         .prod-group-count { font-size: 13px; color: var(--prod-muted); font-variant-numeric: tabular-nums; }
         .prod-row { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--prod-divider); cursor: pointer; user-select: none; }
         .prod-row:hover { background: var(--prod-hover); }
-        .prod-row.active { background: var(--prod-selected); }
+        .prod-row.active, .prod-row.selected { background: var(--prod-selected); }
+        .prod-row.kfocus { box-shadow: inset 2px 0 0 var(--prod-accent); }
         .prod-status-dot { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border-radius: 5px; color: var(--prod-faint); }
         .prod-status-dot::before { content: ""; width: 12px; height: 12px; border-radius: 50%; border: 1.6px solid currentColor; background: transparent; box-sizing: border-box; }
         .prod-status-dot[data-status="in_progress"] { color: var(--prod-st-in-progress); }
@@ -2556,12 +2560,24 @@
         .prod-subbar { height: 44px; flex: none; border-bottom: 1px solid var(--prod-divider); display: flex; align-items: center; gap: 7px; padding: 0 16px; }
         .prod-filter-pills { display: flex; align-items: center; gap: 6px; margin-left: 6px; flex-wrap: wrap; }
         .prod-filter-pill { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 1px solid var(--prod-border); border-radius: 6px; background: var(--prod-surface); color: var(--prod-strong); font-size: 12px; font-weight: 500; white-space: nowrap; }
+        .prod-filter-pill.interactive { cursor: pointer; padding-right: 4px; }
+        .prod-filter-pill.interactive:hover { background: var(--prod-hover); }
+        .prod-filter-pill .fop { color: var(--prod-faint); }
+        .prod-filter-pill .fx { width: 17px; height: 17px; display: grid; place-items: center; border-radius: 4px; color: var(--prod-faint); }
+        .prod-filter-pill .fx:hover { background: var(--prod-hover); color: var(--prod-strong); }
         .prod-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); }
         .prod-status svg { width: 14px; height: 14px; }
         .prod-group { cursor: default; }
         .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }
         .prod-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; }
-        .prod-row:hover .prod-check { opacity: 1; }
+        .prod-row:hover .prod-check, .prod-check.on { opacity: 1; }
+        .prod-check.on { background: var(--prod-accent); border-color: var(--prod-accent); }
+        .prod-check.on::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); display: block; }
+        .prod-group-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
+        .prod-group:hover .prod-group-check, .prod-group-check.partial, .prod-group-check.on { opacity: 1; }
+        .prod-group-check.on, .prod-group-check.partial { background: var(--prod-accent); border-color: var(--prod-accent); }
+        .prod-group-check.on::after { content: ""; width: 3.2px; height: 6.5px; border: solid #fff; border-width: 0 1.5px 1.5px 0; transform: rotate(42deg) translateY(-1px); }
+        .prod-group-check.partial::after { content: ""; width: 7px; height: 1.5px; background: #fff; border-radius: 1px; }
         .prod-title { gap: 0; }
         .prod-title .prod-parent-title { color: var(--prod-muted); font-weight: 450; margin-left: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .prod-title .prod-parent-title::before { content: "> "; color: var(--prod-faint); }
@@ -2572,6 +2588,12 @@
         .prod-created { width: 42px; flex: none; text-align: right; color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
         .prod-board { background: var(--prod-content); }
         .prod-col { background: transparent; }
+        .prod-col.collapsed { width: 46px; min-width: 46px; padding-left: 5px; padding-right: 5px; }
+        .prod-col.collapsed .prod-card-status, .prod-col.collapsed .prod-col-title, .prod-col.collapsed .prod-group-count, .prod-col.collapsed .prod-spacer, .prod-col.collapsed .prod-icon-btn, .prod-col.collapsed .prod-group-add, .prod-col.collapsed .prod-cards { display: none; }
+        .prod-col-collapse { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: var(--prod-faint); flex: none; }
+        .prod-col-collapse:hover { background: var(--prod-hover); color: var(--prod-strong); }
+        .prod-col.collapsed .prod-col-collapse { transform: rotate(-90deg); }
+        .prod-col-rail { writing-mode: vertical-rl; font-size: 13px; font-weight: 500; color: var(--prod-strong); margin: 8px 0 0 4px; white-space: nowrap; }
         .prod-col-head .prod-icon-btn { width: 22px; height: 22px; color: var(--prod-faint); }
         .prod-card { cursor: pointer; }
         .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; }
@@ -2616,7 +2638,18 @@
         .prod-mi .chev { color: var(--prod-faint); display: flex; margin-left: 6px; }
         .prod-mi .tick { color: var(--prod-accent); display: flex; margin-left: 12px; }
         .prod-mi .dres { color: var(--prod-faint); font-size: 11px; margin-left: 14px; }
+        .prod-pop-empty { padding: 7px 11px; color: var(--prod-faint); font-size: 12.5px; }
         .prod-msep { height: 1px; margin: 5px 6px; background: var(--prod-divider); }
+        .prod-cmd-bd { position: fixed; inset: 0; z-index: 9998; background: rgba(20,20,22,.28); display: flex; justify-content: center; align-items: flex-start; padding-top: 13vh; pointer-events: auto; }
+        .prod-cmd { width: min(620px,92vw); max-height: 56vh; background: var(--prod-surface); border: 1px solid var(--prod-border); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08); display: flex; flex-direction: column; overflow: hidden; color: var(--prod-strong); }
+        .prod-cmd-input { border: 0; outline: 0; font: inherit; font-size: 15px; font-weight: 450; padding: 13px 16px; background: var(--prod-surface); color: var(--prod-strong); border-bottom: 1px solid var(--prod-divider); }
+        .prod-cmd-list { overflow-y: auto; padding: 6px; flex: 1; }
+        .prod-cmd-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 450; color: var(--prod-strong); }
+        .prod-cmd-item.sel, .prod-cmd-item:hover { background: var(--prod-hover); }
+        .prod-cmd-item .ci { width: 16px; height: 16px; flex: none; display: grid; place-items: center; }
+        .prod-cmd-item .ct { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-cmd-item .cmeta { margin-left: auto; font-size: 11px; color: var(--prod-faint); flex: none; padding-left: 10px; }
+        .prod-cmd-empty { padding: 18px 16px; color: var(--prod-faint); font-size: 13px; }
         .prod-duepop { width: 286px; }
         .prod-cal { padding: 8px; }
         .prod-cal-hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
@@ -2635,6 +2668,10 @@
         .prod-tip { position: fixed; z-index: 10001; padding: 5px 8px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 10px 28px rgba(0,0,0,.13); font-size: 11px; font-weight: 450; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .1s, transform .1s; }
         .prod-tip.show { opacity: 1; transform: translateY(0); }
         .prod-tip .tk { color: var(--prod-muted); margin-left: 6px; }
+        .prod-empty-state { padding: 48px 64px 90px; text-align: center; color: var(--prod-muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56vh; gap: 18px; }
+        .prod-empty-state .es-ico { color: var(--prod-faint); opacity: .45; }
+        .prod-empty-state .es-ico svg { width: 46px; height: 46px; }
+        .prod-empty-state .es-clear { height: 30px; padding: 0 14px; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); font-size: 13px; font-weight: 500; border: 0; }
         @media (max-width: 900px) { .prod-view { margin-left: -16px; margin-right: -16px; } .prod-side { display: none; } .prod-right { display: none; } .prod-detail-inner { padding-left: 20px; } .prod-chip.optional { display: none; } }
 
         /* Workload calendar */
@@ -27140,6 +27177,13 @@
             openId: '',
             openBatchId: '',
             tab: 'active',
+            groupBy: 'status',
+            filters: [],
+            collapsed: new Set(),
+            colCollapsed: new Set(),
+            selected: new Set(),
+            focusRow: '',
+            paletteOpen: false,
             secOpen: { fav: true, ws: true, teams: true },
             teamOpen: { video: true, graphics: true },
             clients: [],
@@ -27362,6 +27406,7 @@
         function _prodIsDone(status) {
             return ['completed','canceled','duplicate'].includes(_prodStatusType(status)) || status === 'posted' || status === 'scheduled' || status === 'approved';
         }
+        // PORT-DELTA: adapter status keys and aria attributes wrap the artifact statusSVG glyphs.
         function _prodStatusSVG(status) {
             const m = PROD_STATUS_META[_prodArtifactStatus(status)] || { type: 'unstarted', color: '#a8a8a8' };
             const c = m.color;
@@ -27378,7 +27423,7 @@
             return '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">' + inner + '</svg>';
         }
         function _prodStatusIcon(status, id) {
-            return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(_prodArtifactStatus(status)) + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '"' + (id ? ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(id) + ')" data-prod-tip="Change status"' : '') + '>' + _prodStatusSVG(status) + '</span>';
+            return '<span class="prod-status" data-status="' + _calEscAttr(_prodArtifactStatus(status)) + '" data-st="' + _calEscAttr(id || _prodArtifactStatus(status)) + '" title="' + _calEscAttr(_prodStatusLabel(status)) + '"' + (id ? ' onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(id) + ')" data-prod-tip="Change status"' : '') + '>' + _prodStatusSVG(status) + '</span>';
         }
         function _prodIcon(name) {
             if (name === 'search') return '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="4.3"/><path d="M10.2 10.2 13 13"/></svg>';
@@ -27431,6 +27476,330 @@
         function _prodIsBatchParent(d, batch) {
             return !!(d && d.isBatchParent) || !!(d && batch && _prodSameTitle(d.title, batch.name));
         }
+        function _prodCurIssuesUnfiltered() {
+            return _prodIssues().filter(d => _prodState.team === 'all' || d.team === _prodState.team)
+                .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
+                .filter(d => _prodState.view !== 'my' || (d.assignee && d.assignee === _prodMyMemberId()))
+                .filter(d => _prodState.view === 'detail' || _prodState.view === 'batch' || _prodState.view === 'board' || _prodTabAllows(d.status));
+        }
+        function _prodFilterFields() {
+            const editors = _prodEditors();
+            const projects = _prodProjects();
+            return {
+                status: {
+                    label: 'Status',
+                    plural: 'statuses',
+                    icon: k => _prodStatusSVG(k),
+                    fieldIcon: () => _prodIcon('issues'),
+                    values: () => PROD_STATUS_ORDER.filter(k => _prodCurIssuesUnfiltered().some(i => _prodArtifactStatus(i.status) === k)),
+                    name: k => _prodStatusLabel(k),
+                    match: (i, v) => _prodArtifactStatus(i.status) === v
+                },
+                assignee: {
+                    label: 'Assignee',
+                    plural: 'assignees',
+                    icon: k => k === '_' ? _prodIcon('assign') : _prodAvatar(editors[k], 16),
+                    fieldIcon: () => _prodIcon('assign'),
+                    values: () => ['_'].concat(Object.keys(editors).filter(k => _prodCurIssuesUnfiltered().some(i => i.assignee === k)).sort((a, b) => String(editors[a].name).localeCompare(String(editors[b].name)))),
+                    name: k => k === '_' ? 'No assignee' : editors[k] ? editors[k].name : k,
+                    match: (i, v) => v === '_' ? !i.assignee : i.assignee === v
+                },
+                client: {
+                    label: 'Client',
+                    plural: 'clients',
+                    icon: k => _prodProjectGlyph(projects[k] || k),
+                    fieldIcon: () => _prodIcon('project'),
+                    values: () => [...new Set(_prodCurIssuesUnfiltered().map(i => i.project).filter(Boolean))].sort((a, b) => _prodDisplayClient(a).localeCompare(_prodDisplayClient(b))),
+                    name: k => _prodDisplayClient(k),
+                    match: (i, v) => i.project === v
+                }
+            };
+        }
+        function _prodCondFor(field) {
+            return (_prodState.filters || []).find(c => c.field === field);
+        }
+        function _prodMatchFilters(i) {
+            const fields = _prodFilterFields();
+            return (_prodState.filters || []).every(c => !c.values.length || c.values.some(v => fields[c.field] && fields[c.field].match(i, v)));
+        }
+        function _prodToggleFilterValue(field, value) {
+            const fields = _prodFilterFields();
+            if (!fields[field]) return;
+            let c = _prodCondFor(field);
+            if (!c) {
+                c = { field, values: [] };
+                _prodState.filters.push(c);
+            }
+            const ix = c.values.indexOf(value);
+            if (ix >= 0) c.values.splice(ix, 1);
+            else c.values.push(value);
+            if (!c.values.length) _prodState.filters = _prodState.filters.filter(x => x !== c);
+            _prodReconcileSelection();
+            _prodRender();
+        }
+        function _prodRemoveFilter(field) {
+            _prodState.filters = (_prodState.filters || []).filter(c => c.field !== field);
+            _prodReconcileSelection();
+            _prodRender();
+        }
+        function _prodClearFilters() {
+            _prodState.filters = [];
+            _prodReconcileSelection();
+            _prodRender();
+        }
+        // PORT-DELTA: pillsHTML uses Production filter state and class names.
+        function _prodPillsHTML() {
+            if (!_prodState.filters || !_prodState.filters.length) return '';
+            const fields = _prodFilterFields();
+            return _prodState.filters.map(c => {
+                const f = fields[c.field];
+                if (!f) return '';
+                const op = c.values.length > 1 ? 'is any of' : 'is';
+                const val = c.values.length === 1
+                    ? '<span class="fval">' + f.icon(c.values[0]) + '<span>' + _calEsc(f.name(c.values[0])) + '</span></span>'
+                    : '<span class="fval"><span>' + c.values.length + ' ' + f.plural + '</span></span>';
+                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span>' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">x</button></span>';
+            }).join('');
+        }
+        function _prodPickerEmptyState(pop, shown) {
+            const list = pop.querySelector('.prod-pop-list');
+            if (!list) return;
+            let empty = list.querySelector('.prod-pop-empty');
+            if (!shown) {
+                if (!empty) {
+                    empty = document.createElement('div');
+                    empty.className = 'prod-pop-empty';
+                    empty.textContent = 'No results';
+                    list.appendChild(empty);
+                }
+            } else if (empty) {
+                empty.remove();
+            }
+        }
+        // PORT-DELTA: buildFilterValues uses adapter fields and local read-only filtering.
+        function _prodBuildFilterValues(pop, field) {
+            const fields = _prodFilterFields();
+            const f = fields[field];
+            if (!f) return;
+            const vals = f.values();
+            const selected = new Set((_prodCondFor(field) || { values: [] }).values);
+            pop.innerHTML = '<div class="prod-pop-search"><input data-prod-search placeholder="' + _calEscAttr(f.label + '...') + '"></div><div class="prod-pop-list">'
+                + vals.map((v, i) => '<div class="prod-mi" data-prod-fv="' + i + '"><span class="mic">' + f.icon(v) + '</span><span class="mlbl">' + _calEsc(f.name(v)) + '</span><span class="tick"' + (selected.has(v) ? '' : ' style="visibility:hidden"') + '>' + _prodIcon('check') + '</span></div>').join('')
+                + '</div>';
+            const valueRows = () => Array.from(pop.querySelectorAll('[data-prod-fv]')).filter(el => el.style.display !== 'none');
+            let sel = 0;
+            const hi = n => {
+                const rows = valueRows();
+                if (!rows.length) return;
+                sel = Math.max(0, Math.min(n, rows.length - 1));
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            pop.querySelectorAll('[data-prod-fv]').forEach(el => {
+                el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    _prodToggleFilterValue(field, vals[+el.getAttribute('data-prod-fv')]);
+                    _prodClearLayer();
+                });
+                el.addEventListener('mousemove', () => {
+                    const rows = valueRows();
+                    const ix = rows.indexOf(el);
+                    if (ix >= 0) hi(ix);
+                });
+            });
+            const inp = pop.querySelector('[data-prod-search]');
+            if (inp) {
+                inp.addEventListener('input', () => {
+                    const q = inp.value.toLowerCase();
+                    let shown = 0;
+                    pop.querySelectorAll('[data-prod-fv]').forEach(el => {
+                        const v = vals[+el.getAttribute('data-prod-fv')];
+                        const ok = f.name(v).toLowerCase().includes(q);
+                        el.style.display = ok ? '' : 'none';
+                        if (ok) shown++;
+                    });
+                    _prodPickerEmptyState(pop, shown);
+                    hi(0);
+                });
+                inp.addEventListener('keydown', e => {
+                    e.stopPropagation();
+                    if (e.key === 'Escape') { _prodCloseSub(); return; }
+                    if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel - 1); return; }
+                    if (e.key === 'Enter') {
+                        const rows = valueRows();
+                        if (rows.length) rows[Math.min(sel, rows.length - 1)].click();
+                    }
+                });
+                try { inp.focus(); } catch (e) {}
+            }
+            hi(0);
+        }
+        // PORT-DELTA: openFilterSub is namespaced to body-mounted Production overlays.
+        function _prodOpenFilterSub(parentEl, field) {
+            _prodCloseSub();
+            const p = document.createElement('div');
+            p.className = 'prod-pop';
+            p.style.visibility = 'hidden';
+            p.addEventListener('click', e => e.stopPropagation());
+            document.getElementById('prodLayer').appendChild(p);
+            _prodBuildFilterValues(p, field);
+            const r = parentEl.getBoundingClientRect();
+            const pr = p.getBoundingClientRect();
+            let x = r.right - 4;
+            let y = r.top - 6;
+            if (x + pr.width > innerWidth - 8) x = r.left - pr.width + 4;
+            if (y + pr.height > innerHeight - 8) y = Math.max(8, innerHeight - pr.height - 8);
+            p.style.left = x + 'px';
+            p.style.top = y + 'px';
+            p.style.visibility = 'visible';
+            _prodSubPop = p;
+        }
+        // PORT-DELTA: openFilterMenu uses live adapter values; filter changes are pure local reads.
+        function _prodOpenFilterMenu(ev) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const fields = _prodFilterFields();
+            const me = _prodMyMemberId();
+            const meActive = !!me && ((_prodCondFor('assignee') || { values: [] }).values || []).includes(me);
+            const rows = '<div class="prod-pop-hd">Filter</div>'
+                + (me ? '<div class="prod-mi" data-prod-fquick="me"><span class="mic">' + _prodAvatar(_prodMember(me), 16) + '</span><span class="mlbl">Assigned to me</span>' + (meActive ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div><div class="prod-msep"></div>' : '')
+                + ['status','assignee','client'].map(k => {
+                    const f = fields[k];
+                    const n = (_prodCondFor(k) || { values: [] }).values.length;
+                    return '<div class="prod-mi" data-prod-ffield="' + k + '"><span class="mic">' + f.fieldIcon() + '</span><span class="mlbl">' + f.label + '</span>' + (n ? '<span class="kbd">' + n + '</span>' : '') + '<span class="chev">' + _prodIcon('chevR') + '</span></div>';
+                }).join('');
+            const p = _prodLayerPop(rows, ev ? ev.clientX : innerWidth - 220, ev ? ev.clientY : 120);
+            const quick = p.querySelector('[data-prod-fquick="me"]');
+            if (quick) quick.addEventListener('click', () => {
+                _prodToggleFilterValue('assignee', me);
+                _prodClearLayer();
+            });
+            p.querySelectorAll('[data-prod-ffield]').forEach(el => {
+                const field = el.getAttribute('data-prod-ffield');
+                el.addEventListener('mouseenter', () => _prodOpenFilterSub(el, field));
+                el.addEventListener('click', e => {
+                    e.stopPropagation();
+                    _prodOpenFilterSub(el, field);
+                });
+            });
+            return false;
+        }
+        function _prodOpenFilterPill(ev, field) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const p = _prodLayerPop('', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 120);
+            _prodBuildFilterValues(p, field);
+            return false;
+        }
+        // PORT-DELTA: openGroupMenu changes local read-only grouping without touching backend state.
+        function _prodOpenGroupMenu(ev) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const opts = [['status','Status'], ['client','Client / project'], ['assignee','Assignee']];
+            const p = _prodLayerPop('<div class="prod-pop-hd">Group by</div>' + opts.map(o => '<div class="prod-mi" data-prod-grp="' + o[0] + '"><span class="mlbl">' + o[1] + '</span>' + (_prodState.groupBy === o[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join(''), ev ? ev.clientX : innerWidth - 160, ev ? ev.clientY : 120);
+            p.querySelectorAll('[data-prod-grp]').forEach(el => el.addEventListener('click', () => {
+                _prodState.groupBy = el.getAttribute('data-prod-grp');
+                _prodClearLayer();
+                _prodRender();
+            }));
+            return false;
+        }
+        // PORT-DELTA: openSearch result source is live adapter data instead of artifact seed arrays.
+        function _prodPaletteItems() {
+            const fields = _prodFilterFields();
+            const items = [
+                { icon: _prodIcon('issues'), title: 'My issues', meta: 'Command', go: () => _prodSetView('my') },
+                { icon: _prodIcon('issues'), title: 'Video Issues', meta: 'Command', go: () => _prodOpenTeamView('video', 'list') },
+                { icon: _prodIcon('project'), title: 'Video Projects', meta: 'Command', go: () => _prodOpenTeamView('video', 'board') },
+                { icon: _prodIcon('issues'), title: 'Graphics Issues', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'list') },
+                { icon: _prodIcon('project'), title: 'Graphics Projects', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'board') }
+            ];
+            _prodIssueRows().slice(0, 250).forEach(i => {
+                items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+            });
+            fields.client.values().forEach(slug => {
+                items.push({ icon: fields.client.icon(slug), title: fields.client.name(slug), meta: 'Client', go: () => _prodOpenClient(slug) });
+            });
+            fields.assignee.values().filter(v => v !== '_').forEach(id => {
+                items.push({ icon: fields.assignee.icon(id), title: fields.assignee.name(id), meta: 'Assignee', go: () => {
+                    _prodState.filters = [{ field: 'assignee', values: [id] }];
+                    _prodState.view = 'list';
+                    _prodState.openId = '';
+                    _prodState.openBatchId = '';
+                    _prodSetQuery({}, true);
+                    _prodRender();
+                }});
+            });
+            return items;
+        }
+        // PORT-DELTA: openSearch is namespaced as a Production command palette and navigates only.
+        function _prodOpenPalette() {
+            _prodEnsureOverlays();
+            _prodClearLayer();
+            const bd = document.createElement('div');
+            bd.className = 'prod-cmd-bd';
+            bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people..." spellcheck="false"><div class="prod-cmd-list"></div></div>';
+            document.body.appendChild(bd);
+            const inp = bd.querySelector('.prod-cmd-input');
+            const list = bd.querySelector('.prod-cmd-list');
+            let results = [];
+            let sel = 0;
+            const close = () => {
+                bd.remove();
+                _prodState.paletteOpen = false;
+            };
+            const draw = () => {
+                list.innerHTML = results.length
+                    ? results.map((r, i) => '<div class="prod-cmd-item' + (i === sel ? ' sel' : '') + '" data-prod-cmd="' + i + '"><span class="ci">' + r.icon + '</span><span class="ct">' + _calEsc(r.title) + '</span><span class="cmeta">' + _calEsc(r.meta) + '</span></div>').join('')
+                    : '<div class="prod-cmd-empty">No results</div>';
+                list.querySelectorAll('[data-prod-cmd]').forEach(el => {
+                    el.addEventListener('mousemove', () => {
+                        sel = +el.getAttribute('data-prod-cmd');
+                        draw();
+                    });
+                    el.addEventListener('click', () => {
+                        const item = results[+el.getAttribute('data-prod-cmd')];
+                        close();
+                        if (item && item.go) item.go();
+                    });
+                });
+                const active = list.querySelector('.prod-cmd-item.sel');
+                if (active) active.scrollIntoView({ block: 'nearest' });
+            };
+            const search = () => {
+                const q = inp.value.trim().toLowerCase();
+                const all = _prodPaletteItems();
+                results = all.filter(r => !q || (r.title + ' ' + r.meta).toLowerCase().includes(q)).slice(0, 40);
+                sel = Math.min(sel, Math.max(0, results.length - 1));
+                draw();
+            };
+            inp.addEventListener('input', search);
+            inp.addEventListener('keydown', e => {
+                if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+                if (e.key === 'ArrowDown') { e.preventDefault(); if (results.length) { sel = (sel + 1) % results.length; draw(); } return; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); if (results.length) { sel = (sel - 1 + results.length) % results.length; draw(); } return; }
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const item = results[sel];
+                    close();
+                    if (item && item.go) item.go();
+                }
+            });
+            bd.addEventListener('click', e => {
+                if (e.target === bd) close();
+            });
+            _prodState.paletteOpen = true;
+            search();
+            try { inp.focus(); } catch (e) {}
+            return false;
+        }
         function _prodEnsureOverlays() {
             let layer = document.getElementById('prodLayer');
             if (!layer) {
@@ -27456,8 +27825,42 @@
             if (!_prodState.overlayWired) {
                 _prodState.overlayWired = true;
                 document.addEventListener('keydown', e => {
+                    if (!_prodEnabled() || !document.getElementById('prodRoot')) return;
+                    const activeTag = document.activeElement && document.activeElement.tagName;
+                    const typing = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || (document.activeElement && document.activeElement.isContentEditable);
+                    if ((e.metaKey || e.ctrlKey) && String(e.key || '').toLowerCase() === 'k') {
+                        e.preventDefault();
+                        _prodOpenPalette();
+                        return;
+                    }
                     if (e.key === 'Escape' && document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) {
+                        e.preventDefault();
                         _prodClearLayer();
+                        return;
+                    }
+                    if (typing || _prodState.paletteOpen) return;
+                    if (e.key === 'Escape') {
+                        if (_prodState.view === 'detail' || _prodState.view === 'batch') {
+                            e.preventDefault();
+                            _prodSetView('list');
+                            return;
+                        }
+                        if (_prodState.focusRow) {
+                            e.preventDefault();
+                            _prodState.focusRow = '';
+                            _prodRender();
+                            return;
+                        }
+                    }
+                    if (_prodState.view === 'list' || _prodState.view === 'my') {
+                        if (e.key === 'ArrowDown' || String(e.key).toLowerCase() === 'j') { e.preventDefault(); _prodMoveFocus(1); return; }
+                        if (e.key === 'ArrowUp' || String(e.key).toLowerCase() === 'k') { e.preventDefault(); _prodMoveFocus(-1); return; }
+                        if (e.key === 'Enter' && _prodState.focusRow) { e.preventDefault(); _prodOpenDeliverable(_prodState.focusRow); return; }
+                        const target = _prodState.focusRow || _prodFlatOrder()[0];
+                        if (target && String(e.key).toLowerCase() === 's') { e.preventDefault(); _prodOpenPicker('status', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
+                        if (target && String(e.key).toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); _prodOpenPicker('assign', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
+                        if (target && String(e.key).toLowerCase() === 'd' && e.shiftKey) { e.preventDefault(); _prodOpenPicker('due', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
+                        if (target && String(e.key).toLowerCase() === 'p' && e.shiftKey) { e.preventDefault(); _prodOpenPicker('proj', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
                     }
                 });
                 document.addEventListener('mouseover', e => {
@@ -27547,6 +27950,7 @@
             _prodToast(_prodPreviewText());
             return false;
         }
+        // PORT-DELTA: body overlay IDs/classes are namespaced for the embedded Production tab.
         function _prodLayerPop(html, x, y) {
             _prodEnsureOverlays();
             const layer = document.getElementById('prodLayer');
@@ -27700,6 +28104,7 @@
             const tick = rows.findIndex(el => !!el.querySelector('.tick'));
             hi(tick >= 0 ? tick : 0);
         }
+        // PORT-DELTA: submenu opens artifact pickers but routes selections to the read-only guard.
         function _prodOpenSub(parentEl, kind, ids) {
             _prodCloseSub();
             const p = document.createElement('div');
@@ -27774,6 +28179,7 @@
             if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
             return null;
         }
+        // PORT-DELTA: due calendar structure is artifact-derived; date selection is guarded read-only.
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
             const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
@@ -27850,6 +28256,7 @@
             pop.style.visibility = 'hidden';
             draw();
         }
+        // PORT-DELTA: context menu uses artifact item order with Copy active and mutating entries guarded.
         function _prodOpenContextMenu(ev, kind, id) {
             if (ev) {
                 ev.preventDefault();
@@ -27866,18 +28273,18 @@
             const issueMenu = [
                 menuItem('Status', _prodIcon('issues'), 'S', 'status'),
                 menuItem('Assignee', _prodIcon('assign'), 'A', 'assign'),
-                menuItem('Due date', _prodIcon('cal'), 'Shift+D', 'due'),
-                menuItem('Project', _prodIcon('project'), 'Shift+P', 'proj'),
+                menuItem('Due date', _prodIcon('cal'), '⇧D', 'due'),
+                menuItem('Project', _prodIcon('project'), '⇧P', 'proj'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
                 disabled('Move', _prodIcon('move'), ''),
                 '<div class="prod-msep"></div>',
-                disabled('Delete', _prodIcon('trash'), 'Ctrl Backspace', true)
+                disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
             ];
             const projectMenu = [
                 disabled('Change status', _prodIcon('issues'), 'S'),
                 disabled('Set lead', _prodIcon('assign'), 'A'),
-                disabled('Set target', _prodIcon('cal'), 'Shift+D'),
+                disabled('Set target', _prodIcon('cal'), '⇧D'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy')
             ];
@@ -27922,11 +28329,8 @@
             return active ? active.id : '';
         }
         function _prodIssueRows() {
-            const rows = _prodIssues().slice();
-            return rows.filter(d => _prodState.team === 'all' || d.team === _prodState.team)
-                .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
-                .filter(d => _prodState.view !== 'my' || (d.assignee && d.assignee === _prodMyMemberId()))
-                .filter(d => _prodState.view === 'detail' || _prodState.view === 'batch' || _prodState.view === 'board' || _prodTabAllows(d.status))
+            const rows = _prodCurIssuesUnfiltered();
+            return rows.filter(_prodMatchFilters)
                 .sort((a, b) => {
                     const s = PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(a.status)) - PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(b.status));
                     if (s) return s;
@@ -27941,6 +28345,48 @@
                 video: all.filter(d => d.team === 'video').length,
                 graphics: all.filter(d => d.team === 'graphics').length
             };
+        }
+        // PORT-DELTA: groupsFor accepts live rows and supports client-project grouping through adapter projects.
+        function _prodGroupsFor(rows) {
+            const grouped = new Map();
+            const projects = _prodProjects();
+            const editors = _prodEditors();
+            const groupBy = _prodState.groupBy || 'status';
+            rows.forEach(r => {
+                const key = groupBy === 'assignee'
+                    ? (r.assignee || '_')
+                    : groupBy === 'client'
+                        ? (r.project || '_')
+                        : (_prodArtifactStatus(r.status) || 'unknown');
+                if (!grouped.has(key)) grouped.set(key, []);
+                grouped.get(key).push(r);
+            });
+            if (groupBy === 'assignee') {
+                return [...grouped.keys()].sort((a, b) => {
+                    const an = a === '_' ? 'No assignee' : editors[a] ? editors[a].name : a;
+                    const bn = b === '_' ? 'No assignee' : editors[b] ? editors[b].name : b;
+                    return an.localeCompare(bn);
+                }).map(key => ({ key, title: key === '_' ? 'No assignee' : editors[key] ? editors[key].name : key, icon: key === '_' ? _prodIcon('assign') : _prodAvatar(editors[key], 16), items: grouped.get(key) || [] }));
+            }
+            if (groupBy === 'client') {
+                return [...grouped.keys()].sort((a, b) => _prodDisplayClient(a).localeCompare(_prodDisplayClient(b))).map(key => ({ key, title: projects[key] ? projects[key].name : key, icon: _prodProjectGlyph(projects[key] || key), items: grouped.get(key) || [] }));
+            }
+            const keys = PROD_STATUS_ORDER.filter(k => grouped.has(k)).concat([...grouped.keys()].filter(k => !PROD_STATUS_ORDER.includes(k)));
+            return keys.map(key => ({ key, title: _prodStatusLabel(key), icon: _prodStatusSVG(key), items: grouped.get(key) || [] }));
+        }
+        function _prodFlatOrder() {
+            const out = [];
+            _prodGroupsFor(_prodIssueRows()).forEach(g => {
+                if (!_prodState.collapsed.has(g.key)) g.items.forEach(i => out.push(i.id));
+            });
+            return out;
+        }
+        function _prodReconcileSelection() {
+            const visible = new Set(_prodIssueRows().map(i => i.id));
+            Array.from(_prodState.selected || []).forEach(id => {
+                if (!visible.has(id)) _prodState.selected.delete(id);
+            });
+            if (_prodState.focusRow && !visible.has(_prodState.focusRow)) _prodState.focusRow = '';
         }
         function renderProductionView() {
             return '<div class="prod-view" id="prodRoot"><div class="prod-loading">Loading Production preview...</div></div>';
@@ -28053,6 +28499,8 @@
             if (_prodState.view === 'board') _prodState.clientSlug = '';
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodState.focusRow = '';
+            _prodState.selected.clear();
             _prodSetQuery({}, true);
             _prodRender();
         }
@@ -28060,7 +28508,46 @@
             _prodState.tab = tab === 'backlog' ? 'backlog' : tab === 'all' ? 'all' : 'active';
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodReconcileSelection();
             _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetFocusRow(id, renderNow) {
+            if (!_prodIssue(id)) return;
+            _prodState.focusRow = id;
+            if (renderNow) _prodRender();
+        }
+        function _prodMoveFocus(delta) {
+            const order = _prodFlatOrder();
+            if (!order.length) return;
+            const cur = order.indexOf(_prodState.focusRow);
+            const next = cur < 0 ? (delta > 0 ? 0 : order.length - 1) : Math.max(0, Math.min(order.length - 1, cur + delta));
+            _prodState.focusRow = order[next];
+            _prodRender();
+            setTimeout(() => {
+                const el = document.querySelector('[data-prod-row="' + CSS.escape(_prodState.focusRow) + '"]');
+                if (el) el.scrollIntoView({ block: 'nearest' });
+            }, 0);
+        }
+        function _prodToggleGroup(key) {
+            if (_prodState.collapsed.has(key)) _prodState.collapsed.delete(key);
+            else _prodState.collapsed.add(key);
+            _prodRender();
+        }
+        function _prodToggleRowSelection(id) {
+            if (!_prodIssue(id)) return;
+            if (_prodState.selected.has(id)) _prodState.selected.delete(id);
+            else _prodState.selected.add(id);
+            _prodRender();
+        }
+        function _prodGuardGroupSelection(key) {
+            _prodReadonlyGuard();
+            return false;
+        }
+        function _prodToggleBoardColumn(status) {
+            status = _prodBoardStatus(status);
+            if (_prodState.colCollapsed.has(status)) _prodState.colCollapsed.delete(status);
+            else _prodState.colCollapsed.add(status);
             _prodRender();
         }
         function _prodToggleSection(section) {
@@ -28079,6 +28566,8 @@
             _prodState.clientSlug = '';
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodState.focusRow = '';
+            _prodState.selected.clear();
             _prodSetQuery({}, true);
             _prodRender();
         }
@@ -28087,6 +28576,8 @@
             _prodState.view = 'list';
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodState.focusRow = '';
+            _prodState.selected.clear();
             _prodSetQuery({}, true);
             _prodRender();
         }
@@ -28094,6 +28585,7 @@
             _prodState.openId = id;
             _prodState.openBatchId = '';
             _prodState.view = 'detail';
+            _prodState.selected.clear();
             _prodSetQuery({ d: id }, true);
             _prodRender();
             _prodLoadEventsFor(id);
@@ -28102,6 +28594,7 @@
             _prodState.openBatchId = id;
             _prodState.openId = '';
             _prodState.view = 'batch';
+            _prodState.selected.clear();
             _prodSetQuery({ batch: id }, true);
             _prodRender();
         }
@@ -28121,6 +28614,7 @@
         function _prodNavItem(icon, label, active, onClick, cls, count) {
             return '<button class="prod-nav-btn' + (cls ? ' ' + cls : '') + (active ? ' active' : '') + '" type="button" onclick="' + onClick + '"><span class="prod-nav-ico">' + icon + '</span><span>' + _calEsc(label) + '</span>' + (count !== undefined ? '<span class="prod-nav-count">' + count + '</span>' : '') + '</button>';
         }
+        // PORT-DELTA: sidebar structure follows renderSidebar with host class names and live counts.
         function _prodSidebar() {
             const c = _prodCounts();
             const favIssues = _prodIssues().filter(d => d.favorite || d.fav);
@@ -28139,7 +28633,7 @@
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div><button class="prod-search-btn" type="button" title="Search (⌘K)">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search (Cmd+K)" data-prod-tip="Search|Cmd+K">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML
@@ -28157,7 +28651,10 @@
             const tabs = _prodState.view === 'board'
                 ? '<div class="prod-tabs"><button class="prod-tab active" type="button">All projects</button></div>'
                 : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
-            const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills"><span class="prod-filter-pill">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></span>' + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '') + '</div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('display') + '</button></div>';
+            const filterPills = '<span class="prod-filter-pill">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></span>'
+                + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '')
+                + _prodPillsHTML();
+            const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
             return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><span class="prod-disabled-pill"><button type="button" data-prod-disabled="new-issue" disabled title="' + _prodPreviewText() + '">New issue</button></span><button class="prod-tab" type="button" onclick="_prodRefresh()">Refresh</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
@@ -28183,22 +28680,28 @@
             if (_prodState.view === 'batch') return _prodBatchDetail();
             return _prodList();
         }
+        // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.
         function _prodList() {
             const rows = _prodIssueRows();
-            if (!rows.length) return '<div class="prod-empty">No migrated deliverables in this view yet.</div>';
-            const grouped = new Map();
-            rows.forEach(r => {
-                const k = r.status || 'unknown';
-                if (!grouped.has(k)) grouped.set(k, []);
-                grouped.get(k).push(r);
-            });
-            const keys = PROD_STATUS_ORDER.filter(k => grouped.has(k)).concat([...grouped.keys()].filter(k => !PROD_STATUS_ORDER.includes(k)));
-            return '<div class="prod-listwrap">' + keys.map(status => {
-                const items = grouped.get(status) || [];
-                return '<div class="prod-group" data-prod-group="' + _calEscAttr(status) + '">' + _prodStatusIcon(status) + '<span class="prod-group-title">' + _calEsc(_prodStatusLabel(status)) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
-                    + items.map(_prodRow).join('');
+            if (!rows.length) {
+                let msg = 'No issues here yet.';
+                if (_prodState.filters && _prodState.filters.length) msg = 'No issues match your filters.';
+                else if (_prodState.view === 'my') msg = 'No issues assigned to you.';
+                else if (_prodState.tab === 'backlog') msg = 'Nothing in the backlog.';
+                else if (_prodState.tab === 'active') msg = 'No active issues.';
+                return '<div class="prod-empty-state" data-prod-empty-state><span class="es-ico">' + (_prodState.view === 'my' ? _prodIcon('issues') : _prodIcon('issues')) + '</span><span>' + _calEsc(msg) + '</span>' + ((_prodState.filters || []).length ? '<button class="es-clear" type="button" onclick="_prodClearFilters()">Clear filters</button>' : '') + '</div>';
+            }
+            const selected = _prodState.selected || new Set();
+            return '<div class="prod-listwrap">' + _prodGroupsFor(rows).map(group => {
+                const items = group.items || [];
+                const collapsed = _prodState.collapsed.has(group.key);
+                const selectedCount = items.filter(i => selected.has(i.id)).length;
+                const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
+                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
+                    + (collapsed ? '' : items.map(_prodRow).join(''));
             }).join('') + '</div>';
         }
+        // PORT-DELTA: rowHTML uses live ids/displayIds and read-only picker hooks.
         function _prodRow(d) {
             const assignee = _prodMember(d.assignee);
             const parent = d.parent ? _prodIssue(d.parent) : null;
@@ -28206,8 +28709,10 @@
             const clientName = _prodDisplayClient(d.project);
             const isBatchParent = !!d.isBatchParent;
             const childCount = sub ? sub.total : 0;
-            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
-                + '<span class="prod-check" aria-hidden="true"></span>'
+            const selected = _prodState.selected && _prodState.selected.has(d.id);
+            const focused = _prodState.focusRow === d.id;
+            return '<div class="prod-row' + (_prodState.openId === d.id ? ' active' : '') + (selected ? ' selected' : '') + (focused ? ' kfocus' : '') + '" data-prod-row="' + _calEscAttr(d.id) + '" data-prod-team="' + _calEscAttr(d.team || '') + '" data-prod-status="' + _calEscAttr(d.status || '') + '" data-prod-client="' + _calEscAttr(d.project || '') + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" data-prod-child-count="' + childCount + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" onmousemove="_prodSetFocusRow(' + _jsAttrArg(d.id) + ',false)" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">'
+                + '<span class="prod-check' + (selected ? ' on' : '') + '" data-prod-row-check="' + _calEscAttr(d.id) + '" onclick="event.stopPropagation(); _prodToggleRowSelection(' + _jsAttrArg(d.id) + ')" aria-hidden="true"></span>'
                 + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span>'
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
@@ -28229,15 +28734,17 @@
             const dash = status === 'backlog' ? ' stroke-dasharray="1.65 1.35"' : '';
             return '<svg width="16" height="16" viewBox="-1 -1 16 16" aria-hidden="true"><path d="M2.95778 3.02069L5.70777 1.36023C6.50244 0.88041 7.49756 0.88041 8.29223 1.36024L11.0422 3.02074C11.7918 3.47336 12.25 4.2852 12.25 5.16086V8.84803C12.25 9.7251 11.7904 10.5381 11.0388 10.9902L8.29114 12.6433C7.49693 13.1211 6.50355 13.1203 5.71011 12.6412L2.95775 10.9792C2.20815 10.5266 1.75 9.7148 1.75 8.83911V5.16082C1.75 4.28516 2.20816 3.47332 2.95778 3.02069Z" fill="none" stroke="' + color + '" stroke-width="1.4" stroke-linejoin="round"' + dash + '/>' + extra + '</svg>';
         }
+        // PORT-DELTA: renderProjects reads live client cards and guards add/options affordances.
         function _prodBoard() {
             const rows = _prodIssueRows();
             const byClient = new Map();
             rows.forEach(d => byClient.set(d.project, (byClient.get(d.project) || 0) + 1));
             return '<div class="prod-board">' + PROD_BOARD_ORDER.map(status => {
                 const cards = _prodClients().filter(c => (c.status || 'prog') === status && byClient.has(c.id));
-                return '<section class="prod-col" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div><div class="prod-cards">'
+                const collapsed = _prodState.colCollapsed.has(status);
+                return '<section class="prod-col' + (collapsed ? ' collapsed' : '') + '" data-prod-col="' + _calEscAttr(status) + '"><div class="prod-col-head"><button class="prod-col-collapse" type="button" data-prod-pcolcollapse="' + _calEscAttr(status) + '" onclick="_prodToggleBoardColumn(' + _jsAttrArg(status) + ')" data-prod-tip="' + (collapsed ? 'Expand column' : 'Collapse column') + '">' + _prodIcon('chevD') + '</button><span class="prod-card-status">' + _prodProjectStatusIcon(status) + '</span><span class="prod-col-title">' + _calEsc(_prodBoardLabel(status)) + '</span><span class="prod-group-count">' + cards.length + '</span><span class="prod-spacer"></span><button class="prod-icon-btn" type="button" disabled title="' + _prodPreviewText() + '">' + _prodIcon('dots') + '</button><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-client-board-card" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>' + (collapsed ? '<div class="prod-col-rail">' + _calEsc(_prodBoardLabel(status)) + ' ' + cards.length + '</div>' : '<div class="prod-cards">'
                     + (cards.length ? cards.map(c => _prodClientCard(c, byClient.get(c.id) || 0)).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No projects</div>')
-                    + '</div></section>';
+                    + '</div>') + '</section>';
             }).join('') + '</div>';
         }
         function _prodClientCard(c, count) {
@@ -28247,6 +28754,7 @@
                 + (c.desc ? '<div class="prod-card-desc">' + _calEsc(c.desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span>' + (c.target ? '<span>' + _calEsc(c.target) + '</span>' : '') + '</div></article>';
         }
+        // PORT-DELTA: renderDetail uses live event reads and disables composer/write controls.
         function _prodDetail() {
             const d = _prodIssue(_prodState.openId);
             if (!d) return '<div class="prod-empty">Deliverable not found.</div>';
@@ -38949,7 +39457,7 @@
             if (el.closest && el.closest('[data-no-tip]')) return true;
             // Production preview owns its artifact-style tooltip layer through
             // data-prod-tip; the global title tooltip would double-paint there.
-            if (el.closest && el.closest('.prod-view, .prod-layer, .prod-tip, .prod-toast')) return true;
+            if (el.closest && el.closest('.prod-view, .prod-layer, .prod-tip, .prod-toast, .prod-cmd-bd')) return true;
             const tag = el.tagName;
             // Form fields: title may be used for HTML5 validation messages
             // or accessibility hints — leave them alone.

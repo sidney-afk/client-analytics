@@ -135,6 +135,6 @@ kept current the whole time, so nothing is lost.
 - **Pre-B1 Track B snapshot 2026-07-06**: git tag `pre-B1-track-b-2026-07-06`
   points to `main` commit `f7d77561c823335964e6d78dd854b0086957884d`. Public-safe snapshot
   evidence is in `n8n-backups/2026-07-06-pre-B1-track-b-snapshot-status.md`; private Supabase
-  JSON snapshots are stored outside the repo under
-  `private-backups/2026-07-06-pre-B1-track-b\supabase`. B1 does not edit n8n workflows, and the
-  additive B1 model is live but empty until the owner approves the backfill gate.
+  JSON snapshots are stored outside the public repo. B1 does not edit n8n workflows. The
+  additive B1 model has since been backfilled under owner-approved handling rules, while no
+  user-facing route depends on it yet.

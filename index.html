@@ -3694,7 +3694,15 @@
 
         /* Linear sub-issue link — icon at the start of the title row */
         .cal-title-row { display: flex; align-items: center; gap: 4px; }
+        .cal-title-name-wrap { position: relative; flex: 1 1 0; min-width: 0; display: flex; align-items: center; }
         .cal-title-row .cal-fld-name { flex: 1 1 0; min-width: 0; }
+        /* Fade the title out on its right edge when it overflows, so the save
+           indicator reads as sitting where the title fades (owner sketch). The
+           gradient melts into the card surface; it's dropped while editing so
+           the caret text stays crisp. */
+        .cal-title-fade { position: absolute; top: 0; right: 0; width: 22px; height: 100%; pointer-events: none;
+            background: linear-gradient(to right, transparent, var(--white)); transition: opacity 0.15s ease; }
+        .cal-title-name-wrap:focus-within .cal-title-fade { opacity: 0; }
         .cal-linear-slot { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
         .cal-linear-slot:empty { display: none; }
         .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;
@@ -4057,6 +4065,32 @@
         .cal-card-saving.is-saved { color: var(--sv-fg-166534); }
         .cal-card-saving.is-error { color: var(--dn); }
         button.cal-card-saving.is-error:hover { text-decoration: underline; }
+
+        /* ── Reusable modern save indicator (icon-only). See _svSaveIndHtml. ──
+           Themed via CSS variables so it works in both light and dark. */
+        .sv-save-ind { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 15px; height: 15px; line-height: 0; transition: opacity 0.4s ease; }
+        .sv-save-ind[hidden] { display: none; }
+        .sv-save-ind.is-fading { opacity: 0; }
+        .sv-save-ind-svg { display: block; overflow: visible; }
+        .sv-save-ind-track { stroke: var(--border); }
+        .sv-save-ind-arc { stroke: var(--text-muted); stroke-dasharray: 34 57; opacity: 0; }
+        .sv-save-ind-check { stroke: var(--up); stroke-dasharray: 16; stroke-dashoffset: 16; opacity: 0; }
+        .sv-save-ind-bang { stroke: var(--dn); opacity: 0; }
+        /* saving — a subtle partial arc rotating around the ring */
+        .sv-save-ind.is-saving .sv-save-ind-svg { animation: spin 0.75s linear infinite; }
+        .sv-save-ind.is-saving .sv-save-ind-arc { opacity: 1; }
+        /* saved — the ring completes in green and a check draws in */
+        .sv-save-ind.is-saved .sv-save-ind-track { stroke: var(--up); opacity: 0.4; }
+        .sv-save-ind.is-saved .sv-save-ind-arc { opacity: 1; stroke: var(--up); stroke-dasharray: 57; }
+        .sv-save-ind.is-saved .sv-save-ind-check { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset 0.25s ease 0.05s; }
+        /* error — a persistent red ring + exclamation */
+        .sv-save-ind.is-error .sv-save-ind-track { stroke: var(--dn); opacity: 0.45; }
+        .sv-save-ind.is-error .sv-save-ind-arc { opacity: 1; stroke: var(--dn); stroke-dasharray: 57; }
+        .sv-save-ind.is-error .sv-save-ind-bang { opacity: 1; }
+        @media (prefers-reduced-motion: reduce) {
+            .sv-save-ind.is-saving .sv-save-ind-svg { animation: none; }
+            .sv-save-ind.is-saved .sv-save-ind-check { transition: none; }
+        }
         .cal-card-del { position: absolute; top: 7px; right: 7px; z-index: 4; width: 24px; height: 24px; border-radius: 50%; border: 0;
             background: var(--sv-bg-rgba-255-255-255-0_92); box-shadow: 0 1px 5px var(--sv-shadow-rgba-0-0-0-0_22); color: var(--text-secondary); cursor: pointer;
             font-size: 1.1rem; line-height: 1; opacity: 0; transition: opacity 0.15s, background 0.12s, color 0.12s;
@@ -21212,7 +21246,7 @@
             const slug = _calStatusSlug(ts);
             titleSq = `<button type="button" class="cal-title-status-sq cal-fld-status-${slug}" data-substatus-pid="${pid}" data-substatus-comp="title" data-val="${_calEscAttr(ts)}" onclick="_calStatusToggleMenu(event,'${pid}',this,'title')" title="YouTube title — ${_calEscAttr(_calStatusLabel(ts))}" aria-label="YouTube title status: ${_calEscAttr(_calStatusLabel(ts))}"></button>`;
         }
-        return `${titleSq}<input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
+        return `${titleSq}<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_calEsc(p.name)}" placeholder="Untitled post" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid)}`;
     }
     function _calLinearEdit(pid, comp) {
         if (_isClientLink) return;   // Linear linking is internal/SMM-only (never shown to clients)
@@ -22459,21 +22493,86 @@
         _calSetCardStatus(pid, 'saving');
         _calFlushCardSave(pid);
     }
-    function _calSetCardStatus(pid, state, msg) {
-        const tag = document.querySelector(`[data-saving="${pid}"]`);
-        if (!tag) return;
-        tag.classList.remove('is-saved','is-error');
+    /* ── Reusable modern save indicator ───────────────────────────────────
+       An icon-only, circular save-state indicator, built as ONE component so
+       other surfaces (samples, templates) can adopt it later; wired ONLY into
+       the calendar card title row in this pass. States:
+         saving → an animated rotating ring
+         saved  → the ring completes, turns green with a brief check, then fades
+                  out after ~2s
+         error  → turns red and PERSISTS, carrying the save-error detail in its
+                  tooltip (title) + aria-label
+       Respects prefers-reduced-motion (CSS drops the rotation; state reads by
+       colour only) and is themed entirely through CSS variables (light + dark). */
+    function _svSaveIndHtml(id, attr) {
+        const a = attr || 'data-sv-save-ind';
+        return `<span class="sv-save-ind" ${a}="${_calEscAttr(id)}" role="status" aria-live="polite" hidden>`
+            + `<svg class="sv-save-ind-svg" viewBox="0 0 24 24" width="15" height="15" fill="none" aria-hidden="true">`
+            + `<circle class="sv-save-ind-track" cx="12" cy="12" r="9" stroke-width="2.4"/>`
+            + `<circle class="sv-save-ind-arc" cx="12" cy="12" r="9" stroke-width="2.4" stroke-linecap="round"/>`
+            + `<path class="sv-save-ind-check" d="M7.6 12.4l2.7 2.7 6-6.4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`
+            + `<path class="sv-save-ind-bang" d="M12 7.4v4.7" stroke-width="2.2" stroke-linecap="round"/>`
+            + `<path class="sv-save-ind-bang" d="M12 15.7v.06" stroke-width="2.4" stroke-linecap="round"/>`
+            + `</svg></span>`;
+    }
+    function _svSaveIndApply(el, state, msg) {
+        if (!el) return;
+        if (el._svFadeTimer) { clearTimeout(el._svFadeTimer); el._svFadeTimer = null; }
+        el.classList.remove('is-saving', 'is-saved', 'is-error', 'is-fading');
         if (state === 'saving') {
-            tag.hidden = false; tag.textContent = 'Saving…';
+            el.hidden = false;
+            el.removeAttribute('title');
+            el.classList.add('is-saving');
+            el.setAttribute('aria-label', 'Saving…');
         } else if (state === 'saved') {
-            tag.hidden = false; tag.textContent = 'Saved'; tag.classList.add('is-saved');
-            setTimeout(() => { if (tag.classList.contains('is-saved')) { tag.hidden = true; tag.textContent = ''; tag.classList.remove('is-saved'); } }, 1500);
+            el.hidden = false;
+            el.removeAttribute('title');
+            el.classList.add('is-saved');
+            el.setAttribute('aria-label', 'Saved');
+            // Hold the green check ~1.6s, then fade out over ~0.4s (≈2s total).
+            el._svFadeTimer = setTimeout(() => {
+                if (!el.classList.contains('is-saved')) { el._svFadeTimer = null; return; }
+                el.classList.add('is-fading');
+                el._svFadeTimer = setTimeout(() => {
+                    el._svFadeTimer = null;
+                    if (el.classList.contains('is-saved')) {
+                        el.hidden = true;
+                        el.classList.remove('is-saved', 'is-fading');
+                        el.removeAttribute('aria-label');
+                    }
+                }, 420);
+            }, 1600);
         } else if (state === 'error') {
-            tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error');
+            el.hidden = false;
+            el.classList.add('is-error');
+            const detail = (msg && String(msg)) || 'Save failed';
+            el.setAttribute('title', detail);
+            el.setAttribute('aria-label', 'Save failed: ' + detail);
         } else {
-            tag.hidden = true; tag.textContent = '';
+            el.hidden = true;
+            el.removeAttribute('title');
+            el.removeAttribute('aria-label');
         }
-        const card = tag.closest('.cal-card');
+    }
+
+    function _calSetCardStatus(pid, state, msg) {
+        // Modern icon-only indicator at the END of the card title row.
+        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state, msg);
+        // The foot element stays the Save-failed·Retry affordance. It no longer
+        // carries the transient "Saving…"/"Saved" TEXT (that moved to the icon),
+        // but it must still surface a failure inline; the catch's subsequent
+        // _calRenderBody swaps in the full clickable retry button. Never reduce
+        // the visibility of a save failure.
+        const tag = document.querySelector(`[data-saving="${pid}"]`);
+        if (tag) {
+            tag.classList.remove('is-saved', 'is-error');
+            if (state === 'error') {
+                tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error');
+            } else {
+                tag.hidden = true; tag.textContent = '';
+            }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
         if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
     }
 

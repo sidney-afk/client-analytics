@@ -124,3 +124,8 @@ kept current the whole time, so nothing is lost.
   `sample-review-upsert-conflict`, and `sample-review-upsert-comment-merge`. Cleanup verified
   0 `a2_parity_%` rows/events and `sample_review_ef_clients` remains `{"clients":[]}`. No real
   client is enabled and A2 remains draft/unmerged.
+- **Pre-B0.5 Track B snapshot 2026-07-05**: git tag `pre-B0.5-track-b-2026-07-05`
+  points to post-B0 `main` before the B0.5 branch. Public-safe runtime flag and table-count
+  snapshots are stored privately under
+  `private-backups/2026-07-05-pre-B0.5-track-b`; raw secrets and workflow JSON remain outside
+  the public repo. B0.5 is staged only and must not add any real client to Track A flags.

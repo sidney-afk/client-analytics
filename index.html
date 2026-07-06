@@ -16682,21 +16682,23 @@
         return { done, failed, retried, missingAfterRetry };
     }
     async function _calFetchPostsForVerify() {
-        // Deliberately reads the SHEET (calendar-get), not Supabase, even under
-        // v2. This is the post-bulk-import retry check: it confirms rows landed
-        // and re-sends any that didn't. The upsert webhook writes the Sheet
-        // synchronously (it responds AFTER that write) but mirrors to Supabase
-        // as an async fan-out, so a Supabase read here could momentarily miss a
-        // just-written row (mirror lag) and trigger spurious re-sends. The Sheet
-        // is the immediately-consistent write target, so verify against it. It's
-        // a transient diagnostic, not a live-read surface — revisit only when the
-        // Sheet is retired (Phase 4/5).
+        // Verify against the active write target. Unflagged clients still write
+        // n8n/Sheets, so calendar-get is the right confirmation source. EF
+        // clients write directly to calendar_posts, so reading the Sheet would
+        // false-fail and re-send rows that already landed.
         try {
             const slug = calClientSlug(calState.client);
+            if (_calUpsertUseEf(slug)) {
+                const baseUrl = CAL_SUPABASE_URL + '/rest/v1/calendar_posts?select=*&client=eq.' + encodeURIComponent(slug);
+                return await _calSupabaseFetchAllRows(baseUrl);
+            }
             const resp = await fetch(CALENDAR_GET_URL + '?client=' + encodeURIComponent(slug) + '&_t=' + Date.now());
             const json = await resp.json();
             return json.ok ? (json.posts || []) : null;
-        } catch (e) { return null; }
+        } catch (e) {
+            console.warn('[Calendar] import verification read failed', e);
+            return null;
+        }
     }
 
     function _calRenderImportPick() {
@@ -22245,6 +22247,24 @@
         _calRecordReorderOptimistic(items);
         persistCalReorder(items, snapshot, slug);
     }
+    async function _calPersistReorderViaN8n(slug, items) {
+        let json = null;
+        try {
+            const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        } catch (e) { json = null; }
+        if (!json || !json.ok) {
+            const resp = await fetch(CALENDAR_REORDER_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ client: slug, items })
+            });
+            json = await resp.json();
+        }
+        return json;
+    }
 
     async function persistCalReorder(items, prevOrder, slug) {
         // Pin the destination client at call time. Read live (post-await) it
@@ -22266,33 +22286,29 @@
         // feedback, and the per-card optimistic move is the live confirmation.)
         _calLastLocalWriteAt = Date.now();
         try {
-            // Edge Function for flagged clients; otherwise batched n8n first
-            // (one atomic write), with original per-row n8n as fallback so a
-            // batch outage never blocks reorders.
+            // Edge Function for flagged clients; fall back to the old n8n
+            // reorder writer on any EF failure. Unflagged clients still use
+            // batched n8n first, with original per-row n8n as fallback.
             let json = null;
             if (_calUpsertUseEf(slug)) {
-                const resp = await fetch(_calReorderUrlForClient(slug), {
-                    method: 'POST', headers: _calUpsertHeaders('ui'),
-                    body: JSON.stringify({ client: slug, items })
-                });
-                json = await resp.json();
-            } else {
                 try {
-                    const resp = await fetch(CALENDAR_REORDER_BATCH_URL, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    const url = _calReorderUrlForClient(slug);
+                    const resp = await fetch(url, {
+                        method: 'POST', headers: _calUpsertHeaders('ui', url),
                         body: JSON.stringify({ client: slug, items })
                     });
-                    json = await resp.json();
-                } catch (e) { json = null; }
-                if (!json || !json.ok) {
-                    const resp = await fetch(CALENDAR_REORDER_URL, {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client: slug, items })
-                    });
-                    json = await resp.json();
+                    json = await resp.json().catch(() => null);
+                    if (!resp.ok || !json || !json.ok || Number(json.updated || 0) < items.length) {
+                        throw new Error((json && json.error) || ('calendar reorder EF HTTP ' + resp.status));
+                    }
+                } catch (e) {
+                    console.warn('[Calendar] EF reorder failed; falling back to n8n', e);
+                    json = await _calPersistReorderViaN8n(slug, items);
                 }
+            } else {
+                json = await _calPersistReorderViaN8n(slug, items);
             }
-            if (!json.ok) throw new Error('reorder failed');
+            if (!json || !json.ok) throw new Error('reorder failed');
             // Refresh the self-echo window — the realtime echo of this write
             // lands a beat later and must not reload/flicker the strip.
             _calLastLocalWriteAt = Date.now();
@@ -26346,11 +26362,20 @@
     }
     function _sxrReorderFetch(clientOrSlug, payload, source) {
         _sxrPrimeSampleRoutingFlag();
-        const url = _sxrReorderUrlForClient(clientOrSlug);
-        return fetch(url, {
+        const post = (url) => fetch(url, {
             method: 'POST',
             headers: _sxrWriteHeaders(source, url),
             body: JSON.stringify(payload)
+        });
+        if (!_sxrSampleUseEf(clientOrSlug)) return post(SXR_REORDER_N8N_URL);
+        return post(SXR_REORDER_EF_URL).then(async (resp) => {
+            let json = null;
+            try { json = await resp.clone().json(); } catch (e) {}
+            if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('sample reorder EF HTTP ' + resp.status));
+            return resp;
+        }).catch((e) => {
+            console.warn('[Samples] EF reorder failed; falling back to n8n', e);
+            return post(SXR_REORDER_N8N_URL);
         });
     }
     _sxrPrimeSampleRoutingFlag();
@@ -27823,7 +27848,8 @@
         _sxrLastLocalWriteAt = Date.now();   // treat as a local write so our own realtime echo defers (Surface 7)
         try {
             const resp = await _sxrReorderFetch(slug, { client: slug, items }, 'ui');
-            if (!resp.ok) throw new Error('reorder HTTP ' + resp.status);
+            const json = await resp.clone().json().catch(() => null);
+            if (!resp.ok || (json && json.ok === false)) throw new Error((json && json.error) || ('reorder HTTP ' + resp.status));
             _sxrLastLocalWriteAt = Date.now();   // echo lands a beat after the write resolves
         } catch (e) {
             // Revert to the captured order if nothing newer is queued and we're still on this client.

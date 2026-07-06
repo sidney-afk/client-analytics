@@ -129,8 +129,8 @@ check('the title row wraps the name input for the fade + indicator',
   INDEX.includes('cal-title-name-wrap') && INDEX.includes('cal-title-fade'));
 check('_calSetCardStatus drives the reusable indicator by card id',
   /_svSaveIndApply\(document\.querySelector\(`\[data-sv-save-ind=/.test(INDEX));
-// Scope to the calendar's own status setter — the Samples path (_sxrSetCardStatus)
-// deliberately keeps its text chip until it adopts the indicator in a later pass.
+// Scope to the calendar's own status setter (Samples/Templates have their own
+// suites in save-indicator-rollout.js).
 const calSetStatus = grabFunc('_calSetCardStatus');
 check('_calSetCardStatus no longer writes the transient Saving…/Saved TEXT into the card foot',
   !/textContent = 'Saving…'/.test(calSetStatus) && !/textContent = 'Saved'/.test(calSetStatus));

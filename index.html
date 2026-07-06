@@ -2949,6 +2949,7 @@
         /* Per-client */
         .tpl-client-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 22px; }
         .tpl-client-name { font-size: 1.55rem; font-weight: 800; letter-spacing: -0.015em; }
+        .tpl-head-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
         .tpl-head-actions { display: flex; align-items: center; gap: 12px; }
 
         .tpl-edit-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 99px; background: var(--white); border: 1.5px solid var(--border); font-family: inherit; font-size: 0.78rem; font-weight: 700; color: var(--text-primary); cursor: pointer; transition: all 0.15s; }
@@ -8940,22 +8941,13 @@
         return (templatesData[name] && templatesData[name][field]) || '';
     }
 
+    let _tplSaveErrorMsg = '';
     function _setTplStatus(state, message) {
-        const el = document.getElementById('tplStatusBadge');
-        if (!el) return;
-        el.classList.remove('saving','saved','error');
-        if (state === 'saving') {
-            el.classList.add('saving');
-            el.innerHTML = '<span class="dot"></span> Saving…';
-        } else if (state === 'saved') {
-            el.classList.add('saved');
-            el.innerHTML = '<svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5L9.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg> Saved';
-        } else if (state === 'error') {
-            el.classList.add('error');
-            el.innerHTML = '<span class="dot"></span> ' + (message || 'Save failed — will retry');
-        } else {
-            el.innerHTML = '';
-        }
+        // Drive the reusable modern indicator in the client header. Track the error
+        // so a re-render (add/remove link, realtime echo) restores the persistent
+        // error state via mountTemplatesView.
+        _tplSaveErrorMsg = (state === 'error') ? (message || 'Save failed — will retry') : '';
+        _svSaveIndApply(document.querySelector('[data-sv-save-ind="templates"]'), state, message);
     }
 
     async function _tplFlush(name) {
@@ -10078,7 +10070,7 @@
             <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
             <div class="tpl-client-head">
                 <div class="tpl-client-name">${_tplEsc(name)}</div>
-                ${editToggle}
+                <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
             <div class="tpl-toggle-row" role="tablist">
                 <button class="tpl-toggle-btn ${reelsActive}" onclick="switchTemplatesTab('reels')">Reels</button>
@@ -10114,6 +10106,9 @@
         mountOnboardingInbox();
         // Render the "My Clients" pinned section if the index page is showing.
         if (!_templatesSelected && document.getElementById('tplPinsArea')) _tplRenderPins();
+        // Restore a persistent save-error state onto the freshly rendered header
+        // indicator (a re-render otherwise resets it to hidden).
+        if (_templatesSelected && _tplSaveErrorMsg) _setTplStatus('error', _tplSaveErrorMsg);
         const fields = root.querySelectorAll('[data-tpl-field]');
         fields.forEach(el => {
             const name  = el.getAttribute('data-tpl-client');
@@ -13414,7 +13409,7 @@
                 ${mediaField}${directionField}
                 <div class="sm-card-foot">
                     ${_smCommentsBtnHtml(s, id, open, unread)}
-                    <span class="sm-card-saving" data-saving="${id}" hidden></span>
+                    ${_svSaveIndHtml(id)}
                 </div>
                 ${_smApprovalHtml(s, id, ro)}
             </div>
@@ -13544,11 +13539,14 @@
     function _smFlushAllPending(){ Object.keys(_smPendingTimers).forEach(id => { if(_smPendingTimers[id]){ clearTimeout(_smPendingTimers[id]); _smPendingTimers[id] = null; _smFlushCardSave(id); } }); }
     function _smSetSaving(id, status){
         const card = document.querySelector(`.sm-card[data-id="${_smCssId(id)}"]`); if(!card) return;
-        const el = card.querySelector(`[data-saving="${_smCssId(id)}"]`); if(!el) return;
-        el.classList.remove('is-error');
-        if(status === 'saving'){ el.hidden = false; el.textContent = 'Saving…'; }
-        else if(status === 'ok'){ el.hidden = false; el.textContent = 'Saved'; setTimeout(() => { if(el.textContent === 'Saved') el.hidden = true; }, 1400); }
-        else if(status === 'local'){ el.hidden = false; el.textContent = 'Saved on device'; setTimeout(() => { if(el.textContent === 'Saved on device') el.hidden = true; }, 2400); }
+        const el = card.querySelector(`[data-sv-save-ind="${_smCssId(id)}"]`); if(!el) return;
+        // Drive the reusable modern indicator. Samples-Old has no server-error
+        // state (a failed save falls back to a local cache), so "local" shows the
+        // green check with a "Saved on device" tooltip rather than a red error.
+        if(status === 'saving') _svSaveIndApply(el, 'saving');
+        else if(status === 'ok') _svSaveIndApply(el, 'saved');
+        else if(status === 'local') _svSaveIndApply(el, 'saved', 'Saved on device — will sync when back online');
+        else _svSaveIndApply(el, 'idle');
     }
     async function _smFlushCardSave(id){
         clearTimeout(_smPendingTimers[id]); _smPendingTimers[id] = null;
@@ -22595,9 +22593,11 @@
             el.setAttribute('aria-label', 'Saving…');
         } else if (state === 'saved') {
             el.hidden = false;
-            el.removeAttribute('title');
+            // Optional tooltip on success (e.g. Samples-Old's "Saved on device").
+            const savedMsg = (msg && String(msg)) || '';
+            if (savedMsg) el.setAttribute('title', savedMsg); else el.removeAttribute('title');
             el.classList.add('is-saved');
-            el.setAttribute('aria-label', 'Saved');
+            el.setAttribute('aria-label', savedMsg || 'Saved');
             // Hold the green check ~1.6s, then fade out over ~0.4s (≈2s total).
             el._svFadeTimer = setTimeout(() => {
                 if (!el.classList.contains('is-saved')) { el._svFadeTimer = null; return; }
@@ -29376,14 +29376,22 @@
                     if (match) _smFocusRequest = { client: match, cardId: cardId || null };
                     navTo('samples', false);
                 } else if (hashRaw.startsWith('templates/')) {
-                    // Templates name lookup needs allData — wait for it before
-                    // setting the selected client, but mount the tab now.
+                    // Open straight to the deep-linked client so a refresh doesn't
+                    // flash the templates index first: seed the selection from the
+                    // hash now (renderClientTemplate shows the client's loading
+                    // skeleton with its name), then canonicalize / drop it once the
+                    // client roster (allData) has loaded.
+                    const tn = hashRaw.slice('templates/'.length);
+                    let seed = tn; try { seed = decodeURIComponent(tn); } catch (e) {}
+                    if (seed) _templatesSelected = seed;
                     navTo('templates', false);
                     dataPromise.then(() => {
-                        const tn = hashRaw.slice('templates/'.length);
                         if (wlIsAllowedClient(tn)) {
-                            _templatesSelected = wlCanonicalClient(tn);
-                            navTo('templates', false);
+                            const canon = wlCanonicalClient(tn);
+                            if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
+                        } else if (_templatesSelected) {
+                            // Deep-link no longer resolves to a real client → index.
+                            _templatesSelected = null; navTo('templates', false);
                         }
                     });
                 } else if (hashRaw === 'kasper' || hashRaw.startsWith('kasper/')) {
@@ -30675,7 +30683,7 @@
     }
     function _sxrTitleRowHtml(pid, p, ro, editableText) {
         const nameRo = (editableText == null) ? ro : !editableText;
-        return `<input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo ? ' readonly' : ''}>`;
+        return `<div class="cal-title-name-wrap"><input class="cal-fld-name" type="text" data-pid="${pid}" data-fld="name" value="${_sxrEsc(p.name)}" placeholder="Untitled sample" oninput="_sxrOnFieldInput(this)" onblur="_sxrOnFieldBlur(this)"${nameRo ? ' readonly' : ''}><span class="cal-title-fade" aria-hidden="true"></span></div>${_svSaveIndHtml(pid, null, p && p._saveError ? (typeof p._saveError === 'string' ? p._saveError : 'Save failed') : '')}`;
     }
     function _sxrLinearEdit(pid, comp) {
         if (_isClientLink) return;
@@ -31385,16 +31393,17 @@
     }
 
     function _sxrSetCardStatus(pid, state, msg) {
+        // Modern icon-only indicator at the end of the sample card's title row.
+        _svSaveIndApply(document.querySelector(`[data-sv-save-ind="${pid}"]`), state, msg);
+        // Foot element stays the Save-failed·Retry affordance; no longer carries
+        // the transient Saving…/Saved TEXT (that moved to the icon).
         const tag = document.querySelector(`[data-saving="${pid}"]`);
-        if (!tag) return;
-        tag.classList.remove('is-saved', 'is-error');
-        if (state === 'saving') { tag.hidden = false; tag.textContent = 'Saving…'; }
-        else if (state === 'saved') {
-            tag.hidden = false; tag.textContent = 'Saved'; tag.classList.add('is-saved');
-            setTimeout(() => { if (tag.classList.contains('is-saved')) { tag.hidden = true; tag.textContent = ''; tag.classList.remove('is-saved'); } }, 1500);
-        } else if (state === 'error') { tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error'); }
-        else { tag.hidden = true; tag.textContent = ''; }
-        const card = tag.closest('.cal-card');
+        if (tag) {
+            tag.classList.remove('is-saved', 'is-error');
+            if (state === 'error') { tag.hidden = false; tag.textContent = msg || 'Save failed'; tag.classList.add('is-error'); }
+            else { tag.hidden = true; tag.textContent = ''; }
+        }
+        const card = document.querySelector(`.cal-card[data-pid="${pid}"]`);
         if (card) { card.classList.toggle('is-saving', state === 'saving'); card.classList.toggle('is-error', state === 'error'); }
     }
 

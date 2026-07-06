@@ -20543,6 +20543,16 @@
        actually clears a link (and a "move" can't free it off the old card). The
        workflow clears the column only when it receives this exact value. */
     const CAL_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const CAL_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _calApplyClearSentinels(wirePost, touched) {
+        CAL_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
+                wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
+            }
+        });
+    }
 
     async function _calFlushCardSave(pid) {
         const edits = _calPendingEdits[pid];
@@ -20666,12 +20676,7 @@
                 // field-level patch: a link column is present here only when it
                 // was actually edited, so an empty value is unambiguously a real
                 // clear — not a stale whole-card echo.
-                ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
-                    if (Object.prototype.hasOwnProperty.call(wirePost, lk)
-                        && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') {
-                        wirePost[lk] = CAL_CLEAR_LINK_SENTINEL;
-                    }
-                });
+                _calApplyClearSentinels(wirePost);
             } else {
                 wirePost = Object.assign({}, post);
                 wirePost.video_tweaks   = _calStringifyComments(_calCommentsFor(post, 'video'));
@@ -20686,6 +20691,7 @@
                 delete wirePost.title_comments;
                 delete wirePost._baseAt;
                 delete wirePost._saveError;
+                _calApplyClearSentinels(wirePost, edits);
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
             // The upsert workflow 3-way-merges each *_tweaks cell against this
@@ -26231,6 +26237,14 @@
     const SXR_RT_CHANNEL_PREFIX = 'sxr-';
     const SXR_LINEAR_OUTBOX_KEY = 'syncview_sxr_linear_outbox_v1';
     const SXR_CLEAR_LINK_SENTINEL = '__CLEAR_LINK__';
+    const SXR_LINK_CLEAR_FIELDS = ['linear_issue_id', 'graphic_linear_issue_id', 'video_deliverable_id', 'graphic_deliverable_id'];
+    function _sxrApplyClearSentinels(wirePost, touched) {
+        SXR_LINK_CLEAR_FIELDS.forEach(lk => {
+            if (!Object.prototype.hasOwnProperty.call(wirePost, lk)) return;
+            if (touched && !Object.prototype.hasOwnProperty.call(touched, lk)) return;
+            if (String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
+        });
+    }
     const SXR_SAMPLE_REVIEW_FLAG_KEY = 'sample_review_ef_clients';
 
     /* Reused-as-is from the calendar (table-agnostic utilities). Aliasing instead
@@ -28018,9 +28032,7 @@
                     if ('video_status' in edits || 'graphic_status' in edits) wirePost.status = post.status;
                     if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
-                    ['linear_issue_id', 'graphic_linear_issue_id'].forEach(lk => {
-                        if (Object.prototype.hasOwnProperty.call(wirePost, lk) && String(wirePost[lk] == null ? '' : wirePost[lk]).trim() === '') wirePost[lk] = SXR_CLEAR_LINK_SENTINEL;
-                    });
+                    _sxrApplyClearSentinels(wirePost);
                 } else {
                     // Whole card (new row, or a forced retry with empty edits).
                     wirePost = Object.assign({}, post);
@@ -28029,6 +28041,7 @@
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
                     delete wirePost._baseAt; delete wirePost._saveError;
+                    _sxrApplyClearSentinels(wirePost, edits);
                 }
                 _sxrLastLocalWriteAt = Date.now();
                 const resp = await _sxrUpsertFetch(_saveSlug, { client: _saveSlug, sample: wirePost, comments_base_at: '' }, 'ui');

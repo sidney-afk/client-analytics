@@ -42,9 +42,11 @@ const MIRROR_COLS = [
 const READ_FAILURE_MESSAGE = "Not saved \u2014 the sample store was briefly unavailable. Your text is kept; please try again in a moment.";
 const CLEAR = "__CLEAR_LINK__";
 const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
+const LINK_COLUMNS = ["graphic_linear_issue_id", "linear_issue_id", "video_deliverable_id", "graphic_deliverable_id"] as const;
+const NULLABLE_LINK_COLUMNS = new Set<string>(["video_deliverable_id", "graphic_deliverable_id"]);
 
 type JsonMap = Record<string, unknown>;
-type Row = Record<string, string>;
+type Row = Record<string, string | null>;
 type ExistingRow = Record<string, unknown>;
 type EventDraft = {
   client: string;
@@ -114,7 +116,23 @@ function stripPrivate(row: JsonMap): Row {
   const out: Row = {};
   for (const [k, v] of Object.entries(row)) {
     if (k.charAt(0) === "_") continue;
-    out[k] = String(v == null ? "" : v);
+    if (NULLABLE_LINK_COLUMNS.has(k) && clean(v) === "") out[k] = null;
+    else out[k] = String(v == null ? "" : v);
+  }
+  return out;
+}
+
+function normalizeNullableLinks(row: JsonMap): void {
+  for (const col of NULLABLE_LINK_COLUMNS) {
+    if (has(row, col) && clean(row[col]) === "") row[col] = null;
+  }
+}
+
+function responsePayload(row: Row): Row {
+  const out: Row = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (NULLABLE_LINK_COLUMNS.has(k) && v == null) continue;
+    out[k] = v;
   }
   return out;
 }
@@ -179,14 +197,14 @@ function applyGuards(incoming: JsonMap, existing: ExistingRow, readFailed: boole
   }
 
   const cleared: Record<string, boolean> = {};
-  for (const linkCol of ["graphic_linear_issue_id", "linear_issue_id"]) {
+  for (const linkCol of LINK_COLUMNS) {
     if (has(incoming, linkCol) && clean(incoming[linkCol]) === CLEAR) {
       row[linkCol] = "";
       cleared[linkCol] = true;
     }
   }
 
-  for (const linkCol of ["graphic_linear_issue_id", "linear_issue_id"]) {
+  for (const linkCol of LINK_COLUMNS) {
     if (cleared[linkCol]) continue;
     if (has(incoming, linkCol) && clean(incoming[linkCol]) === "" && clean(existing[linkCol]) !== "") {
       row[linkCol] = String(existing[linkCol] == null ? "" : existing[linkCol]);
@@ -211,6 +229,7 @@ function applyGuards(incoming: JsonMap, existing: ExistingRow, readFailed: boole
   }
 
   row._conflict = false;
+  normalizeNullableLinks(row);
   return row;
 }
 
@@ -390,7 +409,7 @@ Deno.serve(async (req: Request) => {
     waitUntil(insertEvents(supabase, events));
 
     outcome = "ok";
-    return json({ ok: true, sample });
+    return json({ ok: true, sample: responsePayload(sample) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "request failed";
     const status = msg.indexOf("phantom-row guard") === 0 ? 400 : 500;

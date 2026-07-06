@@ -290,6 +290,16 @@ function verifyMergedComments(rowId, expectedIds, oldResult, efResult) {
   return null;
 }
 
+function verifyNullDeliverableLinks(rowId, oldResult, efResult) {
+  for (const [label, result] of [['n8n', oldResult], ['edge-function', efResult]]) {
+    const row = result.rows.find(r => String(r.id) === rowId);
+    if (!row) return `${label} missing deliverable-null row ${rowId}`;
+    if (row.video_deliverable_id !== null) return `${label} video_deliverable_id stored ${JSON.stringify(row.video_deliverable_id)} instead of NULL`;
+    if (row.graphic_deliverable_id !== null) return `${label} graphic_deliverable_id stored ${JSON.stringify(row.graphic_deliverable_id)} instead of NULL`;
+  }
+  return null;
+}
+
 function cases() {
   const run = Date.now().toString(36);
   const p = `a2_parity_${run}`;
@@ -495,6 +505,30 @@ function cases() {
       },
       oldUrl: OLD_SAMPLE_UPSERT_URL,
       efUrl: EF_SAMPLE_UPSERT_URL,
+    },
+    {
+      name: 'sample-review-upsert-deliverable-empty-string-null',
+      table: 'sample_reviews',
+      ids: [`${p}_sr_deliverable_null`],
+      seed: [],
+      payload: {
+        client: CLIENT,
+        sample: {
+          id: `${p}_sr_deliverable_null`,
+          name: 'A2 parity sample deliverable null coercion',
+          asset_url: `https://frame.io/samples/${run}/deliverable-null`,
+          thumbnail_url: `https://drive.google.com/${run}/deliverable-null`,
+          creative_direction: 'Verify blank deliverable ids store NULL.',
+          status: 'In Progress',
+          video_status: 'In Progress',
+          graphic_status: 'In Progress',
+          video_deliverable_id: '',
+          graphic_deliverable_id: '',
+        },
+      },
+      oldUrl: OLD_SAMPLE_UPSERT_URL,
+      efUrl: EF_SAMPLE_UPSERT_URL,
+      verify: (oldResult, efResult) => verifyNullDeliverableLinks(`${p}_sr_deliverable_null`, oldResult, efResult),
     },
     {
       name: 'sample-review-upsert-conflict',

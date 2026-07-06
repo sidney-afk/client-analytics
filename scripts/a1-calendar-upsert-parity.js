@@ -197,6 +197,16 @@ function verifyMergedComments(rowId, expectedIds, oldResult, efResult) {
   return null;
 }
 
+function verifyNullDeliverableLinks(rowId, oldResult, efResult) {
+  for (const [label, result] of [['n8n', oldResult], ['edge-function', efResult]]) {
+    const row = result.rows.find(r => String(r.id) === rowId);
+    if (!row) return `${label} missing deliverable-null row ${rowId}`;
+    if (row.video_deliverable_id !== null) return `${label} video_deliverable_id stored ${JSON.stringify(row.video_deliverable_id)} instead of NULL`;
+    if (row.graphic_deliverable_id !== null) return `${label} graphic_deliverable_id stored ${JSON.stringify(row.graphic_deliverable_id)} instead of NULL`;
+  }
+  return null;
+}
+
 function baseRow(id, over = {}) {
   return Object.assign({
     client: CLIENT,
@@ -353,6 +363,26 @@ function cases() {
           status: 'In Progress',
         },
       },
+    },
+    {
+      name: 'deliverable-id-empty-string-null',
+      ids: [`${p}_deliverable_null`],
+      seed: [],
+      payload: {
+        client: CLIENT,
+        post: {
+          id: `${p}_deliverable_null`,
+          scheduled_date: '2026-07-03',
+          name: 'A1 parity deliverable null coercion',
+          status: 'In Progress',
+          video_status: 'In Progress',
+          graphic_status: 'In Progress',
+          caption_status: 'In Progress',
+          video_deliverable_id: '',
+          graphic_deliverable_id: '',
+        },
+      },
+      verify: (oldResult, efResult) => verifyNullDeliverableLinks(`${p}_deliverable_null`, oldResult, efResult),
     },
     {
       name: 'stale-scalar-conflict',

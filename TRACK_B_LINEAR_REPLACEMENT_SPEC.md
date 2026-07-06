@@ -678,6 +678,17 @@ are covered by this mechanical preflight; items 3/9/10/11/12 are semantic and ar
 attached to their phase gates (9 → B0.5 canary evidence; 11 → B1 backfill; 3/10 → B3 gate;
 12 → B4 flip checklist).
 
+**Scope of the blocking gate vs. the Linear rate budget.** The constraint gate needs only
+**issue-level** fields — assignee id, state name, parent status, team, project/client, and
+link resolution — all obtained in ONE paginated issue pass that fits inside Linear's hourly cap
+(§5.2: ≤ 4 req/s, separate API key from the live bridges so it never starves production status
+sync). **Comment-dependent checks do NOT block the gate:** item 11 (which trailing drive/f.io
+comment is the delivery link) and any comment-author check are per-issue-comment reads that blow
+the rate budget, and they are data-*quality* refinements, not constraint violations. Run them as
+a **separate, best-effort pass** (off-hours, resumable) whose result annotates the backfill but
+does not gate it. If comments can't be swept in time, the backfill proceeds with the constraint
+gate satisfied and `file_url` filled best-effort, flagged for later repair — never blocked.
+
 ---
 
 ## 6. Auth — build first (B0)

@@ -244,3 +244,14 @@ Kept and re-proved in this triage branch:
 7. Actionbar compaction: issue multi-select exposes count, Actions, and clear only. Direct bulk Status/Assignee/Due quick buttons and Ask Linear are not part of SyncView.
 
 Dropped as deliberate removals, not parity gaps: Ask Linear dock/rows/buttons, Initiative properties, What's new, Copy git branch name, Copy as prompt, and Switch workspace chrome.
+
+## 2026-07-07 Production Theme-Follow Ratification
+
+Owner decision: the Production preview follows SyncView's existing staff light/dark toggle. Light is the default, matching the rest of the app; dark applies only when `syncview_theme=dark` is active. The locked prototype is now dual-theme too: its pre-#711 light palette is restored as the default and the live-Linear dark palette is scoped under `html[data-theme="dark"]`.
+
+Implementation notes:
+
+1. `--prod-*` variables resolve on all five Production mounts (`.prod-view`, `.prod-layer`, `.prod-tip`, `.prod-toast`, `.prod-cmd-bd`) in both themes so body-mounted overlays do not lose their palette.
+2. Light keeps the artifact's distinct hover-family tokens (`--prod-hover`, `--prod-selected-nav`, `--prod-menu-hover`); dark intentionally collapses them to the same neutral value.
+3. Popovers, command palette, actionbar, and tooltip now share `--prod-shadow-pop`; toast shadow remains the known wired deviation.
+4. Danger text uses the artifact red scale (`--prod-danger`) instead of the old amber fallback.

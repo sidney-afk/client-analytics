@@ -4,11 +4,10 @@
 
 Dark mode is staff-only and opt-in. Light mode remains the default and must remain visually unchanged.
 
-Included staff surfaces: analytics/home, client detail analytics and charts, content calendar views, Samples New views, Samples Old views, Templates, Workload, Linear/intake, TikTok Upload, TikTok Pilot, Kasper queue/subtabs, modals, toasts, dropdowns, search panels, tooltips, and scrollbars.
+Included staff surfaces: analytics/home, client detail analytics and charts, content calendar views, Samples New views, Samples Old views, Templates, Workload, Linear/intake, TikTok Upload, TikTok Pilot, Kasper queue/subtabs, Production preview (`?prod=1`), modals, toasts, dropdowns, search panels, tooltips, and scrollbars.
 
 Excluded surfaces:
 
-- Production preview (`?prod=1`) stays light and keeps its `--prod-*` palette. Its dark version requires Linear's dark palette in a separate task.
 - Client-facing `?c=` links stay light. The theme toggle is hidden and `data-theme` is not applied.
 
 ## Rollback
@@ -83,7 +82,7 @@ Canvas charts cannot rely on raw CSS `var()` strings in every Chart.js field. Ch
 
 ## Verification Notes
 
-Light-mode screenshots are compared against the pre-change baseline with the new header toggle region masked. Stable staff surfaces should have no pixel changes outside that intentional header control. Dynamic live-data surfaces such as Workload may show timestamp/count drift; client-facing `?c=` links are verified as light-only boundaries.
+Light-mode screenshots are compared against the pre-change baseline with the new header toggle region masked. Stable staff surfaces should have no pixel changes outside that intentional header control. Dynamic live-data surfaces such as Workload may show timestamp/count drift; client-facing `?c=` links are verified as light-only boundaries. Production preview is verified in both light and dark against its locked dual-theme artifact.
 
 Dark-mode contrast is audited in Playwright by walking visible text nodes and checking computed foreground/background contrast. Normal text must meet 4.5:1; large text must meet 3:1.
 
@@ -92,10 +91,10 @@ Dark-mode contrast is audited in Playwright by walking visible text nodes and ch
 `npm test` includes a no-hardcoded-colors scan. It fails on hex/rgb/hsl literals outside:
 
 - variable definition blocks (`:root`, `[data-theme="dark"]`);
-- Production preview's locked light UI (`--prod-*` tokens and `.prod-*` selectors);
+- Production preview's locked dual-theme UI (`--prod-*` tokens, `html[data-theme="dark"] .prod-*` overrides, and `.prod-*` selectors);
 - Production preview's artifact-locked `_prod*` render region, bracketed by `no-hardcoded-colors: allow-start` / `allow-end` comments;
 - documented validation regexes or dynamic color expressions that are not literal UI colors.
 
-The `_prod*` render-region exemption is intentional. PR #689 ports Linear's exact status and project colors from `docs/syncview-design/SyncView.html` per spec §10.8. Production preview is deliberately light-only: `?prod=1` is excluded by the theme boot script and the toggle is hidden there. Those artifact colors must stay literal and must not become staff theme variables or receive a dark override.
+The `_prod*` render-region exemption is intentional. PR #689 ports Linear's exact status and project colors from `docs/syncview-design/SyncView.html` per spec §10.8. Production preview now follows the staff theme toggle using its own artifact-locked `--prod-*` palette: light is the default, and dark is applied under `html[data-theme="dark"]` on every Production overlay mount. Client-facing `?c=` links remain excluded from theme application.
 
 This keeps future staff-facing UI automatically themeable.

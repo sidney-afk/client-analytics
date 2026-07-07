@@ -202,7 +202,7 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
     if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) throw new Error('Compact actionbar should not expose direct bulk status/assignee/due buttons');
     await page.locator('#prodBulkActions').click();
-    await page.locator('#prodLayer [data-prod-ctx="status"]').click();
+    await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
@@ -362,6 +362,13 @@ async function assertNoWriteRequests(requests) {
     if (teamUrl.searchParams.get('prod') !== '1' || teamUrl.searchParams.get('team') !== 'video' || teamUrl.searchParams.get('view') !== 'board') {
       throw new Error('Team-scoped Projects board did not preserve ?prod=1&team=video&view=board');
     }
+
+    await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
+    if (await page.locator('.prod-error').count()) throw new Error('Dark Production preview rendered an error card');
+    const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
+    if (!darkSmoke) throw new Error('Production preview did not follow syncview_theme=dark');
 
     await assertNoWriteRequests(requests);
     if (errors.length) throw new Error('Browser errors: ' + errors.slice(0, 3).join(' | '));

@@ -82,7 +82,7 @@ Project board status maps `in_progress` to the artifact project key `prog`; all 
 
 The artifact is a standalone document. The wired Production tab is embedded inside the larger SyncView host page, so these assumptions are explicitly satisfied:
 
-- CSS variables: artifact overlays assume surface/text/border variables resolve where overlays mount. `prodLayer`, `prodTip`, `prodToast`, and the command-palette backdrop are mounted on `document.body`, so the `--prod-*` variables are defined on `.prod-view`, `.prod-layer`, `.prod-tip`, `.prod-toast`, and `.prod-cmd-bd`.
+- CSS variables: artifact overlays assume surface/text/border variables resolve where overlays mount. `prodLayer`, `prodTip`, `prodToast`, and the command-palette backdrop are mounted on `document.body`, so the light defaults and `html[data-theme="dark"]` overrides for `--prod-*` variables are defined on `.prod-view`, `.prod-layer`, `.prod-tip`, `.prod-toast`, and `.prod-cmd-bd`.
 - Tooltip ownership: the host page has a global title/data-tip tooltip binder. Production owns its artifact-style `data-prod-tip` layer, so the global binder opts out for `.prod-view`, `.prod-layer`, `.prod-tip`, `.prod-toast`, and `.prod-cmd-bd`. This prevents duplicate or misplaced dark host pills.
 - Document keyboard listener: Production installs one document-level key listener scoped by `?prod=1` and `#prodRoot`. It handles Escape, command palette open, row focus, Enter-open, and guarded picker shortcuts without touching other SyncView tabs.
 - Overlay z-index map: `prodLayer` uses `9999`, `prodToast` uses `10000`, and `prodTip` uses `10001`, matching the artifact's body-mounted overlay ordering while staying above the embedded tab.

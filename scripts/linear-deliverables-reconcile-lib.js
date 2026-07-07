@@ -180,6 +180,7 @@ function classifyDeliverable(input) {
     team: clean(deliverable.team),
     identifier: clean(deliverable.identifier || deliverable.linear_identifier),
     authority,
+    row: deliverable,
     diffs: [],
     tolerated: [],
     repairs: [],

@@ -20,6 +20,10 @@ const {
   summarizeWebhooks,
   deliverableArchivedOrDeleted,
 } = require('./linear-deliverables-reconcile-lib');
+const {
+  planLinkageBackfill,
+  summarizePlan: summarizeLinkageBackfillPlan,
+} = require('./b3-linkage-backfill');
 
 const args = new Map(process.argv.slice(2).map(a => {
   const m = String(a).match(/^--([^=]+)(?:=(.*))?$/);
@@ -35,6 +39,7 @@ const STATE_UUID_MAP = parseJson(process.env.LINEAR_STATE_UUID_MAP || '{}');
 const FIXTURES = args.get('fixtures') || '';
 const TEAM_FILTER = clean(args.get('team')).toLowerCase();
 const PAGE_DELAY_MS = Math.max(0, Number(args.get('page-delay-ms') || process.env.PAGE_DELAY_MS || 120));
+const DETAILS_JSON = args.get('details-json') || '';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
@@ -182,6 +187,7 @@ async function loadLiveData() {
     events,
     calendarPosts,
     sampleReviews,
+    linearArchive,
     prodAuthority,
   ] = await Promise.all([
     supabaseRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,status,assignee_id,due_date,priority,origin,card_id,linear_issue_uuid,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,identifier.asc'),
@@ -189,6 +195,7 @@ async function loadLiveData() {
     supabaseRows('deliverable_events', 'deliverable_id,action,source,payload', '&source=eq.mirror&order=ts.desc'),
     supabaseRows('calendar_posts', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
     supabaseRows('sample_reviews', 'id,client,status,linear_issue_id,graphic_linear_issue_id,video_deliverable_id,graphic_deliverable_id'),
+    supabaseRows('linear_archive', 'linear_uuid,identifier,state'),
     loadRuntimeFlag('prod_authority'),
   ]);
   const active = deliverables
@@ -199,7 +206,7 @@ async function loadLiveData() {
     loadLinearIssuesById(active.map(d => d.linear_issue_uuid)),
     loadLinearWebhooks(),
   ]);
-  return { deliverables: active, members, events, calendarPosts, sampleReviews, prodAuthority, linearIssues, webhooks };
+  return { deliverables: active, allDeliverables: deliverables, members, events, calendarPosts, sampleReviews, linearArchive, prodAuthority, linearIssues, webhooks };
 }
 
 function loadFixtureData(file) {
@@ -210,6 +217,7 @@ function loadFixtureData(file) {
     events: data.events || [],
     calendarPosts: data.calendarPosts || [],
     sampleReviews: data.sampleReviews || [],
+    linearArchive: data.linearArchive || [],
     prodAuthority: data.prodAuthority || { video: 'linear', graphics: 'linear' },
     linearIssues: new Map((data.linearIssues || []).map(i => [clean(i.id), i])),
     webhooks: data.webhooks || [],
@@ -236,12 +244,19 @@ function buildPlan(data) {
   }
   const linkageRows = linkageGaps({ calendarPosts: data.calendarPosts, sampleReviews: data.sampleReviews });
   const summary = summarize(results, linkageRows);
+  summary.linkage_residue = summarizeLinkageBackfillPlan(planLinkageBackfill({
+    deliverables: data.allDeliverables || data.deliverables || [],
+    calendarPosts: data.calendarPosts || [],
+    sampleReviews: data.sampleReviews || [],
+    linearArchive: data.linearArchive || [],
+  }));
   summary.webhooks = summarizeWebhooks(data.webhooks || []);
   return { results, linkageRows, summary };
 }
 
 function summaryMarkdown(plan, startedAt, finishedAt) {
   const s = plan.summary;
+  const lr = s.linkage_residue || {};
   const lines = [
     '### Linear ⇄ deliverables reconcile v2',
     '',
@@ -257,6 +272,8 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Tolerated divergences | ${s.tolerated_count} |`,
     `| Unknown-assignee repair rows | ${s.repair_list_size} |`,
     `| Card linkage gaps | ${s.linkage_count} |`,
+    `| Card linkage resolvable writes | ${lr.planned_writes || 0} |`,
+    `| Card linkage explained residue | ${lr.skipped || 0} |`,
     `| Linear webhooks checked | ${s.webhooks ? s.webhooks.checked : 0} |`,
     `| Linear webhooks disabled | ${s.webhooks ? s.webhooks.disabled : 0} |`,
     `| Linear webhooks missing Comment resource | ${s.webhooks ? s.webhooks.missing_comment_resource : 0} |`,
@@ -271,8 +288,8 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
 }
 
 async function writeSummaryEvent(plan, startedAt, finishedAt) {
-  if (FIXTURES) return;
-  await supabaseInsert('deliverable_events', [{
+  if (FIXTURES) return [];
+  return supabaseInsert('deliverable_events', [{
     client_slug: '_system',
     action: 'linear_deliverables_reconcile_v2',
     source: 'reconcile',
@@ -303,7 +320,7 @@ async function applyHealing(plan) {
     const patchKeys = Object.keys(r.patch || {}).filter(k => r.patch[k] !== undefined);
     if (!patchKeys.length) continue;
     await supabaseRpc('deliverable_write', {
-      p_row: Object.assign({ id: r.id }, r.patch),
+      p_row: Object.assign({}, r.row || {}, { id: r.id }, r.patch),
       p_event: {
         source: 'reconcile',
         action: 'linear_deliverables_reconcile_heal',
@@ -319,16 +336,46 @@ async function applyHealing(plan) {
   return { attempted, skipped: 0 };
 }
 
+function writeDetails(file, plan, healing) {
+  if (!file) return;
+  const details = {
+    summary: plan.summary,
+    healing,
+    diffs: plan.results
+      .filter(r => r.diffs.length)
+      .map(r => ({
+        id: r.id,
+        team: r.team,
+        identifier: r.identifier,
+        authority: r.authority,
+        diffs: r.diffs,
+        patch: r.patch,
+      })),
+    repairs: plan.results
+      .filter(r => r.repairs.length)
+      .map(r => ({
+        id: r.id,
+        team: r.team,
+        identifier: r.identifier,
+        repairs: r.repairs,
+      })),
+    linkageRows: plan.linkageRows,
+  };
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  fs.writeFileSync(path.resolve(file), JSON.stringify(details, null, 2));
+}
+
 async function main() {
   const startedAt = nowIso();
   const data = FIXTURES ? loadFixtureData(FIXTURES) : await loadLiveData();
   const plan = buildPlan(data);
   const healing = await applyHealing(plan);
   const finishedAt = nowIso();
-  await writeSummaryEvent(plan, startedAt, finishedAt);
+  const events = await writeSummaryEvent(plan, startedAt, finishedAt);
+  writeDetails(DETAILS_JSON, plan, healing);
   const md = summaryMarkdown(plan, startedAt, finishedAt);
   console.log(md);
-  console.log(JSON.stringify({ summary: plan.summary, healing }, null, 2));
+  console.log(JSON.stringify({ summary_event_id: events && events[0] && events[0].id || null, summary: plan.summary, healing }, null, 2));
   if (process.env.GITHUB_STEP_SUMMARY) {
     fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
   }
@@ -341,4 +388,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { buildPlan, summaryMarkdown };
+module.exports = { buildPlan, loadLiveData, summaryMarkdown };

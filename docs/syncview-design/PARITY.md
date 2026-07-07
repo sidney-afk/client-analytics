@@ -61,6 +61,8 @@ Cycle 35 rechecked live Linear's row-context Assignee and Due date submenus. Bef
 
 Cycle 36 rechecked live Linear's row-context Copy submenu. Before/after visible issue rows matched (`changed:false`). Prototype and wired now use a `Copy` submenu for safe copy-only rows; the live `Make a copy...` row remains omitted because it creates/duplicates work.
 
+Cycle 37 rechecked live Linear's row-context Project submenu. Before/after visible issue rows matched (`changed:false`). No UI change was made: live Linear's `No project` row would detach a deliverable from SyncView's client/project linkage, so it is held for owner direction.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

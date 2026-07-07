@@ -815,3 +815,16 @@ Read-only live observation used the current Linear issue-list tab, opened one ro
 | Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
 
 Pixel lane addition: `pixel-wired.js` now captures and compares the row context Copy submenu inventory. `behav-wired.js` now proves Copy URL from that submenu still produces a `?prod=1&d=...` deep link without write requests.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 37
+
+Read-only live observation used the current Linear issue-list tab, opened one row context menu, hover-opened the Project submenu, then closed it with Escape. Before/after visible issue-row snapshots contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Project submenu | owner-question | Live Linear includes a `No project` option above the team-scoped project list. SyncView's migrated Production model depends on client/project linkage for deliverables, so adding a detach-from-project row is a product decision. No code change was made without owner direction. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Owner question:
+
+1. Should the read-only Production preview include live Linear's `No project` row as guarded chrome, even though real SyncView deliverables are expected to stay client/project-linked?

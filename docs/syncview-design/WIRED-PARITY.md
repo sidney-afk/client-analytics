@@ -553,3 +553,12 @@ Cycle 36 ran a read-only live Linear row-context Copy submenu probe on the curre
 | Row context Copy submenu | fixed | Prototype and wired now use a `Copy` submenu with the live copy-only rows: ID, URL, title, title as link, description/content as Markdown, git branch name, and prompt. |
 | Make a copy | deferred-B3 | Omitted because it creates/duplicates work and is not part of the read-only B2 preview. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 37
+
+Cycle 37 ran a read-only live Linear row-context Project submenu probe on the current issue-list tab. Before/after visible issue-row snapshots contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Project submenu | owner-question | Live Linear includes `No project` above the team-scoped project list. The wired preview keeps client/project-linked production issues attached to a project pending owner direction. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

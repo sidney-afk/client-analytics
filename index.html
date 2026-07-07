@@ -37227,6 +37227,13 @@
     // added when the user opens that card and survives background repaints.
     const _ccExpanded = new Set();
     let _ccIdentityPromise = null;
+    // Session-authoritative copy of the staff identity (name/role/passphrase).
+    // localStorage is only a best-effort persistence layer: if it can't be
+    // written (quota exhausted by other caches, Safari partitioned/private
+    // storage, a locked-down browser), we must NOT fall back to re-prompting on
+    // every request — that loops the passcode dialog forever and makes saves
+    // look like they never stick. Once set this session, memory wins.
+    let _ccIdentityMem = null, _ccIdentityMemSet = false;
     let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
     let _ccRevKasperTimer = null, _ccRevModalTimer = null;
     let _ccLastLocalWriteAt = 0;
@@ -37300,8 +37307,19 @@
     }
     function _ccFind(id) { return (_ccState.kasper.credentials || []).concat(_ccState.modal.credentials || []).find(r => r.id === id) || null; }
     function _ccIdentityRole(scope) { return scope === 'kasper' ? 'Kasper' : 'SMM'; }
-    function _ccIdentityLoad() { try { return JSON.parse(localStorage.getItem(CC_IDENTITY_KEY) || 'null') || null; } catch { return null; } }
-    function _ccIdentitySave(v) { try { localStorage.setItem(CC_IDENTITY_KEY, JSON.stringify(v)); } catch {} }
+    function _ccIdentityLoad() {
+        // Read localStorage once per session, then serve the in-memory copy so a
+        // failed/blocked persist never resurfaces the passcode prompt mid-flow.
+        if (_ccIdentityMemSet) return _ccIdentityMem;
+        try { _ccIdentityMem = JSON.parse(localStorage.getItem(CC_IDENTITY_KEY) || 'null') || null; }
+        catch { _ccIdentityMem = null; }
+        _ccIdentityMemSet = true;
+        return _ccIdentityMem;
+    }
+    function _ccIdentitySave(v) {
+        _ccIdentityMem = v || null; _ccIdentityMemSet = true;
+        try { localStorage.setItem(CC_IDENTITY_KEY, JSON.stringify(v)); } catch {}
+    }
     function _ccIdentityClearKey() { const v = _ccIdentityLoad() || {}; delete v.key; _ccIdentitySave(v); }
 
     async function _ccNameOptions() {

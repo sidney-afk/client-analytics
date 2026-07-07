@@ -1279,7 +1279,7 @@ async function txt(page, sel) {
       await page.waitForSelector('.prod-board');
       await page.locator('.prod-card').first().click({ button: 'right' });
       const lead = page.locator('.prod-pop .prod-mi', { hasText: 'Set lead' }).first();
-      return await lead.locator('.mic svg path[d*="M3.8 13"]').count() > 0;
+      return await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
     }); await reset();
     await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
     await ok('noConsoleErrors', async () => errors.length === 0);

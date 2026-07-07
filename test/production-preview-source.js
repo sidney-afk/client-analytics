@@ -48,7 +48,8 @@ check('preview read helper strips duplicate limit and offset params', prodBlock.
 check('preview callers pass page sizes explicitly', /_prodRestRows\('deliverables'[\s\S]{0,240}, 1000, 50\)/.test(prodBlock) && /_prodRestRows\('deliverable_events'[\s\S]{0,220}, 30, 2\)/.test(prodBlock));
 check('preview block has no explicit browser write methods', !/['"`](POST|PUT|PATCH|DELETE)['"`]/.test(prodBlock));
 check('preview block has no Supabase write helpers', !/\.(insert|update|upsert|rpc)\s*\(/.test(prodBlock));
-check('visible write affordances are tagged disabled', /data-prod-disabled="new-issue" disabled/.test(prodBlock) && /data-prod-disabled="detail-controls" disabled/.test(prodBlock));
+check('topbar excludes non-artifact New issue and Refresh chrome', !/New issue/.test(prodBlock) && !/<button class="prod-tab" type="button" onclick="_prodRefresh\(\)">Refresh<\/button>/.test(prodBlock));
+check('visible write affordances are tagged disabled', /data-prod-disabled="detail-controls" disabled/.test(prodBlock) && /data-prod-disabled="composer"/.test(prodBlock));
 check('deep links include deliverable, batch, team, and client filters', /q\.get\('d'\)/.test(prodBlock) && /q\.get\('batch'\)/.test(prodBlock) && /q\.get\('team'\)/.test(prodBlock) && /q\.get\('client'\)/.test(prodBlock));
 
 if (failures) {

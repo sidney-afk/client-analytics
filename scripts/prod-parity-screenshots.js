@@ -217,6 +217,18 @@ async function safe(page, fn) {
     });
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');
+      await artifact.locator('.sb-brand[data-brandmenu]').click();
+      await shot(artifact, 'artifact-17-brand-menu');
+      await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.locator('.prod-brand[data-prod-brandmenu]').click();
+      await shot(wired, 'wired-17-brand-menu');
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
       await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; S.open = null; render(); });
       await artifact.locator('.row').first().click({ button: 'right' });
       await artifact.locator('#layer .pop').first().evaluate(pop => {
@@ -234,6 +246,28 @@ async function safe(page, fn) {
         pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
       });
       await shot(wired, 'wired-16-context-keyboard-submenu');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); });
+      await artifact.locator('#filterbtn').click();
+      await artifact.locator('#layer .pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+      await shot(artifact, 'artifact-18-filter-keyboard-submenu');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('#prodFilterBtn').click();
+      await wired.locator('#prodLayer .prod-pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+      await shot(wired, 'wired-18-filter-keyboard-submenu');
     });
 
     await safe(artifact, async () => {

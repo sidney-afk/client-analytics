@@ -116,6 +116,10 @@ async function assertNoWriteRequests(requests) {
     if (adapterFixture.editorInit !== 'MS' || !/^#[0-9a-f]{6}$/i.test(adapterFixture.editorColor)) throw new Error('Adapter did not produce artifact editor initials/color');
 
     if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
+    await expectCount(page, '.prod-brand[data-prod-brandmenu] .prod-brand-caret', 1, 'brand workspace caret/menu trigger');
+    await page.locator('.prod-brand[data-prod-brandmenu]').click();
+    await expectCount(page, '.prod-pop [data-prod-brand-action]', 1, 'brand workspace menu rows');
+    await page.keyboard.press('Escape');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
     if (!(await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count())) throw new Error('My issues nav missing');
@@ -140,6 +144,16 @@ async function assertNoWriteRequests(requests) {
     await page.keyboard.press('Escape');
     await page.locator('#prodFilterBtn').click();
     await expectCount(page, '.prod-pop [data-prod-ffield="status"]', 1, 'Filter menu status condition');
+    await page.locator('.prod-pop').first().evaluate(pop => {
+      pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    });
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-search]', 1, 'Filter keyboard ArrowRight opens value picker');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+    await page.locator('#prodFilterBtn').click();
+    await expectCount(page, '.prod-pop [data-prod-ffield="status"]', 1, 'Filter menu status condition after keyboard submenu check');
     await expectCount(page, '.prod-pop [data-prod-ffield="assignee"] .mic svg', 1, 'Filter menu assignee uses person icon');
     await page.locator('.prod-pop [data-prod-ffield="status"]').hover();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-search]', 1, 'Filter value picker is searchable');
@@ -173,6 +187,9 @@ async function assertNoWriteRequests(requests) {
     }
     await expectCount(page, '.prod-row .prod-chip-client[data-prod-crumbclient]', 1, 'row client chip navigation control');
     await expectCount(page, '.prod-row [data-prod-assign]', 1, 'row assignee picker control');
+    await page.keyboard.press('x');
+    await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'x toggles focused/hovered row selection');
+    await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await page.keyboard.press('Control+a');
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
     await page.locator('#prodBulkStatus').click();

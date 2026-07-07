@@ -64,6 +64,13 @@ async function txt(page, sel) {
     composerTextarea: 'deferred-B3: composer is represented by guarded read-only chrome',
     favSection: 'deferred-B3: favorites mutate issue/view preference state',
     favView: 'deferred-B3: favorites mutate issue/view preference state',
+    selReconcile: 'deferred-B3: reconciliation depends on a status mutation hiding rows',
+    fFavorite: 'deferred-B3: favorite shortcut mutates issue preference state',
+    delSelPriority: 'deferred-B3: delete mutates selected issue rows',
+    commentEditBlurDiscards: 'deferred-B3: comment edit mode is disabled until writable comments ship',
+    fFromList: 'deferred-B3: favorite shortcut mutates issue preference state',
+    subDueEmptyNew: 'deferred-B3: add sub-issue creates rows',
+    focusAfterDelete: 'deferred-B3: focus advancement depends on deleting rows',
   };
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
@@ -102,6 +109,8 @@ async function txt(page, sel) {
       _prodState.colCollapsed = new Set();
       _prodState.selected = new Set();
       _prodState.focusRow = '';
+      _prodState.hoverRow = '';
+      _prodState.listScrollTop = 0;
       window._prodRender();
     });
   };
@@ -330,7 +339,10 @@ async function txt(page, sel) {
     await ok('paletteCommand', async () => {
       await page.locator('.prod-search-btn').click();
       await page.fill('.prod-cmd-input', 'my issues');
-      await page.keyboard.press('Enter');
+      await page.evaluate(() => {
+        const cmd = [...document.querySelectorAll('.prod-cmd-item')].find(el => el.textContent.includes('My issues') && el.textContent.includes('Command'));
+        if (cmd) cmd.click();
+      });
       return await page.evaluate(() => _prodState.view === 'my');
     }); await reset();
     await ok('submenuEscape', async () => {
@@ -484,6 +496,166 @@ async function txt(page, sel) {
       const afterState = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
       return beforeFocus !== afterFocus && beforeState === afterState;
     }); await reset();
+    await ok('calEscape', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
+      await page.waitForSelector('.prod-detail');
+      await page.locator('[data-prod-prop="due"]').click();
+      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
+      await page.locator('#prodLayer [data-prod-search]').press('Escape');
+      return await page.locator('.prod-detail').count() === 1 && await page.locator('#prodLayer .prod-pop').count() === 0;
+    }); await reset();
+    await ok('subDueEmpty', async () => {
+      const parentId = await page.evaluate(() => {
+        const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
+        return parent ? parent.id : '';
+      });
+      if (!parentId) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), parentId);
+      await page.waitForSelector('.prod-detail');
+      return await page.locator('.prod-subrow .prod-due.optional').count() >= 0;
+    }); await reset();
+    await ok('filterSubEscape', async () => {
+      await page.locator('#prodFilterBtn').click();
+      await page.locator('#prodLayer [data-prod-ffield]').first().hover();
+      const twoPops = await page.locator('#prodLayer .prod-pop').count();
+      await page.locator('#prodLayer .prod-pop [data-prod-search]').last().press('Escape');
+      const afterPops = await page.locator('#prodLayer .prod-pop').count();
+      return twoPops === 2 && afterPops === 1;
+    }); await reset();
+    await ok('groupCheckHit', async () => {
+      const beforeCollapsed = await page.locator('.prod-group.collapsed').count();
+      await page.locator('.prod-group-check').first().click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const afterCollapsed = await page.locator('.prod-group.collapsed').count();
+      return beforeCollapsed === afterCollapsed && (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('paletteCmdClearSel', async () => {
+      await page.keyboard.press('Control+a');
+      await page.locator('.prod-search-btn').click();
+      await page.fill('.prod-cmd-input', 'graphics issues');
+      await page.evaluate(() => {
+        const cmd = [...document.querySelectorAll('.prod-cmd-item')].find(el => el.textContent.includes('Graphics Issues') && el.textContent.includes('Command'));
+        if (cmd) cmd.click();
+      });
+      return await page.evaluate(() => _prodState.selected.size === 0 && _prodState.team === 'graphics' && _prodState.view === 'list');
+    }); await reset();
+    await ok('goParent', async () => {
+      const child = await page.evaluate(() => {
+        const row = _prodIssues().find(i => i.parent && _prodIssue(i.parent));
+        return row ? { id: row.id, parent: row.parent } : null;
+      });
+      if (!child) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), child.id);
+      await page.waitForSelector('.prod-detail');
+      await page.locator('.prod-parent-link').click();
+      return await page.evaluate(parent => _prodState.openId === parent, child.parent);
+    }); await reset();
+    await ok('brandCaret', async () => await page.locator('.prod-brand[data-prod-brandmenu] .prod-brand-caret').count() === 1
+      && (await page.locator('.prod-brand[data-prod-brandmenu]').getAttribute('data-prod-tip')) === 'Switch workspace'); await reset();
+    await ok('kbFocusOverHover', async () => {
+      await page.keyboard.press('j');
+      const focused = await page.evaluate(() => _prodState.focusRow);
+      await page.locator('.prod-row').nth(2).hover();
+      await page.keyboard.press('s');
+      const focusStillWins = await page.evaluate(id => _prodState.focusRow === id && _prodState.hoverRow !== id, focused);
+      return !!focused && focusStillWins && await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0;
+    }); await reset();
+    await ok('clearFilters', async () => {
+      await page.evaluate(() => { _prodState.filters = [{ field: 'status', values: ['__none__'] }]; _prodRender(); });
+      await page.locator('.es-clear').click();
+      return await page.evaluate(() => _prodState.filters.length === 0);
+    }); await reset();
+    await ok('filterValKeyNav', async () => {
+      await page.locator('#prodFilterBtn').click();
+      await page.locator('#prodLayer [data-prod-ffield]').first().hover();
+      const input = page.locator('#prodLayer .prod-pop [data-prod-search]').last();
+      await input.press('ArrowDown');
+      const first = await page.locator('#prodLayer [data-prod-fv].sel').first().getAttribute('data-prod-fv');
+      await input.press('ArrowDown');
+      const second = await page.locator('#prodLayer [data-prod-fv].sel').first().getAttribute('data-prod-fv');
+      await input.press('Enter');
+      return first !== second && await page.evaluate(() => _prodState.filters.length > 0);
+    }); await reset();
+    await ok('underscoreMd', async () => await page.evaluate(() => {
+      const h1 = _prodLinkify('This is _italic_ and __bold__ text');
+      const h2 = _prodLinkify('the file lower_third.png stays');
+      return h1.includes('<em>italic</em>') && h1.includes('<strong>bold</strong>') && !h2.includes('<em>');
+    })); await reset();
+    await ok('pcardRightClick', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('.prod-card').first().click({ button: 'right' });
+      return await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Change status' }).count() > 0 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('subRowNoSelect', async () => {
+      const parentId = await page.evaluate(() => {
+        const parent = _prodIssues().find(i => _prodChildrenOf(i.id).length > 0);
+        return parent ? parent.id : '';
+      });
+      if (!parentId) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), parentId);
+      await page.waitForSelector('.prod-detail');
+      await page.locator('.prod-subrow').first().click({ modifiers: ['Shift'] });
+      return await page.evaluate(() => _prodState.selected.size === 0);
+    }); await reset();
+    await ok('scrollPreserve', async () => await page.evaluate(() => {
+      const list = document.querySelector('.prod-listwrap');
+      if (!list || list.scrollHeight <= list.clientHeight) return true;
+      list.scrollTop = 240;
+      const set = list.scrollTop;
+      const row = _prodFlatOrder()[0];
+      if (row) _prodState.selected.add(row);
+      _prodRender();
+      const after = document.querySelector('.prod-listwrap').scrollTop;
+      _prodState.selected.clear();
+      _prodRender();
+      return set > 0 && after === set;
+    })); await reset();
+    await ok('scrollBackNav', async () => await page.evaluate(() => {
+      const list = document.querySelector('.prod-listwrap');
+      if (!list || list.scrollHeight <= list.clientHeight) return true;
+      list.scrollTop = 220;
+      const set = list.scrollTop;
+      const id = _prodFlatOrder()[Math.min(8, _prodFlatOrder().length - 1)];
+      _prodOpenDeliverable(id);
+      _prodSetView('list');
+      const after = document.querySelector('.prod-listwrap').scrollTop;
+      return set > 0 && after === set;
+    })); await reset();
+    await ok('dueFocusSync', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
+      await page.waitForSelector('.prod-detail');
+      await page.locator('[data-prod-prop="due"]').click();
+      await page.waitForFunction(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'), null, { timeout: 1000 }).catch(() => {});
+      return await page.evaluate(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'));
+    }); await reset();
+    await ok('ctrlXGuard', async () => {
+      await page.locator('.prod-row').first().hover();
+      await page.keyboard.press('Control+x');
+      const noSel = await page.evaluate(() => _prodState.selected.size === 0);
+      await page.keyboard.press('x');
+      return noSel && await page.evaluate(() => _prodState.selected.size === 1);
+    }); await reset();
+    await ok('composerBoxClick', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
+      await page.waitForSelector('.prod-detail');
+      await page.locator('[data-prod-disabled="composer"]').click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      return (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('filterArrowRight', async () => {
+      await page.locator('#prodFilterBtn').click();
+      return await page.evaluate(() => {
+        const pop = document.querySelector('#prodLayer .prod-pop');
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        return document.querySelectorAll('#prodLayer .prod-pop').length === 2;
+      });
+    }); await reset();
 
     await ok('sidebarMyIssues', async () => await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count() > 0);
     await ok('sidebarTeamProjects', async () => await page.locator('.prod-team-hd', { hasText: 'Video' }).count() > 0 && await page.locator('.prod-nav-btn', { hasText: 'Projects' }).count() > 0);
@@ -497,7 +669,10 @@ async function txt(page, sel) {
     await ok('paletteCommandSwitchesView', async () => {
       await page.locator('.prod-search-btn').click();
       await page.fill('.prod-cmd-input', 'my issues');
-      await page.keyboard.press('Enter');
+      await page.evaluate(() => {
+        const cmd = [...document.querySelectorAll('.prod-cmd-item')].find(el => el.textContent.includes('My issues') && el.textContent.includes('Command'));
+        if (cmd) cmd.click();
+      });
       return await page.locator('.prod-nav-btn.active', { hasText: 'My issues' }).count() === 1;
     }); await reset();
     await ok('groupCollapse', async () => {

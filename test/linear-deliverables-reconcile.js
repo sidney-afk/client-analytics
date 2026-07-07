@@ -112,6 +112,24 @@ ok(s.tolerated_count === 1, 'summary separates tolerated count');
 ok(s.repair_list_size === 1, 'summary separates repair-list size');
 ok(s.linkage_count === 2, 'summary includes linkage count');
 
+const { buildPlan, summaryMarkdown } = require('../scripts/linear-deliverables-reconcile');
+const planWithResidue = buildPlan({
+  deliverables: [],
+  allDeliverables: [],
+  members: [],
+  events: [],
+  calendarPosts: [{ id: 'card_archive', client: 'fixture-client', status: 'active', linear_issue_id: 'VID-ARCH', video_deliverable_id: '' }],
+  sampleReviews: [],
+  linearArchive: [{ linear_uuid: 'lin_arch', identifier: 'VID-ARCH', state: 'Posted' }],
+  prodAuthority: { video: 'linear', graphics: 'linear' },
+  linearIssues: new Map(),
+  webhooks: [],
+});
+ok(planWithResidue.summary.linkage_count === 1, 'raw linkage count still includes classified residue');
+ok(planWithResidue.summary.linkage_actionable === 0, 'archive-only residue is not linkage-actionable for the flip gate');
+ok(/Card linkage actionable \| 0/.test(summaryMarkdown(planWithResidue, 'start', 'finish')),
+  'summary markdown exposes linkage_actionable as the gate number');
+
 const wh = summarizeWebhooks([
   { enabled: true, resourceTypes: ['Issue', 'Comment'], team: { key: 'VID' } },
   { enabled: false, resourceTypes: ['Issue'], team: { key: 'GRA' } },

@@ -101,12 +101,20 @@ function timingSafeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+function signingSecrets(): string[] {
+  return clean(Deno.env.get(SIGNING_SECRET_ENV)).split(",").map(clean).filter(Boolean);
+}
+
 async function verifySignature(headers: Headers, rawBody: string): Promise<boolean> {
-  const secret = clean(Deno.env.get(SIGNING_SECRET_ENV));
+  const secrets = signingSecrets();
   const provided = normalizeSignature(headers.get(SIGNATURE_HEADER) || headers.get("Linear-Signature") || "");
-  if (!secret || !provided) return false;
-  const expected = await hmacSha256Hex(secret, rawBody);
-  return timingSafeEqual(expected, provided);
+  if (!secrets.length || !provided) return false;
+  let matched = false;
+  for (const secret of secrets) {
+    const expected = await hmacSha256Hex(secret, rawBody);
+    matched = timingSafeEqual(expected, provided) || matched;
+  }
+  return matched;
 }
 
 function webhookTimestampMs(payload: JsonMap): number {

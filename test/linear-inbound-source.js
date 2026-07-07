@@ -57,6 +57,14 @@ ok(/\[functions\.linear-inbound\]\s*\nverify_jwt = false/.test(CFG),
   'timingSafeEqual',
 ].forEach(token => ok(FN.includes(token), 'transport token missing: ' + token));
 
+ok(/function signingSecrets\(\): string\[\] \{[\s\S]*Deno\.env\.get\(SIGNING_SECRET_ENV\)[\s\S]*\.split\(",\"\)[\s\S]*\.filter\(Boolean\)/.test(FN),
+  'linear-inbound must parse comma-separated signing secrets');
+const verifyFn = FN.match(/async function verifySignature\(headers: Headers, rawBody: string\): Promise<boolean> \{[\s\S]*?\n\}/);
+ok(verifyFn && /for \(const secret of secrets\)/.test(verifyFn[0])
+  && /matched = timingSafeEqual\(expected, provided\) \|\| matched;/.test(verifyFn[0])
+  && !/return timingSafeEqual\(expected, provided\)/.test(verifyFn[0]),
+  'signature verifier must try every configured secret and reject only if none match');
+
 ok(/if \(!enabled\) \{[\s\S]*outcome: "disabled"[\s\S]*return json\(\{ ok: true, disabled: true \}\)/.test(FN),
   'flag-false path must acknowledge and stop dark');
 ok(FN.indexOf('if (!enabled)') < FN.indexOf('handleLinearWebhook(supabase, payload)'),

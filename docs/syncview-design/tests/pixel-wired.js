@@ -331,6 +331,12 @@ async function run() {
       if (artifactVars[aKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `artifact ${aKey}=${artifactVars[aKey]} expected ${expected}` });
       if (wiredVars[wKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `wired ${wKey}=${wiredVars[wKey]} expected ${expected}` });
     });
+    await artifact.locator('.row').first().hover();
+    await wired.locator('.prod-row').first().hover();
+    await shotElement(artifact, '.row', 'artifact-crop-row-hover');
+    await shotElement(wired, '.prod-row', 'wired-crop-row-hover');
+    await compareStyles(gaps, 'row hover band', artifact, wired, '.row', '.prod-row', ['backgroundColor', 'height', 'cursor']);
+    await compareStyles(gaps, 'row hover checkbox reveal', artifact, wired, '.row .check', '.prod-row .prod-check', ['opacity', 'width', 'height', 'borderRadius']);
     await artifact.locator('.row .st').first().hover();
     await wired.locator('.prod-status[data-st]').first().hover();
     await compareStyles(gaps, 'row status hover affordance', artifact, wired, '.row .st', '.prod-status[data-st]', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'backgroundColor', 'borderRadius']);

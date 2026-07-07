@@ -506,3 +506,12 @@ Cycle 30 ran a read-only live Linear Display options click in a fresh issue-list
 |---|---:|---|
 | Display options menu | owner-question | Live Linear combines List/Board layout switching, grouping/sub-grouping/ordering controls, toggles, and display-property chips including removed concepts. The wired preview keeps the simplified group-by control pending owner direction. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 32
+
+Cycle 32 ran a read-only live Linear row-hover probe on the current issue-list tab. Before/after visible issue-row snapshots both contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| List row hover band and checkbox reveal | verified | Live Linear reveals the left checkbox and hover band on row hover. The prototype and wired preview already matched; `pixel-wired.js` now pins the contract with cropped row-hover screenshots and computed-style checks. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

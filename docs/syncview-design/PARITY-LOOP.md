@@ -758,3 +758,14 @@ Read-only live observation used a fresh Linear issue-list tab and clicked only t
 Owner question:
 
 1. Should SyncView's Display menu remain the simplified live group-by control, or adopt live Linear's Display options shell with only the allowed simplified properties exposed?
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 32
+
+Read-only live observation used the current Linear issue-list tab and hovered one visible content row. Before/after visible issue-row snapshots both contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| List row hover band + checkbox reveal | verified | Live Linear shows the row hover band and reveals the left checkbox on hover. Prototype and wired already had matching behavior; `pixel-wired.js` now pins it with cropped artifact/wired row-hover screenshot pairs and computed-style checks. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Pixel lane addition: `pixel-wired.js` now compares `.row` vs `.prod-row` hover background/height/cursor and `.check` vs `.prod-check` opacity/size/radius after hover.

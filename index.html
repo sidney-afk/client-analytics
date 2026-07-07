@@ -2593,8 +2593,11 @@
         .prod-due { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
         .prod-due.over { color: #b45309; border-color: rgba(180,83,9,.28); background: rgba(180,83,9,.06); }
         .prod-created { width: 42px; flex: none; text-align: right; color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
-        .prod-board { background: var(--prod-content); }
+        .prod-board { background: var(--prod-content); overflow-x: auto; overflow-y: hidden; }
+        .prod-board::-webkit-scrollbar { height: 9px; }
+        .prod-board::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 9px; }
         .prod-col { background: transparent; }
+        .prod-col.prod-col-drop { background: var(--prod-selected); }
         .prod-col.collapsed { width: 46px; min-width: 46px; padding-left: 5px; padding-right: 5px; }
         .prod-col.collapsed .prod-card-status, .prod-col.collapsed .prod-col-title, .prod-col.collapsed .prod-group-count, .prod-col.collapsed .prod-spacer, .prod-col.collapsed .prod-icon-btn, .prod-col.collapsed .prod-group-add, .prod-col.collapsed .prod-cards { display: none; }
         .prod-col-collapse { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: var(--prod-faint); flex: none; }
@@ -2602,7 +2605,11 @@
         .prod-col.collapsed .prod-col-collapse { transform: rotate(-90deg); }
         .prod-col-rail { writing-mode: vertical-rl; font-size: 13px; font-weight: 500; color: var(--prod-strong); margin: 8px 0 0 4px; white-space: nowrap; }
         .prod-col-head .prod-icon-btn { width: 22px; height: 22px; color: var(--prod-faint); }
-        .prod-card { cursor: pointer; }
+        .prod-cards { overflow-y: auto; overflow-x: hidden; }
+        .prod-cards::-webkit-scrollbar { width: 7px; }
+        .prod-cards::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 8px; }
+        .prod-card { cursor: grab; }
+        .prod-card.prod-card-dragging, .prod-card.pcard-dragging { opacity: .45; cursor: grabbing; }
         .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
         .prod-card:hover .prod-card-check, .prod-card.pcard-sel .prod-card-check { opacity: 1; }
         .prod-card-check.on { background: var(--prod-accent); border-color: var(--prod-accent); opacity: 1; }
@@ -2652,9 +2659,9 @@
         .prod-mi .mic { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); }
         .prod-mi.disabled .mic { color: var(--prod-faint); }
         .prod-mi .mlbl { flex: 1; }
-        .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; }
+        .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; order: 1; }
         .prod-mi .chev { color: var(--prod-faint); display: flex; margin-left: 6px; }
-        .prod-mi .tick { color: var(--prod-accent); display: flex; margin-left: 12px; }
+        .prod-mi .tick { color: var(--prod-text); display: block; margin-left: 8px; }
         .prod-mi .dres { color: var(--prod-faint); font-size: 11px; margin-left: 14px; }
         .prod-pop-empty { padding: 7px 11px; color: var(--prod-faint); font-size: 12.5px; }
         .prod-msep { height: 1px; margin: 5px 6px; background: var(--prod-divider); }
@@ -2686,7 +2693,7 @@
         .prod-tip { position: fixed; z-index: 10001; padding: 5px 8px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 10px 28px rgba(0,0,0,.13); font-size: 11px; font-weight: 450; white-space: nowrap; pointer-events: none; opacity: 0; transform: translateY(3px); transition: opacity .1s, transform .1s; }
         .prod-tip.show { opacity: 1; transform: translateY(0); }
         .prod-tip .tk { color: var(--prod-muted); margin-left: 6px; }
-        .prod-empty-state { padding: 48px 64px 90px; text-align: center; color: var(--prod-muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56vh; gap: 18px; }
+        .prod-empty-state { width: 100%; padding: 48px 64px 90px; text-align: center; color: var(--prod-muted); font-size: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56vh; gap: 18px; }
         .prod-empty-state .es-ico { color: var(--prod-faint); opacity: .45; }
         .prod-empty-state .es-ico svg { width: 46px; height: 46px; }
         .prod-empty-state .es-clear { height: 30px; padding: 0 14px; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); font-size: 13px; font-weight: 500; border: 0; }
@@ -27494,7 +27501,7 @@
             canceled: 'Canceled',
             duplicate: 'Duplicate'
         };
-        const PROD_STATUS_ORDER = ['triage','backlog','todo','prog','smm','kasper','client','tweak','approved','scheduled','posted','canceled','duplicate'];
+        const PROD_STATUS_ORDER = ['backlog','todo','prog','smm','kasper','tweak','client','approved','scheduled','posted','canceled','duplicate','triage'];
         // no-hardcoded-colors: allow-start (artifact-locked, light-only)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },
@@ -27858,7 +27865,7 @@
                     label: 'Status',
                     plural: 'statuses',
                     icon: k => _prodStatusSVG(k),
-                    fieldIcon: () => _prodIcon('issues'),
+                    fieldIcon: () => _prodIcon('statusField'),
                     values: () => PROD_STATUS_ORDER.filter(k => _prodCurIssuesUnfiltered().some(i => _prodArtifactStatus(i.status) === k)),
                     name: k => _prodStatusLabel(k),
                     match: (i, v) => _prodArtifactStatus(i.status) === v
@@ -27926,7 +27933,7 @@
                 const val = c.values.length === 1
                     ? '<span class="fval">' + f.icon(c.values[0]) + '<span>' + _calEsc(f.name(c.values[0])) + '</span></span>'
                     : '<span class="fval"><span>' + c.values.length + ' ' + f.plural + '</span></span>';
-                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">×</button></span>';
+                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">✕</button></span>';
             }).join('');
         }
         function _prodPickerEmptyState(pop, shown) {
@@ -28096,30 +28103,49 @@
             return false;
         }
         // PORT-DELTA: openSearch result source is live adapter data instead of artifact seed arrays.
-        function _prodPaletteItems() {
+        function _prodPaletteItems(q) {
             const fields = _prodFilterFields();
-            const items = [
-                { icon: _prodIcon('issues'), title: 'My issues', meta: 'Command', go: () => _prodSetView('my') },
-                { icon: _prodIcon('issues'), title: 'Video Issues', meta: 'Command', go: () => _prodOpenTeamView('video', 'list') },
-                { icon: _prodIcon('project'), title: 'Video Projects', meta: 'Command', go: () => _prodOpenTeamView('video', 'board') },
-                { icon: _prodIcon('issues'), title: 'Graphics Issues', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'list') },
-                { icon: _prodIcon('project'), title: 'Graphics Projects', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'board') }
+            const query = String(q || '').trim().toLowerCase();
+            const commands = [
+                { icon: _prodIcon('issues'), title: 'Go to Video issues', meta: 'Command', go: () => _prodOpenTeamView('video', 'list') },
+                { icon: _prodIcon('issues'), title: 'Go to Graphics issues', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'list') },
+                { icon: _prodIcon('issues'), title: 'Go to My issues', meta: 'Command', go: () => _prodSetView('my') },
+                { icon: _prodIcon('issues'), title: 'Go to Video projects', meta: 'Command', go: () => _prodOpenTeamView('video', 'board') },
+                { icon: _prodIcon('issues'), title: 'Go to Graphics projects', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'board') },
+                { icon: _prodIcon('issues'), title: 'Go to All projects', meta: 'Command', go: () => _prodOpenTeamView('all', 'board') }
             ];
-            _prodIssueRows().slice(0, 250).forEach(i => {
-                items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+            const issues = _prodIssues();
+            const items = [];
+            if (!query) {
+                issues.filter(i => !i.parent).slice(0, 6).forEach(i => {
+                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                });
+                return items.concat(commands);
+            }
+            commands.forEach(cmd => {
+                if (cmd.title.toLowerCase().includes(query)) items.push(cmd);
             });
-            fields.client.values().forEach(slug => {
-                items.push({ icon: fields.client.icon(slug), title: fields.client.name(slug), meta: 'Client', go: () => _prodOpenClient(slug) });
+            issues.forEach(i => {
+                if (String(i.title || '').toLowerCase().includes(query) || String(_prodIssueLabel(i)).toLowerCase().includes(query)) {
+                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                }
             });
-            fields.assignee.values().filter(v => v !== '_').forEach(id => {
-                items.push({ icon: fields.assignee.icon(id), title: fields.assignee.name(id), meta: 'Assignee', go: () => {
-                    _prodState.filters = [{ field: 'assignee', values: [id] }];
-                    _prodState.view = 'list';
-                    _prodState.openId = '';
-                    _prodState.openBatchId = '';
-                    _prodSetQuery({}, true);
-                    _prodRender();
-                }});
+            Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
+                const title = fields.client.name(slug);
+                if (String(title || '').toLowerCase().includes(query)) items.push({ icon: fields.client.icon(slug), title, meta: 'Project', go: () => _prodOpenClient(slug) });
+            });
+            Object.keys(_prodEditors()).sort((a, b) => fields.assignee.name(a).localeCompare(fields.assignee.name(b))).forEach(id => {
+                const title = fields.assignee.name(id);
+                if (String(title || '').toLowerCase().includes(query)) {
+                    items.push({ icon: fields.assignee.icon(id), title, meta: 'Assignee', go: () => {
+                        _prodState.filters = [{ field: 'assignee', values: [id] }];
+                        _prodState.view = 'list';
+                        _prodState.openId = '';
+                        _prodState.openBatchId = '';
+                        _prodSetQuery({}, true);
+                        _prodRender();
+                    }});
+                }
             });
             return items;
         }
@@ -28129,7 +28155,7 @@
             _prodClearLayer();
             const bd = document.createElement('div');
             bd.className = 'prod-cmd-bd';
-            bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people..." spellcheck="false"><div class="prod-cmd-list"></div></div>';
+            bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people…" spellcheck="false"><div class="prod-cmd-list"></div></div>';
             document.body.appendChild(bd);
             const inp = bd.querySelector('.prod-cmd-input');
             const list = bd.querySelector('.prod-cmd-list');
@@ -28159,8 +28185,7 @@
             };
             const search = () => {
                 const q = inp.value.trim().toLowerCase();
-                const all = _prodPaletteItems();
-                results = all.filter(r => !q || (r.title + ' ' + r.meta).toLowerCase().includes(q)).slice(0, 40);
+                results = _prodPaletteItems(q).slice(0, 12);
                 sel = Math.min(sel, Math.max(0, results.length - 1));
                 draw();
             };
@@ -28314,6 +28339,10 @@
                         if (target && String(e.key).toLowerCase() === 'p' && e.shiftKey) { e.preventDefault(); _prodOpenPicker('proj', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
                     }
                 });
+                document.addEventListener('dragstart', _prodBoardDragStart);
+                document.addEventListener('dragend', _prodClearBoardDropFx);
+                document.addEventListener('dragover', _prodBoardDragOver);
+                document.addEventListener('drop', _prodBoardDrop);
                 document.addEventListener('visibilitychange', _prodAutoRefreshOnReturn);
                 window.addEventListener('focus', _prodAutoRefreshOnReturn);
                 window.addEventListener('pageshow', _prodAutoRefreshOnReturn);
@@ -28406,6 +28435,48 @@
         function _prodReadonlyGuard() {
             _prodToast(_prodPreviewText());
             return false;
+        }
+        function _prodClearBoardDropFx() {
+            document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+            document.querySelectorAll('.prod-card-dragging, .pcard-dragging').forEach(el => el.classList.remove('prod-card-dragging', 'pcard-dragging'));
+            _prodState.dragProject = '';
+        }
+        function _prodBoardDragStart(e) {
+            if (!_prodEnabled() || !document.getElementById('prodRoot')) return;
+            const card = e.target && e.target.closest ? e.target.closest('.prod-card[data-prod-client-card]') : null;
+            if (!card) return;
+            const id = card.getAttribute('data-prod-client-card') || '';
+            if (!_prodClient(id)) return;
+            _prodState.dragProject = id;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', id); } catch (err) {}
+            }
+            card.classList.add('prod-card-dragging', 'pcard-dragging');
+        }
+        function _prodBoardDragOver(e) {
+            if (!_prodEnabled() || !_prodState.dragProject) return;
+            const col = e.target && e.target.closest ? e.target.closest('[data-prod-col]') : null;
+            if (!col) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            const client = _prodClient(_prodState.dragProject);
+            if (client && _prodBoardStatus(client.status) === col.getAttribute('data-prod-col')) {
+                document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+                return;
+            }
+            if (!col.classList.contains('prod-col-drop')) {
+                document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+                col.classList.add('prod-col-drop');
+            }
+        }
+        function _prodBoardDrop(e) {
+            if (!_prodEnabled() || !_prodState.dragProject) return;
+            const col = e.target && e.target.closest ? e.target.closest('[data-prod-col]') : null;
+            if (!col) return;
+            e.preventDefault();
+            _prodReadonlyGuard();
+            _prodClearBoardDropFx();
         }
         function _prodOpenBrandMenu(ev) {
             if (ev) {
@@ -28560,10 +28631,10 @@
                 return {
                     hd: 'Change status...',
                     search: true,
-                    items: PROD_STATUS_ORDER.map(k => ({
+                    items: PROD_STATUS_ORDER.map((k, n) => ({
                         v: k,
                         label: _prodStatusLabel(k),
-                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span>'
+                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
                     }))
                 };
             }
@@ -28839,6 +28910,8 @@
         const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const PROD_TODAY = new Date(2026, 6, 4);
+        function _prodToday() { return new Date(PROD_TODAY); }
         function _prodAddDays(d, n) {
             const x = new Date(d);
             x.setDate(x.getDate() + n);
@@ -28853,14 +28926,22 @@
         function _prodParseDue(s) {
             s = String(s || '').trim().toLowerCase();
             if (!s) return null;
-            const today = new Date();
+            const today = _prodToday();
             const M = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
             let m;
             if (s === 'today') return today;
             if (s === 'tomorrow') return _prodAddDays(today, 1);
+            if (m = s.match(/^(\d+)\s*(d|day|days|h|hr|hrs|hour|hours)$/)) {
+                const n = +m[1];
+                return _prodAddDays(today, /^h/.test(m[2]) ? Math.max(1, Math.round(n / 24)) : n);
+            }
             if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})$/)) {
                 const mo = M[m[1].slice(0, 3)];
                 if (mo != null) return new Date(today.getFullYear(), mo, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})$/)) {
+                const mo = M[m[2].slice(0, 3)];
+                if (mo != null) return new Date(today.getFullYear(), mo, +m[1]);
             }
             if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
             return null;
@@ -28869,17 +28950,18 @@
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
             const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
-            let calM = new Date((parsed || new Date()).getFullYear(), (parsed || new Date()).getMonth(), 1);
-            let focusDay = parsed || new Date();
+            const todayRef = _prodToday();
+            let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
+            let focusDay = parsed || new Date(todayRef);
             const guard = () => {
                 _prodReadonlyGuard();
                 _prodClearLayer();
             };
             const quick = () => {
-                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20..."></div><div class="prod-pop-list">';
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20…"></div><div class="prod-pop-list">';
                 if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
-                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom...</span></div>';
-                [['Tomorrow', _prodAddDays(new Date(), 1)], ['End of this week', _prodAddDays(new Date(), (5 - new Date().getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(new Date(), 7)]].forEach(o => {
+                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom…</span></div>';
+                [['Tomorrow', _prodAddDays(todayRef, 1)], ['End of this week', _prodAddDays(todayRef, (5 - todayRef.getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(todayRef, 7)]].forEach(o => {
                     h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodFmtDue(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
                 });
                 return h + '</div>';
@@ -28891,7 +28973,7 @@
                 for (let i = 0; i < start; i++) cells += '<div class="prod-cal-d empty"></div>';
                 for (let d = 1; d <= dim; d++) {
                     const dt = new Date(calM.getFullYear(), calM.getMonth(), d);
-                    const today = dt.toDateString() === new Date().toDateString();
+                    const today = +dt === +PROD_TODAY;
                     const selected = cur && cur.due === _prodFmtDue(dt);
                     const focused = focusDay && dt.toDateString() === focusDay.toDateString();
                     cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(_prodFmtDue(dt)) + '">' + d + '</div>';
@@ -28964,8 +29046,8 @@
             const hasSub = { status: 1, assign: 1, due: 1, proj: 1 };
             const menuItem = (label, icon, kbd, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
-            const disabled = (label, icon, kbd, danger) =>
-                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
+            const disabled = (label, icon, kbd, danger, chev) =>
+                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const active = (label, icon, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
             const issueMenu = [
@@ -28975,7 +29057,7 @@
                 menuItem('Project', _prodIcon('project'), '⇧P', 'proj'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
-                disabled('Move', _prodIcon('move'), ''),
+                disabled('Move', _prodIcon('move'), '', false, true),
                 '<div class="prod-msep"></div>',
                 disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
             ];
@@ -29150,12 +29232,18 @@
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
                 const client = q.get('client');
-                if (client) _prodState.clientSlug = client;
+                _prodState.clientSlug = client || '';
+                _prodState.openProjectId = '';
                 if (view === 'project' && client) { _prodState.openProjectId = client; _prodState.clientSlug = ''; }
                 const d = q.get('d');
                 const batch = q.get('batch');
                 if (d) { _prodState.openId = d; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
                 else if (batch) { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
+                else {
+                    _prodState.openId = '';
+                    _prodState.openBatchId = '';
+                    if (view !== 'my' && view !== 'board' && view !== 'project') _prodState.view = 'list';
+                }
             } catch (e) {}
         }
         function _prodSetQuery(extra, push) {
@@ -29749,7 +29837,7 @@
             const focused = _prodState.focusCard === id;
             const title = c.name || c.id;
             const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
-            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
+            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + (c.desc ? '<div class="prod-card-desc">' + _calEsc(c.desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span><span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target">' + (c.target ? _prodIcon('cal') + ' ' + _calEsc(c.target) : 'No target') + '</span></div></article>';
         }

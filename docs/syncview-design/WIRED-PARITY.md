@@ -133,4 +133,98 @@ Phase 0 side-by-side use pass ranked findings:
 | Bulk picker placement | owner Phase A finding, `layerPop` clamping | ported | Wired action-bar pickers anchor above the bar and remain on-screen. PORT-DELTA: the standalone artifact overlaps the bar in this scripted state; owner finding requires the safer embedded placement. |
 | Filter pill affordance | `pillsHTML`, `.fpill` | ported | Cursor, remove button, click-to-edit, and local read-only remove behavior are covered by `pixel-wired.js`. |
 | Embedded Escape cascade | owner Phase A finding | ported | In `?prod=1`: close overlay first, then clear multi-select/action bar, then navigate back. |
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 1
+
+Human-audit matrix pass (same viewport, artifact vs wired, screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| List / toolbar visual inventory | checked | Reused `artifact-list.png` / `wired-list.png`; no new divergence beyond prior #704 fixes. |
+| Selection actionbar / quick actions | checked | `artifact-crop-selection-actionbar.png` / `wired-crop-selection-actionbar.png`; matched after #704. |
+| Status picker from actionbar | fixed | `artifact-crop-status-picker.png` / `wired-crop-status-picker.png`; fixed status order, visible `.kbd` hints, selected tick color/order/display. |
+| Row context menu | fixed | `artifact-crop-row-context-menu.png` / `wired-crop-row-context-menu.png`; fixed disabled Move row to keep the artifact chevron while staying read-only. |
+| Context menu Status submenu | fixed | `artifact-crop-context-status-submenu.png` / `wired-crop-context-status-submenu.png`; inherits status order, `.kbd`, and tick fixes. |
+| Filter pill / remove control | fixed | `artifact-crop-filter-pill.png` / `wired-crop-filter-pill.png`; fixed status field glyph and remove glyph to match the artifact. |
+| Board overview | checked | `artifact-board.png` / `wired-board.png`; no new cycle-1 divergence. |
+| Detail overview | checked | `artifact-detail.png` / `wired-detail.png`; no new cycle-1 divergence. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: status picker order drifted from the artifact (`triage` first in wired, last in artifact).
+2. P1: status picker rows had guarded number-key behavior but no visible `.kbd` hints.
+3. P1: filter pill status field used the generic Issues icon instead of the artifact `statusField` glyph.
+4. P1: row context menu disabled Move row dropped the artifact submenu chevron.
+5. P2: selected picker tick rendered after the `.kbd` hint and used accent coloring; artifact tick is before the hint and uses text color.
+6. P2: filter pill remove mark used the wrong close glyph.
+
+Pixel lane additions: `pixel-wired.js` now performs a two-way row inventory for the status picker and row context/status-submenu surfaces, checking labels, shortcuts, cursor where applicable, and SVG path data. Remaining full-matrix surfaces for later cycles: due popover, palette, empty states, browser back/forward/refresh restoration, and scroll/drag visual affordances.
 | Pixel wired lane | §10.8.6 visual verification | ported | `docs/syncview-design/tests/pixel-wired.js` drives artifact + wired pages through list, selection/actionbar, picker, filter pill, board, and detail states. Screenshots: `.codex-tmp/prod-pixel-wired/artifact-list.png`, `wired-list.png`, `artifact-selection-actionbar.png`, `wired-selection-actionbar.png`, `artifact-actionbar-status-picker.png`, `wired-actionbar-status-picker.png`, `artifact-filter-pill.png`, `wired-filter-pill.png`, `wired-filter-pill-editor.png`, `artifact-board.png`, `wired-board.png`, `artifact-detail.png`, `wired-detail.png`. |
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 2
+
+Human-audit matrix pass (continued from Cycle 1; screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Due quick popover | fixed | `artifact-crop-due-popover.png` / `wired-crop-due-popover.png`; fixed the wired preview to use the artifact's fixed `TODAY` date, matching quick-row date hints and placeholder text. |
+| Due custom calendar | fixed | `artifact-crop-due-calendar.png` / `wired-crop-due-calendar.png`; calendar month and today marker now match the artifact in the scripted blank-due state. |
+| Command palette default open | fixed | `artifact-crop-palette-default.png` / `wired-crop-palette-default.png`; default results now follow the artifact shape: six top-level issues plus six command rows. |
+| Command palette search | fixed | `artifact-crop-palette-search-command.png` / `wired-crop-palette-search-command.png`; search caps to the artifact's twelve-row result limit and command labels/icons match the artifact. |
+| Command palette empty state | checked | Covered by `pixel-wired.js`; empty text matches the artifact. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: due quick-popover date hints came from the live clock instead of the artifact's frozen preview date.
+2. P1: due quick-popover placeholder and Custom row used ASCII ellipses instead of the artifact glyph.
+3. P1: command palette default results showed the whole live search corpus instead of the artifact's six root issues plus command rows.
+4. P1: command palette command labels drifted from the artifact `Go to ...` copy and omitted `Go to All projects`.
+5. P1: project command rows used project icons; the artifact uses the same command glyph for every command row.
+
+Pixel lane additions: `pixel-wired.js` now checks due-popover quick rows, custom calendar month/today state, command-palette default inventory, command search, and palette empty state. Remaining full-matrix surfaces for later cycles: contextual empty states beyond the palette, browser back/forward/refresh restoration, and scroll/drag visual affordances.
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 3
+
+Human-audit matrix pass (contextual empty-state surface; screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Filtered list empty state | fixed | `artifact-crop-empty-filtered-list.png` / `wired-crop-empty-filtered-list.png`; added a pixel lane for icon/message/Clear filters behavior and fixed the wired pane width so the empty state fills the Production content area like the artifact. |
+
+Ranked findings fixed in this cycle:
+
+1. P2: the wired filtered-list empty state was content-width in the flex pane; the artifact empty state fills the available list pane. Wired now uses `width: 100%` without stretching vertically beyond the artifact layout contract.
+
+Pixel lane additions: `pixel-wired.js` now covers filtered-list empty state inventory, Clear filters behavior, and local pane-fill geometry. Remaining full-matrix surfaces for later cycles: browser back/forward/refresh restoration and scroll/drag visual affordances.
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 4
+
+Human-audit matrix pass (browser history and refresh restoration; screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Detail open -> Back -> Forward | fixed | `artifact-history-detail.png` / `wired-history-detail.png`, `artifact-history-back-list.png` / `wired-history-back-list.png`, `artifact-history-forward-detail.png` / `wired-history-forward-detail.png`; Back now restores the list view and Forward restores the opened detail. |
+| Wired detail refresh | fixed | `wired-history-refresh-detail.png`; a `?prod=1&d=<id>` detail deep link restores the same detail after reload. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: Production URL restoration did not clear stale detail state when browser Back removed `d=`, leaving `view='detail'` with no open row. `_prodPrimeFromUrl()` now clears stale detail/batch/project/client IDs and defaults back to list when the URL has no detail/batch/project view.
+
+Pixel lane additions: `pixel-wired.js` now covers browser Back/Forward restoration for list/detail and wired detail deep-link refresh. Remaining full-matrix surface for later cycles: scroll/drag visual affordances.
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 5
+
+Human-audit matrix pass (board scroll and drag visual affordances; screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Projects board scroll axis | fixed | `artifact-board.png` / `wired-board.png`; wired board now matches the artifact horizontal board scroller with vertical scrolling owned by each card column. |
+| Project card drag start / dragover | fixed | `artifact-crop-board-drop-target.png` / `wired-crop-board-drop-target.png`; wired cards now expose the artifact grab cursor, dragging opacity state, and target-column highlight. |
+| Project card drop attempt | fixed | The wired drop path stays B2 read-only: it shows `Preview - read-only`, clears drag chrome, and does not change the client/project status. |
+
+Ranked findings fixed in this cycle:
+
+1. P2: Production project cards had a normal pointer cursor and no drag-start/drop-target visual state, while the artifact presents board cards as draggable project cards. Wired now ports the artifact drag chrome but routes the drop through the read-only guard.
+2. P2: The wired board allowed generic overflow on both axes; it now matches the artifact board axis split (`overflow-x:auto`, `overflow-y:hidden`) while columns own their vertical card scrolling.
+
+Pixel lane additions: `pixel-wired.js` now covers board scroll-axis parity, card drag cursor, drag-start/drop-highlight chrome, and read-only guarded drop cleanup. Full hand+eyes matrix pass complete for the currently known surfaces; no remaining unreviewed surface category is listed.

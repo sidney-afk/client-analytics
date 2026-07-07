@@ -948,3 +948,12 @@ Local artifact-vs-wired verification added a row-context Project submenu guard. 
 |---|---:|---|
 | Row context Project submenu | test-hardened | The Production preview keeps deliverables client/project-linked; `No project` remains out unless the owner explicitly allows project detachment. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 51
+
+Local artifact-vs-wired verification added a row-context Copy submenu guard. `pixel-wired.js` now fails if the live Linear `Make a copy` duplication row returns while duplicate/create behavior remains deferred to write-authority phases.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Copy submenu | test-hardened | Copy-only rows remain allowed; duplicate/create behavior stays out of the read-only Production preview. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

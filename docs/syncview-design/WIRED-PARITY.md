@@ -684,3 +684,12 @@ Cycle 50 was local-only. `pixel-wired.js` now fails if the row-context Project s
 |---|---:|---|
 | Row context Project submenu | test-hardened | The Production preview keeps deliverables client/project-linked; `No project` remains out unless the owner explicitly allows project detachment. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 51
+
+Cycle 51 was local-only. `pixel-wired.js` now fails if the row-context Copy submenu reintroduces live Linear's `Make a copy` duplication row while duplicate/create behavior remains deferred to write-authority phases.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Copy submenu | test-hardened | Copy-only rows remain allowed; duplicate/create behavior stays out of the read-only Production preview. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

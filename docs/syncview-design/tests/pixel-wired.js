@@ -705,7 +705,13 @@ async function run() {
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-copy]');
     await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-copy-submenu');
     await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-copy-submenu');
-    comparePickerInventory(gaps, 'context copy submenu inventory', await pickerInventory(artifact, '#layer .pop [data-copy]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-copy]'));
+    const artifactCopyRows = await pickerInventory(artifact, '#layer .pop [data-copy]');
+    const wiredCopyRows = await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-copy]');
+    const copyRows = artifactCopyRows.concat(wiredCopyRows);
+    comparePickerInventory(gaps, 'context copy submenu inventory', artifactCopyRows, wiredCopyRows);
+    copyRows.forEach(row => {
+      if (/^Make a copy/i.test(row.label)) gaps.push({ rank: 1, state: 'context copy locked removals', message: 'Make a copy row returned' });
+    });
     await artifact.locator('#layer .pop [data-ctx="proj"]').first().hover();
     await wired.locator('#prodLayer .prod-pop [data-prod-ctx="proj"]').first().hover();
     await artifact.waitForSelector('#layer .pop [data-i]');

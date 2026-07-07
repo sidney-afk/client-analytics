@@ -962,6 +962,10 @@ provably — as the floor on which later improvements are built.
 - **Source of truth (unchanged):** `docs/syncview-design/SyncView.html`. Where any prose
   (this spec, a prompt, a review note, the ledger) conflicts with the artifact, the artifact
   wins.
+- **Simpler-tool boundary (owner-ratified 2026-07-07):** SyncView is a SIMPLER tool than
+  Linear; Linear features that add complexity (AI assistant, initiatives, workspace
+  management, dev-tooling copy commands) are deliberate REMOVALS, not adoptions. Linear wins
+  on look/feel/interaction of KEPT surfaces only, never on adding removed-class features.
 - **10.8.1 Adapter Contract (kills F3):** `docs/syncview-design/ADAPTER.md` is the definitive
   B1→artifact data mapping, implemented as ONE function (`_prodAdapter()`) that converts the
   B1 tables into the artifact's exact data shapes (ISSUES/PROJECTS/CLIENTS/EDITORS field

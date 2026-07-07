@@ -119,16 +119,21 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '.prod-brand[data-prod-brandmenu] .prod-brand-caret', 1, 'brand workspace caret/menu trigger');
     await page.locator('.prod-brand[data-prod-brandmenu]').click();
     await expectCount(page, '.prod-pop [data-prod-brand-action]', 1, 'brand workspace menu rows');
+    const brandRows = await page.locator('.prod-pop [data-prod-brand-action]').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
+    if (brandRows.join('|') !== 'Settings|Invite members|Log out') throw new Error('Brand menu should not include workspace-switch chrome');
     await page.keyboard.press('Escape');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
+    await page.keyboard.press('Slash');
+    await expectCount(page, '.prod-cmd .prod-cmd-input', 1, 'Slash opens command palette');
+    await page.keyboard.press('Escape');
     if (!(await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count())) throw new Error('My issues nav missing');
     if (!(await page.locator('.prod-nav-section', { hasText: 'Workspace' }).count())) throw new Error('Workspace section missing');
     if (!(await page.locator('.prod-nav-btn', { hasText: 'Projects' }).count())) throw new Error('Projects nav missing');
     if (!(await page.locator('.prod-nav-section', { hasText: 'Your teams' }).count())) throw new Error('Your teams section missing');
     if (!(await page.locator('.prod-team-hd', { hasText: 'Video' }).count())) throw new Error('Video team missing');
     if (!(await page.locator('.prod-team-hd', { hasText: 'Graphics' }).count())) throw new Error('Graphics team missing');
-    const removedNav = await page.locator('.prod-side').evaluate(el => /Inbox|Triage|Views|Invite|Switch workspace/.test(el.textContent || ''));
+    const removedNav = await page.locator('.prod-side').evaluate(el => /Inbox|Triage|Views|Invite/.test(el.textContent || ''));
     if (removedNav) throw new Error('Removed prototype navigation item leaked into sidebar');
 
     await expectCount(page, '.prod-group .prod-status svg', 1, 'status-group glyphs');
@@ -195,9 +200,11 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await page.keyboard.press('Control+a');
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
-    await page.locator('#prodBulkStatus').click();
+    if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) throw new Error('Compact actionbar should not expose direct bulk status/assignee/due buttons');
+    await page.locator('#prodBulkActions').click();
+    await page.locator('#prodLayer [data-prod-ctx="status"]').click();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
-    await page.keyboard.press('Escape');
+    await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();
     await expectCount(page, '.prod-pop [data-prod-pick]', 1, 'row status click opens status picker');

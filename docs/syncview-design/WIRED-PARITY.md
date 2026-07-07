@@ -497,3 +497,12 @@ Cycle 29 ran a read-only live Linear Add Filter click in a fresh issue-list tab.
 |---|---:|---|
 | Add Filter menu taxonomy | owner-question | Live Linear exposes AI filter, Advanced filter, and the full Linear taxonomy, including removed concepts such as Priority, Labels, Initiative, and Cycle. The wired preview keeps the simplified filter set pending owner direction. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 30
+
+Cycle 30 ran a read-only live Linear Display options click in a fresh issue-list tab. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Display options menu | owner-question | Live Linear combines List/Board layout switching, grouping/sub-grouping/ordering controls, toggles, and display-property chips including removed concepts. The wired preview keeps the simplified group-by control pending owner direction. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

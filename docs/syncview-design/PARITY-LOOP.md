@@ -745,3 +745,16 @@ Read-only live observation used a fresh Linear issue-list tab and clicked only t
 Owner question:
 
 1. Should SyncView keep the simplified filter taxonomy (status/assignee/client-project/date-style filters), or adopt live Linear's Add Filter chrome while hiding the deliberately removed filter categories?
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 30
+
+Read-only live observation used a fresh Linear issue-list tab and clicked only the Display options button. Before/after visible issue-row snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Display options menu | owner-question | Live Linear's Display menu combines List/Board layout switching, grouping/sub-grouping/ordering controls, completed/sub-issue/triage toggles, and display-property chips including removed concepts. No code change was made because porting it directly would affect the simplified view model and reintroduce removed fields. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Owner question:
+
+1. Should SyncView's Display menu remain the simplified live group-by control, or adopt live Linear's Display options shell with only the allowed simplified properties exposed?

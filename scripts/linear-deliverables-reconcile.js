@@ -250,6 +250,7 @@ function buildPlan(data) {
     sampleReviews: data.sampleReviews || [],
     linearArchive: data.linearArchive || [],
   }));
+  summary.linkage_actionable = Number(summary.linkage_residue.planned_writes || 0);
   summary.webhooks = summarizeWebhooks(data.webhooks || []);
   return { results, linkageRows, summary };
 }
@@ -272,6 +273,7 @@ function summaryMarkdown(plan, startedAt, finishedAt) {
     `| Tolerated divergences | ${s.tolerated_count} |`,
     `| Unknown-assignee repair rows | ${s.repair_list_size} |`,
     `| Card linkage gaps | ${s.linkage_count} |`,
+    `| Card linkage actionable | ${s.linkage_actionable || 0} |`,
     `| Card linkage resolvable writes | ${lr.planned_writes || 0} |`,
     `| Card linkage explained residue | ${lr.skipped || 0} |`,
     `| Linear webhooks checked | ${s.webhooks ? s.webhooks.checked : 0} |`,

@@ -88,6 +88,19 @@ async function pickerInventory(page, selector) {
     return {
       label: (el.querySelector('.mlbl')?.textContent || '').trim(),
       kbd: (el.querySelector('.kbd')?.textContent || '').trim(),
+      dres: (el.querySelector('.dres')?.textContent || '').trim(),
+      cursor: cs.cursor,
+      paths: Array.from(el.querySelectorAll('svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+    };
+  }));
+}
+
+async function commandInventory(page, selector) {
+  return page.locator(selector).evaluateAll(nodes => nodes.map(el => {
+    const cs = getComputedStyle(el);
+    return {
+      title: (el.querySelector('.ct')?.textContent || '').trim(),
+      meta: (el.querySelector('.cmeta')?.textContent || '').trim(),
       cursor: cs.cursor,
       paths: Array.from(el.querySelectorAll('svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
     };
@@ -108,6 +121,21 @@ function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
   });
 }
 
+function comparePaletteCommandRows(gaps, state, artifactRows, wiredRows, startIndex) {
+  const aCmd = artifactRows.slice(startIndex);
+  const wCmd = wiredRows.slice(startIndex);
+  if (aCmd.length !== wCmd.length) {
+    gaps.push({ rank: 1, state, message: `command row count mismatch artifact=${aCmd.length} wired=${wCmd.length}` });
+    return;
+  }
+  aCmd.forEach((a, i) => {
+    const w = wCmd[i] || {};
+    if (a.title !== w.title) gaps.push({ rank: 1, state, message: `command ${i} title artifact=${a.title} wired=${w.title}` });
+    if (a.meta !== w.meta) gaps.push({ rank: 1, state, message: `command ${i} meta artifact=${a.meta} wired=${w.meta}` });
+    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `command ${i} icon path drift for ${a.title}` });
+  });
+}
+
 function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
   if (artifactRows.length !== wiredRows.length) {
     gaps.push({ rank: 1, state, message: `menu row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
@@ -117,6 +145,19 @@ function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
     const w = wiredRows[i] || {};
     if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
     if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
+    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
+  });
+}
+
+function compareDueInventory(gaps, state, artifactRows, wiredRows) {
+  if (artifactRows.length !== wiredRows.length) {
+    gaps.push({ rank: 1, state, message: `due row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
+    return;
+  }
+  artifactRows.forEach((a, i) => {
+    const w = wiredRows[i] || {};
+    if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
+    if (i > 1 && a.dres !== w.dres) gaps.push({ rank: 1, state, message: `row ${i} date hint artifact=${a.dres || '(empty)'} wired=${w.dres || '(empty)'}` });
     if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
   });
 }
@@ -248,6 +289,45 @@ async function run() {
     if (displayA.join('|') !== displayW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `display icon path drift: ${displayW.join('|')}` });
     await compareStyles(gaps, 'toolbar icon buttons', artifact, wired, '#filterbtn', '#prodFilterBtn', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'color']);
 
+    await artifact.locator('[data-act="search"]').click();
+    await wired.locator('.prod-search-btn').click();
+    await artifact.waitForSelector('.cmdk .cmdk-item');
+    await wired.waitForSelector('.prod-cmd .prod-cmd-item');
+    await shot(artifact, 'artifact-palette-default');
+    await shot(wired, 'wired-palette-default');
+    await shotElement(artifact, '.cmdk', 'artifact-crop-palette-default');
+    await shotElement(wired, '.prod-cmd', 'wired-crop-palette-default');
+    const palettePlaceholderA = await artifact.locator('.cmdk-inp').getAttribute('placeholder');
+    const palettePlaceholderW = await wired.locator('.prod-cmd-input').getAttribute('placeholder');
+    if (palettePlaceholderA !== palettePlaceholderW) gaps.push({ rank: 1, state: 'palette placeholder', message: `artifact=${palettePlaceholderA} wired=${palettePlaceholderW}` });
+    const paletteA = await commandInventory(artifact, '.cmdk-item');
+    const paletteW = await commandInventory(wired, '.prod-cmd-item');
+    if (paletteA.length !== paletteW.length) gaps.push({ rank: 1, state: 'palette default inventory', message: `row count artifact=${paletteA.length} wired=${paletteW.length}` });
+    const issueLikeA = paletteA.slice(0, 6).filter(r => r.meta !== 'Command').length;
+    const issueLikeW = paletteW.slice(0, 6).filter(r => r.meta !== 'Command').length;
+    if (issueLikeA !== issueLikeW || issueLikeW !== 6) gaps.push({ rank: 1, state: 'palette default inventory', message: `top issue rows artifact=${issueLikeA} wired=${issueLikeW}` });
+    comparePaletteCommandRows(gaps, 'palette default commands', paletteA, paletteW, 6);
+    await artifact.locator('.cmdk-inp').fill('my issues');
+    await wired.locator('.prod-cmd-input').fill('my issues');
+    await artifact.waitForFunction(() => Array.from(document.querySelectorAll('.cmdk-item')).some(el => el.textContent.includes('Go to My issues')));
+    await wired.waitForFunction(() => Array.from(document.querySelectorAll('.prod-cmd-item')).some(el => el.textContent.includes('Go to My issues')));
+    await shotElement(artifact, '.cmdk', 'artifact-crop-palette-search-command');
+    await shotElement(wired, '.prod-cmd', 'wired-crop-palette-search-command');
+    const searchA = await commandInventory(artifact, '.cmdk-item');
+    const searchW = await commandInventory(wired, '.prod-cmd-item');
+    if (searchA[0]?.title !== searchW[0]?.title || searchA[0]?.meta !== searchW[0]?.meta) {
+      gaps.push({ rank: 1, state: 'palette command search', message: `artifact=${searchA[0]?.title}/${searchA[0]?.meta} wired=${searchW[0]?.title}/${searchW[0]?.meta}` });
+    }
+    await artifact.locator('.cmdk-inp').fill('zzzznomatch');
+    await wired.locator('.prod-cmd-input').fill('zzzznomatch');
+    await artifact.waitForSelector('.cmdk-empty');
+    await wired.waitForSelector('.prod-cmd-empty');
+    const emptyA = (await artifact.locator('.cmdk-empty').innerText()).trim();
+    const emptyW = (await wired.locator('.prod-cmd-empty').innerText()).trim();
+    if (emptyA !== emptyW) gaps.push({ rank: 1, state: 'palette empty', message: `artifact=${emptyA} wired=${emptyW}` });
+    await artifact.keyboard.press('Escape');
+    await wired.keyboard.press('Escape');
+
     await setupSelection(artifact, wired);
     await artifact.waitForSelector('.actionbar');
     await wired.waitForSelector('[data-prod-actionbar]');
@@ -329,6 +409,55 @@ async function run() {
     await artifact.keyboard.press('Escape');
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 
+    await artifact.evaluate(() => {
+      if (typeof clearLayer === 'function') clearLayer();
+      S.open = null;
+      S.projectOpen = null;
+      S.view = { type: 'issues', team: 'video' };
+      S.filters = [];
+      S.selected.clear();
+      const ai = curIssues()[0] || ISSUES[0];
+      if (ai) ai.due = '';
+      render();
+    });
+    await wired.evaluate(() => {
+      if (typeof _prodClearLayer === 'function') _prodClearLayer();
+      _prodState.view = 'list';
+      _prodState.team = 'video';
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openProjectId = '';
+      _prodState.filters = [];
+      _prodState.selected.clear();
+      const wi = _prodIssueRows()[0] || _prodIssues()[0];
+      if (wi) { wi.due = ''; wi.dueRaw = ''; }
+      _prodRender();
+    });
+    await artifact.locator('.due.due-empty').first().click();
+    await wired.locator('.prod-due.optional').first().click();
+    await artifact.waitForSelector('#layer .pop.duepop .mi');
+    await wired.waitForSelector('#prodLayer .prod-duepop .prod-mi');
+    await shotElement(artifact, '#layer .pop.duepop', 'artifact-crop-due-popover');
+    await shotElement(wired, '#prodLayer .prod-duepop', 'wired-crop-due-popover');
+    compareDueInventory(gaps, 'due quick inventory', await pickerInventory(artifact, '#layer .pop.duepop .mi'), await pickerInventory(wired, '#prodLayer .prod-duepop .prod-mi'));
+    const duePlaceholderA = await artifact.locator('#layer .pop.duepop [data-search]').first().getAttribute('placeholder');
+    const duePlaceholderW = await wired.locator('#prodLayer .prod-duepop [data-prod-search]').first().getAttribute('placeholder');
+    if (duePlaceholderA !== duePlaceholderW) gaps.push({ rank: 1, state: 'due popover placeholder', message: `artifact=${duePlaceholderA} wired=${duePlaceholderW}` });
+    await artifact.locator('#layer .pop.duepop [data-set="__custom__"]').first().click();
+    await wired.locator('#prodLayer .prod-duepop [data-prod-set="__custom__"]').first().click();
+    await artifact.waitForSelector('#layer .pop.duepop .cal');
+    await wired.waitForSelector('#prodLayer .prod-duepop .prod-cal');
+    await shotElement(artifact, '#layer .pop.duepop', 'artifact-crop-due-calendar');
+    await shotElement(wired, '#prodLayer .prod-duepop', 'wired-crop-due-calendar');
+    const dueMonthA = (await artifact.locator('#layer .pop.duepop .cal-mo').first().innerText()).trim();
+    const dueMonthW = (await wired.locator('#prodLayer .prod-duepop .prod-cal-mo').first().innerText()).trim();
+    if (dueMonthA !== dueMonthW) gaps.push({ rank: 1, state: 'due calendar month', message: `artifact=${dueMonthA} wired=${dueMonthW}` });
+    const dueTodayA = (await artifact.locator('#layer .pop.duepop .cal-d.today').first().innerText()).trim();
+    const dueTodayW = (await wired.locator('#prodLayer .prod-duepop .prod-cal-d.today').first().innerText()).trim();
+    if (dueTodayA !== dueTodayW) gaps.push({ rank: 1, state: 'due calendar today', message: `artifact=${dueTodayA} wired=${dueTodayW}` });
+    await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+
     await setupFilterPill(artifact, wired);
     await artifact.waitForSelector('.fpill');
     await wired.waitForSelector('.prod-filter-pill.interactive');
@@ -377,7 +506,7 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, selection/actionbar, status picker inventory, row context menu, context status submenu, bulk picker anchor, filter pill, board, and detail parity checks passed');
+    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, board, and detail parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

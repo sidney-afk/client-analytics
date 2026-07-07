@@ -545,7 +545,7 @@ async function txt(page, sel) {
       await page.locator('.prod-search-btn').click();
       await page.fill('.prod-cmd-input', 'graphics issues');
       await page.evaluate(() => {
-        const cmd = [...document.querySelectorAll('.prod-cmd-item')].find(el => el.textContent.includes('Graphics Issues') && el.textContent.includes('Command'));
+        const cmd = [...document.querySelectorAll('.prod-cmd-item')].find(el => el.textContent.includes('Go to Graphics issues') && el.textContent.includes('Command'));
         if (cmd) cmd.click();
       });
       return await page.evaluate(() => _prodState.selected.size === 0 && _prodState.team === 'graphics' && _prodState.view === 'list');

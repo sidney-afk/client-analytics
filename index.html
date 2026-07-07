@@ -28028,30 +28028,49 @@
             return false;
         }
         // PORT-DELTA: openSearch result source is live adapter data instead of artifact seed arrays.
-        function _prodPaletteItems() {
+        function _prodPaletteItems(q) {
             const fields = _prodFilterFields();
-            const items = [
-                { icon: _prodIcon('issues'), title: 'My issues', meta: 'Command', go: () => _prodSetView('my') },
-                { icon: _prodIcon('issues'), title: 'Video Issues', meta: 'Command', go: () => _prodOpenTeamView('video', 'list') },
-                { icon: _prodIcon('project'), title: 'Video Projects', meta: 'Command', go: () => _prodOpenTeamView('video', 'board') },
-                { icon: _prodIcon('issues'), title: 'Graphics Issues', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'list') },
-                { icon: _prodIcon('project'), title: 'Graphics Projects', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'board') }
+            const query = String(q || '').trim().toLowerCase();
+            const commands = [
+                { icon: _prodIcon('issues'), title: 'Go to Video issues', meta: 'Command', go: () => _prodOpenTeamView('video', 'list') },
+                { icon: _prodIcon('issues'), title: 'Go to Graphics issues', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'list') },
+                { icon: _prodIcon('issues'), title: 'Go to My issues', meta: 'Command', go: () => _prodSetView('my') },
+                { icon: _prodIcon('issues'), title: 'Go to Video projects', meta: 'Command', go: () => _prodOpenTeamView('video', 'board') },
+                { icon: _prodIcon('issues'), title: 'Go to Graphics projects', meta: 'Command', go: () => _prodOpenTeamView('graphics', 'board') },
+                { icon: _prodIcon('issues'), title: 'Go to All projects', meta: 'Command', go: () => _prodOpenTeamView('all', 'board') }
             ];
-            _prodIssueRows().slice(0, 250).forEach(i => {
-                items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+            const issues = _prodIssues();
+            const items = [];
+            if (!query) {
+                issues.filter(i => !i.parent).slice(0, 6).forEach(i => {
+                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                });
+                return items.concat(commands);
+            }
+            commands.forEach(cmd => {
+                if (cmd.title.toLowerCase().includes(query)) items.push(cmd);
             });
-            fields.client.values().forEach(slug => {
-                items.push({ icon: fields.client.icon(slug), title: fields.client.name(slug), meta: 'Client', go: () => _prodOpenClient(slug) });
+            issues.forEach(i => {
+                if (String(i.title || '').toLowerCase().includes(query) || String(_prodIssueLabel(i)).toLowerCase().includes(query)) {
+                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
+                }
             });
-            fields.assignee.values().filter(v => v !== '_').forEach(id => {
-                items.push({ icon: fields.assignee.icon(id), title: fields.assignee.name(id), meta: 'Assignee', go: () => {
-                    _prodState.filters = [{ field: 'assignee', values: [id] }];
-                    _prodState.view = 'list';
-                    _prodState.openId = '';
-                    _prodState.openBatchId = '';
-                    _prodSetQuery({}, true);
-                    _prodRender();
-                }});
+            Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
+                const title = fields.client.name(slug);
+                if (String(title || '').toLowerCase().includes(query)) items.push({ icon: fields.client.icon(slug), title, meta: 'Project', go: () => _prodOpenClient(slug) });
+            });
+            Object.keys(_prodEditors()).sort((a, b) => fields.assignee.name(a).localeCompare(fields.assignee.name(b))).forEach(id => {
+                const title = fields.assignee.name(id);
+                if (String(title || '').toLowerCase().includes(query)) {
+                    items.push({ icon: fields.assignee.icon(id), title, meta: 'Assignee', go: () => {
+                        _prodState.filters = [{ field: 'assignee', values: [id] }];
+                        _prodState.view = 'list';
+                        _prodState.openId = '';
+                        _prodState.openBatchId = '';
+                        _prodSetQuery({}, true);
+                        _prodRender();
+                    }});
+                }
             });
             return items;
         }
@@ -28061,7 +28080,7 @@
             _prodClearLayer();
             const bd = document.createElement('div');
             bd.className = 'prod-cmd-bd';
-            bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people..." spellcheck="false"><div class="prod-cmd-list"></div></div>';
+            bd.innerHTML = '<div class="prod-cmd"><input class="prod-cmd-input" placeholder="Search issues, projects, people…" spellcheck="false"><div class="prod-cmd-list"></div></div>';
             document.body.appendChild(bd);
             const inp = bd.querySelector('.prod-cmd-input');
             const list = bd.querySelector('.prod-cmd-list');
@@ -28091,8 +28110,7 @@
             };
             const search = () => {
                 const q = inp.value.trim().toLowerCase();
-                const all = _prodPaletteItems();
-                results = all.filter(r => !q || (r.title + ' ' + r.meta).toLowerCase().includes(q)).slice(0, 40);
+                results = _prodPaletteItems(q).slice(0, 12);
                 sel = Math.min(sel, Math.max(0, results.length - 1));
                 draw();
             };
@@ -28771,6 +28789,8 @@
         const PROD_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const PROD_MON_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
         const PROD_WK = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+        const PROD_TODAY = new Date(2026, 6, 4);
+        function _prodToday() { return new Date(PROD_TODAY); }
         function _prodAddDays(d, n) {
             const x = new Date(d);
             x.setDate(x.getDate() + n);
@@ -28785,14 +28805,22 @@
         function _prodParseDue(s) {
             s = String(s || '').trim().toLowerCase();
             if (!s) return null;
-            const today = new Date();
+            const today = _prodToday();
             const M = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
             let m;
             if (s === 'today') return today;
             if (s === 'tomorrow') return _prodAddDays(today, 1);
+            if (m = s.match(/^(\d+)\s*(d|day|days|h|hr|hrs|hour|hours)$/)) {
+                const n = +m[1];
+                return _prodAddDays(today, /^h/.test(m[2]) ? Math.max(1, Math.round(n / 24)) : n);
+            }
             if (m = s.match(/^([a-z]{3,})\.?\s+(\d{1,2})$/)) {
                 const mo = M[m[1].slice(0, 3)];
                 if (mo != null) return new Date(today.getFullYear(), mo, +m[2]);
+            }
+            if (m = s.match(/^(\d{1,2})\s+([a-z]{3,})$/)) {
+                const mo = M[m[2].slice(0, 3)];
+                if (mo != null) return new Date(today.getFullYear(), mo, +m[1]);
             }
             if (m = s.match(/^(\d{1,2})$/)) return new Date(today.getFullYear(), today.getMonth(), +m[1]);
             return null;
@@ -28801,17 +28829,18 @@
         function _prodBuildDue(pop, cur, ids, anchor) {
             let view = 'quick';
             const parsed = cur && cur.due ? _prodParseDue(cur.due) : null;
-            let calM = new Date((parsed || new Date()).getFullYear(), (parsed || new Date()).getMonth(), 1);
-            let focusDay = parsed || new Date();
+            const todayRef = _prodToday();
+            let calM = new Date((parsed || todayRef).getFullYear(), (parsed || todayRef).getMonth(), 1);
+            let focusDay = parsed || new Date(todayRef);
             const guard = () => {
                 _prodReadonlyGuard();
                 _prodClearLayer();
             };
             const quick = () => {
-                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20..."></div><div class="prod-pop-list">';
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20…"></div><div class="prod-pop-list">';
                 if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
-                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom...</span></div>';
-                [['Tomorrow', _prodAddDays(new Date(), 1)], ['End of this week', _prodAddDays(new Date(), (5 - new Date().getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(new Date(), 7)]].forEach(o => {
+                h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom…</span></div>';
+                [['Tomorrow', _prodAddDays(todayRef, 1)], ['End of this week', _prodAddDays(todayRef, (5 - todayRef.getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(todayRef, 7)]].forEach(o => {
                     h += '<div class="prod-mi" data-prod-day="' + _calEscAttr(_prodFmtDue(o[1])) + '"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">' + _calEsc(o[0]) + '</span><span class="dres">' + _calEsc(_prodFmtWk(o[1])) + '</span></div>';
                 });
                 return h + '</div>';
@@ -28823,7 +28852,7 @@
                 for (let i = 0; i < start; i++) cells += '<div class="prod-cal-d empty"></div>';
                 for (let d = 1; d <= dim; d++) {
                     const dt = new Date(calM.getFullYear(), calM.getMonth(), d);
-                    const today = dt.toDateString() === new Date().toDateString();
+                    const today = +dt === +PROD_TODAY;
                     const selected = cur && cur.due === _prodFmtDue(dt);
                     const focused = focusDay && dt.toDateString() === focusDay.toDateString();
                     cells += '<div class="prod-cal-d' + (today ? ' today' : '') + (selected ? ' sel' : '') + (focused ? ' focus' : '') + '" data-prod-day="' + _calEscAttr(_prodFmtDue(dt)) + '">' + d + '</div>';

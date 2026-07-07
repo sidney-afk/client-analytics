@@ -410,3 +410,15 @@ Cycle 20 captured the live workspace/brand menu in read-only mode. Before/after 
 | Workspace brand menu hints | fixed | Shortcut hints and the Switch workspace submenu chevron now render in both prototype and wired preview. Wired rows remain read-only guarded. |
 
 Validation coverage: `pixel-wired.js` captures and compares `artifact-crop-brand-menu.png` / `wired-crop-brand-menu.png`, checks menu text and chevron path, and `prod-structure-subset.js` asserts the wired menu inventory.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 21
+
+Cycle 21 measured the live dark Linear workspace in read-only mode. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The capture showed the live account is on Linear's dark shell, while the prototype and wired preview were still on the older light token set.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Dark shell palette | fixed | Prototype and wired preview now share the live-style dark neutral tokens for page, sidebar, row, menu, border, divider, text, and overlay surfaces. |
+| Selected actionbar button fill | fixed | The selected-row actionbar buttons now use the dark hover token instead of the old light `#f7f7f7` fill. |
+| Issue/sub-issue data model | unchanged | This cycle changed only visual variables and one selected-row hover token. Parent/child adapter logic, IDs, row data, and detail rendering were not changed. |
+
+Validation coverage: the existing artifact-to-wired pixel lane continues to compare both pages after the token swap, and the live probe accepted only after row snapshots proved the issue list was unchanged.

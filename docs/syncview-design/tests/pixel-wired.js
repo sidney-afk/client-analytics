@@ -300,6 +300,36 @@ async function run() {
     if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();
     if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
+    const darkPalette = [
+      ['--bg', '--prod-bg', '#070708'],
+      ['--content', '--prod-content', '#0c0c0d'],
+      ['--surface', '--prod-surface', '#151518'],
+      ['--column', '--prod-column', '#111113'],
+      ['--hover', '--prod-hover', '#1e1e21'],
+      ['--selected-row', '--prod-selected', '#171923'],
+      ['--border', '--prod-border', '#2a2a2d'],
+      ['--border-soft', '--prod-border-soft', '#242428'],
+      ['--divider', '--prod-divider', '#1d1d20'],
+      ['--text', '--prod-text', '#f4f4f5'],
+      ['--text-strong', '--prod-strong', '#ededee'],
+      ['--dim', '--prod-dim', '#b6b6bb'],
+      ['--muted', '--prod-muted', '#8f8f96'],
+      ['--faint', '--prod-faint', '#6f6f78'],
+      ['--link', '--prod-link', '#8ea0ff'],
+    ];
+    const artifactVars = await artifact.evaluate(keys => {
+      const cs = getComputedStyle(document.documentElement);
+      return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
+    }, darkPalette.map(([a]) => a));
+    const wiredVars = await wired.evaluate(keys => {
+      const root = document.querySelector('.prod-view') || document.documentElement;
+      const cs = getComputedStyle(root);
+      return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
+    }, darkPalette.map(([, w]) => w));
+    darkPalette.forEach(([aKey, wKey, expected]) => {
+      if (artifactVars[aKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `artifact ${aKey}=${artifactVars[aKey]} expected ${expected}` });
+      if (wiredVars[wKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `wired ${wKey}=${wiredVars[wKey]} expected ${expected}` });
+    });
 
     await artifact.locator('[data-brandmenu]').click();
     await wired.locator('[data-prod-brandmenu]').click();

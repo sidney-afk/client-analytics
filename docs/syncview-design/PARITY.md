@@ -51,6 +51,8 @@ Cycle 19 added the live bottom-left `What's new` / `Initiative properties` tray 
 
 Cycle 20 updated the workspace/brand menu to match live Linear's current global menu rows, shortcut hints, and Switch workspace chevron. Before/after row snapshots stayed unchanged (`changed:false`); wired menu rows route through the read-only guard.
 
+Cycle 21 rechecked live Linear's current dark workspace shell. Before/after visible issue rows again matched (`changed:false`). The prototype and wired preview now use the live-style dark neutral palette for shell, rows, menus, dividers, and overlay surfaces; issue/sub-issue data shape and rendering logic were not changed.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 
@@ -135,7 +137,7 @@ Verified: `qa-features.js` (39 assertions, 0 JS errors) + screenshots of all 6 s
 - ✅ **Card ⋯ / project-card menus** — real (Change status / Set lead / Set target / Copy link); column ⋯/＋ remain intentional toast stubs.
 - 🟡 **Copy link** — toasts a confirmation (no real clipboard URL; fine for a prototype).
 - ⬜ Loading skeletons — none (no async in the prototype).
-- ➖ **Dark mode** — deferred (whole-site later; would need re-measuring Linear's dark palette).
+- ✅ **Dark palette** — matched to the current live Linear dark shell for the prototype and wired read-only preview (Cycle 21). A future theme toggle is still out of scope.
 - Optional future: capture live Linear to pixel-calibrate the newest surfaces; port these behaviors into the real repo build.
 
 ### Sidney's standing decisions (2026-07-05)

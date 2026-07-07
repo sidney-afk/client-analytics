@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-07-07",
+  "source": "live Linear workspace shell, sanitized",
+  "viewport": {
+    "width": 1440,
+    "height": 939
+  },
+  "safety": {
+    "mode": "read-only observation",
+    "visible_issue_rows_before": 20,
+    "visible_issue_rows_after": 20,
+    "changed": false,
+    "live_text_retained": false
+  },
+  "measured_live_values": {
+    "body_text": "rgb(255, 255, 255)",
+    "active_nav_background": "lch(10.82 1.35 272)",
+    "active_nav_text": "lch(100 0 272)",
+    "ask_dock_text": "lch(60.307 1 272)",
+    "right_toolbar_text": "lch(90.35 1.15 272)"
+  },
+  "adopted_tokens": {
+    "bg": "#070708",
+    "content": "#0c0c0d",
+    "surface": "#151518",
+    "column": "#111113",
+    "hover": "#1e1e21",
+    "selected_nav": "#1f1f22",
+    "selected_row": "#171923",
+    "menu_hover": "#1f1f22",
+    "border": "#2a2a2d",
+    "border_soft": "#242428",
+    "divider": "#1d1d20",
+    "text": "#f4f4f5",
+    "text_strong": "#ededee",
+    "dim": "#b6b6bb",
+    "muted": "#8f8f96",
+    "faint": "#6f6f78",
+    "link": "#8ea0ff",
+    "danger": "#ff6b6b",
+    "overdue": "#ff5f5f"
+  }
+}

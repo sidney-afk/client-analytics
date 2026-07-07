@@ -4,7 +4,11 @@
 issue/project experience inside SyncView. Hand this to the design assistant to
 snap the mockup to exact values, and to Codex as the build spec.
 
-> **Status 2026-07-05:** the measured VISUAL tokens below are unchanged and current.
+> **Status 2026-07-07:** the live workspace shell is currently dark. Cycle 21
+> added a sanitized dark-shell measurement (`lin-dark-shell.json`) and moved the
+> prototype + wired read-only preview to the dark neutral shell. The older light
+> measurements below remain the historical component geometry/type source unless
+> a newer cycle explicitly supersedes a value.
 > Phase 2 (behavioral parity) added new *component* styles in the prototype source
 > (e.g. `.act-sys` activity rows, `.pcard-check`/`.pcard-sel` board selection,
 > `.pop-empty` picker empty-state, `.composer-hint`, action-bar quick-action buttons) —
@@ -20,8 +24,10 @@ are authored by Linear in **`lch()`**; each was resolved to sRGB **hex** through
 the browser's own canvas engine (exact, not eyeballed). Screenshots were captured
 full-page at 1440 px CSS width, exported at 2× (2880 px) for clarity.
 
-**Theme:** this workspace runs Linear in **LIGHT mode** — the tokens below are the
-light theme. (If you ever switch editors to dark, these must be re-measured.)
+**Theme:** the current logged-in workspace runs Linear in **DARK mode**. The
+Cycle 21 shell palette is the active prototype/wired palette; most detailed
+component measurements below were captured earlier in light mode and remain
+useful for geometry, icon, menu, and behavior parity.
 
 **Screens measured:** Video › Issues (list, `/team/VID/all`) · My Issues
 (`/my-issues/assigned`) · an open issue (`/issue/VID-7624`) · Projects board
@@ -29,6 +35,37 @@ light theme. (If you ever switch editors to dark, these must be re-measured.)
 `02-my-issues.png`, `03-open-issue.png`, `04-projects.png`, `status-dropdown.png`).
 
 ---
+
+## 0. Current dark shell palette (Cycle 21 addendum)
+
+Captured read-only from the live workspace at a 1440 px viewport. The accepted
+probe recorded 20 visible issue rows before and after, with `changed:false`; no
+issue or sub-issue data changed. Live issue text was not retained in the public
+measurement artifact.
+
+```css
+:root {
+  --bg:            #070708;
+  --bg-content:    #0c0c0d;
+  --surface:       #151518;
+  --bg-column:     #111113;
+  --hover:         #1e1e21;
+  --selected-nav:  #1f1f22;
+  --selected-row:  #171923;
+  --menu-hover:    #1f1f22;
+  --border:        #2a2a2d;
+  --border-soft:   #242428;
+  --divider:       #1d1d20;
+  --text:          #f4f4f5;
+  --text-strong:   #ededee;
+  --text-dim:      #b6b6bb;
+  --text-muted:    #8f8f96;
+  --text-faint:    #6f6f78;
+  --link:          #8ea0ff;
+  --danger:        #ff6b6b;
+  --overdue:       #ff5f5f;
+}
+```
 
 ## 1. CSS custom properties (paste-ready)
 

@@ -626,3 +626,19 @@ Ranked finding fixed in this cycle:
 1. P3: the workspace brand menu still used the older artifact rows/header instead of live Linear's current global-menu inventory and hints.
 
 Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-brand-menu.png` / `wired-crop-brand-menu.png`, compares menu text and chevron path, and checks popover/row styling.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 21
+
+Fresh live Linear observation was read-only. The probe measured the currently logged-in Linear workspace shell in dark mode and captured 20 visible VID issue rows before and after; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Dark workspace shell | fixed | `linear-dark-measure.png` showed live Linear's current dark neutral shell. Prototype and wired preview now use matching dark tokens for base, content, surface, hover, selected row, border, divider, and text colors. |
+| Selected actionbar chrome | fixed | Local crop review found the actionbar buttons still using the old light button fill after the palette swap; they now use the dark hover token in both prototype and wired preview. |
+| Selected-row hover token | fixed | The prototype no longer had a leftover hardcoded light selected-row hover color; it now follows the selected-row token. |
+
+Ranked finding fixed in this cycle:
+
+1. P1: live Linear is currently dark, but the prototype and wired preview were still using the older light palette, creating a full-shell visual mismatch outside the locked skeleton.
+
+Pixel lane note: the existing artifact-to-wired pixel lane remains the guard for keeping prototype and wired tokens identical after this palette swap.

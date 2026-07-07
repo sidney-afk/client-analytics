@@ -610,3 +610,13 @@ Cycle 42 was local-only. `pixel-wired.js` now fails if broader live Linear row-c
 |---|---:|---|
 | Row context locked removals | test-hardened | The simplified context-menu scope is now regression-tested while preserving allowed guarded artifact rows such as Move and Delete. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 43
+
+Cycle 43 was local-only. `pixel-wired.js` now captures and compares the Filter and Display menus, and fails if broader live Linear taxonomy returns while those owner-scope decisions remain unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Filter menu locked removals | test-hardened | AI/Advanced filter plus Priority, Labels, Initiative, Cycle, and other full-Linear filter fields remain out of the simplified preview. |
+| Display menu locked removals | test-hardened | Layout/List/Board switching, ordering, sub-grouping, completed/triage toggles, display-property rows, and removed concepts stay out of the simplified group-by menu. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

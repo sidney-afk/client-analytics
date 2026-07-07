@@ -874,3 +874,13 @@ Local artifact-vs-wired verification added a locked-scope guard for row context 
 |---|---:|---|
 | Row context locked removals | test-hardened | Broader live Linear context rows remain out of the simplified SyncView skeleton unless the owner explicitly expands scope. Allowed guarded artifact rows such as Move and Delete remain covered by existing context-menu parity. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 43
+
+Local artifact-vs-wired verification added locked-scope guards for the Filter and Display menus. `pixel-wired.js` now captures those menus, compares prototype/wired inventories, and fails if broader live Linear concepts return while the owner decision remains unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Filter menu locked removals | test-hardened | AI/Advanced filter plus Priority, Labels, Initiative, Cycle, and other full-Linear filter fields remain out of the simplified preview unless the owner expands scope. |
+| Display menu locked removals | test-hardened | Layout/List/Board switching, ordering, sub-grouping, completed/triage toggles, display-property rows, and removed concepts stay out of the simplified group-by menu. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

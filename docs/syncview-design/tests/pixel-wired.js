@@ -377,6 +377,43 @@ async function run() {
     const displayW = await iconPaths(wired, '#prodGroupBtn');
     if (displayA.join('|') !== displayW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `display icon path drift: ${displayW.join('|')}` });
     await compareStyles(gaps, 'toolbar icon buttons', artifact, wired, '#filterbtn', '#prodFilterBtn', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'color']);
+
+    await artifact.locator('#filterbtn').click();
+    await wired.locator('#prodFilterBtn').click();
+    await artifact.waitForSelector('#layer .pop [data-ffield]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ffield]');
+    await shotElement(artifact, '#layer .pop', 'artifact-crop-filter-menu');
+    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-filter-menu');
+    const artifactFilterRows = await pickerInventory(artifact, '#layer .pop .mi');
+    const wiredFilterRows = await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi');
+    compareMenuInventory(gaps, 'filter menu inventory', artifactFilterRows, wiredFilterRows);
+    const lockedFilterRows = /^(AI|Advanced filter|Priority|Labels?|Initiative|Cycle|Project milestone|Created|Updated|Due date|Subscriber|Creator|Team|Estimate|Relation|Blocked)$/i;
+    artifactFilterRows.concat(wiredFilterRows).forEach(row => {
+      if (lockedFilterRows.test(row.label)) {
+        gaps.push({ rank: 1, state: 'filter locked removals', message: `removed filter row returned: ${row.label}` });
+      }
+    });
+    await artifact.keyboard.press('Escape');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+
+    await artifact.locator('#groupbtn').click();
+    await wired.locator('#prodGroupBtn').click();
+    await artifact.waitForSelector('#layer .pop [data-grp]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-grp]');
+    await shotElement(artifact, '#layer .pop', 'artifact-crop-group-menu');
+    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-group-menu');
+    const artifactGroupRows = await pickerInventory(artifact, '#layer .pop .mi');
+    const wiredGroupRows = await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi');
+    compareMenuInventory(gaps, 'display group menu inventory', artifactGroupRows, wiredGroupRows);
+    const lockedDisplayRows = /^(Layout|List|Board|Ordering|Sub-grouping|Priority|Labels?|Cycle|Completed|Triage|Created|Updated|Display properties)$/i;
+    artifactGroupRows.concat(wiredGroupRows).forEach(row => {
+      if (lockedDisplayRows.test(row.label)) {
+        gaps.push({ rank: 1, state: 'display locked removals', message: `removed display row returned: ${row.label}` });
+      }
+    });
+    await artifact.keyboard.press('Escape');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+
     await artifact.locator('[data-act="search"]').hover();
     await wired.locator('.prod-search-btn').hover();
     await artifact.waitForSelector('#tip.show');

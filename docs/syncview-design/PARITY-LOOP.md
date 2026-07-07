@@ -828,3 +828,13 @@ Read-only live observation used the current Linear issue-list tab, opened one ro
 Owner question:
 
 1. Should the read-only Production preview include live Linear's `No project` row as guarded chrome, even though real SyncView deliverables are expected to stay client/project-linked?
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 38
+
+Read-only live observation navigated directly from the current issue list to one issue detail URL, waited for the detail page to render, then returned to the issue list. Before/after visible issue-row snapshots contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Issue detail right rail | owner-question | Live Linear's detail rail includes broader surfaces such as priority, labels, and cycle controls. The locked SyncView skeleton deliberately removed priority, labels, and cycles, so the prototype/wired detail keeps the simplified Properties / Parent issue / Project structure pending owner direction. |
+| Issue detail toolbar chrome | owner-question | Live Linear shows additional detail toolbar buttons around link/share/workflow controls. These are adjacent to mutation or broader-product chrome, so no B2 read-only code change was made without owner direction. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering data relationships changed. |

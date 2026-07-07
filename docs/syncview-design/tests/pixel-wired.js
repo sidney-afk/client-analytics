@@ -803,6 +803,11 @@ async function run() {
     }
     await shot(artifact, 'artifact-board');
     await shot(wired, 'wired-board');
+    const lockedBoardPanel = /\b(Health|Initiatives?|Update health|Project milestone)\b/i;
+    const boardTextA = (await artifact.locator('.board').first().innerText()).replace(/\s+/g, ' ');
+    const boardTextW = (await wired.locator('.prod-board').first().innerText()).replace(/\s+/g, ' ');
+    if (lockedBoardPanel.test(boardTextA)) gaps.push({ rank: 1, state: 'board locked removals', message: 'artifact board contains broader project-health chrome' });
+    if (lockedBoardPanel.test(boardTextW)) gaps.push({ rank: 1, state: 'board locked removals', message: 'wired board contains broader project-health chrome' });
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
     await compareStyles(gaps, 'board column collapse control', artifact, wired, '.pcol-chev', '.prod-col-collapse', ['borderTopWidth', 'backgroundColor', 'opacity', 'cursor']);
     await compareStyles(gaps, 'board card drag cursor', artifact, wired, '.pcard', '.prod-card', ['cursor']);
@@ -860,6 +865,31 @@ async function run() {
       if (target) target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
       if (typeof clearDropFx === 'function') clearDropFx();
     });
+    const openedProjectA = await artifact.evaluate(() => {
+      const card = document.querySelector('.pcard[data-project]');
+      if (!card) return false;
+      card.click();
+      return true;
+    });
+    const openedProjectW = await wired.evaluate(() => {
+      const card = document.querySelector('.prod-card[data-prod-client-card]');
+      if (!card) return false;
+      card.click();
+      return true;
+    });
+    if (openedProjectA && openedProjectW) {
+      await artifact.waitForSelector('.detail');
+      await wired.waitForSelector('.prod-detail');
+      await shotElement(artifact, '.detail', 'artifact-crop-project-detail');
+      await shotElement(wired, '.prod-detail', 'wired-crop-project-detail');
+      const projectDetailA = (await artifact.locator('.detail').first().innerText()).replace(/\s+/g, ' ');
+      const projectDetailW = (await wired.locator('.prod-detail').first().innerText()).replace(/\s+/g, ' ');
+      const lockedProjectDetail = /\b(Resources|Milestones?|Priority|Labels?|Cycle|Slack|Project health|Initiatives?)\b/i;
+      if (lockedProjectDetail.test(projectDetailA)) gaps.push({ rank: 1, state: 'project detail locked removals', message: 'artifact project detail contains broader live Linear panels' });
+      if (lockedProjectDetail.test(projectDetailW)) gaps.push({ rank: 1, state: 'project detail locked removals', message: 'wired project detail contains broader live Linear panels' });
+    } else {
+      gaps.push({ rank: 1, state: 'project detail locked removals', message: `could not open project detail artifact=${openedProjectA} wired=${openedProjectW}` });
+    }
 
     await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); const id = flatOrder()[0]; if (id) openIssue(id); });
     await wired.evaluate(() => { _prodOpenTeamView('video', 'list'); const id = _prodFlatOrder()[0]; if (id) _prodOpenDeliverable(id); });

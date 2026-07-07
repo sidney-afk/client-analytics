@@ -79,6 +79,8 @@ Cycle 44 was local-only scope hardening. `pixel-wired.js` now checks default and
 
 Cycle 45 was local-only scope hardening. `pixel-wired.js` now checks the simplified sidebar spine and fails if removed navigation chrome returns; no issue/sub-issue data model or render relationships changed.
 
+Cycle 46 was local-only scope hardening. `pixel-wired.js` now checks Projects board and project detail previews and fails if broader live Linear project-health or rich-detail panels return; no issue/sub-issue data model or render relationships changed.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

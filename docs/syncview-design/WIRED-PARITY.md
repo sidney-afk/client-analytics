@@ -638,3 +638,13 @@ Cycle 45 was local-only. `pixel-wired.js` now fails if the simplified sidebar sp
 |---|---:|---|
 | Sidebar locked skeleton | test-hardened | My issues, Workspace/Projects, and Video/Graphics Issues/Projects remain present, while Inbox, Views, Invite, and manual New issue chrome stay out of the sidebar. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 46
+
+Cycle 46 was local-only. `pixel-wired.js` now fails if broader live Linear project-health or rich-project-detail panels return to either the prototype or wired preview while those owner-scope decisions remain unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Projects board locked removals | test-hardened | Health, Initiatives, update-health, and project-milestone panels stay out of the simplified Projects board. |
+| Project detail locked removals | test-hardened | Resources, Milestones, Priority, Labels, Cycle, Slack, Project health, and Initiatives stay out of the simplified project detail preview. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

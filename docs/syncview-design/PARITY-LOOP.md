@@ -902,3 +902,13 @@ Local artifact-vs-wired verification added a locked-skeleton sidebar guard. `pix
 |---|---:|---|
 | Sidebar locked skeleton | test-hardened | My issues, Workspace/Projects, and Video/Graphics Issues/Projects remain present, while Inbox, Views, Invite, and manual New issue chrome stay out of the sidebar. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 46
+
+Local artifact-vs-wired verification added Projects-surface locked-scope guards. `pixel-wired.js` now checks the Projects board and project detail preview for broader live Linear project-health/rich-detail panels that remain owner-scope decisions.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Projects board locked removals | test-hardened | Health, Initiatives, update-health, and project-milestone panels stay out of the simplified Projects board unless the owner expands scope. |
+| Project detail locked removals | test-hardened | Resources, Milestones, Priority, Labels, Cycle, Slack, Project health, and Initiatives stay out of the simplified project detail preview unless the owner expands scope. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

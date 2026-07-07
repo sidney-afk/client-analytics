@@ -54,6 +54,14 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Graphics Issues saved board display | live Linear Graphics Issues | ⬜ | Live Linear opened Graphics Issues as a board-style saved display ("Rocio's Board"). SyncView currently keeps team Issues as the simplified issue surface; display-mode parity remains an owner decision. |
 | Team overview route from palette/navigation | live Linear navigation | ⬜ | Palette/navigation probing can land on team overview. SyncView does not model team overview in the locked skeleton; left for owner scope decision. |
 
+## 2026-07-07 Live Linear Parity Cycle 7
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered row context menu, status/assignee/due/project submenus, issue detail, and detail property hover states; 20 visible rows before and after, `changed:false`. |
+| Status submenu search/header row | live Linear status submenu / `pickerHTML` | ✅ | Live "Change status..." search row is already present in prototype and wired status pickers; `pixel-wired.js` covers context status submenu inventory. |
+| Removed context-menu breadth | live Linear row context menu | 🔒 | Priority, Labels, Cycle, Create related, Move, Subscribe, Remind me, and similar live-only entries stay out of the simplified skeleton unless owner expands scope. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

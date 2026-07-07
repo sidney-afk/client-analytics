@@ -3422,6 +3422,11 @@
         .cc-card { border: 1px solid var(--border); border-radius: 18px; background: var(--sv-bg-rgba-255-255-255-0_82); box-shadow: 0 16px 45px var(--sv-shadow-rgba-17-17-16-0_06); overflow: hidden; }
         .cc-card.needs-review { border-color: var(--sv-border-fed7aa); background: linear-gradient(180deg, var(--sv-bg-rgba-255-247-237-0_96), var(--sv-bg-rgba-255-255-255-0_9)); }
         .cc-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 14px 15px; border-bottom: 1px solid var(--border-light); }
+        .cc-card-toggle { display: flex; align-items: flex-start; gap: 9px; flex: 1 1 auto; min-width: 0; padding: 0; margin: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+        .cc-card-toggle > svg { width: 12px; height: 12px; margin-top: 5px; flex-shrink: 0; color: var(--text-muted); transform: rotate(-90deg); transition: transform 0.16s ease; }
+        .cc-card.cc-open .cc-card-toggle > svg { transform: rotate(0deg); }
+        .cc-card.cc-collapsible:not(.cc-open) .cc-rows { display: none; }
+        .cc-card.cc-collapsible:not(.cc-open) .cc-card-head { border-bottom: 0; }
         .cc-client { font-size: 0.95rem; font-weight: 850; color: var(--text-primary); }
         .cc-client-meta { margin-top: 3px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 0.72rem; color: var(--text-muted); }
         .cc-chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 3px 7px; background: var(--bg); color: var(--text-secondary); font-size: 0.66rem; font-weight: 800; letter-spacing: 0.02em; text-transform: uppercase; }
@@ -3434,6 +3439,10 @@
         .cc-platform span, .cc-muted { color: var(--text-muted); font-size: 0.72rem; }
         .cc-secret, .cc-handle { display: flex; align-items: center; gap: 7px; min-width: 0; }
         .cc-secret code, .cc-handle code { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 9px; background: var(--sv-bg-f6f6f3); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 750; }
+        /* Password box reserves a stable width so the reveal/copy icons never
+           jump when a revealed value (often shorter than the ••••• mask) is
+           shown. flex-grow fills the column identically in both states. */
+        .cc-secret code { flex: 1 1 auto; min-width: 0; }
         .cc-mini { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--sv-border-dfdfdb); border-radius: 9px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fafaf8)); color: var(--text-secondary); cursor: pointer; padding: 0; transition: color 0.14s, border-color 0.14s, background 0.14s, transform 0.14s; }
         .cc-mini:hover { color: var(--text-primary); border-color: var(--sv-border-b9b9b4); background: var(--sv-bg-fff); transform: translateY(-1px); }
         .cc-mini svg { width: 14px; height: 14px; display: block; stroke-width: 1.8; }
@@ -6103,6 +6112,56 @@
         _toastEl = el;
         requestAnimationFrame(() => { if (el === _toastEl) el.classList.add('show'); });
         _toastTimer = setTimeout(hideToast, opts.duration || (opts.actionLabel ? 6000 : 3200));
+    }
+
+    /* ── Focus guard — a background update must never steal the caret ──────
+       A toast, a realtime echo, a tab-return refresh, or a sibling card's
+       after-save repaint can rebuild the very DOM node the user is typing in.
+       A bare innerHTML / replaceWith then destroys that field and kicks focus
+       (and the caret) out — the "Approve pulls me out of the field" bug. These
+       three primitives let any re-render preserve the active input: capture the
+       focused INPUT/TEXTAREA by a signature that survives the rebuild (its id,
+       else its oninput handler string, else its name) + caret, run the render,
+       then re-focus the matching field in the fresh DOM and restore selection.
+       No-ops when nothing is focused or the focused node isn't a text field, so
+       it is always safe to wrap a render — even a background one. */
+    function _svFieldSig(el) {
+        if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA')) return '';
+        if (el.id) return '#' + el.id;
+        const oi = el.getAttribute && el.getAttribute('oninput');
+        if (oi) return 'oninput=' + oi;
+        if (el.name) return 'name=' + el.name;
+        return '';
+    }
+    function _svCaptureFocus(root) {
+        const a = (typeof document !== 'undefined') ? document.activeElement : null;
+        if (!a) return null;
+        if (root && !(root.contains && root.contains(a))) return null;   // focus isn't in the region being rebuilt
+        const sig = _svFieldSig(a);
+        if (!sig) return null;
+        const cap = { sig, start: null, end: null, dir: 'none' };
+        try { cap.start = a.selectionStart; cap.end = a.selectionEnd; cap.dir = a.selectionDirection || 'none'; } catch (e) {}
+        return cap;
+    }
+    function _svRestoreFocus(cap) {
+        if (!cap || !cap.sig) return;
+        let el = null;
+        if (cap.sig.charAt(0) === '#') el = document.getElementById(cap.sig.slice(1));
+        if (!el) {
+            const nodes = document.querySelectorAll('input, textarea');
+            for (let i = 0; i < nodes.length; i++) { if (_svFieldSig(nodes[i]) === cap.sig) { el = nodes[i]; break; } }
+        }
+        if (!el) return;
+        try {
+            if (document.activeElement !== el) el.focus();
+            if (cap.start != null && typeof el.setSelectionRange === 'function') el.setSelectionRange(cap.start, cap.end, cap.dir);
+        } catch (e) {}
+    }
+    function _svPreserveFocus(render, root) {
+        const cap = _svCaptureFocus(root);
+        const out = render();
+        if (cap) _svRestoreFocus(cap);
+        return out;
     }
 
     const SHEET_ID    = '10QQnWOQY73Aj44R8AumYJzFpxMd_bZZiCMXkZ6QqAU8';
@@ -33681,7 +33740,13 @@
             </div>
             <div class="kasper-history-body">${waitingBody}</div>
         </div>`;
-        host.innerHTML = head + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
+        // A full-queue rebuild (e.g. an approve that clears a card, or a
+        // background realtime reload) must not yank the caret out of a draft
+        // Kasper is typing in ANOTHER card. Preserve focus across the innerHTML
+        // swap, gated to #kasperContent so we never steal focus from elsewhere.
+        _svPreserveFocus(() => {
+            host.innerHTML = head + waitingHtml + _sxrKasperRenderTweaksSection(tweaks) + _sxrKasperRenderHistorySection();
+        }, host);
     }
     function _sxrKasperRenderTweaksSection(tweaks) {
         if (!tweaks.length) return '';
@@ -33826,8 +33891,14 @@
         const it = _sxrKasperFindItem(pid); if (!it) return;
         const sel = (window.CSS && CSS.escape) ? CSS.escape(pid) : pid;
         const el = document.querySelector(`[data-sxr-kasper-pid="${sel}"]`); if (!el) return;
+        // Preserve the caret: if Kasper is typing a tweak/comment in this card
+        // when an after-save repaint fires, a bare replaceWith destroys that
+        // textarea and kicks focus out. Capture (gated to this card) before the
+        // swap, restore against the fresh DOM after. (Mirrors _kasperRepaintCard.)
+        const cap = _svCaptureFocus(el);
         const tmp = document.createElement('div'); tmp.innerHTML = _sxrKasperRenderCard(it);
         if (tmp.firstElementChild) el.replaceWith(tmp.firstElementChild);
+        _svRestoreFocus(cap);
     }
     function _sxrKasperOnDraftInput(ta, pid, comp) {
         const key = pid + '|' + comp; _sxrKasperState.drafts[key] = ta.value;
@@ -36738,6 +36809,10 @@
         modal: { open: false, client: '', credentials: [], loading: false, error: null, loaded: false },
     };
     const _ccRevealed = new Set();
+    // Which client cards are expanded in the Kasper list. Empty = every client
+    // collapsed by default (the list opens as a tidy client index); a slug is
+    // added when the user opens that card and survives background repaints.
+    const _ccExpanded = new Set();
     let _ccIdentityPromise = null;
     let _ccRevKasperChannel = null, _ccRevModalChannel = null, _ccRevModalSlug = null;
     let _ccRevKasperTimer = null, _ccRevModalTimer = null;
@@ -36920,7 +36995,6 @@
                     <input class="cc-search" id="ccKasperSearch" placeholder="Search client, platform, handle, notes…" value="${_ccEscAttr(_ccState.kasper.search)}" oninput="_ccSetKasperSearch(this.value)">
                     <button class="cc-btn" type="button" onclick="_ccLoadKasper(false)">Refresh</button>
                     <button class="cc-btn primary" type="button" onclick="_ccOpenEdit('', 'kasper')">Add credential</button>
-                    <button class="cc-btn" type="button" onclick="_ccOpenBulkImport()">Bulk import</button>
                 </div>
             </div>
             <div class="cc-body" id="ccKasperBody"></div>
@@ -36966,7 +37040,7 @@
         if (_ccState.kasper.loading && !_ccState.kasper.loaded) { body.innerHTML = _calLoaderHtml('Loading credentials…'); return; }
         if (_ccState.kasper.error) { body.innerHTML = `<div class="cc-empty"><strong>Could not load credentials.</strong><br>${_ccEsc(_ccState.kasper.error)}</div>`; return; }
         const rows = _ccFilteredKasperRows();
-        if (!rows.length) { body.innerHTML = `<div class="cc-empty">No credentials found yet.${_ccState.kasper.search ? '<br>Try a different search.' : '<br>Use Add credential or Bulk import to start.'}</div>`; return; }
+        if (!rows.length) { body.innerHTML = `<div class="cc-empty">No credentials found yet.${_ccState.kasper.search ? '<br>Try a different search.' : '<br>Use Add credential to start.'}</div>`; return; }
         const grouped = new Map();
         rows.forEach(r => {
             const key = String(r.client_slug || 'unknown');
@@ -36981,15 +37055,34 @@
         const unmatched = rows.some(_ccIsUnmatched);
         const clientName = first.client_name || _ccClientNameForSlug(slug);
         const addClientArg = _jsAttrArg(slug);
-        return `<div class="cc-card${unmatched ? ' needs-review' : ''}">
+        const slugArg = _jsAttrArg(slug);
+        // In the Kasper list every client is collapsed by default; the header
+        // acts as a disclosure control (the client name, credential count and
+        // any "needs review" chip stay visible while collapsed). The modal
+        // (single client) is never collapsible.
+        const collapsible = scope === 'kasper';
+        const open = !collapsible || _ccExpanded.has(slug);
+        const titleHtml = `<div><div class="cc-client">${unmatched ? 'Unmatched / needs review: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">needs review</span>' : ''}</div></div>`;
+        const headMain = collapsible
+            ? `<button class="cc-card-toggle" type="button" aria-expanded="${open ? 'true' : 'false'}" aria-label="Expand or collapse ${_ccEscAttr(clientName)}" onclick="_ccToggleCard(${slugArg}, this)">${CC_ICON_CHEV}${titleHtml}</button>`
+            : titleHtml;
+        return `<div class="cc-card${unmatched ? ' needs-review' : ''}${collapsible ? ' cc-collapsible' : ''}${open ? ' cc-open' : ''}">
             <div class="cc-card-head">
-                <div><div class="cc-client">${unmatched ? 'Unmatched / needs review: ' : ''}${_ccEsc(clientName)}</div><div class="cc-client-meta"><span>${rows.length} credential${rows.length === 1 ? '' : 's'}</span>${unmatched ? '<span class="cc-chip warn">needs review</span>' : ''}</div></div>
+                ${headMain}
                 <div class="cc-actions">
                     ${scope === 'kasper' ? `<button class="cc-btn" type="button" onclick="_ccOpenHistory('', ${addClientArg})">History</button><button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'kasper', ${addClientArg})">Add</button>` : `<button class="cc-btn" type="button" onclick="_ccOpenEdit('', 'modal')">Add</button>`}
                 </div>
             </div>
             <div class="cc-rows">${rows.map(r => _ccRowHtml(r, scope)).join('')}</div>
         </div>`;
+    }
+    function _ccToggleCard(slug, btn) {
+        const card = btn && btn.closest ? btn.closest('.cc-card') : null;
+        if (!card) return;
+        const willOpen = !card.classList.contains('cc-open');
+        if (willOpen) _ccExpanded.add(slug); else _ccExpanded.delete(slug);
+        card.classList.toggle('cc-open', willOpen);
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
     }
 
     function _ccRowHtml(r, scope) {
@@ -36999,14 +37092,18 @@
         const revealed = _ccRevealed.has(r.id);
         const pass = hasPw ? (revealed ? _ccEsc(r.password) : CC_MASK) : 'empty';
         const statusChip = r.status === 'needs_review' ? '<span class="cc-chip warn">needs review</span>' : (r.status === 'archived' ? '<span class="cc-chip">archived</span>' : '');
-        const updated = `Updated ${_ccPrettyDate(r.updated_at)}${r.updated_by ? ' by ' + _ccEsc(r.updated_by) : ''}`;
+        // The inline "Updated {time} by {person}" line was removed for every role —
+        // clicking History gives the full, audited change log. Only the notes (and
+        // the reassign control for unmatched rows) remain under the platform.
         const reassign = (scope === 'kasper' && _ccIsUnmatched(r)) ? _ccReassignHtml(r) : '';
+        const metaHtml = r.notes ? _ccEsc(r.notes) : '';
+        const footHtml = (metaHtml || reassign) ? `<div class="cc-updated">${metaHtml}${reassign}</div>` : '';
         return `<div class="cc-row" data-cc-id="${_ccEscAttr(r.id)}">
             <div class="cc-platform"><strong>${_ccEsc(_ccPlatformLabel(r.platform))}</strong>${statusChip ? `<span>${statusChip}</span>` : ''}</div>
             <div class="cc-handle"><code>${r.handle ? _ccEsc(r.handle) : 'no handle'}</code>${r.handle ? `<button class="cc-mini" type="button" title="Copy handle" aria-label="Copy handle" onclick="_ccCopyText(${_jsAttrArg(r.handle)}, 'Handle copied')">${CC_ICON_COPY}</button>` : ''}</div>
             <div class="cc-secret"><code>${pass}</code>${hasPw ? `<button class="cc-mini${revealed ? ' is-active' : ''}" type="button" title="${revealed ? 'Hide password' : 'Reveal password'}" aria-label="${revealed ? 'Hide password' : 'Reveal password'}" onclick="_ccReveal(${idArg}, ${scopeArg})">${revealed ? CC_ICON_EYE_OFF : CC_ICON_EYE}</button><button class="cc-mini" type="button" title="Copy password" aria-label="Copy password" onclick="_ccCopyPassword(${idArg}, ${scopeArg})">${CC_ICON_COPY}</button>` : ''}</div>
             <div class="cc-row-actions"><button class="cc-mini" type="button" title="History" aria-label="History" onclick="_ccOpenHistory(${idArg})">${CC_ICON_HISTORY}</button><button class="cc-mini" type="button" title="Edit" aria-label="Edit" onclick="_ccOpenEdit(${idArg}, ${scopeArg})">${CC_ICON_EDIT}</button><button class="cc-mini" type="button" title="Archive" aria-label="Archive" onclick="_ccArchive(${idArg}, ${scopeArg})">${CC_ICON_ARCHIVE}</button></div>
-            <div class="cc-updated">${updated}${r.notes ? ' · ' + _ccEsc(r.notes) : ''}${reassign}</div>
+            ${footHtml}
         </div>`;
     }
 
@@ -37023,15 +37120,18 @@
         } catch { window.prompt('Copy:', String(text || '')); }
     }
 
-    async function _ccReveal(id, scope) {
+    function _ccReveal(id, scope) {
         const row = _ccFind(id); if (!row || !row.password) return;
-        if (_ccRevealed.has(id)) {
-            _ccRevealed.delete(id);
-        } else {
-            await _ccApi('log_reveal', { credential_id: id }, { role: _ccIdentityRole(scope) });
-            _ccRevealed.add(id);
-        }
+        // Reveal must be INSTANT. The password is already in hand (it came down
+        // with the list), so flip the mask + repaint synchronously first; the
+        // ~2s stall was the log_reveal round-trip being awaited before the
+        // repaint. Only the SHOW direction is audited, fire-and-forget — a
+        // failed audit call never blocks or reverts the reveal the user asked
+        // for (and hiding needs no server call at all).
+        const revealing = !_ccRevealed.has(id);
+        if (revealing) _ccRevealed.add(id); else _ccRevealed.delete(id);
         if (scope === 'modal') _ccPaintModal(); else _ccPaintKasper();
+        if (revealing) { try { _ccApi('log_reveal', { credential_id: id }, { role: _ccIdentityRole(scope) }).catch(() => {}); } catch (e) {} }
     }
 
     async function _ccCopyPassword(id, scope) {
@@ -37190,7 +37290,7 @@
         let ov = document.getElementById('ccOverlay');
         if (!ov) { ov = document.createElement('div'); ov.id = 'ccOverlay'; ov.className = 'cal-import-overlay cc-overlay open'; document.body.appendChild(ov); }
         ov.classList.add('open');
-        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-ghost" type="button" onclick="_ccCloseModal()">Close</button><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
+        ov.innerHTML = `<div class="cal-import-modal cc-modal-wide" role="dialog" aria-modal="true"><div class="cal-import-head"><button class="cal-import-x" type="button" onclick="_ccCloseModal()">×</button><h3>${_ccEsc(clientName)} credentials</h3><p>View, copy, and update this client's account access.</p></div><div class="cal-import-body" id="ccModalBody"></div><div class="cal-import-foot"><button class="cal-import-btn-primary" type="button" onclick="_ccOpenEdit('', 'modal')">Add credential</button></div></div>`;
         ov.onclick = e => { if (e.target === ov) _ccCloseModal(); };
         _ccPaintModal(); _ccLoadModal(false); _ccRevEnsureSubscribed('modal');
     }

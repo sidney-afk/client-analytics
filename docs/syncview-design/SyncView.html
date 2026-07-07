@@ -402,7 +402,7 @@ function projSVG(key){const c=PSTATUS[key].color;let extra="";
   const dash=key==="backlog"?' stroke-dasharray="1.65 1.35"':'';return '<svg width="16" height="16" viewBox="-1 -1 16 16"><path d="'+HEX+'" fill="none" stroke="'+c+'" stroke-width="1.4" stroke-linejoin="round"'+dash+'/>'+extra+'</svg>';}
 function avatar(aid,size){const s=size||16;if(!aid||!EDITORS[aid])return '<span class="av empty" style="width:'+s+'px;height:'+s+'px"><svg width="'+(s*0.6)+'" height="'+(s*0.6)+'" viewBox="0 0 16 16" fill="none" stroke="var(--faint)" stroke-width="1.4"><circle cx="8" cy="6" r="2.2"/><path d="M4 12a4 4 0 0 1 8 0"/></svg></span>';const e=EDITORS[aid];return '<span class="av" style="width:'+s+'px;height:'+s+'px;background:'+e.color+';font-size:'+(s*0.44)+'px">'+e.init+'</span>';}
 
-const S={view:{type:"issues",team:"video"},groupBy:"status",selected:new Set(),open:null,nav:[],projectOpen:null,collapsed:new Set(),teamOpen:{video:true,graphics:true},secOpen:{ws:true,teams:true,fav:true},colCollapsed:new Set(),lastSel:null,tab:"active",filters:[],focusRow:null,focusCard:null,selAnchor:null,cardSel:new Set(),cardAnchor:null,editComment:null,draft:{}};
+const S={view:{type:"issues",team:"video"},groupBy:"status",orderBy:"due",showSubIssues:true,selected:new Set(),open:null,nav:[],projectOpen:null,collapsed:new Set(),teamOpen:{video:true,graphics:true},secOpen:{ws:true,teams:true,fav:true},colCollapsed:new Set(),lastSel:null,tab:"active",filters:[],focusRow:null,focusCard:null,selAnchor:null,cardSel:new Set(),cardAnchor:null,editComment:null,draft:{}};
 const $=s=>document.querySelector(s);
 const esc=s=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const linkify=s=>{s=esc(s);var st=[];var keep=function(h){st.push(h);return "XMDTOK"+(st.length-1)+"ENDMDTOK";};
@@ -429,9 +429,13 @@ ISSUES.forEach(function(i){if(i.sub&&!REALPARENTS.has(i.id))i.sub=null;});
 function subProg(it){const kids=ISSUES.filter(x=>x.parent===it.id);if(kids.length||REALPARENTS.has(it.id))return{done:kids.filter(k=>STATUS[k.status]&&STATUS[k.status].type==="completed").length,total:kids.length};return it.sub?{done:it.sub[0],total:it.sub[1]}:null;}
 function pcount(p){return p.client?ISSUES.filter(x=>x.project===p.client&&!x.parent).length:0;}
 function childrenOf(id){return ISSUES.filter(x=>x.parent===id);}
-function curIssues(){return ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})
+function visibleSubIssues(list){if(S.showSubIssues!==false)return list;const ids=new Set(list.map(i=>i.id));return list.filter(i=>!(i.parent&&ids.has(i.parent)));}
+function issueOrderValue(i,k){if(k==="created")return i.created||"";if(k==="updated")return i.updated||i.created||"";return i.due||"ZZZ";}
+function issueOrderCompare(a,b){const s=STATUS_ORDER.indexOf(a.status)-STATUS_ORDER.indexOf(b.status);if(s)return s;const k=S.orderBy||"due";const av=issueOrderValue(a,k),bv=issueOrderValue(b,k);const d=String(av).localeCompare(String(bv));if(d)return k==="created"||k==="updated"?-d:d;return String(a.title||a.id).localeCompare(String(b.title||b.id));}
+function orderIssues(list){return list.slice().sort(issueOrderCompare);}
+function curIssues(){return orderIssues(visibleSubIssues(ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})
   .filter(i=>{if(S.tab==="active")return["prog","smm","kasper","tweak","client","todo","scheduled"].includes(i.status);if(S.tab==="backlog")return i.status==="backlog"||i.status==="triage";return true;})
-  .filter(matchFilters);}
+  .filter(matchFilters)));}
 
 function navItem(icon,label,o){o=o||{};return '<button class="nav-i '+(o.cls||"")+' '+(o.on?"on":"")+'" '+(o.nav?'data-nav="'+o.nav+'"':"")+' data-tip="'+(o.tip||label)+'"><span class="ico">'+icon+'</span><span class="lbl">'+label+'</span></button>';}
 function openPCardMenu(x,y,pid){var items=[["Change status","pstatus"],["Set lead","plead"],["Set target","ptarget"],["sep"],["Copy link","copy"]];var html=items.map(function(o){if(o[0]==="sep")return '<div class="msep"></div>';return '<div class="mi" data-pcm="'+o[1]+'"><span class="mlbl">'+o[0]+'</span></div>';}).join("");var pp=layerPop(html,x,y);[].forEach.call(pp.querySelectorAll("[data-pcm]"),function(el){el.onclick=function(){var a=el.getAttribute("data-pcm");clearLayer();if(a==="copy"){toast("Link copied");return;}openPPick(a,x,y,pid);};});}
@@ -535,8 +539,8 @@ function renderDetail(){const i=byId(S.open);if(!i)return renderList();const st=
 function openIssue(id){if(!byId(id))return;if(id===S.open)return;if(S.open)S.nav.push(S.open);S.open=id;S.selected.clear();S.editComment=null;hideTip();render();pushLoc();}
 function goBack(){history.back();}
 function backToList(){S.open=null;S.nav=[];hideTip();render();replaceLoc();}
-function snapshot(){return {view:S.view,open:S.open,projectOpen:S.projectOpen,nav:[...S.nav],filters:(S.filters||[]).map(c=>({field:c.field,values:[...c.values]})),tab:S.tab,groupBy:S.groupBy};}
-function restore(st){if(!st)return;S.view=st.view||{type:"issues",team:"video"};S.open=st.open||null;S.projectOpen=st.projectOpen||null;S.nav=[...(st.nav||[])];S.filters=(st.filters||[]).map(c=>({field:c.field,values:[...c.values]}));S.tab=st.tab||"active";S.groupBy=st.groupBy||"status";S.selected.clear();S.editComment=null;}
+function snapshot(){return {view:S.view,open:S.open,projectOpen:S.projectOpen,nav:[...S.nav],filters:(S.filters||[]).map(c=>({field:c.field,values:[...c.values]})),tab:S.tab,groupBy:S.groupBy,orderBy:S.orderBy,showSubIssues:S.showSubIssues};}
+function restore(st){if(!st)return;S.view=st.view||{type:"issues",team:"video"};S.open=st.open||null;S.projectOpen=st.projectOpen||null;S.nav=[...(st.nav||[])];S.filters=(st.filters||[]).map(c=>({field:c.field,values:[...c.values]}));S.tab=st.tab||"active";S.groupBy=st.groupBy||"status";S.orderBy=st.orderBy||"due";S.showSubIssues=st.showSubIssues!==false;S.selected.clear();S.editComment=null;}
 let popping=false;
 function sameLoc(a,b){return !!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);}
 function pushLoc(){if(popping)return;const s=snapshot();if(sameLoc(history.state,s))return;history.pushState(s,"");}
@@ -622,7 +626,7 @@ function openSearch(){var L=$("#layer");L.innerHTML="";L.style.pointerEvents="au
     if(!q){ISSUES.filter(function(i){return !i.parent;}).slice(0,6).forEach(function(i){results.push({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id});});CMDS.forEach(function(cm){results.push({type:"command",title:cm.t,icon:I.issues,meta:"Command",run:cm.run});});}
     else{
       CMDS.forEach(function(cm){if(cm.t.toLowerCase().indexOf(q)>=0)results.push({type:"command",title:cm.t,icon:I.issues,meta:"Command",run:cm.run});});
-      ISSUES.forEach(function(i){if((i.title||"").toLowerCase().indexOf(q)>=0||i.id.toLowerCase().indexOf(q)>=0)results.push({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id});});
+      ISSUES.forEach(function(i){if((i.title||"").toLowerCase().indexOf(q)>=0||i.id.toLowerCase().indexOf(q)>=0||(i.desc||"").toLowerCase().indexOf(q)>=0)results.push({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id});});
       CLIENTS.forEach(function(c){if((c.name||"").toLowerCase().indexOf(q)>=0)results.push({type:"project",id:c.id,title:c.name,icon:projSVG(c.status),meta:"Project"});});
       Object.keys(EDITORS).forEach(function(k){var ed=EDITORS[k];if((ed.name||"").toLowerCase().indexOf(q)>=0)results.push({type:"person",id:k,title:ed.name,icon:avatar(k,16),meta:"Assignee"});});
     }
@@ -755,16 +759,18 @@ function openContextMenu(x,y,id){const ids=targetIds(id);
       if(act==="copy"){const t=targetIds(id);clearLayer();toast(t.length>1?t.length+" links copied":"Link copied");return;}
       if(act==="del"){const _fidx=S.focusRow?flatOrder().indexOf(S.focusRow):-1;const t=targetIds(id);const removed=captureDelete(t);const n=removed.length;S.selected.clear();const wasOpen=t.includes(S.open);clearLayer();if(wasOpen){S.open=null;S.nav=[];}else if(_fidx>=0&&S.focusRow&&!byId(S.focusRow)){const _fo=flatOrder();S.focusRow=_fo.length?_fo[Math.min(_fidx,_fo.length-1)]:null;}render();toastUndo("Deleted "+n+" issue"+(n>1?"s":""),function(){undoDelete(removed);});return;}
       clearLayer();};});}
-function openGroupMenu(x,y){const opts=[["status","Status"],["project","Client / project"],["assignee","Assignee"]];
-  const p=layerPop('<div class="pop-hd">Group by</div>'+opts.map(o=>'<div class="mi" data-grp="'+o[0]+'"><span class="mlbl">'+o[1]+'</span>'+(S.groupBy===o[0]?'<span class="tick">'+I.check+'</span>':"")+'</div>').join(""),x,y);
-  p.querySelectorAll("[data-grp]").forEach(el=>el.onclick=()=>{S.groupBy=el.getAttribute("data-grp");clearLayer();render();replaceLoc();});}
+function openGroupMenu(x,y){const opts=[["status","Status"],["project","Client / project"],["assignee","Assignee"]],orders=[["due","Due date"],["updated","Updated"],["created","Created"]];
+  const p=layerPop('<div class="pop-hd">Display</div><div class="mi" data-subtoggle="1"><span class="mlbl">Show sub-issues</span>'+(S.showSubIssues!==false?'<span class="tick">'+I.check+'</span>':"")+'</div><div class="msep"></div><div class="pop-hd">Group by</div>'+opts.map(o=>'<div class="mi" data-grp="'+o[0]+'"><span class="mlbl">'+o[1]+'</span>'+(S.groupBy===o[0]?'<span class="tick">'+I.check+'</span>':"")+'</div>').join("")+'<div class="msep"></div><div class="pop-hd">Ordering</div>'+orders.map(o=>'<div class="mi" data-order="'+o[0]+'"><span class="mlbl">'+o[1]+'</span>'+((S.orderBy||"due")===o[0]?'<span class="tick">'+I.check+'</span>':"")+'</div>').join(""),x,y);
+  p.querySelector("[data-subtoggle]").onclick=()=>{S.showSubIssues=S.showSubIssues===false;S.selected.clear();clearLayer();render();replaceLoc();};
+  p.querySelectorAll("[data-grp]").forEach(el=>el.onclick=()=>{S.groupBy=el.getAttribute("data-grp");clearLayer();render();replaceLoc();});
+  p.querySelectorAll("[data-order]").forEach(el=>el.onclick=()=>{S.orderBy=el.getAttribute("data-order")||"due";clearLayer();render();replaceLoc();});}
 function openFilterMenu(x,y){const meActive=(condFor("assignee")||{values:[]}).values.includes("sl");
   let rows='<div class="pop-hd">Filter</div><div class="mi" data-fquick="me"><span class="mic">'+avatar("sl",16)+'</span><span class="mlbl">Assigned to me</span>'+(meActive?'<span class="tick">'+I.check+'</span>':'')+'</div><div class="msep"></div>'+
     FIELD_ORDER.map(fk=>{const f=FILTERFIELDS[fk];const c=condFor(fk);const n=c?c.values.length:0;return '<div class="mi" data-ffield="'+fk+'"><span class="mic">'+f.fieldIcon()+'</span><span class="mlbl">'+f.label+'</span>'+(n?'<span class="kbd">'+n+'</span>':'')+'<span class="chev">'+I.chevR+'</span></div>';}).join("");
   const p=layerPop(rows,x,y);
   p.querySelector("[data-fquick]").onclick=()=>{toggleFilterValue("assignee","sl");clearLayer();};
   p.querySelectorAll("[data-ffield]").forEach(el=>{const fk=el.getAttribute("data-ffield");el.addEventListener("mouseenter",()=>openFilterSub(el,fk));el.onclick=()=>openFilterSub(el,fk);});}
-function curIssuesUnfiltered(){return ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;});}
+function curIssuesUnfiltered(){return orderIssues(visibleSubIssues(ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})));}
 
 function flatOrder(){const out=[];groupsFor(curIssues()).forEach(g=>{if(!S.collapsed.has(g.key))g.items.forEach(i=>out.push(i.id))});return out;}
 function reconcileSel(){var vis=new Set(curIssues().map(function(i){return i.id;}));[...S.selected].forEach(function(id){if(!vis.has(id))S.selected.delete(id);});}

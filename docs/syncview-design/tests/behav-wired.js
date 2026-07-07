@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 138;
+const TOTAL = 143;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -111,6 +111,8 @@ async function txt(page, sel) {
       _prodState.openBatchId = '';
       _prodState.tab = 'active';
       _prodState.groupBy = 'status';
+      _prodState.orderBy = 'due';
+      _prodState.showSubIssues = true;
       _prodState.filters = [];
       _prodState.collapsed = new Set();
       _prodState.colCollapsed = new Set();
@@ -121,6 +123,8 @@ async function txt(page, sel) {
       _prodState.cardSel = new Set();
       _prodState.cardAnchor = '';
       _prodState.listScrollTop = 0;
+      try { localStorage.removeItem('syncview_prod_display_v1'); } catch (e) {}
+      try { _prodSetQuery({}, false); } catch (e) {}
       window._prodRender();
     });
   };
@@ -146,7 +150,7 @@ async function txt(page, sel) {
     await ok('chip', async () => {
       const slug = await page.locator('.prod-row').first().getAttribute('data-prod-client');
       await page.locator('.prod-row .prod-chip-client').first().click();
-      return await page.evaluate(s => _prodState.clientSlug === s && _prodState.view === 'list' && !_prodState.openId, slug);
+      return await page.evaluate(s => _prodState.view === 'project' && _prodState.openProjectId === s && !_prodState.clientSlug && !_prodState.openId, slug);
     }); await reset();
     await ok('due', async () => {
       await page.locator('.prod-row .prod-due').first().click();
@@ -286,7 +290,10 @@ async function txt(page, sel) {
       if (!name) return true;
       await page.locator('.prod-search-btn').click();
       await page.fill('.prod-cmd-input', name);
-      await page.keyboard.press('Enter');
+      await page.evaluate(() => {
+        const row = [...document.querySelectorAll('.prod-cmd-item')].find(el => (el.querySelector('.cmeta')?.textContent || '').trim() === 'Assignee');
+        if (row) row.click();
+      });
       return await page.evaluate(() => _prodState.filters.some(f => f.field === 'assignee') && _prodIssueRows().length > 0);
     }); await reset();
     await ok('jkNav', async () => {
@@ -423,7 +430,10 @@ async function txt(page, sel) {
       await page.locator('.prod-pop [data-prod-grp="client"]').click();
       const key = await page.locator('.prod-group-title.navp[data-prod-project]').first().getAttribute('data-prod-project');
       await page.locator('.prod-group-title.navp[data-prod-project]').first().click();
-      return await page.evaluate(k => _prodState.clientSlug === k && !_prodState.collapsed.has(k), key);
+      return await page.evaluate(k => {
+        const rows = [...document.querySelectorAll('[data-prod-project-issue]')].map(el => _prodIssue(el.getAttribute('data-prod-project-issue')));
+        return _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug && rows.every(r => r && r.project === k && !r.parent);
+      }, key);
     }); await reset();
     await ok('kbSelPriority', async () => {
       await page.evaluate(() => {
@@ -989,9 +999,11 @@ async function txt(page, sel) {
       const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
+      await page.waitForSelector('#prodLayer [data-prod-ctx="status"]', { timeout: 5000 });
       await page.evaluate(() => {
-        const el = document.querySelector('#prodLayer [data-prod-ctx="status"]');
-        if (el && typeof _prodOpenSub === 'function') _prodOpenSub(el, 'status', Array.from(_prodState.selected || []));
+        if (!document.querySelector('#prodLayer [data-prod-pick]')) {
+          document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        }
       });
       await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
@@ -1242,6 +1254,86 @@ async function txt(page, sel) {
       await page.locator('#prodGroupBtn').click();
       await page.locator('.prod-pop [data-prod-grp="client"]').click();
       return await page.evaluate(() => _prodState.groupBy === 'client');
+    }); await reset();
+    await ok('showSubIssuesDisplayRule', async () => await page.evaluate(() => {
+      _prodState.view = 'list';
+      _prodState.team = 'all';
+      _prodState.clientSlug = '';
+      _prodState.tab = 'all';
+      _prodState.filters = [];
+      const issues = _prodIssues();
+      const parent = issues.find(p => issues.some(c => c.parent === p.id));
+      if (!parent) return true;
+      const child = issues.find(c => c.parent === parent.id);
+      const orphan = Object.assign({}, child, { id: child.id + '-orphan-display-test', displayId: 'ORPHAN-DISPLAY-TEST', parent: 'missing-parent-display-test', title: 'Orphan display test' });
+      issues.push(orphan);
+      try {
+        _prodState.showSubIssues = false;
+        _prodRender();
+        const childHidden = !document.querySelector('[data-prod-row="' + CSS.escape(child.id) + '"]');
+        const orphanKept = !!document.querySelector('[data-prod-row="' + CSS.escape(orphan.id) + '"]');
+        _prodState.showSubIssues = true;
+        _prodRender();
+        const childShown = !!document.querySelector('[data-prod-row="' + CSS.escape(child.id) + '"]');
+        return childHidden && orphanKept && childShown;
+      } finally {
+        const ix = issues.indexOf(orphan);
+        if (ix >= 0) issues.splice(ix, 1);
+        _prodState.showSubIssues = true;
+        _prodRender();
+      }
+    })); await reset();
+    await ok('orderingChangesRowOrder', async () => await page.evaluate(() => {
+      const issues = _prodIssues().slice(0, 2);
+      if (issues.length < 2) return true;
+      const [a, b] = issues;
+      const old = issues.map(i => ({ row: i, status: i.status, dueRaw: i.dueRaw, createdRaw: i.createdRaw, updatedRaw: i.updatedRaw }));
+      try {
+        _prodState.view = 'list';
+        _prodState.team = 'all';
+        _prodState.clientSlug = '';
+        _prodState.tab = 'all';
+        _prodState.filters = [];
+        a.status = 'todo'; b.status = 'todo';
+        a.dueRaw = '2027-01-10'; b.dueRaw = '2026-01-10';
+        a.createdRaw = '2026-02-10'; b.createdRaw = '2026-01-10';
+        a.updatedRaw = '2026-03-10'; b.updatedRaw = '2026-01-10';
+        _prodState.orderBy = 'due';
+        const due = _prodIssueRows().filter(i => i.id === a.id || i.id === b.id).map(i => i.id);
+        _prodState.orderBy = 'created';
+        const created = _prodIssueRows().filter(i => i.id === a.id || i.id === b.id).map(i => i.id);
+        return due[0] === b.id && created[0] === a.id;
+      } finally {
+        old.forEach(o => { o.row.status = o.status; o.row.dueRaw = o.dueRaw; o.row.createdRaw = o.createdRaw; o.row.updatedRaw = o.updatedRaw; });
+        _prodState.orderBy = 'due';
+        _prodRender();
+      }
+    })); await reset();
+    await ok('groupByChoicePersistsReload', async () => {
+      await page.locator('#prodGroupBtn').click();
+      await page.locator('.prod-pop [data-prod-grp="client"]').click();
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
+      return await page.evaluate(() => _prodState.groupBy === 'client' && JSON.parse(localStorage.getItem('syncview_prod_display_v1') || '{}').groupBy === 'client');
+    }); await reset();
+    await ok('paletteSearchBrief', async () => {
+      await page.evaluate(() => {
+        const i = _prodIssues()[0];
+        if (i) { i.__oldDescForTest = i.desc; i.desc = 'briefonlycodexneedle'; }
+      });
+      await page.locator('.prod-search-btn').click();
+      await page.fill('.prod-cmd-input', 'briefonlycodexneedle');
+      const found = await page.locator('.prod-cmd-item').count() > 0;
+      await page.evaluate(() => {
+        const i = _prodIssues()[0];
+        if (i && Object.prototype.hasOwnProperty.call(i, '__oldDescForTest')) { i.desc = i.__oldDescForTest; delete i.__oldDescForTest; }
+      });
+      return found;
+    }); await reset();
+    await ok('rowClientChipProjectPath', async () => {
+      const slug = await page.locator('.prod-row .prod-chip-client').first().getAttribute('data-prod-crumbclient');
+      await page.locator('.prod-row .prod-chip-client').first().click();
+      return await page.evaluate(k => _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug, slug);
     }); await reset();
     await ok('rowStatusGuard', async () => await guardClick('.prod-row .prod-status', '.prod-pop [data-prod-pick]')); await reset();
     await ok('rowDueGuard', async () => await guardClick('.prod-row .prod-due', '.prod-pop [data-prod-day]')); await reset();

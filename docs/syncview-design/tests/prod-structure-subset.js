@@ -171,6 +171,10 @@ async function assertNoWriteRequests(requests) {
     await expectExactCount(page, '.prod-filter-pill.interactive', 0, 'Remove filter clears pill');
     await page.locator('#prodGroupBtn').click();
     await expectCount(page, '.prod-pop [data-prod-grp="status"]', 1, 'Display menu status grouping');
+    await expectCount(page, '.prod-pop [data-prod-show-subissues]', 1, 'Display menu Show sub-issues toggle');
+    await expectCount(page, '.prod-pop [data-prod-order="due"]', 1, 'Display menu due ordering');
+    await expectCount(page, '.prod-pop [data-prod-order="updated"]', 1, 'Display menu updated ordering');
+    await expectCount(page, '.prod-pop [data-prod-order="created"]', 1, 'Display menu created ordering');
     await page.locator('.prod-pop [data-prod-grp="assignee"]').click();
     if (!(await page.evaluate(() => _prodState.groupBy === 'assignee'))) throw new Error('Display menu did not switch to assignee grouping');
     await page.locator('#prodGroupBtn').click();
@@ -262,6 +266,10 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'detail context Copy link item');
     await page.keyboard.press('Escape');
     await expectExactCount(page, '.prod-pop', 0, 'Escape closes detail context menu');
+    await page.evaluate(id => {
+      if (_prodState.view !== 'detail' || _prodState.openId !== id) window._prodOpenDeliverable(id);
+    }, firstRowId);
+    await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
     if (await page.locator('[data-prod-crumb-batch]').count()) {
       await page.locator('[data-prod-crumb-batch]').first().click();
       await page.waitForSelector('.prod-detail-title', { timeout: 10000 });

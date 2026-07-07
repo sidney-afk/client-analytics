@@ -21,6 +21,9 @@ const wired = fs.readFileSync(wiredPath, 'utf8');
 
 const PAIRS = [
   ['statusSVG', '_prodStatusSVG'],
+  ['visibleSubIssues', '_prodApplySubIssueVisibility'],
+  ['issueOrderValue', '_prodIssueOrderValue'],
+  ['issueOrderCompare', '_prodIssueOrderCompare'],
   ['renderSidebar', '_prodSidebar'],
   ['groupsFor', '_prodGroupsFor'],
   ['rowHTML', '_prodRow'],

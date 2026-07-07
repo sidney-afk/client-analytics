@@ -62,6 +62,14 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Status submenu search/header row | live Linear status submenu / `pickerHTML` | ✅ | Live "Change status..." search row is already present in prototype and wired status pickers; `pixel-wired.js` covers context status submenu inventory. |
 | Removed context-menu breadth | live Linear row context menu | 🔒 | Priority, Labels, Cycle, Create related, Move, Subscribe, Remind me, and similar live-only entries stay out of the simplified skeleton unless owner expands scope. |
 
+## 2026-07-07 Live Linear Parity Cycle 8
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle rechecked row context menu and status submenu DOM/chrome; 20 visible rows before and after, `changed:false`. |
+| Status submenu order and key hints | live Linear status submenu / `STATUS_ORDER`, `pickerHTML` | ✅ | Live status picker presents Backlog first, Triage last, numbered hints, and the "Change status..." search row; prototype and wired already match and `pixel-wired.js` enforces the status picker order/hints. |
+| Removed context-menu breadth | live Linear row context menu | 🔒 | Extra live rows remain out of scope unless the owner expands the simplified skeleton. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

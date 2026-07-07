@@ -58,6 +58,13 @@ No code change was made in this cycle. The allowed status-submenu chrome observe
 
 Private local evidence: `.codex-tmp/linear-live-cycle7/before-after-compare.json` plus local screenshots for row context menu, status/assignee/due/project submenu hovers, and issue detail.
 
+# Live Linear parity cycle 8 - 2026-07-07
+Read-only observation rechecked the live row context menu and status submenu DOM/chrome after the owner reiterated the safety rule. No mutating menu item, status value, issue field, picker value, drag, edit, save, or create path was clicked. Before/after visible issue snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+No code change was made in this cycle. Live Linear's status submenu showed the same allowed shape already present in the prototype and wired tab: "Change status..." search row, numbered hints, Backlog first, and Triage last. The remaining extra live context-menu rows are still locked removed-skeleton scope.
+
+Private local evidence: `.codex-tmp/linear-live-cycle8/before-after-compare.json` plus local screenshots for row context menu and status submenu.
+
 # ✅ BEHAVIORAL PARITY DONE — 2026-07-05
 SyncView now behaves like real Linear across every surface. **11 adversarial re-audits** run (5 parallel agents vs live Linear each); the finding count converged **22→20→12→11→13→15→9→8→11→10→7**, and the **last SIX all returned 0 high-severity / 0 regressions** — remaining findings are deep polish + intentional skeleton/layout limitations, not defects. **~115 divergences closed** across the behavioral phase. Regression suite: **`behav.js` 138 assertions (all green)**, `qa-features.js` GREEN, `sweep.js` CLEAN, **0 JS errors** throughout.
 **All real features shipped:** live row-glyph clicks (chip→profile / due→picker / avatar+status pickers); full list multi-select (checkbox/x/Cmd-click/Shift-click/Shift-arrows) + bulk action bar w/ inline quick-actions; keyboard model (j/k, Enter focused-or-hovered, s/a/⇧D/⇧P, ⌘K palette, Escape hierarchy); delete + comment-delete **Undo (Ctrl/⌘+Z)**; detail property pickers + calendar (arrow-nav, unified month paging, typed input); **Activity feed logs system events** (on the edited issue, wherever triggered); comment edit (blur discards); **board keyboard nav**; **board card multi-select** (mouse + `x`) + board bulk bar; truncation-aware tooltips; picker/filter "No results"; detail-panel scroll preservation.

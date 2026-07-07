@@ -141,6 +141,16 @@ async function detailSideInventory(page, cardSelector, headSelector, rowSelector
   })), { headSelector, rowSelector });
 }
 
+async function toolbarButtonInventory(page, selector) {
+  return page.locator(selector).evaluateAll(nodes => nodes.map(el => (
+    el.getAttribute('data-tip') ||
+    el.getAttribute('data-prod-tip') ||
+    el.getAttribute('title') ||
+    el.textContent ||
+    ''
+  ).replace(/\s+/g, ' ').trim()).filter(Boolean));
+}
+
 function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
   if (artifactRows.length !== wiredRows.length) {
     gaps.push({ rank: 1, state, message: `picker row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
@@ -926,6 +936,12 @@ async function run() {
     await wired.waitForSelector('.prod-detail');
     await requirePair(gaps, 'detail inventory', artifact, wired, '.ds-card', '.prod-side-card');
     await requirePair(gaps, 'detail inventory', artifact, wired, '.composer-box', '.prod-composer-box');
+    const detailToolbarButtonsA = await toolbarButtonInventory(artifact, '.topbar button');
+    const detailToolbarButtonsW = await toolbarButtonInventory(wired, '.prod-topbar button');
+    const lockedDetailToolbar = /^(Share|Workflow|Subscribe|Unsubscribe|Priority|Labels?|Cycle)$/i;
+    detailToolbarButtonsA.concat(detailToolbarButtonsW).forEach(label => {
+      if (lockedDetailToolbar.test(label)) gaps.push({ rank: 1, state: 'detail toolbar locked removals', message: `broader live detail toolbar button returned: ${label}` });
+    });
     const detailSideA = await detailSideInventory(artifact, '.detail-side .ds-card', '.ds-card-hd span:first-child', '.ds-row');
     const detailSideW = await detailSideInventory(wired, '.prod-right .prod-side-card', '.prod-side-card-head span:first-child', '.prod-side-row');
     if (detailSideA.length !== detailSideW.length) {

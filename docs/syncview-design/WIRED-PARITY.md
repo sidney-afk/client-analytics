@@ -666,3 +666,12 @@ Cycle 48 was local-only. `pixel-wired.js` now fails if My Issues reintroduces li
 |---|---:|---|
 | My Issues tab/create chrome | test-hardened | The simplified My Issues surface keeps the standard issue tabs and no create button; live Linear's Assigned/Created/Subscribed/Activity tabs and create empty state remain an owner-scope decision. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 49
+
+Cycle 49 was local-only. `pixel-wired.js` now fails if issue detail reintroduces broader live Linear toolbar controls while that product-scope decision remains unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Issue detail toolbar breadth | test-hardened | Share, workflow, subscribe, priority, labels, and cycle controls stay out of the simplified detail toolbar unless the owner expands scope. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

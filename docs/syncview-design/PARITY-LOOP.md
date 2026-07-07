@@ -930,3 +930,12 @@ Local artifact-vs-wired verification added a My Issues chrome guard. `pixel-wire
 |---|---:|---|
 | My Issues tab/create chrome | test-hardened | The simplified My Issues surface keeps the standard issue tabs and no create button; live Linear's Assigned/Created/Subscribed/Activity tabs and create empty state remain owner-scope decisions. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 49
+
+Local artifact-vs-wired verification added an issue-detail toolbar guard. `pixel-wired.js` now opens an issue detail and fails if broader live Linear toolbar controls return while the owner decision remains unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Issue detail toolbar breadth | test-hardened | Share, workflow, subscribe, priority, labels, and cycle controls stay out of the simplified detail toolbar unless the owner expands scope. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

@@ -2518,7 +2518,7 @@
         .prod-right { width: 286px; flex: 0 0 286px; border-left: 1px solid var(--prod-divider); padding: 18px 14px; overflow: auto; background: var(--prod-content); }
         .prod-props { display: flex; flex-direction: column; gap: 2px; }
         .prod-prop { min-height: 32px; display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 8px; font-size: 13px; color: var(--prod-strong); }
-        .prod-prop-label { color: #5e5e60; font-weight: 450; }
+        .prod-prop-label { color: var(--prod-dim); font-weight: 450; }
         .prod-link { color: var(--prod-link); text-decoration: none; word-break: break-all; }
         .prod-link:hover { text-decoration: underline; }
         .prod-subsection { margin-top: 22px; }
@@ -2572,7 +2572,8 @@
         .prod-filter-pill .fop { color: var(--prod-faint); }
         .prod-filter-pill .fx { width: 17px; height: 17px; display: grid; place-items: center; border: 0; background: transparent; padding: 0; border-radius: 4px; color: var(--prod-faint); font: inherit; }
         .prod-filter-pill .fx:hover { background: var(--prod-hover); color: var(--prod-strong); }
-        .prod-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); }
+        .prod-status { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); border-radius: 4px; }
+        .prod-status:hover { background: var(--prod-hover); }
         .prod-status svg { width: 14px; height: 14px; }
         .prod-group { cursor: default; }
         .prod-group-add { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; }

@@ -422,3 +422,16 @@ Cycle 21 measured the live dark Linear workspace in read-only mode. Before/after
 | Issue/sub-issue data model | unchanged | This cycle changed only visual variables and one selected-row hover token. Parent/child adapter logic, IDs, row data, and detail rendering were not changed. |
 
 Validation coverage: the existing artifact-to-wired pixel lane continues to compare both pages after the token swap, and the live probe accepted only after row snapshots proved the issue list was unchanged.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 22
+
+Cycle 22 ran a no-op live Linear snapshot in read-only mode. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The code changes were pure presentation token cleanup after the dark-shell migration.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Dark scrollbars | fixed | Prototype scrollbars for sidebar, list, board, card lists, popover lists, and detail now use the dark border-soft token. Wired board/card scrollbars already matched. |
+| Row status hover | fixed | Prototype and wired row status glyphs now use the dark hover token on hover. |
+| Dark component text tokens | fixed | Prototype board/detail hardcoded light text colors were moved to `var(--text-strong)` / `var(--dim)`; wired property labels now use `var(--prod-dim)`. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+Validation coverage: `pixel-wired.js` now includes the row status-hover affordance comparison, alongside the existing dark palette checks.

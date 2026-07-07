@@ -642,3 +642,20 @@ Ranked finding fixed in this cycle:
 1. P1: live Linear is currently dark, but the prototype and wired preview were still using the older light palette, creating a full-shell visual mismatch outside the locked skeleton.
 
 Pixel lane note: the existing artifact-to-wired pixel lane remains the guard for keeping prototype and wired tokens identical after this palette swap.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 22
+
+Fresh no-op live Linear snapshot was read-only. The probe captured 20 visible VID issue rows before and after without clicking anything; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Dark scrollbars | fixed | Local artifact/wired review found several prototype scrollbars still using old light-theme black translucency after the dark shell swap. Sidebar, list, board, project-card list, picker list, and detail scrollbars now use the dark border-soft token. |
+| Status-icon hover fill | fixed | Row status icons now use the dark hover token in both prototype and wired preview instead of a leftover light-theme translucent fill. |
+| Board/detail text hardcodes | fixed | Prototype board column titles, project card titles, detail side-card headers, and detail breadcrumbs now resolve through dark text tokens instead of old light hardcodes. Wired already used tokenized equivalents except for property labels, which now use `--prod-dim`. |
+| Issue/sub-issue data model | unchanged | This cycle changed only CSS token references and a pixel-lane hover assertion. Parent/child adapter logic, issue IDs, sub-issue grouping, row data, and detail rendering were not changed. |
+
+Ranked finding fixed in this cycle:
+
+1. P2: after Cycle 21's dark palette swap, several component-level hover/scroll/text details still carried light-mode hardcoded colors. These were visible against the live dark Linear shell but safe to fix as pure presentation.
+
+Pixel lane addition: `pixel-wired.js` now hovers a row status icon and compares artifact vs wired status-hover background/radius in addition to the dark palette variables.

@@ -43,6 +43,7 @@ const READ_FAILURE_MESSAGE = "Not saved \u2014 the sample store was briefly unav
 const CLEAR = "__CLEAR_LINK__";
 const RETAIN_MS = 30 * 24 * 60 * 60 * 1000;
 const LINK_COLUMNS = ["graphic_linear_issue_id", "linear_issue_id", "video_deliverable_id", "graphic_deliverable_id"] as const;
+const DUPLICATE_LINK_COLUMNS = ["linear_issue_id", "graphic_linear_issue_id"] as const;
 const NULLABLE_LINK_COLUMNS = new Set<string>(["video_deliverable_id", "graphic_deliverable_id"]);
 
 type JsonMap = Record<string, unknown>;
@@ -178,7 +179,7 @@ function mergeCell(existingStr: unknown, incomingStr: unknown, baseAt: string, n
   return kept.length ? JSON.stringify(kept) : "";
 }
 
-function applyGuards(incoming: JsonMap, existing: ExistingRow, readFailed: boolean, nowMs: number): JsonMap {
+function applyGuards(incoming: JsonMap, existing: ExistingRow, twins: ExistingRow[], readFailed: boolean, nowMs: number): JsonMap {
   if (readFailed) {
     return { _conflict: true, ok: false, id: incoming.id, error: READ_FAILURE_MESSAGE };
   }
@@ -208,6 +209,23 @@ function applyGuards(incoming: JsonMap, existing: ExistingRow, readFailed: boole
     if (cleared[linkCol]) continue;
     if (has(incoming, linkCol) && clean(incoming[linkCol]) === "" && clean(existing[linkCol]) !== "") {
       row[linkCol] = String(existing[linkCol] == null ? "" : existing[linkCol]);
+    }
+  }
+
+  for (const linkCol of DUPLICATE_LINK_COLUMNS) {
+    if (cleared[linkCol]) continue;
+    const incomingLink = has(incoming, linkCol) ? clean(incoming[linkCol]) : "";
+    if (!incomingLink) continue;
+
+    // duplicate-link guard: each live Samples component can own a Linear issue link only once.
+    const twin = twins.find(t => t && t.id && clean(t.id) !== clean(incoming.id) &&
+      clean(t.status).toLowerCase() !== "archived" && clean(t[linkCol]) === incomingLink);
+    if (twin) {
+      if (!existsAlready) {
+        row[linkCol] = "";
+      } else if (clean(existing[linkCol]) !== incomingLink) {
+        row[linkCol] = String(existing[linkCol] == null ? "" : existing[linkCol]);
+      }
     }
   }
 
@@ -241,6 +259,26 @@ async function readExisting(supabase: SupabaseClient, client: string, id: string
     .maybeSingle();
   if (error) return { row: {}, failed: true };
   return { row: (data || {}) as ExistingRow, failed: false };
+}
+
+async function readLinkTwins(supabase: SupabaseClient, client: string, incoming: JsonMap): Promise<ExistingRow[]> {
+  const rows = new Map<string, ExistingRow>();
+  for (const linkCol of DUPLICATE_LINK_COLUMNS) {
+    const link = has(incoming, linkCol) ? clean(incoming[linkCol]) : "";
+    if (!link) continue;
+
+    const { data, error } = await supabase.from("sample_reviews")
+      .select("*")
+      .eq("client", client)
+      .eq(linkCol, link);
+    if (error || !Array.isArray(data)) continue;
+
+    for (const row of data as ExistingRow[]) {
+      if (clean(row.status).toLowerCase() === "archived") continue;
+      rows.set(clean(row.id) || `${linkCol}:${rows.size}`, row);
+    }
+  }
+  return [...rows.values()];
 }
 
 function mirrorPayload(client: string, row: Row, existsAlready: boolean): Row {
@@ -395,7 +433,8 @@ Deno.serve(async (req: Request) => {
     client = built.client;
     id = clean(built.row.id);
     const existingRead = await readExisting(supabase, client, id);
-    const guarded = applyGuards(built.row, existingRead.row, existingRead.failed, Date.now());
+    const twins = await readLinkTwins(supabase, client, built.row);
+    const guarded = applyGuards(built.row, existingRead.row, twins, existingRead.failed, Date.now());
     if (guarded._conflict === true) {
       outcome = guarded.conflict ? "conflict" : "read_failure";
       return json(guarded);

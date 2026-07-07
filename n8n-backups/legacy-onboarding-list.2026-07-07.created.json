@@ -1,0 +1,21 @@
+{
+  "_snapshot_note": "Net-new workflow for the Templates→Onboarding 'Old forms' section. GET /webhook/legacy-onboarding-list. Reads Supabase legacy_onboarding (service role) — the historical Notion intake, migrated as-is — and returns {ok,count,submissions}. Account logins were already stripped at export/import time; the Strip Credentials node is a defense-in-depth safety net. Clone of 'SyncView Onboarding — List' (slqt2zCDyIc7OAmY) pointed at legacy_onboarding, returning `fields` (the original Q&A) instead of `answers`. Import into n8n and ACTIVATE. Requires legacy-onboarding-migration.sql to have been run so the table exists.",
+  "name": "SyncView Onboarding — Legacy List",
+  "active": false,
+  "connections": {
+    "Receive GET": { "main": [[{ "node": "Get Submissions", "type": "main", "index": 0 }]] },
+    "Get Submissions": { "main": [[{ "node": "Strip Credentials", "type": "main", "index": 0 }]] },
+    "Strip Credentials": { "main": [[{ "node": "Respond JSON", "type": "main", "index": 0 }]] }
+  },
+  "nodes": [
+    { "name": "Receive GET", "type": "n8n-nodes-base.webhook", "typeVersion": 2.1, "position": [0, 0],
+      "parameters": { "httpMethod": "GET", "path": "legacy-onboarding-list", "responseMode": "responseNode", "options": { "allowedOrigins": "*" } } },
+    { "name": "Get Submissions", "type": "n8n-nodes-base.supabase", "typeVersion": 1, "position": [220, 0],
+      "parameters": { "resource": "row", "operation": "getAll", "tableId": "legacy_onboarding", "returnAll": true, "orderBy": "created_at.desc" },
+      "_credential": "supabaseApi → 'Supabase - SyncView Calendar' (XdBpJ6Xk8PMpZXXT) — auto-linked" },
+    { "name": "Strip Credentials", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [440, 0],
+      "parameters": { "mode": "runOnceForAllItems", "jsCode": "// legacy_onboarding is already credential-free (logins were stripped at export).\n// This is a defense-in-depth net: drop any field whose label looks like a login.\nconst CRED = /password|username\\s*&\\s*password|back ?up code|login details|apple id/i;\nconst rows = $input.all().map(i => i.json);\nconst subs = rows.filter(r => r && r.id).map(r => {\n  const fields = (Array.isArray(r.fields) ? r.fields : []).filter(f => f && !CRED.test(String(f.label || '')));\n  return { id: r.id, slug: r.slug || '', first_name: r.first_name || '', last_name: r.last_name || '', email: r.email || '', phone: r.phone || '', submitted_on: r.submitted_on || '', created_at: r.created_at || '', fields };\n});\nreturn [{ json: { ok: true, count: subs.length, submissions: subs } }];" } },
+    { "name": "Respond JSON", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.5, "position": [660, 0],
+      "parameters": { "respondWith": "firstIncomingItem", "options": { "responseHeaders": { "entries": [ { "name": "Access-Control-Allow-Origin", "value": "*" }, { "name": "Cache-Control", "value": "no-store" } ] } } } }
+  ]
+}

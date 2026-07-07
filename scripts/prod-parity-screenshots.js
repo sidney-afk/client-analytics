@@ -269,6 +269,42 @@ async function safe(page, fn) {
       });
       await shot(wired, 'wired-18-filter-keyboard-submenu');
     });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); });
+      await artifact.locator('#filterbtn').click();
+      await artifact.locator('#layer [data-ffield]').first().hover();
+      await artifact.locator('#layer .pop [data-search]').last().fill('zzzznomatch');
+      await shot(artifact, 'artifact-19-filter-no-results');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('#prodFilterBtn').click();
+      await wired.locator('#prodLayer [data-prod-ffield]').first().hover();
+      await wired.locator('#prodLayer .prod-pop [data-prod-search]').last().fill('zzzznomatch');
+      await shot(wired, 'wired-19-filter-no-results');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; S.cardSel.clear(); render(); const first = boardFlat()[0]; if (first) { S.cardSel.add(first); render(); } });
+      await shot(artifact, 'artifact-20-board-card-selection');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'board'); const first = _prodBoardFlat()[0]; _prodState.cardSel.clear(); if (first) _prodState.cardSel.add(first); _prodRender(); });
+      await shot(wired, 'wired-20-board-card-selection');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = (boardFlat()[0] || (CLIENTS[0] && CLIENTS[0].id)); S.open = null; render(); });
+      await shot(artifact, 'artifact-21-project-detail');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'board'); const first = _prodBoardFlat()[0]; if (first) _prodOpenProject(first); });
+      await shot(wired, 'wired-21-project-detail');
+    });
 
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');

@@ -158,9 +158,16 @@ async function newAuthedPage(browser, viewport, errors, requests) {
     const clientSlug = await page.locator('[data-prod-client-card]').first().getAttribute('data-prod-client-card');
     if (!clientSlug) throw new Error('Projects board cards do not expose stable client slugs');
     await page.locator('[data-prod-client-card]').first().click();
+    await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
+    const projectUrl = new URL(page.url());
+    if (projectUrl.searchParams.get('client') !== clientSlug || projectUrl.searchParams.get('view') !== 'project') throw new Error('Projects board card did not write a stable ?prod=1&view=project&client=... URL');
+    if (await page.locator('[data-prod-pstatus]').count() < 1 || await page.locator('[data-prod-plead]').count() < 1 || await page.locator('[data-prod-ptarget]').count() < 1) {
+      throw new Error('Project detail did not expose guarded status/lead/target controls');
+    }
+    await page.evaluate(slug => window._prodOpenClient(slug), clientSlug);
     await page.waitForSelector('.prod-row', { timeout: 10000 });
     const clientUrl = new URL(page.url());
-    if (clientUrl.searchParams.get('client') !== clientSlug) throw new Error('Projects board card did not write a stable ?prod=1&client=... URL');
+    if (clientUrl.searchParams.get('client') !== clientSlug || clientUrl.searchParams.get('view')) throw new Error('Client list did not write a stable ?prod=1&client=... URL');
     const badClientRows = await page.locator('.prod-row').evaluateAll((nodes, slug) => nodes.filter(n => n.getAttribute('data-prod-client') !== slug).length, clientSlug);
     if (badClientRows) throw new Error('Client-filtered list included another client');
 

@@ -596,3 +596,18 @@ Ranked finding fixed in this cycle:
 1. P3: the global Ask Linear dock button geometry was close but not exact on radius/cursor/padding.
 
 Pixel lane additions: `pixel-wired.js` now compares the dock main-button horizontal padding in addition to presence, styling, and icon paths.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 19
+
+Cycle 19 used the accepted live bottom-corner screenshot and read-only DOM inspection from the Linear probe. The two attempted command-palette probes were rejected as evidence because the palette did not open; follow-up no-op snapshots still returned 20 visible issue rows before and after with `changed:false`. No issue or sub-issue surface was changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Bottom-left changelog/help tray | fixed | `dock-initial.png` plus the live controls readback showed the bottom-left `What's new` / `Initiative properties` card and collapse-minus button. Prototype and wired now render the same inert chrome. |
+| Wired tray behavior | guarded | The wired preview routes both tray controls through `Preview - read-only`; no write or navigation path is introduced. |
+
+Ranked finding fixed in this cycle:
+
+1. P2: the live bottom-left changelog/help tray was still absent from the prototype and wired preview.
+
+Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-newsdock.png` / `wired-crop-newsdock.png`, compares tray text and icon path, and checks geometry.

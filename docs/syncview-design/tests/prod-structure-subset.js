@@ -123,6 +123,9 @@ async function assertNoWriteRequests(requests) {
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     await expectCount(page, '[data-prod-askdock] #prodAskDockMain[data-prod-disabled="ask-linear"][title="Preview - read-only"]', 1, 'global Ask Linear dock main guard');
     await expectCount(page, '[data-prod-askdock] #prodAskDockHistory[data-prod-disabled="ask-history"][title="Preview - read-only"]', 1, 'global Ask Linear dock history guard');
+    await expectCount(page, '[data-prod-newsdock] #prodNewsDockMain[data-prod-disabled="view-changelog"][title="Preview - read-only"]', 1, 'bottom-left news dock main guard');
+    await expectCount(page, '[data-prod-newsdock] #prodNewsDockCollapse[data-prod-disabled="help-collapse"][title="Preview - read-only"]', 1, 'bottom-left news dock collapse guard');
+    if (!(await text(page, '[data-prod-newsdock]')).includes('Initiative properties')) throw new Error('Bottom-left news dock title missing');
     if (!(await page.locator('.prod-search-btn[title*="Search"]').count())) throw new Error('Search command button missing');
     if (!(await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count())) throw new Error('My issues nav missing');
     if (!(await page.locator('.prod-nav-section', { hasText: 'Workspace' }).count())) throw new Error('Workspace section missing');

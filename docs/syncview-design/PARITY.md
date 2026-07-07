@@ -45,7 +45,9 @@ Cycle 16 rechecked selected-row actionbar chrome against live Linear. Before/aft
 
 Cycle 17 added the persistent bottom-right Ask Linear dock (`Ask Linear` plus Chat history) using accepted read-only live evidence. The wired preview renders it as guarded chrome.
 
-Cycle 18 rechecked the bottom-right Ask Linear dock in hover-only mode. Before/after visible issue rows matched (`changed:false`). The dock now matches live Linear's 8px radius, default cursor, and main-button padding; account-state-dependent bottom-left changelog/help chrome remains an owner question.
+Cycle 18 rechecked the bottom-right Ask Linear dock in hover-only mode. Before/after visible issue rows matched (`changed:false`). The dock now matches live Linear's 8px radius, default cursor, and main-button padding.
+
+Cycle 19 added the live bottom-left `What's new` / `Initiative properties` tray as inert chrome in prototype and wired preview. Follow-up row snapshots stayed unchanged (`changed:false`); wired tray controls route through the read-only guard.
 
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**

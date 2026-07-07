@@ -2640,6 +2640,13 @@
         .prod-askdock .ask-main { padding: 0 12px 0 10px; }
         .prod-askdock .ask-main svg { width: 14px; height: 14px; margin-right: 6px; }
         .prod-askdock .ask-hist { width: 28px; }
+        .prod-newsdock { position: fixed; left: 10px; bottom: 10px; width: 222px; height: 56px; z-index: 1900; color: var(--prod-text); font-size: 13px; }
+        .prod-newsdock .news-main { position: absolute; inset: 0; border: 1px solid var(--prod-border-soft); border-radius: 10px; background: var(--prod-surface); box-shadow: 0 2px 6px rgba(0,0,0,.06); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; padding: 0 12px; cursor: default; color: var(--prod-text); font: inherit; }
+        .prod-newsdock .news-main:hover { background: var(--prod-hover); }
+        .prod-newsdock .news-eyebrow { color: var(--prod-faint); font-size: 12px; font-weight: 450; }
+        .prod-newsdock .news-title { font-size: 13px; font-weight: 600; color: var(--prod-strong); }
+        .prod-newsdock .news-collapse { position: absolute; right: 5px; top: 5px; width: 24px; height: 24px; border: 0; border-radius: 999px; background: transparent; color: var(--prod-faint); display: grid; place-items: center; cursor: default; padding: 0; }
+        .prod-newsdock .news-collapse:hover { background: var(--prod-hover); color: var(--prod-text); }
         .prod-right { padding: 18px 14px; }
         .prod-side-card { border: 0; border-radius: 8px; background: transparent; margin-bottom: 12px; }
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
@@ -27831,6 +27838,7 @@
             plus: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>',
             ask: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.07132 3.8283C4.04394 3.81721 4.01406 3.81379 3.98488 3.8184C3.95566 3.82301 3.92826 3.83551 3.90561 3.85453C3.88297 3.87356 3.86594 3.8984 3.85636 3.92639C3.84678 3.95437 3.84501 3.98443 3.85124 4.01335L5.80802 13.1405C5.81898 13.1915 5.83884 13.2155 5.85542 13.2298C5.87605 13.2476 5.9078 13.2631 5.94754 13.268C5.98728 13.2729 6.0217 13.2654 6.04578 13.2532C6.06507 13.2434 6.08993 13.2252 6.11273 13.1784L7.83779 9.64746C8.05513 9.20258 8.45077 8.87059 8.92663 8.73378L12.7035 7.64791C12.7535 7.63353 12.776 7.61215 12.789 7.59475C12.8052 7.57307 12.8186 7.54044 12.8207 7.50049C12.8228 7.46054 12.813 7.42669 12.7992 7.40342C12.788 7.38476 12.7681 7.36116 12.7199 7.34158L4.07132 3.8283ZM3.75083 2.33677C4.04945 2.2896 4.35527 2.32474 4.63541 2.43841L13.2843 5.95183C14.747 6.54596 14.6351 8.65343 13.1179 9.08953L9.34109 10.1754C9.27311 10.1949 9.21659 10.2424 9.18554 10.3059L7.46077 13.8363C6.76755 15.2562 4.67275 14.9979 4.34147 13.4555L2.38492 4.3294C2.32134 4.03401 2.33935 3.72642 2.43722 3.44054C2.53514 3.15452 2.70919 2.90061 2.94065 2.70612C3.17211 2.51164 3.45221 2.38394 3.75083 2.33677Z"/></svg>',
             history: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2.64849 9.64645L4.44209 7.85355C4.7572 7.53857 4.53403 7 4.0884 7H3.04846C3.41252 4.45578 5.60144 2.5 8.24734 2.5C11.148 2.5 13.4994 4.85051 13.4994 7.75C13.4994 10.6495 11.148 13 8.24734 13C6.96107 13 5.78452 12.5388 4.87129 11.7718C4.55402 11.5054 4.08074 11.5465 3.8142 11.8637C3.54766 12.1808 3.58878 12.6539 3.90606 12.9203C5.07954 13.9058 6.595 14.5 8.24734 14.5C11.9767 14.5 15 11.4779 15 7.75C15 4.02208 11.9767 1 8.24734 1C4.77156 1 1.90912 3.62504 1.53589 7H0.5012C0.0555715 7 -0.167599 7.53857 0.147507 7.85355L1.94111 9.64645C2.13645 9.84171 2.45315 9.84171 2.64849 9.64645Z"/><path d="M8.37472 5.67742C8.37472 5.30329 8.0676 5 7.68874 5C7.30988 5 7.00276 5.30329 7.00276 5.67742V8.3871C7.00276 8.76122 7.30988 9.06452 7.68874 9.06452H10.4327C10.8115 9.06452 11.1187 8.76122 11.1187 8.3871C11.1187 8.01297 10.8115 7.70968 10.4327 7.70968H8.37472V5.67742Z"/></svg>',
+            newsMinus: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M3.25 8C3.25 7.58579 3.58579 7.25 4 7.25H12C12.4142 7.25 12.75 7.58579 12.75 8C12.75 8.41421 12.4142 8.75 12 8.75H4C3.58579 8.75 3.25 8.41421 3.25 8Z"/></svg>',
             statusField: '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 2.2a4.8 4.8 0 0 1 0 9.6z" fill="currentColor"/></svg>'
         };
         function _prodIcon(name) {
@@ -29672,7 +29680,7 @@
             if (!root) return;
             _prodEnsureOverlays();
             _prodCaptureListScroll(root);
-            root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>' + _prodAskDock();
+            root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>' + _prodAskDock() + _prodNewsDock();
             const list = root.querySelector('.prod-listwrap');
             if (list && _prodState.listScrollTop) list.scrollTop = _prodState.listScrollTop;
             if (_prodState.view === 'detail' && _prodState.openId && _prodState.events.get(_prodState.openId) === undefined) _prodLoadEventsFor(_prodState.openId);
@@ -29755,6 +29763,9 @@
         }
         function _prodAskDock() {
             return '<div class="prod-askdock" data-prod-askdock><button class="ask-main" type="button" id="prodAskDockMain" data-prod-disabled="ask-linear" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="Ask Linear">' + _prodIcon('ask') + '<span>Ask Linear</span></button><button class="ask-hist" type="button" id="prodAskDockHistory" data-prod-disabled="ask-history" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="Chat history">' + _prodIcon('history') + '</button></div>';
+        }
+        function _prodNewsDock() {
+            return '<div class="prod-newsdock" data-prod-newsdock><button class="news-main" type="button" id="prodNewsDockMain" data-prod-disabled="view-changelog" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="View changelog"><span class="news-eyebrow">What&#39;s new</span><span class="news-title">Initiative properties</span></button><button class="news-collapse" type="button" id="prodNewsDockCollapse" data-prod-disabled="help-collapse" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="Collapse into help menu">' + _prodIcon('newsMinus') + '</button></div>';
         }
         function _prodOpenBulkActions(ev, id) {
             if (ev) {

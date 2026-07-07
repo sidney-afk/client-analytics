@@ -389,3 +389,13 @@ Live Linear observation was read-only and hover-only. Before/after visible issue
 | Bottom-left changelog/help chrome | owner-question | Live Linear currently shows account-state-dependent bottom-left changelog/help chrome. Not ported blindly because it is broader product chrome, not issue/sub-issue structure. |
 
 Validation coverage: `pixel-wired.js` now also compares the dock main-button horizontal padding.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 19
+
+Cycle 19 used the accepted live bottom-corner capture plus read-only DOM inspection. Follow-up no-op row snapshots still returned 20 visible issue rows before and after with `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Bottom-left changelog/help tray | fixed | Prototype and wired preview now render the live-style `What's new` / `Initiative properties` tray with the collapse-minus chrome. Wired buttons remain read-only guarded. |
+
+Validation coverage: `pixel-wired.js` captures and compares `artifact-crop-newsdock.png` / `wired-crop-newsdock.png`, checks the tray text and collapse icon path, and `prod-structure-subset.js` asserts both wired controls are guarded.

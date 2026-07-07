@@ -358,6 +358,19 @@ async function run() {
     const artifactDockPaths = await artifact.locator('.askdock svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d') || '').join('|'));
     const wiredDockPaths = await wired.locator('.prod-askdock svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d') || '').join('|'));
     if (artifactDockPaths !== wiredDockPaths) gaps.push({ rank: 1, state: 'global Ask Linear dock', message: 'icon path drift' });
+    await artifact.waitForSelector('.newsdock');
+    await wired.waitForSelector('[data-prod-newsdock]');
+    await shotElement(artifact, '.newsdock', 'artifact-crop-newsdock');
+    await shotElement(wired, '.prod-newsdock', 'wired-crop-newsdock');
+    await compareStyles(gaps, 'bottom-left news dock', artifact, wired, '.newsdock', '.prod-newsdock', ['position', 'left', 'bottom', 'width', 'height', 'display', 'color']);
+    await compareStyles(gaps, 'bottom-left news dock main', artifact, wired, '#newsdock-main', '#prodNewsDockMain', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'gap', 'cursor', 'borderRadius', 'backgroundColor', 'paddingLeft', 'paddingRight']);
+    await compareStyles(gaps, 'bottom-left news dock collapse', artifact, wired, '#newsdock-collapse', '#prodNewsDockCollapse', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    const artifactNewsText = (await artifact.locator('.newsdock').innerText()).replace(/\s+/g, ' ').trim();
+    const wiredNewsText = (await wired.locator('.prod-newsdock').innerText()).replace(/\s+/g, ' ').trim();
+    if (artifactNewsText !== wiredNewsText) gaps.push({ rank: 1, state: 'bottom-left news dock', message: `text drift artifact=${artifactNewsText} wired=${wiredNewsText}` });
+    const artifactNewsPath = await artifact.locator('.newsdock .news-collapse svg path').first().getAttribute('d');
+    const wiredNewsPath = await wired.locator('.prod-newsdock .news-collapse svg path').first().getAttribute('d');
+    if (artifactNewsPath !== wiredNewsPath) gaps.push({ rank: 1, state: 'bottom-left news dock', message: 'collapse icon path drift' });
 
     await setupSelection(artifact, wired);
     await artifact.waitForSelector('.actionbar');

@@ -769,3 +769,16 @@ Read-only live observation used the current Linear issue-list tab and hovered on
 | Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
 
 Pixel lane addition: `pixel-wired.js` now compares `.row` vs `.prod-row` hover background/height/cursor and `.check` vs `.prod-check` opacity/size/radius after hover.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 33
+
+Read-only live observation used the current Linear issue-list tab and opened one row context menu with a right-click, then closed it with Escape. Before/after visible issue-row snapshots both contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context menu breadth | owner-question | Live Linear's row menu includes the full shell: Status, Priority, Assignee, Due date, Labels, Project, Cycle, More properties, Create related, Mark as, Copy, Convert to, Move, Open in, Favorite, Subscribe, Remind me, and Delete. The current prototype/wired menu keeps the simplified allowed subset and omits Priority/Labels/Cycle plus broader mutating/scope-expanding rows. No code change was made without owner direction. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Owner question:
+
+1. Should SyncView keep the current simplified row context menu, or adopt more of live Linear's row-menu shell while still hiding Priority, Labels, Cycle, and guarding every mutation in B2?

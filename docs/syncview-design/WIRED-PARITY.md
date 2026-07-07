@@ -515,3 +515,12 @@ Cycle 32 ran a read-only live Linear row-hover probe on the current issue-list t
 |---|---:|---|
 | List row hover band and checkbox reveal | verified | Live Linear reveals the left checkbox and hover band on row hover. The prototype and wired preview already matched; `pixel-wired.js` now pins the contract with cropped row-hover screenshots and computed-style checks. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 33
+
+Cycle 33 ran a read-only live Linear row-context-menu probe on the current issue-list tab. Before/after visible issue-row snapshots both contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context-menu breadth | owner-question | Live Linear's row menu contains the broader shell, including Priority, Labels, Cycle, Create related, Mark as, Convert to, Open in, Favorite, Subscribe, Remind me, and Delete. The prototype/wired preview keep the existing simplified allowed subset pending owner direction, so no code change was made. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

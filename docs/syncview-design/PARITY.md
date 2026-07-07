@@ -53,6 +53,8 @@ Cycle 20 updated the workspace/brand menu to match live Linear's current global 
 
 Cycle 21 rechecked live Linear's current dark workspace shell. Before/after visible issue rows again matched (`changed:false`). The prototype and wired preview now use the live-style dark neutral palette for shell, rows, menus, dividers, and overlay surfaces; issue/sub-issue data shape and rendering logic were not changed.
 
+Cycle 33 rechecked live Linear's current row context-menu shell. Before/after visible issue rows matched (`changed:false`). No UI change was made: the live menu's broader rows include deliberately removed or mutation/scope-expanding surfaces, so the simplified row context menu remains unchanged pending owner direction.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

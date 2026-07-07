@@ -364,10 +364,28 @@ async function run() {
 
     await artifact.locator('#ab-actions').click();
     await wired.locator('#prodBulkActions').click();
-    await artifact.waitForSelector('#layer .pop');
-    await wired.waitForSelector('#prodLayer .prod-pop');
-    await artifact.locator('#layer .pop [data-ctx="status"]').hover();
-    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').hover();
+    await artifact.waitForSelector('#layer .cmdk.actioncmd');
+    await wired.waitForSelector('#prodLayer .prod-actioncmd');
+    const actionRowsA = await commandInventory(artifact, '#layer .cmdk.actioncmd [data-bulkact]');
+    const actionRowsW = await commandInventory(wired, '#prodLayer .prod-actioncmd [data-prod-bulkact]');
+    if (actionRowsA.length !== actionRowsW.length) gaps.push({ rank: 1, state: 'selection Actions command', message: `row count mismatch artifact=${actionRowsA.length} wired=${actionRowsW.length}` });
+    actionRowsA.forEach((a, i) => {
+      const w = actionRowsW[i] || {};
+      if (a.title !== w.title) gaps.push({ rank: 1, state: 'selection Actions command', message: `row ${i} title artifact=${a.title} wired=${w.title}` });
+      if (a.meta !== w.meta) gaps.push({ rank: 1, state: 'selection Actions command', message: `row ${i} meta artifact=${a.meta || '(empty)'} wired=${w.meta || '(empty)'}` });
+      if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state: 'selection Actions command', message: `row ${i} icon path drift for ${a.title}` });
+    });
+    const actionLabels = actionRowsW.map(r => r.title).join('|');
+    ['Assign to...', 'Assign to me', 'Change status...', 'Move to project...', 'Change due date...', 'Copy issue URL'].forEach(label => {
+      if (!actionLabels.includes(label)) gaps.push({ rank: 1, state: 'selection Actions command', message: 'missing ' + label });
+    });
+    ['Change priority', 'Add labels', 'Add to cycle'].forEach(label => {
+      if (actionLabels.includes(label)) gaps.push({ rank: 1, state: 'selection Actions command', message: 'removed Linear surface reappeared: ' + label });
+    });
+    await shotElement(artifact, '#layer .cmdk.actioncmd', 'artifact-crop-selection-actions-menu');
+    await shotElement(wired, '#prodLayer .prod-actioncmd', 'wired-crop-selection-actions-menu');
+    await artifact.locator('#layer [data-bulkact="status"]').click();
+    await wired.locator('#prodLayer [data-prod-bulkact="status"]').click();
     await artifact.waitForSelector('#layer .pop [data-i]');
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
     const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');

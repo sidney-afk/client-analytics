@@ -263,7 +263,7 @@ async function txt(page, sel) {
       await page.keyboard.press('Control+a');
       const before = await page.evaluate(() => _prodState.selected.size);
       await page.locator('#prodBulkActions').click();
-      await page.locator('#prodLayer [data-prod-ctx="assign"]').hover();
+      await page.locator('#prodLayer [data-prod-bulkact="assign"]').click();
       await page.waitForSelector('#prodLayer [data-prod-search]', { timeout: 3000 });
       await page.locator('#prodLayer [data-prod-search]').press('Enter');
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -989,7 +989,7 @@ async function txt(page, sel) {
       if (!await page.locator('[data-prod-actionbar]').count()) return true;
       const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
       await page.locator('#prodBulkActions').click();
-      await page.locator('#prodLayer [data-prod-ctx="status"]').hover();
+      await page.locator('#prodLayer [data-prod-bulkact="status"]').click();
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
       await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });

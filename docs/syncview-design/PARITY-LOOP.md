@@ -72,6 +72,13 @@ Live Linear's issue selection actionbar is compact: count, `Actions`, an Ask Lin
 
 Private local evidence: `.codex-tmp/linear-live-cycle9/before-after-compare.json` plus local screenshots for single selection, range selection, and Escape clear.
 
+# Live Linear parity cycle 10 - 2026-07-07
+Read-only observation focused on the selected-row `Actions` menu. The pass selected rows and opened the menu, then closed it; no command value, picker value, issue field, sub-issue field, drag, edit, save, create, or delete path was clicked. Before/after visible issue snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+Live Linear opens a command-palette style selected Actions panel. The safe subset was ported into the prototype and wired read-only tab: Assign to..., Assign to me, Change status..., Move to project..., Change due date..., Copy issue URL. Priority, labels, and cycles stay omitted by the locked simplified skeleton; wired mutations remain guarded with `Preview - read-only`.
+
+Private local evidence: `.codex-tmp/linear-live-cycle10/before-after-compare.json`, `selection-actions-menu.png`, and the pixel screenshot pairs `artifact-crop-selection-actions-menu.png` / `wired-crop-selection-actions-menu.png`.
+
 # ✅ BEHAVIORAL PARITY DONE — 2026-07-05
 SyncView now behaves like real Linear across every surface. **11 adversarial re-audits** run (5 parallel agents vs live Linear each); the finding count converged **22→20→12→11→13→15→9→8→11→10→7**, and the **last SIX all returned 0 high-severity / 0 regressions** — remaining findings are deep polish + intentional skeleton/layout limitations, not defects. **~115 divergences closed** across the behavioral phase. Regression suite: **`behav.js` 138 assertions (all green)**, `qa-features.js` GREEN, `sweep.js` CLEAN, **0 JS errors** throughout.
 **All real features shipped:** live row-glyph clicks (chip→profile / due→picker / avatar+status pickers); full list multi-select (checkbox/x/Cmd-click/Shift-click/Shift-arrows) + bulk action bar with guarded property controls under Actions; keyboard model (j/k, Enter focused-or-hovered, s/a/⇧D/⇧P, ⌘K palette, Escape hierarchy); delete + comment-delete **Undo (Ctrl/⌘+Z)**; detail property pickers + calendar (arrow-nav, unified month paging, typed input); **Activity feed logs system events** (on the edited issue, wherever triggered); comment edit (blur discards); **board keyboard nav**; **board card multi-select** (mouse + `x`) + board bulk bar; truncation-aware tooltips; picker/filter "No results"; detail-panel scroll preservation.

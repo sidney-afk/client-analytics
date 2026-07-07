@@ -300,3 +300,21 @@ Ranked findings fixed in this cycle:
 2. P2: The wired board allowed generic overflow on both axes; it now matches the artifact board axis split (`overflow-x:auto`, `overflow-y:hidden`) while columns own their vertical card scrolling.
 
 Pixel lane additions: `pixel-wired.js` now covers board scroll-axis parity, card drag cursor, drag-start/drop-highlight chrome, and read-only guarded drop cleanup. Full hand+eyes matrix pass complete for the currently known surfaces; no remaining unreviewed surface category is listed.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 10
+
+Live Linear observation was read-only. Before/after visible issue-row snapshots for the probed VID issue list both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Selected issue actionbar -> Actions | fixed | `selection-actions-menu.png` captured the live Linear command-style Actions panel. Prototype and wired now open a matching command panel before Status/Assignee/Due/Project pickers. |
+| Selected Actions command inventory | fixed | `artifact-crop-selection-actions-menu.png` / `wired-crop-selection-actions-menu.png`; rows are Assign to..., Assign to me, Change status..., Move to project..., Change due date..., Copy issue URL. Removed skeleton surfaces remain omitted: priority, labels, cycles. |
+| Selected Actions -> Change status | fixed | `artifact-crop-status-picker.png` / `wired-crop-status-picker.png`; status picker still opens from the Actions command panel, with wired selections guarded read-only. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: selected-row Actions still opened the smaller row context menu, while live Linear opens a command-palette style Actions panel.
+2. P1: the old selected Actions path exposed row-context items such as Delete/Move at the first layer; the live panel first shows command rows, with removed skeleton surfaces omitted.
+3. P2: the prototype command-row click needed propagation isolation so the selected Actions status picker stays open.
+
+Pixel lane additions: `pixel-wired.js` now inventories the selected Actions command panel, rejects removed priority/labels/cycles rows, captures command-panel screenshot pairs, and then opens the guarded status picker from inside that panel.

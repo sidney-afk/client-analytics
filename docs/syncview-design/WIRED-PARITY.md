@@ -349,3 +349,7 @@ Validation coverage: `pixel-wired.js` asserts the expanded copy-only inventory a
 ## 2026-07-07 Live-Linear Parity Loop, Cycle 13
 
 Cycle 13 is safety-only because the live Linear browser profile is logged out and fresh live probes are rejected until issue rows can be captured again. It adds regression coverage that the wired selected-Actions `Copy issue content as Markdown` row produces local Markdown preview text and remains inside the existing zero non-GET request invariant.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 14
+
+Cycle 14 closes a selected-Actions visual spacing delta from the accepted Cycle 11 screenshot: `Ask Linear` and the `Tab` hint now have explicit inline-flex spacing in prototype and wired preview. `pixel-wired.js` guards the spacing.

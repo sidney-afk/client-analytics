@@ -539,3 +539,9 @@ Ranked findings fixed in this cycle:
 1. P2: the selected Actions command panel still missed copy-only rows visible in the accepted live Linear capture.
 
 Pixel lane additions: `pixel-wired.js` now asserts the full copy-only selected-Actions inventory and rejects Subscribe/team-move/priority/labels/cycles rows.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 14
+
+Cycle 14 used the accepted Cycle 11 screenshot to close a small visual delta in the selected `Actions` command panel. Live Linear separates the `Ask Linear` label and `Tab` hint; prototype and wired now render that hint as an inline-flex row with a 6px gap.
+
+Pixel lane additions: `pixel-wired.js` compares the prototype/wired Ask Linear hint display/gap and fails if the wired hint gap collapses.

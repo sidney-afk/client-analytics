@@ -366,6 +366,9 @@ async function run() {
     await wired.locator('#prodBulkActions').click();
     await artifact.waitForSelector('#layer .cmdk.actioncmd');
     await wired.waitForSelector('#prodLayer .prod-actioncmd');
+    await compareStyles(gaps, 'selection Actions Ask Linear hint', artifact, wired, '#layer .cmdk-ask', '#prodLayer .prod-cmd-ask', ['display', 'alignItems', 'gap']);
+    const askGap = await wired.locator('#prodLayer .prod-cmd-ask').first().evaluate(el => getComputedStyle(el).gap);
+    if (parseFloat(askGap || '0') < 4) gaps.push({ rank: 2, state: 'selection Actions Ask Linear hint', message: `Tab hint gap too small: ${askGap}` });
     const actionRowsA = await commandInventory(artifact, '#layer .cmdk.actioncmd [data-bulkact]');
     const actionRowsW = await commandInventory(wired, '#prodLayer .prod-actioncmd [data-prod-bulkact]');
     if (actionRowsA.length !== actionRowsW.length) gaps.push({ rank: 1, state: 'selection Actions command', message: `row count mismatch artifact=${actionRowsA.length} wired=${actionRowsW.length}` });

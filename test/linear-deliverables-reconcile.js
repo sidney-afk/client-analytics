@@ -122,6 +122,8 @@ ok(wh.missing_comment_resource === 1, 'webhook probe counts missing Comments res
 
 const script = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'linear-deliverables-reconcile.js'), 'utf8');
 ok(/rpc\/\$\{name\}/.test(script) && /deliverable_write/.test(script), 'healing path must call the deliverable_write RPC');
+ok(/Object\.assign\(\{\}, r\.row \|\| \{\}, \{ id: r\.id \}, r\.patch\)/.test(script),
+  'healing RPC payload must merge patch onto the existing deliverable row');
 ok(!/from\("deliverables"\)\.update|from\('deliverables'\)\.update|PATCH[\s\S]{0,80}deliverables/.test(script), 'reconciler must not directly update deliverables');
 ok(/source: 'reconcile'/.test(script), 'summary/healing events must use source=reconcile');
 ok(/webhooks\(first: 100\)/.test(script) && /missing_comment_resource/.test(script),

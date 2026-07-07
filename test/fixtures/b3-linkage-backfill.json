@@ -1,0 +1,111 @@
+{
+  "deliverables": [
+    {
+      "id": "del_calendar_video",
+      "client_slug": "fixture-client",
+      "origin": "calendar",
+      "card_id": "card_1",
+      "kind": "video",
+      "status": "in_progress",
+      "linear_issue_uuid": "11111111-1111-1111-1111-111111111111",
+      "linear_identifier": "VID-101",
+      "linear_issue_url": "https://linear.app/synchro/issue/VID-101/fixture-video"
+    },
+    {
+      "id": "del_sample_graphic",
+      "client_slug": "fixture-client",
+      "origin": "samples",
+      "card_id": "sample_1",
+      "kind": "thumbnail",
+      "status": "in_progress",
+      "linear_issue_uuid": "22222222-2222-2222-2222-222222222222",
+      "linear_identifier": "GRA-202",
+      "linear_issue_url": "https://linear.app/synchro/issue/GRA-202/fixture-graphic"
+    },
+    {
+      "id": "del_duplicate",
+      "client_slug": "fixture-client",
+      "origin": "calendar",
+      "card_id": "card_dup_parent",
+      "kind": "video",
+      "status": "in_progress",
+      "linear_identifier": "VID-303",
+      "linear_issue_url": "https://linear.app/synchro/issue/VID-303/duplicate"
+    },
+    {
+      "id": "del_manual_video",
+      "client_slug": "fixture-client",
+      "origin": "manual",
+      "card_id": null,
+      "kind": "video",
+      "status": "todo",
+      "linear_identifier": "VID-404",
+      "linear_issue_url": "https://linear.app/synchro/issue/VID-404/manual-origin"
+    }
+  ],
+  "calendarPosts": [
+    {
+      "id": "card_1",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-101/fixture-video",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "id": "card_dup_a",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-303/duplicate",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "id": "card_dup_b",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.app/synchro/issue/VID-303/duplicate",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "id": "card_manual",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "VID-404",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    },
+    {
+      "id": "card_archive",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "VID-505",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "",
+      "graphic_deliverable_id": ""
+    }
+  ],
+  "sampleReviews": [
+    {
+      "id": "sample_1",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "",
+      "video_deliverable_id": "",
+      "graphic_linear_issue_id": "GRA-202",
+      "graphic_deliverable_id": ""
+    }
+  ],
+  "linearArchive": [
+    {
+      "linear_uuid": "55555555-5555-5555-5555-555555555555",
+      "identifier": "VID-505",
+      "state": "Posted"
+    }
+  ]
+}

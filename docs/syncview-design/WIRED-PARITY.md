@@ -255,3 +255,18 @@ Implementation notes:
 2. Light keeps the artifact's distinct hover-family tokens (`--prod-hover`, `--prod-selected-nav`, `--prod-menu-hover`); dark intentionally collapses them to the same neutral value.
 3. Popovers, command palette, actionbar, and tooltip now share `--prod-shadow-pop`; toast shadow remains the known wired deviation.
 4. Danger text uses the artifact red scale (`--prod-danger`) instead of the old amber fallback.
+
+## 2026-07-07 Editor-Feedback Display Controls
+
+Owner-ratified B2 read-only additions, first added to the locked artifact and then ported into the wired Production tab:
+
+1. Display menu includes `Show sub-issues`, default on. Turning it off hides only sub-issues whose parent is also in the current view; orphaned sub-issues remain visible so in-flight work does not disappear.
+2. Display menu includes `Ordering` with Due date, Updated, and Created. The default remains the existing status -> due-date -> label ordering; Created/Updated use the same status grouping with newest rows first inside each status.
+3. Group-by, ordering, and sub-issue visibility persist in the wired tab through localStorage and URL/history state. This is a wired-only `PORT-DELTA`; the artifact keeps display state in memory.
+4. Command-palette issue search now also matches issue briefs/descriptions. The wired predicate uses migrated B1 brief text, marked as a `PORT-DELTA`.
+5. Client group headers and row client chips route through the project page path, matching the artifact and showing top-level parent issues first instead of a flat client-filtered list.
+
+Owner-accepted wired-exceeds-artifact divergences:
+
+1. The wired Projects board filter is live and local while the artifact board filter remains a toast stub.
+2. The wired tab keeps filters across sidebar navigation while the artifact clears them.

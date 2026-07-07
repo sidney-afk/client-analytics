@@ -27532,6 +27532,9 @@
         const PROD_BOARD_ORDER = ['backlog','planned','prog','paused','completed','canceled'];
         const PROD_BOARD_STATUS_TO_ARTIFACT = { in_progress: 'prog', prog: 'prog', backlog: 'backlog', planned: 'planned', paused: 'paused', completed: 'completed', canceled: 'canceled' };
         const PROD_EDITOR_COLORS = ['#e2a03f', '#4cb782', '#e56cd6', '#5e6ad2', '#6c6f7d'];
+        const PROD_DISPLAY_PREFS_KEY = 'syncview_prod_display_v1';
+        const PROD_GROUP_KEYS = new Set(['status', 'client', 'assignee']);
+        const PROD_ORDER_KEYS = new Set(['due', 'updated', 'created']);
         const _prodState = {
             loaded: false,
             loading: false,
@@ -27544,6 +27547,8 @@
             openProjectId: '',
             tab: 'active',
             groupBy: 'status',
+            orderBy: 'due',
+            showSubIssues: true,
             filters: [],
             collapsed: new Set(),
             colCollapsed: new Set(),
@@ -27570,6 +27575,28 @@
             catch (e) { return false; }
         }
         function _prodPreviewText() { return 'Preview - read-only'; }
+        function _prodApplyDisplayPrefs(saved) {
+            saved = saved || {};
+            if (PROD_GROUP_KEYS.has(saved.groupBy)) _prodState.groupBy = saved.groupBy;
+            if (PROD_ORDER_KEYS.has(saved.orderBy)) _prodState.orderBy = saved.orderBy;
+            if (typeof saved.showSubIssues === 'boolean') _prodState.showSubIssues = saved.showSubIssues;
+        }
+        function _prodLoadDisplayPrefs() {
+            // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
+            try {
+                _prodApplyDisplayPrefs(JSON.parse(localStorage.getItem(PROD_DISPLAY_PREFS_KEY) || '{}') || {});
+            } catch (e) {}
+        }
+        function _prodSaveDisplayPrefs() {
+            // PORT-DELTA: wired Production persists display-only state per user; the artifact keeps state in memory.
+            try {
+                localStorage.setItem(PROD_DISPLAY_PREFS_KEY, JSON.stringify({
+                    groupBy: PROD_GROUP_KEYS.has(_prodState.groupBy) ? _prodState.groupBy : 'status',
+                    orderBy: PROD_ORDER_KEYS.has(_prodState.orderBy) ? _prodState.orderBy : 'due',
+                    showSubIssues: _prodState.showSubIssues !== false
+                }));
+            } catch (e) {}
+        }
         function _prodHeaders() {
             return { apikey: CAL_SUPABASE_ANON_KEY, Authorization: 'Bearer ' + CAL_SUPABASE_ANON_KEY, Accept: 'application/json' };
         }
@@ -27683,6 +27710,8 @@
                     dueRaw: d.due_date || '',
                     created: _prodFmtDate(d.created_at),
                     createdRaw: d.created_at || '',
+                    updated: _prodFmtDate(d.updated_at),
+                    updatedRaw: d.updated_at || '',
                     sub: null,
                     desc: d.brief || '',
                     file,
@@ -27859,6 +27888,29 @@
                 .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
                 .filter(d => _prodState.view !== 'my' || (d.assignee && d.assignee === _prodMyMemberId()))
                 .filter(d => _prodState.view === 'detail' || _prodState.view === 'batch' || _prodState.view === 'board' || _prodTabAllows(d.status));
+        }
+        // PORT-DELTA: live adapter row arrays can be absent during initial render.
+        function _prodApplySubIssueVisibility(rows) {
+            if (_prodState.showSubIssues !== false) return rows;
+            const ids = new Set((rows || []).map(d => d.id));
+            return (rows || []).filter(d => !(d.parent && ids.has(d.parent)));
+        }
+        // PORT-DELTA: live adapter ordering uses raw ISO date fields beside display labels.
+        function _prodIssueOrderValue(d, key) {
+            if (key === 'created') return d.createdRaw || '';
+            if (key === 'updated') return d.updatedRaw || d.createdRaw || '';
+            return d.dueRaw || '9999-99-99';
+        }
+        // PORT-DELTA: live adapter statuses are normalized and tie-break by migrated display id.
+        function _prodIssueOrderCompare(a, b) {
+            const s = PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(a.status)) - PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(b.status));
+            if (s) return s;
+            const key = PROD_ORDER_KEYS.has(_prodState.orderBy) ? _prodState.orderBy : 'due';
+            const av = String(_prodIssueOrderValue(a, key) || '');
+            const bv = String(_prodIssueOrderValue(b, key) || '');
+            const d = av.localeCompare(bv);
+            if (d) return key === 'created' || key === 'updated' ? -d : d;
+            return String(_prodIssueLabel(a)).localeCompare(String(_prodIssueLabel(b)));
         }
         function _prodFilterFields() {
             const editors = _prodEditors();
@@ -28094,18 +28146,42 @@
                 return false;
             }
             const opts = [['status','Status'], ['client','Client / project'], ['assignee','Assignee']];
+            const orders = [['due','Due date'], ['updated','Updated'], ['created','Created']];
             const tr = trigger && trigger.getBoundingClientRect ? trigger.getBoundingClientRect() : null;
-            const p = _prodLayerPop('<div class="prod-pop-hd">Group by</div>' + opts.map(o => '<div class="prod-mi" data-prod-grp="' + o[0] + '"><span class="mlbl">' + o[1] + '</span>' + (_prodState.groupBy === o[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join(''), tr ? tr.left : (ev ? ev.clientX : innerWidth - 160), tr ? tr.bottom + 4 : (ev ? ev.clientY : 120));
+            const p = _prodLayerPop('<div class="prod-pop-hd">Display</div><div class="prod-mi" data-prod-show-subissues="1"><span class="mlbl">Show sub-issues</span>' + (_prodState.showSubIssues !== false ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div><div class="prod-msep"></div><div class="prod-pop-hd">Group by</div>' + opts.map(o => '<div class="prod-mi" data-prod-grp="' + o[0] + '"><span class="mlbl">' + o[1] + '</span>' + (_prodState.groupBy === o[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '<div class="prod-msep"></div><div class="prod-pop-hd">Ordering</div>' + orders.map(o => '<div class="prod-mi" data-prod-order="' + o[0] + '"><span class="mlbl">' + o[1] + '</span>' + ((_prodState.orderBy || 'due') === o[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join(''), tr ? tr.left : (ev ? ev.clientX : innerWidth - 160), tr ? tr.bottom + 4 : (ev ? ev.clientY : 120));
             if (trigger) trigger.classList.add('menu-open');
+            p.querySelector('[data-prod-show-subissues]').addEventListener('click', () => {
+                _prodState.showSubIssues = _prodState.showSubIssues === false;
+                _prodState.selected.clear();
+                _prodState.collapsed = new Set();
+                _prodSaveDisplayPrefs();
+                _prodClearLayer();
+                _prodSetQuery({}, false);
+                _prodRender();
+            });
             p.querySelectorAll('[data-prod-grp]').forEach(el => el.addEventListener('click', () => {
                 _prodState.groupBy = el.getAttribute('data-prod-grp');
+                _prodState.collapsed = new Set();
+                _prodState.selected.clear();
+                _prodSaveDisplayPrefs();
                 _prodClearLayer();
+                _prodSetQuery({}, false);
+                _prodRender();
+            }));
+            p.querySelectorAll('[data-prod-order]').forEach(el => el.addEventListener('click', () => {
+                const next = el.getAttribute('data-prod-order') || 'due';
+                _prodState.orderBy = PROD_ORDER_KEYS.has(next) ? next : 'due';
+                _prodState.collapsed = new Set();
+                _prodState.selected.clear();
+                _prodSaveDisplayPrefs();
+                _prodClearLayer();
+                _prodSetQuery({}, false);
                 _prodRender();
             }));
             _prodWirePlainMenu(p);
             return false;
         }
-        // PORT-DELTA: openSearch result source is live adapter data instead of artifact seed arrays.
+        // PORT-DELTA: openSearch result source is live adapter data, including B1 brief text, instead of artifact seed arrays.
         function _prodPaletteItems(q) {
             const fields = _prodFilterFields();
             const query = String(q || '').trim().toLowerCase();
@@ -28129,7 +28205,7 @@
                 if (cmd.title.toLowerCase().includes(query)) items.push(cmd);
             });
             issues.forEach(i => {
-                if (String(i.title || '').toLowerCase().includes(query) || String(_prodIssueLabel(i)).toLowerCase().includes(query)) {
+                if (String(i.title || '').toLowerCase().includes(query) || String(_prodIssueLabel(i)).toLowerCase().includes(query) || String(i.desc || '').toLowerCase().includes(query)) {
                     items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
                 }
             });
@@ -29128,14 +29204,9 @@
             return active ? active.id : '';
         }
         function _prodIssueRows() {
-            const rows = _prodCurIssuesUnfiltered();
-            return rows.filter(_prodMatchFilters)
-                .sort((a, b) => {
-                    const s = PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(a.status)) - PROD_STATUS_ORDER.indexOf(_prodArtifactStatus(b.status));
-                    if (s) return s;
-                    return String(a.dueRaw || '9999-99-99').localeCompare(String(b.dueRaw || '9999-99-99'))
-                        || String(_prodIssueLabel(a)).localeCompare(String(_prodIssueLabel(b)));
-                });
+            const rows = _prodApplySubIssueVisibility(_prodCurIssuesUnfiltered().filter(_prodMatchFilters));
+            return rows
+                .sort(_prodIssueOrderCompare);
         }
         function _prodCounts() {
             const all = _prodIssues();
@@ -29240,7 +29311,17 @@
         }
         function _prodPrimeFromUrl() {
             try {
+                const statePrefs = history.state && history.state.prod ? history.state.prod : null;
+                if (statePrefs) _prodApplyDisplayPrefs(statePrefs);
+                else _prodLoadDisplayPrefs();
                 const q = new URLSearchParams(location.search);
+                const group = q.get('group');
+                if (PROD_GROUP_KEYS.has(group)) _prodState.groupBy = group;
+                const order = q.get('order');
+                if (PROD_ORDER_KEYS.has(order)) _prodState.orderBy = order;
+                const subs = q.get('subs');
+                if (subs === '0' || subs === 'false') _prodState.showSubIssues = false;
+                else if (subs === '1' || subs === 'true') _prodState.showSubIssues = true;
                 const team = q.get('team');
                 if (team === 'video' || team === 'graphics') _prodState.team = team;
                 const view = q.get('view');
@@ -29273,6 +29354,9 @@
                 q.delete('client');
                 q.delete('view');
                 q.delete('issues');
+                q.delete('group');
+                q.delete('order');
+                q.delete('subs');
                 if (_prodState.team !== 'all') q.set('team', _prodState.team);
                 if (_prodState.view === 'project' && _prodState.openProjectId) q.set('client', _prodState.openProjectId);
                 else if (_prodState.clientSlug) q.set('client', _prodState.clientSlug);
@@ -29280,9 +29364,12 @@
                 if (_prodState.view === 'board') q.set('view', 'board');
                 if (_prodState.view === 'project') q.set('view', 'project');
                 if (_prodState.tab !== 'active' && (_prodState.view === 'list' || _prodState.view === 'my')) q.set('issues', _prodState.tab);
+                if ((_prodState.groupBy || 'status') !== 'status') q.set('group', _prodState.groupBy);
+                if ((_prodState.orderBy || 'due') !== 'due') q.set('order', _prodState.orderBy);
+                if (_prodState.showSubIssues === false) q.set('subs', '0');
                 Object.entries(extra || {}).forEach(([k, v]) => { if (v) q.set(k, v); });
                 const url = location.pathname + '?' + q.toString() + '#production';
-                const state = { nav: 'production', client: null };
+                const state = { nav: 'production', client: null, prod: { groupBy: _prodState.groupBy || 'status', orderBy: _prodState.orderBy || 'due', showSubIssues: _prodState.showSubIssues !== false } };
                 if (push) history.pushState(state, '', url);
                 else history.replaceState(state, '', url);
             } catch (e) {}
@@ -29798,7 +29885,7 @@
                 const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
                 const projectNav = (_prodState.groupBy || 'status') === 'client' && group.key && group.key !== '_';
                 const title = projectNav
-                    ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); _prodOpenClient(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
+                    ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
                     : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
                 return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
                     + (collapsed ? '' : items.map(_prodRow).join(''));
@@ -29820,7 +29907,7 @@
                 + _prodStatusIcon(d.status, d.id)
                 + '<span class="prod-title"' + _prodTitleAttrs(d.title || 'Untitled deliverable') + '><b>' + _calEsc(d.title || 'Untitled deliverable') + '</b>' + (parent ? '<span class="prod-parent-title">' + _calEsc(parent.title || '') + '</span>' : '') + '</span>'
                 + (sub ? '<span class="prod-subchip" title="' + sub.done + ' of ' + sub.total + ' sub-issues done">' + _prodStatusSVG(sub.done === sub.total && sub.total > 0 ? 'approved' : 'todo') + sub.done + '/' + sub.total + '</span>' : '')
-                + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenClient(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
+                + '<span class="prod-spacer"></span><span class="prod-chip optional prod-chip-client" data-prod-crumbclient="' + _calEscAttr(d.project || '') + '" onclick="event.stopPropagation(); _prodOpenProject(' + _jsAttrArg(d.project || '') + ')" data-prod-tip="Client: ' + _calEscAttr(clientName) + '"><span class="prod-client-dot">' + _prodProjectGlyph(d.project) + '</span><span>' + _calEsc(clientName) + '</span></span>'
                 + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>')
                 + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" title="' + _calEscAttr(assignee ? assignee.name : 'Unassigned') + '" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span>'
                 + '<span class="prod-created">' + _calEsc(d.created) + '</span>'

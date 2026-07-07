@@ -170,6 +170,16 @@ async function safe(page, fn) {
       await wired.locator('#prodGroupBtn').click();
       await shot(wired, 'wired-07-group-by-menu');
     });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.groupBy = 'project'; S.filters = []; S.open = null; render(); });
+      await shot(artifact, 'artifact-14-client-group-nav');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'list'); _prodState.groupBy = 'client'; _prodState.filters = []; _prodRender(); });
+      await shot(wired, 'wired-14-client-group-nav');
+    });
 
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');
@@ -184,6 +194,16 @@ async function safe(page, fn) {
       await wired.locator('[data-prod-pcolcollapse]').first().click();
       await shot(wired, 'wired-08-collapsed-column');
     });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.filters = [{ field: 'status', values: ['__none__'] }]; render(); });
+      await shot(artifact, 'artifact-15-empty-board-columns');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'board'); _prodState.filters = [{ field: 'status', values: ['__none__'] }]; _prodRender(); });
+      await shot(wired, 'wired-15-empty-board-columns');
+    });
 
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');
@@ -194,6 +214,26 @@ async function safe(page, fn) {
       await wired.keyboard.press('Escape');
       await wired.locator('.prod-search-btn').click();
       await shot(wired, 'wired-09-palette');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; S.open = null; render(); });
+      await artifact.locator('.row').first().click({ button: 'right' });
+      await artifact.locator('#layer .pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await shot(artifact, 'artifact-16-context-keyboard-submenu');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('.prod-row').first().click({ button: 'right' });
+      await wired.locator('#prodLayer .prod-pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await shot(wired, 'wired-16-context-keyboard-submenu');
     });
 
     await safe(artifact, async () => {

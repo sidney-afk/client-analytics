@@ -2468,6 +2468,7 @@
         .prod-group-chev { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-faint); transition: transform .12s; }
         .prod-group.collapsed .prod-group-chev { transform: rotate(-90deg); }
         .prod-group-title { font-size: 13px; font-weight: 500; color: var(--prod-strong); }
+        .prod-group-title.navp { cursor: pointer; }
         .prod-group-count { font-size: 13px; color: var(--prod-muted); font-variant-numeric: tabular-nums; }
         .prod-row { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--prod-divider); cursor: pointer; user-select: none; }
         .prod-row:hover { background: var(--prod-hover); }
@@ -28130,7 +28131,7 @@
                         if (e.key === 'ArrowDown' || String(e.key).toLowerCase() === 'j') { e.preventDefault(); _prodMoveFocus(1); return; }
                         if (e.key === 'ArrowUp' || String(e.key).toLowerCase() === 'k') { e.preventDefault(); _prodMoveFocus(-1); return; }
                         if (e.key === 'Enter' && _prodState.focusRow) { e.preventDefault(); _prodOpenDeliverable(_prodState.focusRow); return; }
-                        const target = _prodState.focusRow || _prodFlatOrder()[0];
+                        const target = (_prodState.selected && _prodState.selected.size ? Array.from(_prodState.selected)[0] : '') || _prodState.focusRow || _prodFlatOrder()[0];
                         if (target && String(e.key).toLowerCase() === 's') { e.preventDefault(); _prodOpenPicker('status', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
                         if (target && String(e.key).toLowerCase() === 'a' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); _prodOpenPicker('assign', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
                         if (target && String(e.key).toLowerCase() === 'd' && e.shiftKey) { e.preventDefault(); _prodOpenPicker('due', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
@@ -28226,6 +28227,24 @@
             _prodToast(_prodPreviewText());
             return false;
         }
+        // PORT-DELTA: artifact linkify is namespaced and uses host escape helpers.
+        function _prodLinkify(s) {
+            s = _calEsc(s || '');
+            const st = [];
+            const keep = h => {
+                st.push(h);
+                return 'XMDTOK' + (st.length - 1) + 'ENDMDTOK';
+            };
+            s = s.replace(/`([^`]+)`/g, (m, c) => keep('<code>' + c + '</code>'));
+            s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, (m, l, u) => keep('<a href="' + u + '" target="_blank" rel="noopener">' + l + '</a>'));
+            s = s.replace(/(https?:\/\/[^\s<]+)/g, (m, u) => keep('<a href="' + u + '" target="_blank" rel="noopener">' + u + '</a>'));
+            s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+            s = s.replace(/(^|\s)__([^_]+)__(?=\s|$|[.,!?])/g, '$1<strong>$2</strong>');
+            s = s.replace(/(^|\s)_([^_\n]+)_(?=\s|$|[.,!?])/g, '$1<em>$2</em>');
+            s = s.replace(/XMDTOK(\d+)ENDMDTOK/g, (m, i) => st[+i]);
+            return s.replace(/\n/g, '<br>');
+        }
         // PORT-DELTA: body overlay IDs/classes are namespaced for the embedded Production tab.
         function _prodLayerPop(html, x, y) {
             _prodEnsureOverlays();
@@ -28234,7 +28253,21 @@
             layer.style.pointerEvents = 'auto';
             const bd = document.createElement('div');
             bd.className = 'prod-pop-bd';
-            bd.addEventListener('click', _prodClearLayer);
+            bd.addEventListener('click', e => {
+                const x = e.clientX;
+                const y = e.clientY;
+                const root = document.getElementById('prodRoot');
+                layer.style.pointerEvents = 'none';
+                const next = document.elementFromPoint(x, y);
+                layer.style.pointerEvents = 'auto';
+                const target = next && next.closest ? next.closest('[data-prod-prop], .prod-status[data-st], .prod-due, .prod-assign-hot, [data-prod-pstatus], [data-prod-plead], [data-prod-ptarget]') : null;
+                _prodClearLayer();
+                if (target && root && root.contains(target)) {
+                    setTimeout(() => {
+                        target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, clientX: x, clientY: y }));
+                    }, 0);
+                }
+            });
             bd.addEventListener('contextmenu', e => { e.preventDefault(); _prodClearLayer(); });
             layer.appendChild(bd);
             const pop = document.createElement('div');
@@ -28259,6 +28292,44 @@
                 _prodSubPop.remove();
                 _prodSubPop = null;
             }
+        }
+        function _prodWirePlainMenu(pop) {
+            const visible = () => Array.from(pop.querySelectorAll('.prod-mi')).filter(el => el.style.display !== 'none');
+            let sel = -1;
+            const hi = n => {
+                const rows = visible();
+                if (!rows.length) return;
+                sel = ((n % rows.length) + rows.length) % rows.length;
+                rows.forEach((el, i) => el.classList.toggle('sel', i === sel));
+                rows[sel].scrollIntoView({ block: 'nearest' });
+            };
+            pop.querySelectorAll('.prod-mi').forEach(el => el.addEventListener('mousemove', () => {
+                const rows = visible();
+                const ix = rows.indexOf(el);
+                if (ix >= 0 && ix !== sel) {
+                    sel = ix;
+                    rows.forEach((o, i) => o.classList.toggle('sel', i === sel));
+                }
+            }));
+            pop.addEventListener('keydown', e => {
+                if (e.key === 'ArrowDown') { e.preventDefault(); hi(sel + 1); return; }
+                if (e.key === 'ArrowUp') { e.preventDefault(); hi(sel < 0 ? -1 : sel - 1); return; }
+                if (e.key === 'Enter') {
+                    const rows = visible();
+                    const row = rows[sel >= 0 ? sel : 0];
+                    if (row) {
+                        e.preventDefault();
+                        row.click();
+                    }
+                    return;
+                }
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    _prodClearLayer();
+                }
+            });
+            pop.setAttribute('tabindex', '-1');
+            setTimeout(() => { try { pop.focus(); } catch (e) {} }, 0);
         }
         function _prodTargetIds(id) {
             const sid = String(id || '');
@@ -28635,6 +28706,8 @@
                 pop.querySelectorAll('[data-prod-cal]').forEach(el => el.addEventListener('click', e => {
                     e.stopPropagation();
                     calM = new Date(calM.getFullYear(), calM.getMonth() + (+el.getAttribute('data-prod-cal')), 1);
+                    const day = focusDay ? Math.min(focusDay.getDate(), new Date(calM.getFullYear(), calM.getMonth() + 1, 0).getDate()) : 1;
+                    focusDay = new Date(calM.getFullYear(), calM.getMonth(), day);
                     draw();
                 }));
                 const inp = pop.querySelector('[data-prod-search]');
@@ -28642,7 +28715,15 @@
                     inp.addEventListener('keydown', e => {
                         e.stopPropagation();
                         if (e.key === 'Escape') { _prodClearLayer(); return; }
-                        if (e.key === 'Enter' && _prodParseDue(inp.value)) guard();
+                        if (view === 'calendar' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                            e.preventDefault();
+                            const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowDown' ? 7 : -7;
+                            focusDay = _prodAddDays(focusDay || new Date(calM.getFullYear(), calM.getMonth(), 1), step);
+                            calM = new Date(focusDay.getFullYear(), focusDay.getMonth(), 1);
+                            draw();
+                            return;
+                        }
+                        if (e.key === 'Enter' && (view === 'calendar' ? focusDay : _prodParseDue(inp.value))) guard();
                     });
                     try { inp.focus(); } catch (e) {}
                 }
@@ -28711,6 +28792,7 @@
                     _prodReadonlyGuard();
                 });
             });
+            _prodWirePlainMenu(pop);
             return false;
         }
         function _prodTabAllows(status) {
@@ -29104,7 +29186,11 @@
                 const collapsed = _prodState.collapsed.has(group.key);
                 const selectedCount = items.filter(i => selected.has(i.id)).length;
                 const checkClass = selectedCount === items.length && items.length ? ' on' : selectedCount ? ' partial' : '';
-                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span><span class="prod-group-title">' + _calEsc(group.title) + '</span><span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
+                const projectNav = (_prodState.groupBy || 'status') === 'client' && group.key && group.key !== '_';
+                const title = projectNav
+                    ? '<span class="prod-group-title navp" data-prod-project="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); _prodOpenClient(' + _jsAttrArg(group.key) + ')">' + _calEsc(group.title) + '</span>'
+                    : '<span class="prod-group-title">' + _calEsc(group.title) + '</span>';
+                return '<div class="prod-group' + (collapsed ? ' collapsed' : '') + '" data-prod-group="' + _calEscAttr(group.key) + '" onclick="_prodToggleGroup(' + _jsAttrArg(group.key) + ')"><span class="prod-group-chev" data-prod-group-toggle="' + _calEscAttr(group.key) + '">' + _prodIcon('chevD') + '</span><span class="prod-group-check' + checkClass + '" data-prod-group-check="' + _calEscAttr(group.key) + '" onclick="event.stopPropagation(); return _prodGuardGroupSelection(' + _jsAttrArg(group.key) + ')" data-prod-tip="' + _prodPreviewText() + '"></span><span class="prod-group-ico prod-status">' + group.icon + '</span>' + title + '<span class="prod-group-count">' + items.length + '</span><span class="prod-spacer"></span><button class="prod-readonly-control prod-group-add" type="button" data-prod-disabled="add-deliverable" disabled title="' + _prodPreviewText() + '">' + _prodIcon('plus') + '</button></div>'
                     + (collapsed ? '' : items.map(_prodRow).join(''));
             }).join('') + '</div>' + _prodSelectionBar();
         }
@@ -29176,7 +29262,7 @@
                 : '';
             return '<div class="prod-detail" data-prod-detail="' + _calEscAttr(d.id) + '" data-prod-self-parent="' + (isBatchParent ? '1' : '0') + '" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')"><div class="prod-detail-main"><div class="prod-detail-inner">'
                 + '<div class="prod-detail-id">' + _calEsc(_prodIssueLabel(d)) + '</div><h1 class="prod-detail-title">' + _calEsc(d.title || 'Untitled deliverable') + '</h1>'
-                + '<div class="prod-desc">' + (d.desc ? _calEsc(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
+                + '<div class="prod-desc">' + (d.desc ? _prodLinkify(d.desc) : '<span style="color:var(--prod-faint)">No brief on this migrated row.</span>') + '</div>'
                 + (file ? '<p class="prod-file-line"><b>Delivered file:</b> <a class="prod-link" href="' + _calEscAttr(file) + '" target="_blank" rel="noopener">' + _calEsc(file) + '</a></p>' : '')
                 + subSection
                 + '<div class="prod-activity"><div class="prod-subhead">Activity</div>' + _prodActivity(events) + '<div class="prod-composer"><span>' + _prodAvatar(null, 18) + '</span><button class="prod-composer-box" type="button" data-prod-disabled="composer" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">Commenting is disabled in this preview.</button></div></div>'

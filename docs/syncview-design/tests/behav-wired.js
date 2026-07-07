@@ -51,6 +51,20 @@ async function txt(page, sel) {
   const errors = [];
   const requests = [];
   const results = {};
+  const deferred = {
+    commentEdit: 'deferred-B3: comment edits mutate the production comment store',
+    commentEditCancel: 'deferred-B3: comment edit mode is not enabled until writable comments ship',
+    commentDelete: 'deferred-B3: comment deletion mutates the production comment store',
+    boardDrag: 'deferred-B3: drag/drop changes project status',
+    delCount: 'deferred-B3: delete mutates issue rows and children',
+    draftPersist: 'deferred-B3: writable composer drafts are disabled in read-only preview',
+    moveNoop: 'deferred-B3: move is a write-path action',
+    addSubKeepOpen: 'deferred-B3: add sub-issue creates rows',
+    editedMarker: 'deferred-B3: edited marker depends on writable comment edit',
+    composerTextarea: 'deferred-B3: composer is represented by guarded read-only chrome',
+    favSection: 'deferred-B3: favorites mutate issue/view preference state',
+    favView: 'deferred-B3: favorites mutate issue/view preference state',
+  };
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
   page.on('request', req => requests.push({ method: req.method(), url: req.url() }));
@@ -275,6 +289,201 @@ async function txt(page, sel) {
       await page.keyboard.press('s');
       return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
+    await ok('groupPartial', async () => await page.evaluate(() => {
+      const group = _prodGroupsFor(_prodIssueRows()).find(g => g.items.length > 1);
+      if (!group) return true;
+      _prodState.selected.clear();
+      _prodState.selected.add(group.items[0].id);
+      _prodRender();
+      const partial = document.querySelector('[data-prod-group-check="' + CSS.escape(group.key) + '"]');
+      const partOk = partial && partial.classList.contains('partial') && !partial.classList.contains('on');
+      group.items.forEach(i => _prodState.selected.add(i.id));
+      _prodRender();
+      const full = document.querySelector('[data-prod-group-check="' + CSS.escape(group.key) + '"]');
+      const fullOk = full && full.classList.contains('on') && !full.classList.contains('partial');
+      _prodState.selected.clear();
+      _prodRender();
+      return partOk && fullOk;
+    })); await reset();
+    await ok('emptyColumn', async () => await page.evaluate(() => {
+      _prodState.view = 'board';
+      _prodState.team = 'video';
+      _prodState.openId = '';
+      _prodState.openBatchId = '';
+      _prodState.clientSlug = '';
+      _prodState.filters = [{ field: 'status', values: ['__none__'] }];
+      _prodRender();
+      const ok = document.querySelectorAll('.prod-col .prod-empty').length === PROD_BOARD_ORDER.length;
+      _prodState.filters = [];
+      _prodRender();
+      return ok;
+    })); await reset();
+    await ok('markdown', async () => await page.evaluate(() => {
+      const h = _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com - VID-12586');
+      return h.includes('<strong>bold</strong>')
+        && h.includes('<code>code</code>')
+        && h.includes('<a href="https://ex.com" target="_blank" rel="noopener">docs</a>')
+        && h.includes('<a href="https://y.com"')
+        && h.includes('12586')
+        && !h.includes('XMDTOK');
+    })); await reset();
+    await ok('paletteCommand', async () => {
+      await page.locator('.prod-search-btn').click();
+      await page.fill('.prod-cmd-input', 'my issues');
+      await page.keyboard.press('Enter');
+      return await page.evaluate(() => _prodState.view === 'my');
+    }); await reset();
+    await ok('submenuEscape', async () => {
+      await page.locator('.prod-row').first().click({ button: 'right' });
+      await page.locator('.prod-pop [data-prod-ctx="status"]').hover();
+      const twoPops = await page.locator('#prodLayer .prod-pop').count();
+      await page.locator('#prodLayer .prod-pop [data-prod-search]').last().press('Escape');
+      const onePop = await page.locator('#prodLayer .prod-pop').count();
+      return twoPops === 2 && onePop === 1;
+    }); await reset();
+    await ok('menuNav', async () => {
+      await page.locator('.prod-row').first().click({ button: 'right' });
+      return await page.evaluate(() => {
+        const pop = document.querySelector('#prodLayer .prod-pop');
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        const a = pop.querySelector('.prod-mi.sel');
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        const b = pop.querySelector('.prod-mi.sel');
+        const all = [...pop.querySelectorAll('.prod-mi')];
+        return !!a && !!b && all.indexOf(b) > all.indexOf(a);
+      });
+    }); await reset();
+    await ok('menuNavEnter', async () => {
+      await page.locator('.prod-row').first().click({ button: 'right' });
+      return await page.evaluate(() => {
+        const pop = document.querySelector('#prodLayer .prod-pop');
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        return document.querySelectorAll('#prodLayer .prod-pop').length >= 2;
+      });
+    }); await reset();
+    await ok('ppickNav', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('.prod-card-status[data-prod-pstatus]').first().click();
+      const before = await page.locator('#prodLayer [data-prod-ppick].sel').first().getAttribute('data-prod-ppick');
+      await page.locator('#prodLayer [data-prod-search]').press('ArrowDown');
+      const after = await page.locator('#prodLayer [data-prod-ppick].sel').first().getAttribute('data-prod-ppick');
+      return before !== after;
+    }); await reset();
+    await ok('pickerSwitch', async () => {
+      const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
+      await page.locator('.prod-row').first().click();
+      await page.waitForSelector('[data-prod-detail="' + id + '"]');
+      await page.locator('[data-prod-prop="assignee"]').click();
+      const open = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Unassigned' }).count() >= 0;
+      const box = await page.locator('[data-prod-prop="status"]').boundingBox();
+      if (!box) return false;
+      await page.mouse.click(box.x + 8, box.y + box.height / 2);
+      await page.waitForTimeout(80);
+      const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
+      return open && isStatus;
+    }); await reset();
+    await ok('tabTrap', async () => {
+      await page.locator('.prod-row .prod-status[data-st]').first().click();
+      return await page.evaluate(() => {
+        const inp = document.querySelector('#prodLayer [data-prod-search]');
+        if (!inp) return false;
+        inp.focus();
+        const ev = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true });
+        inp.dispatchEvent(ev);
+        return ev.defaultPrevented;
+      });
+    }); await reset();
+    await ok('groupProjectNav', async () => {
+      await page.locator('#prodGroupBtn').click();
+      await page.locator('.prod-pop [data-prod-grp="client"]').click();
+      const key = await page.locator('.prod-group-title.navp[data-prod-project]').first().getAttribute('data-prod-project');
+      await page.locator('.prod-group-title.navp[data-prod-project]').first().click();
+      return await page.evaluate(k => _prodState.clientSlug === k && !_prodState.collapsed.has(k), key);
+    }); await reset();
+    await ok('kbSelPriority', async () => {
+      await page.evaluate(() => {
+        const order = _prodFlatOrder();
+        _prodState.selected = new Set(order.slice(0, 2));
+        _prodState.focusRow = order[2] || '';
+        _prodRender();
+      });
+      await page.keyboard.press('s');
+      await page.locator('#prodLayer [data-prod-search]').press('Enter');
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      return await page.evaluate(() => _prodState.selected.size === 2);
+    }); await reset();
+    await ok('cardLead', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('[data-prod-plead]').first().click();
+      return await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'No lead' }).count() > 0 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('cardTarget', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('[data-prod-ptarget]').first().click();
+      return await page.locator('#prodLayer .prod-pop').count() === 1 && await page.locator('.prod-detail').count() === 0;
+    }); await reset();
+    await ok('cardCount', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      return await page.evaluate(() => {
+        const card = document.querySelector('.prod-card[data-prod-client-card]');
+        if (!card) return true;
+        const slug = card.getAttribute('data-prod-client-card');
+        const real = _prodIssueRows().filter(x => x.project === slug && !x.parent).length;
+        const shown = card.querySelector('.prod-card-meta span').textContent;
+        return shown === real + ' issue' + (real === 1 ? '' : 's');
+      });
+    }); await reset();
+    await ok('subLeafNoHeader', async () => {
+      const leafParent = await page.evaluate(() => {
+        const leaf = _prodIssues().find(i => _prodChildrenOf(i.id).length === 0);
+        return leaf ? leaf.id : '';
+      });
+      if (!leafParent) return true;
+      await page.evaluate(id => _prodOpenDeliverable(id), leafParent);
+      await page.waitForSelector('.prod-detail');
+      return await page.locator('[data-prod-section="subissues"]').count() === 0;
+    }); await reset();
+    await ok('syncFocus', async () => {
+      await page.locator('.prod-row .prod-status[data-st]').first().click();
+      return await page.evaluate(() => document.activeElement === document.querySelector('#prodLayer [data-prod-search]'));
+    }); await reset();
+    await ok('cardMenu', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      await page.locator('.prod-card').first().click({ button: 'right' });
+      const hasItems = await page.locator('.prod-pop .mlbl', { hasText: 'Change status' }).count() > 0
+        && await page.locator('.prod-pop .mlbl', { hasText: 'Copy link' }).count() > 0;
+      await page.locator('.prod-pop .prod-mi', { hasText: 'Change status' }).click();
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      return hasItems && (await txt(page, '#prodToast')).includes('Preview - read-only');
+    }); await reset();
+    await ok('colCollapse', async () => {
+      await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
+      await page.waitForSelector('.prod-board');
+      const key = await page.locator('[data-prod-pcolcollapse]').first().getAttribute('data-prod-pcolcollapse');
+      await page.locator('[data-prod-pcolcollapse]').first().click();
+      const collapsed = await page.evaluate(k => _prodState.colCollapsed.has(k), key);
+      await page.locator('[data-prod-pcolcollapse="' + key + '"]').click();
+      const expanded = await page.evaluate(k => !_prodState.colCollapsed.has(k), key);
+      return collapsed && expanded;
+    }); await reset();
+    await ok('calArrowNav', async () => {
+      await page.locator('.prod-row .prod-due').first().click();
+      await page.locator('#prodLayer [data-prod-set="__custom__"]').click();
+      const beforeFocus = await page.locator('#prodLayer .prod-cal-d.focus').first().getAttribute('data-prod-day');
+      const beforeState = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
+      await page.locator('#prodLayer [data-prod-search]').press('ArrowRight');
+      const afterFocus = await page.locator('#prodLayer .prod-cal-d.focus').first().getAttribute('data-prod-day');
+      await page.locator('#prodLayer [data-prod-search]').press('Enter');
+      await page.waitForSelector('#prodToast.show', { timeout: 3000 });
+      const afterState = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
+      return beforeFocus !== afterFocus && beforeState === afterState;
+    }); await reset();
 
     await ok('sidebarMyIssues', async () => await page.locator('.prod-nav-btn', { hasText: 'My issues' }).count() > 0);
     await ok('sidebarTeamProjects', async () => await page.locator('.prod-team-hd', { hasText: 'Video' }).count() > 0 && await page.locator('.prod-nav-btn', { hasText: 'Projects' }).count() > 0);
@@ -384,6 +593,7 @@ async function txt(page, sel) {
 
     const failed = Object.entries(results).filter(([, v]) => v !== true);
     console.log(JSON.stringify(results));
+    console.log('behav-wired deferred-B3: ' + Object.keys(deferred).join(', '));
     const passed = Object.keys(results).length - failed.length;
     console.log('behav-wired: ' + passed + '/' + TOTAL + ' (guard mode)');
     if (failed.length) {

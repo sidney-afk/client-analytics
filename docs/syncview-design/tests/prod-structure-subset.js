@@ -154,6 +154,7 @@ async function assertNoWriteRequests(requests) {
     await page.locator('#prodGroupBtn').click();
     await page.locator('.prod-pop [data-prod-grp="client"]').click();
     if (!(await page.evaluate(() => _prodState.groupBy === 'client'))) throw new Error('Display menu did not switch to client grouping');
+    await expectCount(page, '.prod-group-title.navp[data-prod-project]', 1, 'Client-group header opens project/client view');
     await page.evaluate(() => { _prodState.groupBy = 'status'; _prodRender(); });
     await page.locator('.prod-search-btn').click();
     await expectCount(page, '.prod-cmd .prod-cmd-input', 1, 'Command palette input');
@@ -188,6 +189,14 @@ async function assertNoWriteRequests(requests) {
     await page.keyboard.press('Escape');
     await row.click({ button: 'right' });
     await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
+    await page.locator('.prod-pop').first().evaluate(pop => {
+      pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'context keyboard Enter opens submenu picker');
+    await page.keyboard.press('Escape');
+    await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+    await row.click({ button: 'right' });
     const contextText = await text(page, '.prod-pop');
     if (!contextText.includes('⇧D') || !contextText.includes('Ctrl ⌫')) throw new Error('Context menu keyboard hints do not match artifact glyphs');
     const popBg = await page.locator('.prod-pop').first().evaluate(el => getComputedStyle(el).backgroundColor);
@@ -209,6 +218,10 @@ async function assertNoWriteRequests(requests) {
 
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });
+    const linkified = await page.evaluate(() => _prodLinkify('Ship **bold** and `code` and [docs](https://ex.com) plus https://y.com'));
+    if (!linkified.includes('<strong>bold</strong>') || !linkified.includes('<code>code</code>') || !linkified.includes('<a href="https://ex.com"')) {
+      throw new Error('Production markdown/link renderer does not match artifact shape');
+    }
     await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');
     await page.locator('[data-prod-crumb-client]').first().click();
     await page.waitForSelector('.prod-listwrap, .prod-empty', { timeout: 10000 });

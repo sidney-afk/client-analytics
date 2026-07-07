@@ -782,3 +782,12 @@ Read-only live observation used the current Linear issue-list tab and opened one
 Owner question:
 
 1. Should SyncView keep the current simplified row context menu, or adopt more of live Linear's row-menu shell while still hiding Priority, Labels, Cycle, and guarding every mutation in B2?
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 34
+
+Read-only live observation used the current Linear issue-list tab, opened one row context menu, hovered the Status row to expose the submenu, then closed it with Escape. Before/after visible issue-row snapshots both contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Status submenu | verified | Live Linear shows the simplified production status vocabulary in this workspace: Backlog, Todo, In Progress, For SMM approval, For Kasper approval, Tweak Needed, For Client Approval, Approved, Scheduled, Posted, Canceled, Duplicate, Triage, with number hints and Triage last. Prototype and wired already match this contract, and `pixel-wired.js` / `behav-wired.js` already cover it. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |

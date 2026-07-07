@@ -524,3 +524,12 @@ Cycle 33 ran a read-only live Linear row-context-menu probe on the current issue
 |---|---:|---|
 | Row context-menu breadth | owner-question | Live Linear's row menu contains the broader shell, including Priority, Labels, Cycle, Create related, Mark as, Convert to, Open in, Favorite, Subscribe, Remind me, and Delete. The prototype/wired preview keep the existing simplified allowed subset pending owner direction, so no code change was made. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 34
+
+Cycle 34 ran a read-only live Linear row-context Status submenu probe on the current issue-list tab. Before/after visible issue-row snapshots both contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Status submenu | verified | Live Linear's status submenu in this workspace uses the same production vocabulary and ordering already present in prototype/wired: Backlog first, number hints, Duplicate before Triage, and Triage last. Existing `pixel-wired.js` / `behav-wired.js` coverage already guards this. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

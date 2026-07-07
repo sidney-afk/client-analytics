@@ -107,6 +107,18 @@ async function commandInventory(page, selector) {
   }));
 }
 
+async function emptyStateInventory(page, selector) {
+  return page.locator(selector).first().evaluate(el => ({
+    message: Array.from(el.children)
+      .filter(child => child.tagName === 'SPAN' && !child.classList.contains('es-ico'))
+      .map(child => (child.textContent || '').trim())
+      .filter(Boolean)
+      .join(' '),
+    button: (el.querySelector('.es-clear')?.textContent || '').trim(),
+    paths: Array.from(el.querySelectorAll('.es-ico svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+  }));
+}
+
 function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
   if (artifactRows.length !== wiredRows.length) {
     gaps.push({ rank: 1, state, message: `picker row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
@@ -482,6 +494,52 @@ async function run() {
     const removed = await wired.evaluate(() => !_prodState.filters.length);
     if (!removed) gaps.push({ rank: 1, state: 'filter pill', message: 'filter × did not remove local read-only filter state' });
 
+    await artifact.evaluate(() => {
+      if (typeof clearLayer === 'function') clearLayer();
+      S.open = null;
+      S.projectOpen = null;
+      S.view = { type: 'issues', team: 'video' };
+      S.tab = 'active';
+      S.filters = [{ field: 'status', values: ['duplicate'] }];
+      S.selected.clear();
+      render();
+    });
+    await wired.evaluate(() => {
+      if (typeof _prodClearLayer === 'function') _prodClearLayer();
+      _prodState.view = 'list';
+      _prodState.team = 'video';
+      _prodState.tab = 'active';
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openProjectId = '';
+      _prodState.filters = [{ field: 'status', values: ['duplicate'] }];
+      _prodState.selected.clear();
+      _prodRender();
+    });
+    await artifact.waitForSelector('.empty-state');
+    await wired.waitForSelector('.prod-empty-state');
+    await shot(artifact, 'artifact-empty-filtered-list');
+    await shot(wired, 'wired-empty-filtered-list');
+    await shotElement(artifact, '.empty-state', 'artifact-crop-empty-filtered-list');
+    await shotElement(wired, '.prod-empty-state', 'wired-crop-empty-filtered-list');
+    const filteredEmptyA = await emptyStateInventory(artifact, '.empty-state');
+    const filteredEmptyW = await emptyStateInventory(wired, '.prod-empty-state');
+    if (filteredEmptyA.message !== filteredEmptyW.message) gaps.push({ rank: 1, state: 'filtered empty state', message: `message artifact=${filteredEmptyA.message} wired=${filteredEmptyW.message}` });
+    if (filteredEmptyA.button !== filteredEmptyW.button) gaps.push({ rank: 1, state: 'filtered empty state', message: `button artifact=${filteredEmptyA.button} wired=${filteredEmptyW.button}` });
+    if (filteredEmptyA.paths.join('|') !== filteredEmptyW.paths.join('|')) gaps.push({ rank: 1, state: 'filtered empty state', message: 'icon path drift' });
+    await compareStyles(gaps, 'filtered empty state', artifact, wired, '.empty-state', '.prod-empty-state', ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight', 'textAlign', 'color', 'display', 'alignItems', 'justifyContent', 'gap']);
+    const wiredEmptyFill = await wired.evaluate(() => {
+      const el = document.querySelector('.prod-empty-state');
+      const parent = document.querySelector('.prod-content');
+      if (!el || !parent) return false;
+      return el.getBoundingClientRect().width >= parent.getBoundingClientRect().width - 2;
+    });
+    if (!wiredEmptyFill) gaps.push({ rank: 1, state: 'filtered empty state', message: 'wired empty state does not fill its pane' });
+    await artifact.locator('.empty-state .es-clear').click();
+    await wired.locator('.prod-empty-state .es-clear').click();
+    const emptyCleared = await wired.evaluate(() => !_prodState.filters.length);
+    if (!emptyCleared) gaps.push({ rank: 1, state: 'filtered empty state', message: 'Clear filters did not remove local read-only filter state' });
+
     await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; S.open = null; render(); });
     await wired.evaluate(() => window._prodOpenTeamView('video', 'board'));
     await artifact.waitForSelector('.board');
@@ -506,7 +564,7 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, board, and detail parity checks passed');
+    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board, and detail parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

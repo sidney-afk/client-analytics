@@ -182,3 +182,17 @@ Ranked findings fixed in this cycle:
 5. P1: project command rows used project icons; the artifact uses the same command glyph for every command row.
 
 Pixel lane additions: `pixel-wired.js` now checks due-popover quick rows, custom calendar month/today state, command-palette default inventory, command search, and palette empty state. Remaining full-matrix surfaces for later cycles: contextual empty states beyond the palette, browser back/forward/refresh restoration, and scroll/drag visual affordances.
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 3
+
+Human-audit matrix pass (contextual empty-state surface; screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Filtered list empty state | fixed | `artifact-crop-empty-filtered-list.png` / `wired-crop-empty-filtered-list.png`; added a pixel lane for icon/message/Clear filters behavior and fixed the wired pane width so the empty state fills the Production content area like the artifact. |
+
+Ranked findings fixed in this cycle:
+
+1. P2: the wired filtered-list empty state was content-width in the flex pane; the artifact empty state fills the available list pane. Wired now uses `width: 100%` without stretching vertically beyond the artifact layout contract.
+
+Pixel lane additions: `pixel-wired.js` now covers filtered-list empty state inventory, Clear filters behavior, and local pane-fill geometry. Remaining full-matrix surfaces for later cycles: browser back/forward/refresh restoration and scroll/drag visual affordances.

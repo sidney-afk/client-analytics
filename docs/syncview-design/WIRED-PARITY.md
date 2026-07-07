@@ -15,6 +15,13 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Context menu delete shortcut label | live Linear row context menu on Windows | ✅ | Prototype and wired context menus now show `Ctrl Delete`; mutation remains guarded in wired B2. |
 | Locked skeleton omissions | owner standing decision | 🔒 | Priority, labels, cycles, Inbox/Triage/Views nav, workspace switcher, and manual new issue chrome were observed in live Linear but intentionally not copied. |
 
+## 2026-07-06 Live Linear Parity Cycle 2
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered list selection/actionbar, issue detail, projects board, and project detail; 20 visible rows before and after, `changed:false` in local private artifact. |
+| Compact project cards | live Linear projects board | ✅ | Prototype and wired board cards omit inline description copy, keeping name/status/menu/lead, issue count, and target/date. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

@@ -554,6 +554,11 @@ async function run() {
     await wired.waitForSelector('.prod-board');
     await requirePair(gaps, 'board inventory', artifact, wired, '.pcard', '.prod-card');
     await requirePair(gaps, 'board inventory', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]');
+    const artifactCardDescriptions = await artifact.locator('.pcard-desc').count();
+    const wiredCardDescriptions = await wired.locator('.prod-card-desc').count();
+    if (artifactCardDescriptions || wiredCardDescriptions) {
+      gaps.push({ rank: 1, state: 'board card compactness', message: `description rows artifact=${artifactCardDescriptions} wired=${wiredCardDescriptions}` });
+    }
     await shot(artifact, 'artifact-board');
     await shot(wired, 'wired-board');
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);

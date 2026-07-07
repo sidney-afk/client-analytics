@@ -17,6 +17,8 @@ Legend: ✅ matches · 🟡 built, deltas remain · 🔨 in progress · ⬜ not 
 
 Read-only live observation found two non-skeleton deltas and closed them in both the prototype and the wired preview: issue tabs now read `All issues`, `Active`, `Backlog`, and the row context menu delete hint now reads `Ctrl Delete` on Windows. Before/after visible issue-row snapshots matched with no changed rows. Priority, labels, cycles, Inbox/Triage/Views nav, workspace switcher, and manual new issue chrome remain intentionally removed.
 
+Cycle 2 expanded the read-only live sweep to list selection/actionbar, issue detail, projects board, and project detail. Before/after issue rows again matched with no changed rows. The project board cards now match live Linear's compact card read: no inline description copy on the board card itself.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

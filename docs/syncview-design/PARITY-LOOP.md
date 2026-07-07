@@ -13,6 +13,12 @@ Live differences applied outside the locked skeleton:
 
 Intentionally not copied from live Linear because they are locked skeleton removals: priority signals, labels, cycles, Inbox/Triage/Views nav, workspace switcher, and manual new issue chrome.
 
+# Live Linear parity cycle 2 - 2026-07-06
+Read-only observation expanded to list selection/actionbar, issue detail, projects board, and project detail. Before/after visible issue-row snapshots again contained 20 rows and compared unchanged (`changed:false` in the local private artifact).
+
+Live difference applied outside the locked skeleton:
+- Project board cards no longer render description copy inline; live Linear cards stay compact with name, status/menu/lead, issue count, and target/date.
+
 # ✅ BEHAVIORAL PARITY DONE — 2026-07-05
 SyncView now behaves like real Linear across every surface. **11 adversarial re-audits** run (5 parallel agents vs live Linear each); the finding count converged **22→20→12→11→13→15→9→8→11→10→7**, and the **last SIX all returned 0 high-severity / 0 regressions** — remaining findings are deep polish + intentional skeleton/layout limitations, not defects. **~115 divergences closed** across the behavioral phase. Regression suite: **`behav.js` 138 assertions (all green)**, `qa-features.js` GREEN, `sweep.js` CLEAN, **0 JS errors** throughout.
 **All real features shipped:** live row-glyph clicks (chip→profile / due→picker / avatar+status pickers); full list multi-select (checkbox/x/Cmd-click/Shift-click/Shift-arrows) + bulk action bar w/ inline quick-actions; keyboard model (j/k, Enter focused-or-hovered, s/a/⇧D/⇧P, ⌘K palette, Escape hierarchy); delete + comment-delete **Undo (Ctrl/⌘+Z)**; detail property pickers + calendar (arrow-nav, unified month paging, typed input); **Activity feed logs system events** (on the edited issue, wherever triggered); comment edit (blur discards); **board keyboard nav**; **board card multi-select** (mouse + `x`) + board bulk bar; truncation-aware tooltips; picker/filter "No results"; detail-panel scroll preservation.

@@ -51,10 +51,23 @@ const server = http.createServer((req, res) => {
     await page.screenshot({ path: path.join(root, 'qa', 'cc-smoke-failure.png'), fullPage: true }).catch(() => {});
     throw e;
   }
+  // Clients are collapsed by default now (WS3 3e): the Baya Voce rows are
+  // hidden until its header is expanded. Confirm the collapse, then open it.
+  const bayaToggle = page.getByRole('button', { name: 'Expand or collapse Baya Voce' });
+  await bayaToggle.waitFor({ timeout: 10000 });
+  if (await page.locator('.cc-row', { hasText: '@bayavoce' }).isVisible().catch(() => false)) {
+    throw new Error('client card should be collapsed by default');
+  }
+  await bayaToggle.click();
   await page.waitForSelector('text=@bayavoce', { timeout: 20000 });
-  const masked = await page.locator('.cc-secret code').first().innerText();
+  const bayaRow = page.locator('.cc-row', { hasText: '@bayavoce' });
+  const masked = await bayaRow.locator('.cc-secret code').first().innerText();
   if (masked !== '••••••') throw new Error('password was not masked initially: ' + masked);
-  await page.locator('.cc-row', { hasText: '@bayavoce' }).locator('button[title="Reveal password"]').click();
+  // Locate the reveal/hide toggle by aria-label, not title: the global tooltip
+  // system (setupGlobalTooltip) strips the native `title` off whatever the
+  // pointer is hovering, and with instant reveal the fresh "Hide" button lands
+  // right under the cursor. aria-label is stable through that.
+  await page.locator('.cc-row', { hasText: '@bayavoce' }).locator('button[aria-label="Reveal password"]').click();
   try {
     await page.waitForFunction(() => Array.from(document.querySelectorAll('.cc-secret code')).some(x => x.textContent === 'fake-pass-1'), null, { timeout: 10000 });
   } catch (e) {
@@ -63,8 +76,12 @@ const server = http.createServer((req, res) => {
     console.error('secrets=' + await page.locator('.cc-secret code').evaluateAll(nodes => nodes.map(n => n.textContent).join('|')).catch(() => 'n/a'));
     throw e;
   }
+  // Reveal is now instant (the password is already in hand); the audit
+  // log_reveal fires in the background, so wait briefly for it to land rather
+  // than asserting synchronously.
+  for (let i = 0; i < 50 && !calls.includes('log_reveal'); i++) await page.waitForTimeout(100);
   if (!calls.includes('log_reveal')) throw new Error('reveal was not logged');
-  await page.locator('.cc-row', { hasText: '@bayavoce' }).locator('button[title="Hide password"]').click();
+  await page.locator('.cc-row', { hasText: '@bayavoce' }).locator('button[aria-label="Hide password"]').click();
   await page.waitForFunction(() => Array.from(document.querySelectorAll('.cc-secret code')).some(x => x.textContent === '••••••'), null, { timeout: 10000 });
   await page.evaluate(() => { window.calState = window.calState || {}; calState.client = 'Baya Voce'; _ccOpenModal('Baya Voce'); });
   await page.locator('#ccModalBody').getByText('@bayavoce').waitFor({ timeout: 10000 });

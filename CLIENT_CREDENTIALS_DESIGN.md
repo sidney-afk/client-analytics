@@ -78,15 +78,18 @@ Kasper gets a `Client Credentials` subtab. It shows:
 
 - search across clients/platforms/handles/notes
 - unmatched/needs-review bucket
-- client cards grouped by client
-- masked passwords with reveal/copy buttons
+- client cards grouped by client, **collapsed by default** (the header keeps the client name, credential count and any "needs review" chip visible; click to expand). Expanded state survives background realtime repaints.
+- masked passwords with reveal/copy buttons. **Reveal is instant** — the value is already in hand, so the mask flips synchronously and the `log_reveal` audit event is written in the background (fire-and-forget). Reveal is device-local: revealing on one screen never reveals on another. The password box reserves a stable width so the reveal/copy icons do not shift between masked and revealed.
 - add/edit/delete actions
-- credential history modal
-- bulk import preview + confirm flow
+- credential history modal (the full audited change log; there is no longer an inline "Updated by" line under each row)
+
+Bulk import is no longer surfaced as a Kasper button. The `bulk_import` Edge Function action still exists for onboarding and programmatic imports; re-add a UI entry point if a manual paste-import flow is needed again.
+
+The list refreshes live on any peer add/edit/archive (via the `client_credentials_rev` realtime ping), and also background-refreshes when Kasper returns to the subtab so a change made while he was on another tab is never stale. A background refresh defers briefly while a client/platform picker dropdown is open so it cannot collapse the reassign control mid-use.
 
 ### SMM calendar modal
 
-Staff calendars get a `Client credentials` item in the More options menu. It opens the same credential rows for the currently selected client, without delete or bulk import controls.
+Staff calendars get a `Client credentials` item in the More options menu. It opens the same credential rows for the currently selected client, without bulk import controls. The top-right × closes it (the redundant footer "Close" button was removed). It subscribes to the per-client realtime ping, so a change made by Kasper or another staff member updates the open modal live.
 
 ### Identity prompt
 

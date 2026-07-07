@@ -28,6 +28,14 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 |---|---|---:|---|
 | Board column collapse control chrome | `renderProjects`, `.pcol-chev` | ✅ | Wired `.prod-col-collapse` now matches the artifact's transparent borderless chevron instead of a default button box; pixel lane compares border/background/opacity/cursor. |
 
+## 2026-07-06 Live Linear Parity Cycle 4
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered display/group menu, command palette, row hover, and row context menu; 20 visible rows before and after, `changed:false` in local private artifact. |
+| Command palette focused-issue action mode | live Linear command palette | ⬜ | Observed live Linear opens action commands for the focused issue, but includes removed Priority/Labels/Cycles rows. Left for owner decision so SyncView does not reintroduce locked removed surface. |
+| Display menu breadth | live Linear display menu | ⬜ | Observed list/board layout, grouping/sub-grouping/ordering, completed/sub-issue/triage toggles, and display-property chips. Several conflict with locked skeleton removals; left for owner decision. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

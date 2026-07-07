@@ -361,6 +361,16 @@ async function run() {
     const displayW = await iconPaths(wired, '#prodGroupBtn');
     if (displayA.join('|') !== displayW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `display icon path drift: ${displayW.join('|')}` });
     await compareStyles(gaps, 'toolbar icon buttons', artifact, wired, '#filterbtn', '#prodFilterBtn', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'color']);
+    await artifact.locator('[data-act="search"]').hover();
+    await wired.locator('.prod-search-btn').hover();
+    await artifact.waitForSelector('#tip.show');
+    await wired.waitForSelector('.prod-tip.show');
+    const searchTipA = (await artifact.locator('#tip.show').innerText()).replace(/\s+/g, ' ').trim();
+    const searchTipW = (await wired.locator('.prod-tip.show').innerText()).replace(/\s+/g, ' ').trim();
+    if (searchTipA !== searchTipW) gaps.push({ rank: 1, state: 'search tooltip', message: `artifact=${searchTipA} wired=${searchTipW}` });
+    await compareStyles(gaps, 'search tooltip', artifact, wired, '#tip.show', '.prod-tip.show', ['backgroundColor', 'borderRadius', 'borderTopColor', 'color', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom']);
+    await artifact.mouse.move(900, 20);
+    await wired.mouse.move(900, 20);
 
     await artifact.locator('[data-act="search"]').click();
     await wired.locator('.prod-search-btn').click();

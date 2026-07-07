@@ -674,3 +674,18 @@ Ranked finding fixed in this cycle:
 1. P2: the wired list's overdue due-date pills were visibly warmer and heavier than the artifact/live-style dark due pills after the dark-shell migration.
 
 Pixel lane addition: `pixel-wired.js` now compares artifact vs wired overdue due-pill chrome and icon color.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 24
+
+Fresh no-op live Linear snapshot was read-only. The probe captured 20 visible VID issue rows before and after without clicking anything; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Sidebar search tooltip | fixed | Wired preview now uses the artifact's `⌘K` shortcut hint for the sidebar search tooltip instead of the text `Cmd+K`, and its border now uses the artifact soft-border token. |
+| Issue/sub-issue data model | unchanged | This cycle changed only tooltip presentation text and pixel-lane assertions. Parent/child adapter logic, issue IDs, sub-issue grouping, row data, and detail rendering were not changed. |
+
+Ranked finding fixed in this cycle:
+
+1. P3: artifact and wired shortcut text and border token had drifted on the most visible sidebar tooltip.
+
+Pixel lane addition: `pixel-wired.js` now hovers the sidebar search control and compares artifact vs wired tooltip text and box styling.

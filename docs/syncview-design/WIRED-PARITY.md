@@ -446,3 +446,14 @@ Cycle 23 ran a no-op live Linear snapshot in read-only mode. Before/after visibl
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
 
 Validation coverage: `pixel-wired.js` now compares overdue due-pill chrome and icon color between artifact and wired preview.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 24
+
+Cycle 24 ran a no-op live Linear snapshot in read-only mode. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The code change was limited to wired preview tooltip presentation.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Sidebar search tooltip shortcut/border | fixed | Wired search tooltip now renders the artifact shortcut hint `⌘K` instead of `Cmd+K`, and uses the artifact soft-border token. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+Validation coverage: `pixel-wired.js` now compares sidebar search tooltip text and box styling between artifact and wired preview.

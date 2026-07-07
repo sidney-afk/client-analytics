@@ -21,9 +21,15 @@ create table if not exists public.legacy_onboarding (
   phone         text,
   submitted_on  text,               -- original submission time, verbatim
   fields        jsonb,              -- [{label,value},...] original Q&A, credential-free
+  credentials   jsonb,              -- [{label,value},...] account logins; service-role only.
+                                     -- Loaded OUT OF BAND (never committed to this repo);
+                                     -- only the Kasper-gated onboarding-full edge fn returns it.
   source        text default 'notion-legacy',
   created_at    text                -- ISO parsed from submitted_on (for ordering)
 );
+
+-- For tables created before the credentials column existed:
+alter table public.legacy_onboarding add column if not exists credentials jsonb;
 
 alter table public.legacy_onboarding enable row level security;
 revoke all on public.legacy_onboarding from anon;

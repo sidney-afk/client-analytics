@@ -44,6 +44,7 @@
                 if (fav) fav.href = 'synchro-social-favicon.png';
                 return;
             }
+            if (q.get('onboarding_view')) { de.classList.add('boot-onboarding-view'); return; }
             if (q.get('intake') === '1') { de.classList.add('boot-intake'); return; }
             if (q.get('c')) { de.classList.add('boot-client'); return; }
             try {
@@ -1621,6 +1622,7 @@
         html.boot-onboarding, html.boot-onboarding body { background: var(--sv-bg-101216); }
         html.boot-onboarding .header { display: none !important; }
         html.boot-onboarding #pageTop { display: none !important; }
+        html.boot-onboarding-view .header, html.boot-onboarding-view #pageTop { display: none !important; }
         /* Intake is locked to the Linear page, which never shows the header
            and always hides #pageTop. */
         html.boot-intake .header { display: none !important; }
@@ -9437,11 +9439,17 @@
        Namespaced _obv* / OBV_*. Inline handlers are global (matches the
        templates tab's _tpl* pattern).
        ============================================================ */
-    const ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/onboarding-list';
-    const AI_ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/ai-onboarding-list';
-    const LEGACY_ONBOARDING_LIST_URL = 'https://synchrosocial.app.n8n.cloud/webhook/legacy-onboarding-list';
-    let _tplTab = 'templates';            // 'templates' | 'onboarding'
+    // Onboarding reads now go through Supabase Edge Functions (service-role, credential-stripped)
+    // instead of n8n. Hardcoded base (CAL_SUPABASE_URL is declared later in the file → TDZ if referenced here).
+    const ONBOARDING_EDGE_BASE = 'https://uzltbbrjidmjwwfakwve.supabase.co/functions/v1';
+    const ONBOARDING_LIST_URL = ONBOARDING_EDGE_BASE + '/onboarding-list';
+    const AI_ONBOARDING_LIST_URL = ONBOARDING_EDGE_BASE + '/ai-onboarding-list';
+    const LEGACY_ONBOARDING_LIST_URL = ONBOARDING_EDGE_BASE + '/legacy-onboarding-list';
+    const ONBOARDING_FULL_URL = ONBOARDING_EDGE_BASE + '/onboarding-full';  // Kasper-only (X-Syncview-Key)
+    let _tplTab = 'templates';            // onboarding is no longer a Templates sub-tab (moved to Kasper)
     let _obvSubs = null, _obvLoading = false, _obvError = '', _obvWarn = '', _obvSelected = null, _obvLoadedAt = 0, _obvQuery = '';
+    let _obvMode = 'edge';                 // 'edge' = credential-stripped list fns; 'full' = Kasper (onboarding-full)
+    let _obvSlugSet = null, _obvSlugLoading = false;  // slugs that have any onboarding record (client-profile button)
 
     const OBV_GENRE = { inspirational:'Inspirational', ambient:'Ambient / Cinematic', lofi:'Lofi / Chill', piano:'Emotional Piano', guitar:'Acoustic Guitar', synth:'Synth', spiritual:'Spiritual', classical:'Classical', trending:'Trending / TikTok' };
     const OBV_SUB = { elegant:'Elegant', native:'Native', bold:'Bold', banner:'Banner', boxed:'Boxed banner', minimal:'Minimal', none:'No subtitles' };
@@ -9456,29 +9464,69 @@
     const OBV_THUMB_TSTYLE = { plain:'Plain', shadow:'Shadow', stroke:'Stroke', banner:'Banner' };
 
     function _obvEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function _obvRerender(){ try{ navTo('templates', false); }catch(e){} try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){} }
-
-    function _obvSetTab(tab){
-      _tplTab = tab;
-      if (tab === 'onboarding') { _templatesSelected = null; }
-      _obvSelected = null;
-      _obvRerender();
-      if (tab === 'onboarding') _obvEnsureLoaded();
+    // Re-render whichever surface currently hosts the onboarding inbox (the Kasper
+    // tab) or the standalone per-client viewer. (It used to live under Templates.)
+    function _obvRerender(){
+      if (typeof _kasperState !== 'undefined' && _kasperState && _kasperState.tab === 'onboarding' && document.getElementById('kasperContent')) {
+        _kasperRenderOnboarding();
+        try{ if(document.getElementById('obvSearchInput')) setTimeout(_obvFilter, 0); }catch(e){}
+        return;
+      }
+      if (document.getElementById('obvStandaloneWrap')) { _obvRenderStandalone(); return; }
     }
     function _obvOpen(id){ _obvSelected = id; _obvRerender(); }
     function _obvBack(){ _obvSelected = null; _obvRerender(); }
     function _obvRefresh(){ _obvSubs = null; _obvSelected = null; _obvRerender(); _obvEnsureLoaded(true); }
 
+    // Slug index: which clients have ANY onboarding record, so a client's template
+    // profile can show/hide its "Onboarding" button. Uses the credential-stripped
+    // list functions, so it's safe in the normal (non-Kasper) dashboard.
+    function _obvEnsureSlugIndex(){
+      if (_obvSlugSet || _obvSlugLoading) return;
+      _obvSlugLoading = true;
+      const pull = (url) => fetch(url + '?_t=' + Date.now()).then(r=>r.ok?r.text():'').then(t=>{ try{ const d=JSON.parse(t); return (d&&d.submissions)||[]; }catch(e){ return []; } }).catch(()=>[]);
+      Promise.all([ pull(ONBOARDING_LIST_URL), pull(AI_ONBOARDING_LIST_URL), pull(LEGACY_ONBOARDING_LIST_URL) ]).then(all=>{
+        const set = new Set();
+        all.flat().forEach(s=>{ if(s && s.slug) set.add(s.slug); });
+        _obvSlugSet = set; _obvSlugLoading = false;
+        // Re-render the open client profile so the button appears now that we know.
+        try {
+          if (_templatesSelected && !_obvSelected && document.getElementById('content')) {
+            document.getElementById('content').innerHTML = renderClientTemplate(_templatesSelected);
+            if (typeof mountTemplatesView === 'function') mountTemplatesView();
+          }
+        } catch(e){}
+      });
+    }
+    function _obvHasOnboarding(name){ return !!(_obvSlugSet && _obvSlugSet.has(wlNormalizeClient(name))); }
+    function _obvOpenStandalone(slug){ try { window.open('?onboarding_view=' + encodeURIComponent(slug), '_blank', 'noopener'); } catch(e){} }
+
+    // Standalone per-client onboarding viewer (its own browser tab, ?onboarding_view=<slug>).
+    // Read-only, credential-free, no contact info — reuses _obvDetail with the back button stripped.
+    let _obvStandaloneSlug = null;
+    function _obvMountStandalone(slug){
+      _obvStandaloneSlug = String(slug||'');
+      _obvMode = 'edge';
+      const content = document.getElementById('content');
+      if (content) { _obvInjectStyles(); content.innerHTML = `<div id="obvStandaloneWrap" class="obv-standalone"></div>`; _obvRenderStandalone(); }
+      _obvEnsureLoaded();
+    }
+    function _obvRenderStandalone(){
+      const wrap = document.getElementById('obvStandaloneWrap'); if(!wrap) return;
+      if (_obvSubs === null) { wrap.innerHTML = `<div class="obv-empty">Loading onboarding…</div>`; return; }
+      const sub = (_obvSubs||[]).find(s => (s.slug||'') === _obvStandaloneSlug);
+      if (!sub) { wrap.innerHTML = `<div class="obv-empty">No onboarding form on file for this client.</div>`; return; }
+      wrap.innerHTML = _obvDetail(sub, { contact:false, creds:false }).replace(/<button class="obv-back"[\s\S]*?<\/button>/, '');
+    }
+
     function _obvEnsureLoaded(force){
       if (_obvLoading) return;
       if (_obvSubs && !force) return;
       _obvLoading = true; _obvError = ''; _obvWarn = '';
-      // Two funnels = two list webhooks (standard client_onboarding + ai_client_onboarding).
-      // Pull both, tag each row with its funnel, and merge. Partial failure (e.g. the AI
-      // list isn't active yet) still shows whatever loaded, with a soft warning.
-      // Read as text first: the list webhook returns a 200 with an EMPTY body when its table
-      // has no rows (n8n skips the downstream nodes when Supabase returns 0 items), so an empty
-      // funnel must read as "no submissions", not a parse error / failed load.
+      if (_obvMode === 'full') { _obvLoadFull(); return; }
+      // Three sources = three edge functions (standard + AI + legacy), all credential-stripped.
+      // Pull all, tag each row with its funnel, merge. Partial failure still shows what loaded.
+      // Read as text first: an empty table yields a 200 with an empty body → read as "no submissions".
       const pull = (url, funnel) => fetch(url + '?_t=' + Date.now(), { method:'GET' })
         .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); })
         .then(txt=>{ let d=null; if(txt && txt.trim()){ try{ d=JSON.parse(txt); }catch(e){ d=null; } } const arr = Array.isArray(d) ? d : ((d && d.submissions) || []); arr.forEach(s=>{ s.funnel = funnel; }); return arr; });
@@ -9493,7 +9541,29 @@
           _obvWarn  = (ok.length>0  && failed.length) ? ('Couldn\'t load the ' + failed.join(' and ') + ' list.') : '';
           _obvLoadedAt = Date.now();
         })
-        .finally(()=>{ _obvLoading = false; if (_tplTab==='onboarding') _obvRerender(); });
+        .finally(()=>{ _obvLoading = false; _obvRerender(); });
+    }
+
+    // Kasper full view: one gated call (onboarding-full) returns all three sources
+    // UN-stripped — names, emails, phones, and the account credentials. A rejected
+    // passphrase re-prompts once (so a wrong entry isn't a dead end).
+    async function _obvLoadFull(){
+      try {
+        const res = await _obvFetchFull(false);
+        _obvSubs = res.submissions; _obvError = res.error || ''; _obvWarn = res.warn || '';
+      } catch (e) {
+        _obvSubs = []; _obvError = (e && e.message) || 'failed';
+      } finally {
+        _obvLoadedAt = Date.now(); _obvLoading = false; _obvRerender();
+      }
+    }
+    async function _obvFetchFull(force){
+      const ident = await _ccEnsureIdentity('kasper', force);
+      const r = await fetch(ONBOARDING_FULL_URL + '?_t=' + Date.now(), { method:'GET', headers: { 'X-Syncview-Key': ident.key } });
+      if (r.status === 401) { return force ? { submissions: [], error: 'That staff passphrase was rejected.' } : _obvFetchFull(true); }
+      if (!r.ok) return { submissions: [], error: 'HTTP ' + r.status };
+      const d = await r.json();
+      return { submissions: (d && d.submissions) || [], warn: (d && d.warnings && d.warnings.length) ? d.warnings.join('; ') : '' };
     }
 
     function _obvToggle(){
@@ -9505,10 +9575,10 @@
 
     function renderOnboardingInbox(){
       _obvInjectStyles();
-      const top = `<div class="obv-wrap"><div class="obv-head">${_obvToggle()}<button class="obv-refresh" onclick="_obvRefresh()" title="Refresh">↻</button></div>`;
+      const top = `<div class="obv-wrap"><div class="obv-head"><div class="obv-inbox-title">Onboarding</div><button class="obv-refresh" onclick="_obvRefresh()" title="Refresh">↻</button></div>`;
       if (_obvSelected){
         const sub = (_obvSubs||[]).find(s=>s.id===_obvSelected);
-        return top + (sub ? _obvDetail(sub) : `<div class="obv-empty">Submission not found.</div>`) + `</div>`;
+        return top + (sub ? _obvDetail(sub, { contact:true, creds: _obvMode==='full' }) : `<div class="obv-empty">Submission not found.</div>`) + `</div>`;
       }
       let body;
       if (_obvSubs === null) body = `<div class="obv-empty">Loading submissions…</div>`;
@@ -9593,22 +9663,40 @@
 
     // Legacy (old Notion form) detail — no schema mapping; the original
     // question -> answer list is shown verbatim (credentials already stripped).
-    function _obvLegacyDetail(s){
-      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Submission';
-      const meta = [ s.email ? _obvEsc(s.email) : '', (s.phone) ? _obvEsc(s.phone) : '', s.submitted_on ? _obvEsc(s.submitted_on) : _obvFmtDate(s.created_at) ].filter(Boolean).join(' · ');
+    // Login/credential keys inside `answers` (standard/AI funnels). Never returned by
+    // the public list functions; only Kasper's onboarding-full view carries them.
+    const OBV_CRED_KEYS = [['instagram','Instagram'],['instagram_backup','Instagram backup code'],['tiktok','TikTok'],['facebook','Facebook'],['linkedin','LinkedIn'],['youtube','YouTube']];
+    function _obvCredSection(s){
+      let rows='';
+      if (s.funnel==='legacy'){
+        (Array.isArray(s.credentials)?s.credentials:[]).forEach(c=>{ if(c && c.value) rows += _obvRow(c.label, _obvLinkify(c.value)); });
+      } else {
+        const a = s.answers || {};
+        OBV_CRED_KEYS.forEach(([k,lbl])=>{ const v=_obvText(a,k); if(v) rows += _obvRow(lbl, _obvEsc(v)); });
+      }
+      if(!rows) return '';
+      return `<div class="obv-sec obv-sec-cred"><div class="obv-sec-t">Account access <span class="obv-cred-warn">sensitive</span></div>${rows}</div>`;
+    }
+
+    function _obvLegacyDetail(s, opts){
+      opts = opts || {}; const contact = opts.contact !== false; const creds = !!opts.creds;
+      const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || (contact ? s.email : '') || 'Submission';
+      const meta = [ contact && s.email ? _obvEsc(s.email) : '', contact && s.phone ? _obvEsc(s.phone) : '', s.submitted_on ? _obvEsc(s.submitted_on) : _obvFmtDate(s.created_at) ].filter(Boolean).join(' · ');
       const rows = (Array.isArray(s.fields)?s.fields:[]).map(f => _obvRow(f.label, _obvLinkify(f.value))).join('');
       const inner = rows || `<div class="obv-row"><div class="obv-row-v obv-muted">No responses recorded.</div></div>`;
       return `<div class="obv-detail">
         <button class="obv-back" onclick="_obvBack()">← All submissions</button>
         <div class="obv-detail-head"><div class="obv-detail-name">${_obvEsc(name)}<span class="obv-legacy-tag">Old form</span></div>
           <div class="obv-detail-meta">${meta}</div>
-          <div class="obv-legacy-note">Imported from the old Notion onboarding form — shown exactly as it was answered. Account logins were removed on import.</div></div>
+          <div class="obv-legacy-note">Imported from the old Notion onboarding form — shown exactly as it was answered.${creds ? '' : ' Account logins are hidden here.'}</div></div>
         <div class="obv-sec"><div class="obv-sec-t">Onboarding responses</div>${inner}</div>
+        ${creds ? _obvCredSection(s) : ''}
       </div>`;
     }
 
-    function _obvDetail(s){
-      if (s.funnel==='legacy' || (Array.isArray(s.fields) && !s.answers)) return _obvLegacyDetail(s);
+    function _obvDetail(s, opts){
+      opts = opts || {}; const contact = opts.contact !== false; const creds = !!opts.creds;
+      if (s.funnel==='legacy' || (Array.isArray(s.fields) && !s.answers)) return _obvLegacyDetail(s, opts);
       const a = s.answers || {};
       const name = ((s.first_name||'')+' '+(s.last_name||'')).trim() || s.email || 'Submission';
       // creators
@@ -9680,15 +9768,18 @@
       }
 
       const sec = (title, inner) => inner ? `<div class="obv-sec"><div class="obv-sec-t">${title}</div>${inner}</div>` : '';
+      const contactStr = contact ? [_obvEsc(s.email||''), _obvEsc(s.phone||a.phone||'')].filter(Boolean).join(' · ') : '';
+      const metaStr = [contactStr, _obvEsc(_obvFmtDate(s.created_at))].filter(Boolean).join(' · ') + (s.ai_avatar==='yes'?' · <b>AI avatar</b>':'');
       return `<div class="obv-detail">
         <button class="obv-back" onclick="_obvBack()">← All submissions</button>
         <div class="obv-detail-head"><div class="obv-detail-name">${_obvEsc(name)}</div>
-          <div class="obv-detail-meta">${_obvEsc(s.email||'')}${(s.phone||a.phone)?(' · '+_obvEsc(s.phone||a.phone)):''} · ${_obvEsc(_obvFmtDate(s.created_at))}${s.ai_avatar==='yes'?' · <b>AI avatar</b>':''}</div></div>
+          <div class="obv-detail-meta">${metaStr}</div></div>
         ${sec('Brand &amp; audience', brand)}
         ${sec('Style', style)}
         ${sec('Photos &amp; source', assets)}
         ${sec('Goals', goals)}
         ${sec('AI avatar', ai)}
+        ${creds ? _obvCredSection(s) : ''}
       </div>`;
     }
 
@@ -9745,13 +9836,20 @@
       .obv-group-nomatch{ font-size:0.84rem; color:var(--text-muted); padding:8px 4px 2px; }
       .obv-legacy-tag{ display:inline-block; font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; vertical-align:middle; color:var(--text-secondary); background:var(--bg); border:1px solid var(--border); border-radius:99px; padding:2px 8px; margin-left:10px; }
       .obv-legacy-note{ font-size:0.78rem; color:var(--text-muted); margin-top:8px; line-height:1.5; max-width:62ch; }
+      .obv-inbox-title{ font-size:1.15rem; font-weight:800; letter-spacing:-0.02em; color:var(--text-primary); }
+      .obv-standalone{ max-width:720px; margin:0 auto; padding:34px 20px 60px; }
+      .obv-sec-cred{ border-color:var(--ig-light) !important; }
+      .obv-cred-warn{ font-size:0.6rem; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; color:var(--ig); background:var(--ig-light); border-radius:99px; padding:2px 8px; margin-left:8px; }
+      .tpl-client-name-wrap{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+      .tpl-ob-btn{ display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:99px; background:var(--ig-light); border:1px solid var(--ig-light); color:var(--ig); font-family:inherit; font-size:0.74rem; font-weight:700; cursor:pointer; transition:all 0.15s; }
+      .tpl-ob-btn:hover{ filter:brightness(0.97); box-shadow:0 2px 6px var(--sv-shadow-rgba-0-0-0-0_06); }
+      .tpl-ob-arrow{ font-size:0.85em; }
       `;
       const st = document.createElement('style'); st.id='obvStyles'; st.textContent=css; document.head.appendChild(st);
     }
 
     function renderTemplatesView() {
         _obvInjectStyles();
-        if (_tplTab === 'onboarding') return renderOnboardingInbox();
         if (_templatesSelected) return renderClientTemplate(_templatesSelected);
         return renderTemplatesIndex();
     }
@@ -9765,7 +9863,6 @@
             <div class="tpl-config-banner">Couldn't load templates: ${_tplEsc(templatesLoadError)}. Try refreshing the page.</div>` : '';
         return `<div class="tpl-index-centered">
             ${banner}${errBanner}
-            <div style="display:flex;justify-content:center;margin-bottom:20px;">${_obvToggle()}</div>
             <div class="tpl-index-title">Client Templates</div>
             <div class="tpl-index-sub">Fonts, colors, references, and preferences — one place for all of them.</div>
             <div class="search-bar-wrap" id="tplSearchWrap">
@@ -10218,10 +10315,17 @@
             ? `<button class="tpl-edit-btn done" onclick="setTemplatesEditMode(false)">Done</button>`
             : `<button class="tpl-edit-btn" onclick="setTemplatesEditMode(true)"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2l3 3-8 8H3v-3l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg> Edit</button>`;
 
+        // Onboarding button next to the name — opens this client's onboarding in a
+        // new tab. Shown only when a matching onboarding record exists (by slug).
+        _obvEnsureSlugIndex();
+        const obBtn = _obvHasOnboarding(name)
+            ? `<button class="tpl-ob-btn" onclick="_obvOpenStandalone('${_tplEsc(wlNormalizeClient(name))}')" title="Open this client's onboarding in a new tab">Onboarding <span class="tpl-ob-arrow">↗</span></button>`
+            : '';
+
         return `<div class="tpl-view${isEdit?' editing':''}">
             <button class="back-btn" onclick="backToTemplatesIndex()" style="margin-bottom:12px;">← All templates</button>
             <div class="tpl-client-head">
-                <div class="tpl-client-name">${_tplEsc(name)}</div>
+                <div class="tpl-client-name-wrap"><div class="tpl-client-name">${_tplEsc(name)}</div>${obBtn}</div>
                 <div class="tpl-head-right">${_svSaveIndHtml('templates')}${editToggle}</div>
             </div>
             <div class="tpl-toggle-row" role="tablist">
@@ -30656,6 +30760,7 @@
     // doesn't matter, but we detect AI explicitly to set the variant.
     const _isAiOnboarding=(_obParam==='ai') || /\/ai_onboarding_form\/?$/i.test(location.pathname);
     const _isOnboarding=_isAiOnboarding || (_obParam!==null) || /\/onboarding_form\/?$/i.test(location.pathname);
+    const _isOnboardingView=!!new URLSearchParams(location.search).get('onboarding_view');
     if(_isIntake){document.body.classList.add('intake-mode');}
     if(_isOnboarding){document.body.classList.add('onboarding-mode');}
     if(_isOnboarding){
@@ -30686,6 +30791,14 @@
         // `let`s declared later in the file, so calling it synchronously here
         // would hit a temporal-dead-zone ReferenceError.
         setTimeout(function(){ try{ navTo('onboarding', false); }catch(e){ console.error('[onboarding] mount failed', e); } }, 0);
+    } else if(_isOnboardingView){
+        // Standalone per-client onboarding viewer (new tab from a client's template
+        // profile). Read-only, credential-free — no staff password, no dashboard load.
+        document.body.classList.add('onboarding-view-mode');
+        try { document.title = 'Onboarding — SynchroSocial'; } catch(e){}
+        const _hV=document.querySelector('header.header'); if(_hV) _hV.style.display='none';
+        const _ptV=document.getElementById('pageTop'); if(_ptV) _ptV.style.display='none';
+        setTimeout(function(){ try{ _obvMountStandalone(new URLSearchParams(location.search).get('onboarding_view')); }catch(e){ console.error('[onboarding_view] mount failed', e); } }, 0);
     } else if(_isIntake||_isClientLink||localStorage.getItem(_AUTH_KEY)==='ok'){
         if(_isIntake){
             // Client intake link (?intake=1): expose ONLY the Linear submission
@@ -36773,6 +36886,7 @@
         { key: 'editors', label: 'Editors',        showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3.5" width="12" height="9" rx="1.4"/><path d="M2 6h12M2 10h12M4.5 3.5v9M11.5 3.5v9"/></svg>' },
         { key: 'filming', label: 'Filming Plans',  icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="8.5" height="7" rx="1.2"/><path d="M11 7l2.5-1.6v5.2L11 9z"/></svg>' },
         { key: 'sales-intake', label: 'Sales Intake', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5h7l3 3V13.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M8 6v5M6.3 10.1c.4.5 1 .8 1.7.8 1 0 1.7-.5 1.7-1.3 0-1.6-3.3-.9-3.3-2.5 0-.8.7-1.3 1.6-1.3.7 0 1.3.3 1.6.7"/></svg>' },
+        { key: 'onboarding', label: 'Onboarding', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h6l2.5 2.5v8.3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><path d="M9.5 2.5V5h2.5"/><path d="M6 8.2h4M6 10.6h4"/></svg>' },
         { key: 'client-credentials', label: 'Client Credentials', showCount: false, icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="11" height="7" rx="1.4"/><path d="M5 7V5.2a3 3 0 0 1 6 0V7"/><path d="M8 10v1.5"/></svg>' }
     ];
     if (typeof _sxrEnabled === 'function' && _sxrEnabled()) KASPER_SUBTABS.splice(1, 0, { key: 'samples', label: 'Samples', icon: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="2"/><path d="M5 8.2L7 10.2L11 5.8"/></svg>' }); // SXR_LINE
@@ -37182,6 +37296,7 @@
         if (_kasperState.tab === 'editors') return _kasperRenderEditors();
         if (_kasperState.tab === 'filming') return _kasperRenderFilming();
         if (_kasperState.tab === 'sales-intake') return _kasperRenderSalesIntake();
+        if (_kasperState.tab === 'onboarding') return _kasperRenderOnboarding();
         if (_kasperState.tab === 'client-credentials') return _ccKasperRender();
     }
 
@@ -37196,6 +37311,21 @@
         if (!el) return;
         el.innerHTML = renderSalesIntakeView();
         mountSalesIntakeView();
+    }
+
+    // Onboarding subtab — the full three-section inbox (Standard / AI / Old forms +
+    // search), fed by the Kasper-gated onboarding-full edge function so everything is
+    // visible: names, emails, phones, and account credentials. _obvMode='full' makes
+    // _obvEnsureLoaded call the gated endpoint and the detail render the Account access
+    // section. A background review repaint can't clobber this: _kasperPaintReview writes
+    // into #kasperReviewBody, which doesn't exist while this subtab is showing.
+    function _kasperRenderOnboarding() {
+        const el = document.getElementById('kasperContent');
+        if (!el) return;
+        _obvMode = 'full';
+        _obvInjectStyles();
+        el.innerHTML = renderOnboardingInbox();
+        _obvEnsureLoaded();
     }
 
 

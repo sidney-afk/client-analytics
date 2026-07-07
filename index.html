@@ -31219,6 +31219,11 @@
             if (seq !== _sxrLoadSeq) return;
             if (sxrState.posts.length > 0) { _sxrSetStaleNotice(true); }   // keep what's on screen
             else { sxrState.loading = false; sxrState.error = e; _sxrRenderBody(); }
+            // Open realtime even when the initial fetch failed, so the view goes
+            // live the moment a peer's change lands — otherwise a first-load
+            // network blip left the tab silent until a manual refresh.
+            if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);
+            if (typeof _sxrV2DrainPending === 'function') _sxrV2DrainPending(slug);
         } finally {
             if (timeoutId) clearTimeout(timeoutId);
             if (seq === _sxrLoadSeq) { _sxrBgLoadInFlight = false; _sxrSetRefreshing(false); }
@@ -32635,8 +32640,12 @@
         const el = document.querySelector('.cal-review-card[data-cal-review-pid="' + sel + '"]');
         const post = sxrState.posts.find(p => p.id === pid);
         if (!el || !post) return;
+        // Preserve the caret if the reviewer is typing in this card's draft when
+        // the repaint fires (same guard the Kasper queue uses).
+        const cap = _svCaptureFocus(el);
         const tmp = document.createElement('div'); tmp.innerHTML = _sxrReviewCardHtml(post);
         if (tmp.firstElementChild) { _sxrKcardReuseThumbInto(el, tmp.firstElementChild); el.replaceWith(tmp.firstElementChild); }
+        _svRestoreFocus(cap);
         _sxrUpdateReviewBadge();
     }
     function _sxrReviewRemoveCard(pid) {
@@ -33527,10 +33536,14 @@
         if (Date.now() - _sxrLastLocalWriteAt < SXR_RT_SELF_ECHO_MS) return true;
         const sv = _sxrKasperState.saving || {};
         for (const k in sv) { if (sv[k]) return true; }                       // a save in flight
-        const dr = _sxrKasperState.drafts || {};
-        for (const k in dr) { if (String(dr[k] || '').trim()) return true; }   // a half-typed comment/tweak
+        // A stray non-empty draft no longer blocks a peer's live update. Drafts
+        // live in _sxrKasperState.drafts and are re-read when a card rebuilds,
+        // and _svPreserveFocus keeps the caret, so a background reload is safe
+        // even with a half-typed comment sitting in the queue. Blocking on ANY
+        // draft left the whole cross-client queue stale until every draft was
+        // cleared — a teammate's change (e.g. an SMM edit) never surfaced.
         const a = document.activeElement;
-        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;
+        if (a && a.tagName === 'TEXTAREA' && a.closest && a.closest('#kasperContent')) return true;   // actively typing → brief defer, re-armed and serviced on blur
         return false;
     }
     async function _sxrKasperV2EnsureSubscribed() {
@@ -37002,6 +37015,12 @@
         _ccPaintKasper();
         _ccRevEnsureSubscribed('kasper');
         if (!_ccState.kasper.loaded && !_ccState.kasper.loading) _ccLoadKasper(false);
+        // Returning to the tab with data already in hand: refresh in the
+        // background so any peer add/edit/archive that landed while Kasper was on
+        // another subtab (when the rev ping was ignored) surfaces without a
+        // manual Refresh. No loader flash — the current rows stay up until the
+        // fetch lands.
+        else if (_ccState.kasper.loaded && !_ccState.kasper.loading) _ccLoadKasper(true);
     }
 
     function _ccSetKasperSearch(v) { _ccState.kasper.search = v || ''; _ccPaintKasper(); }
@@ -37351,6 +37370,13 @@
                 const wait = CC_RT_SELF_ECHO_MS - since;
                 if (scope === 'kasper') _ccRevKasperTimer = setTimeout(tick, wait);
                 else _ccRevModalTimer = setTimeout(tick, wait);
+                return;
+            }
+            // Don't rebuild the list out from under an open client/platform
+            // picker (the reassign dropdown) — defer briefly and re-check.
+            if (_ccOpenSelectId) {
+                if (scope === 'kasper') _ccRevKasperTimer = setTimeout(tick, 1200);
+                else _ccRevModalTimer = setTimeout(tick, 1200);
                 return;
             }
             if (scope === 'kasper') { _ccRevKasperTimer = null; if (_kasperState.tab === 'client-credentials') _ccLoadKasper(true); }

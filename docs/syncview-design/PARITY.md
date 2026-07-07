@@ -49,6 +49,8 @@ Cycle 18 rechecked the bottom-right Ask Linear dock in hover-only mode. Before/a
 
 Cycle 19 added the live bottom-left `What's new` / `Initiative properties` tray as inert chrome in prototype and wired preview. Follow-up row snapshots stayed unchanged (`changed:false`); wired tray controls route through the read-only guard.
 
+Cycle 20 updated the workspace/brand menu to match live Linear's current global menu rows, shortcut hints, and Switch workspace chevron. Before/after row snapshots stayed unchanged (`changed:false`); wired menu rows route through the read-only guard.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

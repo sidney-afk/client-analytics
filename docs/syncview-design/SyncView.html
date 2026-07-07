@@ -427,7 +427,15 @@ const linkify=s=>{s=esc(s);var st=[];var keep=function(h){st.push(h);return "XMD
   s=s.replace(/\n/g,"<br>");
   return s;};
 let favViews=new Set();
-function openBrandMenu(x,y){var items=["Settings","Invite members","Switch workspace","Log out"];var p=layerPop('<div class="pop-hd" style="color:var(--text-strong);font-weight:500">SynchroSocial</div><div class="pop-list">'+items.map(function(o){return '<div class="mi" data-bm="'+o+'"><span class="mlbl">'+o+'</span></div>';}).join("")+'</div>',x,y);[].forEach.call(p.querySelectorAll("[data-bm]"),function(el){el.onclick=function(){toast(el.getAttribute("data-bm"));clearLayer();};});}
+function openBrandMenu(x,y){var rows=[
+  {t:"Settings",k:"G then S"},
+  {t:"Invite and manage members"},
+  "sep",
+  {t:"Download desktop app"},
+  "sep",
+  {t:"Switch workspace",k:"O then W",chev:true},
+  {t:"Log out",k:"Alt ⇧ Q"}
+];var p=layerPop('<div class="pop-list">'+rows.map(function(o){if(o==="sep")return '<div class="msep"></div>';return '<div class="mi" data-bm="'+o.t+'"><span class="mlbl">'+o.t+'</span>'+(o.k?'<span class="kbd">'+o.k+'</span>':"")+(o.chev?'<span class="chev">'+I.chevR+'</span>':"")+'</div>';}).join("")+'</div>',x,y);[].forEach.call(p.querySelectorAll("[data-bm]"),function(el){el.onclick=function(){toast(el.getAttribute("data-bm"));clearLayer();};});}
 function toast(m){const t=$("#toast");t.textContent=m;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),1400);}
 function toastUndo(m,fn){const t=$("#toast");t.innerHTML='<span class="tmsg"></span><span class="tundo" data-undo="1">Undo<span class="kbd">Ctrl Z</span></span>';t.querySelector(".tmsg").textContent=m;var u=t.querySelector(".tundo");u.onclick=function(){clearTimeout(t._t);t.classList.remove("show");t._undo=null;fn();};t._undo=fn;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(function(){t.classList.remove("show");t._undo=null;},5200);}
 function captureDelete(t){var removed=[];ISSUES.forEach(function(z,ix){if(t.includes(z.id)||t.includes(z.parent))removed.push({item:z,idx:ix});});ISSUES=ISSUES.filter(function(z){return !t.includes(z.id)&&!t.includes(z.parent);});return removed;}

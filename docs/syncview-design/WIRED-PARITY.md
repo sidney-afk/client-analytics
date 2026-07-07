@@ -399,3 +399,14 @@ Cycle 19 used the accepted live bottom-corner capture plus read-only DOM inspect
 | Bottom-left changelog/help tray | fixed | Prototype and wired preview now render the live-style `What's new` / `Initiative properties` tray with the collapse-minus chrome. Wired buttons remain read-only guarded. |
 
 Validation coverage: `pixel-wired.js` captures and compares `artifact-crop-newsdock.png` / `wired-crop-newsdock.png`, checks the tray text and collapse icon path, and `prod-structure-subset.js` asserts both wired controls are guarded.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 20
+
+Cycle 20 captured the live workspace/brand menu in read-only mode. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The live capture showed a global menu chrome difference that does not alter the locked sidebar skeleton.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Workspace brand menu rows | fixed | Prototype and wired preview now match the live menu inventory: Settings, Invite and manage members, Download desktop app, Switch workspace, and Log out. |
+| Workspace brand menu hints | fixed | Shortcut hints and the Switch workspace submenu chevron now render in both prototype and wired preview. Wired rows remain read-only guarded. |
+
+Validation coverage: `pixel-wired.js` captures and compares `artifact-crop-brand-menu.png` / `wired-crop-brand-menu.png`, checks menu text and chevron path, and `prod-structure-subset.js` asserts the wired menu inventory.

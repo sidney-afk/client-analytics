@@ -118,7 +118,12 @@ async function assertNoWriteRequests(requests) {
     if (!(await text(page, '.prod-brand')).includes('SyncView')) throw new Error('Sidebar brand missing');
     await expectCount(page, '.prod-brand[data-prod-brandmenu] .prod-brand-caret', 1, 'brand workspace caret/menu trigger');
     await page.locator('.prod-brand[data-prod-brandmenu]').click();
-    await expectCount(page, '.prod-pop [data-prod-brand-action]', 1, 'brand workspace menu rows');
+    await expectCount(page, '.prod-pop [data-prod-brand-action]', 5, 'brand workspace menu rows');
+    const brandMenuText = await text(page, '.prod-pop');
+    for (const expected of ['Settings', 'G then S', 'Invite and manage members', 'Download desktop app', 'Switch workspace', 'O then W', 'Log out', 'Alt ⇧ Q']) {
+      if (!brandMenuText.includes(expected)) throw new Error(`Brand menu missing live row text: ${expected}`);
+    }
+    await expectCount(page, '.prod-pop [data-prod-brand-action="Switch workspace"] .chev', 1, 'brand workspace switch chevron');
     await page.keyboard.press('Escape');
     if (!(await text(page, '.prod-preview-chip')).includes('Preview - read-only')) throw new Error('Preview chip missing');
     await expectCount(page, '[data-prod-askdock] #prodAskDockMain[data-prod-disabled="ask-linear"][title="Preview - read-only"]', 1, 'global Ask Linear dock main guard');

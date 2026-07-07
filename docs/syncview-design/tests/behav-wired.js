@@ -1019,7 +1019,13 @@ async function txt(page, sel) {
     })); await reset();
     await ok('brand', async () => {
       await page.locator('.prod-brand[data-prod-brandmenu]').click();
-      const ok = await page.locator('#prodLayer [data-prod-brand-action]').count() === 4;
+      const rows = await page.locator('#prodLayer [data-prod-brand-action]').evaluateAll(nodes => nodes.map(el => (el.textContent || '').replace(/\s+/g, ' ').trim()));
+      const ok = rows.length === 5
+        && rows.some(r => r.includes('Settings') && r.includes('G then S'))
+        && rows.includes('Invite and manage members')
+        && rows.includes('Download desktop app')
+        && rows.some(r => r.includes('Switch workspace') && r.includes('O then W'))
+        && rows.some(r => r.includes('Log out') && r.includes('Alt ⇧ Q'));
       await page.keyboard.press('Escape');
       return ok;
     }); await reset();

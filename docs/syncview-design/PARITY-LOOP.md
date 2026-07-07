@@ -611,3 +611,18 @@ Ranked finding fixed in this cycle:
 1. P2: the live bottom-left changelog/help tray was still absent from the prototype and wired preview.
 
 Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-newsdock.png` / `wired-crop-newsdock.png`, compares tray text and icon path, and checks geometry.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 20
+
+Fresh live Linear observation was read-only. The probe opened the workspace/brand menu, pressed Escape, and captured 20 visible VID issue rows before and after; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Workspace/brand menu | fixed | `brand-menu.png` showed the live global menu: Settings, Invite and manage members, Download desktop app, Switch workspace, and Log out, with shortcut hints and a Switch workspace chevron. Prototype and wired now render the same inert menu chrome. |
+| Wired menu behavior | guarded | All wired brand-menu rows keep the `Preview - read-only` guard; no workspace switch, logout, download, invite, or settings action is wired. |
+
+Ranked finding fixed in this cycle:
+
+1. P3: the workspace brand menu still used the older artifact rows/header instead of live Linear's current global-menu inventory and hints.
+
+Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-brand-menu.png` / `wired-crop-brand-menu.png`, compares menu text and chevron path, and checks popover/row styling.

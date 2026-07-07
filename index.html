@@ -2661,7 +2661,7 @@
         .prod-crumb-link:hover { text-decoration: underline; }
         .prod-layer { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
         .prod-pop-bd { position: fixed; inset: 0; }
-        .prod-pop { position: absolute; min-width: 190px; padding: 5px; border: 1px solid var(--prod-border); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 12px 32px rgba(0,0,0,.14), 0 2px 8px rgba(0,0,0,.08); font-size: 13px; }
+        .prod-pop { position: absolute; min-width: 190px; padding: 5px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); color: var(--prod-strong); box-shadow: 0 6px 18px rgba(0,0,0,.03), 0 3px 9px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.08); font-size: 13px; }
         .prod-pop-hd { padding: 7px 9px; color: var(--prod-muted); font-size: 12px; font-weight: 500; }
         .prod-pop-search { padding: 4px; }
         .prod-pop-search input { width: 100%; box-sizing: border-box; height: 30px; border: 1px solid var(--prod-border); border-radius: 8px; background: var(--prod-surface); color: var(--prod-strong); font: inherit; font-size: 13px; padding: 0 8px; outline: 0; }
@@ -28507,9 +28507,23 @@
                 ev.preventDefault();
                 ev.stopPropagation();
             }
-            const items = ['Settings', 'Invite members', 'Switch workspace', 'Log out'];
-            const p = _prodLayerPop('<div class="prod-pop-hd">SynchroSocial</div><div class="prod-pop-list">'
-                + items.map(label => '<div class="prod-mi" data-prod-brand-action="' + _calEscAttr(label) + '"><span class="mlbl">' + _calEsc(label) + '</span></div>').join('')
+            const rows = [
+                { label: 'Settings', kbd: 'G then S' },
+                { label: 'Invite and manage members' },
+                'sep',
+                { label: 'Download desktop app' },
+                'sep',
+                { label: 'Switch workspace', kbd: 'O then W', chev: true },
+                { label: 'Log out', kbd: 'Alt ⇧ Q' }
+            ];
+            const p = _prodLayerPop('<div class="prod-pop-list">'
+                + rows.map(row => {
+                    if (row === 'sep') return '<div class="prod-msep"></div>';
+                    return '<div class="prod-mi" data-prod-brand-action="' + _calEscAttr(row.label) + '" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '"><span class="mlbl">' + _calEsc(row.label) + '</span>'
+                        + (row.kbd ? '<span class="kbd">' + _calEsc(row.kbd) + '</span>' : '')
+                        + (row.chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '')
+                        + '</div>';
+                }).join('')
                 + '</div>', ev ? ev.clientX : 220, ev ? ev.clientY : 72);
             p.querySelectorAll('[data-prod-brand-action]').forEach(el => el.addEventListener('click', e => {
                 e.preventDefault();

@@ -25,7 +25,18 @@ const { chromium } = require('playwright');
   R.pring = await p.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; render(); document.querySelector('.pcard-status[data-pstatus]').click(); const ok = !!document.querySelector('#layer .pop') && !document.querySelector('.detail-side'); clearLayer(); return ok; }); await reset();
   R.pdetail = await p.evaluate(() => { S.projectOpen = 'wineland'; render(); return !!document.querySelector('.ds-row[data-pstatus]') && !!document.querySelector('.ds-row[data-plead]') && !!document.querySelector('.ds-row[data-ptarget]'); }); await reset();
   R.tabs = await p.evaluate(() => [...document.querySelectorAll('.tb-tab')].map(t => t.textContent).join(',') === 'All issues,Active,Backlog');
-  R.brand = await p.evaluate(() => { document.querySelector('[data-brandmenu]').click(); const ok = document.querySelectorAll('#layer [data-bm]').length === 4; clearLayer(); return ok; }); await reset();
+  R.brand = await p.evaluate(() => {
+    document.querySelector('[data-brandmenu]').click();
+    const rows = Array.from(document.querySelectorAll('#layer [data-bm]')).map(el => (el.textContent || '').replace(/\s+/g, ' ').trim());
+    const ok = rows.length === 5
+      && rows.some(r => r.includes('Settings') && r.includes('G then S'))
+      && rows.includes('Invite and manage members')
+      && rows.includes('Download desktop app')
+      && rows.some(r => r.includes('Switch workspace') && r.includes('O then W'))
+      && rows.some(r => r.includes('Log out') && r.includes('Alt ⇧ Q'));
+    clearLayer();
+    return ok;
+  }); await reset();
   R.my = await p.evaluate(() => { document.querySelector('[data-nav="my"]').click(); return document.querySelectorAll('.row').length > 0; }); await reset();
   // ---- Phase-2 re-audit fixes (It62): keyboard shortcuts + composer + picker nav + selection persist ----
   const kb = (key, opt) => p.evaluate(([key, opt]) => { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); S.filters = []; S.selected.clear(); render(); const o = flatOrder(); S.selected.add(o[0]); render(); document.dispatchEvent(new KeyboardEvent('keydown', Object.assign({ key, bubbles: true }, opt || {}))); const ok = !!document.querySelector('#layer .pop') && !document.querySelector('.detail-side'); clearLayer(); S.selected.clear(); render(); return ok; }, [key, opt]);

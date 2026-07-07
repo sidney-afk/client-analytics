@@ -301,6 +301,23 @@ async function run() {
     const previewChips = await wired.locator('.prod-preview-chip').count();
     if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
 
+    await artifact.locator('[data-brandmenu]').click();
+    await wired.locator('[data-prod-brandmenu]').click();
+    await artifact.waitForSelector('.pop .mi');
+    await wired.waitForSelector('.prod-pop .prod-mi');
+    await shotElement(artifact, '.pop', 'artifact-crop-brand-menu');
+    await shotElement(wired, '.prod-pop', 'wired-crop-brand-menu');
+    const brandMenuA = (await artifact.locator('.pop').innerText()).replace(/\s+/g, ' ').trim();
+    const brandMenuW = (await wired.locator('.prod-pop').innerText()).replace(/\s+/g, ' ').trim();
+    if (brandMenuA !== brandMenuW) gaps.push({ rank: 1, state: 'brand menu inventory', message: `artifact=${brandMenuA} wired=${brandMenuW}` });
+    await compareStyles(gaps, 'brand menu popover', artifact, wired, '.pop', '.prod-pop', ['backgroundColor', 'borderColor', 'borderRadius', 'boxShadow', 'padding']);
+    await compareStyles(gaps, 'brand menu first row', artifact, wired, '.pop .mi:first-of-type', '.prod-pop .prod-mi:first-of-type', ['height', 'display', 'alignItems', 'gap', 'paddingLeft', 'paddingRight', 'borderRadius', 'cursor']);
+    const brandMenuChevronA = await artifact.locator('.pop [data-bm="Switch workspace"] .chev svg path').first().getAttribute('d');
+    const brandMenuChevronW = await wired.locator('.prod-pop [data-prod-brand-action="Switch workspace"] .chev svg path').first().getAttribute('d');
+    if (brandMenuChevronA !== brandMenuChevronW) gaps.push({ rank: 1, state: 'brand menu chevron', message: `wired path drift: ${brandMenuChevronW}` });
+    await artifact.keyboard.press('Escape');
+    await wired.keyboard.press('Escape');
+
     const filterA = await iconPaths(artifact, '#filterbtn');
     const filterW = await iconPaths(wired, '#prodFilterBtn');
     if (filterA.join('|') !== filterW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `filter icon path drift: ${filterW.join('|')}` });

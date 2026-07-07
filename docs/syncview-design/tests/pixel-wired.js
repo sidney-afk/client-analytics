@@ -562,6 +562,7 @@ async function run() {
     await shot(artifact, 'artifact-board');
     await shot(wired, 'wired-board');
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
+    await compareStyles(gaps, 'board column collapse control', artifact, wired, '.pcol-chev', '.prod-col-collapse', ['borderTopWidth', 'backgroundColor', 'opacity', 'cursor']);
     await compareStyles(gaps, 'board card drag cursor', artifact, wired, '.pcard', '.prod-card', ['cursor']);
     await artifact.evaluate(() => {
       const card = document.querySelector('.pcard[data-project]');

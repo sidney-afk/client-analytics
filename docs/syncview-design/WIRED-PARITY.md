@@ -22,6 +22,12 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered list selection/actionbar, issue detail, projects board, and project detail; 20 visible rows before and after, `changed:false` in local private artifact. |
 | Compact project cards | live Linear projects board | ✅ | Prototype and wired board cards omit inline description copy, keeping name/status/menu/lead, issue count, and target/date. |
 
+## 2026-07-06 Wired Parity Cycle 3
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Board column collapse control chrome | `renderProjects`, `.pcol-chev` | ✅ | Wired `.prod-col-collapse` now matches the artifact's transparent borderless chevron instead of a default button box; pixel lane compares border/background/opacity/cursor. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

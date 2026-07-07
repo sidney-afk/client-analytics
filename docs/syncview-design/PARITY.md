@@ -93,6 +93,8 @@ Cycle 51 was local-only scope hardening. `pixel-wired.js` now opens the row-cont
 
 Cycle 52 was local-only scope hardening. `pixel-wired.js` now fails if command-palette `Go to ...` routes drift beyond the locked skeleton route set; no issue/sub-issue data model or render relationships changed.
 
+Cycle 53 attempted a read-only live Linear probe through the saved probe profile. The browser reached Linear's desktop-app interstitial, then the login screen after "Open here instead"; no issue list or issue links were visible, no mutating path was touched, and no code changed.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

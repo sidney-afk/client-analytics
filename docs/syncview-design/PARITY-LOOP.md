@@ -966,3 +966,12 @@ Local artifact-vs-wired verification added a command-palette navigation-scope gu
 |---|---:|---|
 | Command palette navigation scope | test-hardened | Team overview / full Search-page routes remain out unless the owner expands the skeleton. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 53
+
+Attempted a read-only live Linear probe using the saved `linear-design-probe` browser profile. The profile first showed Linear's desktop-app interstitial; after the non-mutating "Open here instead" action, the browser landed on the Linear login screen with zero visible `/issue/` links, so no live issue-list observation was available.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Live Linear probe availability | blocked | Headless saved-profile session is not currently logged into live Linear; private diagnostics live under `.codex-tmp/live-linear-cycle53/` and are not committed. |
+| Issue/sub-issue safety | unchanged | No live issue row was reached, no issue/sub-issue link was opened, and no mutating item, picker value, drag, edit, save, or create path was touched. |

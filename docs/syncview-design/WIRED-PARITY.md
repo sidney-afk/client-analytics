@@ -572,3 +572,12 @@ Cycle 38 navigated directly from the current live Linear issue list to one issue
 | Issue detail right rail | owner-question | Live Linear includes priority, labels, and cycle controls in the detail rail. The wired preview keeps the locked simplified detail structure and omits those removed surfaces pending owner direction. |
 | Issue detail toolbar chrome | owner-question | Live Linear includes additional toolbar buttons around link/share/workflow controls. The wired preview keeps the current read-only detail toolbar pending owner direction. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 39
+
+Cycle 39 was local-only. `pixel-wired.js` now compares artifact and wired detail side-card headings and row counts, while separately asserting the required wired-only `Controls disabled` read-only affordance remains disabled and titled `Preview - read-only`.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Detail side-card inventory | test-hardened | Prototype and wired detail side-card structure is now regression-tested without treating the read-only Controls affordance as a missing artifact row. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

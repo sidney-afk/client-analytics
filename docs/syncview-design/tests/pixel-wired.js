@@ -119,6 +119,16 @@ async function emptyStateInventory(page, selector) {
   }));
 }
 
+async function detailSideInventory(page, cardSelector, headSelector, rowSelector) {
+  return page.locator(cardSelector).evaluateAll((cards, selectors) => cards.map(card => ({
+    heading: (card.querySelector(selectors.headSelector)?.textContent || '').replace(/\s+/g, ' ').trim(),
+    rows: Array.from(card.querySelectorAll(selectors.rowSelector))
+      .filter(row => !row.querySelector('.prod-disabled-pill'))
+      .map(row => (row.textContent || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean).length,
+  })), { headSelector, rowSelector });
+}
+
 function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
   if (artifactRows.length !== wiredRows.length) {
     gaps.push({ rank: 1, state, message: `picker row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
@@ -779,6 +789,25 @@ async function run() {
     await wired.waitForSelector('.prod-detail');
     await requirePair(gaps, 'detail inventory', artifact, wired, '.ds-card', '.prod-side-card');
     await requirePair(gaps, 'detail inventory', artifact, wired, '.composer-box', '.prod-composer-box');
+    const detailSideA = await detailSideInventory(artifact, '.detail-side .ds-card', '.ds-card-hd span:first-child', '.ds-row');
+    const detailSideW = await detailSideInventory(wired, '.prod-right .prod-side-card', '.prod-side-card-head span:first-child', '.prod-side-row');
+    if (detailSideA.length !== detailSideW.length) {
+      gaps.push({ rank: 1, state: 'detail side-card inventory', message: `card count artifact=${detailSideA.length} wired=${detailSideW.length}` });
+    }
+    detailSideA.forEach((a, i) => {
+      const w = detailSideW[i] || {};
+      if (a.heading !== w.heading) gaps.push({ rank: 1, state: 'detail side-card inventory', message: `card ${i} heading artifact=${a.heading} wired=${w.heading || '(missing)'}` });
+      if (a.rows !== w.rows) gaps.push({ rank: 1, state: 'detail side-card inventory', message: `card ${i} row count artifact=${a.rows} wired=${w.rows == null ? '(missing)' : w.rows}` });
+    });
+    const disabledControls = await wired.locator('.prod-side-card[data-prod-detail-card="properties"] [data-prod-disabled="detail-controls"]').first();
+    if (!(await disabledControls.count())) {
+      gaps.push({ rank: 1, state: 'detail read-only controls', message: 'missing preserved disabled detail Controls affordance' });
+    } else {
+      const disabledTitle = await disabledControls.getAttribute('title');
+      const actuallyDisabled = await disabledControls.isDisabled();
+      if (disabledTitle !== 'Preview - read-only') gaps.push({ rank: 1, state: 'detail read-only controls', message: `title=${disabledTitle || '(empty)'}` });
+      if (!actuallyDisabled) gaps.push({ rank: 1, state: 'detail read-only controls', message: 'detail Controls affordance is not disabled' });
+    }
     await shot(artifact, 'artifact-detail');
     await shot(wired, 'wired-detail');
 

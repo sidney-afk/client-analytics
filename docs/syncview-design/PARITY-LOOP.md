@@ -838,3 +838,12 @@ Read-only live observation navigated directly from the current issue list to one
 | Issue detail right rail | owner-question | Live Linear's detail rail includes broader surfaces such as priority, labels, and cycle controls. The locked SyncView skeleton deliberately removed priority, labels, and cycles, so the prototype/wired detail keeps the simplified Properties / Parent issue / Project structure pending owner direction. |
 | Issue detail toolbar chrome | owner-question | Live Linear shows additional detail toolbar buttons around link/share/workflow controls. These are adjacent to mutation or broader-product chrome, so no B2 read-only code change was made without owner direction. |
 | Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering data relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 39
+
+Local artifact-vs-wired verification hardened the detail surface without touching live Linear. `pixel-wired.js` now compares the simplified detail side-card inventory (Properties / Parent issue when present / Project) and row counts between the prototype and wired preview. It also separately asserts the required wired-only read-only `Controls disabled` affordance remains disabled and titled `Preview - read-only`.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Detail side-card inventory | test-hardened | The lane compares artifact and wired card headings and row counts while preserving the owner-required read-only Controls row as an explicit B2 guard. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

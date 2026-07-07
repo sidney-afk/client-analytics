@@ -334,3 +334,14 @@ Ranked findings fixed in this cycle:
 2. P2: typing `status` in the selected Actions command search did not reveal direct status commands.
 
 Pixel lane additions: `pixel-wired.js` now checks the expanded copy-command inventory and captures `artifact-crop-selection-actions-search-status.png` / `wired-crop-selection-actions-search-status.png`.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 12
+
+Cycle 12 extends the accepted Cycle 11 selected-Actions evidence. The fresh headless live probe was rejected because Linear showed the desktop-app handoff page with zero issue rows, so the code change is limited to rows already present in the accepted Cycle 11 menu capture.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Selected Actions copy-only inventory | ✅ | Added Copy issue description as Markdown, Copy issue content as Markdown, Copy git branch name, and Copy as prompt to prototype and wired preview. |
+| Selected Actions write/mutation boundary | ✅ | Subscribe, Move to a different team, priority, labels, and cycles remain omitted. Wired status rows remain read-only guarded. |
+
+Validation coverage: `pixel-wired.js` asserts the expanded copy-only inventory and rejects mutating/removed rows; `prod-structure-subset.js` asserts the wired copy-content row exists.

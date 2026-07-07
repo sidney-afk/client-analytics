@@ -376,10 +376,10 @@ async function run() {
       if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state: 'selection Actions command', message: `row ${i} icon path drift for ${a.title}` });
     });
     const actionLabels = actionRowsW.map(r => r.title).join('|');
-    ['Assign to...', 'Assign to me', 'Change status...', 'Move to project...', 'Change due date...', 'Copy issue ID', 'Copy issue URL', 'Copy issue title', 'Copy title as link'].forEach(label => {
+    ['Assign to...', 'Assign to me', 'Change status...', 'Move to project...', 'Change due date...', 'Copy issue ID', 'Copy issue URL', 'Copy issue title', 'Copy title as link', 'Copy issue description as Markdown', 'Copy issue content as Markdown', 'Copy git branch name', 'Copy as prompt'].forEach(label => {
       if (!actionLabels.includes(label)) gaps.push({ rank: 1, state: 'selection Actions command', message: 'missing ' + label });
     });
-    ['Change priority', 'Add labels', 'Add to cycle'].forEach(label => {
+    ['Change priority', 'Add labels', 'Add to cycle', 'Move to a different team', 'Subscribe'].forEach(label => {
       if (actionLabels.includes(label)) gaps.push({ rank: 1, state: 'selection Actions command', message: 'removed Linear surface reappeared: ' + label });
     });
     await shotElement(artifact, '#layer .cmdk.actioncmd', 'artifact-crop-selection-actions-menu');

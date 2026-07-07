@@ -611,7 +611,11 @@ function openBulkActions(){const ids=targetIds(null);var L=$("#layer");L.innerHT
     {t:"Copy issue ID",icon:I.copy,k:"Ctrl .",act:"copyId"},
     {t:"Copy issue URL",icon:I.copy,k:"Ctrl ⇧ ,",act:"copyUrl"},
     {t:"Copy issue title",icon:I.copy,k:"Ctrl ⇧ '",act:"copyTitle"},
-    {t:"Copy title as link",icon:I.copy,k:"Ctrl C",act:"copyTitleLink"}
+    {t:"Copy title as link",icon:I.copy,k:"Ctrl C",act:"copyTitleLink"},
+    {t:"Copy issue description as Markdown",icon:I.copy,k:"",act:"copyDescription"},
+    {t:"Copy issue content as Markdown",icon:I.copy,k:"Ctrl Alt C",act:"copyContent"},
+    {t:"Copy git branch name",icon:I.copy,k:"Ctrl ⇧ .",act:"copyBranch"},
+    {t:"Copy as prompt",icon:I.copy,k:"Ctrl Alt P",act:"copyPrompt"}
   ];
   const statusRows=()=>STATUS_ORDER.map(k=>({t:"Change status "+STATUS[k].name,icon:statusSVG(k),k:"",act:"statusValue",v:k}));
   var bd=document.createElement("div");bd.className="cmdk-bd actioncmd";
@@ -620,7 +624,7 @@ function openBulkActions(){const ids=targetIds(null);var L=$("#layer");L.innerHT
   L.appendChild(bd);
   var inp=bd.querySelector(".cmdk-inp"),list=bd.querySelector(".cmdk-list"),sel=0,shown=baseRows.slice();
   function copied(label){clearLayer();toast(ids.length>1?ids.length+" "+label+" copied":label+" copied");}
-  function pick(row,el){if(!row)return;const r=(el||list.querySelector(".cmdk-item.sel")||bd.querySelector(".cmdk")).getBoundingClientRect();if(row.act==="status")openStatusMenu(r.left,r.bottom+4,null);else if(row.act==="assign")openAssignMenu(r.left,r.bottom+4,null);else if(row.act==="due")openDueMenu(r.left,r.bottom+4,null);else if(row.act==="proj")openClientMenu(r.left,r.bottom+4,null);else if(row.act==="statusValue"){applySub("status",row.v,ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="assignMe"){applySub("assign","sl",ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="copyId"){copied("ID");}else if(row.act==="copyUrl"){copied("link");}else if(row.act==="copyTitle"){copied("title");}else if(row.act==="copyTitleLink"){copied("title link");}}
+  function pick(row,el){if(!row)return;const r=(el||list.querySelector(".cmdk-item.sel")||bd.querySelector(".cmdk")).getBoundingClientRect();if(row.act==="status")openStatusMenu(r.left,r.bottom+4,null);else if(row.act==="assign")openAssignMenu(r.left,r.bottom+4,null);else if(row.act==="due")openDueMenu(r.left,r.bottom+4,null);else if(row.act==="proj")openClientMenu(r.left,r.bottom+4,null);else if(row.act==="statusValue"){applySub("status",row.v,ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="assignMe"){applySub("assign","sl",ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="copyId"){copied("ID");}else if(row.act==="copyUrl"){copied("link");}else if(row.act==="copyTitle"){copied("title");}else if(row.act==="copyTitleLink"){copied("title link");}else if(row.act==="copyDescription"){copied("description");}else if(row.act==="copyContent"){copied("content");}else if(row.act==="copyBranch"){copied("branch name");}else if(row.act==="copyPrompt"){copied("prompt");}}
   function draw(){list.innerHTML=shown.length?shown.map(function(r,idx){return '<div class="cmdk-item '+(idx===sel?"sel":"")+'" data-bulkact="'+r.act+'" data-idx="'+idx+'"><span class="ci">'+r.icon+'</span><span class="ct">'+esc(r.t)+'</span><span class="cmeta">'+r.k+'</span></div>';}).join(""):'<div class="cmdk-empty">No results</div>';
     [].forEach.call(list.querySelectorAll(".cmdk-item"),function(el){el.addEventListener("click",function(e){e.stopPropagation();pick(shown[+el.getAttribute("data-idx")],el);});el.addEventListener("mousemove",function(){var ix=+el.getAttribute("data-idx");if(ix!==sel){sel=ix;[].forEach.call(list.querySelectorAll(".cmdk-item"),function(o){o.classList.toggle("sel",+o.getAttribute("data-idx")===sel);});}});});
     var s=list.querySelector(".cmdk-item.sel");if(s)s.scrollIntoView({block:"nearest"});}

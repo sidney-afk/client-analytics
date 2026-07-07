@@ -195,10 +195,11 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await page.keyboard.press('Control+a');
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
-    await page.locator('#prodBulkActions').click();
-    await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="status"]', 1, 'bulk Actions opens command menu');
-    await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="copyTitle"]', 1, 'bulk Actions exposes safe copy title command');
-    await page.locator('#prodLayer [data-prod-bulkact="status"]').click();
+      await page.locator('#prodBulkActions').click();
+      await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="status"]', 1, 'bulk Actions opens command menu');
+      await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="copyTitle"]', 1, 'bulk Actions exposes safe copy title command');
+      await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="copyContent"]', 1, 'bulk Actions exposes safe copy content command');
+      await page.locator('#prodLayer [data-prod-bulkact="status"]').click();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
     await page.keyboard.press('Escape');
     await page.evaluate(() => { _prodClearLayer(); _prodState.selected.clear(); _prodRender(); });

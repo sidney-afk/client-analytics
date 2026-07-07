@@ -524,3 +524,18 @@ Status: ⬜ not started · 🔎 ref-needed · 🟡 issues open · ✅ verified (
 - It13: sidebar section collapse — "Workspace"/"Your teams" nav-sec headers now collapsible buttons (S.secOpen{ws,teams}), chevron shows on hover + rotates when collapsed, matching Linear. Extended sweep.js to click [data-sec] (collapse+expand). qa ALL GREEN, sweep CLEAN (441 hovers/41 clicks/0 err), screenshot confirms no layout shift + clean at-rest look. Republished. E3→✅[2]. Sidebar now: sections + teams both collapsible. Remaining sidebar (by-design): no Inbox/Triage-nav/Cycles/Views/compose-icon/workspace-switcher.
 - It12: sidebar "My Issues"→"My issues" (Linear sentence case). Also PASS 2 on LIST: re-screenshot confirms two-row header, group chevrons, row order (due→avatar→created), status grouping order ALL still hold — no regressions since It2/It3/It8. qa ALL GREEN, sweep CLEAN. Republished. E2→✅[2], LIST Pass2 clean[1]. Sidebar residuals (low, some by-design): "Workspace"/"Your teams" lack collapse chevrons (Linear has ▸/▾); no compose/new-issue icon top-right (by-design removed); workspace-switcher ▾ omitted (by-design). NEXT: continue Pass 2 — re-diff detail/board/project-detail vs Linear refs; tooltips; empty states.
 - It11: investigated sub-issue section (captured lin-subs.png, lin-subs-mid.png / VID-7898). This team keeps content in rich-text descriptions (clip headings), not the Sub-issues feature — so no chrome delta; our section is standard. Noted rich-text-description product gap for Sidney. No source change. B5→✅[2] (chrome standard). NEXT: sidebar hover/selected + tooltips + empty states, then Pass 2 (re-screenshot ALL ours + re-diff vs Linear refs to confirm no regressions across list/detail/board/project-detail). NEXT: project-card icon/status layout; then behavioral parity (does each interaction DO the same as Linear) + capture pickers/detail/hover from live Linear.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 12
+
+Cycle 12 used the accepted Cycle 11 live capture (`beforeRowCount=20`, `afterRowCount=20`, `changed:false`) after a fresh headless live probe was rejected because Linear stayed on the desktop-app handoff page and produced no issue rows. No issue or sub-issue data was touched.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Single selected Actions copy-content rows | fixed | Based on `single-selection-actions-menu.png`; prototype and wired now include Copy issue description as Markdown, Copy issue content as Markdown, Copy git branch name, and Copy as prompt. |
+| Selected Actions mutating/removed rows | guarded | Subscribe to issue, Move to a different team, priority, labels, and cycles remain omitted because they mutate Linear or conflict with the locked simplified skeleton. |
+
+Ranked findings fixed in this cycle:
+
+1. P2: the selected Actions command panel still missed copy-only rows visible in the accepted live Linear capture.
+
+Pixel lane additions: `pixel-wired.js` now asserts the full copy-only selected-Actions inventory and rejects Subscribe/team-move/priority/labels/cycles rows.

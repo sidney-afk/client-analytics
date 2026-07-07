@@ -33,7 +33,9 @@ Cycle 9 rechecked list selection, range selection, Escape clear, and the floatin
 
 Cycle 10 rechecked the selected-row `Actions` menu. Before/after visible issue rows matched (`changed:false`). The prototype and wired preview now open the live-style command panel first, with the safe subset only: Assign to..., Assign to me, Change status..., Move to project..., Change due date..., Copy issue URL.
 
-Cycle 11 rechecked the single-selected `Actions` menu and its `status` search filter. Before/after visible issue rows matched (`changed:false`). The safe non-mutating copy rows now match live Linear's allowed subset (Copy issue ID/URL/title/title-as-link), and typing `status` expands direct status command rows. Wired status commands remain guarded read-only.
+Cycle 11 rechecked the single-selected `Actions` menu and its `status` search filter. Before/after visible issue rows matched (`changed:false`). The safe non-mutating copy rows now include Copy issue ID/URL/title/title-as-link, and typing `status` expands direct status command rows. Wired status commands remain guarded read-only.
+
+Cycle 12 used the accepted Cycle 11 live capture to finish the selected `Actions` copy-only subset: Copy issue description as Markdown, Copy issue content as Markdown, Copy git branch name, and Copy as prompt. Mutating rows observed in live Linear (Subscribe, team move, priority, labels, cycles) remain omitted.
 
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
@@ -73,7 +75,7 @@ Behavioral features shipped this phase (all ✅, all test-guarded):
 | **Due-date picker → CALENDAR** | ✅ | ✅ | ✅ (quick options w/ resolved dates + natural-language input + Custom→month calendar; dates match Linear exactly) |
 | Priority picker | ➖ | ➖ | ➖ (removed) |
 | Right-click context menu + cascading submenus | ✅ | ✅ | ✅ |
-| Selection + floating action bar | ✅ | ✅ | ✅ (live-style selected Actions command panel; removed priority/labels/cycles omitted) |
+| Selection + floating action bar | ✅ | ✅ | ✅ (live-style selected Actions command panel; copy-only rows ported; removed/mutating priority/labels/cycles/team-move/subscribe omitted) |
 | Filter menu + pill | ✅ | ✅ | ✅ (stackable Status/Assignee/Client conditions; searchable multi-select; "is / is any of" pills, edit + ✕ per pill) |
 | Group-by menu | ✅ | ✅ | ✅ |
 

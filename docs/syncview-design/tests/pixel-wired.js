@@ -119,6 +119,18 @@ async function emptyStateInventory(page, selector) {
   }));
 }
 
+async function sidebarFixedInventory(page, rootSelector) {
+  return page.locator(rootSelector).first().evaluate(el => {
+    const clean = value => String(value || '').replace(/\s+/g, ' ').trim();
+    const text = clean(el.textContent);
+    const labels = [];
+    ['My issues', 'Workspace', 'Projects', 'Your teams', 'Video', 'Issues', 'Graphics'].forEach(label => {
+      if (text.includes(label)) labels.push(label);
+    });
+    return { text, labels };
+  });
+}
+
 async function detailSideInventory(page, cardSelector, headSelector, rowSelector) {
   return page.locator(cardSelector).evaluateAll((cards, selectors) => cards.map(card => ({
     heading: (card.querySelector(selectors.headSelector)?.textContent || '').replace(/\s+/g, ' ').trim(),
@@ -307,6 +319,16 @@ async function run() {
     await requirePair(gaps, 'list inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');
     await requirePair(gaps, 'list inventory', artifact, wired, '.grp-hd', '.prod-group');
     await requirePair(gaps, 'list inventory', artifact, wired, '.row', '.prod-row');
+    const sidebarA = await sidebarFixedInventory(artifact, '.sb');
+    const sidebarW = await sidebarFixedInventory(wired, '.prod-side');
+    const requiredSidebarLabels = ['My issues', 'Workspace', 'Projects', 'Your teams', 'Video', 'Issues', 'Graphics'];
+    requiredSidebarLabels.forEach(label => {
+      if (!sidebarA.labels.includes(label)) gaps.push({ rank: 1, state: 'sidebar skeleton', message: `artifact missing ${label}` });
+      if (!sidebarW.labels.includes(label)) gaps.push({ rank: 1, state: 'sidebar skeleton', message: `wired missing ${label}` });
+    });
+    const lockedSidebarLabels = /\b(Inbox|Views|Invite|New issue)\b/i;
+    if (lockedSidebarLabels.test(sidebarA.text)) gaps.push({ rank: 1, state: 'sidebar locked removals', message: 'artifact sidebar contains removed nav chrome' });
+    if (lockedSidebarLabels.test(sidebarW.text)) gaps.push({ rank: 1, state: 'sidebar locked removals', message: 'wired sidebar contains removed nav chrome' });
     const artifactTabs = await artifact.locator('.tb-tabs .tb-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
     const wiredTabs = await wired.locator('.prod-tabs .prod-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
     if (artifactTabs.join('|') !== 'All issues|Active|Backlog') {

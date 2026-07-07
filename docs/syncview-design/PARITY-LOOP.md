@@ -893,3 +893,12 @@ Local artifact-vs-wired verification added a locked-scope guard for the command 
 |---|---:|---|
 | Command palette locked removals | test-hardened | Priority, Labels, Cycles, manual issue creation, Inbox/Triage, team moves, subscription/reminder, conversion, and mark-as commands stay out of the simplified preview unless the owner expands scope. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 45
+
+Local artifact-vs-wired verification added a locked-skeleton sidebar guard. `pixel-wired.js` now checks that both the prototype and wired preview expose the simplified sidebar spine and fail if removed navigation chrome returns.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Sidebar locked skeleton | test-hardened | My issues, Workspace/Projects, and Video/Graphics Issues/Projects remain present, while Inbox, Views, Invite, and manual New issue chrome stay out of the sidebar. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

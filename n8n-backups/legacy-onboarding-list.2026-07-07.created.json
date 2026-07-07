@@ -1,7 +1,8 @@
 {
-  "_snapshot_note": "Net-new workflow for the Templates→Onboarding 'Old forms' section. GET /webhook/legacy-onboarding-list. Reads Supabase legacy_onboarding (service role) — the historical Notion intake, migrated as-is — and returns {ok,count,submissions}. Account logins were already stripped at export/import time; the Strip Credentials node is a defense-in-depth safety net. Clone of 'SyncView Onboarding — List' (slqt2zCDyIc7OAmY) pointed at legacy_onboarding, returning `fields` (the original Q&A) instead of `answers`. Import into n8n and ACTIVATE. Requires legacy-onboarding-migration.sql to have been run so the table exists.",
+  "_snapshot_note": "CREATED + ACTIVATED 2026-07-07 as workflow ydbhXgV3X7SVnkSy in project 4dvRQbC5gyJNowXX (SynchroSocial). GET /webhook/legacy-onboarding-list. Reads Supabase legacy_onboarding (service role, credential XdBpJ6Xk8PMpZXXT) — the historical Notion intake, migrated as-is — and returns {ok,count,submissions}. Account logins were already stripped at export/import time; the Strip Credentials node is a defense-in-depth safety net. Clone of 'SyncView Onboarding — List' (slqt2zCDyIc7OAmY) pointed at legacy_onboarding, returning `fields` (the original Q&A) instead of `answers`. Until legacy-onboarding-migration.sql is run the table is empty, so the endpoint returns HTTP 200 with an empty body (the dashboard reads that as 'none yet').",
+  "id": "ydbhXgV3X7SVnkSy",
   "name": "SyncView Onboarding — Legacy List",
-  "active": false,
+  "active": true,
   "connections": {
     "Receive GET": { "main": [[{ "node": "Get Submissions", "type": "main", "index": 0 }]] },
     "Get Submissions": { "main": [[{ "node": "Strip Credentials", "type": "main", "index": 0 }]] },

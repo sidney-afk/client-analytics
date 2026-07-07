@@ -2593,8 +2593,11 @@
         .prod-due { display: inline-flex; align-items: center; gap: 5px; height: 24px; border: 1px solid var(--prod-border); border-radius: 999px; padding: 0 8px; color: var(--prod-muted); font-size: 12px; font-weight: 450; white-space: nowrap; }
         .prod-due.over { color: #b45309; border-color: rgba(180,83,9,.28); background: rgba(180,83,9,.06); }
         .prod-created { width: 42px; flex: none; text-align: right; color: var(--prod-faint); font-size: 11px; font-variant-numeric: tabular-nums; }
-        .prod-board { background: var(--prod-content); }
+        .prod-board { background: var(--prod-content); overflow-x: auto; overflow-y: hidden; }
+        .prod-board::-webkit-scrollbar { height: 9px; }
+        .prod-board::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 9px; }
         .prod-col { background: transparent; }
+        .prod-col.prod-col-drop { background: var(--prod-selected); }
         .prod-col.collapsed { width: 46px; min-width: 46px; padding-left: 5px; padding-right: 5px; }
         .prod-col.collapsed .prod-card-status, .prod-col.collapsed .prod-col-title, .prod-col.collapsed .prod-group-count, .prod-col.collapsed .prod-spacer, .prod-col.collapsed .prod-icon-btn, .prod-col.collapsed .prod-group-add, .prod-col.collapsed .prod-cards { display: none; }
         .prod-col-collapse { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: var(--prod-faint); flex: none; }
@@ -2602,7 +2605,11 @@
         .prod-col.collapsed .prod-col-collapse { transform: rotate(-90deg); }
         .prod-col-rail { writing-mode: vertical-rl; font-size: 13px; font-weight: 500; color: var(--prod-strong); margin: 8px 0 0 4px; white-space: nowrap; }
         .prod-col-head .prod-icon-btn { width: 22px; height: 22px; color: var(--prod-faint); }
-        .prod-card { cursor: pointer; }
+        .prod-cards { overflow-y: auto; overflow-x: hidden; }
+        .prod-cards::-webkit-scrollbar { width: 7px; }
+        .prod-cards::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 8px; }
+        .prod-card { cursor: grab; }
+        .prod-card.prod-card-dragging, .prod-card.pcard-dragging { opacity: .45; cursor: grabbing; }
         .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
         .prod-card:hover .prod-card-check, .prod-card.pcard-sel .prod-card-check { opacity: 1; }
         .prod-card-check.on { background: var(--prod-accent); border-color: var(--prod-accent); opacity: 1; }
@@ -28264,6 +28271,10 @@
                         if (target && String(e.key).toLowerCase() === 'p' && e.shiftKey) { e.preventDefault(); _prodOpenPicker('proj', { preventDefault(){}, stopPropagation(){}, clientX: innerWidth / 2, clientY: 160 }, target); return; }
                     }
                 });
+                document.addEventListener('dragstart', _prodBoardDragStart);
+                document.addEventListener('dragend', _prodClearBoardDropFx);
+                document.addEventListener('dragover', _prodBoardDragOver);
+                document.addEventListener('drop', _prodBoardDrop);
                 document.addEventListener('visibilitychange', _prodAutoRefreshOnReturn);
                 window.addEventListener('focus', _prodAutoRefreshOnReturn);
                 window.addEventListener('pageshow', _prodAutoRefreshOnReturn);
@@ -28356,6 +28367,48 @@
         function _prodReadonlyGuard() {
             _prodToast(_prodPreviewText());
             return false;
+        }
+        function _prodClearBoardDropFx() {
+            document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+            document.querySelectorAll('.prod-card-dragging, .pcard-dragging').forEach(el => el.classList.remove('prod-card-dragging', 'pcard-dragging'));
+            _prodState.dragProject = '';
+        }
+        function _prodBoardDragStart(e) {
+            if (!_prodEnabled() || !document.getElementById('prodRoot')) return;
+            const card = e.target && e.target.closest ? e.target.closest('.prod-card[data-prod-client-card]') : null;
+            if (!card) return;
+            const id = card.getAttribute('data-prod-client-card') || '';
+            if (!_prodClient(id)) return;
+            _prodState.dragProject = id;
+            if (e.dataTransfer) {
+                e.dataTransfer.effectAllowed = 'move';
+                try { e.dataTransfer.setData('text/plain', id); } catch (err) {}
+            }
+            card.classList.add('prod-card-dragging', 'pcard-dragging');
+        }
+        function _prodBoardDragOver(e) {
+            if (!_prodEnabled() || !_prodState.dragProject) return;
+            const col = e.target && e.target.closest ? e.target.closest('[data-prod-col]') : null;
+            if (!col) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            const client = _prodClient(_prodState.dragProject);
+            if (client && _prodBoardStatus(client.status) === col.getAttribute('data-prod-col')) {
+                document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+                return;
+            }
+            if (!col.classList.contains('prod-col-drop')) {
+                document.querySelectorAll('.prod-col-drop').forEach(el => el.classList.remove('prod-col-drop'));
+                col.classList.add('prod-col-drop');
+            }
+        }
+        function _prodBoardDrop(e) {
+            if (!_prodEnabled() || !_prodState.dragProject) return;
+            const col = e.target && e.target.closest ? e.target.closest('[data-prod-col]') : null;
+            if (!col) return;
+            e.preventDefault();
+            _prodReadonlyGuard();
+            _prodClearBoardDropFx();
         }
         function _prodOpenBrandMenu(ev) {
             if (ev) {
@@ -29716,7 +29769,7 @@
             const focused = _prodState.focusCard === id;
             const title = c.name || c.id;
             const titleAttrs = ' data-fulltitle="' + _calEscAttr(title) + '"' + (String(title || '').length > 120 ? ' title="' + _calEscAttr(title) + '"' : '');
-            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
+            return '<article class="prod-card pcard' + (focused ? ' pcard-kfocus' : '') + (selected ? ' pcard-sel' : '') + '" draggable="true" data-prod-client-card="' + _calEscAttr(id) + '" data-project="' + _calEscAttr(id) + '" onclick="return _prodCardClick(event,' + _jsAttrArg(id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')"><div class="prod-card-head"><span class="prod-card-check pcard-check' + (selected ? ' on' : '') + '" data-prod-cardcheck="' + _calEscAttr(id) + '" data-cardcheck="' + _calEscAttr(id) + '" onclick="event.stopPropagation(); _prodToggleCardSelection(' + _jsAttrArg(id) + ',false)" aria-hidden="true"></span><span class="prod-card-ico pcard-ico">' + _prodProjectGlyph(c) + '</span><span class="prod-card-title pcard-nm" data-prod-card-title="' + _calEscAttr(id) + '"' + titleAttrs + '>' + _calEsc(title) + '</span><span class="prod-card-status" data-prod-pstatus="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(_prodBoardLabel(status)) + '">' + _prodProjectStatusIcon(status) + '</span><button class="prod-icon-btn" type="button" onclick="event.stopPropagation(); return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(id) + ')" data-prod-tip="Options">' + _prodIcon('dots') + '</button><span class="prod-card-lead" data-prod-plead="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '">' + _prodAvatar(lead, 17) + '</span></div>'
                 + (c.desc ? '<div class="prod-card-desc">' + _calEsc(c.desc) + '</div>' : '')
                 + '<div class="prod-card-meta"><span>' + count + ' issue' + (count === 1 ? '' : 's') + '</span><span class="prod-spacer"></span><span class="prod-card-target" data-prod-ptarget="' + _calEscAttr(id) + '" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(id) + ')" data-prod-tip="Set target">' + (c.target ? _prodIcon('cal') + ' ' + _calEsc(c.target) : 'No target') + '</span></div></article>';
         }

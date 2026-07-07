@@ -548,6 +548,62 @@ async function run() {
     await requirePair(gaps, 'board inventory', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]');
     await shot(artifact, 'artifact-board');
     await shot(wired, 'wired-board');
+    await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
+    await compareStyles(gaps, 'board card drag cursor', artifact, wired, '.pcard', '.prod-card', ['cursor']);
+    await artifact.evaluate(() => {
+      const card = document.querySelector('.pcard[data-project]');
+      if (!card) return;
+      const id = card.getAttribute('data-project');
+      const client = CLIENTS.find(c => c.id === id);
+      const target = [...document.querySelectorAll('[data-pcol]')].find(col => !client || col.getAttribute('data-pcol') !== client.status);
+      card.dispatchEvent(new Event('dragstart', { bubbles: true, cancelable: true }));
+      if (target) target.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    });
+    await wired.evaluate(() => {
+      const card = document.querySelector('.prod-card[data-prod-client-card]');
+      if (!card) return;
+      const id = card.getAttribute('data-prod-client-card');
+      const client = _prodClient(id);
+      const current = client ? _prodBoardStatus(client.status) : '';
+      const target = [...document.querySelectorAll('[data-prod-col]')].find(col => col.getAttribute('data-prod-col') !== current);
+      card.dispatchEvent(new Event('dragstart', { bubbles: true, cancelable: true }));
+      if (target) target.dispatchEvent(new Event('dragover', { bubbles: true, cancelable: true }));
+    });
+    await shotElement(artifact, '.pcol-drop', 'artifact-crop-board-drop-target');
+    await shotElement(wired, '.prod-col-drop', 'wired-crop-board-drop-target');
+    const artifactDragFx = await artifact.evaluate(() => ({
+      dragging: !!document.querySelector('.pcard-dragging'),
+      drop: !!document.querySelector('.pcol-drop'),
+    }));
+    const wiredDragFx = await wired.evaluate(() => ({
+      dragging: !!document.querySelector('.prod-card-dragging.pcard-dragging'),
+      drop: !!document.querySelector('.prod-col-drop'),
+    }));
+    if (artifactDragFx.dragging !== wiredDragFx.dragging) gaps.push({ rank: 1, state: 'board drag chrome', message: `dragging class artifact=${artifactDragFx.dragging} wired=${wiredDragFx.dragging}` });
+    if (artifactDragFx.drop !== wiredDragFx.drop) gaps.push({ rank: 1, state: 'board drag chrome', message: `drop highlight artifact=${artifactDragFx.drop} wired=${wiredDragFx.drop}` });
+    const wiredDropGuard = await wired.evaluate(() => {
+      const card = document.querySelector('.prod-card[data-prod-client-card]');
+      const id = card ? card.getAttribute('data-prod-client-card') : '';
+      const before = id && _prodClient(id) ? _prodBoardStatus(_prodClient(id).status) : '';
+      const target = document.querySelector('.prod-col-drop');
+      if (target) target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+      const after = id && _prodClient(id) ? _prodBoardStatus(_prodClient(id).status) : '';
+      const toast = document.getElementById('prodToast');
+      return {
+        same: before === after,
+        toast: toast ? (toast.textContent || '').trim() : '',
+        dragging: !!document.querySelector('.prod-card-dragging, .pcard-dragging'),
+        drop: !!document.querySelector('.prod-col-drop'),
+      };
+    });
+    if (!wiredDropGuard.same) gaps.push({ rank: 1, state: 'board drag guard', message: 'wired read-only drop changed project status' });
+    if (!/Preview - read-only/.test(wiredDropGuard.toast)) gaps.push({ rank: 1, state: 'board drag guard', message: `wired drop toast was ${wiredDropGuard.toast || '(empty)'}` });
+    if (wiredDropGuard.dragging || wiredDropGuard.drop) gaps.push({ rank: 2, state: 'board drag guard', message: 'wired drag/drop visual state did not clean up after guarded drop' });
+    await artifact.evaluate(() => {
+      const target = document.querySelector('.pcol-drop');
+      if (target) target.dispatchEvent(new Event('drop', { bubbles: true, cancelable: true }));
+      if (typeof clearDropFx === 'function') clearDropFx();
+    });
 
     await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); const id = flatOrder()[0]; if (id) openIssue(id); });
     await wired.evaluate(() => { _prodOpenTeamView('video', 'list'); const id = _prodFlatOrder()[0]; if (id) _prodOpenDeliverable(id); });
@@ -613,7 +669,7 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board, detail, and browser history parity checks passed');
+    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

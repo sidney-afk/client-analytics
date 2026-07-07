@@ -189,6 +189,22 @@ function assertNoLockedPaletteRows(gaps, state, rows) {
   });
 }
 
+function assertPaletteNavigationScope(gaps, state, rows) {
+  const allowed = new Set([
+    'Go to Video issues',
+    'Go to Graphics issues',
+    'Go to My issues',
+    'Go to Video projects',
+    'Go to Graphics projects',
+    'Go to All projects',
+  ]);
+  rows.forEach(row => {
+    if (/^Go to /i.test(row.title) && !allowed.has(row.title)) {
+      gaps.push({ rank: 1, state, message: `broader navigation command returned: ${row.title}` });
+    }
+  });
+}
+
 function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
   if (artifactRows.length !== wiredRows.length) {
     gaps.push({ rank: 1, state, message: `menu row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
@@ -515,6 +531,7 @@ async function run() {
     if (issueLikeA !== issueLikeW || issueLikeW !== 6) gaps.push({ rank: 1, state: 'palette default inventory', message: `top issue rows artifact=${issueLikeA} wired=${issueLikeW}` });
     comparePaletteCommandRows(gaps, 'palette default commands', paletteA, paletteW, 6);
     assertNoLockedPaletteRows(gaps, 'palette locked removals', paletteA.concat(paletteW));
+    assertPaletteNavigationScope(gaps, 'palette navigation locked skeleton', paletteA.concat(paletteW));
     await artifact.locator('.cmdk-inp').fill('my issues');
     await wired.locator('.prod-cmd-input').fill('my issues');
     await artifact.waitForFunction(() => Array.from(document.querySelectorAll('.cmdk-item')).some(el => el.textContent.includes('Go to My issues')));
@@ -527,6 +544,7 @@ async function run() {
       gaps.push({ rank: 1, state: 'palette command search', message: `artifact=${searchA[0]?.title}/${searchA[0]?.meta} wired=${searchW[0]?.title}/${searchW[0]?.meta}` });
     }
     assertNoLockedPaletteRows(gaps, 'palette search locked removals', searchA.concat(searchW));
+    assertPaletteNavigationScope(gaps, 'palette search navigation locked skeleton', searchA.concat(searchW));
     await artifact.locator('.cmdk-inp').fill('zzzznomatch');
     await wired.locator('.prod-cmd-input').fill('zzzznomatch');
     await artifact.waitForSelector('.cmdk-empty');

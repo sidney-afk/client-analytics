@@ -693,3 +693,12 @@ Cycle 51 was local-only. `pixel-wired.js` now fails if the row-context Copy subm
 |---|---:|---|
 | Row context Copy submenu | test-hardened | Copy-only rows remain allowed; duplicate/create behavior stays out of the read-only Production preview. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 52
+
+Cycle 52 was local-only. `pixel-wired.js` now fails if command-palette `Go to ...` commands drift beyond the locked skeleton routes: Video issues, Graphics issues, My issues, Video projects, Graphics projects, and All projects.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Command palette navigation scope | test-hardened | Team overview / full Search-page routes remain out unless the owner expands the skeleton. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

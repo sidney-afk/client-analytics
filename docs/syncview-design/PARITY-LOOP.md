@@ -957,3 +957,12 @@ Local artifact-vs-wired verification added a row-context Copy submenu guard. `pi
 |---|---:|---|
 | Row context Copy submenu | test-hardened | Copy-only rows remain allowed; duplicate/create behavior stays out of the read-only Production preview. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 52
+
+Local artifact-vs-wired verification added a command-palette navigation-scope guard. `pixel-wired.js` now fails if palette `Go to ...` commands drift beyond the locked skeleton routes: Video issues, Graphics issues, My issues, Video projects, Graphics projects, and All projects.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Command palette navigation scope | test-hardened | Team overview / full Search-page routes remain out unless the owner expands the skeleton. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

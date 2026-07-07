@@ -581,3 +581,18 @@ Ranked finding fixed in this cycle:
 1. P2: the persistent bottom-right Ask Linear dock was missing outside the selected-row actionbar.
 
 Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-askdock.png` / `wired-crop-askdock.png` and checks dock style and icon paths.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 18
+
+Fresh live Linear observation was read-only and hover-only. The probe captured 20 visible VID issue rows before and after hovering the bottom-right dock; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Global bottom-right Ask Linear dock hover | fixed | `dock-initial.png` / `dock-hover-ask.png` showed live Linear's 8px radius, default cursor, and `0 12px 0 10px` Ask-button padding. Prototype and wired now match those values. |
+| Bottom-left changelog/help chrome | deferred | The same live capture showed account-state-dependent changelog/help chrome at bottom-left. Deferred as product chrome pending owner direction rather than adding it blindly. |
+
+Ranked finding fixed in this cycle:
+
+1. P3: the global Ask Linear dock button geometry was close but not exact on radius/cursor/padding.
+
+Pixel lane additions: `pixel-wired.js` now compares the dock main-button horizontal padding in addition to presence, styling, and icon paths.

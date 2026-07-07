@@ -378,3 +378,14 @@ Cycle 17 used the same accepted read-only live Linear capture as Cycle 16; no ne
 | Global Ask Linear dock | ✅ | Prototype and wired preview now render the bottom-right Ask Linear and Chat history chrome. Wired buttons are tagged `data-prod-disabled` and route to `Preview - read-only`. |
 
 Validation coverage: `pixel-wired.js` compares dock presence, placement styles, and icon paths; `prod-structure-subset.js` asserts both wired dock buttons are guarded.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 18
+
+Live Linear observation was read-only and hover-only. Before/after visible issue-row snapshots for the probed VID issue list both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Global Ask Linear dock hover geometry | fixed | Live dock buttons use 8px radius, default cursor, and main-button padding `0 12px 0 10px`. Prototype and wired preview now match those values; wired buttons remain guarded. |
+| Bottom-left changelog/help chrome | owner-question | Live Linear currently shows account-state-dependent bottom-left changelog/help chrome. Not ported blindly because it is broader product chrome, not issue/sub-issue structure. |
+
+Validation coverage: `pixel-wired.js` now also compares the dock main-button horizontal padding.

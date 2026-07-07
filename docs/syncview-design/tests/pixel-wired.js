@@ -353,7 +353,7 @@ async function run() {
     await shotElement(artifact, '.askdock', 'artifact-crop-askdock');
     await shotElement(wired, '.prod-askdock', 'wired-crop-askdock');
     await compareStyles(gaps, 'global Ask Linear dock', artifact, wired, '.askdock', '.prod-askdock', ['position', 'right', 'bottom', 'display', 'alignItems', 'gap', 'color']);
-    await compareStyles(gaps, 'global Ask Linear main', artifact, wired, '#askdock-main', '#prodAskDockMain', ['height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    await compareStyles(gaps, 'global Ask Linear main', artifact, wired, '#askdock-main', '#prodAskDockMain', ['height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor', 'paddingLeft', 'paddingRight']);
     await compareStyles(gaps, 'global Ask Linear history', artifact, wired, '#askdock-history', '#prodAskDockHistory', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
     const artifactDockPaths = await artifact.locator('.askdock svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d') || '').join('|'));
     const wiredDockPaths = await wired.locator('.prod-askdock svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d') || '').join('|'));

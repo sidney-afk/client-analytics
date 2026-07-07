@@ -939,3 +939,12 @@ Local artifact-vs-wired verification added an issue-detail toolbar guard. `pixel
 |---|---:|---|
 | Issue detail toolbar breadth | test-hardened | Share, workflow, subscribe, priority, labels, and cycle controls stay out of the simplified detail toolbar unless the owner expands scope. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 50
+
+Local artifact-vs-wired verification added a row-context Project submenu guard. `pixel-wired.js` now opens the Project submenu and fails if the live Linear `No project` detach row returns while the owner decision remains unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Project submenu | test-hardened | The Production preview keeps deliverables client/project-linked; `No project` remains out unless the owner explicitly allows project detachment. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

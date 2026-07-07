@@ -675,3 +675,12 @@ Cycle 49 was local-only. `pixel-wired.js` now fails if issue detail reintroduces
 |---|---:|---|
 | Issue detail toolbar breadth | test-hardened | Share, workflow, subscribe, priority, labels, and cycle controls stay out of the simplified detail toolbar unless the owner expands scope. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 50
+
+Cycle 50 was local-only. `pixel-wired.js` now fails if the row-context Project submenu reintroduces live Linear's `No project` detach row while that product-scope decision remains unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Project submenu | test-hardened | The Production preview keeps deliverables client/project-linked; `No project` remains out unless the owner explicitly allows project detachment. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

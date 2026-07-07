@@ -706,6 +706,16 @@ async function run() {
     await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-copy-submenu');
     await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-copy-submenu');
     comparePickerInventory(gaps, 'context copy submenu inventory', await pickerInventory(artifact, '#layer .pop [data-copy]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-copy]'));
+    await artifact.locator('#layer .pop [data-ctx="proj"]').first().hover();
+    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="proj"]').first().hover();
+    await artifact.waitForSelector('#layer .pop [data-i]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
+    await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-project-submenu');
+    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-project-submenu');
+    const projectRows = (await pickerInventory(artifact, '#layer .pop [data-i]')).concat(await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]'));
+    projectRows.forEach(row => {
+      if (/^No project$/i.test(row.label)) gaps.push({ rank: 1, state: 'context project locked removals', message: 'No project detach row returned' });
+    });
     await artifact.keyboard.press('Escape');
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 

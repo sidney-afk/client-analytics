@@ -170,6 +170,16 @@ async function safe(page, fn) {
       await wired.locator('#prodGroupBtn').click();
       await shot(wired, 'wired-07-group-by-menu');
     });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.groupBy = 'project'; S.filters = []; S.open = null; render(); });
+      await shot(artifact, 'artifact-14-client-group-nav');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'list'); _prodState.groupBy = 'client'; _prodState.filters = []; _prodRender(); });
+      await shot(wired, 'wired-14-client-group-nav');
+    });
 
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');
@@ -184,6 +194,16 @@ async function safe(page, fn) {
       await wired.locator('[data-prod-pcolcollapse]').first().click();
       await shot(wired, 'wired-08-collapsed-column');
     });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.filters = [{ field: 'status', values: ['__none__'] }]; render(); });
+      await shot(artifact, 'artifact-15-empty-board-columns');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'board'); _prodState.filters = [{ field: 'status', values: ['__none__'] }]; _prodRender(); });
+      await shot(wired, 'wired-15-empty-board-columns');
+    });
 
     await safe(artifact, async () => {
       await artifact.keyboard.press('Escape');
@@ -194,6 +214,96 @@ async function safe(page, fn) {
       await wired.keyboard.press('Escape');
       await wired.locator('.prod-search-btn').click();
       await shot(wired, 'wired-09-palette');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.locator('.sb-brand[data-brandmenu]').click();
+      await shot(artifact, 'artifact-17-brand-menu');
+      await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.locator('.prod-brand[data-prod-brandmenu]').click();
+      await shot(wired, 'wired-17-brand-menu');
+      await wired.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; S.open = null; render(); });
+      await artifact.locator('.row').first().click({ button: 'right' });
+      await artifact.locator('#layer .pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await shot(artifact, 'artifact-16-context-keyboard-submenu');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('.prod-row').first().click({ button: 'right' });
+      await wired.locator('#prodLayer .prod-pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await shot(wired, 'wired-16-context-keyboard-submenu');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); });
+      await artifact.locator('#filterbtn').click();
+      await artifact.locator('#layer .pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+      await shot(artifact, 'artifact-18-filter-keyboard-submenu');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('#prodFilterBtn').click();
+      await wired.locator('#prodLayer .prod-pop').first().evaluate(pop => {
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+        pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+      });
+      await shot(wired, 'wired-18-filter-keyboard-submenu');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); });
+      await artifact.locator('#filterbtn').click();
+      await artifact.locator('#layer [data-ffield]').first().hover();
+      await artifact.locator('#layer .pop [data-search]').last().fill('zzzznomatch');
+      await shot(artifact, 'artifact-19-filter-no-results');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'list'); _prodState.filters = []; _prodRender(); });
+      await wired.locator('#prodFilterBtn').click();
+      await wired.locator('#prodLayer [data-prod-ffield]').first().hover();
+      await wired.locator('#prodLayer .prod-pop [data-prod-search]').last().fill('zzzznomatch');
+      await shot(wired, 'wired-19-filter-no-results');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; S.cardSel.clear(); render(); const first = boardFlat()[0]; if (first) { S.cardSel.add(first); render(); } });
+      await shot(artifact, 'artifact-20-board-card-selection');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'board'); const first = _prodBoardFlat()[0]; _prodState.cardSel.clear(); if (first) _prodState.cardSel.add(first); _prodRender(); });
+      await shot(wired, 'wired-20-board-card-selection');
+    });
+    await safe(artifact, async () => {
+      await artifact.keyboard.press('Escape');
+      await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = (boardFlat()[0] || (CLIENTS[0] && CLIENTS[0].id)); S.open = null; render(); });
+      await shot(artifact, 'artifact-21-project-detail');
+    });
+    await safe(wired, async () => {
+      await wired.keyboard.press('Escape');
+      await wired.evaluate(() => { window._prodClearLayer && window._prodClearLayer(); window._prodOpenTeamView('video', 'board'); const first = _prodBoardFlat()[0]; if (first) _prodOpenProject(first); });
+      await shot(wired, 'wired-21-project-detail');
     });
 
     await safe(artifact, async () => {

@@ -884,3 +884,12 @@ Local artifact-vs-wired verification added locked-scope guards for the Filter an
 | Filter menu locked removals | test-hardened | AI/Advanced filter plus Priority, Labels, Initiative, Cycle, and other full-Linear filter fields remain out of the simplified preview unless the owner expands scope. |
 | Display menu locked removals | test-hardened | Layout/List/Board switching, ordering, sub-grouping, completed/triage toggles, display-property rows, and removed concepts stay out of the simplified group-by menu. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 44
+
+Local artifact-vs-wired verification added a locked-scope guard for the command palette. `pixel-wired.js` now checks default and filtered palette inventories and fails if removed full-Linear command concepts return while owner-scope decisions remain unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Command palette locked removals | test-hardened | Priority, Labels, Cycles, manual issue creation, Inbox/Triage, team moves, subscription/reminder, conversion, and mark-as commands stay out of the simplified preview unless the owner expands scope. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

@@ -620,3 +620,12 @@ Cycle 43 was local-only. `pixel-wired.js` now captures and compares the Filter a
 | Filter menu locked removals | test-hardened | AI/Advanced filter plus Priority, Labels, Initiative, Cycle, and other full-Linear filter fields remain out of the simplified preview. |
 | Display menu locked removals | test-hardened | Layout/List/Board switching, ordering, sub-grouping, completed/triage toggles, display-property rows, and removed concepts stay out of the simplified group-by menu. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 44
+
+Cycle 44 was local-only. `pixel-wired.js` now fails if removed full-Linear command-palette rows return to either the prototype or wired preview while those owner-scope decisions remain unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Command palette locked removals | test-hardened | Priority, Labels, Cycles, manual issue creation, Inbox/Triage, team moves, subscription/reminder, conversion, and mark-as commands stay out of the simplified command palette. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

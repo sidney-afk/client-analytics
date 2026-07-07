@@ -1,0 +1,111 @@
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const ROOT = path.join(__dirname, '..');
+const FN = fs.readFileSync(path.join(ROOT, 'supabase/functions/linear-inbound/index.ts'), 'utf8');
+const CFG = fs.readFileSync(path.join(ROOT, 'supabase/config.toml'), 'utf8');
+
+function ok(cond, msg) {
+  if (!cond) {
+    console.error('FAIL linear-inbound-source:', msg);
+    process.exit(1);
+  }
+}
+
+function hmac(secret, body) {
+  return crypto.createHmac('sha256', secret).update(body).digest('hex');
+}
+
+function fresh(ts, now) {
+  return Math.abs(now - Date.parse(ts)) <= 60000;
+}
+
+const now = Date.UTC(2026, 6, 7, 20, 0, 0);
+const dummyIssuePayload = JSON.stringify({
+  type: 'Issue',
+  action: 'update',
+  webhookTimestamp: new Date(now).toISOString(),
+  data: {
+    id: 'lin_dummy_issue_1',
+    identifier: 'VID-TEST',
+    url: 'https://linear.example/issue/VID-TEST/dummy',
+    title: 'Dummy test deliverable',
+    state: { id: 'state_dummy_smm', name: 'For SMM approval', type: 'started' },
+    assignee: { id: 'linear_user_dummy', email: 'editor@example.invalid', name: 'Test Editor' },
+    team: { key: 'VID', name: 'Video' },
+    dueDate: '2026-07-31',
+    priority: 2,
+  },
+});
+const sig = hmac('dummy-secret', dummyIssuePayload);
+ok(sig.length === 64 && /^[0-9a-f]+$/.test(sig), 'test HMAC fixture sanity');
+ok(fresh(JSON.parse(dummyIssuePayload).webhookTimestamp, now), 'test replay fixture sanity');
+
+ok(/\[functions\.linear-inbound\]\s*\nverify_jwt = false/.test(CFG),
+  'linear-inbound must be configured verify_jwt=false because it verifies Linear HMAC itself');
+
+[
+  'LINEAR_INBOUND_SIGNING_SECRET',
+  'linear-signature',
+  'HMAC',
+  'SHA-256',
+  'REPLAY_WINDOW_MS = 60_000',
+  'webhookTimestamp',
+  'timingSafeEqual',
+].forEach(token => ok(FN.includes(token), 'transport token missing: ' + token));
+
+ok(/if \(!enabled\) \{[\s\S]*outcome: "disabled"[\s\S]*return json\(\{ ok: true, disabled: true \}\)/.test(FN),
+  'flag-false path must acknowledge and stop dark');
+ok(FN.indexOf('if (!enabled)') < FN.indexOf('handleLinearWebhook(supabase, payload)'),
+  'linear_inbound_enabled gate must run before the enabled handler');
+
+[
+  'linear_inbound_enabled',
+  'prod_authority',
+  'foreign_write_detected',
+  'detect_only',
+].forEach(token => ok(FN.includes(token), 'flag/detect-only token missing: ' + token));
+
+[
+  'statusFromName',
+  'stateUuidMap',
+  'unmapped_state',
+  'unknown_assignee',
+  'clamped_state',
+  'team_move',
+  'parent_change',
+  'webhook_delete',
+  'archived',
+  'restored',
+  'priority',
+].forEach(token => ok(FN.includes(token), 'issue mapping token missing: ' + token));
+
+ok(/const DUPLICATE_LINK_COLUMNS/.test(fs.readFileSync(path.join(ROOT, 'supabase/functions/sample-review-upsert/index.ts'), 'utf8')),
+  'sanity: running after the samples twins guard merge');
+
+ok(/role: "editor"[\s\S]*audience: "internal"[\s\S]*is_tweak: false[\s\S]*done: false[\s\S]*round: null[\s\S]*parent_id: null[\s\S]*author:[\s\S]*body:/.test(FN),
+  'comment object must pin the exact non-tweak editor/internal shape');
+ok(/SYNCVIEW_COMMENT_PREFIX/.test(FN) && /shouldDropEchoComment/.test(FN) && /duplicate_comment_event/.test(FN),
+  'comment echo filtering and idempotency checks missing');
+
+ok(/maintainCardLinkage/.test(FN)
+  && /video_deliverable_id/.test(FN)
+  && /graphic_deliverable_id/.test(FN)
+  && /calendar_posts/.test(FN)
+  && /sample_reviews/.test(FN),
+  'card-linkage maintenance must cover both card tables and both slots');
+
+ok(/rpc\("deliverable_write"/.test(FN), 'deliverable writes must go through deliverable_write RPC');
+ok(/rpc\("batch_write"/.test(FN), 'batch writes must go through batch_write RPC helper');
+ok(!/from\("deliverables"\)[\s\S]{0,120}\.(insert|update|upsert|delete)\(/.test(FN),
+  'linear-inbound must not directly mutate deliverables');
+ok(!/from\("batches"\)[\s\S]{0,120}\.(insert|update|upsert|delete)\(/.test(FN),
+  'linear-inbound must not directly mutate batches');
+
+ok(!/sidneylaruel|jesseisrael|lilybaker|mikiagrawal|chelseyscaffidi|daniellerobin/i.test(FN),
+  'linear-inbound source must not contain real client slugs');
+
+console.log('linear-inbound source checks passed');

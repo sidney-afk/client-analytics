@@ -732,3 +732,16 @@ Read-only live observation used a fresh Linear issue-list tab and clicked only t
 Owner question:
 
 1. Should the simplified SyncView Production sidebar Search button keep opening the command palette, or should it adopt live Linear's full Search page behavior while preserving the simplified navigation skeleton?
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 29
+
+Read-only live observation used a fresh Linear issue-list tab and clicked only the list Add Filter button. Before/after visible issue-row snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Filter menu taxonomy | owner-question | Live Linear's Add Filter menu includes AI filter, Advanced filter, and the full Linear taxonomy, including Priority, Labels, Initiative, Cycle, and other concepts the simplified skeleton deliberately removed. No code change was made because copying the full live menu would reintroduce removed concepts. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Owner question:
+
+1. Should SyncView keep the simplified filter taxonomy (status/assignee/client-project/date-style filters), or adopt live Linear's Add Filter chrome while hiding the deliberately removed filter categories?

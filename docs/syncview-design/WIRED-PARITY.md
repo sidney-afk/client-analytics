@@ -488,3 +488,12 @@ Cycle 28 ran a read-only live Linear sidebar Search click in a fresh issue-list 
 |---|---:|---|
 | Sidebar Search click | owner-question | Live Linear opens a full Search page; the current artifact and wired preview open the command palette. This is an information-architecture decision because the locked simplified skeleton names `Search(⌘K)`, so it remains unchanged pending owner direction. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 29
+
+Cycle 29 ran a read-only live Linear Add Filter click in a fresh issue-list tab. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Add Filter menu taxonomy | owner-question | Live Linear exposes AI filter, Advanced filter, and the full Linear taxonomy, including removed concepts such as Priority, Labels, Initiative, and Cycle. The wired preview keeps the simplified filter set pending owner direction. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

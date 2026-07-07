@@ -36,6 +36,15 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Command palette focused-issue action mode | live Linear command palette | ⬜ | Observed live Linear opens action commands for the focused issue, but includes removed Priority/Labels/Cycles rows. Left for owner decision so SyncView does not reintroduce locked removed surface. |
 | Display menu breadth | live Linear display menu | ⬜ | Observed list/board layout, grouping/sub-grouping/ordering, completed/sub-issue/triage toggles, and display-property chips. Several conflict with locked skeleton removals; left for owner decision. |
 
+## 2026-07-06 Live Linear Parity Cycle 5
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered sidebar hover, row hover/tooltip wait, notification popover, projects board, project-card context menu, and project detail; 20 visible rows before and after, `changed:false`. |
+| Projects board insights panel | live Linear projects board | ⬜ | Live Linear shows a right-side Health/Initiatives/Teams/Leads panel with update-health counts. Not ported because the current locked skeleton does not include project-health analytics. |
+| Project detail tabs and rich side panels | live Linear project detail | ⬜ | Live Linear has Overview/Activity/Issues tabs and rich properties/resources/progress. Several fields overlap removed features or mutating settings; left for owner decision. |
+| Notification settings popover | live Linear topbar bell | 🔒 | Bell popover edits notification settings. Deferred from B2 read-only preview rather than adding a settings mutation surface. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

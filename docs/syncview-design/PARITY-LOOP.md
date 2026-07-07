@@ -31,6 +31,16 @@ No code change was made in this cycle. The observed deltas are larger product-sh
 
 Private local evidence: `.codex-tmp/linear-live-cycle3/before-after-compare.json` plus local screenshots for display menu, command palette, row hover, and row context menu.
 
+# Live Linear parity cycle 5 - 2026-07-06
+Read-only observation focused on sidebar hover, row hover/tooltip wait, topbar notification popover, projects board, project-card hover/context menu, and project detail. No mutating setting, picker value, drag, edit, or save path was clicked. Before/after visible issue-row snapshots both contained 20 rows and compared unchanged (`changed:false` in the local private artifact), again proving the pass did not change existing issues or sub-issues.
+
+No code change was made in this cycle. The observed deltas are larger scope decisions:
+- Live Linear's projects board includes a right-side insights panel with Health/Initiatives/Teams/Leads chips and update-health counts. The current prototype/wired board intentionally uses the locked simplified board skeleton and does not model project-health analytics.
+- Live Linear's project detail has Overview/Activity/Issues tabs plus rich properties, resources, milestones, progress, labels, initiatives, Slack, and notification/link controls. Several of these overlap locked removed surfaces or mutating settings, so they remain owner-review items.
+- Live Linear's bell popover is a notification-settings editor. It is not ported into the read-only B2 preview because it is a settings mutation surface, not passive chrome.
+
+Private local evidence: `.codex-tmp/linear-live-cycle5/before-after-compare.json` plus local screenshots for sidebar, row hover, notification popover, projects board, project-card context menu, and project detail.
+
 # ✅ BEHAVIORAL PARITY DONE — 2026-07-05
 SyncView now behaves like real Linear across every surface. **11 adversarial re-audits** run (5 parallel agents vs live Linear each); the finding count converged **22→20→12→11→13→15→9→8→11→10→7**, and the **last SIX all returned 0 high-severity / 0 regressions** — remaining findings are deep polish + intentional skeleton/layout limitations, not defects. **~115 divergences closed** across the behavioral phase. Regression suite: **`behav.js` 138 assertions (all green)**, `qa-features.js` GREEN, `sweep.js` CLEAN, **0 JS errors** throughout.
 **All real features shipped:** live row-glyph clicks (chip→profile / due→picker / avatar+status pickers); full list multi-select (checkbox/x/Cmd-click/Shift-click/Shift-arrows) + bulk action bar w/ inline quick-actions; keyboard model (j/k, Enter focused-or-hovered, s/a/⇧D/⇧P, ⌘K palette, Escape hierarchy); delete + comment-delete **Undo (Ctrl/⌘+Z)**; detail property pickers + calendar (arrow-nav, unified month paging, typed input); **Activity feed logs system events** (on the edited issue, wherever triggered); comment edit (blur discards); **board keyboard nav**; **board card multi-select** (mouse + `x`) + board bulk bar; truncation-aware tooltips; picker/filter "No results"; detail-panel scroll preservation.

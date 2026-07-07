@@ -21,6 +21,8 @@ Cycle 2 expanded the read-only live sweep to list selection/actionbar, issue det
 
 Cycle 4 rechecked display/group menu, command palette, row hover, and row context menu against live Linear in read-only mode. Before/after visible issue rows again matched (`changed:false`). No code change was made: the remaining live differences are command-palette action mode and display-menu breadth, both crossing the locked simplified-skeleton boundary because live Linear includes Priority/Labels/Cycles and broader view/property controls that SyncView intentionally removed.
 
+Cycle 5 rechecked sidebar hover, row hover/tooltip wait, notification popover, projects board, project-card context menu, and project detail. Before/after visible issue rows again matched (`changed:false`). No code change was made: the observed deltas are larger owner decisions around a project-health insights panel, richer project-detail tabs/properties, and a notification-settings editor.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

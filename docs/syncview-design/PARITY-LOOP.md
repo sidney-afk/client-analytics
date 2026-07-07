@@ -865,3 +865,12 @@ Ledger-only cleanup. Older rows that described product-scope conflicts with the 
 |---|---:|---|
 | Parity ledger statuses | clarified | The work list now distinguishes true implementation backlog from owner-scope decisions and later-superseded rows. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 42
+
+Local artifact-vs-wired verification added a locked-scope guard for row context menus. `pixel-wired.js` now fails if Priority, Labels, Cycle, Create related, Mark as, Convert to, Open in, Favorite, Subscribe, or Remind me return to the prototype or wired row context menu.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context locked removals | test-hardened | Broader live Linear context rows remain out of the simplified SyncView skeleton unless the owner explicitly expands scope. Allowed guarded artifact rows such as Move and Delete remain covered by existing context-menu parity. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

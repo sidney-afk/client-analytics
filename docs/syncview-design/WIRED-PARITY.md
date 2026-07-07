@@ -601,3 +601,12 @@ Cycle 41 was ledger-only. Early live-parity rows that were already owner-scope d
 |---|---:|---|
 | Ledger status semantics | clarified | `owner-question` and `superseded` are now defined in the ledger status legend. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 42
+
+Cycle 42 was local-only. `pixel-wired.js` now fails if broader live Linear row-context rows return to the prototype or wired preview: Priority, Labels, Cycle, Create related, Mark as, Convert to, Open in, Favorite, Subscribe, or Remind me.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context locked removals | test-hardened | The simplified context-menu scope is now regression-tested while preserving allowed guarded artifact rows such as Move and Delete. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

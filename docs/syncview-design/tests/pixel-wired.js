@@ -574,7 +574,15 @@ async function run() {
     await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx], #prodLayer .prod-pop [data-prod-disabled]');
     await shotElement(artifact, '#layer .pop', 'artifact-crop-row-context-menu');
     await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-row-context-menu');
-    compareMenuInventory(gaps, 'row context menu inventory', await pickerInventory(artifact, '#layer .pop .mi'), await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi'));
+    const artifactContextRows = await pickerInventory(artifact, '#layer .pop .mi');
+    const wiredContextRows = await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi');
+    compareMenuInventory(gaps, 'row context menu inventory', artifactContextRows, wiredContextRows);
+    const lockedContextRows = /^(Priority|Labels?|Cycle|Create related|Mark as|Convert to|Open in|Favorite|Subscribe|Remind me)$/i;
+    artifactContextRows.concat(wiredContextRows).forEach(row => {
+      if (lockedContextRows.test(row.label)) {
+        gaps.push({ rank: 1, state: 'row context locked removals', message: `removed context row returned: ${row.label}` });
+      }
+    });
     await artifact.locator('#layer .pop [data-ctx="status"]').hover();
     await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').hover();
     await artifact.waitForSelector('#layer .pop [data-i]');

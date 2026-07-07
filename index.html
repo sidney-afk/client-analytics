@@ -3158,32 +3158,37 @@
         .cal-tab-scroll-btn.is-shown { display: inline-flex; }
         .cal-tab-scroll-btn:hover { color: var(--text-primary); border-color: var(--sv-border-999); }
         .cal-tab-scroll-btn svg { width: 12px; height: 12px; display: block; }
-        .cal-tab { position: relative; display: inline-flex; align-items: center; gap: 7px;
-            padding: 8px 14px; border-radius: 99px; cursor: pointer;
-            border: 1px solid hsl(var(--tab-h, 220) 45% 86%);
-            background: hsl(var(--tab-h, 220) 65% 96%);
-            color: hsl(var(--tab-h, 220) 42% 36%);
-            font-family: inherit; font-size: 0.8rem; font-weight: 700;
-            white-space: nowrap; transition: background 0.12s, color 0.12s, border-color 0.12s, box-shadow 0.12s; }
-        .cal-tab::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-            background: hsl(var(--tab-h, 220) 60% 52%); }
-        .cal-tab:hover { border-color: hsl(var(--tab-h, 220) 50% 70%); }
-        .cal-tab.active { background: hsl(var(--tab-h, 220) 52% 42%); color: var(--sv-fg-fff);
-            border-color: hsl(var(--tab-h, 220) 52% 42%); box-shadow: 0 2px 8px hsl(var(--tab-h, 220) 50% 42% / 0.3); }
+        /* Client tabs. Inactive tabs are NEUTRAL (no per-client tint) so the one
+           active tab — the only colour-filled one — reads as selected at a
+           glance, whatever the client hue. The small dot carries each client's
+           identity colour. Softer rounded-rectangle shape (not a full pill). */
+        .cal-tab { position: relative; display: inline-flex; align-items: center; gap: 8px;
+            padding: 7px 12px 7px 11px; border-radius: 10px; cursor: pointer;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-secondary);
+            font-family: inherit; font-size: 0.8rem; font-weight: 600;
+            white-space: nowrap; transition: background 0.13s, color 0.13s, border-color 0.13s, box-shadow 0.13s; }
+        .cal-tab::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+            background: hsl(var(--tab-h, 220) 62% 52%); }
+        .cal-tab:hover { background: var(--white); border-color: var(--text-muted); color: var(--text-primary); }
+        .cal-tab.active { background: hsl(var(--tab-h, 220) 52% 43%); color: var(--sv-fg-fff);
+            border-color: hsl(var(--tab-h, 220) 52% 43%); font-weight: 700;
+            box-shadow: 0 1px 3px hsl(var(--tab-h, 220) 46% 40% / 0.28); }
         .cal-tab.active::before { background: var(--sv-bg-rgba-255-255-255-0_9); }
-        .cal-tab.active:hover { border-color: hsl(var(--tab-h, 220) 52% 36%); }
+        .cal-tab.active:hover { background: hsl(var(--tab-h, 220) 52% 38%); border-color: hsl(var(--tab-h, 220) 52% 38%); }
         html[data-theme="dark"] .cal-tab {
-            border-color: hsl(var(--tab-h, 220) 34% 30%);
-            background: hsl(var(--tab-h, 220) 34% 18%);
-            color: var(--text-primary);
+            border-color: var(--border);
+            background: transparent;
+            color: var(--text-secondary);
         }
-        html[data-theme="dark"] .cal-tab::before { background: hsl(var(--tab-h, 220) 56% 58%); }
-        html[data-theme="dark"] .cal-tab:hover { border-color: hsl(var(--tab-h, 220) 42% 46%); }
+        html[data-theme="dark"] .cal-tab::before { background: hsl(var(--tab-h, 220) 56% 60%); }
+        html[data-theme="dark"] .cal-tab:hover { background: var(--white); border-color: var(--text-muted); color: var(--text-primary); }
         html[data-theme="dark"] .cal-tab.active {
-            background: hsl(var(--tab-h, 220) 52% 28%);
-            border-color: hsl(var(--tab-h, 220) 52% 28%);
-            color: var(--text-inverse);
-            box-shadow: 0 2px 8px hsl(var(--tab-h, 220) 50% 18% / 0.5);
+            background: hsl(var(--tab-h, 220) 50% 44%);
+            border-color: hsl(var(--tab-h, 220) 50% 44%);
+            color: var(--sv-fg-fff);
+            box-shadow: 0 1px 4px hsl(var(--tab-h, 220) 50% 12% / 0.5);
         }
         .cal-tab-x { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%;
             background: transparent; color: inherit; font-size: 0.85rem; line-height: 1; opacity: 0.45; transition: opacity 0.12s, background 0.12s; }
@@ -3191,7 +3196,7 @@
         .cal-tab-x:hover { background: var(--sv-bg-rgba-0-0-0-0_15); }
         .cal-tab.active .cal-tab-x:hover { background: var(--sv-bg-rgba-255-255-255-0_25); }
         .cal-tab-add-wrap { position: relative; display: inline-flex; }
-        .cal-tab-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 99px;
+        .cal-tab-add { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: 10px;
             border: 1.5px dashed var(--sv-border-c7c7c4); background: var(--white); color: var(--text-muted);
             font-family: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; line-height: 1;
             transition: color 0.12s, border-color 0.12s, background 0.12s; }

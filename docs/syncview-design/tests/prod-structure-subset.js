@@ -218,7 +218,7 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
     await row.click({ button: 'right' });
     const contextText = await text(page, '.prod-pop');
-    if (!contextText.includes('⇧D') || !contextText.includes('Ctrl ⌫')) throw new Error('Context menu keyboard hints do not match artifact glyphs');
+    if (!contextText.includes('⇧D') || !contextText.includes('Ctrl Delete')) throw new Error('Context menu keyboard hints do not match live Linear glyphs');
     const popBg = await page.locator('.prod-pop').first().evaluate(el => getComputedStyle(el).backgroundColor);
     if (!popBg || popBg === 'rgba(0, 0, 0, 0)' || popBg === 'transparent') throw new Error('Production context menu background is transparent');
     await page.locator('.prod-pop [data-prod-ctx="status"]').hover();

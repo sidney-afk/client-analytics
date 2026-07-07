@@ -489,7 +489,7 @@ function renderList(){const list=curIssues(),groups=groupsFor(list);let body="";
       (S.view.type==="issues"?'<button class="crumb-star'+(favViews.has((S.view.team||"")+"/"+S.view.type)?" on":"")+'" data-favview="'+((S.view.team||"")+"/"+S.view.type)+'" data-tip="Favorite">'+I.star+'</button>':'')+'</div>'+
       '<div class="tb-right"><button class="tb-ico" data-act="toast" data-msg="No new notifications" data-tip="Notifications">'+I.bell+'</button></div></div>'+
     '<div class="subbar">'+
-      (S.view.type==="issues"?'<div class="tb-tabs"><div class="tb-tab '+(S.tab==="active"?"on":"")+'" data-tab="active">Active</div><div class="tb-tab '+(S.tab==="backlog"?"on":"")+'" data-tab="backlog">Backlog</div><div class="tb-tab '+(S.tab==="all"?"on":"")+'" data-tab="all">All issues</div></div>':"")+
+      (S.view.type==="issues"?'<div class="tb-tabs"><div class="tb-tab '+(S.tab==="all"?"on":"")+'" data-tab="all">All issues</div><div class="tb-tab '+(S.tab==="active"?"on":"")+'" data-tab="active">Active</div><div class="tb-tab '+(S.tab==="backlog"?"on":"")+'" data-tab="backlog">Backlog</div></div>':"")+
       pillsHTML()+
       '<div class="tb-right"><button class="tb-ico '+((S.filters&&S.filters.length)?"on":"")+'" id="filterbtn" data-tip="Filter">'+I.filter+'</button><button class="tb-ico" id="groupbtn" data-tip="Display options">'+I.display+'</button></div>'+
     '</div>'+
@@ -736,7 +736,7 @@ function buildDue(pop,cur,ids,anchor){let view="quick",calM=new Date(TODAY.getFu
 function openDueMenu(x,y,id){const ids=targetIds(id);const p=layerPop('',x,y,true);p.classList.add("duepop");buildDue(p,byId(id),ids,{x,y});}
 function openClientMenu(x,y,id){stdMenu("proj",x,y,id);}
 function openCommentMenu(x,y,idx){var p=layerPop('<div class="mi" data-cedit="1"><span class="mlbl">Edit</span></div><div class="mi danger" data-cdel="1"><span class="mlbl">Delete</span></div>',x,y);p.querySelector("[data-cedit]").onclick=function(){S.editComment=idx;clearLayer();render();};p.querySelector("[data-cdel]").onclick=function(){var it=byId(S.open);var removed=it&&it.comments[idx];if(removed)it.comments.splice(idx,1);S.editComment=null;clearLayer();render();if(removed){var oid=it.id;toastUndo("Comment deleted",function(){var t2=byId(oid);if(t2){t2.comments.splice(Math.min(idx,t2.comments.length),0,removed);render();}});}else{toast("Comment deleted");}};}
-const CTX=[["Status",I.issues,"S","status"],["Assignee",I.assignI,"A","assign"],["Due date",I.cal,"⇧D","due"],["Project",I.project,"⇧P","proj"],["sep"],["Copy link",I.copy,"","copy"],["Move",I.move,"","move"],["sep"],["Delete",I.trash,"Ctrl ⌫","del","danger"]];
+const CTX=[["Status",I.issues,"S","status"],["Assignee",I.assignI,"A","assign"],["Due date",I.cal,"⇧D","due"],["Project",I.project,"⇧P","proj"],["sep"],["Copy link",I.copy,"","copy"],["Move",I.move,"","move"],["sep"],["Delete",I.trash,"Ctrl Delete","del","danger"]];
 function openContextMenu(x,y,id){const ids=targetIds(id);
   const html=CTX.map(m=>{if(m[0]==="sep")return '<div class="msep"></div>';const[lbl,ico,kbd,act,flag]=m;const chev=!!HASSUB[act];
     return '<div class="mi '+(flag==="danger"?"danger":"")+'" data-ctx="'+act+'"><span class="mic">'+ico+'</span><span class="mlbl">'+lbl+'</span>'+(kbd?'<span class="kbd">'+kbd+'</span>':"")+(chev?'<span class="chev">'+I.chevR+'</span>':"")+'</div>';}).join("");

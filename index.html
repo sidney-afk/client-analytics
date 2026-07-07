@@ -29059,7 +29059,7 @@
                 active('Copy link', _prodIcon('copy'), 'copy'),
                 disabled('Move', _prodIcon('move'), '', false, true),
                 '<div class="prod-msep"></div>',
-                disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
+                disabled('Delete', _prodIcon('trash'), 'Ctrl Delete', true)
             ];
             const projectMenu = [
                 disabled('Change status', _prodIcon('issues'), 'S'),
@@ -29691,7 +29691,7 @@
             const crumb = '<div class="prod-crumb"><span>Production</span><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span>' + (clientFilter ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(clientFilter) + '</span>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(viewName) + '</span></div>';
             const tabs = _prodState.view === 'board'
                 ? '<div class="prod-tabs"><button class="prod-tab active" type="button">All projects</button></div>'
-                : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
+                : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button></div>';
             const filterPills = '<span class="prod-filter-pill">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></span>'
                 + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '')
                 + _prodPillsHTML();

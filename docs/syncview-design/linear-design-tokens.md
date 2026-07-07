@@ -247,7 +247,7 @@ one ring+pie component parameterized by `(color, fillFraction)`.
 | Favorite | `Alt F` | | subscribe |
 | Subscribe | `⇧S` | | |
 | Remind me | `⇧H` | ▸ | |
-| **Delete** | `Ctrl ⌫` | | destructive — rendered in red |
+| **Delete** | `Ctrl Delete` | | destructive — rendered in red |
 
 **Multi-select menu = 16 items:** identical, minus **Convert to** and **Open in** (which are single-issue actions); applies to every selected issue.
 

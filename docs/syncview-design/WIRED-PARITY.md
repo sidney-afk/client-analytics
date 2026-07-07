@@ -6,6 +6,15 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 - 🔒 deferred-B3: artifact behavior mutates data and remains guarded until write authority moves.
 - ⬜ pending: read-only-safe artifact behavior still needs transplant/adaptation.
 
+## 2026-07-06 Live Linear Parity Cycle 1
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle captured before/after visible issue rows; 20 rows before and after, `changed:false` in local private artifact. |
+| Issue tab order | live Linear list topbar | ✅ | Prototype and wired tab now render `All issues`, `Active`, `Backlog`; `pixel-wired.js` enforces artifact and wired order. |
+| Context menu delete shortcut label | live Linear row context menu on Windows | ✅ | Prototype and wired context menus now show `Ctrl Delete`; mutation remains guarded in wired B2. |
+| Locked skeleton omissions | owner standing decision | 🔒 | Priority, labels, cycles, Inbox/Triage/Views nav, workspace switcher, and manual new issue chrome were observed in live Linear but intentionally not copied. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |
@@ -36,7 +45,7 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Command palette search | `openSearch` | ✅ | Sidebar Search and Ctrl/Cmd+K open a read-only navigation palette for issues, clients, assignees, and view switches. |
 | Keyboard list navigation | `document.keydown`, `flatOrder` | ✅ | Up/Down/J/K focus rows, Enter opens, Escape clears/goes back; S/A/Shift+D/Shift+P open guarded pickers. |
 | Contextual empty states | `renderList` empty-state branch | ✅ | Empty tab/filter states show an icon and Clear filters when a filter caused the empty result. |
-| Cosmetic context-menu fidelity | `CTX` | ✅ | Due/Project hints use `⇧D`/`⇧P`, Delete uses `Ctrl ⌫`, and Assignee/Set lead use the person icon. |
+| Cosmetic context-menu fidelity | `CTX` | ✅ | Due/Project hints use `⇧D`/`⇧P`, Delete uses `Ctrl Delete`, and Assignee/Set lead use the person icon. |
 | Full 138-assertion wired behavior coverage | `behav.js` | ⬜ | Current guard-mode baseline is 26 assertions; future PRs should only raise this number. |
 
 This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing B2 parity tracking.

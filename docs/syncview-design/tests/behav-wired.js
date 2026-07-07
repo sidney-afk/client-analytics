@@ -215,7 +215,7 @@ async function txt(page, sel) {
       await page.locator('.prod-card-status[data-prod-pstatus]').first().click();
       return await page.locator('#prodLayer .prod-pop [data-prod-ppick]').count() > 0 && await page.locator('.prod-detail').count() === 0;
     }); await reset();
-    await ok('tabs', async () => (await page.locator('.prod-tabs .prod-tab').allTextContents()).join(',') === 'Active,Backlog,All issues'); await reset();
+    await ok('tabs', async () => (await page.locator('.prod-tabs .prod-tab').allTextContents()).join(',') === 'All issues,Active,Backlog'); await reset();
     await ok('my', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'My issues' }).click();
       return await page.evaluate(() => _prodState.view === 'my');

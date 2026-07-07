@@ -288,6 +288,14 @@ async function run() {
     await requirePair(gaps, 'list inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');
     await requirePair(gaps, 'list inventory', artifact, wired, '.grp-hd', '.prod-group');
     await requirePair(gaps, 'list inventory', artifact, wired, '.row', '.prod-row');
+    const artifactTabs = await artifact.locator('.tb-tabs .tb-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
+    const wiredTabs = await wired.locator('.prod-tabs .prod-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
+    if (artifactTabs.join('|') !== 'All issues|Active|Backlog') {
+      gaps.push({ rank: 1, state: 'list tabs', message: `artifact order ${artifactTabs.join(',')}` });
+    }
+    if (wiredTabs.join('|') !== artifactTabs.join('|')) {
+      gaps.push({ rank: 1, state: 'list tabs', message: `wired order ${wiredTabs.join(',')} vs artifact ${artifactTabs.join(',')}` });
+    }
     const wiredTopbar = (await wired.locator('.prod-topbar').first().innerText()).replace(/\s+/g, ' ');
     if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();

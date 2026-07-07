@@ -799,6 +799,12 @@ async function run() {
       if (a.heading !== w.heading) gaps.push({ rank: 1, state: 'detail side-card inventory', message: `card ${i} heading artifact=${a.heading} wired=${w.heading || '(missing)'}` });
       if (a.rows !== w.rows) gaps.push({ rank: 1, state: 'detail side-card inventory', message: `card ${i} row count artifact=${a.rows} wired=${w.rows == null ? '(missing)' : w.rows}` });
     });
+    const removedDetailSurface = /^(priority|labels?|cycles?)$/i;
+    detailSideA.concat(detailSideW).forEach(card => {
+      if (removedDetailSurface.test(card.heading)) {
+        gaps.push({ rank: 1, state: 'detail locked removals', message: `removed detail card returned: ${card.heading}` });
+      }
+    });
     const disabledControls = await wired.locator('.prod-side-card[data-prod-detail-card="properties"] [data-prod-disabled="detail-controls"]').first();
     if (!(await disabledControls.count())) {
       gaps.push({ rank: 1, state: 'detail read-only controls', message: 'missing preserved disabled detail Controls affordance' });

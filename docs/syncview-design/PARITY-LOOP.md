@@ -847,3 +847,12 @@ Local artifact-vs-wired verification hardened the detail surface without touchin
 |---|---:|---|
 | Detail side-card inventory | test-hardened | The lane compares artifact and wired card headings and row counts while preserving the owner-required read-only Controls row as an explicit B2 guard. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 40
+
+Local artifact-vs-wired verification added a locked-scope guard for the detail rail. `pixel-wired.js` now fails if the prototype or wired preview reintroduces Priority, Labels, or Cycles as detail side cards.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Detail locked removals | test-hardened | Priority, Labels, and Cycles remain out of the simplified SyncView skeleton unless the owner explicitly expands scope. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

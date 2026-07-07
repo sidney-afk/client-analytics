@@ -581,3 +581,12 @@ Cycle 39 was local-only. `pixel-wired.js` now compares artifact and wired detail
 |---|---:|---|
 | Detail side-card inventory | test-hardened | Prototype and wired detail side-card structure is now regression-tested without treating the read-only Controls affordance as a missing artifact row. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 40
+
+Cycle 40 was local-only. `pixel-wired.js` now fails if Priority, Labels, or Cycles are reintroduced as prototype or wired detail side cards.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Detail locked removals | test-hardened | The detail rail keeps the locked simplified structure unless the owner explicitly expands scope. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

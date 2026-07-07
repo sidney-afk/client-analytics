@@ -1,0 +1,96 @@
+{
+  "prodAuthority": {
+    "video": "linear",
+    "graphics": "linear"
+  },
+  "webhooks": [
+    {
+      "label": "Fixture Video Webhook",
+      "enabled": true,
+      "resourceTypes": ["Issue", "Comment"],
+      "team": { "key": "VID", "name": "Video" }
+    },
+    {
+      "label": "Fixture Graphics Webhook",
+      "enabled": true,
+      "resourceTypes": ["Issue", "Comment"],
+      "team": { "key": "GRA", "name": "Graphics" }
+    }
+  ],
+  "members": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "Fixture Editor",
+      "linear_user_id": "lin_user_known",
+      "team": "video",
+      "active": true
+    }
+  ],
+  "deliverables": [
+    {
+      "id": "del_fixture",
+      "identifier": "VID-TST",
+      "batch_id": "bat_fixture",
+      "client_slug": "fixture-client",
+      "team": "video",
+      "kind": "video",
+      "title": "Fixture title",
+      "status": "in_progress",
+      "assignee_id": "00000000-0000-0000-0000-000000000001",
+      "due_date": "2026-07-09",
+      "priority": 2,
+      "origin": "calendar",
+      "card_id": "card_fixture",
+      "linear_issue_uuid": "lin_issue_1",
+      "linear_raw": "{\"issue\":{\"parent\":{\"id\":\"lin_parent\"}}}"
+    }
+  ],
+  "linearIssues": [
+    {
+      "id": "lin_issue_1",
+      "identifier": "VID-TST",
+      "title": "Fixture title",
+      "dueDate": "2026-07-09",
+      "priority": 2,
+      "state": {
+        "id": "state_progress",
+        "name": "In Progress",
+        "type": "started"
+      },
+      "assignee": {
+        "id": "lin_user_known",
+        "name": "Fixture Editor"
+      },
+      "parent": {
+        "id": "lin_parent"
+      },
+      "comments": {
+        "nodes": [
+          {
+            "id": "lin_comment_1"
+          }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "deliverable_id": "del_fixture",
+      "action": "mirror_in_comment_add",
+      "source": "mirror",
+      "payload": {
+        "linear_comment_id": "lin_comment_1"
+      }
+    }
+  ],
+  "calendarPosts": [
+    {
+      "id": "card_fixture",
+      "client": "fixture-client",
+      "status": "active",
+      "linear_issue_id": "https://linear.example/VID-TST",
+      "video_deliverable_id": "del_fixture"
+    }
+  ],
+  "sampleReviews": []
+}

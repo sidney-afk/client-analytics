@@ -1,0 +1,65 @@
+name: Linear ⇄ deliverables reconcile v2
+
+# Track B B3 measuring instrument. Compares every live deliverable against its
+# Linear issue across the full field scope. Default is dry-run; healing requires
+# an explicit workflow input and still routes through deliverable_write.
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Apply Linear-authoritative corrections through deliverable_write'
+        type: boolean
+        default: false
+      cap:
+        description: 'Safety cap: abort applying if more than this many rows need correction'
+        default: '15'
+      team:
+        description: 'Optional team filter: video or graphics'
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linear-deliverables-reconcile-v2
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_URL: https://uzltbbrjidmjwwfakwve.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      LINEAR_STATE_UUID_MAP: ${{ secrets.LINEAR_STATE_UUID_MAP }}
+      APPLY: ${{ github.event.inputs.apply == 'true' }}
+      CAP: ${{ github.event.inputs.cap || '15' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Require reconcile secrets
+        shell: bash
+        run: |
+          missing=0
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || [ -z "$LINEAR_API_KEY" ]; then
+            echo "::error::Missing SUPABASE_SERVICE_ROLE_KEY or LINEAR_API_KEY; refusing to report a green reconcile."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Reconcile
+        shell: bash
+        run: |
+          TEAM_ARG=""
+          if [ -n "${{ github.event.inputs.team }}" ]; then
+            TEAM_ARG="--team=${{ github.event.inputs.team }}"
+          fi
+          node scripts/linear-deliverables-reconcile.js "$TEAM_ARG"

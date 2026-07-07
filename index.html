@@ -27643,12 +27643,41 @@
             const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
             return ((parts[0] ? parts[0][0] : '?') + (parts[1] ? parts[1][0] : '')).toUpperCase();
         }
+        function _prodLinearRaw(value) {
+            if (!value) return {};
+            if (typeof value === 'object' && !Array.isArray(value)) return value;
+            try {
+                const parsed = JSON.parse(String(value || '{}'));
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+            } catch (e) {
+                return {};
+            }
+        }
+        function _prodRawHasAny(raw, keys) {
+            const stack = raw && typeof raw === 'object' ? [raw] : [];
+            while (stack.length) {
+                const cur = stack.pop();
+                if (!cur || typeof cur !== 'object') continue;
+                for (const key of keys) {
+                    if (Object.prototype.hasOwnProperty.call(cur, key) && cur[key]) return true;
+                }
+                Object.values(cur).forEach(v => { if (v && typeof v === 'object') stack.push(v); });
+            }
+            return false;
+        }
+        function _prodDeliverableLive(d) {
+            const raw = _prodLinearRaw(d && d.linear_raw);
+            if (_prodNormKey(d && d.status) === 'archived') return false;
+            if (_prodRawHasAny(raw, ['webhook_delete', 'deleted', 'delete', 'removed', 'archived'])) return false;
+            if (raw.issue && (raw.issue.archivedAt || raw.issue.canceledAt)) return false;
+            return true;
+        }
         function _prodAdapter(input) {
             const raw = input || _prodState;
             const clients = raw.clients || [];
             const members = raw.members || [];
             const batches = raw.batches || [];
-            const deliverables = raw.deliverables || [];
+            const deliverables = (raw.deliverables || []).filter(_prodDeliverableLive);
             const BATCHES = {};
             batches.forEach(b => {
                 if (!b || !b.id) return;
@@ -29384,7 +29413,7 @@
                     _prodRestRows('clients', 'slug,display_name,active,kind,emoji,board_status,lead_member_id,target_date,board_desc,updated_at', 'order=display_name.asc', 1000, 10),
                     _prodRestRows('team_members', 'id,name,email,role,team,avatar_color,active', 'order=name.asc', 1000, 10),
                     _prodRestRows('batches', 'id,client_slug,team,name,description,filming_doc_url,footage_folder_url,delivery_folder_url,color,status,sort_key,created_by,created_at,updated_at,linear_parent_ids', 'order=created_at.desc', 1000, 25),
-                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,brief,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
+                    _prodRestRows('deliverables', 'id,identifier,batch_id,client_slug,team,kind,title,brief,status,status_at,assignee_id,due_date,file_url,origin,card_id,sync_state,created_at,updated_at,linear_identifier,linear_issue_url,linear_raw', 'order=team.asc,status.asc,due_date.asc', 1000, 50)
                 ]);
                 _prodState.clients = clients;
                 _prodState.members = members;

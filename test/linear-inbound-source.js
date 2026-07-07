@@ -90,6 +90,32 @@ ok(/role: "editor"[\s\S]*audience: "internal"[\s\S]*is_tweak: false[\s\S]*done: 
   'comment object must pin the exact non-tweak editor/internal shape');
 ok(/SYNCVIEW_COMMENT_PREFIX/.test(FN) && /shouldDropEchoComment/.test(FN) && /duplicate_comment_event/.test(FN),
   'comment echo filtering and idempotency checks missing');
+const dropFn = FN.match(/function shouldDropEchoComment\(comment: JsonMap\): boolean \{[\s\S]*?\n\}/);
+ok(dropFn && /if \(!SYNCVIEW_COMMENT_PREFIX\.test\(body\)\) return false;/.test(dropFn[0])
+  && /return legacyCommentActors\(\)\.some/.test(dropFn[0])
+  && !/SYNCVIEW_COMMENT_PREFIX\.test\(body\)\s*\|\|/.test(dropFn[0]),
+  'comment echo drop must be strict-AND: legacy actor AND SyncView prefix');
+
+const syncviewPrefix = /^\*\*.+ \(via SyncView\):\*\*/;
+const houseActors = ['house linear identity'];
+const shouldDropEchoFixture = (comment) => {
+  const body = String(comment.body || '');
+  const user = comment.user || {};
+  const authorKey = [user.name, user.email, comment.authorName, comment.authorEmail].map(v => String(v || '').toLowerCase()).join(' ');
+  return syncviewPrefix.test(body) && houseActors.some(actor => authorKey.includes(actor));
+};
+ok(shouldDropEchoFixture({
+  body: '**Video (via SyncView):** please update this',
+  user: { name: 'House Linear Identity' },
+}), 'house-authored SyncView-prefix comment must be dropped');
+ok(!shouldDropEchoFixture({
+  body: 'Manual editor note with no mirror prefix',
+  user: { name: 'House Linear Identity' },
+}), 'house-authored manual comment must be kept');
+ok(!shouldDropEchoFixture({
+  body: '**Video (via SyncView):** human copied this text',
+  user: { name: 'Fixture Editor' },
+}), 'genuine editor comment with a copied prefix must be kept');
 
 ok(/maintainCardLinkage/.test(FN)
   && /video_deliverable_id/.test(FN)

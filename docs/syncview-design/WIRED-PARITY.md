@@ -457,3 +457,14 @@ Cycle 24 ran a no-op live Linear snapshot in read-only mode. Before/after visibl
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
 
 Validation coverage: `pixel-wired.js` now compares sidebar search tooltip text and box styling between artifact and wired preview.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 25
+
+Cycle 25 ran a read-only live Linear hover probe on the sidebar search button. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The code change was limited to prototype/wired tooltip text.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Sidebar search tooltip live wording | fixed | Live Linear renders the search tooltip as `Search workspace` with `/` as the key hint. Prototype and wired preview now match that live wording while preserving the existing tooltip styling. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+Validation coverage: `pixel-wired.js` now pins the search tooltip to the live-observed `Search workspace/` wording and compares artifact vs wired tooltip styling.

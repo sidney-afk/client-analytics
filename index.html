@@ -29722,7 +29722,7 @@
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><button class="prod-brand" type="button" data-prod-brandmenu="1" onclick="return _prodOpenBrandMenu(event)" data-prod-tip="Switch workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-brand-caret">' + _prodIcon('chevD') + '</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></button><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search (⌘K)" data-prod-tip="Search|⌘K">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><button class="prod-brand" type="button" data-prod-brandmenu="1" onclick="return _prodOpenBrandMenu(event)" data-prod-tip="Switch workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-brand-caret">' + _prodIcon('chevD') + '</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></button><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML

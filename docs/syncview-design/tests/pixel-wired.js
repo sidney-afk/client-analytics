@@ -367,6 +367,7 @@ async function run() {
     await wired.waitForSelector('.prod-tip.show');
     const searchTipA = (await artifact.locator('#tip.show').innerText()).replace(/\s+/g, ' ').trim();
     const searchTipW = (await wired.locator('.prod-tip.show').innerText()).replace(/\s+/g, ' ').trim();
+    if (searchTipA !== 'Search workspace/') gaps.push({ rank: 1, state: 'search tooltip', message: `expected live label "Search workspace/", got ${searchTipA}` });
     if (searchTipA !== searchTipW) gaps.push({ rank: 1, state: 'search tooltip', message: `artifact=${searchTipA} wired=${searchTipW}` });
     await compareStyles(gaps, 'search tooltip', artifact, wired, '#tip.show', '.prod-tip.show', ['backgroundColor', 'borderRadius', 'borderTopColor', 'color', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom']);
     await artifact.mouse.move(900, 20);

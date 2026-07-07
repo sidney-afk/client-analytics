@@ -689,3 +689,18 @@ Ranked finding fixed in this cycle:
 1. P3: artifact and wired shortcut text and border token had drifted on the most visible sidebar tooltip.
 
 Pixel lane addition: `pixel-wired.js` now hovers the sidebar search control and compares artifact vs wired tooltip text and box styling.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 25
+
+Fresh live Linear search-hover probe was read-only. The probe hovered only the live sidebar search button, captured 20 visible VID issue rows before and after, and returned `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Sidebar search tooltip live wording | fixed | Live Linear's search tooltip reads `Search workspace` with `/` as the key hint. Prototype and wired preview now use `Search workspace|/` instead of the artifact-only `Search|Command-K` wording from the prior cycle. |
+| Issue/sub-issue data model | unchanged | This cycle changed only sidebar tooltip presentation text and pixel-lane assertions. Parent/child adapter logic, issue IDs, sub-issue grouping, row data, and detail rendering were not changed. |
+
+Ranked finding fixed in this cycle:
+
+1. P3: live Linear's sidebar search tooltip wording/key hint differed from the prototype/wired tooltip even though the tooltip box styling already matched.
+
+Pixel lane addition: `pixel-wired.js` now fails if the artifact search tooltip drifts from the live-observed `Search workspace/` wording, then compares artifact vs wired tooltip text and box styling.

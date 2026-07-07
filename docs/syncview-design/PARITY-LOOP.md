@@ -856,3 +856,12 @@ Local artifact-vs-wired verification added a locked-scope guard for the detail r
 |---|---:|---|
 | Detail locked removals | test-hardened | Priority, Labels, and Cycles remain out of the simplified SyncView skeleton unless the owner explicitly expands scope. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 41
+
+Ledger-only cleanup. Older rows that described product-scope conflicts with the locked simplified skeleton now use `owner-question` instead of `pending`, and the old Ask Linear actionbar row is marked `superseded` by the later completed cycle. No prototype, wired preview, runtime, or data-model code changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Parity ledger statuses | clarified | The work list now distinguishes true implementation backlog from owner-scope decisions and later-superseded rows. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

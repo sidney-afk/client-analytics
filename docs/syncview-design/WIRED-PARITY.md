@@ -5,6 +5,8 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 - ✅ ported: wired `?prod=1` matches the artifact behavior in read-only form.
 - 🔒 deferred-B3: artifact behavior mutates data and remains guarded until write authority moves.
 - ⬜ pending: read-only-safe artifact behavior still needs transplant/adaptation.
+- owner-question: live Linear behavior conflicts with the locked simplified skeleton or needs product scope confirmation.
+- superseded: an older ledger row was completed or clarified by a later cycle.
 
 ## 2026-07-06 Live Linear Parity Cycle 1
 
@@ -33,16 +35,16 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Behavior | Source | Status | Notes |
 |---|---|---:|---|
 | Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered display/group menu, command palette, row hover, and row context menu; 20 visible rows before and after, `changed:false` in local private artifact. |
-| Command palette focused-issue action mode | live Linear command palette | ⬜ | Observed live Linear opens action commands for the focused issue, but includes removed Priority/Labels/Cycles rows. Left for owner decision so SyncView does not reintroduce locked removed surface. |
-| Display menu breadth | live Linear display menu | ⬜ | Observed list/board layout, grouping/sub-grouping/ordering, completed/sub-issue/triage toggles, and display-property chips. Several conflict with locked skeleton removals; left for owner decision. |
+| Command palette focused-issue action mode | live Linear command palette | owner-question | Observed live Linear opens action commands for the focused issue, but includes removed Priority/Labels/Cycles rows. Left for owner decision so SyncView does not reintroduce locked removed surface. |
+| Display menu breadth | live Linear display menu | owner-question | Observed list/board layout, grouping/sub-grouping/ordering, completed/sub-issue/triage toggles, and display-property chips. Several conflict with locked skeleton removals; left for owner decision. |
 
 ## 2026-07-06 Live Linear Parity Cycle 5
 
 | Behavior | Source | Status | Notes |
 |---|---|---:|---|
 | Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered sidebar hover, row hover/tooltip wait, notification popover, projects board, project-card context menu, and project detail; 20 visible rows before and after, `changed:false`. |
-| Projects board insights panel | live Linear projects board | ⬜ | Live Linear shows a right-side Health/Initiatives/Teams/Leads panel with update-health counts. Not ported because the current locked skeleton does not include project-health analytics. |
-| Project detail tabs and rich side panels | live Linear project detail | ⬜ | Live Linear has Overview/Activity/Issues tabs and rich properties/resources/progress. Several fields overlap removed features or mutating settings; left for owner decision. |
+| Projects board insights panel | live Linear projects board | owner-question | Live Linear shows a right-side Health/Initiatives/Teams/Leads panel with update-health counts. Not ported because the current locked skeleton does not include project-health analytics. |
+| Project detail tabs and rich side panels | live Linear project detail | owner-question | Live Linear has Overview/Activity/Issues tabs and rich properties/resources/progress. Several fields overlap removed features or mutating settings; left for owner decision. |
 | Notification settings popover | live Linear topbar bell | 🔒 | Bell popover edits notification settings. Deferred from B2 read-only preview rather than adding a settings mutation surface. |
 
 ## 2026-07-07 Live Linear Parity Cycle 6
@@ -50,9 +52,9 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Behavior | Source | Status | Notes |
 |---|---|---:|---|
 | Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered My Issues, palette empty/search states, Graphics Issues, and Graphics Projects. Recovered list comparison after navigation returned 20 visible rows before and after, `changed:false`. |
-| My Issues tab set and create-empty state | live Linear My Issues | ⬜ | Live Linear shows Assigned/Created/Subscribed/Activity and a Create new issue empty-state button. Manual creation is a locked removed surface; owner decision needed before porting tab chrome or an adjusted empty state. |
-| Graphics Issues saved board display | live Linear Graphics Issues | ⬜ | Live Linear opened Graphics Issues as a board-style saved display ("Rocio's Board"). SyncView currently keeps team Issues as the simplified issue surface; display-mode parity remains an owner decision. |
-| Team overview route from palette/navigation | live Linear navigation | ⬜ | Palette/navigation probing can land on team overview. SyncView does not model team overview in the locked skeleton; left for owner scope decision. |
+| My Issues tab set and create-empty state | live Linear My Issues | owner-question | Live Linear shows Assigned/Created/Subscribed/Activity and a Create new issue empty-state button. Manual creation is a locked removed surface; owner decision needed before porting tab chrome or an adjusted empty state. |
+| Graphics Issues saved board display | live Linear Graphics Issues | owner-question | Live Linear opened Graphics Issues as a board-style saved display ("Rocio's Board"). SyncView currently keeps team Issues as the simplified issue surface; display-mode parity remains an owner decision. |
+| Team overview route from palette/navigation | live Linear navigation | owner-question | Palette/navigation probing can land on team overview. SyncView does not model team overview in the locked skeleton; left for owner scope decision. |
 
 ## 2026-07-07 Live Linear Parity Cycle 7
 
@@ -76,7 +78,7 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 |---|---|---:|---|
 | Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered single selection, range selection, and Escape clear; 20 visible rows before and after, `changed:false`. |
 | Issue selection actionbar quick buttons | live Linear selection actionbar / `renderActionBar`, `_prodSelectionBar` | ✅ | Live issue actionbar has count + Actions + Ask Linear + clear; prototype and wired removed direct Status/Assignee/Due quick buttons. Status/Assignee/Due remain guarded via Actions. |
-| Ask Linear actionbar icon | live Linear selection actionbar | ⬜ | Not ported yet because Ask Linear is a separate product surface outside the current simplified skeleton; owner decision needed before adding inert chrome. |
+| Ask Linear actionbar icon | live Linear selection actionbar | superseded | Completed in Cycle 16: prototype and wired preview now include the separate Ask Linear icon chrome; wired routes it to the read-only guard. |
 
 ## 2026-07-06 Foundation Session
 
@@ -589,4 +591,13 @@ Cycle 40 was local-only. `pixel-wired.js` now fails if Priority, Labels, or Cycl
 | Surface | Status | Notes |
 |---|---:|---|
 | Detail locked removals | test-hardened | The detail rail keeps the locked simplified structure unless the owner explicitly expands scope. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 41
+
+Cycle 41 was ledger-only. Early live-parity rows that were already owner-scope decisions now use `owner-question` instead of `⬜ pending`, and the old Ask Linear actionbar row is marked `superseded` by Cycle 16. This keeps the ledger from treating locked-skeleton product decisions as implementation backlog.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Ledger status semantics | clarified | `owner-question` and `superseded` are now defined in the ledger status legend. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

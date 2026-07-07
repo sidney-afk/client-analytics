@@ -345,3 +345,7 @@ Cycle 12 extends the accepted Cycle 11 selected-Actions evidence. The fresh head
 | Selected Actions write/mutation boundary | ✅ | Subscribe, Move to a different team, priority, labels, and cycles remain omitted. Wired status rows remain read-only guarded. |
 
 Validation coverage: `pixel-wired.js` asserts the expanded copy-only inventory and rejects mutating/removed rows; `prod-structure-subset.js` asserts the wired copy-content row exists.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 13
+
+Cycle 13 is safety-only because the live Linear browser profile is logged out and fresh live probes are rejected until issue rows can be captured again. It adds regression coverage that the wired selected-Actions `Copy issue content as Markdown` row produces local Markdown preview text and remains inside the existing zero non-GET request invariant.

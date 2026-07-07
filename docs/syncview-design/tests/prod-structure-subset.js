@@ -199,6 +199,12 @@ async function assertNoWriteRequests(requests) {
       await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="status"]', 1, 'bulk Actions opens command menu');
       await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="copyTitle"]', 1, 'bulk Actions exposes safe copy title command');
       await expectCount(page, '#prodLayer .prod-actioncmd [data-prod-bulkact="copyContent"]', 1, 'bulk Actions exposes safe copy content command');
+      await page.locator('#prodLayer [data-prod-bulkact="copyContent"]').click();
+      const copiedContent = await page.evaluate(() => window.__prodLastCopied || '');
+      if (!copiedContent.includes('Preview link:') || !copiedContent.includes('?prod=1') || !copiedContent.includes('d=')) {
+        throw new Error('bulk Copy issue content did not produce local Markdown preview content');
+      }
+      await page.locator('#prodBulkActions').click();
       await page.locator('#prodLayer [data-prod-bulkact="status"]').click();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
     await page.keyboard.press('Escape');

@@ -329,6 +329,21 @@ async function run() {
     const lockedSidebarLabels = /\b(Inbox|Views|Invite|New issue)\b/i;
     if (lockedSidebarLabels.test(sidebarA.text)) gaps.push({ rank: 1, state: 'sidebar locked removals', message: 'artifact sidebar contains removed nav chrome' });
     if (lockedSidebarLabels.test(sidebarW.text)) gaps.push({ rank: 1, state: 'sidebar locked removals', message: 'wired sidebar contains removed nav chrome' });
+    await artifact.evaluate(() => { S.view = { type: 'issues', team: 'graphics' }; S.open = null; S.projectOpen = null; render(); });
+    await wired.evaluate(() => window._prodOpenTeamView('graphics', 'list'));
+    await artifact.waitForSelector('.main');
+    await wired.waitForSelector('.prod-main');
+    const graphicsBoardA = await artifact.locator('.board').count();
+    const graphicsBoardW = await wired.locator('.prod-board').count();
+    const graphicsTextA = (await artifact.locator('.main').first().innerText()).replace(/\s+/g, ' ');
+    const graphicsTextW = (await wired.locator('.prod-main').first().innerText()).replace(/\s+/g, ' ');
+    if (graphicsBoardA || graphicsBoardW) gaps.push({ rank: 1, state: 'graphics issues locked display', message: `Graphics Issues rendered as board artifact=${graphicsBoardA} wired=${graphicsBoardW}` });
+    if (/Rocio'?s Board/i.test(graphicsTextA)) gaps.push({ rank: 1, state: 'graphics issues locked display', message: 'artifact Graphics Issues contains saved-board title' });
+    if (/Rocio'?s Board/i.test(graphicsTextW)) gaps.push({ rank: 1, state: 'graphics issues locked display', message: 'wired Graphics Issues contains saved-board title' });
+    await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.open = null; S.projectOpen = null; render(); });
+    await wired.evaluate(() => window._prodOpenTeamView('video', 'list'));
+    await artifact.waitForSelector('.row');
+    await wired.waitForSelector('.prod-row');
     const artifactTabs = await artifact.locator('.tb-tabs .tb-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
     const wiredTabs = await wired.locator('.prod-tabs .prod-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').trim()));
     if (artifactTabs.join('|') !== 'All issues|Active|Backlog') {

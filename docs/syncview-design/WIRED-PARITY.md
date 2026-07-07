@@ -648,3 +648,12 @@ Cycle 46 was local-only. `pixel-wired.js` now fails if broader live Linear proje
 | Projects board locked removals | test-hardened | Health, Initiatives, update-health, and project-milestone panels stay out of the simplified Projects board. |
 | Project detail locked removals | test-hardened | Resources, Milestones, Priority, Labels, Cycle, Slack, Project health, and Initiatives stay out of the simplified project detail preview. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 47
+
+Cycle 47 was local-only. `pixel-wired.js` now fails if Graphics Issues drifts into a saved-board display while that product-scope decision remains unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Graphics Issues display mode | test-hardened | Graphics Issues remains the simplified status-grouped issue surface; live Linear's saved board display remains an owner-scope decision. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

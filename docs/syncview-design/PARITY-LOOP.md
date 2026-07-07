@@ -912,3 +912,12 @@ Local artifact-vs-wired verification added Projects-surface locked-scope guards.
 | Projects board locked removals | test-hardened | Health, Initiatives, update-health, and project-milestone panels stay out of the simplified Projects board unless the owner expands scope. |
 | Project detail locked removals | test-hardened | Resources, Milestones, Priority, Labels, Cycle, Slack, Project health, and Initiatives stay out of the simplified project detail preview unless the owner expands scope. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 47
+
+Local artifact-vs-wired verification added a team-Issues display guard. `pixel-wired.js` now opens Graphics Issues and fails if that surface drifts into a saved-board display while the owner decision remains unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Graphics Issues display mode | test-hardened | Graphics Issues remains the simplified status-grouped issue surface; live Linear's saved board display remains an owner-scope decision. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

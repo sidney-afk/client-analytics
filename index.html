@@ -8766,6 +8766,7 @@
             window.scrollTo({top:0,behavior:'instant'});
         } else if(state&&state.nav==='templates'){
             _templatesSelected = state.templatesClient || null;
+            if (state.templatesTab === 'reels' || state.templatesTab === 'thumbnails') _templatesActiveTab = state.templatesTab;
             navTo('templates', false);
         } else if(state&&state.nav){
             navTo(state.nav,false);
@@ -9870,7 +9871,7 @@
         _templatesSelected = name;
         _templatesActiveTab = 'reels';
         _templatesEditMode = false;
-        history.pushState({ nav: 'templates', templatesClient: name }, '', '#templates/' + encodeURIComponent(name));
+        history.pushState({ nav: 'templates', templatesClient: name, templatesTab: 'reels' }, '', '#templates/' + encodeURIComponent(name));
         const content = document.getElementById('content');
         if (content) {
             content.innerHTML = renderClientTemplate(name);
@@ -10090,6 +10091,10 @@
     function switchTemplatesTab(tab) {
         _templatesActiveTab = tab;
         if (!_templatesSelected) return;
+        // Persist the active tab in history.state so a refresh restores it (the
+        // URL stays #templates/<client>; the tab rides in state, which survives a
+        // reload). Guarded for file:// test contexts.
+        try { history.replaceState({ nav: 'templates', client: null, templatesClient: _templatesSelected, templatesTab: tab }, '', location.pathname + location.search.replace(/#.*$/, '') + '#templates/' + encodeURIComponent(_templatesSelected)); } catch (e) {}
         const content = document.getElementById('content');
         if (content) { content.innerHTML = renderClientTemplate(_templatesSelected); mountTemplatesView(); }
     }
@@ -13788,6 +13793,12 @@
         if (page !== 'workload' && typeof _wlV2Teardown === 'function') _wlV2Teardown();
 
         const state = {nav: page, client: null};
+        // Templates keeps the selected client + active tab in the URL / history
+        // state so a refresh or back/forward restores exactly where you were —
+        // navTo otherwise resets the hash to #templates and drops the client,
+        // which made a second refresh fall back to the index. The client rides in
+        // the hash (#templates/<client>); the tab rides in state (survives reload).
+        if (page === 'templates' && _templatesSelected) { state.templatesClient = _templatesSelected; state.templatesTab = _templatesActiveTab; }
         if (page === 'onboarding') {
             // Standalone onboarding form gets a clean path URL, served on GitHub Pages via the
             // 404.html redirect. The AI funnel keeps its own /ai_onboarding_form path so the two
@@ -13795,7 +13806,9 @@
             // on file:// (local tests), which we can safely ignore.
             try { history.replaceState(state, '', OB_VARIANT === 'ai' ? '/ai_onboarding_form' : '/onboarding_form'); } catch (e) {}
         } else {
-            const url = location.pathname + location.search.replace(/#.*$/, '') + (page !== 'home' ? '#' + page : '');
+            let hash = (page !== 'home' ? '#' + page : '');
+            if (page === 'templates' && _templatesSelected) hash = '#templates/' + encodeURIComponent(_templatesSelected);
+            const url = location.pathname + location.search.replace(/#.*$/, '') + hash;
             if (push) history.pushState(state, '', url);
             else history.replaceState(state, '', url);
         }
@@ -29528,17 +29541,20 @@
                     navTo('samples', false);
                 } else if (hashRaw.startsWith('templates/')) {
                     // Open straight to the deep-linked client so a refresh doesn't
-                    // flash the templates index first: seed the selection from the
-                    // hash now (renderClientTemplate shows the client's loading
-                    // skeleton with its name), then canonicalize / drop it once the
-                    // client roster (allData) has loaded.
-                    const tn = hashRaw.slice('templates/'.length);
-                    let seed = tn; try { seed = decodeURIComponent(tn); } catch (e) {}
+                    // flash the templates index first, and restore the exact tab.
+                    // hashRaw is ALREADY decoded (do not decode again); history.state
+                    // survives a reload and carries the exact client + tab when set,
+                    // so prefer it over the hash. Canonicalize / drop once the client
+                    // roster (allData) has loaded.
+                    let seed = hashRaw.slice('templates/'.length);
+                    const st = history.state || {};
+                    if (st.templatesClient) seed = st.templatesClient;
                     if (seed) _templatesSelected = seed;
+                    if (st.templatesTab === 'reels' || st.templatesTab === 'thumbnails') _templatesActiveTab = st.templatesTab;
                     navTo('templates', false);
                     dataPromise.then(() => {
-                        if (wlIsAllowedClient(tn)) {
-                            const canon = wlCanonicalClient(tn);
+                        if (wlIsAllowedClient(_templatesSelected)) {
+                            const canon = wlCanonicalClient(_templatesSelected);
                             if (canon && canon !== _templatesSelected) { _templatesSelected = canon; navTo('templates', false); }
                         } else if (_templatesSelected) {
                             // Deep-link no longer resolves to a real client → index.

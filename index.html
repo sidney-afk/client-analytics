@@ -3439,14 +3439,18 @@
         .cc-platform span, .cc-muted { color: var(--text-muted); font-size: 0.72rem; }
         .cc-secret, .cc-handle { display: flex; align-items: center; gap: 7px; min-width: 0; }
         .cc-secret code, .cc-handle code { display: block; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 5px 8px; border-radius: 9px; background: var(--sv-bg-f6f6f3); color: var(--text-primary); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 0.76rem; font-weight: 750; }
-        /* Password box reserves a stable width so the reveal/copy icons never
-           jump when a revealed value (often shorter than the ••••• mask) is
-           shown. flex-grow fills the column identically in both states. */
-        .cc-secret code { flex: 1 1 auto; min-width: 0; }
-        .cc-mini { width: 29px; height: 29px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--sv-border-dfdfdb); border-radius: 9px; background: linear-gradient(180deg, var(--sv-bg-fff), var(--sv-bg-fafaf8)); color: var(--text-secondary); cursor: pointer; padding: 0; transition: color 0.14s, border-color 0.14s, background 0.14s, transform 0.14s; }
-        .cc-mini:hover { color: var(--text-primary); border-color: var(--sv-border-b9b9b4); background: var(--sv-bg-fff); transform: translateY(-1px); }
-        .cc-mini svg { width: 14px; height: 14px; display: block; stroke-width: 1.8; }
-        .cc-mini.is-active { color: var(--sv-fg-fff); border-color: var(--sv-border-111110); background: var(--sv-bg-111110); }
+        /* The reveal (eye) + copy buttons hug the password value instead of
+           being pushed to the far edge. A stable min-width keeps the masked
+           ••••• and a shorter revealed value the same width, so the icons don't
+           jump; longer values grow up to the shared max-width and ellipsize. */
+        .cc-secret code { flex: 0 1 auto; min-width: 88px; }
+        .cc-secret .cc-mini:first-of-type { margin-left: 2px; }
+        /* Borderless "ghost" icon buttons — no box/border, just the glyph, with
+           a soft hover/active wash. Cuts the visual noise of a per-icon frame. */
+        .cc-mini { width: 27px; height: 27px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; padding: 0; transition: color 0.14s, background 0.14s; }
+        .cc-mini:hover { color: var(--text-primary); background: var(--sv-bg-f6f6f3); }
+        .cc-mini svg { width: 15px; height: 15px; display: block; stroke-width: 1.8; }
+        .cc-mini.is-active { color: var(--text-primary); background: var(--sv-bg-f6f6f3); }
         .cc-row-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
         .cc-updated { grid-column: 1 / -1; margin-top: -4px; font-size: 0.68rem; color: var(--text-muted); }
         .cc-empty { padding: 46px 20px; text-align: center; border: 1px dashed var(--border); border-radius: 16px; background: var(--sv-bg-rgba-255-255-255-0_5); color: var(--text-muted); line-height: 1.6; }
@@ -37132,11 +37136,21 @@
     }
 
     async function _ccCopyText(text, msg) {
+        const s = String(text || '');
         try {
-            if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(String(text || ''));
-            else window.prompt('Copy:', String(text || ''));
-            showToast(msg || 'Copied');
-        } catch { window.prompt('Copy:', String(text || '')); }
+            if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(s); showToast(msg || 'Copied'); return; }
+        } catch (e) { /* fall through to the no-popup fallback */ }
+        // Fallback without a native prompt: a hidden textarea + execCommand copy.
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = s; ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0'; ta.style.pointerEvents = 'none';
+            document.body.appendChild(ta); ta.select();
+            try { ta.setSelectionRange(0, s.length); } catch (e) {}
+            const ok = document.execCommand && document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast(ok ? (msg || 'Copied') : 'Press Ctrl/Cmd+C to copy');
+        } catch (e) { showToast('Could not copy'); }
     }
 
     function _ccReveal(id, scope) {
@@ -37221,15 +37235,19 @@
         };
     }
 
-    async function _ccArchive(id, scope) {
+    function _ccArchive(id, scope) {
         scope = scope || 'kasper';
-        if (!id || !window.confirm('Archive this credential? It will disappear from the active list but stay in audit history.')) return;
-        try {
-            await _ccApi('delete', { credential_id: id }, { role: _ccIdentityRole(scope) });
-            _ccLastLocalWriteAt = Date.now();
-            showToast('Credential archived');
-            if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
-        } catch (e) { showToast((e && e.message) || 'Could not archive'); }
+        if (!id) return;
+        // Styled in-app confirm (showConfirm, z-index 9999 so it layers above the
+        // SMM credentials modal) instead of the native browser confirm() dialog.
+        showConfirm('Archive credential', 'Archive this credential? It will disappear from the active list but stay in audit history.', async () => {
+            try {
+                await _ccApi('delete', { credential_id: id }, { role: _ccIdentityRole(scope) });
+                _ccLastLocalWriteAt = Date.now();
+                showToast('Credential archived');
+                if (scope === 'modal') _ccLoadModal(true); else _ccLoadKasper(true);
+            } catch (e) { showToast((e && e.message) || 'Could not archive'); }
+        }, 'Archive');
     }
 
     async function _ccReassign(id, selectId) {

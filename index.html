@@ -31318,12 +31318,22 @@
                 // folded into a kept-local row can't be missed (the calendar's same
                 // false-negative fallback). Never touches a focused field.
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+                // …and repaint the derived status pill in place, for the same
+                // reason: the merge can fold a peer's change into a kept-local row
+                // (LWW false-negative), leaving the pill stale while the note dot
+                // updated. Focus-guarded, so it never yanks a caret (P1 fix).
+                if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
             }
             // Defer the repaint while the user is mid-edit so a realtime reload can't
             // clobber their caret / unsaved field (Surface 7 deferred-render guard).
             else if (background && typeof _sxrIsBusy === 'function' && _sxrIsBusy()) {
                 _sxrPendingBackgroundRender = true; if (typeof _sxrSchedulePendingRender === 'function') _sxrSchedulePendingRender();
                 if (typeof _sxrRefreshCommentsBtn === 'function') { try { sxrState.posts.forEach(p => _sxrRefreshCommentsBtn(p.id)); } catch (e) {} }
+                // The full render is deferred while busy, but a peer's status change
+                // must still show LIVE — repaint just the status pills in place
+                // (focus-guarded) so "Tweaks Needed"/approvals don't wait for blur
+                // or the next reload. Mirrors the note-dot refresh above (P1 fix).
+                if (typeof _sxrRepaintLiveStatus === 'function') _sxrRepaintLiveStatus();
             }
             else _sxrRenderBody();
             if (typeof _sxrV2EnsureSubscribed === 'function') _sxrV2EnsureSubscribed(slug);   // open/refresh realtime
@@ -31432,6 +31442,24 @@
         }
         // The Review/Sheet tab badges count by status — keep them in lockstep too.
         if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
+    }
+    /* Repaint every card's status pill(s) IN PLACE from the already-merged
+       sxrState.posts, without rebuilding the card (so its inputs / caret survive).
+       Used by the realtime shortcut branches in loadSxrCards so a peer's status
+       change (Kasper request-change → Tweaks Needed, an approval → next state)
+       flips the pill LIVE even when the full render is skipped (no-visible-diff
+       false-negative) or deferred (user mid-edit) — the note dot already refreshes
+       there, and the derived status pill must too (the P1 realtime-status bug).
+       Wrapped in _svPreserveFocus, gated to #sxrBody, so it can never steal the
+       caret from a field being typed in (the PR-705 focus guard). _sxrUpdateCardStatusDisplay
+       only mutates pill spans/classes + the URGENT badge (never an input node), so
+       this is a pure repaint. */
+    function _sxrRepaintLiveStatus() {
+        const body = document.getElementById('sxrBody');
+        if (!body) return;
+        _svPreserveFocus(() => {
+            try { (sxrState.posts || []).forEach(p => _sxrUpdateCardStatusDisplay(p.id)); } catch (e) {}
+        }, body);
     }
     function _sxrAutosize(el) { if (!el) return; el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; }
 
@@ -33422,6 +33450,71 @@
         }
         return true;
     }
+    /* ── Recent-save reconcile (port of the calendar's _calRecentSaveReconcile
+       over the samples schema: video + graphic sub-statuses, no caption/title) ──
+       Within the local-status-fresh window a background realtime reload normally
+       KEEPS our just-set status so a stale reconciler / self echo can't revert it.
+       But a GENUINE newer change from ANOTHER role — Kasper requesting a change
+       (→ Tweaks Needed), a client/SMM approval — must still win, or the note dot
+       updates live while the status pill stays stuck at our value until a manual
+       refresh (the P1 realtime-status bug). Adopt only the sub-statuses the server
+       moved to a NEW value (differs from BOTH what we wrote and its pre-save
+       base); a bare stale Linear round-trip (a status-only regression with no new
+       change-request comment) is refused and kept local. Returns a merged clone,
+       or null to keep local. Pure besides the status normaliser + overall recompute. */
+    function _sxrRecentSaveReconcile(lp, fp, rsf) {
+        if (!lp || !fp || !rsf) return null;
+        const lT = Date.parse(lp.updated_at || '');
+        const fT = Date.parse(fp.updated_at || '');
+        if (!(isFinite(lT) && isFinite(fT) && fT > lT)) return null;
+        let merged = null;
+        for (const comp of SXR_COMPONENTS) {
+            const f = comp + '_status';
+            const sv = fp[f];
+            if (sv == null) continue;
+            const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+            const base = rsf.base ? rsf.base[f] : undefined;
+            if (sv !== wrote && sv !== base) {
+                if (_sxrIsStaleLinearRegress(lp, fp, comp, rsf)) continue;
+                if (!merged) merged = Object.assign({}, lp);
+                merged[f] = sv;
+            }
+        }
+        if (merged) merged.status = computeSampleOverallStatus(merged);
+        return merged;
+    }
+    /* Is the server's value for `comp` a stale Linear status-sync round-trip of a
+       DRIFTED issue that would clobber a fresh local approval — as opposed to a
+       genuine new action? True only when we wrote an at-or-above-Client-Approval
+       status and the server REGRESSES it below with NO new open change-request
+       comment to justify it (a real Tweaks-Needed always lands a comment; a bare
+       Linear round-trip does not). Port of _calIsStaleLinearRegress; samples has
+       no Scheduled/Posted so the "above" set is just Client Approval / Approved. */
+    function _sxrIsStaleLinearRegress(lp, fp, comp, rsf) {
+        if (!lp || !fp || !rsf) return false;
+        if (comp !== 'video' && comp !== 'graphic') return false;
+        const f = comp + '_status';
+        const sv = fp[f];
+        if (sv == null) return false;
+        const wrote = rsf.wrote ? rsf.wrote[f] : undefined;
+        const base = rsf.base ? rsf.base[f] : undefined;
+        if (sv === wrote || sv === base) return false;
+        const ABOVE = { 'Client Approval': 1, 'Approved': 1 };
+        if (!(ABOVE[_sxrNormStatus(wrote)] && !ABOVE[_sxrNormStatus(sv)])) return false;
+        return !_sxrReconcileHasGenuineTweak(fp, lp, comp);
+    }
+    /* Does the server row carry a NEW (not in our local copy) open change-request
+       on this component — the fingerprint of a genuine Tweaks-Needed (which always
+       writes a comment alongside the status) vs a bare Linear round-trip? Port of
+       _calReconcileHasGenuineTweak. */
+    function _sxrReconcileHasGenuineTweak(fp, lp, comp) {
+        const fc = _sxrCommentsFor(fp, comp);
+        if (!Array.isArray(fc) || !fc.length) return false;
+        const lById = new Map();
+        const lc = _sxrCommentsFor(lp, comp);
+        if (Array.isArray(lc)) for (const c of lc) if (c && c.id) lById.set(c.id, c);
+        return fc.some(c => c && c.id && _sxrMsgIsTweak(c) && !c.deleted && !c.done && !lById.has(c.id));
+    }
     function _sxrMergeServerRows(server) {
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
@@ -33429,9 +33522,30 @@
         for (const srv of server) {
             serverIds.add(srv.id);
             const loc = localById.get(srv.id);
-            const keepLocal = loc && (_sxrPendingEdits[srv.id] || _sxrSaveInFlight[srv.id] || _sxrIsLocalStatusFresh(srv.id));
-            if (keepLocal) { _sxrMergePostComments(loc, srv); out.push(loc); }
-            else { if (loc) _sxrMergePostComments(srv, loc); out.push(srv); }
+            // In-flight save or queued edit: the server row is by definition
+            // pre-change for this card — keep local, fold in the server's comments.
+            if (loc && (_sxrPendingEdits[srv.id] || _sxrSaveInFlight[srv.id])) {
+                _sxrMergePostComments(loc, srv); out.push(loc); continue;
+            }
+            // Recent local status write (5-min grace): keep our just-set status
+            // against a stale reconciler / self echo — BUT adopt any sub-status the
+            // server genuinely moved to a NEW value (a peer's Tweaks-Needed /
+            // approval) so a live change from another role isn't swallowed and its
+            // status pill flips without a manual refresh. Port of the calendar's
+            // stillRecent → _calRecentSaveReconcile path.
+            if (loc && _sxrIsLocalStatusFresh(srv.id)) {
+                const rsf = _sxrRecentSaveFields.get(srv.id);
+                const reconciled = rsf ? _sxrRecentSaveReconcile(loc, srv, rsf) : null;
+                // reconciled is a clone of loc with the adopted server status, so
+                // fold the SERVER row's comments in (Kasper's new tweak note lives
+                // there, not on loc) — mirrors the calendar's merge(winner, fp).
+                if (reconciled) { _sxrMergePostComments(reconciled, srv); out.push(reconciled); }
+                else { _sxrMergePostComments(loc, srv); out.push(loc); }
+                continue;
+            }
+            // Default: adopt the server copy (fold local comments in).
+            if (loc) _sxrMergePostComments(srv, loc);
+            out.push(srv);
         }
         // Keep local-only cards the server doesn't have yet (blank / just-created /
         // failed-new / pending) so a reload can't drop them.

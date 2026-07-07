@@ -533,3 +533,13 @@ Cycle 34 ran a read-only live Linear row-context Status submenu probe on the cur
 |---|---:|---|
 | Row context Status submenu | verified | Live Linear's status submenu in this workspace uses the same production vocabulary and ordering already present in prototype/wired: Backlog first, number hints, Duplicate before Triage, and Triage last. Existing `pixel-wired.js` / `behav-wired.js` coverage already guards this. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 35
+
+Cycle 35 ran read-only live Linear row-context Assignee and Due date submenu probes on the current issue-list tab. Both before/after visible issue-row snapshots contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Assignee submenu | verified | Live Linear's assignee picker shell matches the simplified picker shape. The live invite row remains omitted as mutation/scope-expanding chrome. |
+| Row context Due date submenu | fixed | Prototype and wired now use live Linear's quick due placeholder, `Try: 24h, 7 days, Feb 9`. The live cycle-based quick option remains omitted because cycles are a locked skeleton removal. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

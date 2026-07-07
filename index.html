@@ -29012,7 +29012,7 @@
                 _prodClearLayer();
             };
             const quick = () => {
-                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 7 days, Jul 20…"></div><div class="prod-pop-list">';
+                let h = '<div class="prod-pop-search"><input data-prod-search placeholder="Try: 24h, 7 days, Feb 9"></div><div class="prod-pop-list">';
                 if (cur && cur.due) h += '<div class="prod-mi" data-prod-set="__remove__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Remove due date</span><span class="dres">' + _calEsc(cur.due) + '</span></div>';
                 h += '<div class="prod-mi" data-prod-set="__custom__"><span class="mic">' + _prodIcon('cal') + '</span><span class="mlbl">Custom…</span></div>';
                 [['Tomorrow', _prodAddDays(todayRef, 1)], ['End of this week', _prodAddDays(todayRef, (5 - todayRef.getDay() + 7) % 7 || 7)], ['In one week', _prodAddDays(todayRef, 7)]].forEach(o => {

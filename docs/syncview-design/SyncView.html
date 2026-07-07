@@ -776,7 +776,7 @@ function parseDue(s){s=(s||"").trim().toLowerCase();if(!s)return null;const M={j
   return null;}
 function buildDue(pop,cur,ids,anchor){let view="quick",calM=new Date(TODAY.getFullYear(),TODAY.getMonth(),1),focusDay=null;
   const set=v=>{applySub("due",v,ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();};
-  function quick(){let h='<div class="pop-search"><input data-search placeholder="Try: 7 days, Jul 20…"></div><div class="pop-list">';
+  function quick(){let h='<div class="pop-search"><input data-search placeholder="Try: 24h, 7 days, Feb 9"></div><div class="pop-list">';
     if(cur&&cur.due)h+='<div class="mi" data-set="__remove__"><span class="mic">'+I.cal+'</span><span class="mlbl">Remove due date</span>'+(ids.length===1?'<span class="dres">'+esc(cur.due)+'</span>':'')+'</div>';
     h+='<div class="mi" data-set="__custom__"><span class="mic">'+I.cal+'</span><span class="mlbl">Custom…</span></div>';
     [["Tomorrow",addDays(TODAY,1)],["End of this week",addDays(TODAY,(5-TODAY.getDay()+7)%7||7)],["In one week",addDays(TODAY,7)]].forEach(o=>{h+='<div class="mi" data-day="'+fmtDue(o[1])+'"><span class="mic">'+I.cal+'</span><span class="mlbl">'+o[0]+'</span><span class="dres">'+fmtWk(o[1])+'</span></div>';});

@@ -609,6 +609,7 @@ async function run() {
     const duePlaceholderA = await artifact.locator('#layer .pop.duepop [data-search]').first().getAttribute('placeholder');
     const duePlaceholderW = await wired.locator('#prodLayer .prod-duepop [data-prod-search]').first().getAttribute('placeholder');
     if (duePlaceholderA !== duePlaceholderW) gaps.push({ rank: 1, state: 'due popover placeholder', message: `artifact=${duePlaceholderA} wired=${duePlaceholderW}` });
+    if (duePlaceholderA !== 'Try: 24h, 7 days, Feb 9') gaps.push({ rank: 1, state: 'due popover live placeholder', message: `artifact=${duePlaceholderA}` });
     await artifact.locator('#layer .pop.duepop [data-set="__custom__"]').first().click();
     await wired.locator('#prodLayer .prod-duepop [data-prod-set="__custom__"]').first().click();
     await artifact.waitForSelector('#layer .pop.duepop .cal');

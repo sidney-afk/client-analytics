@@ -791,3 +791,15 @@ Read-only live observation used the current Linear issue-list tab, opened one ro
 |---|---:|---|
 | Row context Status submenu | verified | Live Linear shows the simplified production status vocabulary in this workspace: Backlog, Todo, In Progress, For SMM approval, For Kasper approval, Tweak Needed, For Client Approval, Approved, Scheduled, Posted, Canceled, Duplicate, Triage, with number hints and Triage last. Prototype and wired already match this contract, and `pixel-wired.js` / `behav-wired.js` already cover it. |
 | Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 35
+
+Read-only live observation used the current Linear issue-list tab and hover-opened the Assignee and Due date submenus from the row context menu. Both probes closed with Escape. Before/after visible issue-row snapshots for each probe contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Assignee submenu | verified | Live Linear uses the same picker shell: No assignee/current assignee options, team-member rows, and an invite row. The invite row is mutation/scope-expanding, so prototype/wired stay with the simplified assignee picker. No code change. |
+| Row context Due date submenu | fixed | Live Linear's quick due placeholder reads `Try: 24h, 7 days, Feb 9`; prototype and wired now use that text. The live `End of next cycle` quick option was not copied because cycles are a locked skeleton removal. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Pixel lane addition: `pixel-wired.js` now asserts the exact live due placeholder text in addition to artifact/wired equality.

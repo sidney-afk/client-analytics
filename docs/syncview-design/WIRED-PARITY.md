@@ -228,3 +228,19 @@ Ranked findings fixed in this cycle:
 2. P2: The wired board allowed generic overflow on both axes; it now matches the artifact board axis split (`overflow-x:auto`, `overflow-y:hidden`) while columns own their vertical card scrolling.
 
 Pixel lane additions: `pixel-wired.js` now covers board scroll-axis parity, card drag cursor, drag-start/drop-highlight chrome, and read-only guarded drop cleanup. Full hand+eyes matrix pass complete for the currently known surfaces; no remaining unreviewed surface category is listed.
+
+## 2026-07-07 Live-Linear Parity Triage
+
+Scope correction after PR #710 review: SyncView remains a simpler tool than Linear. Live Linear wins for look/feel on kept SyncView surfaces, but feature classes removed from the SyncView skeleton stay removed.
+
+Kept and re-proved in this triage branch:
+
+1. Compact project board cards: prototype and wired cards omit description rows; `pixel-wired.js` rejects `.pcard-desc` / `.prod-card-desc` render output.
+2. Transparent board column-collapse chevrons: wired chevrons now match the prototype hidden-until-hover / transparent button treatment; `pixel-wired.js` checks the collapse control style.
+3. Search workspace tooltip and slash shortcut: prototype and wired search buttons use `Search workspace|/`; behavior suites cover `/`.
+4. Dark-shell neutral palette and overdue due-pill treatment: prototype and wired CSS variables now share the dark neutral palette; overdue color is applied to the calendar glyph.
+5. Row hover band and checkbox reveal remain covered by the pixel lane.
+6. Due placeholder copy uses `Try: 24h, 7 days, Feb 9` in both prototype and wired.
+7. Actionbar compaction: issue multi-select exposes count, Actions, and clear only. Direct bulk Status/Assignee/Due quick buttons and Ask Linear are not part of SyncView.
+
+Dropped as deliberate removals, not parity gaps: Ask Linear dock/rows/buttons, Initiative properties, What's new, Copy git branch name, Copy as prompt, and Switch workspace chrome.

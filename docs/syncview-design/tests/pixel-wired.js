@@ -292,6 +292,37 @@ async function run() {
     if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();
     if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
+    const darkPalette = [
+      ['--bg', '--prod-bg', '#070708'],
+      ['--content', '--prod-content', '#0c0c0d'],
+      ['--surface', '--prod-surface', '#151518'],
+      ['--column', '--prod-column', '#111113'],
+      ['--hover', '--prod-hover', '#1e1e21'],
+      ['--selected-row', '--prod-selected', '#171923'],
+      ['--border', '--prod-border', '#2a2a2d'],
+      ['--border-soft', '--prod-border-soft', '#242428'],
+      ['--divider', '--prod-divider', '#1d1d20'],
+      ['--text', '--prod-text', '#f4f4f5'],
+      ['--text-strong', '--prod-strong', '#ededee'],
+      ['--dim', '--prod-dim', '#b6b6bb'],
+      ['--muted', '--prod-muted', '#8f8f96'],
+      ['--faint', '--prod-faint', '#6f6f78'],
+      ['--link', '--prod-link', '#8ea0ff'],
+      ['--overdue', '--prod-overdue', '#ff5f5f'],
+    ];
+    const artifactVars = await artifact.evaluate(keys => {
+      const cs = getComputedStyle(document.documentElement);
+      return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
+    }, darkPalette.map(([a]) => a));
+    const wiredVars = await wired.evaluate(keys => {
+      const root = document.querySelector('.prod-view') || document.documentElement;
+      const cs = getComputedStyle(root);
+      return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
+    }, darkPalette.map(([, w]) => w));
+    darkPalette.forEach(([aKey, wKey, expected]) => {
+      if (artifactVars[aKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `artifact ${aKey}=${artifactVars[aKey]} expected ${expected}` });
+      if (wiredVars[wKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `wired ${wKey}=${wiredVars[wKey]} expected ${expected}` });
+    });
 
     const filterA = await iconPaths(artifact, '#filterbtn');
     const filterW = await iconPaths(wired, '#prodFilterBtn');
@@ -300,6 +331,17 @@ async function run() {
     const displayW = await iconPaths(wired, '#prodGroupBtn');
     if (displayA.join('|') !== displayW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `display icon path drift: ${displayW.join('|')}` });
     await compareStyles(gaps, 'toolbar icon buttons', artifact, wired, '#filterbtn', '#prodFilterBtn', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'color']);
+    await artifact.locator('[data-act="search"]').hover();
+    await wired.locator('.prod-search-btn').hover();
+    await artifact.waitForSelector('#tip.show');
+    await wired.waitForSelector('.prod-tip.show');
+    const searchTipA = (await artifact.locator('#tip.show').innerText()).replace(/\s+/g, ' ').trim();
+    const searchTipW = (await wired.locator('.prod-tip.show').innerText()).replace(/\s+/g, ' ').trim();
+    if (searchTipA !== 'Search workspace/') gaps.push({ rank: 1, state: 'search tooltip', message: `expected "Search workspace/", got ${searchTipA}` });
+    if (searchTipA !== searchTipW) gaps.push({ rank: 1, state: 'search tooltip', message: `artifact=${searchTipA} wired=${searchTipW}` });
+    await compareStyles(gaps, 'search tooltip', artifact, wired, '#tip.show', '.prod-tip.show', ['backgroundColor', 'borderRadius', 'borderTopColor', 'color', 'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom']);
+    await artifact.mouse.move(900, 20);
+    await wired.mouse.move(900, 20);
 
     await artifact.locator('[data-act="search"]').click();
     await wired.locator('.prod-search-btn').click();
@@ -348,11 +390,18 @@ async function run() {
     await shotElement(artifact, '.actionbar', 'artifact-crop-selection-actionbar');
     await shotElement(wired, '.prod-actionbar', 'wired-crop-selection-actionbar');
     await compareStyles(gaps, 'selection actionbar', artifact, wired, '.actionbar', '.prod-actionbar', ['height', 'display', 'alignItems', 'gap', 'paddingTop', 'paddingBottom', 'borderRadius', 'backgroundColor', 'boxShadow']);
-    await compareStyles(gaps, 'selection quick button', artifact, wired, '#ab-status', '#prodBulkStatus', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    const artifactQuick = await artifact.locator('#ab-status, #ab-assign, #ab-due').count();
+    const wiredQuick = await wired.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count();
+    if (artifactQuick || wiredQuick) gaps.push({ rank: 1, state: 'selection quick buttons', message: `compact actionbar should not expose quick buttons artifact=${artifactQuick} wired=${wiredQuick}` });
+    await compareStyles(gaps, 'selection actions button', artifact, wired, '#ab-actions', '#prodBulkActions', ['height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
     await compareStyles(gaps, 'selection checkbox', artifact, wired, '.check.on', '.prod-check.on', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'borderRadius', 'backgroundColor']);
 
-    await artifact.locator('#ab-status').click();
-    await wired.locator('#prodBulkStatus').click();
+    await artifact.locator('#ab-actions').click();
+    await wired.locator('#prodBulkActions').click();
+    await artifact.waitForSelector('#layer .pop [data-ctx="status"]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx="status"]');
+    await artifact.evaluate(() => document.querySelector('#layer .pop [data-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
+    await wired.evaluate(() => document.querySelector('#prodLayer .prod-pop [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
     await artifact.waitForSelector('#layer .pop');
     await wired.waitForSelector('#prodLayer .prod-pop');
     const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');
@@ -369,9 +418,9 @@ async function run() {
     }
     await compareStyles(gaps, 'status picker selected tick', artifact, wired, '#layer .pop .tick', '#prodLayer .prod-pop .tick', ['color', 'marginLeft', 'order', 'display']);
     const actionRects = {
-      aPop: await artifact.locator('#layer .pop').first().boundingBox(),
+      aPop: await artifact.locator('#layer .pop:last-child').first().boundingBox(),
       aBar: await artifact.locator('.actionbar').first().boundingBox(),
-      wPop: await wired.locator('#prodLayer .prod-pop').first().boundingBox(),
+      wPop: await wired.locator('#prodLayer .prod-pop:last-child').first().boundingBox(),
       wBar: await wired.locator('.prod-actionbar').first().boundingBox(),
     };
     if (actionRects.wPop.y + actionRects.wPop.height > actionRects.wBar.y - 4) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is not anchored above the action bar' });
@@ -380,9 +429,10 @@ async function run() {
     // above the action bar even when the standalone artifact overlaps it here.
     await shot(artifact, 'artifact-actionbar-status-picker');
     await shot(wired, 'wired-actionbar-status-picker');
-    await shotElement(artifact, '#layer .pop', 'artifact-crop-status-picker');
-    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-status-picker');
+    await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-status-picker');
+    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-status-picker');
     await artifact.keyboard.press('Escape');
+    await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
     await wired.keyboard.press('Escape');
     const cleared = await wired.evaluate(() => _prodState.selected.size === 0 && !document.querySelector('[data-prod-actionbar]'));
@@ -548,7 +598,13 @@ async function run() {
     await requirePair(gaps, 'board inventory', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]');
     await shot(artifact, 'artifact-board');
     await shot(wired, 'wired-board');
+    const artifactCardDescriptions = await artifact.locator('.pcard-desc').count();
+    const wiredCardDescriptions = await wired.locator('.prod-card-desc').count();
+    if (artifactCardDescriptions || wiredCardDescriptions) {
+      gaps.push({ rank: 1, state: 'board card compactness', message: `description rows artifact=${artifactCardDescriptions} wired=${wiredCardDescriptions}` });
+    }
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
+    await compareStyles(gaps, 'board collapse chevron', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor', 'opacity']);
     await compareStyles(gaps, 'board card drag cursor', artifact, wired, '.pcard', '.prod-card', ['cursor']);
     await artifact.evaluate(() => {
       const card = document.querySelector('.pcard[data-project]');

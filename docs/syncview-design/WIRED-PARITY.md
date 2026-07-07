@@ -368,3 +368,13 @@ Live Linear observation was read-only. Before/after visible issue-row snapshots 
 | Selected Actions removed/mutating boundary | ✅ | Priority, labels, cycles, team move, and subscribe remain omitted from the simplified skeleton/write-safe B2 surface. |
 
 Validation coverage: `pixel-wired.js` asserts the Ask Linear actionbar button exists in prototype and wired preview, compares its button styling, and checks the exact SVG path.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 17
+
+Cycle 17 used the same accepted read-only live Linear capture as Cycle 16; no new issue/sub-issue surface was touched. The accepted capture showed Linear's persistent bottom-right Ask Linear dock.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Global Ask Linear dock | ✅ | Prototype and wired preview now render the bottom-right Ask Linear and Chat history chrome. Wired buttons are tagged `data-prod-disabled` and route to `Preview - read-only`. |
+
+Validation coverage: `pixel-wired.js` compares dock presence, placement styles, and icon paths; `prod-structure-subset.js` asserts both wired dock buttons are guarded.

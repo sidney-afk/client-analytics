@@ -566,3 +566,18 @@ Ranked finding fixed in this cycle:
 1. P2: the selected issue actionbar was still missing the separate live Linear Ask Linear icon button.
 
 Pixel lane additions: `pixel-wired.js` now checks the selected actionbar Ask Linear button count, styling, and exact SVG path in prototype and wired preview.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 17
+
+Cycle 17 used the accepted Cycle 16 live screenshot and DOM capture. No additional Linear issue/sub-issue surface was touched. The capture showed a persistent bottom-right Ask Linear dock (`Ask Linear` plus a Chat history icon) that was still absent from the prototype/wired preview.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Global bottom-right Ask Linear dock | fixed | Prototype and wired now render the dock with the same Ask Linear and history icon vocabulary. |
+| Wired dock behavior | guarded | Both dock buttons route to `Preview - read-only` and are covered by read-only structure checks. |
+
+Ranked finding fixed in this cycle:
+
+1. P2: the persistent bottom-right Ask Linear dock was missing outside the selected-row actionbar.
+
+Pixel lane additions: `pixel-wired.js` now captures `artifact-crop-askdock.png` / `wired-crop-askdock.png` and checks dock style and icon paths.

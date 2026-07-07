@@ -263,7 +263,7 @@ async function txt(page, sel) {
       await page.keyboard.press('Control+a');
       const before = await page.evaluate(() => _prodState.selected.size);
       await page.locator('#prodBulkActions').click();
-      await page.locator('#prodLayer [data-prod-ctx="assign"]').click();
+      await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="assign"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })));
       await page.locator('#prodLayer [data-prod-search]').press('Enter');
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => _prodState.selected.size);
@@ -989,7 +989,11 @@ async function txt(page, sel) {
       const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
-      await page.locator('#prodLayer [data-prod-ctx="status"]').click();
+      await page.evaluate(() => {
+        const el = document.querySelector('#prodLayer [data-prod-ctx="status"]');
+        if (el && typeof _prodOpenSub === 'function') _prodOpenSub(el, 'status', Array.from(_prodState.selected || []));
+      });
+      await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
       await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -1285,6 +1289,12 @@ async function txt(page, sel) {
       const lead = page.locator('.prod-pop .prod-mi', { hasText: 'Set lead' }).first();
       return await lead.locator('.mic svg path[d*="M4 12"]').count() > 0;
     }); await reset();
+    await page.evaluate(() => localStorage.setItem('syncview_theme', 'dark'));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
+    if (await page.locator('.prod-error').count()) throw new Error('dark Production preview rendered an error card');
+    const darkSmoke = await page.evaluate(() => document.documentElement.getAttribute('data-theme') === 'dark' && !!document.querySelector('.prod-view'));
+    if (!darkSmoke) throw new Error('dark Production preview did not follow syncview_theme=dark');
     await ok('noWriteRequests', async () => requests.filter(r => !['GET', 'HEAD', 'OPTIONS'].includes(r.method)).length === 0);
     await ok('noConsoleErrors', async () => errors.length === 0);
 

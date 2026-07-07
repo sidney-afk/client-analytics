@@ -16,6 +16,7 @@ const root = path.resolve(__dirname, '..', '..', '..');
 const outDir = process.env.SYNCVIEW_PROD_PIXEL_SHOTS
   ? path.resolve(process.env.SYNCVIEW_PROD_PIXEL_SHOTS)
   : path.join(root, '.codex-tmp', 'prod-pixel-wired');
+let shotPrefix = '';
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -65,13 +66,13 @@ function serve() {
 
 async function shot(page, name) {
   fs.mkdirSync(outDir, { recursive: true });
-  await page.screenshot({ path: path.join(outDir, name + '.png'), fullPage: false });
+  await page.screenshot({ path: path.join(outDir, shotPrefix + name + '.png'), fullPage: false });
 }
 
 async function shotElement(page, selector, name) {
   fs.mkdirSync(outDir, { recursive: true });
   const loc = page.locator(selector).first();
-  if (await loc.count()) await loc.screenshot({ path: path.join(outDir, name + '.png') });
+  if (await loc.count()) await loc.screenshot({ path: path.join(outDir, shotPrefix + name + '.png') });
 }
 
 function cleanPaths(paths) {
@@ -256,26 +257,41 @@ async function setupFilterPill(artifact, wired) {
   });
 }
 
-async function run() {
+async function runTheme(port, browser, theme) {
   const gaps = [];
-  const server = await serve();
-  const port = server.address().port;
-  const browser = await chromium.launch({ headless: true });
+  shotPrefix = theme + '-';
   const artifact = await browser.newPage({ viewport: { width: 1440, height: 950 } });
   const wired = await browser.newPage({ viewport: { width: 1440, height: 950 } });
-  await wired.addInitScript(() => {
+  await artifact.addInitScript(mode => {
+    if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+  }, theme);
+  await wired.addInitScript(mode => {
     localStorage.setItem('syncview_auth_v1', 'ok');
+    if (mode === 'dark') localStorage.setItem('syncview_theme', 'dark');
+    else localStorage.removeItem('syncview_theme');
     try {
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,
         value: { writeText: async text => { window.__prodCopied = text; } },
       });
     } catch (_) {}
-  });
+  }, theme);
 
   try {
     await artifact.goto(`http://127.0.0.1:${port}/docs/syncview-design/SyncView.html`, { waitUntil: 'domcontentloaded' });
     await wired.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+    if (theme === 'dark') {
+      await artifact.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+      await wired.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+      await artifact.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+      await wired.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+    } else {
+      await artifact.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      await wired.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      await artifact.waitForFunction(() => !document.documentElement.getAttribute('data-theme'));
+      await wired.waitForFunction(() => !document.documentElement.getAttribute('data-theme'));
+    }
     await artifact.waitForSelector('.row', { timeout: 30000 });
     await wired.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
     if (await wired.locator('.prod-error').count()) throw new Error('wired Production tab rendered error state');
@@ -292,36 +308,63 @@ async function run() {
     if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
     const previewChips = await wired.locator('.prod-preview-chip').count();
     if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
-    const darkPalette = [
-      ['--bg', '--prod-bg', '#070708'],
-      ['--content', '--prod-content', '#0c0c0d'],
-      ['--surface', '--prod-surface', '#151518'],
-      ['--column', '--prod-column', '#111113'],
-      ['--hover', '--prod-hover', '#1e1e21'],
-      ['--selected-row', '--prod-selected', '#171923'],
-      ['--border', '--prod-border', '#2a2a2d'],
-      ['--border-soft', '--prod-border-soft', '#242428'],
-      ['--divider', '--prod-divider', '#1d1d20'],
-      ['--text', '--prod-text', '#f4f4f5'],
-      ['--text-strong', '--prod-strong', '#ededee'],
-      ['--dim', '--prod-dim', '#b6b6bb'],
-      ['--muted', '--prod-muted', '#8f8f96'],
-      ['--faint', '--prod-faint', '#6f6f78'],
-      ['--link', '--prod-link', '#8ea0ff'],
-      ['--overdue', '--prod-overdue', '#ff5f5f'],
-    ];
+    const themePalettes = {
+      light: [
+        ['--bg', '--prod-bg', '#f3f3f4'],
+        ['--content', '--prod-content', '#fcfcfd'],
+        ['--surface', '--prod-surface', '#ffffff'],
+        ['--column', '--prod-column', '#f6f6f7'],
+        ['--hover', '--prod-hover', '#ebebec'],
+        ['--selected-nav', '--prod-selected-nav', '#e5e5e6'],
+        ['--selected-row', '--prod-selected', '#eaebf6'],
+        ['--menu-hover', '--prod-menu-hover', '#f3f3f3'],
+        ['--border', '--prod-border', '#d5d5d5'],
+        ['--border-soft', '--prod-border-soft', '#e8e8e8'],
+        ['--divider', '--prod-divider', '#ececed'],
+        ['--text', '--prod-text', '#1b1b1b'],
+        ['--text-strong', '--prod-strong', '#2e2e30'],
+        ['--dim', '--prod-dim', '#5a5a5c'],
+        ['--muted', '--prod-muted', '#5d5d5f'],
+        ['--faint', '--prod-faint', '#9a9aa0'],
+        ['--link', '--prod-link', '#4162db'],
+        ['--danger', '--prod-danger', '#d64b4b'],
+        ['--overdue', '--prod-overdue', '#c0574e'],
+      ],
+      dark: [
+        ['--bg', '--prod-bg', '#070708'],
+        ['--content', '--prod-content', '#0c0c0d'],
+        ['--surface', '--prod-surface', '#151518'],
+        ['--column', '--prod-column', '#111113'],
+        ['--hover', '--prod-hover', '#1e1e21'],
+        ['--selected-nav', '--prod-selected-nav', '#1e1e21'],
+        ['--selected-row', '--prod-selected', '#171923'],
+        ['--menu-hover', '--prod-menu-hover', '#1e1e21'],
+        ['--border', '--prod-border', '#2a2a2d'],
+        ['--border-soft', '--prod-border-soft', '#242428'],
+        ['--divider', '--prod-divider', '#1d1d20'],
+        ['--text', '--prod-text', '#f4f4f5'],
+        ['--text-strong', '--prod-strong', '#ededee'],
+        ['--dim', '--prod-dim', '#b6b6bb'],
+        ['--muted', '--prod-muted', '#8f8f96'],
+        ['--faint', '--prod-faint', '#6f6f78'],
+        ['--link', '--prod-link', '#8ea0ff'],
+        ['--danger', '--prod-danger', '#ff5f5f'],
+        ['--overdue', '--prod-overdue', '#ff5f5f'],
+      ],
+    };
+    const palette = themePalettes[theme];
     const artifactVars = await artifact.evaluate(keys => {
       const cs = getComputedStyle(document.documentElement);
       return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
-    }, darkPalette.map(([a]) => a));
+    }, palette.map(([a]) => a));
     const wiredVars = await wired.evaluate(keys => {
       const root = document.querySelector('.prod-view') || document.documentElement;
       const cs = getComputedStyle(root);
       return Object.fromEntries(keys.map(k => [k, cs.getPropertyValue(k).trim()]));
-    }, darkPalette.map(([, w]) => w));
-    darkPalette.forEach(([aKey, wKey, expected]) => {
-      if (artifactVars[aKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `artifact ${aKey}=${artifactVars[aKey]} expected ${expected}` });
-      if (wiredVars[wKey] !== expected) gaps.push({ rank: 1, state: 'dark palette', message: `wired ${wKey}=${wiredVars[wKey]} expected ${expected}` });
+    }, palette.map(([, w]) => w));
+    palette.forEach(([aKey, wKey, expected]) => {
+      if (artifactVars[aKey] !== expected) gaps.push({ rank: 1, state: `${theme} palette`, message: `artifact ${aKey}=${artifactVars[aKey]} expected ${expected}` });
+      if (wiredVars[wKey] !== expected) gaps.push({ rank: 1, state: `${theme} palette`, message: `wired ${wKey}=${wiredVars[wKey]} expected ${expected}` });
     });
 
     const filterA = await iconPaths(artifact, '#filterbtn');
@@ -725,7 +768,22 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed');
+    console.log(`pixel-wired (${theme}): list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed`);
+  } finally {
+    await artifact.close().catch(() => {});
+    await wired.close().catch(() => {});
+  }
+}
+
+async function run() {
+  const server = await serve();
+  const port = server.address().port;
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const theme of ['light', 'dark']) {
+      await runTheme(port, browser, theme);
+    }
+    console.log('pixel-wired: light and dark passes completed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

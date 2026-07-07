@@ -930,7 +930,7 @@ with a flip-checklist assertion that the seed range collides with nothing in
 **10.4 Deep links:** `?prod=1&d=<id>` (detail), `?prod=1&team=<t>` (list/board).
 
 **10.5 Kept/removed** (unchanged): no priority/labels/cycles/inbox/triage-nav/manual new-issue;
-Triage *status* kept for migrated data. Light theme now.
+Triage *status* kept for migrated data. Follows the staff theme toggle; light default.
 
 **10.6 The behavioral test suites are in-repo (D-17 resolved 2026-07-05):**
 `behav.js` (138 assertions), `qa-features.js`, `sweep.js`, `build.js`, and the parity-audit

@@ -19,7 +19,7 @@ const ALLOWLIST = [
     test: line => /^\s*--[a-z0-9_-]+\s*:/i.test(line),
   },
   {
-    label: 'production preview locked light UI',
+    label: 'production preview locked dual-theme UI',
     test: line => /--prod-|\bprod-[a-z0-9-]+/i.test(line),
   },
   {

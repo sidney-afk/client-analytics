@@ -468,3 +468,14 @@ Cycle 25 ran a read-only live Linear hover probe on the sidebar search button. B
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
 
 Validation coverage: `pixel-wired.js` now pins the search tooltip to the live-observed `Search workspace/` wording and compares artifact vs wired tooltip styling.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 26
+
+Cycle 26 used the Cycle 25 live tooltip evidence without touching live Linear again. The code change was limited to non-mutating command-palette keyboard navigation.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Sidebar search `/` shortcut | fixed | Prototype and wired preview now open the command palette on `/` when the user is not typing and no popup is open. Ctrl/Cmd+K remains supported. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+Validation coverage: `behav.js` and `behav-wired.js` now include the slash-key command-palette assertion; wired guard-mode coverage is now 139/139.

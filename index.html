@@ -28267,6 +28267,11 @@
                         _prodOpenPalette();
                         return;
                     }
+                    if ((e.key === '/' || e.code === 'Slash') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey && !typing && !_prodState.paletteOpen && !(document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML)) {
+                        e.preventDefault();
+                        _prodOpenPalette();
+                        return;
+                    }
                     if (e.key === 'Escape' && document.getElementById('prodLayer') && document.getElementById('prodLayer').innerHTML) {
                         e.preventDefault();
                         _prodClearLayer();

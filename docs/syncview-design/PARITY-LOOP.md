@@ -704,3 +704,18 @@ Ranked finding fixed in this cycle:
 1. P3: live Linear's sidebar search tooltip wording/key hint differed from the prototype/wired tooltip even though the tooltip box styling already matched.
 
 Pixel lane addition: `pixel-wired.js` now fails if the artifact search tooltip drifts from the live-observed `Search workspace/` wording, then compares artifact vs wired tooltip text and box styling.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 26
+
+No additional live Linear interaction was needed. Cycle 26 follows directly from Cycle 25's read-only live search-hover evidence (`changed:false` before/after): live Linear advertises `/` as the search shortcut, so prototype and wired preview now support `/` as a non-mutating command-palette shortcut in addition to Ctrl/Cmd+K.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Sidebar search keyboard shortcut | fixed | Pressing `/` now opens the command palette when no input is focused and no popup is open. Ctrl/Cmd+K still works. |
+| Issue/sub-issue data model | unchanged | This cycle changed only keyboard handling for command-palette navigation and behavior tests. Parent/child adapter logic, issue IDs, sub-issue grouping, row data, and detail rendering were not changed. |
+
+Ranked finding fixed in this cycle:
+
+1. P2: after Cycle 25 matched live tooltip wording, the advertised `/` key needed to perform the same read-only navigation action.
+
+Behavior lane additions: `behav.js` and `behav-wired.js` now assert that `/` opens the command palette; wired guard-mode coverage is now 139/139.

@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 138;
+const TOTAL = 139;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -1188,6 +1188,7 @@ async function txt(page, sel) {
     await ok('sidebarTeamProjects', async () => await page.locator('.prod-team-hd', { hasText: 'Video' }).count() > 0 && await page.locator('.prod-nav-btn', { hasText: 'Projects' }).count() > 0);
     await ok('searchButtonOpensPalette', async () => { await page.locator('.prod-search-btn').click(); return await page.locator('.prod-cmd').count() === 1; }); await reset();
     await ok('cmdKOpensPalette', async () => { await page.keyboard.press('Control+k'); return await page.locator('.prod-cmd').count() === 1; }); await reset();
+    await ok('slashOpensPalette', async () => { await page.keyboard.press('Slash'); return await page.locator('.prod-cmd').count() === 1; }); await reset();
     await ok('paletteSearchFindsIssue', async () => {
       await page.locator('.prod-search-btn').click();
       await page.fill('.prod-cmd-input', await page.locator('.prod-row .prod-id').first().textContent());

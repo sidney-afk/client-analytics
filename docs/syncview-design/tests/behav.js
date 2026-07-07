@@ -19,6 +19,7 @@ const { chromium } = require('playwright');
   R.paletteSearch = await p.evaluate(() => document.querySelectorAll('.cmdk-item').length > 0);
   await p.keyboard.press('Escape'); await reset();
   await p.keyboard.press('Control+k'); R.cmdkKey = await p.evaluate(() => !!document.querySelector('.cmdk')); await p.keyboard.press('Escape'); await reset();
+  await p.keyboard.press('Slash'); R.slashSearchKey = await p.evaluate(() => !!document.querySelector('.cmdk')); await p.keyboard.press('Escape'); await reset();
   R.team = await p.evaluate(() => { const c = t => { S.view = { type: 'projects', team: t }; S.projectOpen = null; render(); return document.querySelectorAll('.pcard').length; }; return c('video') > c('graphics') && c('graphics') > 0; }); await reset();
   R.star = await p.evaluate(() => { openIssue('VID-12586'); const s = document.querySelector('.crumb-star'); s.click(); const on = document.querySelector('.crumb-star').classList.contains('on'); document.querySelector('.crumb-star').click(); const off = !document.querySelector('.crumb-star').classList.contains('on'); return on && off; }); await reset();
   R.chevron = await p.evaluate(() => { S.collapsed = new Set(); render(); const gh = document.querySelector('.grp-hd'); const key = gh.getAttribute('data-grp'); const chev = gh.querySelector('.gchev'); const r = chev.getBoundingClientRect(); document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2).dispatchEvent(new MouseEvent('click', { bubbles: true })); return S.collapsed.has(key); }); await reset();

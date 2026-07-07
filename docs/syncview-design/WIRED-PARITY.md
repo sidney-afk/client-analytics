@@ -435,3 +435,14 @@ Cycle 22 ran a no-op live Linear snapshot in read-only mode. Before/after visibl
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
 
 Validation coverage: `pixel-wired.js` now includes the row status-hover affordance comparison, alongside the existing dark palette checks.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 23
+
+Cycle 23 ran a no-op live Linear snapshot in read-only mode. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed. The code change was limited to wired preview due-pill presentation.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Overdue due-date pill chrome | fixed | Wired overdue pills no longer use the old orange warning fill/border/text. They now keep neutral pill chrome and color only the calendar icon with the dark overdue token, matching the artifact. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+Validation coverage: `pixel-wired.js` now compares overdue due-pill chrome and icon color between artifact and wired preview.

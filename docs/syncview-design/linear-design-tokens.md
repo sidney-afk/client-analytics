@@ -10,7 +10,9 @@ snap the mockup to exact values, and to Codex as the build spec.
 > measurements below remain the historical component geometry/type source unless
 > a newer cycle explicitly supersedes a value. Cycle 22 removed leftover light
 > component fills from scrollbars/status hovers and moved board/detail hardcoded
-> text colors onto the same dark shell tokens.
+> text colors onto the same dark shell tokens. Cycle 23 aligned wired overdue
+> due-date pills to the artifact pattern: neutral pill chrome, overdue color on
+> the calendar icon.
 > Phase 2 (behavioral parity) added new *component* styles in the prototype source
 > (e.g. `.act-sys` activity rows, `.pcard-check`/`.pcard-sel` board selection,
 > `.pop-empty` picker empty-state, `.composer-hint`, action-bar quick-action buttons) —

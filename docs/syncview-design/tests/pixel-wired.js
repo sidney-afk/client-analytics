@@ -316,6 +316,7 @@ async function run() {
       ['--muted', '--prod-muted', '#8f8f96'],
       ['--faint', '--prod-faint', '#6f6f78'],
       ['--link', '--prod-link', '#8ea0ff'],
+      ['--overdue', '--prod-overdue', '#ff5f5f'],
     ];
     const artifactVars = await artifact.evaluate(keys => {
       const cs = getComputedStyle(document.documentElement);
@@ -333,6 +334,8 @@ async function run() {
     await artifact.locator('.row .st').first().hover();
     await wired.locator('.prod-status[data-st]').first().hover();
     await compareStyles(gaps, 'row status hover affordance', artifact, wired, '.row .st', '.prod-status[data-st]', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'backgroundColor', 'borderRadius']);
+    await compareStyles(gaps, 'overdue due pill', artifact, wired, '.due.over', '.prod-due.over', ['height', 'display', 'alignItems', 'gap', 'backgroundColor', 'borderTopColor', 'color']);
+    await compareStyles(gaps, 'overdue due icon', artifact, wired, '.due.over svg', '.prod-due.over svg', ['color']);
 
     await artifact.locator('[data-brandmenu]').click();
     await wired.locator('[data-prod-brandmenu]').click();

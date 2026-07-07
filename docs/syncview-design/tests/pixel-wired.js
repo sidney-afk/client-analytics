@@ -340,6 +340,20 @@ async function run() {
     if (graphicsBoardA || graphicsBoardW) gaps.push({ rank: 1, state: 'graphics issues locked display', message: `Graphics Issues rendered as board artifact=${graphicsBoardA} wired=${graphicsBoardW}` });
     if (/Rocio'?s Board/i.test(graphicsTextA)) gaps.push({ rank: 1, state: 'graphics issues locked display', message: 'artifact Graphics Issues contains saved-board title' });
     if (/Rocio'?s Board/i.test(graphicsTextW)) gaps.push({ rank: 1, state: 'graphics issues locked display', message: 'wired Graphics Issues contains saved-board title' });
+    await artifact.evaluate(() => { S.view = { type: 'my' }; S.open = null; S.projectOpen = null; render(); });
+    await wired.evaluate(() => window._prodSetView('my'));
+    await artifact.waitForSelector('.main');
+    await wired.waitForSelector('.prod-main');
+    const myTabsA = await artifact.locator('.tb-tabs .tb-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').replace(/\s+/g, ' ').trim()));
+    const myTabsW = await wired.locator('.prod-tabs .prod-tab').evaluateAll(nodes => nodes.map(n => (n.textContent || '').replace(/\s+/g, ' ').trim()));
+    const lockedMyTabs = /^(Assigned|Created|Subscribed|Activity)$/i;
+    myTabsA.concat(myTabsW).forEach(label => {
+      if (lockedMyTabs.test(label)) gaps.push({ rank: 1, state: 'my issues locked removals', message: `broader live My Issues tab returned: ${label}` });
+    });
+    const myChromeA = (await artifact.locator('.topbar, .subbar').evaluateAll(nodes => nodes.map(n => n.innerText).join(' '))).replace(/\s+/g, ' ');
+    const myChromeW = (await wired.locator('.prod-topbar, .prod-subbar').evaluateAll(nodes => nodes.map(n => n.innerText).join(' '))).replace(/\s+/g, ' ');
+    if (/Create new issue/i.test(myChromeA)) gaps.push({ rank: 1, state: 'my issues locked removals', message: 'artifact My issues contains create chrome' });
+    if (/Create new issue/i.test(myChromeW)) gaps.push({ rank: 1, state: 'my issues locked removals', message: 'wired My issues contains create chrome' });
     await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.open = null; S.projectOpen = null; render(); });
     await wired.evaluate(() => window._prodOpenTeamView('video', 'list'));
     await artifact.waitForSelector('.row');

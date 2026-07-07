@@ -921,3 +921,12 @@ Local artifact-vs-wired verification added a team-Issues display guard. `pixel-w
 |---|---:|---|
 | Graphics Issues display mode | test-hardened | Graphics Issues remains the simplified status-grouped issue surface; live Linear's saved board display remains an owner-scope decision. |
 | Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 48
+
+Local artifact-vs-wired verification added a My Issues chrome guard. `pixel-wired.js` now opens My Issues and fails if the broader live Linear tab set or manual-create chrome returns while the owner decision remains unresolved.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| My Issues tab/create chrome | test-hardened | The simplified My Issues surface keeps the standard issue tabs and no create button; live Linear's Assigned/Created/Subscribed/Activity tabs and create empty state remain owner-scope decisions. |
+| Issue/sub-issue data model | unchanged | No live probe ran and no adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering relationships changed. |

@@ -657,3 +657,12 @@ Cycle 47 was local-only. `pixel-wired.js` now fails if Graphics Issues drifts in
 |---|---:|---|
 | Graphics Issues display mode | test-hardened | Graphics Issues remains the simplified status-grouped issue surface; live Linear's saved board display remains an owner-scope decision. |
 | Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 48
+
+Cycle 48 was local-only. `pixel-wired.js` now fails if My Issues reintroduces live Linear's broader tab set or manual-create chrome while that product-scope decision remains unresolved.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| My Issues tab/create chrome | test-hardened | The simplified My Issues surface keeps the standard issue tabs and no create button; live Linear's Assigned/Created/Subscribed/Activity tabs and create empty state remain an owner-scope decision. |
+| Issue/sub-issue data model | unchanged | No live Linear probe ran and no JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

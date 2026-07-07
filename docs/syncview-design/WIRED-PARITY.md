@@ -543,3 +543,13 @@ Cycle 35 ran read-only live Linear row-context Assignee and Due date submenu pro
 | Row context Assignee submenu | verified | Live Linear's assignee picker shell matches the simplified picker shape. The live invite row remains omitted as mutation/scope-expanding chrome. |
 | Row context Due date submenu | fixed | Prototype and wired now use live Linear's quick due placeholder, `Try: 24h, 7 days, Feb 9`. The live cycle-based quick option remains omitted because cycles are a locked skeleton removal. |
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 36
+
+Cycle 36 ran a read-only live Linear row-context Copy submenu probe on the current issue-list tab. Before/after visible issue-row snapshots contained 18 content rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Row context Copy submenu | fixed | Prototype and wired now use a `Copy` submenu with the live copy-only rows: ID, URL, title, title as link, description/content as Markdown, git branch name, and prompt. |
+| Make a copy | deferred-B3 | Omitted because it creates/duplicates work and is not part of the read-only B2 preview. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

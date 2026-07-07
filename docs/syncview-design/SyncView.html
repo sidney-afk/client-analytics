@@ -705,7 +705,19 @@ function layerPop(html,x,y,skipNav){const L=$("#layer");L.innerHTML="";L.style.p
   const r=p.getBoundingClientRect();let nx=x,ny=y;if(x+r.width>innerWidth-8)nx=innerWidth-r.width-8;if(y+r.height>innerHeight-8)ny=Math.max(8,innerHeight-r.height-8);
   p.style.left=nx+"px";p.style.top=ny+"px";p.style.visibility="visible";if(!skipNav)wireMenuNav(p);return p;}
 function targetIds(id){if(id&&S.selected.has(id))return[...S.selected];if(id)return[id];return[...S.selected];}
-const HASSUB={status:1,assign:1,due:1,proj:1,move:1};
+const HASSUB={status:1,assign:1,due:1,proj:1,move:1,copy:1};
+const COPYCTX=[
+  ["Copy ID","Ctrl .","ID"],
+  ["Copy URL","Ctrl ⇧ ,","URL"],
+  ["Copy title","Ctrl ⇧ '","title"],
+  ["Copy title as link","Ctrl C","title link"],
+  ["Copy description as Markdown","","description"],
+  ["Copy content as Markdown","Ctrl Alt C","content"],
+  ["Copy git branch name","Ctrl ⇧ .","branch name"],
+  ["Copy as prompt","Ctrl Alt P","prompt"]
+];
+function copyMenuHTML(){return '<div class="pop-list">'+COPYCTX.map(function(row,i){return '<div class="mi" data-copy="'+i+'"><span class="mic">'+I.copy+'</span><span class="mlbl">'+row[0]+'</span>'+(row[1]?'<span class="kbd">'+row[1]+'</span>':'')+'</div>';}).join("")+'</div>';}
+function wireCopyMenu(pop,ids){pop.querySelectorAll("[data-copy]").forEach(function(el){el.onclick=function(){var row=COPYCTX[+el.getAttribute("data-copy")];clearLayer();toast((ids.length>1?ids.length+" items ":"")+row[2]+" copied");};});wireMenuNav(pop);}
 function PICK(kind){
   if(kind==="status")return {hd:"Change status…",ph:"Change status…",search:true,items:STATUS_ORDER.map((k,n)=>({v:k,label:STATUS[k].name,html:'<span class="mic">'+statusSVG(k)+'</span><span class="mlbl">'+STATUS[k].name+'</span><span class="kbd">'+(n<10?(n+1)%10:"")+'</span>'}))};
   if(kind==="assign")return {hd:"Assign to…",ph:"Assign to…",search:true,items:[{v:"_",label:"No assignee",html:'<span class="mic">'+I.assignI+'</span><span class="mlbl">No assignee</span>'}].concat(Object.keys(EDITORS).map(k=>({v:k,label:EDITORS[k].name,html:'<span class="mic">'+avatar(k,16)+'</span><span class="mlbl">'+EDITORS[k].name+'</span>'})))};
@@ -740,6 +752,7 @@ let subPop=null;
 function closeSub(){if(subPop){subPop.remove();subPop=null;}}
 function openSub(parentEl,kind,ids){closeSub();const p=document.createElement("div");p.className="pop";p.style.visibility="hidden";p.addEventListener("click",e=>e.stopPropagation());$("#layer").appendChild(p);const r=parentEl.getBoundingClientRect();
   if(kind==="due"){p.classList.add("duepop");buildDue(p,byId(ids[0]),ids,{x:r.right-4,y:r.top-6,flipX:r.left});subPop=p;return;}
+  if(kind==="copy"){p.innerHTML=copyMenuHTML();const pr=p.getBoundingClientRect();let x=r.right-4,y=r.top-6;if(x+pr.width>innerWidth-8)x=r.left-pr.width+4;if(y+pr.height>innerHeight-8)y=Math.max(8,innerHeight-pr.height-8);p.style.left=x+"px";p.style.top=y+"px";p.style.visibility="visible";wireCopyMenu(p,ids);subPop=p;return;}
   p.innerHTML=pickerHTML(kind,ids.length===1?curVal(kind,ids[0]):null);const pr=p.getBoundingClientRect();let x=r.right-4,y=r.top-6;if(x+pr.width>innerWidth-8)x=r.left-pr.width+4;if(y+pr.height>innerHeight-8)y=Math.max(8,innerHeight-pr.height-8);p.style.left=x+"px";p.style.top=y+"px";p.style.visibility="visible";
   wirePicker(p,kind,ids);subPop=p;}
 function stdMenu(kind,x,y,id){const ids=targetIds(id);const cur=ids.length===1?curVal(kind,ids[0]):null;const p=layerPop(pickerHTML(kind,cur),x,y);wirePicker(p,kind,ids);}
@@ -796,7 +809,7 @@ function buildDue(pop,cur,ids,anchor){let view="quick",calM=new Date(TODAY.getFu
 function openDueMenu(x,y,id){const ids=targetIds(id);const p=layerPop('',x,y,true);p.classList.add("duepop");buildDue(p,byId(id),ids,{x,y});}
 function openClientMenu(x,y,id){stdMenu("proj",x,y,id);}
 function openCommentMenu(x,y,idx){var p=layerPop('<div class="mi" data-cedit="1"><span class="mlbl">Edit</span></div><div class="mi danger" data-cdel="1"><span class="mlbl">Delete</span></div>',x,y);p.querySelector("[data-cedit]").onclick=function(){S.editComment=idx;clearLayer();render();};p.querySelector("[data-cdel]").onclick=function(){var it=byId(S.open);var removed=it&&it.comments[idx];if(removed)it.comments.splice(idx,1);S.editComment=null;clearLayer();render();if(removed){var oid=it.id;toastUndo("Comment deleted",function(){var t2=byId(oid);if(t2){t2.comments.splice(Math.min(idx,t2.comments.length),0,removed);render();}});}else{toast("Comment deleted");}};}
-const CTX=[["Status",I.issues,"S","status"],["Assignee",I.assignI,"A","assign"],["Due date",I.cal,"⇧D","due"],["Project",I.project,"⇧P","proj"],["sep"],["Copy link",I.copy,"","copy"],["Move",I.move,"","move"],["sep"],["Delete",I.trash,"Ctrl Delete","del","danger"]];
+const CTX=[["Status",I.issues,"S","status"],["Assignee",I.assignI,"A","assign"],["Due date",I.cal,"⇧D","due"],["Project",I.project,"⇧P","proj"],["sep"],["Copy",I.copy,"","copy"],["Move",I.move,"","move"],["sep"],["Delete",I.trash,"Ctrl Delete","del","danger"]];
 function openContextMenu(x,y,id){const ids=targetIds(id);
   const html=CTX.map(m=>{if(m[0]==="sep")return '<div class="msep"></div>';const[lbl,ico,kbd,act,flag]=m;const chev=!!HASSUB[act];
     return '<div class="mi '+(flag==="danger"?"danger":"")+'" data-ctx="'+act+'"><span class="mic">'+ico+'</span><span class="mlbl">'+lbl+'</span>'+(kbd?'<span class="kbd">'+kbd+'</span>':"")+(chev?'<span class="chev">'+I.chevR+'</span>':"")+'</div>';}).join("");

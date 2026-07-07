@@ -572,6 +572,13 @@ async function run() {
     await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-status-submenu');
     await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-status-submenu');
     comparePickerInventory(gaps, 'context status submenu inventory', await pickerInventory(artifact, '#layer .pop [data-i]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]'));
+    await artifact.locator('#layer .pop [data-ctx="copy"]').first().hover();
+    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="copy"]').first().hover();
+    await artifact.waitForSelector('#layer .pop [data-copy]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-copy]');
+    await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-copy-submenu');
+    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-copy-submenu');
+    comparePickerInventory(gaps, 'context copy submenu inventory', await pickerInventory(artifact, '#layer .pop [data-copy]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-copy]'));
     await artifact.keyboard.press('Escape');
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
 
@@ -830,7 +837,7 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed');
+    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status/copy submenus, due popover, bulk picker anchor, filter pill, filtered empty state, board drag/scroll, detail, and browser history parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

@@ -803,3 +803,15 @@ Read-only live observation used the current Linear issue-list tab and hover-open
 | Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
 
 Pixel lane addition: `pixel-wired.js` now asserts the exact live due placeholder text in addition to artifact/wired equality.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 36
+
+Read-only live observation used the current Linear issue-list tab, opened one row context menu, hover-opened the Copy submenu, then closed it with Escape. Before/after visible issue-row snapshots contained 18 content rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Row context Copy submenu | fixed | Live Linear's row menu uses `Copy` as a submenu. Prototype and wired now expose the safe copy-only rows: Copy ID, Copy URL, Copy title, Copy title as link, Copy description as Markdown, Copy content as Markdown, Copy git branch name, and Copy as prompt. |
+| Make a copy | deferred-B3 | The live submenu also includes `Make a copy...`; that duplicates/creates work and stays omitted in the read-only B2 preview. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Pixel lane addition: `pixel-wired.js` now captures and compares the row context Copy submenu inventory. `behav-wired.js` now proves Copy URL from that submenu still produces a `?prod=1&d=...` deep link without write requests.

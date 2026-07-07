@@ -228,7 +228,7 @@ async function assertNoWriteRequests(requests) {
     if (!(await text(page, '#prodToast')).includes('Preview - read-only')) throw new Error('Status picker did not route to read-only guard');
     await page.keyboard.press('Escape');
     await row.click({ button: 'right' });
-    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy link item');
+    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'row context Copy submenu item');
     await page.locator('.prod-pop').first().evaluate(pop => {
       pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
       pop.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
@@ -245,11 +245,13 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'context Status hover opens submenu picker');
     await expectCount(page, '#prodLayer .prod-pop .tick', 1, 'context picker marks current value');
     await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'row context disabled mutation items');
-    await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+    await page.locator('.prod-pop [data-prod-ctx="copy"]').hover();
+    await expectCount(page, '#prodLayer .prod-pop [data-prod-copy]', 1, 'context Copy hover opens submenu');
+    await page.locator('#prodLayer .prod-pop [data-prod-copy]').filter({ hasText: 'Copy URL' }).click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedIssueLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
     if (!copiedIssueLink.includes('?prod=1') || !copiedIssueLink.includes('d=')) throw new Error('Row Copy link did not create a ?prod=1&d= deep link');
-    await expectExactCount(page, '.prod-pop', 0, 'context menu closed after Copy link');
+    await expectExactCount(page, '.prod-pop', 0, 'context menu closed after Copy URL');
 
     for (const tab of ['Active', 'Backlog', 'All issues']) {
       if (!(await page.locator('.prod-tab', { hasText: tab }).count())) throw new Error('Issue tab missing: ' + tab);
@@ -362,9 +364,9 @@ async function assertNoWriteRequests(requests) {
     const cardIconBadFallback = await page.locator('[data-prod-client-card] .prod-card-ico').evaluateAll(nodes => nodes.some(n => (n.textContent || '').trim() === 'S' && !n.querySelector('svg')));
     if (cardIconBadFallback) throw new Error('Project card icon fell back to the letter S instead of the artifact project glyph');
     await card.click({ button: 'right' });
-    await expectCount(page, '.prod-pop [data-prod-ctx="copy"]', 1, 'project card context Copy link item');
+    await expectCount(page, '.prod-pop [data-prod-ctx="copyDirect"]', 1, 'project card context Copy link item');
     await expectCount(page, '.prod-pop [data-prod-disabled^="context-"][title="Preview - read-only"]', 1, 'project card context disabled mutation items');
-    await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+    await page.locator('.prod-pop [data-prod-ctx="copyDirect"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
     const copiedProjectLink = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
     if (!copiedProjectLink.includes('?prod=1') || !copiedProjectLink.includes('client=')) throw new Error('Project Copy link did not create a ?prod=1 client deep link');

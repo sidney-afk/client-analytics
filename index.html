@@ -28462,6 +28462,55 @@
                 fail();
             }
         }
+        const PROD_COPY_CONTEXT_ROWS = [
+            { label: 'Copy ID', key: 'Ctrl .', act: 'copyId' },
+            { label: 'Copy URL', key: 'Ctrl ⇧ ,', act: 'copyUrl' },
+            { label: 'Copy title', key: "Ctrl ⇧ '", act: 'copyTitle' },
+            { label: 'Copy title as link', key: 'Ctrl C', act: 'copyTitleLink' },
+            { label: 'Copy description as Markdown', key: '', act: 'copyDescription' },
+            { label: 'Copy content as Markdown', key: 'Ctrl Alt C', act: 'copyContent' },
+            { label: 'Copy git branch name', key: 'Ctrl ⇧ .', act: 'copyBranch' },
+            { label: 'Copy as prompt', key: 'Ctrl Alt P', act: 'copyPrompt' }
+        ];
+        function _prodCopyText(value, message) {
+            const text = String(value || '');
+            try { window.__prodLastCopied = text; } catch (e) {}
+            const done = () => _prodToast(message || 'Copied');
+            const fail = () => _prodToast('Copy failed');
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fail);
+                else done();
+            } catch (e) {
+                fail();
+            }
+        }
+        function _prodIssueCopyPayload(act, ids) {
+            return (ids || []).map(issueId => {
+                const issue = _prodIssue(issueId);
+                const displayId = issue ? (issue.displayId || issue.id || issueId) : issueId;
+                const title = issue ? (issue.title || _prodIssueLabel(issue)) : displayId;
+                const desc = issue ? String(issue.desc || '') : '';
+                const file = issue ? String(issue.file || '') : '';
+                const link = _prodLinkFor('issue', issueId);
+                if (act === 'copyId') return displayId;
+                if (act === 'copyTitle') return title;
+                if (act === 'copyTitleLink') return '[' + title + '](' + link + ')';
+                if (act === 'copyDescription') return desc;
+                if (act === 'copyBranch') {
+                    const slug = (displayId + '-' + title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96);
+                    return slug || displayId.toLowerCase();
+                }
+                const heading = '# ' + [displayId, title].filter(Boolean).join(' ');
+                const body = [heading, desc, file ? 'Delivered file: ' + file : '', 'Preview link: ' + link].filter(Boolean).join('\n\n');
+                if (act === 'copyPrompt') return 'Use this SyncView production issue as context.\n\n' + body;
+                return body;
+            }).join('\n\n---\n\n');
+        }
+        function _prodCopyContextHTML() {
+            return '<div class="prod-pop-list">' + PROD_COPY_CONTEXT_ROWS.map((row, i) =>
+                '<div class="prod-mi" data-prod-copy="' + i + '"><span class="mic">' + _prodIcon('copy') + '</span><span class="mlbl">' + _calEsc(row.label) + '</span>' + (row.key ? '<span class="kbd">' + _calEsc(row.key) + '</span>' : '') + '</div>'
+            ).join('') + '</div>';
+        }
         function _prodReadonlyGuard() {
             _prodToast(_prodPreviewText());
             return false;
@@ -28809,6 +28858,31 @@
                 _prodSubPop = p;
                 return;
             }
+            if (kind === 'copy') {
+                p.innerHTML = _prodCopyContextHTML();
+                const pr = p.getBoundingClientRect();
+                let x = r.right - 4;
+                let y = r.top - 6;
+                if (x + pr.width > innerWidth - 8) x = r.left - pr.width + 4;
+                if (y + pr.height > innerHeight - 8) y = Math.max(8, innerHeight - pr.height - 8);
+                _prodPlacePop(p, x, y);
+                p.style.visibility = 'visible';
+                p.querySelectorAll('[data-prod-copy]').forEach(el => {
+                    el.addEventListener('click', e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const row = PROD_COPY_CONTEXT_ROWS[+el.getAttribute('data-prod-copy')];
+                        const copyIds = ids && ids.length ? ids : [];
+                        _prodClearLayer();
+                        if (!row || !copyIds.length) return;
+                        if (row.act === 'copyUrl') _prodCopyLink('issue', copyIds.length > 1 ? copyIds : copyIds[0]);
+                        else _prodCopyText(_prodIssueCopyPayload(row.act, copyIds), copyIds.length > 1 ? copyIds.length + ' items copied' : row.label.replace('Copy ', '') + ' copied');
+                    });
+                });
+                _prodWirePlainMenu(p);
+                _prodSubPop = p;
+                return;
+            }
             p.innerHTML = _prodPickerHTML(kind, ids.length === 1 ? _prodCurVal(kind, ids[0]) : null);
             const pr = p.getBoundingClientRect();
             let x = r.right - 4;
@@ -29097,7 +29171,7 @@
                 ev.stopPropagation();
             }
             const preview = _prodPreviewText();
-            const hasSub = { status: 1, assign: 1, due: 1, proj: 1 };
+            const hasSub = { status: 1, assign: 1, due: 1, proj: 1, copy: 1 };
             const menuItem = (label, icon, kbd, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const disabled = (label, icon, kbd, danger, chev) =>
@@ -29110,7 +29184,7 @@
                 menuItem('Due date', _prodIcon('cal'), '⇧D', 'due'),
                 menuItem('Project', _prodIcon('project'), '⇧P', 'proj'),
                 '<div class="prod-msep"></div>',
-                active('Copy link', _prodIcon('copy'), 'copy'),
+                menuItem('Copy', _prodIcon('copy'), '', 'copy'),
                 disabled('Move', _prodIcon('move'), '', false, true),
                 '<div class="prod-msep"></div>',
                 disabled('Delete', _prodIcon('trash'), 'Ctrl Delete', true)
@@ -29120,7 +29194,7 @@
                 disabled('Set lead', _prodIcon('assign'), 'A'),
                 disabled('Set target', _prodIcon('cal'), '⇧D'),
                 '<div class="prod-msep"></div>',
-                active('Copy link', _prodIcon('copy'), 'copy')
+                active('Copy link', _prodIcon('copy'), 'copyDirect')
             ];
             const pop = _prodLayerPop((kind === 'client' ? projectMenu : issueMenu).join(''), ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 160);
             pop.querySelectorAll('[data-prod-ctx]').forEach(el => {
@@ -29134,7 +29208,7 @@
                     });
                     return;
                 }
-                if (act === 'copy') el.addEventListener('click', () => {
+                if (act === 'copy' || act === 'copyDirect') el.addEventListener('click', () => {
                     _prodClearLayer();
                     const copyKind = kind === 'client' ? 'client' : kind === 'batch' ? 'batch' : 'issue';
                     const copyIds = copyKind === 'issue' ? _prodTargetIds(id) : [id];

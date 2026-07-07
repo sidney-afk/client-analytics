@@ -273,7 +273,8 @@ async function txt(page, sel) {
     await ok('copyCount', async () => {
       await page.keyboard.press('Control+a');
       await page.locator('.prod-row').first().click({ button: 'right' });
-      await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+      await page.locator('.prod-pop [data-prod-ctx="copy"]').hover();
+      await page.locator('.prod-pop [data-prod-copy]').filter({ hasText: 'Copy URL' }).click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const copied = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
       return (await txt(page, '#prodToast')).includes('links copied') && copied.split('\n').length > 1;
@@ -1254,7 +1255,8 @@ async function txt(page, sel) {
     }); await reset();
     await ok('contextCopyDeepLink', async () => {
       await page.locator('.prod-row').first().click({ button: 'right' });
-      await page.locator('.prod-pop [data-prod-ctx="copy"]').click();
+      await page.locator('.prod-pop [data-prod-ctx="copy"]').hover();
+      await page.locator('.prod-pop [data-prod-copy]').filter({ hasText: 'Copy URL' }).click();
       const copied = await page.evaluate(() => window.__prodCopied || window.__prodLastCopied || '');
       return copied.includes('?prod=1') && copied.includes('d=');
     }); await reset();

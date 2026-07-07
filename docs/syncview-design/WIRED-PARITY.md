@@ -45,6 +45,15 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Project detail tabs and rich side panels | live Linear project detail | ⬜ | Live Linear has Overview/Activity/Issues tabs and rich properties/resources/progress. Several fields overlap removed features or mutating settings; left for owner decision. |
 | Notification settings popover | live Linear topbar bell | 🔒 | Bell popover edits notification settings. Deferred from B2 read-only preview rather than adding a settings mutation surface. |
 
+## 2026-07-07 Live Linear Parity Cycle 6
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered My Issues, palette empty/search states, Graphics Issues, and Graphics Projects. Recovered list comparison after navigation returned 20 visible rows before and after, `changed:false`. |
+| My Issues tab set and create-empty state | live Linear My Issues | ⬜ | Live Linear shows Assigned/Created/Subscribed/Activity and a Create new issue empty-state button. Manual creation is a locked removed surface; owner decision needed before porting tab chrome or an adjusted empty state. |
+| Graphics Issues saved board display | live Linear Graphics Issues | ⬜ | Live Linear opened Graphics Issues as a board-style saved display ("Rocio's Board"). SyncView currently keeps team Issues as the simplified issue surface; display-mode parity remains an owner decision. |
+| Team overview route from palette/navigation | live Linear navigation | ⬜ | Palette/navigation probing can land on team overview. SyncView does not model team overview in the locked skeleton; left for owner scope decision. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

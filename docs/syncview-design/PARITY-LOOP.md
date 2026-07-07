@@ -41,6 +41,16 @@ No code change was made in this cycle. The observed deltas are larger scope deci
 
 Private local evidence: `.codex-tmp/linear-live-cycle5/before-after-compare.json` plus local screenshots for sidebar, row hover, notification popover, projects board, project-card context menu, and project detail.
 
+# Live Linear parity cycle 6 - 2026-07-07
+Read-only observation focused on My Issues, command-palette empty/search states, Graphics Issues, and Graphics Projects. No issue field, project field, picker value, drag, edit, save, or create path was clicked. The raw after snapshot initially landed on the Video team overview page after palette/navigation probing, so it was not used as safety evidence; the recovery pass navigated back to the Video issue list and compared the visible issue rows against the pre-cycle snapshot. Recovered before/after visible issue snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+No code change was made in this cycle. The observed deltas are product-shape decisions:
+- Live Linear's My Issues surface includes Assigned/Created/Subscribed/Activity tabs and an empty state with a "Create new issue" button. Manual issue creation is a locked removed surface for SyncView, so this is not partially ported without owner direction.
+- Live Linear's Graphics Issues opened in a board-style saved display ("Rocio's Board") with status columns and card rows. SyncView's locked skeleton currently treats team Issues as the simplified status-grouped issue surface; view/display-mode parity remains an owner decision.
+- Palette search/navigation can leave the user on a team overview route. SyncView currently avoids team overview as a first-class skeleton surface, so this remains a navigation-scope decision rather than a hidden route addition.
+
+Private local evidence: `.codex-tmp/linear-live-cycle6/before-after-recovered-compare.json` plus local screenshots for My Issues, palette empty/search states, Graphics Issues, and Graphics Projects.
+
 # ✅ BEHAVIORAL PARITY DONE — 2026-07-05
 SyncView now behaves like real Linear across every surface. **11 adversarial re-audits** run (5 parallel agents vs live Linear each); the finding count converged **22→20→12→11→13→15→9→8→11→10→7**, and the **last SIX all returned 0 high-severity / 0 regressions** — remaining findings are deep polish + intentional skeleton/layout limitations, not defects. **~115 divergences closed** across the behavioral phase. Regression suite: **`behav.js` 138 assertions (all green)**, `qa-features.js` GREEN, `sweep.js` CLEAN, **0 JS errors** throughout.
 **All real features shipped:** live row-glyph clicks (chip→profile / due→picker / avatar+status pickers); full list multi-select (checkbox/x/Cmd-click/Shift-click/Shift-arrows) + bulk action bar w/ inline quick-actions; keyboard model (j/k, Enter focused-or-hovered, s/a/⇧D/⇧P, ⌘K palette, Escape hierarchy); delete + comment-delete **Undo (Ctrl/⌘+Z)**; detail property pickers + calendar (arrow-nav, unified month paging, typed input); **Activity feed logs system events** (on the edited issue, wherever triggered); comment edit (blur discards); **board keyboard nav**; **board card multi-select** (mouse + `x`) + board bulk bar; truncation-aware tooltips; picker/filter "No results"; detail-panel scroll preservation.

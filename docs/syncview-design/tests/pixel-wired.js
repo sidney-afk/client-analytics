@@ -558,13 +558,62 @@ async function run() {
     await shot(artifact, 'artifact-detail');
     await shot(wired, 'wired-detail');
 
+    await artifact.evaluate(() => {
+      if (typeof clearLayer === 'function') clearLayer();
+      S.open = null;
+      S.projectOpen = null;
+      S.view = { type: 'issues', team: 'video' };
+      S.filters = [];
+      S.selected.clear();
+      render();
+      replaceLoc();
+    });
+    await wired.evaluate(() => {
+      if (typeof _prodClearLayer === 'function') _prodClearLayer();
+      _prodState.view = 'list';
+      _prodState.team = 'video';
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openProjectId = '';
+      _prodState.filters = [];
+      _prodState.selected.clear();
+      _prodSetQuery({}, false);
+      _prodRender();
+    });
+    await artifact.locator('.row').first().click();
+    await wired.locator('.prod-row').first().click();
+    await artifact.waitForSelector('.detail');
+    await wired.waitForSelector('.prod-detail');
+    await shot(artifact, 'artifact-history-detail');
+    await shot(wired, 'wired-history-detail');
+    const detailIdBeforeRefresh = await wired.evaluate(() => _prodState.openId);
+    await artifact.goBack();
+    await wired.goBack();
+    await artifact.waitForSelector('.row');
+    await wired.waitForSelector('.prod-row');
+    await shot(artifact, 'artifact-history-back-list');
+    await shot(wired, 'wired-history-back-list');
+    await artifact.goForward();
+    await wired.goForward();
+    await artifact.waitForSelector('.detail');
+    await wired.waitForSelector('.prod-detail');
+    await shot(artifact, 'artifact-history-forward-detail');
+    await shot(wired, 'wired-history-forward-detail');
+    const forwardRestored = await wired.evaluate(id => _prodState.view === 'detail' && _prodState.openId === id, detailIdBeforeRefresh);
+    if (!forwardRestored) gaps.push({ rank: 1, state: 'browser history', message: 'wired forward navigation did not restore the opened detail' });
+    await wired.reload({ waitUntil: 'domcontentloaded' });
+    await wired.waitForSelector('.prod-detail', { timeout: 30000 });
+    const refreshRestored = await wired.evaluate(id => _prodState.view === 'detail' && _prodState.openId === id, detailIdBeforeRefresh);
+    if (!refreshRestored) gaps.push({ rank: 1, state: 'browser refresh', message: 'wired detail deep link did not restore after refresh' });
+    await shot(wired, 'wired-history-refresh-detail');
+
     gaps.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));
     if (gaps.length) {
       console.error('pixel-wired gaps:');
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board, and detail parity checks passed');
+    console.log('pixel-wired: list, icon paths, palette, selection/actionbar, status picker inventory, row context menu, context status submenu, due popover, bulk picker anchor, filter pill, filtered empty state, board, detail, and browser history parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

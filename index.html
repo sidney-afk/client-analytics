@@ -29111,12 +29111,18 @@
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
                 const client = q.get('client');
-                if (client) _prodState.clientSlug = client;
+                _prodState.clientSlug = client || '';
+                _prodState.openProjectId = '';
                 if (view === 'project' && client) { _prodState.openProjectId = client; _prodState.clientSlug = ''; }
                 const d = q.get('d');
                 const batch = q.get('batch');
                 if (d) { _prodState.openId = d; _prodState.openBatchId = ''; _prodState.view = 'detail'; }
                 else if (batch) { _prodState.openBatchId = batch; _prodState.openId = ''; _prodState.view = 'batch'; }
+                else {
+                    _prodState.openId = '';
+                    _prodState.openBatchId = '';
+                    if (view !== 'my' && view !== 'board' && view !== 'project') _prodState.view = 'list';
+                }
             } catch (e) {}
         }
         function _prodSetQuery(extra, push) {

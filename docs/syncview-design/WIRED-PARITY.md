@@ -479,3 +479,12 @@ Cycle 26 used the Cycle 25 live tooltip evidence without touching live Linear ag
 | Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |
 
 Validation coverage: `behav.js` and `behav-wired.js` now include the slash-key command-palette assertion; wired guard-mode coverage is now 139/139.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 28
+
+Cycle 28 ran a read-only live Linear sidebar Search click in a fresh issue-list tab. Before/after visible issue-row snapshots both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Sidebar Search click | owner-question | Live Linear opens a full Search page; the current artifact and wired preview open the command palette. This is an information-architecture decision because the locked simplified skeleton names `Search(⌘K)`, so it remains unchanged pending owner direction. |
+| Issue/sub-issue data model | unchanged | No JavaScript data mapping, adapter parent/child logic, issue IDs, or sub-issue relationships changed. |

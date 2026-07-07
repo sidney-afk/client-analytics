@@ -719,3 +719,16 @@ Ranked finding fixed in this cycle:
 1. P2: after Cycle 25 matched live tooltip wording, the advertised `/` key needed to perform the same read-only navigation action.
 
 Behavior lane additions: `behav.js` and `behav-wired.js` now assert that `/` opens the command palette; wired guard-mode coverage is now 139/139.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 28
+
+Read-only live observation used a fresh Linear issue-list tab and clicked only the sidebar Search button. Before/after visible issue-row snapshots both contained 20 rows and compared unchanged (`changed:false`), so existing issues and sub-issues were not changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Sidebar Search click | owner-question | Live Linear navigates to a full Search page with top tabs; the current prototype and wired preview open the command palette. This may conflict with the locked simplified skeleton's `Search(⌘K)` affordance, so no code change was made without owner direction. |
+| Issue/sub-issue data model | unchanged | No adapter parent/child logic, issue IDs, sub-issue grouping, row data, or detail rendering changed. |
+
+Owner question:
+
+1. Should the simplified SyncView Production sidebar Search button keep opening the command palette, or should it adopt live Linear's full Search page behavior while preserving the simplified navigation skeleton?

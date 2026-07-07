@@ -1,0 +1,288 @@
+'use strict';
+/*
+ * Track B §10.8 pixel-parity foundation lane.
+ *
+ * The frozen artifact is docs/syncview-design/SyncView.html. This lane drives the
+ * artifact and wired ?prod=1 tab through matched states, then checks the visual
+ * contracts that are safe in B2 read-only preview. Typography differences are
+ * intentionally excluded per the owner exception.
+ */
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const root = path.resolve(__dirname, '..', '..', '..');
+const outDir = process.env.SYNCVIEW_PROD_PIXEL_SHOTS
+  ? path.resolve(process.env.SYNCVIEW_PROD_PIXEL_SHOTS)
+  : path.join(root, '.codex-tmp', 'prod-pixel-wired');
+const mime = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css',
+  '.js': 'text/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+};
+const STYLE_PROPS = [
+  'backgroundColor',
+  'borderTopColor',
+  'borderTopWidth',
+  'borderRadius',
+  'width',
+  'height',
+  'paddingLeft',
+  'paddingRight',
+  'paddingTop',
+  'paddingBottom',
+  'gap',
+  'display',
+  'alignItems',
+  'justifyContent',
+  'justifyItems',
+  'cursor',
+  'opacity',
+  'boxShadow',
+  'color',
+];
+
+function serve() {
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://127.0.0.1');
+    let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
+    p = path.normalize(p).replace(/^([.][\\/])+/, '');
+    const full = path.join(root, p);
+    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
+      res.writeHead(404);
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(full).pipe(res);
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+async function shot(page, name) {
+  fs.mkdirSync(outDir, { recursive: true });
+  await page.screenshot({ path: path.join(outDir, name + '.png'), fullPage: false });
+}
+
+function cleanPaths(paths) {
+  return paths.map(p => String(p || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
+}
+
+async function iconPaths(page, selector) {
+  return cleanPaths(await page.locator(selector + ' svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d'))));
+}
+
+async function styles(page, selector, props = STYLE_PROPS) {
+  return page.locator(selector).first().evaluate((el, names) => {
+    const cs = getComputedStyle(el);
+    const out = {};
+    names.forEach(n => { out[n] = cs[n]; });
+    return out;
+  }, props);
+}
+
+function px(v) {
+  const m = String(v || '').match(/^(-?\d+(?:\.\d+)?)px$/);
+  return m ? Number(m[1]) : null;
+}
+
+function equivalentStyle(prop, a, w) {
+  const ap = px(a);
+  const wp = px(w);
+  if (ap != null && wp != null) return Math.abs(ap - wp) <= 1;
+  return String(a) === String(w);
+}
+
+async function compareStyles(gaps, name, artifact, wired, aSel, wSel, props = STYLE_PROPS) {
+  const ac = await artifact.locator(aSel).count();
+  const wc = await wired.locator(wSel).count();
+  if (!ac || !wc) {
+    gaps.push({ rank: 1, state: name, message: `missing pair ${aSel} -> ${wSel} (${ac}/${wc})` });
+    return;
+  }
+  const a = await styles(artifact, aSel, props);
+  const w = await styles(wired, wSel, props);
+  Object.keys(a).forEach(prop => {
+    if (!equivalentStyle(prop, a[prop], w[prop])) {
+      gaps.push({ rank: 2, state: name, message: `${prop}: artifact=${a[prop]} wired=${w[prop]}` });
+    }
+  });
+}
+
+async function requirePair(gaps, state, artifact, wired, aSel, wSel) {
+  const ac = await artifact.locator(aSel).count();
+  const wc = await wired.locator(wSel).count();
+  if (!ac || !wc) gaps.push({ rank: 1, state, message: `semantic inventory missing ${aSel} -> ${wSel} (${ac}/${wc})` });
+}
+
+async function setupSelection(artifact, wired) {
+  await artifact.evaluate(() => {
+    S.open = null;
+    S.projectOpen = null;
+    S.view = { type: 'issues', team: 'video' };
+    S.selected.clear();
+    const id = flatOrder()[0];
+    if (id) S.selected.add(id);
+    render();
+  });
+  await wired.evaluate(() => {
+    _prodState.view = 'list';
+    _prodState.team = 'video';
+    _prodState.clientSlug = '';
+    _prodState.openId = '';
+    _prodState.openProjectId = '';
+    _prodState.selected = new Set(_prodFlatOrder().slice(0, 1));
+    _prodRender();
+  });
+}
+
+async function setupFilterPill(artifact, wired) {
+  await artifact.evaluate(() => {
+    S.open = null;
+    S.projectOpen = null;
+    S.view = { type: 'issues', team: 'video' };
+    S.filters = [{ field: 'status', values: ['todo'] }];
+    render();
+  });
+  await wired.evaluate(() => {
+    _prodState.view = 'list';
+    _prodState.team = 'video';
+    _prodState.clientSlug = '';
+    _prodState.openId = '';
+    _prodState.filters = [{ field: 'status', values: ['todo'] }];
+    _prodRender();
+  });
+}
+
+async function run() {
+  const gaps = [];
+  const server = await serve();
+  const port = server.address().port;
+  const browser = await chromium.launch({ headless: true });
+  const artifact = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  const wired = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  await wired.addInitScript(() => {
+    localStorage.setItem('syncview_auth_v1', 'ok');
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async text => { window.__prodCopied = text; } },
+      });
+    } catch (_) {}
+  });
+
+  try {
+    await artifact.goto(`http://127.0.0.1:${port}/docs/syncview-design/SyncView.html`, { waitUntil: 'domcontentloaded' });
+    await wired.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+    await artifact.waitForSelector('.row', { timeout: 30000 });
+    await wired.waitForSelector('.prod-row, .prod-empty, .prod-error', { timeout: 30000 });
+    if (await wired.locator('.prod-error').count()) throw new Error('wired Production tab rendered error state');
+    await shot(artifact, 'artifact-list');
+    await shot(wired, 'wired-list');
+
+    await requirePair(gaps, 'list inventory', artifact, wired, '.sb-brand', '.prod-brand');
+    await requirePair(gaps, 'list inventory', artifact, wired, '.sb-icobtn', '.prod-search-btn');
+    await requirePair(gaps, 'list inventory', artifact, wired, '#filterbtn', '#prodFilterBtn');
+    await requirePair(gaps, 'list inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');
+    await requirePair(gaps, 'list inventory', artifact, wired, '.grp-hd', '.prod-group');
+    await requirePair(gaps, 'list inventory', artifact, wired, '.row', '.prod-row');
+    const wiredTopbar = (await wired.locator('.prod-topbar').first().innerText()).replace(/\s+/g, ' ');
+    if (/\b(New issue|Refresh)\b/.test(wiredTopbar)) gaps.push({ rank: 1, state: 'topbar', message: 'wired topbar contains non-artifact New issue/Refresh chrome' });
+    const previewChips = await wired.locator('.prod-preview-chip').count();
+    if (previewChips !== 1) gaps.push({ rank: 2, state: 'topbar', message: `Preview chip count expected 1, saw ${previewChips}` });
+
+    const filterA = await iconPaths(artifact, '#filterbtn');
+    const filterW = await iconPaths(wired, '#prodFilterBtn');
+    if (filterA.join('|') !== filterW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `filter icon path drift: ${filterW.join('|')}` });
+    const displayA = await iconPaths(artifact, '#groupbtn');
+    const displayW = await iconPaths(wired, '#prodGroupBtn');
+    if (displayA.join('|') !== displayW.join('|')) gaps.push({ rank: 1, state: 'icons', message: `display icon path drift: ${displayW.join('|')}` });
+    await compareStyles(gaps, 'toolbar icon buttons', artifact, wired, '#filterbtn', '#prodFilterBtn', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'color']);
+
+    await setupSelection(artifact, wired);
+    await artifact.waitForSelector('.actionbar');
+    await wired.waitForSelector('[data-prod-actionbar]');
+    await shot(artifact, 'artifact-selection-actionbar');
+    await shot(wired, 'wired-selection-actionbar');
+    await compareStyles(gaps, 'selection actionbar', artifact, wired, '.actionbar', '.prod-actionbar', ['height', 'display', 'alignItems', 'gap', 'paddingTop', 'paddingBottom', 'borderRadius', 'backgroundColor', 'boxShadow']);
+    await compareStyles(gaps, 'selection quick button', artifact, wired, '#ab-status', '#prodBulkStatus', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    await compareStyles(gaps, 'selection checkbox', artifact, wired, '.check.on', '.prod-check.on', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'borderRadius', 'backgroundColor']);
+
+    await artifact.locator('#ab-status').click();
+    await wired.locator('#prodBulkStatus').click();
+    await artifact.waitForSelector('#layer .pop');
+    await wired.waitForSelector('#prodLayer .prod-pop');
+    const actionRects = {
+      aPop: await artifact.locator('#layer .pop').first().boundingBox(),
+      aBar: await artifact.locator('.actionbar').first().boundingBox(),
+      wPop: await wired.locator('#prodLayer .prod-pop').first().boundingBox(),
+      wBar: await wired.locator('.prod-actionbar').first().boundingBox(),
+    };
+    if (actionRects.wPop.y + actionRects.wPop.height > actionRects.wBar.y - 4) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is not anchored above the action bar' });
+    if (actionRects.wPop.y < 0 || actionRects.wPop.y + actionRects.wPop.height > 950) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is off-screen' });
+    // PORT-DELTA: owner-reported embedded-tab fix requires the wired picker to sit
+    // above the action bar even when the standalone artifact overlaps it here.
+    await shot(artifact, 'artifact-actionbar-status-picker');
+    await shot(wired, 'wired-actionbar-status-picker');
+    await artifact.keyboard.press('Escape');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+    await wired.keyboard.press('Escape');
+    const cleared = await wired.evaluate(() => _prodState.selected.size === 0 && !document.querySelector('[data-prod-actionbar]'));
+    if (!cleared) gaps.push({ rank: 1, state: 'escape cascade', message: 'Escape did not clear wired multi-select/actionbar before navigation' });
+
+    await setupFilterPill(artifact, wired);
+    await artifact.waitForSelector('.fpill');
+    await wired.waitForSelector('.prod-filter-pill.interactive');
+    await shot(artifact, 'artifact-filter-pill');
+    await shot(wired, 'wired-filter-pill');
+    await compareStyles(gaps, 'filter pill', artifact, wired, '.fpill', '.prod-filter-pill.interactive', ['height', 'paddingLeft', 'paddingRight', 'borderRadius', 'backgroundColor', 'borderTopColor', 'borderTopWidth', 'cursor', 'display', 'alignItems', 'gap']);
+    const fxCursor = await wired.locator('.prod-filter-pill.interactive .fx').first().evaluate(el => getComputedStyle(el).cursor);
+    if (fxCursor !== 'pointer') gaps.push({ rank: 1, state: 'filter pill', message: `filter remove cursor is ${fxCursor}` });
+    await wired.locator('.prod-filter-pill.interactive').first().click();
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-search]', { timeout: 5000 });
+    await shot(wired, 'wired-filter-pill-editor');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+    await wired.locator('.prod-filter-pill.interactive .fx').first().click();
+    const removed = await wired.evaluate(() => !_prodState.filters.length);
+    if (!removed) gaps.push({ rank: 1, state: 'filter pill', message: 'filter × did not remove local read-only filter state' });
+
+    await artifact.evaluate(() => { S.view = { type: 'projects', team: 'video' }; S.projectOpen = null; S.open = null; render(); });
+    await wired.evaluate(() => window._prodOpenTeamView('video', 'board'));
+    await artifact.waitForSelector('.board');
+    await wired.waitForSelector('.prod-board');
+    await requirePair(gaps, 'board inventory', artifact, wired, '.pcard', '.prod-card');
+    await requirePair(gaps, 'board inventory', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]');
+    await shot(artifact, 'artifact-board');
+    await shot(wired, 'wired-board');
+
+    await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); const id = flatOrder()[0]; if (id) openIssue(id); });
+    await wired.evaluate(() => { _prodOpenTeamView('video', 'list'); const id = _prodFlatOrder()[0]; if (id) _prodOpenDeliverable(id); });
+    await artifact.waitForSelector('.detail');
+    await wired.waitForSelector('.prod-detail');
+    await requirePair(gaps, 'detail inventory', artifact, wired, '.ds-card', '.prod-side-card');
+    await requirePair(gaps, 'detail inventory', artifact, wired, '.composer-box', '.prod-composer-box');
+    await shot(artifact, 'artifact-detail');
+    await shot(wired, 'wired-detail');
+
+    gaps.sort((a, b) => a.rank - b.rank || a.state.localeCompare(b.state));
+    if (gaps.length) {
+      console.error('pixel-wired gaps:');
+      gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
+      throw new Error(`${gaps.length} pixel parity gap(s) found`);
+    }
+    console.log('pixel-wired: list, icon paths, selection/actionbar, bulk picker anchor, filter pill, board, and detail parity checks passed');
+    console.log('pixel-wired screenshots: ' + outDir);
+  } finally {
+    await browser.close().catch(() => {});
+    server.close();
+  }
+}
+
+run().catch(err => {
+  console.error(err && err.stack ? err.stack : String(err));
+  process.exit(1);
+});

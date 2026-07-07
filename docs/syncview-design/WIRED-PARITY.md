@@ -110,3 +110,27 @@ This ledger supersedes `docs/audits/2026-07-06-prod-parity-gaps.md` for ongoing 
 | Detail scroll preservation | `renderDetail` | ported | Issue detail scroll position survives read-only re-renders and child/parent navigation. |
 | Brand workspace menu | `renderSidebar` `data-brandmenu` | ported | Brand menu exposes the artifact's four read-only workspace rows while retaining the Preview chip. |
 | Comment/issue/project write mutations | `commentEdit`, `commentEditCancel`, `commentDelete`, `delCount`, `delUndo`, `delUndoOrder`, `ctrlZUndo`, `nowLabel`, `activityLogged`, `childActivityLogged`, `boardDrag`, `moveNoop`, `addSubKeepOpen`, `draftPersist`, `editedMarker`, `composerTextarea`, favorites | deferred-B3 | These assertions require mutating comments, issues, projects, favorites, drafts, or the undo stack. B2 keeps the matching chrome guarded with `Preview - read-only`. |
+
+## 2026-07-06 Pixel-Parity Foundation
+
+Phase 0 side-by-side use pass ranked findings:
+
+1. P1: toolbar chrome still exposed non-artifact "New issue" and "Refresh" controls in the wired topbar. The artifact has neither; the Preview chip remains the only whitelisted extra.
+2. P1: `_prodIcon()` was a hand-drawn switch, so icon paths drifted from the artifact `I` object (notably Filter/Display).
+3. P1: bulk action-bar pickers opened too low because the wired code anchored to the clicked button and measured before picker content finalized.
+4. P1: Escape closed overlays but did not clear the active multi-select/action bar in the embedded tab cascade.
+5. P2: selected checkbox checkmarks were not grid-centered like the artifact.
+6. P2: filter pills looked interactive but kept text-cursor/inert affordances around the value and remove control.
+7. P2: the bulk action bar used SyncView text-button geometry instead of the artifact floating pill.
+8. P2: soft-border/shadow token mismatches were visible on filter pills and the action bar.
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Artifact icon object as single source | `I` object | ported | `_prodIcon()` now delegates to `PROD_ICON`, a checker-enforced copy of the artifact object; `assign` remains a compatibility alias for `assignI`. |
+| Mechanical icon-object fidelity | `test/port-fidelity-check.js` | ported | Checker now maps `I` -> `PROD_ICON` in addition to the 17 render/function pairs. |
+| Non-artifact topbar chrome removed | `renderList` / topbar artifact | ported | "New issue" and manual "Refresh" are gone from the wired topbar; background GET-only refresh runs on focus/visibility. |
+| Selection action bar geometry and controls | `renderActionBar`, `.actionbar` | ported | Wired bar now uses the artifact count + icon quick-actions + Actions + clear structure. Mutations still route to guarded/read-only pickers or context menu. |
+| Bulk picker placement | owner Phase A finding, `layerPop` clamping | ported | Wired action-bar pickers anchor above the bar and remain on-screen. PORT-DELTA: the standalone artifact overlaps the bar in this scripted state; owner finding requires the safer embedded placement. |
+| Filter pill affordance | `pillsHTML`, `.fpill` | ported | Cursor, remove button, click-to-edit, and local read-only remove behavior are covered by `pixel-wired.js`. |
+| Embedded Escape cascade | owner Phase A finding | ported | In `?prod=1`: close overlay first, then clear multi-select/action bar, then navigate back. |
+| Pixel wired lane | §10.8.6 visual verification | ported | `docs/syncview-design/tests/pixel-wired.js` drives artifact + wired pages through list, selection/actionbar, picker, filter pill, board, and detail states. Screenshots: `.codex-tmp/prod-pixel-wired/artifact-list.png`, `wired-list.png`, `artifact-selection-actionbar.png`, `wired-selection-actionbar.png`, `artifact-actionbar-status-picker.png`, `wired-actionbar-status-picker.png`, `artifact-filter-pill.png`, `wired-filter-pill.png`, `wired-filter-pill-editor.png`, `artifact-board.png`, `wired-board.png`, `artifact-detail.png`, `wired-detail.png`. |

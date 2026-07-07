@@ -7,6 +7,7 @@
     "test": "node test/run-all.js",
     "test:unit": "node test/run-all.js",
     "test:e2e": "node qa/run-probes.js",
+    "test:prod-pixel": "node docs/syncview-design/tests/pixel-wired.js",
     "test:master": "node qa/master.js",
     "test:master:full": "node qa/master.js --profile=full"
   },

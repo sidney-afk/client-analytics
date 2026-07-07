@@ -551,3 +551,18 @@ Pixel lane additions: `pixel-wired.js` compares the prototype/wired Ask Linear h
 Cycle 15 used the accepted Cycle 11 screenshot and the latest local crops to close a prototype-only focus-ring delta. The selected `Actions` command input was picking up the prototype's global `:focus-visible` outline, creating a blue rectangle absent from live Linear. Command inputs now explicitly keep `outline:none`; row/card focus visuals are unchanged.
 
 Pixel lane additions: `pixel-wired.js` compares the selected Actions input outline and fails if the focused command input outline returns.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 16
+
+Fresh live Linear observation was read-only. The probe captured 20 visible VID issue rows before and after opening the selected-row actionbar; `changed:false`, so no existing issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Single selected issue actionbar | fixed | `selected-actions-menu.png` shows live Linear's standalone Ask Linear icon button between `Actions` and clear. Prototype and wired now include that chrome. |
+| Ask Linear behavior boundary | guarded | Prototype gives a local toast. Wired preview routes the button through `Preview - read-only`; no write path is introduced. |
+
+Ranked finding fixed in this cycle:
+
+1. P2: the selected issue actionbar was still missing the separate live Linear Ask Linear icon button.
+
+Pixel lane additions: `pixel-wired.js` now checks the selected actionbar Ask Linear button count, styling, and exact SVG path in prototype and wired preview.

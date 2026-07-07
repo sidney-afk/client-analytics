@@ -357,3 +357,14 @@ Cycle 14 closes a selected-Actions visual spacing delta from the accepted Cycle 
 ## 2026-07-07 Live-Linear Parity Loop, Cycle 15
 
 Cycle 15 removes the prototype-only blue focused outline from selected Actions command inputs and mirrors the scoped no-outline rule in wired preview. `pixel-wired.js` now guards the selected Actions input outline state.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 16
+
+Live Linear observation was read-only. Before/after visible issue-row snapshots for the probed VID issue list both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface | Status | Notes |
+|---|---:|---|
+| Selected issue actionbar Ask Linear icon | ✅ | Live Linear shows a separate Ask Linear icon button between `Actions` and clear. Prototype and wired preview now include the same icon chrome; wired routes it to the read-only guard. |
+| Selected Actions removed/mutating boundary | ✅ | Priority, labels, cycles, team move, and subscribe remain omitted from the simplified skeleton/write-safe B2 surface. |
+
+Validation coverage: `pixel-wired.js` asserts the Ask Linear actionbar button exists in prototype and wired preview, compares its button styling, and checks the exact SVG path.

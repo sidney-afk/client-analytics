@@ -360,6 +360,13 @@ async function run() {
     const wiredQuick = await wired.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count();
     if (artifactQuick || wiredQuick) gaps.push({ rank: 1, state: 'selection quick buttons', message: `artifact=${artifactQuick} wired=${wiredQuick}; live Linear actionbar has no status/assignee/due quick buttons` });
     await compareStyles(gaps, 'selection actions button', artifact, wired, '#ab-actions', '#prodBulkActions', ['height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    const artifactAskButton = await artifact.locator('#ab-ask').count();
+    const wiredAskButton = await wired.locator('#prodBulkAsk').count();
+    if (artifactAskButton !== 1 || wiredAskButton !== 1) gaps.push({ rank: 1, state: 'selection Ask Linear button', message: `artifact=${artifactAskButton} wired=${wiredAskButton}` });
+    await compareStyles(gaps, 'selection Ask Linear button', artifact, wired, '#ab-ask', '#prodBulkAsk', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    const artifactAskPath = await artifact.locator('#ab-ask svg path').first().getAttribute('d');
+    const wiredAskPath = await wired.locator('#prodBulkAsk svg path').first().getAttribute('d');
+    if (artifactAskPath !== wiredAskPath) gaps.push({ rank: 1, state: 'selection Ask Linear button', message: 'icon path drift' });
     await compareStyles(gaps, 'selection checkbox', artifact, wired, '.check.on', '.prod-check.on', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'borderRadius', 'backgroundColor']);
 
     await artifact.locator('#ab-actions').click();

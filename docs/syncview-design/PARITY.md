@@ -79,7 +79,7 @@ Behavioral features shipped this phase (all ✅, all test-guarded):
 | **Due-date picker → CALENDAR** | ✅ | ✅ | ✅ (quick options w/ resolved dates + natural-language input + Custom→month calendar; dates match Linear exactly) |
 | Priority picker | ➖ | ➖ | ➖ (removed) |
 | Right-click context menu + cascading submenus | ✅ | ✅ | ✅ |
-| Selection + floating action bar | ✅ | ✅ | ✅ (live-style selected Actions command panel; copy-only rows ported; removed/mutating priority/labels/cycles/team-move/subscribe omitted) |
+| Selection + floating action bar | ✅ | ✅ | ✅ (live-style selected Actions command panel; standalone Ask Linear icon chrome; copy-only rows ported; removed/mutating priority/labels/cycles/team-move/subscribe omitted) |
 | Filter menu + pill | ✅ | ✅ | ✅ (stackable Status/Assignee/Client conditions; searchable multi-select; "is / is any of" pills, edit + ✕ per pill) |
 | Group-by menu | ✅ | ✅ | ✅ |
 

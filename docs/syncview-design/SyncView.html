@@ -313,6 +313,7 @@ const I={
   back:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.5 4l-4 4 4 4"/></svg>',
   check:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 8.5l3 3 6-6.5"/></svg>',
   plus:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>',
+  ask:'<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.07132 3.8283C4.04394 3.81721 4.01406 3.81379 3.98488 3.8184C3.95566 3.82301 3.92826 3.83551 3.90561 3.85453C3.88297 3.87356 3.86594 3.8984 3.85636 3.92639C3.84678 3.95437 3.84501 3.98443 3.85124 4.01335L5.80802 13.1405C5.81898 13.1915 5.83884 13.2155 5.85542 13.2298C5.87605 13.2476 5.9078 13.2631 5.94754 13.268C5.98728 13.2729 6.0217 13.2654 6.04578 13.2532C6.06507 13.2434 6.08993 13.2252 6.11273 13.1784L7.83779 9.64746C8.05513 9.20258 8.45077 8.87059 8.92663 8.73378L12.7035 7.64791C12.7535 7.63353 12.776 7.61215 12.789 7.59475C12.8052 7.57307 12.8186 7.54044 12.8207 7.50049C12.8228 7.46054 12.813 7.42669 12.7992 7.40342C12.788 7.38476 12.7681 7.36116 12.7199 7.34158L4.07132 3.8283ZM3.75083 2.33677C4.04945 2.2896 4.35527 2.32474 4.63541 2.43841L13.2843 5.95183C14.747 6.54596 14.6351 8.65343 13.1179 9.08953L9.34109 10.1754C9.27311 10.1949 9.21659 10.2424 9.18554 10.3059L7.46077 13.8363C6.76755 15.2562 4.67275 14.9979 4.34147 13.4555L2.38492 4.3294C2.32134 4.03401 2.33935 3.72642 2.43722 3.44054C2.53514 3.15452 2.70919 2.90061 2.94065 2.70612C3.17211 2.51164 3.45221 2.38394 3.75083 2.33677Z"/></svg>',
   statusField:'<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M7 2.2a4.8 4.8 0 0 1 0 9.6z" fill="currentColor"/></svg>'
 };
 const HEX='M2.95778 3.02069L5.70777 1.36023C6.50244 0.88041 7.49756 0.88041 8.29223 1.36024L11.0422 3.02074C11.7918 3.47336 12.25 4.2852 12.25 5.16086V8.84803C12.25 9.7251 11.7904 10.5381 11.0388 10.9902L8.29114 12.6433C7.49693 13.1211 6.50355 13.1203 5.71011 12.6412L2.95775 10.9792C2.20815 10.5266 1.75 9.7148 1.75 8.83911V5.16082C1.75 4.28516 2.20816 3.47332 2.95778 3.02069Z';
@@ -595,8 +596,8 @@ function renderActionBar(){const ex=$(".actionbar");if(ex)ex.remove();if(S.open)
     $("#cb-target").onclick=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();openPPick("ptarget",r.left,r.top-8,[...S.cardSel][0],[...S.cardSel]);};
     return;}
   if(!S.selected.size)return;
-  const bar=document.createElement("div");bar.className="actionbar";bar.innerHTML='<span class="cnt">'+S.selected.size+' selected</span><button class="abtn" id="ab-actions"><span style="font-size:13px">⌘</span> Actions</button><button class="ax" id="ab-clear" data-tip="Clear · Esc">✕</button>';document.body.appendChild(bar);
-  $("#ab-clear").onclick=e=>{e.stopPropagation();S.selected.clear();render();};$("#ab-actions").onclick=e=>{e.stopPropagation();openBulkActions();};
+  const bar=document.createElement("div");bar.className="actionbar";bar.innerHTML='<span class="cnt">'+S.selected.size+' selected</span><button class="abtn" id="ab-actions"><span style="font-size:13px">⌘</span> Actions</button><button class="abtn abq" id="ab-ask" data-tip="Ask Linear">'+I.ask+'</button><button class="ax" id="ab-clear" data-tip="Clear · Esc">✕</button>';document.body.appendChild(bar);
+  $("#ab-clear").onclick=e=>{e.stopPropagation();S.selected.clear();render();};$("#ab-actions").onclick=e=>{e.stopPropagation();openBulkActions();};$("#ab-ask").onclick=e=>{e.stopPropagation();toast("Ask Linear");};
   }
 
 let openMenuKind=null;

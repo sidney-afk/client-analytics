@@ -376,7 +376,7 @@ async function run() {
       if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state: 'selection Actions command', message: `row ${i} icon path drift for ${a.title}` });
     });
     const actionLabels = actionRowsW.map(r => r.title).join('|');
-    ['Assign to...', 'Assign to me', 'Change status...', 'Move to project...', 'Change due date...', 'Copy issue URL'].forEach(label => {
+    ['Assign to...', 'Assign to me', 'Change status...', 'Move to project...', 'Change due date...', 'Copy issue ID', 'Copy issue URL', 'Copy issue title', 'Copy title as link'].forEach(label => {
       if (!actionLabels.includes(label)) gaps.push({ rank: 1, state: 'selection Actions command', message: 'missing ' + label });
     });
     ['Change priority', 'Add labels', 'Add to cycle'].forEach(label => {
@@ -384,6 +384,19 @@ async function run() {
     });
     await shotElement(artifact, '#layer .cmdk.actioncmd', 'artifact-crop-selection-actions-menu');
     await shotElement(wired, '#prodLayer .prod-actioncmd', 'wired-crop-selection-actions-menu');
+    await artifact.locator('#layer .cmdk.actioncmd .cmdk-inp').fill('status');
+    await wired.locator('#prodLayer .prod-actioncmd .prod-cmd-input').fill('status');
+    await artifact.waitForSelector('#layer [data-bulkact="statusValue"]');
+    await wired.waitForSelector('#prodLayer [data-prod-bulkact="statusValue"]');
+    const actionSearchRowsA = await commandInventory(artifact, '#layer .cmdk.actioncmd [data-bulkact]');
+    const actionSearchRowsW = await commandInventory(wired, '#prodLayer .prod-actioncmd [data-prod-bulkact]');
+    if (!actionSearchRowsW.some(r => r.title === 'Change status Backlog')) gaps.push({ rank: 1, state: 'selection Actions status search', message: 'missing direct Backlog status command' });
+    if (!actionSearchRowsW.some(r => r.title === 'Change status In Progress')) gaps.push({ rank: 1, state: 'selection Actions status search', message: 'missing direct In Progress status command' });
+    if (actionSearchRowsA.length !== actionSearchRowsW.length) gaps.push({ rank: 1, state: 'selection Actions status search', message: `row count mismatch artifact=${actionSearchRowsA.length} wired=${actionSearchRowsW.length}` });
+    await shotElement(artifact, '#layer .cmdk.actioncmd', 'artifact-crop-selection-actions-search-status');
+    await shotElement(wired, '#prodLayer .prod-actioncmd', 'wired-crop-selection-actions-search-status');
+    await artifact.locator('#layer .cmdk.actioncmd .cmdk-inp').fill('');
+    await wired.locator('#prodLayer .prod-actioncmd .prod-cmd-input').fill('');
     await artifact.locator('#layer [data-bulkact="status"]').click();
     await wired.locator('#prodLayer [data-prod-bulkact="status"]').click();
     await artifact.waitForSelector('#layer .pop [data-i]');

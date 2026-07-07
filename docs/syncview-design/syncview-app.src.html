@@ -602,24 +602,29 @@ let openMenuKind=null;
 function clearLayer(){$("#layer").innerHTML="";$("#layer").style.pointerEvents="none";hideTip();openMenuKind=null;[].forEach.call(document.querySelectorAll(".tb-ico.menu-open"),function(el){el.classList.remove("menu-open");});}
 function bulkActionLabel(ids){if(ids.length===1){const it=byId(ids[0]);return it?(it.id+" · "+it.title):"1 selected";}return ids.length+" selected";}
 function openBulkActions(){const ids=targetIds(null);var L=$("#layer");L.innerHTML="";L.style.pointerEvents="auto";
-  const rows=[
+  const baseRows=[
     {t:"Assign to...",icon:I.assignI,k:"A",act:"assign"},
     {t:"Assign to me",icon:I.assignI,k:"I",act:"assignMe"},
     {t:"Change status...",icon:I.issues,k:"S",act:"status"},
     {t:"Move to project...",icon:I.project,k:"⇧ P",act:"proj"},
     {t:"Change due date...",icon:I.cal,k:"⇧ D",act:"due"},
-    {t:"Copy issue URL",icon:I.copy,k:"",act:"copy"}
+    {t:"Copy issue ID",icon:I.copy,k:"Ctrl .",act:"copyId"},
+    {t:"Copy issue URL",icon:I.copy,k:"Ctrl ⇧ ,",act:"copyUrl"},
+    {t:"Copy issue title",icon:I.copy,k:"Ctrl ⇧ '",act:"copyTitle"},
+    {t:"Copy title as link",icon:I.copy,k:"Ctrl C",act:"copyTitleLink"}
   ];
+  const statusRows=()=>STATUS_ORDER.map(k=>({t:"Change status "+STATUS[k].name,icon:statusSVG(k),k:"",act:"statusValue",v:k}));
   var bd=document.createElement("div");bd.className="cmdk-bd actioncmd";
   bd.innerHTML='<div class="cmdk actioncmd"><div class="cmdk-chip">'+esc(bulkActionLabel(ids))+'</div><div class="cmdk-action-row"><input class="cmdk-inp" placeholder="Type a command or search..." spellcheck="false"><span class="cmdk-ask">Ask Linear <span class="kbd">Tab</span></span></div><div class="cmdk-list"></div></div>';
   bd.addEventListener("click",function(e){if(e.target===bd)clearLayer();});
   L.appendChild(bd);
-  var inp=bd.querySelector(".cmdk-inp"),list=bd.querySelector(".cmdk-list"),sel=0,shown=rows.slice();
-  function pick(row,el){if(!row)return;const r=(el||list.querySelector(".cmdk-item.sel")||bd.querySelector(".cmdk")).getBoundingClientRect();if(row.act==="status")openStatusMenu(r.left,r.bottom+4,null);else if(row.act==="assign")openAssignMenu(r.left,r.bottom+4,null);else if(row.act==="due")openDueMenu(r.left,r.bottom+4,null);else if(row.act==="proj")openClientMenu(r.left,r.bottom+4,null);else if(row.act==="assignMe"){applySub("assign","sl",ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="copy"){clearLayer();toast(ids.length>1?ids.length+" links copied":"Link copied");}}
+  var inp=bd.querySelector(".cmdk-inp"),list=bd.querySelector(".cmdk-list"),sel=0,shown=baseRows.slice();
+  function copied(label){clearLayer();toast(ids.length>1?ids.length+" "+label+" copied":label+" copied");}
+  function pick(row,el){if(!row)return;const r=(el||list.querySelector(".cmdk-item.sel")||bd.querySelector(".cmdk")).getBoundingClientRect();if(row.act==="status")openStatusMenu(r.left,r.bottom+4,null);else if(row.act==="assign")openAssignMenu(r.left,r.bottom+4,null);else if(row.act==="due")openDueMenu(r.left,r.bottom+4,null);else if(row.act==="proj")openClientMenu(r.left,r.bottom+4,null);else if(row.act==="statusValue"){applySub("status",row.v,ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="assignMe"){applySub("assign","sl",ids);clearLayer();if(S.selected.size<=1)S.selected.clear();else reconcileSel();render();}else if(row.act==="copyId"){copied("ID");}else if(row.act==="copyUrl"){copied("link");}else if(row.act==="copyTitle"){copied("title");}else if(row.act==="copyTitleLink"){copied("title link");}}
   function draw(){list.innerHTML=shown.length?shown.map(function(r,idx){return '<div class="cmdk-item '+(idx===sel?"sel":"")+'" data-bulkact="'+r.act+'" data-idx="'+idx+'"><span class="ci">'+r.icon+'</span><span class="ct">'+esc(r.t)+'</span><span class="cmeta">'+r.k+'</span></div>';}).join(""):'<div class="cmdk-empty">No results</div>';
     [].forEach.call(list.querySelectorAll(".cmdk-item"),function(el){el.addEventListener("click",function(e){e.stopPropagation();pick(shown[+el.getAttribute("data-idx")],el);});el.addEventListener("mousemove",function(){var ix=+el.getAttribute("data-idx");if(ix!==sel){sel=ix;[].forEach.call(list.querySelectorAll(".cmdk-item"),function(o){o.classList.toggle("sel",+o.getAttribute("data-idx")===sel);});}});});
     var s=list.querySelector(".cmdk-item.sel");if(s)s.scrollIntoView({block:"nearest"});}
-  function filter(){const q=(inp.value||"").trim().toLowerCase();shown=rows.filter(function(r){return !q||r.t.toLowerCase().indexOf(q)>=0;});sel=0;draw();}
+  function filter(){const q=(inp.value||"").trim().toLowerCase();const rows=baseRows.concat(q?statusRows():[]);shown=rows.filter(function(r){return !q||r.t.toLowerCase().indexOf(q)>=0;});sel=0;draw();}
   inp.addEventListener("input",filter);
   inp.addEventListener("keydown",function(e){e.stopPropagation();if(e.key==="Tab"){e.preventDefault();return;}if(e.key==="Escape"){clearLayer();return;}if(e.key==="ArrowDown"){e.preventDefault();sel=shown.length?(sel+1)%shown.length:0;draw();return;}if(e.key==="ArrowUp"){e.preventDefault();sel=shown.length?(sel-1+shown.length)%shown.length:0;draw();return;}if(e.key==="Enter"){e.preventDefault();pick(shown[sel]);}});
   filter();setTimeout(function(){try{inp.focus();}catch(e){}},20);}

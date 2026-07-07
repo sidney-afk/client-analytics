@@ -29755,14 +29755,18 @@
             if (!layer) return false;
             layer.innerHTML = '';
             layer.style.pointerEvents = 'auto';
-            const rows = [
+            const baseRows = [
                 { label: 'Assign to...', icon: _prodIcon('assign'), key: 'A', act: 'assign' },
                 { label: 'Assign to me', icon: _prodIcon('assign'), key: 'I', act: 'assignMe' },
                 { label: 'Change status...', icon: _prodIcon('issues'), key: 'S', act: 'status' },
                 { label: 'Move to project...', icon: _prodIcon('project'), key: '⇧ P', act: 'proj' },
                 { label: 'Change due date...', icon: _prodIcon('cal'), key: '⇧ D', act: 'due' },
-                { label: 'Copy issue URL', icon: _prodIcon('copy'), key: '', act: 'copy' }
+                { label: 'Copy issue ID', icon: _prodIcon('copy'), key: 'Ctrl .', act: 'copyId' },
+                { label: 'Copy issue URL', icon: _prodIcon('copy'), key: 'Ctrl ⇧ ,', act: 'copyUrl' },
+                { label: 'Copy issue title', icon: _prodIcon('copy'), key: "Ctrl ⇧ '", act: 'copyTitle' },
+                { label: 'Copy title as link', icon: _prodIcon('copy'), key: 'Ctrl C', act: 'copyTitleLink' }
             ];
+            const statusRows = () => PROD_STATUS_ORDER.map(k => ({ label: 'Change status ' + _prodStatusLabel(k), icon: _prodStatusSVG(k), key: '', act: 'statusValue', value: k }));
             const label = ids.length === 1 ? ((_prodIssue(ids[0]) ? (_prodIssue(ids[0]).displayId || ids[0]) + ' · ' + (_prodIssue(ids[0]).title || _prodIssueLabel(_prodIssue(ids[0]))) : '1 selected')) : ids.length + ' selected';
             const bd = document.createElement('div');
             bd.className = 'prod-cmd-bd prod-actioncmd-bd';
@@ -29771,8 +29775,20 @@
             layer.appendChild(bd);
             const input = bd.querySelector('.prod-cmd-input');
             const list = bd.querySelector('.prod-cmd-list');
-            let shown = rows.slice();
+            let shown = baseRows.slice();
             let sel = 0;
+            const copyText = (text, message) => {
+                const value = String(text || '');
+                try { window.__prodLastCopied = value; } catch (e) {}
+                const done = () => _prodToast(message || 'Copied');
+                const fail = () => _prodToast('Copy failed');
+                try {
+                    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(value).then(done, fail);
+                    else done();
+                } catch (e) {
+                    fail();
+                }
+            };
             const openPicker = (kind, el) => {
                 const anchor = el ? el.getBoundingClientRect() : bd.querySelector('.prod-actioncmd').getBoundingClientRect();
                 const first = ids[0] || id || '';
@@ -29794,9 +29810,27 @@
                     openPicker(row.act, el);
                     return;
                 }
-                if (row.act === 'copy') {
+                if (row.act === 'copyUrl') {
                     _prodClearLayer();
                     _prodCopyLink('issue', ids.length > 1 ? ids : (ids[0] || id));
+                    return;
+                }
+                if (row.act === 'copyId' || row.act === 'copyTitle' || row.act === 'copyTitleLink') {
+                    const lines = ids.map(issueId => {
+                        const issue = _prodIssue(issueId);
+                        const displayId = issue ? (issue.displayId || issue.id || issueId) : issueId;
+                        const title = issue ? (issue.title || _prodIssueLabel(issue)) : displayId;
+                        if (row.act === 'copyId') return displayId;
+                        if (row.act === 'copyTitle') return title;
+                        return '[' + title + '](' + _prodLinkFor('issue', issueId) + ')';
+                    });
+                    _prodClearLayer();
+                    copyText(lines.join('\n'), ids.length > 1 ? ids.length + ' items copied' : row.label.replace('Copy ', '') + ' copied');
+                    return;
+                }
+                if (row.act === 'statusValue') {
+                    _prodReadonlyGuard();
+                    _prodClearLayer();
                     return;
                 }
                 _prodReadonlyGuard();
@@ -29821,6 +29855,7 @@
             };
             const filter = () => {
                 const q = (input.value || '').trim().toLowerCase();
+                const rows = baseRows.concat(q ? statusRows() : []);
                 shown = rows.filter(row => !q || row.label.toLowerCase().includes(q));
                 sel = 0;
                 draw();

@@ -31,6 +31,10 @@ Cycle 8 rechecked row context menu and status submenu DOM/chrome after the owner
 
 Cycle 9 rechecked list selection, range selection, Escape clear, and the floating bulk actionbar. Before/after visible issue rows matched (`changed:false`). The issue actionbar now follows live Linear's compact shape by removing direct Status/Assignee/Due quick buttons; guarded property controls remain available through `Actions`. The live Ask Linear icon is held as an owner/product-scope question.
 
+Cycle 10 rechecked the selected-row `Actions` menu. Before/after visible issue rows matched (`changed:false`). The prototype and wired preview now open the live-style command panel first, with the safe subset only: Assign to..., Assign to me, Change status..., Move to project..., Change due date..., Copy issue URL.
+
+Cycle 11 rechecked the single-selected `Actions` menu and its `status` search filter. Before/after visible issue rows matched (`changed:false`). The safe non-mutating copy rows now match live Linear's allowed subset (Copy issue ID/URL/title/title-as-link), and typing `status` expands direct status command rows. Wired status commands remain guarded read-only.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

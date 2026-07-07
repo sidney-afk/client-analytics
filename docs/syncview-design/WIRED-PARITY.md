@@ -318,3 +318,19 @@ Ranked findings fixed in this cycle:
 3. P2: the prototype command-row click needed propagation isolation so the selected Actions status picker stays open.
 
 Pixel lane additions: `pixel-wired.js` now inventories the selected Actions command panel, rejects removed priority/labels/cycles rows, captures command-panel screenshot pairs, and then opens the guarded status picker from inside that panel.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 11
+
+Live Linear observation was read-only. Before/after visible issue-row snapshots for the probed VID issue list both contained 20 rows and `changed:false`; no issue or sub-issue data changed.
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| Single selected Actions copy rows | fixed | `single-selection-actions-menu.png`; prototype and wired now include Copy issue ID, Copy issue URL, Copy issue title, and Copy title as link. Broader copy-content rows remain deferred rather than copying hidden description/body content. |
+| Selected Actions search for `status` | fixed | `single-selection-actions-search-status.png`; typing `status` now adds direct `Change status <value>` commands. In wired B2, clicking those rows is read-only guarded. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: the selected Actions command panel had only Copy issue URL, while live Linear exposes several safe copy commands.
+2. P2: typing `status` in the selected Actions command search did not reveal direct status commands.
+
+Pixel lane additions: `pixel-wired.js` now checks the expanded copy-command inventory and captures `artifact-crop-selection-actions-search-status.png` / `wired-crop-selection-actions-search-status.png`.

@@ -356,13 +356,20 @@ async function run() {
     await shotElement(artifact, '.actionbar', 'artifact-crop-selection-actionbar');
     await shotElement(wired, '.prod-actionbar', 'wired-crop-selection-actionbar');
     await compareStyles(gaps, 'selection actionbar', artifact, wired, '.actionbar', '.prod-actionbar', ['height', 'display', 'alignItems', 'gap', 'paddingTop', 'paddingBottom', 'borderRadius', 'backgroundColor', 'boxShadow']);
-    await compareStyles(gaps, 'selection quick button', artifact, wired, '#ab-status', '#prodBulkStatus', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
+    const artifactQuick = await artifact.locator('#ab-status, #ab-assign, #ab-due').count();
+    const wiredQuick = await wired.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count();
+    if (artifactQuick || wiredQuick) gaps.push({ rank: 1, state: 'selection quick buttons', message: `artifact=${artifactQuick} wired=${wiredQuick}; live Linear actionbar has no status/assignee/due quick buttons` });
+    await compareStyles(gaps, 'selection actions button', artifact, wired, '#ab-actions', '#prodBulkActions', ['height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
     await compareStyles(gaps, 'selection checkbox', artifact, wired, '.check.on', '.prod-check.on', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'borderRadius', 'backgroundColor']);
 
-    await artifact.locator('#ab-status').click();
-    await wired.locator('#prodBulkStatus').click();
+    await artifact.locator('#ab-actions').click();
+    await wired.locator('#prodBulkActions').click();
     await artifact.waitForSelector('#layer .pop');
     await wired.waitForSelector('#prodLayer .prod-pop');
+    await artifact.locator('#layer .pop [data-ctx="status"]').hover();
+    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').hover();
+    await artifact.waitForSelector('#layer .pop [data-i]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
     const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');
     const wiredStatusRows = await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]');
     comparePickerInventory(gaps, 'status picker inventory', artifactStatusRows, wiredStatusRows);
@@ -377,9 +384,9 @@ async function run() {
     }
     await compareStyles(gaps, 'status picker selected tick', artifact, wired, '#layer .pop .tick', '#prodLayer .prod-pop .tick', ['color', 'marginLeft', 'order', 'display']);
     const actionRects = {
-      aPop: await artifact.locator('#layer .pop').first().boundingBox(),
+      aPop: await artifact.locator('#layer .pop:last-child').first().boundingBox(),
       aBar: await artifact.locator('.actionbar').first().boundingBox(),
-      wPop: await wired.locator('#prodLayer .prod-pop').first().boundingBox(),
+      wPop: await wired.locator('#prodLayer .prod-pop:last-child').first().boundingBox(),
       wBar: await wired.locator('.prod-actionbar').first().boundingBox(),
     };
     if (actionRects.wPop.y + actionRects.wPop.height > actionRects.wBar.y - 4) gaps.push({ rank: 1, state: 'bulk picker', message: 'wired bulk picker is not anchored above the action bar' });
@@ -388,9 +395,10 @@ async function run() {
     // above the action bar even when the standalone artifact overlaps it here.
     await shot(artifact, 'artifact-actionbar-status-picker');
     await shot(wired, 'wired-actionbar-status-picker');
-    await shotElement(artifact, '#layer .pop', 'artifact-crop-status-picker');
-    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-status-picker');
+    await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-status-picker');
+    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-status-picker');
     await artifact.keyboard.press('Escape');
+    await artifact.evaluate(() => { if (typeof clearLayer === 'function') clearLayer(); });
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
     await wired.keyboard.press('Escape');
     const cleared = await wired.evaluate(() => _prodState.selected.size === 0 && !document.querySelector('[data-prod-actionbar]'));

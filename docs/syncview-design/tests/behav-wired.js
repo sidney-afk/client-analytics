@@ -262,7 +262,9 @@ async function txt(page, sel) {
     await ok('selPersist', async () => {
       await page.keyboard.press('Control+a');
       const before = await page.evaluate(() => _prodState.selected.size);
-      await page.locator('#prodBulkAssign').click();
+      await page.locator('#prodBulkActions').click();
+      await page.locator('#prodLayer [data-prod-ctx="assign"]').hover();
+      await page.waitForSelector('#prodLayer [data-prod-search]', { timeout: 3000 });
       await page.locator('#prodLayer [data-prod-search]').press('Enter');
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });
       const after = await page.evaluate(() => _prodState.selected.size);
@@ -986,7 +988,8 @@ async function txt(page, sel) {
       await page.evaluate(() => { const o = _prodFlatOrder(); _prodState.selected = new Set(o.slice(0, 2)); _prodRender(); });
       if (!await page.locator('[data-prod-actionbar]').count()) return true;
       const before = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.status])));
-      await page.locator('#prodBulkStatus').click();
+      await page.locator('#prodBulkActions').click();
+      await page.locator('#prodLayer [data-prod-ctx="status"]').hover();
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
       await page.locator('#prodLayer [data-prod-pick]').first().click();
       await page.waitForSelector('#prodToast.show', { timeout: 3000 });

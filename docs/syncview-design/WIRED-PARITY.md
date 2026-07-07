@@ -70,6 +70,14 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 | Status submenu order and key hints | live Linear status submenu / `STATUS_ORDER`, `pickerHTML` | ✅ | Live status picker presents Backlog first, Triage last, numbered hints, and the "Change status..." search row; prototype and wired already match and `pixel-wired.js` enforces the status picker order/hints. |
 | Removed context-menu breadth | live Linear row context menu | 🔒 | Extra live rows remain out of scope unless the owner expands the simplified skeleton. |
 
+## 2026-07-07 Live Linear Parity Cycle 9
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Observation safety | Live Linear probe profile | ✅ | Read-only cycle covered single selection, range selection, and Escape clear; 20 visible rows before and after, `changed:false`. |
+| Issue selection actionbar quick buttons | live Linear selection actionbar / `renderActionBar`, `_prodSelectionBar` | ✅ | Live issue actionbar has count + Actions + Ask Linear + clear; prototype and wired removed direct Status/Assignee/Due quick buttons. Status/Assignee/Due remain guarded via Actions. |
+| Ask Linear actionbar icon | live Linear selection actionbar | ⬜ | Not ported yet because Ask Linear is a separate product surface outside the current simplified skeleton; owner decision needed before adding inert chrome. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |
@@ -193,7 +201,7 @@ Phase 0 side-by-side use pass ranked findings:
 | Artifact icon object as single source | `I` object | ported | `_prodIcon()` now delegates to `PROD_ICON`, a checker-enforced copy of the artifact object; `assign` remains a compatibility alias for `assignI`. |
 | Mechanical icon-object fidelity | `test/port-fidelity-check.js` | ported | Checker now maps `I` -> `PROD_ICON` in addition to the 17 render/function pairs. |
 | Non-artifact topbar chrome removed | `renderList` / topbar artifact | ported | "New issue" and manual "Refresh" are gone from the wired topbar; background GET-only refresh runs on focus/visibility. |
-| Selection action bar geometry and controls | `renderActionBar`, `.actionbar` | ported | Wired bar now uses the artifact count + icon quick-actions + Actions + clear structure. Mutations still route to guarded/read-only pickers or context menu. |
+| Selection action bar geometry and controls | `renderActionBar`, `.actionbar` | ported | Wired bar now follows live Linear's compact issue selection shape: count + Actions + clear. Mutations still route to guarded/read-only pickers through Actions. |
 | Bulk picker placement | owner Phase A finding, `layerPop` clamping | ported | Wired action-bar pickers anchor above the bar and remain on-screen. PORT-DELTA: the standalone artifact overlaps the bar in this scripted state; owner finding requires the safer embedded placement. |
 | Filter pill affordance | `pillsHTML`, `.fpill` | ported | Cursor, remove button, click-to-edit, and local read-only remove behavior are covered by `pixel-wired.js`. |
 | Embedded Escape cascade | owner Phase A finding | ported | In `?prod=1`: close overlay first, then clear multi-select/action bar, then navigate back. |
@@ -205,8 +213,8 @@ Human-audit matrix pass (same viewport, artifact vs wired, screenshots local/pri
 | Surface x action | Status | Notes / screenshot pairs |
 |---|---:|---|
 | List / toolbar visual inventory | checked | Reused `artifact-list.png` / `wired-list.png`; no new divergence beyond prior #704 fixes. |
-| Selection actionbar / quick actions | checked | `artifact-crop-selection-actionbar.png` / `wired-crop-selection-actionbar.png`; matched after #704. |
-| Status picker from actionbar | fixed | `artifact-crop-status-picker.png` / `wired-crop-status-picker.png`; fixed status order, visible `.kbd` hints, selected tick color/order/display. |
+| Selection actionbar / Actions controls | checked | `artifact-crop-selection-actionbar.png` / `wired-crop-selection-actionbar.png`; Cycle 9 removed non-live issue quick buttons. |
+| Status picker from actionbar Actions | fixed | `artifact-crop-status-picker.png` / `wired-crop-status-picker.png`; fixed status order, visible `.kbd` hints, selected tick color/order/display. |
 | Row context menu | fixed | `artifact-crop-row-context-menu.png` / `wired-crop-row-context-menu.png`; fixed disabled Move row to keep the artifact chevron while staying read-only. |
 | Context menu Status submenu | fixed | `artifact-crop-context-status-submenu.png` / `wired-crop-context-status-submenu.png`; inherits status order, `.kbd`, and tick fixes. |
 | Filter pill / remove control | fixed | `artifact-crop-filter-pill.png` / `wired-crop-filter-pill.png`; fixed status field glyph and remove glyph to match the artifact. |

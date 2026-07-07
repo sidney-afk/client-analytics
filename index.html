@@ -28757,8 +28757,12 @@
             p.addEventListener('click', e => e.stopPropagation());
             document.getElementById('prodLayer').appendChild(p);
             const r = parentEl.getBoundingClientRect();
+            const actionbar = document.querySelector('[data-prod-actionbar]');
+            const actionbarRect = actionbar ? actionbar.getBoundingClientRect() : null;
             if (kind === 'due') {
-                _prodBuildDue(p, _prodIssue(ids[0]), ids, { x: r.right - 4, y: r.top - 6, flipX: r.left });
+                _prodBuildDue(p, _prodIssue(ids[0]), ids, actionbarRect
+                    ? { x: r.right - 4, y: actionbarRect.top, above: true, flipX: r.left }
+                    : { x: r.right - 4, y: r.top - 6, flipX: r.left });
                 _prodSubPop = p;
                 return;
             }
@@ -28767,6 +28771,12 @@
             let x = r.right - 4;
             let y = r.top - 6;
             if (x + pr.width > innerWidth - 8) x = r.left - pr.width + 4;
+            if (actionbarRect) {
+                p.style.maxHeight = Math.max(160, actionbarRect.top - 16) + 'px';
+                p.style.overflowY = 'auto';
+                const br = p.getBoundingClientRect();
+                y = Math.min(y, actionbarRect.top - br.height - 8);
+            }
             _prodPlacePop(p, x, y);
             p.style.visibility = 'visible';
             _prodWirePicker(p, kind, ids);
@@ -29755,10 +29765,7 @@
             if (!n) return '';
             const first = Array.from(_prodState.selected)[0] || '';
             return '<div class="prod-actionbar" data-prod-actionbar><span class="cnt" data-prod-select-count>' + n + ' selected</span>'
-                + '<button class="abtn abq" type="button" id="prodBulkStatus" onclick="return _prodOpenStatusMenu(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '" data-prod-tip="Status · S">' + _prodIcon('issues') + '</button>'
-                + '<button class="abtn abq" type="button" id="prodBulkAssign" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '" data-prod-tip="Assignee · A">' + _prodIcon('assign') + '</button>'
-                + '<button class="abtn abq" type="button" id="prodBulkDue" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '" data-prod-tip="Due date · ⇧D">' + _prodIcon('cal') + '</button>'
-                + '<span class="absep"></span><button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '"><span style="font-size:13px">⌘</span> Actions</button>'
+                + '<button class="abtn" type="button" id="prodBulkActions" onclick="return _prodOpenBulkActions(event,' + _jsAttrArg(first) + ')" title="' + _prodPreviewText() + '"><span style="font-size:13px">⌘</span> Actions</button>'
                 + '<button class="ax" type="button" id="prodBulkClear" onclick="_prodState.selected.clear(); _prodState.selAnchor=' + _jsAttrArg('') + '; _prodRender();" data-prod-tip="Clear · Esc">×</button></div>';
         }
         // PORT-DELTA: renderList consumes _prodAdapter live rows and preserves host type scale/classes.

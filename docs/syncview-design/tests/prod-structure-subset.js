@@ -195,10 +195,11 @@ async function assertNoWriteRequests(requests) {
     await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
     await page.keyboard.press('Control+a');
     await expectCount(page, '[data-prod-actionbar] [data-prod-select-count]', 1, 'read-only multi-select actionbar');
-    await page.locator('#prodBulkStatus').click();
+    await page.locator('#prodBulkActions').click();
+    await page.locator('#prodLayer [data-prod-ctx="status"]').hover();
     await expectCount(page, '#prodLayer .prod-pop [data-prod-pick]', 1, 'bulk status guard picker');
     await page.keyboard.press('Escape');
-    await page.evaluate(() => { _prodState.selected.clear(); _prodRender(); });
+    await page.evaluate(() => { _prodClearLayer(); _prodState.selected.clear(); _prodRender(); });
     await row.locator('.prod-status').click();
     await expectCount(page, '.prod-pop [data-prod-pick]', 1, 'row status click opens status picker');
     const statusPickerUrl = new URL(page.url());

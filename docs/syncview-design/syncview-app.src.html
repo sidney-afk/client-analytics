@@ -588,11 +588,9 @@ function renderActionBar(){const ex=$(".actionbar");if(ex)ex.remove();if(S.open)
     $("#cb-target").onclick=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();openPPick("ptarget",r.left,r.top-8,[...S.cardSel][0],[...S.cardSel]);};
     return;}
   if(!S.selected.size)return;
-  const bar=document.createElement("div");bar.className="actionbar";bar.innerHTML='<span class="cnt">'+S.selected.size+' selected</span><button class="abtn abq" id="ab-status" data-tip="Status · S">'+I.issues+'</button><button class="abtn abq" id="ab-assign" data-tip="Assignee · A">'+I.assignI+'</button><button class="abtn abq" id="ab-due" data-tip="Due date · ⇧D">'+I.cal+'</button><span class="absep"></span><button class="abtn" id="ab-actions"><span style="font-size:13px">⌘</span> Actions</button><button class="ax" id="ab-clear" data-tip="Clear · Esc">✕</button>';document.body.appendChild(bar);
+  const bar=document.createElement("div");bar.className="actionbar";bar.innerHTML='<span class="cnt">'+S.selected.size+' selected</span><button class="abtn" id="ab-actions"><span style="font-size:13px">⌘</span> Actions</button><button class="ax" id="ab-clear" data-tip="Clear · Esc">✕</button>';document.body.appendChild(bar);
   $("#ab-clear").onclick=e=>{e.stopPropagation();S.selected.clear();render();};$("#ab-actions").onclick=e=>{e.stopPropagation();const r=bar.getBoundingClientRect();openContextMenu(r.left,r.top-8,null,true);};
-  $("#ab-status").onclick=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();openStatusMenu(r.left,r.top-8,null);};
-  $("#ab-assign").onclick=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();openAssignMenu(r.left,r.top-8,null);};
-  $("#ab-due").onclick=e=>{e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();openDueMenu(r.left,r.top-8,null);};}
+  }
 
 let openMenuKind=null;
 function clearLayer(){$("#layer").innerHTML="";$("#layer").style.pointerEvents="none";hideTip();openMenuKind=null;[].forEach.call(document.querySelectorAll(".tb-ico.menu-open"),function(el){el.classList.remove("menu-open");});}

@@ -68,12 +68,57 @@ async function shot(page, name) {
   await page.screenshot({ path: path.join(outDir, name + '.png'), fullPage: false });
 }
 
+async function shotElement(page, selector, name) {
+  fs.mkdirSync(outDir, { recursive: true });
+  const loc = page.locator(selector).first();
+  if (await loc.count()) await loc.screenshot({ path: path.join(outDir, name + '.png') });
+}
+
 function cleanPaths(paths) {
   return paths.map(p => String(p || '').replace(/\s+/g, ' ').trim()).filter(Boolean);
 }
 
 async function iconPaths(page, selector) {
   return cleanPaths(await page.locator(selector + ' svg path').evaluateAll(nodes => nodes.map(n => n.getAttribute('d'))));
+}
+
+async function pickerInventory(page, selector) {
+  return page.locator(selector).evaluateAll(nodes => nodes.map(el => {
+    const cs = getComputedStyle(el);
+    return {
+      label: (el.querySelector('.mlbl')?.textContent || '').trim(),
+      kbd: (el.querySelector('.kbd')?.textContent || '').trim(),
+      cursor: cs.cursor,
+      paths: Array.from(el.querySelectorAll('svg path')).map(p => (p.getAttribute('d') || '').replace(/\s+/g, ' ').trim()).filter(Boolean),
+    };
+  }));
+}
+
+function comparePickerInventory(gaps, state, artifactRows, wiredRows) {
+  if (artifactRows.length !== wiredRows.length) {
+    gaps.push({ rank: 1, state, message: `picker row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
+    return;
+  }
+  artifactRows.forEach((a, i) => {
+    const w = wiredRows[i] || {};
+    if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
+    if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
+    if (a.cursor !== w.cursor) gaps.push({ rank: 2, state, message: `row ${i} cursor artifact=${a.cursor} wired=${w.cursor}` });
+    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
+  });
+}
+
+function compareMenuInventory(gaps, state, artifactRows, wiredRows) {
+  if (artifactRows.length !== wiredRows.length) {
+    gaps.push({ rank: 1, state, message: `menu row count mismatch artifact=${artifactRows.length} wired=${wiredRows.length}` });
+    return;
+  }
+  artifactRows.forEach((a, i) => {
+    const w = wiredRows[i] || {};
+    if (a.label !== w.label) gaps.push({ rank: 1, state, message: `row ${i} label artifact=${a.label} wired=${w.label}` });
+    if (a.kbd !== w.kbd) gaps.push({ rank: 1, state, message: `row ${i} kbd artifact=${a.kbd || '(empty)'} wired=${w.kbd || '(empty)'}` });
+    if (a.paths.join('|') !== w.paths.join('|')) gaps.push({ rank: 1, state, message: `row ${i} icon path drift for ${a.label}` });
+  });
 }
 
 async function styles(page, selector, props = STYLE_PROPS) {
@@ -208,6 +253,8 @@ async function run() {
     await wired.waitForSelector('[data-prod-actionbar]');
     await shot(artifact, 'artifact-selection-actionbar');
     await shot(wired, 'wired-selection-actionbar');
+    await shotElement(artifact, '.actionbar', 'artifact-crop-selection-actionbar');
+    await shotElement(wired, '.prod-actionbar', 'wired-crop-selection-actionbar');
     await compareStyles(gaps, 'selection actionbar', artifact, wired, '.actionbar', '.prod-actionbar', ['height', 'display', 'alignItems', 'gap', 'paddingTop', 'paddingBottom', 'borderRadius', 'backgroundColor', 'boxShadow']);
     await compareStyles(gaps, 'selection quick button', artifact, wired, '#ab-status', '#prodBulkStatus', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor']);
     await compareStyles(gaps, 'selection checkbox', artifact, wired, '.check.on', '.prod-check.on', ['width', 'height', 'display', 'alignItems', 'justifyItems', 'borderRadius', 'backgroundColor']);
@@ -216,6 +263,19 @@ async function run() {
     await wired.locator('#prodBulkStatus').click();
     await artifact.waitForSelector('#layer .pop');
     await wired.waitForSelector('#prodLayer .prod-pop');
+    const artifactStatusRows = await pickerInventory(artifact, '#layer .pop [data-i]');
+    const wiredStatusRows = await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]');
+    comparePickerInventory(gaps, 'status picker inventory', artifactStatusRows, wiredStatusRows);
+    const statusOrder = wiredStatusRows.map(r => r.label);
+    if (statusOrder[0] !== 'Backlog' || statusOrder[statusOrder.length - 1] !== 'Triage') {
+      gaps.push({ rank: 1, state: 'status picker order', message: `wired order starts/ends ${statusOrder[0]} / ${statusOrder[statusOrder.length - 1]}` });
+    }
+    const statusHints = wiredStatusRows.map(r => r.kbd);
+    const expectedHints = artifactStatusRows.map(r => r.kbd);
+    if (statusHints.join('|') !== expectedHints.join('|')) {
+      gaps.push({ rank: 1, state: 'status picker kbd hints', message: `wired ${statusHints.join(',')} vs artifact ${expectedHints.join(',')}` });
+    }
+    await compareStyles(gaps, 'status picker selected tick', artifact, wired, '#layer .pop .tick', '#prodLayer .prod-pop .tick', ['color', 'marginLeft', 'order', 'display']);
     const actionRects = {
       aPop: await artifact.locator('#layer .pop').first().boundingBox(),
       aBar: await artifact.locator('.actionbar').first().boundingBox(),
@@ -228,18 +288,61 @@ async function run() {
     // above the action bar even when the standalone artifact overlaps it here.
     await shot(artifact, 'artifact-actionbar-status-picker');
     await shot(wired, 'wired-actionbar-status-picker');
+    await shotElement(artifact, '#layer .pop', 'artifact-crop-status-picker');
+    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-status-picker');
     await artifact.keyboard.press('Escape');
     await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
     await wired.keyboard.press('Escape');
     const cleared = await wired.evaluate(() => _prodState.selected.size === 0 && !document.querySelector('[data-prod-actionbar]'));
     if (!cleared) gaps.push({ rank: 1, state: 'escape cascade', message: 'Escape did not clear wired multi-select/actionbar before navigation' });
 
+    await artifact.evaluate(() => {
+      S.open = null;
+      S.projectOpen = null;
+      S.view = { type: 'issues', team: 'video' };
+      S.selected.clear();
+      render();
+    });
+    await wired.evaluate(() => {
+      _prodState.view = 'list';
+      _prodState.team = 'video';
+      _prodState.clientSlug = '';
+      _prodState.openId = '';
+      _prodState.openProjectId = '';
+      _prodState.selected.clear();
+      _prodRender();
+    });
+    await artifact.locator('.row').first().click({ button: 'right' });
+    await wired.locator('.prod-row').first().click({ button: 'right' });
+    await artifact.waitForSelector('#layer .pop [data-ctx]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-ctx], #prodLayer .prod-pop [data-prod-disabled]');
+    await shotElement(artifact, '#layer .pop', 'artifact-crop-row-context-menu');
+    await shotElement(wired, '#prodLayer .prod-pop', 'wired-crop-row-context-menu');
+    compareMenuInventory(gaps, 'row context menu inventory', await pickerInventory(artifact, '#layer .pop .mi'), await pickerInventory(wired, '#prodLayer .prod-pop .prod-mi'));
+    await artifact.locator('#layer .pop [data-ctx="status"]').hover();
+    await wired.locator('#prodLayer .prod-pop [data-prod-ctx="status"]').hover();
+    await artifact.waitForSelector('#layer .pop [data-i]');
+    await wired.waitForSelector('#prodLayer .prod-pop [data-prod-pick]');
+    await shotElement(artifact, '#layer .pop:last-child', 'artifact-crop-context-status-submenu');
+    await shotElement(wired, '#prodLayer .prod-pop:last-child', 'wired-crop-context-status-submenu');
+    comparePickerInventory(gaps, 'context status submenu inventory', await pickerInventory(artifact, '#layer .pop [data-i]'), await pickerInventory(wired, '#prodLayer .prod-pop [data-prod-pick]'));
+    await artifact.keyboard.press('Escape');
+    await wired.evaluate(() => { if (typeof _prodClearLayer === 'function') _prodClearLayer(); });
+
     await setupFilterPill(artifact, wired);
     await artifact.waitForSelector('.fpill');
     await wired.waitForSelector('.prod-filter-pill.interactive');
     await shot(artifact, 'artifact-filter-pill');
     await shot(wired, 'wired-filter-pill');
+    await shotElement(artifact, '.fpill', 'artifact-crop-filter-pill');
+    await shotElement(wired, '.prod-filter-pill.interactive', 'wired-crop-filter-pill');
     await compareStyles(gaps, 'filter pill', artifact, wired, '.fpill', '.prod-filter-pill.interactive', ['height', 'paddingLeft', 'paddingRight', 'borderRadius', 'backgroundColor', 'borderTopColor', 'borderTopWidth', 'cursor', 'display', 'alignItems', 'gap']);
+    const filterPillA = await iconPaths(artifact, '.fpill .ficon');
+    const filterPillW = await iconPaths(wired, '.prod-filter-pill.interactive .ficon');
+    if (filterPillA.join('|') !== filterPillW.join('|')) gaps.push({ rank: 1, state: 'filter pill icon', message: `filter field icon drift: ${filterPillW.join('|')}` });
+    const filterRemoveA = (await artifact.locator('.fpill .fx').first().innerText()).trim();
+    const filterRemoveW = (await wired.locator('.prod-filter-pill.interactive .fx').first().innerText()).trim();
+    if (filterRemoveA !== filterRemoveW) gaps.push({ rank: 1, state: 'filter pill remove', message: `remove glyph artifact=${filterRemoveA} wired=${filterRemoveW}` });
     const fxCursor = await wired.locator('.prod-filter-pill.interactive .fx').first().evaluate(el => getComputedStyle(el).cursor);
     if (fxCursor !== 'pointer') gaps.push({ rank: 1, state: 'filter pill', message: `filter remove cursor is ${fxCursor}` });
     await wired.locator('.prod-filter-pill.interactive').first().click();
@@ -274,7 +377,7 @@ async function run() {
       gaps.forEach(g => console.error(`  [P${g.rank}] ${g.state}: ${g.message}`));
       throw new Error(`${gaps.length} pixel parity gap(s) found`);
     }
-    console.log('pixel-wired: list, icon paths, selection/actionbar, bulk picker anchor, filter pill, board, and detail parity checks passed');
+    console.log('pixel-wired: list, icon paths, selection/actionbar, status picker inventory, row context menu, context status submenu, bulk picker anchor, filter pill, board, and detail parity checks passed');
     console.log('pixel-wired screenshots: ' + outDir);
   } finally {
     await browser.close().catch(() => {});

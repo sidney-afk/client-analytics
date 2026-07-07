@@ -133,4 +133,30 @@ Phase 0 side-by-side use pass ranked findings:
 | Bulk picker placement | owner Phase A finding, `layerPop` clamping | ported | Wired action-bar pickers anchor above the bar and remain on-screen. PORT-DELTA: the standalone artifact overlaps the bar in this scripted state; owner finding requires the safer embedded placement. |
 | Filter pill affordance | `pillsHTML`, `.fpill` | ported | Cursor, remove button, click-to-edit, and local read-only remove behavior are covered by `pixel-wired.js`. |
 | Embedded Escape cascade | owner Phase A finding | ported | In `?prod=1`: close overlay first, then clear multi-select/action bar, then navigate back. |
+
+## 2026-07-06 Human-Audit Parity Loop, Cycle 1
+
+Human-audit matrix pass (same viewport, artifact vs wired, screenshots local/private):
+
+| Surface x action | Status | Notes / screenshot pairs |
+|---|---:|---|
+| List / toolbar visual inventory | checked | Reused `artifact-list.png` / `wired-list.png`; no new divergence beyond prior #704 fixes. |
+| Selection actionbar / quick actions | checked | `artifact-crop-selection-actionbar.png` / `wired-crop-selection-actionbar.png`; matched after #704. |
+| Status picker from actionbar | fixed | `artifact-crop-status-picker.png` / `wired-crop-status-picker.png`; fixed status order, visible `.kbd` hints, selected tick color/order/display. |
+| Row context menu | fixed | `artifact-crop-row-context-menu.png` / `wired-crop-row-context-menu.png`; fixed disabled Move row to keep the artifact chevron while staying read-only. |
+| Context menu Status submenu | fixed | `artifact-crop-context-status-submenu.png` / `wired-crop-context-status-submenu.png`; inherits status order, `.kbd`, and tick fixes. |
+| Filter pill / remove control | fixed | `artifact-crop-filter-pill.png` / `wired-crop-filter-pill.png`; fixed status field glyph and remove glyph to match the artifact. |
+| Board overview | checked | `artifact-board.png` / `wired-board.png`; no new cycle-1 divergence. |
+| Detail overview | checked | `artifact-detail.png` / `wired-detail.png`; no new cycle-1 divergence. |
+
+Ranked findings fixed in this cycle:
+
+1. P1: status picker order drifted from the artifact (`triage` first in wired, last in artifact).
+2. P1: status picker rows had guarded number-key behavior but no visible `.kbd` hints.
+3. P1: filter pill status field used the generic Issues icon instead of the artifact `statusField` glyph.
+4. P1: row context menu disabled Move row dropped the artifact submenu chevron.
+5. P2: selected picker tick rendered after the `.kbd` hint and used accent coloring; artifact tick is before the hint and uses text color.
+6. P2: filter pill remove mark used the wrong close glyph.
+
+Pixel lane additions: `pixel-wired.js` now performs a two-way row inventory for the status picker and row context/status-submenu surfaces, checking labels, shortcuts, cursor where applicable, and SVG path data. Remaining full-matrix surfaces for later cycles: due popover, palette, empty states, browser back/forward/refresh restoration, and scroll/drag visual affordances.
 | Pixel wired lane | §10.8.6 visual verification | ported | `docs/syncview-design/tests/pixel-wired.js` drives artifact + wired pages through list, selection/actionbar, picker, filter pill, board, and detail states. Screenshots: `.codex-tmp/prod-pixel-wired/artifact-list.png`, `wired-list.png`, `artifact-selection-actionbar.png`, `wired-selection-actionbar.png`, `artifact-actionbar-status-picker.png`, `wired-actionbar-status-picker.png`, `artifact-filter-pill.png`, `wired-filter-pill.png`, `wired-filter-pill-editor.png`, `artifact-board.png`, `wired-board.png`, `artifact-detail.png`, `wired-detail.png`. |

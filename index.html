@@ -2652,9 +2652,9 @@
         .prod-mi .mic { width: 16px; height: 16px; flex: none; display: grid; place-items: center; color: var(--prod-muted); }
         .prod-mi.disabled .mic { color: var(--prod-faint); }
         .prod-mi .mlbl { flex: 1; }
-        .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; }
+        .prod-mi .kbd { color: var(--prod-faint); font-size: 10px; margin-left: 14px; order: 1; }
         .prod-mi .chev { color: var(--prod-faint); display: flex; margin-left: 6px; }
-        .prod-mi .tick { color: var(--prod-accent); display: flex; margin-left: 12px; }
+        .prod-mi .tick { color: var(--prod-text); display: block; margin-left: 8px; }
         .prod-mi .dres { color: var(--prod-faint); font-size: 11px; margin-left: 14px; }
         .prod-pop-empty { padding: 7px 11px; color: var(--prod-faint); font-size: 12.5px; }
         .prod-msep { height: 1px; margin: 5px 6px; background: var(--prod-divider); }
@@ -27426,7 +27426,7 @@
             canceled: 'Canceled',
             duplicate: 'Duplicate'
         };
-        const PROD_STATUS_ORDER = ['triage','backlog','todo','prog','smm','kasper','client','tweak','approved','scheduled','posted','canceled','duplicate'];
+        const PROD_STATUS_ORDER = ['backlog','todo','prog','smm','kasper','tweak','client','approved','scheduled','posted','canceled','duplicate','triage'];
         // no-hardcoded-colors: allow-start (artifact-locked, light-only)
         const PROD_STATUS_META = {
             triage: { type: 'triage', color: '#f2994a' },
@@ -27790,7 +27790,7 @@
                     label: 'Status',
                     plural: 'statuses',
                     icon: k => _prodStatusSVG(k),
-                    fieldIcon: () => _prodIcon('issues'),
+                    fieldIcon: () => _prodIcon('statusField'),
                     values: () => PROD_STATUS_ORDER.filter(k => _prodCurIssuesUnfiltered().some(i => _prodArtifactStatus(i.status) === k)),
                     name: k => _prodStatusLabel(k),
                     match: (i, v) => _prodArtifactStatus(i.status) === v
@@ -27858,7 +27858,7 @@
                 const val = c.values.length === 1
                     ? '<span class="fval">' + f.icon(c.values[0]) + '<span>' + _calEsc(f.name(c.values[0])) + '</span></span>'
                     : '<span class="fval"><span>' + c.values.length + ' ' + f.plural + '</span></span>';
-                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">×</button></span>';
+                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">✕</button></span>';
             }).join('');
         }
         function _prodPickerEmptyState(pop, shown) {
@@ -28492,10 +28492,10 @@
                 return {
                     hd: 'Change status...',
                     search: true,
-                    items: PROD_STATUS_ORDER.map(k => ({
+                    items: PROD_STATUS_ORDER.map((k, n) => ({
                         v: k,
                         label: _prodStatusLabel(k),
-                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span>'
+                        html: '<span class="mic">' + _prodStatusSVG(k) + '</span><span class="mlbl">' + _calEsc(_prodStatusLabel(k)) + '</span><span class="kbd">' + (n < 10 ? (n + 1) % 10 : '') + '</span>'
                     }))
                 };
             }
@@ -28896,8 +28896,8 @@
             const hasSub = { status: 1, assign: 1, due: 1, proj: 1 };
             const menuItem = (label, icon, kbd, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (hasSub[act] ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
-            const disabled = (label, icon, kbd, danger) =>
-                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + '</div>';
+            const disabled = (label, icon, kbd, danger, chev) =>
+                '<div class="prod-mi disabled' + (danger ? ' danger' : '') + '" data-prod-disabled="context-' + _calEscAttr(label.toLowerCase().replace(/\s+/g, '-')) + '" title="' + _calEscAttr(preview) + '" data-prod-tip="' + _calEscAttr(preview) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span>' + (kbd ? '<span class="kbd">' + _calEsc(kbd) + '</span>' : '') + (chev ? '<span class="chev">' + _prodIcon('chevR') + '</span>' : '') + '</div>';
             const active = (label, icon, act) =>
                 '<div class="prod-mi" data-prod-ctx="' + _calEscAttr(act) + '"><span class="mic">' + icon + '</span><span class="mlbl">' + _calEsc(label) + '</span></div>';
             const issueMenu = [
@@ -28907,7 +28907,7 @@
                 menuItem('Project', _prodIcon('project'), '⇧P', 'proj'),
                 '<div class="prod-msep"></div>',
                 active('Copy link', _prodIcon('copy'), 'copy'),
-                disabled('Move', _prodIcon('move'), ''),
+                disabled('Move', _prodIcon('move'), '', false, true),
                 '<div class="prod-msep"></div>',
                 disabled('Delete', _prodIcon('trash'), 'Ctrl ⌫', true)
             ];

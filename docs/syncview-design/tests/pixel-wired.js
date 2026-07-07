@@ -369,6 +369,9 @@ async function run() {
     await compareStyles(gaps, 'selection Actions Ask Linear hint', artifact, wired, '#layer .cmdk-ask', '#prodLayer .prod-cmd-ask', ['display', 'alignItems', 'gap']);
     const askGap = await wired.locator('#prodLayer .prod-cmd-ask').first().evaluate(el => getComputedStyle(el).gap);
     if (parseFloat(askGap || '0') < 4) gaps.push({ rank: 2, state: 'selection Actions Ask Linear hint', message: `Tab hint gap too small: ${askGap}` });
+    await compareStyles(gaps, 'selection Actions input focus outline', artifact, wired, '#layer .cmdk.actioncmd .cmdk-inp', '#prodLayer .prod-actioncmd .prod-cmd-input', ['outlineStyle', 'outlineWidth']);
+    const actionInputOutline = await wired.locator('#prodLayer .prod-actioncmd .prod-cmd-input').first().evaluate(el => getComputedStyle(el).outlineStyle);
+    if (actionInputOutline && actionInputOutline !== 'none') gaps.push({ rank: 2, state: 'selection Actions input focus outline', message: `unexpected focused outline: ${actionInputOutline}` });
     const actionRowsA = await commandInventory(artifact, '#layer .cmdk.actioncmd [data-bulkact]');
     const actionRowsW = await commandInventory(wired, '#prodLayer .prod-actioncmd [data-prod-bulkact]');
     if (actionRowsA.length !== actionRowsW.length) gaps.push({ rank: 1, state: 'selection Actions command', message: `row count mismatch artifact=${actionRowsA.length} wired=${actionRowsW.length}` });

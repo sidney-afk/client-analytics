@@ -353,3 +353,7 @@ Cycle 13 is safety-only because the live Linear browser profile is logged out an
 ## 2026-07-07 Live-Linear Parity Loop, Cycle 14
 
 Cycle 14 closes a selected-Actions visual spacing delta from the accepted Cycle 11 screenshot: `Ask Linear` and the `Tab` hint now have explicit inline-flex spacing in prototype and wired preview. `pixel-wired.js` guards the spacing.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 15
+
+Cycle 15 removes the prototype-only blue focused outline from selected Actions command inputs and mirrors the scoped no-outline rule in wired preview. `pixel-wired.js` now guards the selected Actions input outline state.

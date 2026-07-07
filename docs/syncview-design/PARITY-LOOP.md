@@ -545,3 +545,9 @@ Pixel lane additions: `pixel-wired.js` now asserts the full copy-only selected-A
 Cycle 14 used the accepted Cycle 11 screenshot to close a small visual delta in the selected `Actions` command panel. Live Linear separates the `Ask Linear` label and `Tab` hint; prototype and wired now render that hint as an inline-flex row with a 6px gap.
 
 Pixel lane additions: `pixel-wired.js` compares the prototype/wired Ask Linear hint display/gap and fails if the wired hint gap collapses.
+
+## 2026-07-07 Live-Linear Parity Loop, Cycle 15
+
+Cycle 15 used the accepted Cycle 11 screenshot and the latest local crops to close a prototype-only focus-ring delta. The selected `Actions` command input was picking up the prototype's global `:focus-visible` outline, creating a blue rectangle absent from live Linear. Command inputs now explicitly keep `outline:none`; row/card focus visuals are unchanged.
+
+Pixel lane additions: `pixel-wired.js` compares the selected Actions input outline and fails if the focused command input outline returns.

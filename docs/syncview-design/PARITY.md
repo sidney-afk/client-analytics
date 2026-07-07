@@ -39,6 +39,8 @@ Cycle 12 used the accepted Cycle 11 live capture to finish the selected `Actions
 
 Cycle 14 used the accepted Cycle 11 screenshot to fix a visual spacing delta in the selected `Actions` command panel: the `Ask Linear` label and `Tab` hint now render as separated inline items instead of visually running together.
 
+Cycle 15 fixed the prototype-only blue focus outline on the selected `Actions` input. Live Linear shows no blue ring there; command inputs now opt out of the global focus-visible outline while row/card keyboard focus states remain intact.
+
 ## ⭐ PHASE 2 — BEHAVIORAL / INTERACTION parity (2026-07-05) — ✅ DONE
 After visual/measured parity (Phase 1) was done, an **adversarial re-audit loop** drove SyncView to behavioral parity: 5 parallel agents interact with every surface via Playwright, find divergences vs real Linear, then fixes land one-per-batch guarded by a growing regression suite. **11 re-audits run; the last SIX all returned 0 high / 0 regressions** — findings converged from ~22 down to only deep polish + accepted skeleton/layout limitations. **~115 divergences closed. `behav.js` grew 16 → 138 assertions (all green), `qa-features.js` ALL GREEN, `sweep.js` CLEAN, 0 JS errors throughout.**
 

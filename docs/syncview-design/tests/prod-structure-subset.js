@@ -347,6 +347,16 @@ async function assertNoWriteRequests(requests) {
     await page.keyboard.press('Escape');
     await card.click();
     await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
+    await expectCount(page, '[data-prod-project-subbar]', 1, 'project detail issue-list toolbar');
+    await expectCount(page, '[data-prod-project-tab]', 3, 'project detail open/closed/all tabs');
+    await expectCount(page, '[data-prod-project-details-toggle]', 1, 'project details visibility toggle');
+    await expectCount(page, '#prodFilterBtn', 1, 'project detail filter control');
+    await expectCount(page, '#prodGroupBtn', 1, 'project detail display control');
+    const projectRowShapeOk = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('[data-prod-project-issue]')];
+      return rows.length === 0 || rows.every(row => row.querySelector('.prod-status[data-st]') && row.querySelector('.prod-id') && row.querySelector('.prod-title') && row.querySelector('.prod-due') && row.querySelector('[data-prod-assign]'));
+    });
+    if (!projectRowShapeOk) throw new Error('Project issue rows are missing issue-list metadata controls');
     await expectCount(page, '[data-prod-pstatus]', 1, 'project detail status property');
     await expectCount(page, '[data-prod-plead]', 1, 'project detail lead property');
     await expectCount(page, '[data-prod-ptarget]', 1, 'project detail target property');

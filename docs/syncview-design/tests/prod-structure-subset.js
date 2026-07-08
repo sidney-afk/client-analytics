@@ -255,10 +255,10 @@ async function assertNoWriteRequests(requests) {
     }
     await expectCount(page, '[data-prod-crumb-client]', 1, 'clickable client crumb');
     await page.locator('[data-prod-crumb-client]').first().click();
-    await page.waitForSelector('.prod-listwrap, .prod-empty', { timeout: 10000 });
+    await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
     const clientUrl = new URL(page.url());
     if (clientUrl.searchParams.get('prod') !== '1' || !clientUrl.searchParams.get('client')) {
-      throw new Error('Client breadcrumb did not navigate to ?prod=1 client view');
+      throw new Error('Client breadcrumb did not navigate to ?prod=1 project view');
     }
     await page.evaluate(id => window._prodOpenDeliverable(id), firstRowId);
     await page.waitForSelector('.prod-detail-title', { timeout: 10000 });

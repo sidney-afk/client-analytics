@@ -55,6 +55,8 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .crumb{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--text-strong)}
 .crumb .sep{color:var(--faint);display:flex}
 .crumb .cico{width:14px;height:14px;color:var(--dim)}
+.crumb-link{border:0;background:transparent;color:inherit;font:inherit;padding:0;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.crumb-link:hover{color:var(--text-strong);text-decoration:underline}
 .tb-tabs{display:flex;gap:2px;margin-left:4px}
 .tb-tab{height:23px;padding:0 8px;border-radius:5px;font-size:12px;font-weight:500;color:var(--muted);display:flex;align-items:center}
 .tb-tab:hover{background:var(--hover)}.tb-tab.on{background:var(--hover);color:var(--text)}
@@ -257,8 +259,8 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .ds-card-hd[data-cardtoggle]{cursor:pointer}.ds-card-hd[data-cardtoggle]:hover{color:var(--text-strong)}
 .ds-cv{margin-left:auto;color:var(--faint);display:flex;transition:transform .12s}
 .ds-card.collapsed .ds-cv{transform:rotate(-90deg)}.ds-card.collapsed .ds-row{display:none}
-.ds-row{display:flex;align-items:center;gap:8px;min-height:29px;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-strong)}
-.ds-row:hover{background:var(--hover)}
+.ds-row{display:flex;align-items:center;gap:8px;min-height:29px;border-radius:6px;padding:4px 7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--text-strong);transition:background .12s ease,transform .12s ease,color .12s ease}
+.ds-row:hover{background:var(--hover);transform:translateX(1px)}
 .ds-row>svg,.ds-row .av{flex:none}
 .ds-row>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ds-row .muted{color:var(--faint)}.ds-row.dueover>svg{color:var(--overdue)}
@@ -485,7 +487,7 @@ function renderList(){const list=curIssues(),groups=groupsFor(list);let body="";
     body+='<div class="grp-hd'+(col?' col':'')+'" data-grp="'+g.key+'"><span class="gchev">'+I.chevD+'</span><span class="gcheck check '+(allSel?"on":someSel?"partial":"")+'" data-gcheck="'+g.key+'"></span><span class="grp-ico">'+g.icon+'</span><span class="grp-title'+(S.groupBy==="project"?" navp":"")+'"'+(S.groupBy==="project"?' data-project="'+g.key+'" data-tip="Open project"':"")+'>'+esc(g.title)+'</span><span class="grp-count">'+g.items.length+'</span><span class="grp-sp"></span><button class="grp-add" data-act="toast" data-msg="Add issue" data-tip="Create issue">'+I.plus+'</button></div>';
     if(!col)g.items.forEach(i=>body+=rowHTML(i));});
   return '<div class="main"><div class="topbar noborder"><div class="crumb">'+
-    (S.view.type==="my"?'<span class="cico">'+I.myissues+'</span><span>My issues</span>':'<span style="font-size:12px">'+(S.view.team==="video"?"📽️":"🎨")+'</span><span>'+(S.view.team==="video"?"Video":"Graphics")+'</span><span class="sep">'+I.chevR+'</span><span>Issues</span>')+
+    (S.view.type==="my"?'<span class="cico">'+I.myissues+'</span><span>My issues</span>':'<button class="crumb-link" type="button" data-nav="'+S.view.team+'-issues" data-tip="'+(S.view.team==="video"?"Video":"Graphics")+' issues"><span style="font-size:12px">'+(S.view.team==="video"?"📽️":"🎨")+'</span><span>'+(S.view.team==="video"?"Video":"Graphics")+'</span></button><span class="sep">'+I.chevR+'</span><span>Issues</span>')+
       (S.view.type==="issues"?'<button class="crumb-star'+(favViews.has((S.view.team||"")+"/"+S.view.type)?" on":"")+'" data-favview="'+((S.view.team||"")+"/"+S.view.type)+'" data-tip="Favorite">'+I.star+'</button>':'')+'</div>'+
       '<div class="tb-right"><button class="tb-ico" data-act="toast" data-msg="No new notifications" data-tip="Notifications">'+I.bell+'</button></div></div>'+
     '<div class="subbar">'+
@@ -499,7 +501,7 @@ function renderProjects(){const teamName=S.view.team?(S.view.team==="video"?"Vid
   PSTATUS_ORDER.forEach(k=>{const items=CLIENTS.filter(p=>p.status===k&&(!S.view.team||(p.client&&PROJECTS[p.client]?PROJECTS[p.client].team:"video")===S.view.team));var collapsed=S.colCollapsed.has(k);
     cols+='<div class="pcol'+(collapsed?" col":"")+'" data-pcol="'+k+'"><div class="pcol-hd"><button class="pcol-chev" data-pcolcollapse="'+k+'" data-tip="'+(collapsed?"Expand column":"Collapse column")+'">'+I.chevD+'</button><span class="pico" data-tip="'+PSTATUS[k].name+'">'+projSVG(k)+'</span><span class="pt">'+PSTATUS[k].name+'</span><span class="pc">'+items.length+'</span><span class="pcol-sp"></span><button class="pcol-btn" data-act="toast" data-msg="Column options" data-tip="Options">'+I.dots+'</button><button class="pcol-btn" data-act="toast" data-msg="Add project" data-tip="Add project">'+I.plus+'</button></div>'+(collapsed?'<div class="pcol-railname">'+esc(PSTATUS[k].name)+'  '+items.length+'</div>':'<div class="pcards">'+(items.length?
       items.map(p=>'<div class="pcard'+(p.id===S.focusCard?" pcard-kfocus":"")+(S.cardSel.has(p.id)?" pcard-sel":"")+'" draggable="true" data-project="'+p.id+'"><div class="pcard-hd"><span class="pcard-check'+(S.cardSel.has(p.id)?" on":"")+'" data-cardcheck="'+p.id+'"></span><span class="pcard-ico">'+(p.client&&PROJECTS[p.client]?'<span style="font-size:13px">'+PROJECTS[p.client].emoji+'</span>':I.project)+'</span><span class="pcard-nm" data-fulltitle="'+esc(p.name)+'">'+esc(p.name)+'</span><span class="pcard-status" data-pstatus="'+p.id+'" style="cursor:pointer" data-tip="'+PSTATUS[p.status].name+'">'+projSVG(p.status)+'</span><button class="pcard-dots" data-pcardmenu="'+p.id+'" data-tip="Options">'+I.dots+'</button><span data-plead="'+p.id+'" style="cursor:pointer" data-tip="'+(p.lead?"Lead: "+EDITORS[p.lead].name:"No lead")+'">'+avatar(p.lead,17)+'</span></div>'+(p.desc?'<div class="pcard-desc">'+esc(p.desc)+'</div>':"")+'<div class="pcard-meta"><span>'+pcount(p)+' issue'+(pcount(p)===1?"":"s")+'</span>'+(p.target?'<span class="spacer"></span><span class="mdue '+(overdue(p.target)?"over":"")+'" data-ptarget="'+p.id+'" style="cursor:pointer">'+I.cal+' '+p.target+'</span>':"")+'</div></div>').join(""):'<div class="pcol-empty">No projects</div>')+'</div>')+'</div>';});
-  return '<div class="main"><div class="topbar noborder"><div class="crumb">'+(teamName?'<span style="font-size:12px">'+(S.view.team==="video"?"📽️":"🎨")+'</span><span>'+teamName+'</span><span class="sep">'+I.chevR+'</span>':'')+'<span class="cico">'+I.project+'</span><span>Projects</span></div>'+
+  return '<div class="main"><div class="topbar noborder"><div class="crumb">'+(teamName?'<button class="crumb-link" type="button" data-nav="'+S.view.team+'-issues" data-tip="'+teamName+' issues"><span style="font-size:12px">'+(S.view.team==="video"?"📽️":"🎨")+'</span><span>'+teamName+'</span></button><span class="sep">'+I.chevR+'</span>':'')+'<span class="cico">'+I.project+'</span><span>Projects</span></div>'+
     '<div class="tb-right"><button class="tb-ico" data-act="toast" data-msg="New project" data-tip="New project">'+I.plus+'</button></div></div>'+
     '<div class="subbar"><div class="tb-tabs"><div class="tb-tab on">All projects</div></div>'+
     '<div class="tb-right"><button class="tb-ico" data-act="toast" data-msg="Filter" data-tip="Filter">'+I.filter+'</button><button class="tb-ico" data-act="toast" data-msg="Display" data-tip="Display options">'+I.display+'</button></div></div>'+
@@ -604,6 +606,7 @@ const CMDS=[
   {t:"Go to Graphics projects",run:function(){S.view={type:"projects",team:"graphics"};}},
   {t:"Go to All projects",run:function(){S.view={type:"projects"};}}
 ];
+function searchRank(q,primary,secondary,body){q=String(q||"").trim().toLowerCase();if(!q)return 0;primary=String(primary||"").trim().toLowerCase();secondary=String(secondary||"").trim().toLowerCase();body=String(body||"").trim().toLowerCase();if(primary===q)return 0;if(primary.indexOf(q)===0)return 1;if(primary.split(/\s+/).some(function(part){return part.indexOf(q)===0;}))return 2;if(primary.indexOf(q)>=0)return 3;if(secondary===q||secondary.indexOf(q)===0)return 4;if(secondary.indexOf(q)>=0)return 5;if(body.indexOf(q)>=0)return 8;return -1;}
 function openSearch(){var L=$("#layer");L.innerHTML="";L.style.pointerEvents="auto";
   var bd=document.createElement("div");bd.className="cmdk-bd";
   bd.innerHTML='<div class="cmdk"><input class="cmdk-inp" placeholder="Search issues, projects, people…" spellcheck="false"><div class="cmdk-list"></div></div>';
@@ -613,10 +616,13 @@ function openSearch(){var L=$("#layer");L.innerHTML="";L.style.pointerEvents="au
   function build(q){q=(q||"").trim().toLowerCase();results=[];
     if(!q){ISSUES.filter(function(i){return !i.parent;}).slice(0,6).forEach(function(i){results.push({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id});});CMDS.forEach(function(cm){results.push({type:"command",title:cm.t,icon:I.issues,meta:"Command",run:cm.run});});}
     else{
-      CMDS.forEach(function(cm){if(cm.t.toLowerCase().indexOf(q)>=0)results.push({type:"command",title:cm.t,icon:I.issues,meta:"Command",run:cm.run});});
-      ISSUES.forEach(function(i){if((i.title||"").toLowerCase().indexOf(q)>=0||i.id.toLowerCase().indexOf(q)>=0)results.push({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id});});
-      CLIENTS.forEach(function(c){if((c.name||"").toLowerCase().indexOf(q)>=0)results.push({type:"project",id:c.id,title:c.name,icon:projSVG(c.status),meta:"Project"});});
-      Object.keys(EDITORS).forEach(function(k){var ed=EDITORS[k];if((ed.name||"").toLowerCase().indexOf(q)>=0)results.push({type:"person",id:k,title:ed.name,icon:avatar(k,16),meta:"Assignee"});});
+      var scored=[];
+      function addResult(item,primary,secondary,body){var rank=searchRank(q,primary,secondary,body);if(rank>=0)scored.push(Object.assign({_rank:rank,_order:scored.length},item));}
+      CMDS.forEach(function(cm){addResult({type:"command",title:cm.t,icon:I.issues,meta:"Command",run:cm.run},cm.t,"Command","");});
+      ISSUES.forEach(function(i){addResult({type:"issue",id:i.id,title:i.title,icon:statusSVG(i.status),meta:i.id},i.title,i.id,i.desc);});
+      CLIENTS.forEach(function(c){addResult({type:"project",id:c.id,title:c.name,icon:projSVG(c.status),meta:"Project"},c.name,"Project","");});
+      Object.keys(EDITORS).forEach(function(k){var ed=EDITORS[k];addResult({type:"person",id:k,title:ed.name,icon:avatar(k,16),meta:"Assignee"},ed.name,"Assignee","");});
+      results=scored.sort(function(a,b){return a._rank-b._rank||String(a.title||"").localeCompare(String(b.title||""))||a._order-b._order;}).map(function(r){delete r._rank;delete r._order;return r;});
     }
     results=results.slice(0,12);sel=0;draw();}
   function draw(){list.innerHTML=results.length?results.map(function(r,idx){return '<div class="cmdk-item '+(idx===sel?"sel":"")+'" data-idx="'+idx+'"><span class="ci">'+r.icon+'</span><span class="ct">'+esc(r.title)+'</span><span class="cmeta">'+r.meta+'</span></div>';}).join(""):'<div class="cmdk-empty">No results</div>';

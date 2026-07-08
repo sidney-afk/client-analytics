@@ -601,13 +601,17 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "method" }, 405);
 
-  // One staff passphrase governs both this and the onboarding-full function: if
-  // ONBOARDING_STAFF_KEY is set it wins for BOTH, otherwise both fall back to
-  // CREDENTIALS_STAFF_KEY — so Kasper only ever needs a single passphrase.
-  const expected = Deno.env.get("ONBOARDING_STAFF_KEY") || Deno.env.get("CREDENTIALS_STAFF_KEY") || "";
-  if (!expected) return json({ ok: false, error: "credentials key not configured" }, 500);
-  const supplied = req.headers.get("x-syncview-key") || "";
-  if (!timingSafeEqual(supplied, expected)) return json({ ok: false, error: "unauthorized" }, 401);
+  // Credentials are opened from TWO places: Kasper's tab (he uses the onboarding
+  // passphrase ONBOARDING_STAFF_KEY) and the SMM calendar (staff use the shared
+  // CREDENTIALS_STAFF_KEY). Accept EITHER key so both audiences get in. (By
+  // contrast, onboarding-full accepts only ONBOARDING_STAFF_KEY once it's set, so
+  // onboarding stays Kasper-only.)
+  const kOnb = (Deno.env.get("ONBOARDING_STAFF_KEY") || "").trim();
+  const kStaff = (Deno.env.get("CREDENTIALS_STAFF_KEY") || "").trim();
+  if (!kOnb && !kStaff) return json({ ok: false, error: "credentials key not configured" }, 500);
+  const supplied = (req.headers.get("x-syncview-key") || "").trim();
+  const authed = (!!kOnb && timingSafeEqual(supplied, kOnb)) || (!!kStaff && timingSafeEqual(supplied, kStaff));
+  if (!authed) return json({ ok: false, error: "unauthorized" }, 401);
 
   let body: JsonMap;
   try { body = JSON.parse(await req.text()) as JsonMap; }

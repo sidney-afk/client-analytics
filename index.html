@@ -2516,6 +2516,7 @@
         .prod-detail { flex: 1; display: flex; min-width: 0; overflow: hidden; }
         .prod-detail-main { flex: 1; overflow: auto; }
         .prod-detail-inner { max-width: 760px; padding: 24px 20px 80px 56px; }
+        .prod-project-detail .prod-detail-inner { max-width: none; padding-right: 32px; }
         .prod-detail-id { margin-bottom: 10px; font-size: 13px; font-weight: 450; color: var(--prod-muted); letter-spacing: 0; }
         .prod-detail-title { margin: 0 0 14px; font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: 0; color: var(--prod-text); }
         .prod-desc { font-size: 15px; line-height: 24px; color: var(--prod-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -2646,7 +2647,7 @@
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
         .prod-side-row { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--prod-strong); font-size: 13px; }
         .prod-side-row.muted { color: var(--prod-muted); }
-        button.prod-filter-pill { font: inherit; }
+        button.prod-filter-pill { font-family: inherit; }
         .prod-prop-btn { min-width: 0; width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; display: flex; align-items: center; gap: 8px; padding: 0 6px; box-sizing: border-box; text-align: left; cursor: pointer; transition: background .12s ease, color .12s ease, transform .12s ease; }
         .prod-prop-btn:hover { background: var(--prod-hover); transform: translateX(1px); }
         .prod-parent-link { border: 0; border-radius: 6px; background: transparent; padding: 0 6px; box-sizing: border-box; min-height: 28px; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; transition: background .12s ease, color .12s ease, transform .12s ease; }
@@ -27709,6 +27710,8 @@
             openId: '',
             openBatchId: '',
             openProjectId: '',
+            projectTab: 'open',
+            projectDetailsOpen: true,
             tab: 'active',
             groupBy: 'status',
             orderBy: 'due',
@@ -28082,6 +28085,10 @@
             return !!(d && d.isBatchParent) || !!(d && batch && _prodSameTitle(d.title, batch.name));
         }
         function _prodCurIssuesUnfiltered() {
+            if (_prodState.view === 'project' && _prodState.openProjectId) {
+                return _prodIssues().filter(d => d.project === _prodState.openProjectId && !d.parent)
+                    .filter(_prodProjectTabAllows);
+            }
             return _prodIssues().filter(d => _prodState.team === 'all' || d.team === _prodState.team)
                 .filter(d => !_prodState.clientSlug || d.project === _prodState.clientSlug)
                 .filter(d => _prodState.view !== 'my' || (d.assignee && d.assignee === _prodMyMemberId()))
@@ -29424,6 +29431,23 @@
             return rows
                 .sort(_prodIssueOrderCompare);
         }
+        function _prodProjectIssueClosed(d) {
+            return ['approved','posted','canceled','duplicate'].includes(_prodArtifactStatus(d && d.status));
+        }
+        function _prodProjectTabAllows(d) {
+            if (_prodState.projectTab === 'all') return true;
+            if (_prodState.projectTab === 'closed') return _prodProjectIssueClosed(d);
+            return !_prodProjectIssueClosed(d);
+        }
+        function _prodProjectRows(project) {
+            const id = String(project && project.id || '');
+            if (!id) return [];
+            return _prodIssues()
+                .filter(d => d.project === id && !d.parent)
+                .filter(_prodProjectTabAllows)
+                .filter(_prodMatchFilters)
+                .sort(_prodIssueOrderCompare);
+        }
         function _prodCounts() {
             const all = _prodIssues();
             return {
@@ -29544,6 +29568,11 @@
                 if (view === 'my' || view === 'board' || view === 'list' || view === 'project') _prodState.view = view === 'board' ? 'board' : view === 'my' ? 'my' : view === 'project' ? 'project' : 'list';
                 const tab = q.get('issues');
                 if (tab === 'active' || tab === 'backlog' || tab === 'all') _prodState.tab = tab;
+                const ptab = q.get('ptab');
+                if (ptab === 'open' || ptab === 'closed' || ptab === 'all') _prodState.projectTab = ptab;
+                const pdetails = q.get('pdetails');
+                if (pdetails === '0' || pdetails === 'false') _prodState.projectDetailsOpen = false;
+                else if (pdetails === '1' || pdetails === 'true') _prodState.projectDetailsOpen = true;
                 const client = q.get('client');
                 _prodState.clientSlug = client || '';
                 _prodState.openProjectId = '';
@@ -29570,6 +29599,8 @@
                 q.delete('client');
                 q.delete('view');
                 q.delete('issues');
+                q.delete('ptab');
+                q.delete('pdetails');
                 q.delete('group');
                 q.delete('order');
                 q.delete('subs');
@@ -29580,6 +29611,8 @@
                 if (_prodState.view === 'board') q.set('view', 'board');
                 if (_prodState.view === 'project') q.set('view', 'project');
                 if (_prodState.tab !== 'active' && (_prodState.view === 'list' || _prodState.view === 'my')) q.set('issues', _prodState.tab);
+                if (_prodState.view === 'project' && _prodState.projectTab !== 'open') q.set('ptab', _prodState.projectTab);
+                if (_prodState.view === 'project' && _prodState.projectDetailsOpen === false) q.set('pdetails', '0');
                 if ((_prodState.groupBy || 'status') !== 'status') q.set('group', _prodState.groupBy);
                 if ((_prodState.orderBy || 'due') !== 'due') q.set('order', _prodState.orderBy);
                 if (_prodState.showSubIssues === false) q.set('subs', '0');
@@ -29688,6 +29721,19 @@
             _prodState.openBatchId = '';
             _prodState.openProjectId = '';
             _prodReconcileSelection();
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodSetProjectTab(tab) {
+            _prodState.projectTab = tab === 'closed' ? 'closed' : tab === 'all' ? 'all' : 'open';
+            _prodState.openId = '';
+            _prodState.openBatchId = '';
+            _prodReconcileSelection();
+            _prodSetQuery({}, true);
+            _prodRender();
+        }
+        function _prodToggleProjectDetails() {
+            _prodState.projectDetailsOpen = _prodState.projectDetailsOpen === false;
             _prodSetQuery({}, true);
             _prodRender();
         }
@@ -29934,6 +29980,8 @@
             _prodState.openId = '';
             _prodState.openBatchId = '';
             _prodState.clientSlug = '';
+            _prodState.projectTab = 'open';
+            _prodState.projectDetailsOpen = true;
             _prodState.view = 'project';
             _prodState.selected.clear();
             _prodState.selAnchor = '';
@@ -30046,7 +30094,11 @@
             const c = _prodClient(_prodState.openProjectId);
             const title = c ? (c.name || c.id) : 'Project';
             const team = c ? c.team : _prodState.team;
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+            const ptab = _prodState.projectTab === 'closed' ? 'closed' : _prodState.projectTab === 'all' ? 'all' : 'open';
+            const tabs = '<div class="prod-tabs"><button class="prod-tab' + (ptab === 'open' ? ' active' : '') + '" type="button" data-prod-project-tab="open" onclick="_prodSetProjectTab(' + _jsAttrArg('open') + ')">Open</button><button class="prod-tab' + (ptab === 'closed' ? ' active' : '') + '" type="button" data-prod-project-tab="closed" onclick="_prodSetProjectTab(' + _jsAttrArg('closed') + ')">Closed</button><button class="prod-tab' + (ptab === 'all' ? ' active' : '') + '" type="button" data-prod-project-tab="all" onclick="_prodSetProjectTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
+            const detailPill = '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-project-details-toggle="1" onclick="_prodToggleProjectDetails()" data-prod-tip="Toggle project details">' + _prodIcon('display') + '<span>Project details</span></button>';
+            const subbar = '<div class="prod-subbar" data-prod-project-subbar="1">' + tabs + '<div class="prod-filter-pills">' + _prodPillsHTML() + detailPill + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>' + subbar;
         }
         function _prodDetailTopbar() {
             const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
@@ -30213,19 +30265,23 @@
             const c = _prodClient(_prodState.openProjectId);
             if (!c) return '<div class="prod-empty">Project not found.</div>';
             const lead = _prodMember(c.lead);
-            const rows = _prodIssues().filter(i => i.project === c.id && !i.parent);
+            const allRows = _prodIssues().filter(i => i.project === c.id && !i.parent);
+            const rows = _prodProjectRows(c);
             const desc = c.desc || 'No project description on this migrated row.';
-            return '<div class="prod-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
-                + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(c.team)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
-                + '<div class="prod-desc">' + _calEsc(desc) + '</div>'
-                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + rows.length + '</span></div>'
-                + (rows.length ? rows.map(d => '<div class="prod-subrow" data-prod-project-issue="' + _calEscAttr(d.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-spacer"></span>' + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '') + '</div>').join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">No issues in this project yet.</div>')
-                + '</div></div></div><aside class="prod-right"><div class="prod-props">'
+            const empty = (_prodState.filters || []).length ? 'No issues match your filters.' : 'No issues in this view yet.';
+            const rowHTML = rows.length ? rows.map(d => { const assignee = _prodMember(d.assignee); return '<div class="prod-subrow prod-project-issue-row" data-prod-project-issue="' + _calEscAttr(d.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(d.id) + ')" oncontextmenu="return _prodOpenContextMenu(event,' + _jsAttrArg('issue') + ',' + _jsAttrArg(d.id) + ')">' + _prodStatusIcon(d.status, d.id) + '<span class="prod-id">' + _calEsc(_prodIssueLabel(d)) + '</span><span class="prod-title"><b>' + _calEsc(d.title || '') + '</b></span><span class="prod-spacer"></span>' + (d.due ? '<span class="prod-due' + (_prodOverdue(d.dueRaw, d.status) ? ' over' : '') + '" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + _calEsc(d.due) + '</span>' : '<span class="prod-due optional" onclick="return _prodOpenDueMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="Set due date">' + _prodIcon('cal') + '</span>') + '<span class="prod-assign-hot" data-prod-assign="' + _calEscAttr(d.id) + '" onclick="return _prodOpenAssignMenu(event,' + _jsAttrArg(d.id) + ')" data-prod-tip="' + _calEscAttr(assignee ? ('Assignee: ' + assignee.name) : 'Unassigned') + '">' + _prodAvatar(assignee, 18) + '</span></div>'; }).join('') : '<div class="prod-empty" style="margin:0;padding:16px;text-align:left;">' + _calEsc(empty) + '</div>';
+            const side = _prodState.projectDetailsOpen === false ? '' : '<aside class="prod-right"><div class="prod-props">'
                 + '<div class="prod-side-card" data-prod-detail-card="properties"><div class="prod-side-card-head"><span>Properties</span></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-pstatus="' + _calEscAttr(c.id) + '" data-pstatus="' + _calEscAttr(c.id) + '" data-prod-tip="Status: ' + _calEscAttr(_prodBoardLabel(c.status)) + '" onclick="return _prodOpenProjectStatusPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodProjectStatusIcon(c.status) + '<span>' + _calEsc(_prodBoardLabel(c.status)) + '</span></button></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-plead="' + _calEscAttr(c.id) + '" data-plead="' + _calEscAttr(c.id) + '" data-prod-tip="' + _calEscAttr(lead ? ('Lead: ' + lead.name) : 'No lead') + '" onclick="return _prodOpenProjectLeadPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodAvatar(lead, 18) + '<span class="' + (lead ? '' : 'muted') + '">' + _calEsc(lead ? lead.name : 'No lead') + '</span></button></div>'
                 + '<div class="prod-side-row"><button type="button" class="prod-prop-btn" data-prod-ptarget="' + _calEscAttr(c.id) + '" data-ptarget="' + _calEscAttr(c.id) + '" data-prod-tip="Target date" onclick="return _prodOpenProjectTargetPicker(event,' + _jsAttrArg(c.id) + ')">' + _prodIcon('cal') + '<span class="' + (c.target ? '' : 'muted') + '">' + _calEsc(c.target || 'No target') + '</span></button></div>'
-                + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="project-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div></div></aside></div>';
+                + '<div class="prod-side-row"><span class="prod-disabled-pill"><button type="button" data-prod-disabled="project-controls" disabled title="' + _prodPreviewText() + '">Controls disabled</button></span></div></div>'
+                + '<div class="prod-side-card" data-prod-detail-card="project-issues"><div class="prod-side-card-head"><span>Issues</span></div><div class="prod-side-row muted">' + _calEsc(String(allRows.length)) + ' issue' + (allRows.length === 1 ? '' : 's') + '</div></div></div></aside>';
+            return '<div class="prod-detail prod-project-detail" data-prod-project-detail="' + _calEscAttr(c.id) + '"><div class="prod-detail-main"><div class="prod-detail-inner">'
+                + '<div class="prod-detail-id">' + _calEsc(_prodTeamLabel(c.team)) + ' project</div><h1 class="prod-detail-title">' + _calEsc(c.name || c.id) + '</h1>'
+                + '<div class="prod-desc">' + _calEsc(desc) + '</div>'
+                + '<div class="prod-subsection"><div class="prod-subhead">' + _prodIcon('issues') + ' Issues <span class="prod-group-count">' + rows.length + '</span></div>'
+                + rowHTML + '</div></div></div>' + side + '</div>';
         }
         function _prodBatchDetail() {
             const batch = _prodBatch(_prodState.openBatchId);

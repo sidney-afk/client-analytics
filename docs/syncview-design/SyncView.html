@@ -223,6 +223,7 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .detail-main{flex:1;overflow-y:auto}
 .detail-main::-webkit-scrollbar{width:9px}.detail-main::-webkit-scrollbar-thumb{background:#00000015;border-radius:9px}
 .detail-inner{max-width:760px;margin:0;padding:24px 20px 80px 56px}
+.detail.project-detail .detail-inner{max-width:none;padding-right:32px}
 .d-id{font-size:13px;font-weight:450;color:var(--muted);letter-spacing:-.02em;margin-bottom:10px}
 .d-title{font-size:24px;font-weight:600;letter-spacing:-.16px;color:var(--text);margin:0 0 14px;line-height:32px}
 .d-desc{font-size:15px;font-weight:450;line-height:24px;letter-spacing:-.1px;color:var(--text-strong)}.d-desc p{margin:0 0 10px}
@@ -404,7 +405,7 @@ function projSVG(key){const c=PSTATUS[key].color;let extra="";
   const dash=key==="backlog"?' stroke-dasharray="1.65 1.35"':'';return '<svg width="16" height="16" viewBox="-1 -1 16 16"><path d="'+HEX+'" fill="none" stroke="'+c+'" stroke-width="1.4" stroke-linejoin="round"'+dash+'/>'+extra+'</svg>';}
 function avatar(aid,size){const s=size||16;if(!aid||!EDITORS[aid])return '<span class="av empty" style="width:'+s+'px;height:'+s+'px"><svg width="'+(s*0.6)+'" height="'+(s*0.6)+'" viewBox="0 0 16 16" fill="none" stroke="var(--faint)" stroke-width="1.4"><circle cx="8" cy="6" r="2.2"/><path d="M4 12a4 4 0 0 1 8 0"/></svg></span>';const e=EDITORS[aid];return '<span class="av" style="width:'+s+'px;height:'+s+'px;background:'+e.color+';font-size:'+(s*0.44)+'px">'+e.init+'</span>';}
 
-const S={view:{type:"issues",team:"video"},groupBy:"status",orderBy:"due",showSubIssues:true,selected:new Set(),open:null,nav:[],projectOpen:null,collapsed:new Set(),teamOpen:{video:true,graphics:true},secOpen:{ws:true,teams:true,fav:true},colCollapsed:new Set(),lastSel:null,tab:"active",filters:[],focusRow:null,focusCard:null,selAnchor:null,cardSel:new Set(),cardAnchor:null,editComment:null,draft:{}};
+const S={view:{type:"issues",team:"video"},groupBy:"status",orderBy:"due",showSubIssues:true,selected:new Set(),open:null,nav:[],projectOpen:null,projectTab:"open",projectDetailsOpen:true,collapsed:new Set(),teamOpen:{video:true,graphics:true},secOpen:{ws:true,teams:true,fav:true},colCollapsed:new Set(),lastSel:null,tab:"active",filters:[],focusRow:null,focusCard:null,selAnchor:null,cardSel:new Set(),cardAnchor:null,editComment:null,draft:{}};
 const $=s=>document.querySelector(s);
 const esc=s=>(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 const linkify=s=>{s=esc(s);var st=[];var keep=function(h){st.push(h);return "XMDTOK"+(st.length-1)+"ENDMDTOK";};
@@ -438,6 +439,9 @@ function orderIssues(list){return list.slice().sort(issueOrderCompare);}
 function curIssues(){return orderIssues(visibleSubIssues(ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})
   .filter(i=>{if(S.tab==="active")return["prog","smm","kasper","tweak","client","todo","scheduled"].includes(i.status);if(S.tab==="backlog")return i.status==="backlog"||i.status==="triage";return true;})
   .filter(matchFilters)));}
+function projectIssueClosed(i){return["approved","posted","canceled","duplicate"].includes(i.status);}
+function projectTabAllows(i){if(S.projectTab==="all")return true;if(S.projectTab==="closed")return projectIssueClosed(i);return !projectIssueClosed(i);}
+function projectIssues(pr){return orderIssues((pr&&pr.client?ISSUES.filter(i=>i.project===pr.client&&!i.parent):[]).filter(projectTabAllows).filter(matchFilters));}
 
 function navItem(icon,label,o){o=o||{};return '<button class="nav-i '+(o.cls||"")+' '+(o.on?"on":"")+'" '+(o.nav?'data-nav="'+o.nav+'"':"")+' data-tip="'+(o.tip||label)+'"><span class="ico">'+icon+'</span><span class="lbl">'+label+'</span></button>';}
 function openPCardMenu(x,y,pid){var items=[["Change status","pstatus"],["Set lead","plead"],["Set target","ptarget"],["sep"],["Copy link","copy"]];var html=items.map(function(o){if(o[0]==="sep")return '<div class="msep"></div>';return '<div class="mi" data-pcm="'+o[1]+'"><span class="mlbl">'+o[0]+'</span></div>';}).join("");var pp=layerPop(html,x,y);[].forEach.call(pp.querySelectorAll("[data-pcm]"),function(el){el.onclick=function(){var a=el.getAttribute("data-pcm");clearLayer();if(a==="copy"){toast("Link copied");return;}openPPick(a,x,y,pid);};});}
@@ -541,8 +545,8 @@ function renderDetail(){const i=byId(S.open);if(!i)return renderList();const st=
 function openIssue(id){if(!byId(id))return;if(id===S.open)return;if(S.open)S.nav.push(S.open);S.open=id;S.selected.clear();S.editComment=null;hideTip();render();pushLoc();}
 function goBack(){history.back();}
 function backToList(){S.open=null;S.nav=[];hideTip();render();replaceLoc();}
-function snapshot(){return {view:S.view,open:S.open,projectOpen:S.projectOpen,nav:[...S.nav],filters:(S.filters||[]).map(c=>({field:c.field,values:[...c.values]})),tab:S.tab,groupBy:S.groupBy,orderBy:S.orderBy,showSubIssues:S.showSubIssues};}
-function restore(st){if(!st)return;S.view=st.view||{type:"issues",team:"video"};S.open=st.open||null;S.projectOpen=st.projectOpen||null;S.nav=[...(st.nav||[])];S.filters=(st.filters||[]).map(c=>({field:c.field,values:[...c.values]}));S.tab=st.tab||"active";S.groupBy=st.groupBy||"status";S.orderBy=st.orderBy||"due";S.showSubIssues=st.showSubIssues!==false;S.selected.clear();S.editComment=null;}
+function snapshot(){return {view:S.view,open:S.open,projectOpen:S.projectOpen,projectTab:S.projectTab,projectDetailsOpen:S.projectDetailsOpen,nav:[...S.nav],filters:(S.filters||[]).map(c=>({field:c.field,values:[...c.values]})),tab:S.tab,groupBy:S.groupBy,orderBy:S.orderBy,showSubIssues:S.showSubIssues};}
+function restore(st){if(!st)return;S.view=st.view||{type:"issues",team:"video"};S.open=st.open||null;S.projectOpen=st.projectOpen||null;S.projectTab=st.projectTab==="closed"?"closed":st.projectTab==="all"?"all":"open";S.projectDetailsOpen=st.projectDetailsOpen!==false;S.nav=[...(st.nav||[])];S.filters=(st.filters||[]).map(c=>({field:c.field,values:[...c.values]}));S.tab=st.tab||"active";S.groupBy=st.groupBy||"status";S.orderBy=st.orderBy||"due";S.showSubIssues=st.showSubIssues!==false;S.selected.clear();S.editComment=null;}
 let popping=false;
 function sameLoc(a,b){return !!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);}
 function pushLoc(){if(popping)return;const s=snapshot();if(sameLoc(history.state,s))return;history.pushState(s,"");}
@@ -573,18 +577,19 @@ function wireAddSub(){const btn=$("[data-addsub]");if(!btn)return;
         ISSUES.push({id,team:parent.team,project:parent.project,title:t,parent:parent.id,status:"todo",assignee:"",due:"",created:fmtDue(TODAY),sub:null,desc:"",file:DRIVE,comments:[]});
         if(parent.sub)parent.sub=[parent.sub[0],parent.sub[1]+1];else parent.sub=[0,1];
         REALPARENTS.add(parent.id);logActivity(parent.id,"subadd",null,null);if(ev.metaKey||ev.ctrlKey){openIssue(id);}else{render();var b2=$("[data-addsub]");if(b2)b2.click();}toast("Sub-issue added");}};});}
-function renderProjectDetail(){const pr=CLIENTS.find(c=>c.id===S.projectOpen);if(!pr)return renderProjects();const issues=pr.client?ISSUES.filter(i=>i.project===pr.client&&!i.parent):[];
-  return '<div class="main"><div class="topbar"><button class="tb-ico" data-act="close-project" data-tip="Back to projects">'+I.back+'</button><div class="crumb-detail"><span class="cico">'+I.project+'</span><span>Projects</span><span class="sep">'+I.chevR+'</span><b>'+esc(pr.name)+'</b></div></div>'+
-  '<div class="detail"><div class="detail-main"><div class="detail-inner"><div class="d-id" style="display:flex;align-items:center;gap:7px">'+projSVG(pr.status)+' '+PSTATUS[pr.status].name+'</div><h1 class="d-title">'+esc(pr.name)+'</h1>'+(pr.desc?'<div class="d-desc"><p>'+esc(pr.desc)+'</p></div>':"")+
+function renderProjectDetail(){const pr=CLIENTS.find(c=>c.id===S.projectOpen);if(!pr)return renderProjects();const issues=projectIssues(pr),allIssues=pr.client?ISSUES.filter(i=>i.project===pr.client&&!i.parent):[];
+  const subbar='<div class="subbar"><div class="tb-tabs"><div class="tb-tab '+(S.projectTab==="open"?"on":"")+'" data-projecttab="open">Open</div><div class="tb-tab '+(S.projectTab==="closed"?"on":"")+'" data-projecttab="closed">Closed</div><div class="tb-tab '+(S.projectTab==="all"?"on":"")+'" data-projecttab="all">All issues</div></div>'+pillsHTML()+'<div class="fpills"><button class="fpill" data-projectdetails="1" data-tip="Toggle project details">'+I.display+'<span>Project details</span></button></div><div class="tb-right"><button class="tb-ico '+((S.filters&&S.filters.length)?"on":"")+'" id="filterbtn" data-tip="Filter">'+I.filter+'</button><button class="tb-ico" id="groupbtn" data-tip="Display options">'+I.display+'</button></div></div>';
+  return '<div class="main"><div class="topbar"><button class="tb-ico" data-act="close-project" data-tip="Back to projects">'+I.back+'</button><div class="crumb-detail"><span class="cico">'+I.project+'</span><span>Projects</span><span class="sep">'+I.chevR+'</span><b>'+esc(pr.name)+'</b></div></div>'+subbar+
+  '<div class="detail project-detail"><div class="detail-main"><div class="detail-inner"><div class="d-id" style="display:flex;align-items:center;gap:7px">'+projSVG(pr.status)+' '+PSTATUS[pr.status].name+'</div><h1 class="d-title">'+esc(pr.name)+'</h1>'+(pr.desc?'<div class="d-desc"><p>'+esc(pr.desc)+'</p></div>':"")+
   '<div class="d-sub"><div class="d-sub-hd">'+I.issues+' Issues <span style="color:var(--faint);font-weight:500">'+issues.length+'</span></div>'+(issues.length?issues.map(k=>'<div class="d-subrow" data-row="'+k.id+'"><span data-st="'+k.id+'" style="display:inline-flex;cursor:pointer">'+statusSVG(k.status)+'</span><span class="sid">'+k.id+'</span><span class="stt">'+esc(k.title)+'</span><span class="rspacer"></span>'+(k.due?'<span class="due '+(overdue(k.due)?"over":"")+'" data-due="'+k.id+'" data-tip="Due '+k.due+(overdue(k.due)?" · overdue":"")+'">'+I.cal+k.due+'</span>':'<span class="due due-empty" data-due="'+k.id+'" data-tip="Set due date">'+I.cal+'</span>')+'<span data-assign="'+k.id+'" data-tip="'+(k.assignee?"Assignee: "+EDITORS[k.assignee].name:"Unassigned")+'" style="width:18px;display:flex;justify-content:center;cursor:pointer">'+avatar(k.assignee,18)+'</span></div>').join(""):'<div style="color:var(--faint);font-size:12.5px;padding:10px 0">No issues in this view yet.</div>')+'</div></div></div>'+
-  '<div class="detail-side"><button class="ds-back" data-act="close-project">'+I.back+' Back to projects</button>'+
+  (S.projectDetailsOpen?'<div class="detail-side"><button class="ds-back" data-act="close-project">'+I.back+' Back to projects</button>'+
    '<div class="ds-card"><div class="ds-card-hd" data-cardtoggle><span>Properties</span><span class="ds-cv">'+I.chevD+'</span></div>'+
      '<div class="ds-row" data-pstatus="'+pr.id+'" data-tip="Status: '+PSTATUS[pr.status].name+'">'+projSVG(pr.status)+'<span>'+PSTATUS[pr.status].name+'</span></div>'+
      '<div class="ds-row" data-plead="'+pr.id+'" data-tip="'+(pr.lead?"Lead: "+EDITORS[pr.lead].name:"No lead")+'">'+avatar(pr.lead,18)+'<span class="'+(pr.lead?"":"muted")+'">'+(pr.lead?EDITORS[pr.lead].name:"No lead")+'</span></div>'+
      '<div class="ds-row'+(pr.target&&overdue(pr.target)?" dueover":"")+'" data-ptarget="'+pr.id+'" data-tip="Target date">'+I.cal+'<span class="'+(pr.target?"":"muted")+'">'+(pr.target?pr.target:"No target")+'</span></div>'+
-     '<div class="ds-row" data-tip="Issues in project">'+I.issues+'<span>'+issues.length+' issue'+(issues.length===1?"":"s")+'</span></div>'+
+     '<div class="ds-row" data-tip="Issues in project">'+I.issues+'<span>'+allIssues.length+' issue'+(allIssues.length===1?"":"s")+'</span></div>'+
    '</div>'+
-  '</div></div></div>';}
+  '</div>':"")+'</div></div>';}
 function mainView(){if(S.open)return renderDetail();if(S.projectOpen)return renderProjectDetail();if(S.view.type==="projects")return renderProjects();return renderList();}
 let scrollMem={},lastRenderKey=null;
 function viewKey(){return S.open?"i:"+S.open:S.projectOpen?"p:"+S.projectOpen:"v:"+(S.view.type||"")+":"+(S.view.team||"")+":"+(S.tab||"");}
@@ -776,7 +781,7 @@ function openFilterMenu(x,y){const meActive=(condFor("assignee")||{values:[]}).v
   const p=layerPop(rows,x,y);
   p.querySelector("[data-fquick]").onclick=()=>{toggleFilterValue("assignee","sl");clearLayer();};
   p.querySelectorAll("[data-ffield]").forEach(el=>{const fk=el.getAttribute("data-ffield");el.addEventListener("mouseenter",()=>openFilterSub(el,fk));el.onclick=()=>openFilterSub(el,fk);});}
-function curIssuesUnfiltered(){return orderIssues(visibleSubIssues(ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})));}
+function curIssuesUnfiltered(){if(S.projectOpen){const pr=CLIENTS.find(c=>c.id===S.projectOpen);return orderIssues((pr&&pr.client?ISSUES.filter(i=>i.project===pr.client&&!i.parent):[]).filter(projectTabAllows));}return orderIssues(visibleSubIssues(ISSUES.filter(i=>{if(S.view.type==="my")return i.assignee==="sl";if(S.view.type==="issues")return i.team===S.view.team;return false;})));}
 
 function flatOrder(){const out=[];groupsFor(curIssues()).forEach(g=>{if(!S.collapsed.has(g.key))g.items.forEach(i=>out.push(i.id))});return out;}
 function reconcileSel(){var vis=new Set(curIssues().map(function(i){return i.id;}));[...S.selected].forEach(function(id){if(!vis.has(id))S.selected.delete(id);});}
@@ -822,6 +827,8 @@ document.addEventListener("click",e=>{const t=e.target;if(t.closest("#layer"))re
   const frem=t.closest("[data-fremove]");if(frem){removeFilter(frem.getAttribute("data-fremove"));return;}
   const fedit=t.closest("[data-fedit]");if(fedit){const r=fedit.getBoundingClientRect();hideTip();const p=layerPop("",r.left,r.bottom+4);buildFilterValues(p,fedit.getAttribute("data-fedit"));const pr=p.getBoundingClientRect();let xx=r.left;if(xx+pr.width>innerWidth-8)xx=innerWidth-pr.width-8;p.style.left=xx+"px";p.style.top=(r.bottom+4)+"px";return;}
   const tab=t.closest("[data-tab]");if(tab){S.tab=tab.getAttribute("data-tab");reconcileSel();render();replaceLoc();return;}
+  const ptab=t.closest("[data-projecttab]");if(ptab){S.projectTab=ptab.getAttribute("data-projecttab")==="closed"?"closed":ptab.getAttribute("data-projecttab")==="all"?"all":"open";S.selected.clear();render();replaceLoc();return;}
+  const pdetails=t.closest("[data-projectdetails]");if(pdetails){S.projectDetailsOpen=S.projectDetailsOpen===false;render();replaceLoc();return;}
   const cf=t.closest("[data-clearfilters]");if(cf){S.filters=[];reconcileSel();render();replaceLoc();return;}
   const gcheck=t.closest("[data-gcheck]");if(gcheck){const g=groupsFor(curIssues()).find(x=>x.key===gcheck.getAttribute("data-gcheck"));const all=g.items.every(i=>S.selected.has(i.id));g.items.forEach(i=>all?S.selected.delete(i.id):S.selected.add(i.id));render();return;}
   const grp=t.closest("[data-grp]");if(grp&&!t.closest("[data-gcheck]")){const gk=grp.getAttribute("data-grp");if(S.collapsed.has(gk))S.collapsed.delete(gk);else S.collapsed.add(gk);render();return;}

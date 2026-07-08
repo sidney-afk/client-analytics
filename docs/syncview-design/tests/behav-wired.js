@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 151;
+const TOTAL = 156;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -109,6 +109,9 @@ async function txt(page, sel) {
       _prodState.clientSlug = '';
       _prodState.openId = '';
       _prodState.openBatchId = '';
+      _prodState.openProjectId = '';
+      _prodState.projectTab = 'open';
+      _prodState.projectDetailsOpen = true;
       _prodState.tab = 'active';
       _prodState.groupBy = 'status';
       _prodState.orderBy = 'due';
@@ -152,6 +155,85 @@ async function txt(page, sel) {
       const slug = await page.locator('.prod-row').first().getAttribute('data-prod-client');
       await page.locator('.prod-row .prod-chip-client').first().click();
       return await page.evaluate(s => _prodState.view === 'project' && _prodState.openProjectId === s && !_prodState.clientSlug && !_prodState.openId, slug);
+    }); await reset();
+    await ok('scopePillMatchesTabScale', async () => {
+      return await page.evaluate(() => {
+        const pill = document.querySelector('[data-prod-scope-team]');
+        const tab = document.querySelector('.prod-tab');
+        if (!pill || !tab) return false;
+        const pc = getComputedStyle(pill);
+        const tc = getComputedStyle(tab);
+        return pc.fontSize === tc.fontSize && pc.height === tc.height && parseFloat(pc.fontSize) <= 12;
+      });
+    }); await reset();
+    await ok('projectToolbarControls', async () => {
+      const slug = await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+        return id;
+      });
+      if (!slug) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      return await page.evaluate(projectId => {
+        const tabs = [...document.querySelectorAll('[data-prod-project-tab]')].map(el => el.textContent.trim()).join('|');
+        const projectScoped = _prodCurIssuesUnfiltered().every(i => i.project === projectId && !i.parent);
+        return !!document.querySelector('[data-prod-project-subbar]')
+          && tabs === 'Open|Closed|All issues'
+          && !!document.querySelector('#prodFilterBtn')
+          && !!document.querySelector('#prodGroupBtn')
+          && !!document.querySelector('[data-prod-project-details-toggle]')
+          && projectScoped;
+      }, slug);
+    }); await reset();
+    await ok('projectRowsUseIssueListMetadataAndWidth', async () => {
+      const opened = await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+        return id;
+      });
+      if (!opened) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      return await page.evaluate(() => {
+        const row = document.querySelector('[data-prod-project-issue]');
+        if (!row) return true;
+        const main = document.querySelector('.prod-detail-main');
+        const inner = document.querySelector('.prod-detail-inner');
+        return !!row.querySelector('[data-prod-assign]')
+          && !!row.querySelector('.prod-due')
+          && row.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.8
+          && inner.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.95;
+      });
+    }); await reset();
+    await ok('projectToolbarMenusAndDetailsToggle', async () => {
+      const opened = await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+        return id;
+      });
+      if (!opened) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      await page.locator('#prodFilterBtn').click();
+      const filterOpen = await page.locator('#prodLayer .prod-pop [data-prod-ffield]').count() > 0;
+      await page.keyboard.press('Escape');
+      await page.locator('#prodGroupBtn').click();
+      const displayOpen = await page.locator('#prodLayer .prod-pop [data-prod-grp], #prodLayer .prod-pop [data-prod-order]').count() > 0;
+      await page.keyboard.press('Escape');
+      await page.locator('[data-prod-project-details-toggle]').click();
+      return filterOpen && displayOpen && await page.evaluate(() => !document.querySelector('.prod-right') && new URL(location.href).searchParams.get('pdetails') === '0');
+    }); await reset();
+    await ok('projectTabsDeepLink', async () => {
+      const opened = await page.evaluate(() => {
+        const id = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent)) || '';
+        if (id) _prodOpenProject(id);
+        return id;
+      });
+      if (!opened) return true;
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 5000 });
+      await page.locator('[data-prod-project-tab="closed"]').click();
+      const before = await page.evaluate(() => _prodState.projectTab === 'closed' && new URL(location.href).searchParams.get('ptab') === 'closed');
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('[data-prod-project-detail]', { timeout: 10000 });
+      return before && await page.evaluate(id => _prodState.view === 'project' && _prodState.openProjectId === id && _prodState.projectTab === 'closed', opened);
     }); await reset();
     await ok('due', async () => {
       await page.locator('.prod-row .prod-due').first().click();

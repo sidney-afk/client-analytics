@@ -718,6 +718,39 @@ async function runTheme(port, browser, theme) {
       if (typeof clearDropFx === 'function') clearDropFx();
     });
 
+    await artifact.evaluate(() => {
+      const project = CLIENTS.find(c => pcount(c) > 0) || CLIENTS[0];
+      if (!project) return;
+      S.projectOpen = project.id;
+      S.open = null;
+      S.projectTab = 'open';
+      S.projectDetailsOpen = true;
+      render();
+    });
+    await wired.evaluate(() => {
+      const projects = _prodProjects();
+      const id = Object.keys(projects).find(key => _prodIssues().some(i => i.project === key && !i.parent)) || Object.keys(projects)[0] || '';
+      if (id) _prodOpenProject(id);
+    });
+    await artifact.waitForSelector('.detail.project-detail');
+    await wired.waitForSelector('.prod-project-detail');
+    await requirePair(gaps, 'project detail inventory', artifact, wired, '[data-projecttab]', '[data-prod-project-tab]');
+    await requirePair(gaps, 'project detail inventory', artifact, wired, '[data-projectdetails]', '[data-prod-project-details-toggle]');
+    await requirePair(gaps, 'project detail inventory', artifact, wired, '#filterbtn', '#prodFilterBtn');
+    await requirePair(gaps, 'project detail inventory', artifact, wired, '#groupbtn', '#prodGroupBtn');
+    await requirePair(gaps, 'project detail inventory', artifact, wired, '.d-subrow [data-assign]', '.prod-project-issue-row [data-prod-assign]');
+    await shot(artifact, 'artifact-project-detail');
+    await shot(wired, 'wired-project-detail');
+    const wiredProjectWide = await wired.evaluate(() => {
+      const row = document.querySelector('[data-prod-project-issue]');
+      const main = document.querySelector('.prod-detail-main');
+      const inner = document.querySelector('.prod-detail-inner');
+      if (!row || !main || !inner) return true;
+      return row.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.8
+        && inner.getBoundingClientRect().width >= main.getBoundingClientRect().width * 0.95;
+    });
+    if (!wiredProjectWide) gaps.push({ rank: 1, state: 'project detail width', message: 'wired project issue rows do not use the available detail width' });
+
     await artifact.evaluate(() => { S.view = { type: 'issues', team: 'video' }; S.filters = []; render(); const id = flatOrder()[0]; if (id) openIssue(id); });
     await wired.evaluate(() => { _prodOpenTeamView('video', 'list'); const id = _prodFlatOrder()[0]; if (id) _prodOpenDeliverable(id); });
     await artifact.waitForSelector('.detail');

@@ -940,12 +940,18 @@ behav/sweep adapted to the `_prod*` DOM). The pixel-measurement method doc refer
 `linear-design-tokens.md` lives in the **other repo** — `synchrosocial/docs/pixel-matching-playbook.md`
 — it is not missing from this one.
 
-**10.7 Still to wire** (with owners): §9.2–9.3 links/labels/predicates; §9.4 name-sync; §9.5
-threads; §6 role gating + D4 transition enforcement; realtime; §9.1 intake; §9.10 workload;
-reorder persistence (`sort_key`); archive view (**read-only surface over `linear_archive` via a
-role-gated EF** — the table is service-role-only, §2.7); the **staff diagnostic page** (both FE
-outbox depths incl. the new `peekSxrLinearOutbox()` helper, role-key status, flag/authority
-state, `min_app_version`) — it is the named evidence mechanism for §1.5 steps 2/5.
+**10.7 Wiring status** (with owners):
+
+- **DONE:** realtime inbound via the B3 `linear-inbound` webhooks; Production adapter
+  archive/delete filtering for `linear_raw.webhook_delete` / archive markers; reconciler v2
+  full-scope diffing and webhook enabled/resource probe.
+- **Still to wire:** §9.2-9.3 links/labels/predicates; §9.4 name-sync; §9.5 threads;
+  §6 role gating + D4 transition enforcement; §9.1 intake; §9.10 workload; reorder
+  persistence (`sort_key`); archive view (**read-only surface over `linear_archive` via a
+  role-gated EF** - the table is service-role-only, §2.7); the **staff diagnostic page**
+  (both FE outbox depths incl. the new `peekSxrLinearOutbox()` helper, role-key status,
+  flag/authority state, `min_app_version`) - it is the named evidence mechanism for §1.5
+  steps 2/5; notifications §11 pending owner decision D-14.
 
 **10.8 B2 design-fidelity protocol: TRANSPLANT → ADAPT → PROVE (NON-OPTIONAL):**
 three build rounds produced three classes of fidelity failure — #686 (built from prose, wrong

@@ -51,3 +51,5 @@ jobs:
           done
           kill $SRV || true
           exit $EC
+      - name: Production preview read-only smoke
+        run: node docs/syncview-design/tests/prod-readonly-smoke.js

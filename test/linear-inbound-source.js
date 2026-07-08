@@ -49,6 +49,7 @@ ok(/\[functions\.linear-inbound\]\s*\nverify_jwt = false/.test(CFG),
 
 [
   'LINEAR_INBOUND_SIGNING_SECRET',
+  'SLACK_ALERT_WEBHOOK',
   'linear-signature',
   'HMAC',
   'SHA-256',
@@ -69,6 +70,27 @@ ok(/if \(!enabled\) \{[\s\S]*outcome: "disabled"[\s\S]*return json\(\{ ok: true,
   'flag-false path must acknowledge and stop dark');
 ok(FN.indexOf('if (!enabled)') < FN.indexOf('handleLinearWebhook(supabase, payload)'),
   'linear_inbound_enabled gate must run before the enabled handler');
+
+ok(/const ALERT_THROTTLE_MS = 60 \* 60 \* 1000/.test(FN)
+  && /const lastAlertAt = new Map<string, number>\(\)/.test(FN),
+  'linear-inbound anomaly alerts must throttle at one per type per hour');
+const alertPayloadFn = FN.match(/function alertPayload\(type: string, issue: JsonMap, details: JsonMap = \{\}\): JsonMap \{[\s\S]*?\n\}/);
+ok(alertPayloadFn
+  && /issue_identifier: identifier/.test(alertPayloadFn[0])
+  && /team,/.test(alertPayloadFn[0])
+  && !/client_slug|client_name|assignee|email|name/.test(alertPayloadFn[0]),
+  'alert payload must be scrubbed to identifiers/team only, with no client or assignee names');
+const alertFn = FN.match(/async function postAnomalyAlert\(type: string, issue: JsonMap, details: JsonMap = \{\}, nowMs = Date\.now\(\)\): Promise<boolean> \{[\s\S]*?\n\}/);
+ok(alertFn
+  && /Deno\.env\.get\(ALERT_WEBHOOK_ENV\)/.test(alertFn[0])
+  && /nowMs - last < ALERT_THROTTLE_MS/.test(alertFn[0])
+  && /lastAlertAt\.set\(type, nowMs\)/.test(alertFn[0])
+  && /fetch\(hook/.test(alertFn[0]),
+  'postAnomalyAlert must use the alert webhook, throttle per anomaly type, and POST the payload');
+ok(/postAnomalyAlert\("unmapped_state", issue,[\s\S]*state_id:[\s\S]*state_type:/.test(FN),
+  'unmapped_state must alert with state id/type only');
+ok(/postAnomalyAlert\("unknown_assignee", issue\)/.test(FN),
+  'unknown_assignee must alert without assignee identity in the alert');
 
 [
   'linear_inbound_enabled',

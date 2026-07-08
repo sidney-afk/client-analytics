@@ -778,6 +778,13 @@ skeleton. Written + rehearsed before B4.
 
 ## 8. Monitoring & observability (always-on)
 
+**2026-07-08 cadence update:** GitHub cron remains requested every 10 min, but observed
+delivery may be roughly hourly. n8n is the reliability layer for the mirror gate: the
+Monitoring Pager + Reconciler V2 Trigger dispatches a dry-run v2 pass every 15 min and pages
+if the latest summary is older than about 90 min or any gate count is non-zero. The same
+pager checks calendar/samples reconciler freshness and pages when the latest completed run is
+older than about 2 h.
+
 **8.1 Continuous reconciler v2** (GH Actions + n8n trigger, ~10 min): per team, diff Linear ⇄
 `deliverables` on status / assignee (**by raw Linear user id** — §1.4d) / due / title, plus the
 **linkage lane** (cards with Linear links but no deliverable ids — §4.3.5) and the **comment
@@ -944,7 +951,10 @@ behav/sweep adapted to the `_prod*` DOM). The pixel-measurement method doc refer
 
 - **DONE:** realtime inbound via the B3 `linear-inbound` webhooks; Production adapter
   archive/delete filtering for `linear_raw.webhook_delete` / archive markers; reconciler v2
-  full-scope diffing and webhook enabled/resource probe.
+  full-scope diffing and webhook enabled/resource probe; n8n pager trigger/staleness detection
+  for v2 plus calendar/samples reconciler freshness; n8n Edge Alert Relay for inbound anomaly
+  DMs (Supabase secret + Edge Function redeploy remains the live deployment step for the draft
+  monitoring alert code).
 - **Still to wire:** §9.2-9.3 links/labels/predicates; §9.4 name-sync; §9.5 threads;
   §6 role gating + D4 transition enforcement; §9.1 intake; §9.10 workload; reorder
   persistence (`sort_key`); archive view (**read-only surface over `linear_archive` via a

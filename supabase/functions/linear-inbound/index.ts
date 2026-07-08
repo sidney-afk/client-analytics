@@ -16,12 +16,15 @@ const SIGNATURE_HEADER = "linear-signature";
 const SIGNING_SECRET_ENV = "LINEAR_INBOUND_SIGNING_SECRET";
 const STATE_UUID_MAP_ENV = "LINEAR_STATE_UUID_MAP";
 const LEGACY_COMMENT_ACTORS_ENV = "LINEAR_LEGACY_COMMENT_ACTORS";
+const ALERT_WEBHOOK_ENV = "SLACK_ALERT_WEBHOOK";
+const ALERT_THROTTLE_MS = 60 * 60 * 1000;
 const SYNCVIEW_COMMENT_PREFIX = /^\*\*.+ \(via SyncView\):\*\*/;
 const CLAMPED_SAMPLE_STATES = new Set(["scheduled", "posted"]);
 const STATUS_SLUGS = new Set([
   "triage", "backlog", "todo", "in_progress", "smm_approval", "kasper_approval",
   "client_approval", "tweak", "approved", "scheduled", "posted", "canceled", "duplicate",
 ]);
+const lastAlertAt = new Map<string, number>();
 
 function json(body: JsonMap, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -197,6 +200,38 @@ function mapLinearState(state: JsonMap): { slug: string; unmapped_state?: JsonMa
   };
 }
 
+function alertPayload(type: string, issue: JsonMap, details: JsonMap = {}): JsonMap {
+  const identifier = linearIdentifier(issue) || linearIssueUuid(issue) || "unknown";
+  const team = teamFromIssue(issue) || "unknown";
+  return {
+    text: `[SyncView] linear-inbound ${type}: issue=${identifier} team=${team}`,
+    syncview_alert: true,
+    source: "linear-inbound",
+    type,
+    issue_identifier: identifier,
+    team,
+    details,
+  };
+}
+
+async function postAnomalyAlert(type: string, issue: JsonMap, details: JsonMap = {}, nowMs = Date.now()): Promise<boolean> {
+  const hook = clean(Deno.env.get(ALERT_WEBHOOK_ENV));
+  if (!hook) return false;
+  const last = lastAlertAt.get(type) || 0;
+  if (nowMs - last < ALERT_THROTTLE_MS) return false;
+  lastAlertAt.set(type, nowMs);
+  try {
+    await fetch(hook, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(alertPayload(type, issue, details)),
+    });
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 function issueFromPayload(payload: JsonMap): JsonMap {
   const data = payload.data && typeof payload.data === "object" ? payload.data as JsonMap : {};
   const issue = data.issue && typeof data.issue === "object" ? data.issue as JsonMap : data;
@@ -250,7 +285,11 @@ function baseDeliverableRow(existing: ExistingRow): JsonMap {
 
 function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
   const raw = parseJson(existing.linear_raw);
-  raw.issue = issue;
+  const previousIssue = raw.issue && typeof raw.issue === "object" ? raw.issue as JsonMap : {};
+  raw.issue = { ...issue };
+  if (!has(issue, "parent") && previousIssue.parent !== undefined) {
+    (raw.issue as JsonMap).parent = previousIssue.parent;
+  }
   raw.inbound = {
     webhook_action: payloadAction(payload),
     webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),
@@ -451,6 +490,10 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
         row.linear_raw = linearRawWithFlag(existing, issue, payload, "unmapped_state", mapped.unmapped_state || state);
         eventPayload.unmapped_state = mapped.unmapped_state || state;
         console.warn(JSON.stringify({ fn: "linear-inbound", alert: "unmapped_state", state: eventPayload.unmapped_state }));
+        await postAnomalyAlert("unmapped_state", issue, {
+          state_id: clean(state.id),
+          state_type: clean(state.type),
+        });
       }
     }
 
@@ -461,6 +504,7 @@ async function handleIssueEvent(supabase: SupabaseClient, payload: JsonMap): Pro
       if (resolved.unknown) {
         row.linear_raw = linearRawWithFlag(existing, issue, payload, "unknown_assignee", resolved.unknown);
         eventPayload.unknown_assignee = resolved.unknown;
+        await postAnomalyAlert("unknown_assignee", issue);
       }
       eventAction = eventAction === "status_change" ? eventAction : "assign";
     }

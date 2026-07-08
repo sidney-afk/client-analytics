@@ -482,6 +482,13 @@ async function kasperAct(page, name, comp, kind, text) {
     await sleep(page, 200);
   }
   const sel = kind === 'approve' ? '.cal-review-approve-main' : (kind === 'aat' ? '.cal-review-aat-btn' : (kind === 'comment' ? '.cal-review-comment-btn' : '.cal-review-tweak-btn'));
+  await page.waitForFunction((args) => {
+    const [n, comp, sel] = args;
+    const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n);
+    const p = card && card.querySelector(`.cal-review-panel[data-sxr-kasper-comp="${comp}"]`);
+    const b = p && p.querySelector(sel);
+    return !!(b && !b.disabled);
+  }, [name, comp, sel], { timeout: 8000 }).catch(() => {});
   return page.evaluate((args) => { const [n, comp, sel] = args; const card = [...document.querySelectorAll('#kasperContent .kcard.cal-review-card')].find(x => (x.querySelector('.kcard-title') || {}).textContent === n); const p = card && card.querySelector(`.cal-review-panel[data-sxr-kasper-comp="${comp}"]`); const b = p && p.querySelector(sel); if (!b || b.disabled) return 'disabled'; b.click(); return 'ok'; }, [name, comp, sel]);
 }
 // Click the Undo action on the post-approve toast (6s window after a completing

@@ -2573,6 +2573,9 @@
         .prod-filter-pill.interactive { cursor: pointer; padding-right: 4px; }
         .prod-filter-pill.interactive * { cursor: pointer; }
         .prod-filter-pill.interactive:hover { background: var(--prod-menu-hover); }
+        .prod-filter-pill.prod-scope-pill { cursor: pointer; }
+        .prod-filter-pill.prod-scope-pill * { cursor: pointer; }
+        .prod-filter-pill.prod-scope-pill:hover { background: var(--prod-menu-hover); }
         .prod-filter-pill .fop { color: var(--prod-faint); }
         .prod-filter-pill .fx { width: 17px; height: 17px; display: grid; place-items: center; border: 0; background: transparent; padding: 0; border-radius: 4px; color: var(--prod-faint); font: inherit; }
         .prod-filter-pill .fx:hover { background: var(--prod-hover); color: var(--prod-strong); }
@@ -2643,12 +2646,14 @@
         .prod-side-card-head { display: flex; align-items: center; gap: 8px; min-height: 28px; color: var(--prod-strong); font-size: 13px; font-weight: 600; }
         .prod-side-row { min-height: 32px; display: flex; align-items: center; gap: 8px; color: var(--prod-strong); font-size: 13px; }
         .prod-side-row.muted { color: var(--prod-muted); }
-        .prod-prop-btn { min-width: 0; width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; display: flex; align-items: center; gap: 8px; padding: 0; text-align: left; cursor: pointer; }
-        .prod-prop-btn:hover { background: var(--prod-hover); }
-        .prod-parent-link { border: 0; background: transparent; padding: 0; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; }
-        .prod-parent-link:hover { text-decoration: underline; }
+        button.prod-filter-pill { font: inherit; }
+        .prod-prop-btn { min-width: 0; width: 100%; min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--prod-strong); font: inherit; display: flex; align-items: center; gap: 8px; padding: 0 6px; box-sizing: border-box; text-align: left; cursor: pointer; transition: background .12s ease, color .12s ease, transform .12s ease; }
+        .prod-prop-btn:hover { background: var(--prod-hover); transform: translateX(1px); }
+        .prod-parent-link { border: 0; border-radius: 6px; background: transparent; padding: 0 6px; box-sizing: border-box; min-height: 28px; color: var(--prod-strong); font: inherit; text-align: left; cursor: pointer; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; width: 100%; transition: background .12s ease, color .12s ease, transform .12s ease; }
+        .prod-parent-link:hover { background: var(--prod-hover); transform: translateX(1px); text-decoration: none; }
         .prod-composer-box { text-align: left; cursor: not-allowed; }
         .prod-crumb-link { border: 0; background: transparent; color: var(--prod-strong); font: inherit; font-size: 12px; font-weight: 500; padding: 0; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 260px; }
+        .prod-crumb .prod-crumb-link { font-size: 13px; }
         .prod-crumb-link:hover { text-decoration: underline; }
         .prod-layer { position: fixed; inset: 0; z-index: 9999; pointer-events: none; }
         .prod-pop-bd { position: fixed; inset: 0; }
@@ -27864,22 +27869,27 @@
                     raw: c
                 };
             });
+            const batchTeamKey = d => {
+                const batchId = String(d && d.batch_id || '');
+                return batchId ? batchId + '::' + String(d && d.team || '') : '';
+            };
             const byBatch = new Map();
             deliverables.forEach(d => {
-                const key = String(d && d.batch_id || '');
+                const key = batchTeamKey(d);
                 if (!key) return;
                 if (!byBatch.has(key)) byBatch.set(key, []);
                 byBatch.get(key).push(d);
             });
             const batchParent = new Map();
-            byBatch.forEach((rows, batchId) => {
+            byBatch.forEach((rows, key) => {
+                const batchId = key.split('::')[0];
                 const batch = BATCHES[batchId];
                 const parent = batch && rows.find(d => _prodNormKey(d && d.title) === _prodNormKey(batch.name));
-                if (parent && parent.id) batchParent.set(batchId, String(parent.id));
+                if (parent && parent.id) batchParent.set(key, String(parent.id));
             });
             const ISSUES = deliverables.map(d => {
                 const batchId = String(d && d.batch_id || '');
-                const parentId = batchParent.get(batchId) || '';
+                const parentId = batchParent.get(batchTeamKey(d)) || '';
                 const isBatchParent = !!(parentId && String(d.id) === parentId);
                 const batch = BATCHES[batchId] || null;
                 const file = d.file_url || (batch && (batch.delivery_folder_url || batch.footage_folder_url || batch.filming_doc_url)) || '';
@@ -28176,7 +28186,7 @@
                 const val = c.values.length === 1
                     ? '<span class="fval">' + f.icon(c.values[0]) + '<span>' + _calEsc(f.name(c.values[0])) + '</span></span>'
                     : '<span class="fval"><span>' + c.values.length + ' ' + f.plural + '</span></span>';
-                return '<span class="prod-filter-pill interactive" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">✕</button></span>';
+                return '<span class="prod-filter-pill interactive" data-prod-filter-pill="1" data-prod-fedit="' + _calEscAttr(c.field) + '" onclick="return _prodOpenFilterPill(event,' + _jsAttrArg(c.field) + ')" data-prod-tip="Edit filter"><span class="ficon">' + f.fieldIcon() + '</span><span>' + _calEsc(f.label) + '</span><span class="fop">' + op + '</span>' + val + '<button class="fx" type="button" onclick="event.stopPropagation(); _prodRemoveFilter(' + _jsAttrArg(c.field) + ')" data-prod-fremove="' + _calEscAttr(c.field) + '" data-prod-tip="Remove filter">✕</button></span>';
             }).join('');
         }
         function _prodPickerEmptyState(pop, shown) {
@@ -28369,6 +28379,21 @@
             _prodWirePlainMenu(p);
             return false;
         }
+        function _prodSearchRank(query, primary, secondary, body) {
+            const q = String(query || '').trim().toLowerCase();
+            if (!q) return 0;
+            const p = String(primary || '').trim().toLowerCase();
+            const s = String(secondary || '').trim().toLowerCase();
+            const b = String(body || '').trim().toLowerCase();
+            if (p === q) return 0;
+            if (p.startsWith(q)) return 1;
+            if (p.split(/\s+/).some(part => part.startsWith(q))) return 2;
+            if (p.includes(q)) return 3;
+            if (s === q || s.startsWith(q)) return 4;
+            if (s.includes(q)) return 5;
+            if (b.includes(q)) return 8;
+            return -1;
+        }
         // PORT-DELTA: openSearch result source is live adapter data, including B1 brief text, instead of artifact seed arrays.
         function _prodPaletteItems(q) {
             const fields = _prodFilterFields();
@@ -28389,32 +28414,33 @@
                 });
                 return items.concat(commands);
             }
-            commands.forEach(cmd => {
-                if (cmd.title.toLowerCase().includes(query)) items.push(cmd);
-            });
+            const scored = [];
+            const addScored = (item, primary, secondary, body) => {
+                const rank = _prodSearchRank(query, primary, secondary, body);
+                if (rank >= 0) scored.push(Object.assign({ _rank: rank, _order: scored.length }, item));
+            };
+            commands.forEach(cmd => addScored(cmd, cmd.title, cmd.meta, ''));
             issues.forEach(i => {
-                if (String(i.title || '').toLowerCase().includes(query) || String(_prodIssueLabel(i)).toLowerCase().includes(query) || String(i.desc || '').toLowerCase().includes(query)) {
-                    items.push({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) });
-                }
+                addScored({ icon: _prodStatusSVG(i.status), title: (i.title || _prodIssueLabel(i)), meta: _prodIssueLabel(i), go: () => _prodOpenDeliverable(i.id) }, i.title, _prodIssueLabel(i), i.desc);
             });
             Object.keys(_prodProjects()).sort((a, b) => fields.client.name(a).localeCompare(fields.client.name(b))).forEach(slug => {
                 const title = fields.client.name(slug);
-                if (String(title || '').toLowerCase().includes(query)) items.push({ icon: fields.client.icon(slug), title, meta: 'Project', go: () => _prodOpenClient(slug) });
+                addScored({ icon: fields.client.icon(slug), title, meta: 'Project', go: () => _prodOpenProject(slug) }, title, 'Project', '');
             });
             Object.keys(_prodEditors()).sort((a, b) => fields.assignee.name(a).localeCompare(fields.assignee.name(b))).forEach(id => {
                 const title = fields.assignee.name(id);
-                if (String(title || '').toLowerCase().includes(query)) {
-                    items.push({ icon: fields.assignee.icon(id), title, meta: 'Assignee', go: () => {
-                        _prodState.filters = [{ field: 'assignee', values: [id] }];
-                        _prodState.view = 'list';
-                        _prodState.openId = '';
-                        _prodState.openBatchId = '';
-                        _prodSetQuery({}, true);
-                        _prodRender();
-                    }});
-                }
+                addScored({ icon: fields.assignee.icon(id), title, meta: 'Assignee', go: () => {
+                    _prodState.filters = [{ field: 'assignee', values: [id] }];
+                    _prodState.view = 'list';
+                    _prodState.openId = '';
+                    _prodState.openBatchId = '';
+                    _prodSetQuery({}, true);
+                    _prodRender();
+                }}, title, 'Assignee', '');
             });
-            return items;
+            return scored
+                .sort((a, b) => a._rank - b._rank || String(a.title || '').localeCompare(String(b.title || '')) || a._order - b._order)
+                .map(({ _rank, _order, ...item }) => item);
         }
         // PORT-DELTA: openSearch is namespaced as a Production command palette and navigates only.
         function _prodOpenPalette() {
@@ -28640,6 +28666,8 @@
                 layer.innerHTML = '';
                 layer.style.pointerEvents = 'none';
             }
+            document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+            _prodState.paletteOpen = false;
             document.querySelectorAll('#prodFilterBtn.menu-open, #prodGroupBtn.menu-open').forEach(el => el.classList.remove('menu-open'));
             _prodSubPop = null;
             _prodHideTip();
@@ -29842,6 +29870,7 @@
             _prodState.clientSlug = '';
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodState.openProjectId = '';
             _prodState.focusRow = '';
             _prodState.hoverRow = '';
             _prodState.selected.clear();
@@ -29904,6 +29933,7 @@
             _prodState.openProjectId = id;
             _prodState.openId = '';
             _prodState.openBatchId = '';
+            _prodState.clientSlug = '';
             _prodState.view = 'project';
             _prodState.selected.clear();
             _prodState.selAnchor = '';
@@ -29911,6 +29941,29 @@
             _prodState.cardAnchor = '';
             _prodSetQuery({}, true);
             _prodRender();
+        }
+        function _prodOpenTeamScopeMenu(ev, view) {
+            if (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+            }
+            const nextView = view === 'board' || _prodState.view === 'board' || _prodState.view === 'project' ? 'board' : 'list';
+            const current = _prodState.team || 'all';
+            const rows = [
+                ['all', 'All teams'],
+                ['video', 'Video'],
+                ['graphics', 'Graphics']
+            ];
+            const p = _prodLayerPop('<div class="prod-pop-hd">Team scope</div><div class="prod-pop-list">' + rows.map(row => '<div class="prod-mi" data-prod-team-scope="' + row[0] + '"><span class="mic">' + (row[0] === 'all' ? _prodIcon('issues') : row[0] === 'video' ? '📽️' : '🎨') + '</span><span class="mlbl">' + row[1] + '</span>' + (current === row[0] ? '<span class="tick">' + _prodIcon('check') + '</span>' : '') + '</div>').join('') + '</div>', ev ? ev.clientX : innerWidth / 2, ev ? ev.clientY : 120);
+            p.querySelectorAll('[data-prod-team-scope]').forEach(el => el.addEventListener('click', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                const team = el.getAttribute('data-prod-team-scope') || 'all';
+                _prodClearLayer();
+                _prodOpenTeamView(team, nextView);
+            }));
+            _prodWirePlainMenu(p);
+            return false;
         }
         function _prodRefresh(opts) {
             const silent = !!(opts && opts.silent && _prodState.loaded);
@@ -29979,12 +30032,12 @@
             if (_prodState.view === 'detail' || _prodState.view === 'batch') return _prodDetailTopbar();
             const viewName = _prodState.view === 'board' ? 'Projects' : _prodState.view === 'my' ? 'My issues' : 'Issues';
             const clientFilter = _prodClientFilterLabel();
-            const crumb = '<div class="prod-crumb"><span>Production</span><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span>' + (clientFilter ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(clientFilter) + '</span>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(viewName) + '</span></div>';
+            const crumb = '<div class="prod-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Production">' + 'Production' + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(_prodState.team || 'all') + '" onclick="return _prodOpenTeamScopeMenu(event,' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Switch team scope">' + _calEsc(_prodTeamLabel(_prodState.team)) + '</button>' + (clientFilter ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(_prodState.clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(_prodState.clientSlug) + ')" data-prod-tip="Open project">' + _calEsc(clientFilter) + '</button>' : '') + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(viewName) + '</span></div>';
             const tabs = _prodState.view === 'board'
                 ? '<div class="prod-tabs"><button class="prod-tab active" type="button">All projects</button></div>'
                 : '<div class="prod-tabs"><button class="prod-tab' + (_prodState.tab === 'active' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('active') + ')">Active</button><button class="prod-tab' + (_prodState.tab === 'backlog' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('backlog') + ')">Backlog</button><button class="prod-tab' + (_prodState.tab === 'all' ? ' active' : '') + '" type="button" onclick="_prodSetTab(' + _jsAttrArg('all') + ')">All issues</button></div>';
-            const filterPills = '<span class="prod-filter-pill">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></span>'
-                + (clientFilter ? '<span class="prod-filter-pill">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></span>' : '')
+            const filterPills = '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-scope-team="' + _calEscAttr(_prodState.team || 'all') + '" onclick="return _prodOpenTeamScopeMenu(event,' + _jsAttrArg(_prodState.view === 'board' ? 'board' : 'list') + ')" data-prod-tip="Switch team scope">' + _prodIcon('filter') + '<span>' + _calEsc(_prodTeamLabel(_prodState.team)) + '</span></button>'
+                + (clientFilter ? '<button class="prod-filter-pill prod-scope-pill" type="button" data-prod-scope-project="' + _calEscAttr(_prodState.clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(_prodState.clientSlug) + ')" data-prod-tip="Open project">' + _prodIcon('project') + '<span>' + _calEsc(clientFilter) + '</span></button>' : '')
                 + _prodPillsHTML();
             const subbar = '<div class="prod-subbar">' + tabs + '<div class="prod-filter-pills">' + filterPills + '</div><div class="prod-spacer"></div><button class="prod-icon-btn' + ((_prodState.filters || []).length ? ' active' : '') + '" id="prodFilterBtn" type="button" onclick="return _prodOpenFilterMenu(event)" data-prod-tip="Filter">' + _prodIcon('filter') + '</button><button class="prod-icon-btn" id="prodGroupBtn" type="button" onclick="return _prodOpenGroupMenu(event)" data-prod-tip="Display options">' + _prodIcon('display') + '</button></div>';
             return '<div class="prod-topbar">' + crumb + '<div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-view" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button></div>' + subbar;
@@ -29992,7 +30045,8 @@
         function _prodProjectTopbar() {
             const c = _prodClient(_prodState.openProjectId);
             const title = c ? (c.name || c.id) : 'Project';
-            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><span>Production</span><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span>' + _calEsc(_prodTeamLabel(c ? c.team : _prodState.team)) + '</span><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+            const team = c ? c.team : _prodState.team;
+            return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('board') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb"><button class="prod-crumb-link" type="button" data-prod-crumb-root="1" onclick="_prodOpenTeamView(' + _jsAttrArg('all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Production">Production</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-team="' + _calEscAttr(team || 'all') + '" onclick="_prodOpenTeamView(' + _jsAttrArg(team || 'all') + ',' + _jsAttrArg('board') + ')" data-prod-tip="Open team projects">' + _calEsc(_prodTeamLabel(team)) + '</button><span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>Project</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-project" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg('client') + ',' + _jsAttrArg(c ? c.id : '') + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodDetailTopbar() {
             const d = _prodState.openId ? _prodIssue(_prodState.openId) : null;
@@ -30004,7 +30058,7 @@
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
-                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenClient(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Client: ' + _calEscAttr(_prodDisplayClient(clientSlug)) + '"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
+                + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
                 + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }

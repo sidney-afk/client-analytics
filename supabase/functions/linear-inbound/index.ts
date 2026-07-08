@@ -285,7 +285,11 @@ function baseDeliverableRow(existing: ExistingRow): JsonMap {
 
 function mergeLinearRaw(existing: ExistingRow, issue: JsonMap, payload: JsonMap): JsonMap {
   const raw = parseJson(existing.linear_raw);
-  raw.issue = issue;
+  const previousIssue = raw.issue && typeof raw.issue === "object" ? raw.issue as JsonMap : {};
+  raw.issue = { ...issue };
+  if (!has(issue, "parent") && previousIssue.parent !== undefined) {
+    (raw.issue as JsonMap).parent = previousIssue.parent;
+  }
   raw.inbound = {
     webhook_action: payloadAction(payload),
     webhook_timestamp: clean(payload.webhookTimestamp || payload.webhook_timestamp),

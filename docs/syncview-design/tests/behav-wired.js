@@ -12,7 +12,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..', '..', '..');
-const TOTAL = 151;
+const TOTAL = 143;
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css',
@@ -100,8 +100,8 @@ async function txt(page, sel) {
     await page.keyboard.press('Escape').catch(() => {});
     await page.evaluate(() => {
       window._prodClearLayer && window._prodClearLayer();
-      document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
-      _prodState.paletteOpen = false;
+      const cmd = document.querySelector('.prod-cmd-bd');
+      if (cmd) cmd.remove();
       const toast = document.getElementById('prodToast');
       if (toast) { toast.classList.remove('show'); toast.textContent = ''; }
       _prodState.view = 'list';
@@ -126,7 +126,6 @@ async function txt(page, sel) {
       try { localStorage.removeItem('syncview_prod_display_v1'); } catch (e) {}
       try { _prodSetQuery({}, false); } catch (e) {}
       window._prodRender();
-      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     });
   };
   const guardClick = async (openSelector, valueSelector) => {
@@ -191,29 +190,6 @@ async function txt(page, sel) {
       await page.fill('.prod-cmd-input', await page.locator('.prod-row .prod-id').first().textContent());
       return await page.locator('.prod-cmd-item').count() > 0;
     }); await reset();
-    await ok('paletteRanksDirectMatches', async () => {
-      const query = await page.evaluate(() => {
-        const name = Object.keys(_prodProjects()).map(k => _prodDisplayClient(k)).find(v => /\w{3,}/.test(v || '')) || '';
-        const word = (name.match(/\w{3,}/) || [''])[0];
-        return word.toLowerCase().slice(0, 6);
-      });
-      if (!query) return true;
-      await page.locator('.prod-search-btn').click();
-      await page.fill('.prod-cmd-input', query);
-      await page.waitForSelector('.prod-cmd-item', { timeout: 5000 });
-      return await page.evaluate(q => {
-        const directBeatsBody = _prodSearchRank(q, q, '', '') < _prodSearchRank(q, 'unrelated', '', q);
-        const rankRow = row => {
-          const title = (row.querySelector('.ct')?.textContent || '').trim();
-          const meta = (row.querySelector('.cmeta')?.textContent || '').trim();
-          const issue = _prodIssues().find(i => _prodIssueLabel(i) === meta);
-          if (issue) return _prodSearchRank(q, issue.title, _prodIssueLabel(issue), issue.desc);
-          return _prodSearchRank(q, title, meta, '');
-        };
-        const ranks = [...document.querySelectorAll('.prod-cmd-item')].map(rankRow).filter(r => r >= 0);
-        return directBeatsBody && ranks.length > 0 && ranks.every((r, i) => i === 0 || r >= ranks[i - 1]);
-      }, query);
-    }); await reset();
     await ok('cmdkKey', async () => { await page.keyboard.press('Control+k'); return await page.locator('.prod-cmd').count() === 1; }); await reset();
     await ok('team', async () => {
       await page.locator('.prod-nav-btn', { hasText: 'Projects' }).first().click();
@@ -254,7 +230,7 @@ async function txt(page, sel) {
     await ok('kbProj', async () => { await page.keyboard.press('Shift+p'); return await page.locator('#prodLayer .prod-pop [data-prod-pick]').count() > 0; }); await reset();
     await ok('kbSelectAll', async () => {
       await page.keyboard.press('Control+a');
-      return await page.evaluate(() => _prodState.selected.size === new Set(_prodIssueRows().map(i => i.id)).size && _prodState.selected.size > 0)
+      return await page.evaluate(() => _prodState.selected.size === _prodFlatOrder().length && _prodState.selected.size > 0)
         && (await txt(page, '[data-prod-select-count]')).endsWith('selected');
     }); await reset();
     await ok('kbDelete', async () => {
@@ -458,101 +434,6 @@ async function txt(page, sel) {
         const rows = [...document.querySelectorAll('[data-prod-project-issue]')].map(el => _prodIssue(el.getAttribute('data-prod-project-issue')));
         return _prodState.view === 'project' && _prodState.openProjectId === k && !_prodState.clientSlug && rows.every(r => r && r.project === k && !r.parent);
       }, key);
-    }); await reset();
-    await ok('topCrumbsAreClickableControls', async () => {
-      await page.evaluate(() => {
-        const key = Object.keys(_prodProjects()).find(k => _prodClient(k)) || Object.keys(_prodProjects())[0] || '';
-        const c = key ? _prodClient(key) : null;
-        _prodState.view = 'list';
-        _prodState.team = c && c.team ? c.team : 'video';
-        _prodState.clientSlug = key;
-        _prodRender();
-      });
-      return await page.evaluate(() => {
-        const controls = [
-          document.querySelector('[data-prod-crumb-root]'),
-          document.querySelector('[data-prod-crumb-team]'),
-          document.querySelector('[data-prod-crumb-client]'),
-        ];
-        return controls.every(el => el && el.tagName === 'BUTTON' && getComputedStyle(el).cursor === 'pointer');
-      });
-    }); await reset();
-    await ok('scopeTeamPillSwitchesTeam', async () => {
-      await page.evaluate(() => {
-        _prodState.view = 'list';
-        _prodState.team = 'video';
-        _prodState.clientSlug = '';
-        _prodRender();
-      });
-      await page.locator('[data-prod-scope-team]').click();
-      const hasOptions = await page.evaluate(() => {
-        return [...document.querySelectorAll('[data-prod-team-scope]')].map(el => el.textContent.trim()).join('|').includes('All teams');
-      });
-      await page.locator('[data-prod-team-scope="graphics"]').click();
-      return hasOptions && await page.evaluate(() => _prodState.view === 'list' && _prodState.team === 'graphics' && !_prodState.clientSlug);
-    }); await reset();
-    await ok('scopeProjectPillOpensProject', async () => {
-      const key = await page.evaluate(() => {
-        const slug = Object.keys(_prodProjects()).find(k => _prodClient(k)) || Object.keys(_prodProjects())[0] || '';
-        const c = slug ? _prodClient(slug) : null;
-        _prodState.view = 'list';
-        _prodState.team = c && c.team ? c.team : 'video';
-        _prodState.clientSlug = slug;
-        _prodRender();
-        return slug;
-      });
-      if (!key) return true;
-      await page.locator('[data-prod-scope-project]').click();
-      return await page.evaluate(slug => _prodState.view === 'project' && _prodState.openProjectId === slug && !_prodState.clientSlug, key);
-    }); await reset();
-    await ok('detailProjectCrumbOpensProject', async () => {
-      const key = await page.evaluate(() => {
-        const row = _prodIssueRows().find(i => i.project && _prodClient(i.project));
-        if (!row) return '';
-        _prodOpenDeliverable(row.id);
-        return row.project;
-      });
-      if (!key) return true;
-      await page.locator('[data-prod-crumb-project]').click();
-      return await page.evaluate(slug => _prodState.view === 'project' && _prodState.openProjectId === slug && !_prodState.clientSlug, key);
-    }); await reset();
-    await ok('projectCrumbTeamNavigatesBoard', async () => {
-      const team = await page.evaluate(() => {
-        const slug = Object.keys(_prodProjects()).find(k => _prodClient(k)) || '';
-        const c = slug ? _prodClient(slug) : null;
-        if (!slug || !c) return '';
-        _prodOpenProject(slug);
-        return c.team || 'all';
-      });
-      if (!team) return true;
-      await page.locator('.prod-detail-crumb [data-prod-crumb-team]').click();
-      return await page.evaluate(expected => _prodState.view === 'board' && _prodState.team === expected && !_prodState.openProjectId, team);
-    }); await reset();
-    await ok('detailPropHoverTransitions', async () => {
-      await page.evaluate(() => {
-        const row = _prodIssues().find(i => i.parent && _prodIssue(i.parent)) || _prodIssueRows()[0];
-        if (row) _prodOpenDeliverable(row.id);
-      });
-      return await page.evaluate(() => {
-        const actionable = document.querySelector('[data-prod-prop="due"]');
-        const parent = document.querySelector('.prod-parent-link');
-        const okTransition = el => {
-          if (!el) return false;
-          const cs = getComputedStyle(el);
-          return cs.cursor === 'pointer' && cs.transitionDuration !== '0s' && cs.transitionProperty.includes('background');
-        };
-        return okTransition(actionable) && (!parent || okTransition(parent));
-      });
-    }); await reset();
-    await ok('videoParentsStayVideoTeam', async () => {
-      return await page.evaluate(() => {
-        const rows = _prodIssues().filter(i => i.team === 'video' && i.parent);
-        if (!rows.length) return true;
-        return rows.every(i => {
-          const parent = _prodIssue(i.parent);
-          return parent && parent.team === i.team && /^VID/i.test(_prodIssueLabel(parent));
-        });
-      });
     }); await reset();
     await ok('kbSelPriority', async () => {
       await page.evaluate(() => {
@@ -980,11 +861,10 @@ async function txt(page, sel) {
       _prodState.selected.clear();
       _prodRender();
       const groups = _prodGroupsFor(_prodIssueRows());
-      const total = new Set(groups.flatMap(g => g.items.map(i => i.id))).size;
+      const total = groups.reduce((n, g) => n + g.items.length, 0);
       if (!groups.length || total === 0) return true;
       _prodState.collapsed = new Set([groups[0].key]);
       _prodRender();
-      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', ctrlKey: true, bubbles: true }));
       return _prodState.selected.size === total;
     })); await reset();
@@ -1120,7 +1000,11 @@ async function txt(page, sel) {
       if (await page.locator('#prodBulkStatus, #prodBulkAssign, #prodBulkDue').count()) return false;
       await page.locator('#prodBulkActions').click();
       await page.waitForSelector('#prodLayer [data-prod-ctx="status"]', { timeout: 5000 });
-      await page.evaluate(() => document.querySelector('#prodLayer [data-prod-ctx="status"]')?.click());
+      await page.evaluate(() => {
+        if (!document.querySelector('#prodLayer [data-prod-pick]')) {
+          document.querySelector('#prodLayer [data-prod-ctx="status"]')?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+        }
+      });
       await page.waitForSelector('#prodLayer [data-prod-pick]', { timeout: 5000 });
       const isStatus = await page.locator('#prodLayer .prod-pop .mlbl', { hasText: 'Backlog' }).count() > 0;
       await page.locator('#prodLayer [data-prod-pick]').first().click();

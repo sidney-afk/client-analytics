@@ -662,7 +662,10 @@ async function runTheme(port, browser, theme) {
     }
     await compareStyles(gaps, 'board scroll axis', artifact, wired, '.board', '.prod-board', ['overflowX', 'overflowY']);
     await compareStyles(gaps, 'board collapse chevron', artifact, wired, '[data-pcolcollapse]', '[data-prod-pcolcollapse]', ['width', 'height', 'display', 'alignItems', 'justifyContent', 'cursor', 'borderRadius', 'backgroundColor', 'opacity']);
-    await compareStyles(gaps, 'board card drag cursor', artifact, wired, '.pcard', '.prod-card', ['cursor']);
+    const wiredCardCursor = await wired.locator('.prod-card').first().evaluate(el => getComputedStyle(el).cursor);
+    if (wiredCardCursor !== 'pointer') {
+      gaps.push({ rank: 1, state: 'board card cursor', message: `read-only project card cursor should be pointer, got ${wiredCardCursor}` });
+    }
     await artifact.evaluate(() => {
       const card = document.querySelector('.pcard[data-project]');
       if (!card) return;

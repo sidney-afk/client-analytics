@@ -2781,7 +2781,7 @@
         .prod-cards { overflow-y: auto; overflow-x: hidden; }
         .prod-cards::-webkit-scrollbar { width: 7px; }
         .prod-cards::-webkit-scrollbar-thumb { background: var(--prod-border-soft); border-radius: 8px; }
-        .prod-card { cursor: grab; }
+        .prod-card { cursor: pointer; }
         .prod-card.prod-card-dragging, .prod-card.pcard-dragging { opacity: .45; cursor: grabbing; }
         .prod-card-check { width: 14px; height: 14px; flex: none; border-radius: 4px; border: 1.5px solid var(--prod-faint); background: var(--prod-surface); opacity: 0; display: grid; place-items: center; }
         .prod-card:hover .prod-card-check, .prod-card.pcard-sel .prod-card-check { opacity: 1; }
@@ -2795,6 +2795,7 @@
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .prod-detail-crumb b { flex: none; white-space: nowrap; }
         .prod-detail-crumb .prod-crumb-title { flex: 1 1 auto; }
+        .prod-detail-crumb .prod-crumb-kind { flex: none; color: var(--prod-muted); font-size: 11px; font-weight: 600; }
         .prod-detail-inner { max-width: 760px; }
         .prod-desc { margin-bottom: 16px; }
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
@@ -31238,6 +31239,7 @@
             _prodState.cardAnchor = '';
             _prodSetQuery({ d: id }, true);
             _prodRender();
+            _prodScrollDetailToTop();
             _prodLoadEventsFor(id);
         }
         function _prodOpenBatch(id) {
@@ -31252,6 +31254,7 @@
             _prodState.cardAnchor = '';
             _prodSetQuery({ batch: id }, true);
             _prodRender();
+            _prodScrollDetailToTop();
         }
         function _prodOpenProject(slug) {
             const id = String(slug || '');
@@ -31270,6 +31273,7 @@
             _prodState.cardAnchor = '';
             _prodSetQuery({}, true);
             _prodRender();
+            _prodScrollDetailToTop();
         }
         function _prodOpenTeamScopeMenu(ev, view) {
             if (ev) {
@@ -31313,6 +31317,13 @@
             root = root || document.getElementById('prodRoot');
             const list = root && root.querySelector ? root.querySelector('.prod-listwrap') : null;
             if (list) _prodState.listScrollTop = list.scrollTop || 0;
+        }
+        function _prodScrollDetailToTop() {
+            setTimeout(() => {
+                const detailMain = document.querySelector('#prodRoot .prod-detail-main');
+                if (detailMain) detailMain.scrollTop = 0;
+                window.scrollTo({ top: 0, left: 0 });
+            }, 0);
         }
         function _prodRender() {
             const root = document.getElementById('prodRoot');
@@ -31390,10 +31401,11 @@
             const showParent = !!parent;
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
+            const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
-                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
-                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+                + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return _svLoadingSkeletonHtml('production');

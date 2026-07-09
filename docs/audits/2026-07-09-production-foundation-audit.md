@@ -47,7 +47,7 @@ Final Production gates after the fix:
 | Gate | Result |
 |---|---:|
 | `node docs/syncview-design/tests/behav-wired.js` | pass, 156/156 guard-mode assertions |
-| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, and no writes/errors |
+| `node docs/syncview-design/tests/prod-interaction-inventory.js` | pass: sampled unique controls across list/detail/board/project states, right-click menus, hover tips, scroll reset, breadcrumb context, pointer cursor, and no writes/errors |
 | `node docs/syncview-design/tests/pixel-wired.js` | pass in light and dark |
 | `node qa/master.js --profile=fast --no-server` with a local static server | pass/fail lanes green: unit, parity, probes, scenarios, visual capture |
 | focused human/vision screenshot review | pass after mobile header and detail-crumb fixes |
@@ -92,6 +92,43 @@ Fix: the Production popover Escape handler now stops propagation after closing t
 3. if still no transient state is active, navigate back from detail/project.
 
 No data, flags, backend code, n8n workflows, or Supabase objects were touched.
+
+### P1: Detail transitions kept the old scroll position
+
+User-visible path:
+
+1. Open a parent issue detail.
+2. Scroll down to its Sub-issues section.
+3. Open a sub-issue.
+
+Expected behavior: the newly opened sub-issue starts at the top of its detail view.
+
+Actual behavior before this pass: the Production preview could preserve the old scroll position,
+so the next issue appeared partway down the page.
+
+Fix: opening a deliverable, batch, or project detail now resets the Production detail scroller
+and brings the Production surface back to the top.
+
+### P2: Project cards used a drag cursor in the read-only preview
+
+Expected behavior: project cards look clickable with the normal pointer hand.
+
+Actual behavior before this pass: the cards used the drag/grab cursor even though Production is
+currently read-only.
+
+Fix: project cards now use the pointer cursor by default; the grabbing cursor is reserved only
+for an active drag state.
+
+### P2: Sub-issue breadcrumbs lacked hierarchy labels
+
+Expected behavior: when a user opens a sub-issue, the top breadcrumb makes the parent/current
+hierarchy clear.
+
+Actual behavior before this pass: the breadcrumb showed client, parent title, current issue ID,
+and current title, but did not label which segment was the parent issue versus the sub-issue.
+
+Fix: the detail breadcrumb now labels parent segments as `Issue` and current child segments as
+`Sub-issue`; standalone issues remain labeled `Issue`.
 
 ### P1: Mobile header and detail breadcrumb looked unfinished
 

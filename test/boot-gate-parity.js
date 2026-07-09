@@ -58,6 +58,9 @@ check("nav key: gate reads 'syncview_nav', app defines NAV_KEY",
 check("kasper session key mirrored",
   GATE.includes("'syncview_kasper_unlocked'")
   && APP.includes("KASPER_UNLOCK_KEY = 'syncview_kasper_unlocked'"));
+check("kasper subtab key mirrored",
+  GATE.includes("localStorage.getItem('syncview_kasper_subtab_v1')")
+  && APP.includes("KASPER_SUBTAB_KEY = 'syncview_kasper_subtab_v1'"));
 check("tiktok-pilot session key mirrored",
   GATE.includes("'syncview_ttpilot_unlocked'")
   && APP.includes("TTP_UNLOCK_KEY = 'syncview_ttpilot_unlocked'"));
@@ -81,12 +84,19 @@ check('app still has >=2 inline strict sxr boot checks (deep link + portal)',
 
 // 5. Lift points: every removable tag the gate sets must have its app-side lift.
 check('gate can set data-boot-nav', GATE.includes("de.setAttribute('data-boot-nav'"));
+check('gate can set data-boot-subtab', GATE.includes("de.setAttribute('data-boot-subtab'"));
 check('navTo() lifts data-boot-nav',
   /function navTo\(page[\s\S]{0,600}documentElement\.removeAttribute\('data-boot-nav'\)/.test(APP));
+check('navTo() lifts data-boot-subtab',
+  /function navTo\(page[\s\S]{0,650}documentElement\.removeAttribute\('data-boot-subtab'\)/.test(APP));
 check('render() lifts data-boot-nav (belt-and-braces)',
   /function render\(sel,clientOnly\)\{[\s\S]{0,600}documentElement\.removeAttribute\('data-boot-nav'\)/.test(APP));
+check('render() lifts data-boot-subtab (belt-and-braces)',
+  /function render\(sel,clientOnly\)\{[\s\S]{0,650}documentElement\.removeAttribute\('data-boot-subtab'\)/.test(APP));
 check("init()'s catch lifts data-boot-nav",
   count(APP, "documentElement.removeAttribute('data-boot-nav')") >= 3);
+check("init()'s catch lifts data-boot-subtab",
+  count(APP, "documentElement.removeAttribute('data-boot-subtab')") >= 3);
 check('submitPassword() lifts boot-password',
   /function submitPassword\(\)\{[\s\S]{0,900}documentElement\.classList\.remove\('boot-password'\)/.test(APP));
 check('?c= boot block lifts boot-client',
@@ -100,9 +110,23 @@ for (const rule of [
   'html.boot-client .header { display: none !important; }',
   'html.boot-password #passwordOverlay { display: flex !important; }',
   'html[data-boot-nav] #pageTop { display: none; }',
+  'html[data-boot-nav="filming-plans"] .boot-skeleton-filming',
+  'html[data-boot-nav="kasper"][data-boot-subtab="sales-intake"] .boot-skeleton-sales-intake { display: block; }',
 ]) check('CSS gate rule present: ' + rule.slice(0, 52) + '…', INDEX.includes(rule));
 
-// 7. The gate must never log or throw: whole body wrapped in try/catch and
+// 7. Static first-paint skeletons must include the route-specific placeholder
+//    for Kasper's Sales Intake subtab. This prevents a refresh on
+//    #kasper/sales-intake from briefly painting the Analytics table skeleton.
+check('static boot skeleton has a default analytics variant',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-analytics'));
+check('static boot skeleton has a Kasper sales-intake variant',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-sales-intake')
+  && INDEX.includes('si-wrap si-skeleton'));
+check('static boot skeleton has a filming-plans variant',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-filming')
+  && INDEX.includes('fp-loading'));
+
+// 8. The gate must never log or throw: whole body wrapped in try/catch and
 //    no console.* calls inside (headless probes fail on any console error).
 check('gate has no console.* calls', !/console\./.test(GATE));
 check('gate body is wrapped in try/catch',

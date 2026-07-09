@@ -17430,8 +17430,9 @@
     /* Thumbnail cache-bust rev, appended to the derived thumbnail src as `_r`
        alongside the updated_at-based `_cb`. Two layers feed `_r`:
          • post.thumb_rev — PERSISTED (a calendar_posts column, written by the
-           upsert and carried on every Supabase read + realtime row). Bumped only
-           on a thumbnail/asset link write, so it rides the sync to EVERY viewer
+           upsert and carried on every Supabase read + realtime row). Bumped on
+           a thumbnail/asset link write or when the graphic leaves Tweaks Needed,
+           so it rides the sync to EVERY viewer
            (the client, Kasper) — their live re-render derives the new _r and
            reloads the picture without a hard refresh.
          • _calThumbRev[id] — a SESSION mirror of the same token on the editing
@@ -17446,15 +17447,22 @@
             load). It is deliberately STRIPPED from the harvest key so an unrelated
             caption/status/date save doesn't re-decode every thumbnail — that was
             the old per-save flicker.
-         _r changes ONLY when the link is actually edited, and it is KEPT in the
-            harvest key. So a real link change forces every render path — in-place
-            refresh, full re-render, and the realtime/background harvest re-render
-            — to drop the stale decoded <img> and load the new one.
-       Net: changing a thumbnail link updates the picture automatically for
-       everyone with no hard refresh, while unrelated saves still reuse the
-       decoded image with no flicker. */
+         _r changes only when the media link is edited or the graphic leaves
+            Tweaks Needed, and it is KEPT in the harvest key. So a real thumbnail
+            revision forces every render path to drop the stale decoded <img>
+            and load the new one.
+       Net: changing a thumbnail link, or resolving a graphic tweak after the
+       Drive file was replaced behind the same link, updates the picture
+       automatically for everyone with no hard refresh. Unrelated saves still
+       reuse the decoded image with no flicker. */
     const _calThumbRev = Object.create(null);
     function _calBumpThumbRev(pid) { const t = Date.now().toString(36); if (pid) _calThumbRev[pid] = t; return t; }
+    function _calShouldBumpThumbRevForGraphicStatus(edits, beforePost, afterPost) {
+        if (!edits || !Object.prototype.hasOwnProperty.call(edits, 'graphic_status')) return false;
+        const before = _calNormStatus(beforePost && beforePost.graphic_status);
+        const after = _calNormStatus(afterPost && afterPost.graphic_status);
+        return before === 'Tweaks Needed' && after !== 'Tweaks Needed';
+    }
     /* Tracks the last time *this browser* successfully wrote each card.
        Used by the background-load merge to detect concurrent writes from a
        different user: if we just saved a card but the server now has a
@@ -23850,16 +23858,13 @@
         // value. The merge in loadCalendarPosts compares local vs fetched
         // updated_at — newer wins.
         post.updated_at = new Date().toISOString();
-        // A link field was just written → bump this card's thumbnail rev now,
-        // synchronously, so both the on-blur force-refresh (which runs right after
-        // this flush returns) AND the post-save in-place refresh paint the fresh
-        // image, and every later harvest re-render keeps it (the _r stays in the
-        // key) instead of restoring the stale decoded <img>. Only link writes bump
-        // it, so caption/status/date saves never trigger a thumbnail reload.
-        // post.thumb_rev mirrors the token into a PERSISTED column so the new _r
-        // rides the sheet/Supabase echo + realtime to the client & Kasper, whose
-        // live re-render then reloads the picture too (no hard refresh for anyone).
-        if ('thumbnail_url' in edits || 'asset_url' in edits) post.thumb_rev = _calBumpThumbRev(realId);
+        // A media link write, or a graphic leaving Tweaks Needed, means the
+        // visible thumbnail may have changed even when the Drive URL stayed the
+        // same. Bump the persisted rev so this tab and every realtime viewer
+        // drop the stale decoded image for this card only.
+        const bumpThumbRev = ('thumbnail_url' in edits || 'asset_url' in edits)
+            || _calShouldBumpThumbRevForGraphicStatus(edits, prevSnapshot, post);
+        if (bumpThumbRev) post.thumb_rev = _calBumpThumbRev(realId);
         // Clear any stale "Save failed" flag now that a fresh attempt is in
         // flight, so a mid-save re-render shows "Saving…" rather than the old
         // error (the flag is re-set in the catch if this attempt also fails).
@@ -23912,9 +23917,9 @@
                 // Overall status only moves when a sub-status changes, and
                 // those edits always carry it; send the recomputed value then.
                 if ('video_status' in edits || 'graphic_status' in edits || 'caption_status' in edits) wirePost.status = post.status;
-                // A link write bumped post.thumb_rev (the persisted cache-bust) —
-                // patch it through so the echo + realtime carry it to every viewer.
-                if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
+                // Patch through the persisted cache-bust token so the echo +
+                // realtime carry the fresh thumbnail URL to every viewer.
+                if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
                 // An intentionally-cleared Linear link must reach the backend as
                 // the explicit __CLEAR_LINK__ sentinel, not a bare '' (which the
                 // upsert's link-clobber guard carries the stored link forward
@@ -24037,13 +24042,10 @@
             const _okPost = calState.posts.find(p => p.id === realId);
             if (_okPost && _okPost._saveError) delete _okPost._saveError;
             _calSetCardStatus(realId, 'saved');
-            // Only repaint the thumbnail when this save actually changed a
-            // media link. A caption / status / date save still bumps updated_at
-            // (→ the _cb cache-buster), which used to make this re-decode the
-            // image on every save — the "thumbnail reloads every time it saves"
-            // flash. (_calRefreshCardThumb's base-URL guard also no-ops a pure
-            // _cb bump, so this is belt-and-suspenders.)
-            if ('thumbnail_url' in edits || 'asset_url' in edits) _calRefreshCardThumb(realId);
+            // Only repaint the thumbnail when this save intentionally bumped
+            // thumb_rev. Other saves can still move updated_at / _cb, but the
+            // base-URL guard keeps those from re-decoding the image.
+            if (bumpThumbRev) _calRefreshCardThumb(realId);
             if ('thumbnail_url' in edits) {
                 const thumbPost = calState.posts.find(p => p.id === realId);
                 if (thumbPost) _calResolveThumbnailFolder('calendar', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost);
@@ -34228,7 +34230,9 @@
                 sxrState.posts[idx] = post;
             }
             post.updated_at = new Date().toISOString();
-            if ('thumbnail_url' in edits || 'asset_url' in edits) post.thumb_rev = _sxrBumpThumbRev(realId);
+            const bumpThumbRev = ('thumbnail_url' in edits || 'asset_url' in edits)
+                || _calShouldBumpThumbRevForGraphicStatus(edits, prevSnapshot, post);
+            if (bumpThumbRev) post.thumb_rev = _sxrBumpThumbRev(realId);
             delete post._saveError;
             _sxrSetCardStatus(realId, 'saving');
             const suppressAll     = _sxrNoLinearPush.has(realId) || _sxrNoLinearPush.has(pid);
@@ -34250,7 +34254,7 @@
                         if (fk in edits) { wirePost[fk] = _sxrStringifyComments(_sxrCommentsFor(post, comp)); if (comp === 'video') wirePost.tweaks = wirePost[fk]; }
                     });
                     if ('video_status' in edits || 'graphic_status' in edits) wirePost.status = post.status;
-                    if ('thumbnail_url' in edits || 'asset_url' in edits) wirePost.thumb_rev = post.thumb_rev;
+                    if (bumpThumbRev) wirePost.thumb_rev = post.thumb_rev;
                     // Intentional link clear → the explicit sentinel (a bare '' is carried-forward by the upsert guard).
                     _sxrApplyClearSentinels(wirePost);
                 } else {
@@ -34294,7 +34298,7 @@
                 const _okPost = sxrState.posts.find(p => p.id === realId);
                 if (_okPost && _okPost._saveError) delete _okPost._saveError;
                 _sxrSetCardStatus(realId, 'saved');
-                if ('thumbnail_url' in edits || 'asset_url' in edits) _sxrForceThumbRefresh(realId);
+                if (bumpThumbRev) _sxrForceThumbRefresh(realId);
                 if ('thumbnail_url' in edits) {
                     const thumbPost = sxrState.posts.find(p => p.id === realId);
                     if (thumbPost) _calResolveThumbnailFolder('samples', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost, { sxr: true });

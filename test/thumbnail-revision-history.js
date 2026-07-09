@@ -42,15 +42,27 @@ ok(/baseline_storage_path/.test(SHARED) && /latest_storage_path/.test(SHARED),
   'baseline/latest storage paths must be written');
 ok(/scanPendingThumbnailRevisions/.test(SHARED) && /status: "changed"/.test(SHARED),
   'scanner must mark changed rows');
+ok(/export function shouldScanGraphicTweakResolution\(patch: JsonMap, incoming: JsonMap, existing: JsonMap\)/.test(SHARED),
+  'shared resolution-scan predicate missing');
+ok(/before === "Tweaks Needed" && after !== "Tweaks Needed"/.test(SHARED),
+  'resolution scan must require a transition out of Tweaks Needed');
+ok(/export async function scanGraphicTweakResolution/.test(SHARED)
+  && /sourceId: input\.sourceId/.test(SHARED)
+  && /limit: 1/.test(SHARED),
+  'resolution scan must target the current card baseline');
 
-ok(/import \{ captureGraphicTweakBaseline \} from "\.\.\/_shared\/thumbnail-revisions\.ts";/.test(CAL),
-  'calendar-upsert must import revision helper');
+ok(/import \{ captureGraphicTweakBaseline, scanGraphicTweakResolution \} from "\.\.\/_shared\/thumbnail-revisions\.ts";/.test(CAL),
+  'calendar-upsert must import revision helpers');
 ok(/surface: "calendar"[\s\S]*sourceId: id[\s\S]*patch: built\.row[\s\S]*existing: existingRead\.row/.test(CAL),
   'calendar-upsert must call helper with calendar context');
-ok(/import \{ captureGraphicTweakBaseline \} from "\.\.\/_shared\/thumbnail-revisions\.ts";/.test(SXR),
-  'sample-review-upsert must import revision helper');
+ok(/waitUntil\(scanGraphicTweakResolution\(\{[\s\S]*surface: "calendar"[\s\S]*sourceId: id[\s\S]*patch: built\.row[\s\S]*existing: existingRead\.row/.test(CAL),
+  'calendar-upsert must scan the card when graphic tweaks resolve');
+ok(/import \{ captureGraphicTweakBaseline, scanGraphicTweakResolution \} from "\.\.\/_shared\/thumbnail-revisions\.ts";/.test(SXR),
+  'sample-review-upsert must import revision helpers');
 ok(/surface: "samples"[\s\S]*sourceId: id[\s\S]*patch: built\.row[\s\S]*existing: existingRead\.row/.test(SXR),
   'sample-review-upsert must call helper with samples context');
+ok(/waitUntil\(scanGraphicTweakResolution\(\{[\s\S]*surface: "samples"[\s\S]*sourceId: id[\s\S]*patch: built\.row[\s\S]*existing: existingRead\.row/.test(SXR),
+  'sample-review-upsert must scan the card when graphic tweaks resolve');
 
 ok(/thumbnail-revision-scan/.test(SCAN) && /THUMBNAIL_REVISION_SCAN_KEY/.test(SCAN),
   'scan function and optional key gate missing');

@@ -125,6 +125,11 @@ check('static boot skeleton has a Kasper sales-intake variant',
 check('static boot skeleton has a filming-plans variant',
   INDEX.includes('boot-skeleton-variant boot-skeleton-filming')
   && INDEX.includes('fp-loading'));
+check('static boot skeleton has a Calendar Sheet card-strip variant',
+  INDEX.includes('boot-skeleton-variant boot-skeleton-calendar')
+  && INDEX.includes('cal-skeleton-sheet')
+  && INDEX.includes('cal-skeleton-card-body')
+  && !/boot-skeleton-variant boot-skeleton-calendar[\s\S]{0,7000}<div class="cal-month-wrap">/.test(INDEX));
 
 // 8. The gate must never log or throw: whole body wrapped in try/catch and
 //    no console.* calls inside (headless probes fail on any console error).

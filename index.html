@@ -1717,10 +1717,25 @@
         .workload-skeleton-day { min-height: 140px; background: var(--bg); border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 9px; }
         .workload-skeleton-grid.week .workload-skeleton-day { min-height: 420px; }
         .workload-skeleton-card { background: var(--white); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
-        .cal-skeleton-loader { align-items: stretch; justify-content: flex-start; padding: 20px 0; min-height: 220px; }
-        .cal-skeleton-strip { display: flex; gap: 14px; overflow: hidden; padding: 2px 2px 8px; }
-        .cal-skeleton-card { flex: 0 0 var(--cal-card-w, 320px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
-        .cal-skeleton-thumb { height: var(--cal-thumb-h, 220px); border-radius: 10px; }
+        .cal-skeleton-loader { align-items: stretch; justify-content: flex-start; padding: 20px 0; min-height: 220px; width: 100%; box-sizing: border-box; }
+        .cal-skeleton-sheet { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+        .boot-skeleton-calendar .boot-page-skeleton { width: 100%; max-width: none; margin: 0; padding: 8px 16px 20px; --cal-card-w: 268px; --cal-thumb-h: 178px; }
+        .cal-skeleton-toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 14px; background: var(--white); border: 1px solid var(--border); border-radius: 12px; flex-wrap: wrap; }
+        .cal-skeleton-toolbar-left, .cal-skeleton-toolbar-mid, .cal-skeleton-toolbar-right { display: flex; align-items: center; gap: 10px; min-width: 0; }
+        .cal-skeleton-toolbar-left { flex: 1 1 380px; }
+        .cal-skeleton-toolbar-mid, .cal-skeleton-toolbar-right { flex: 0 0 auto; }
+        .cal-skeleton-strip { display: flex; gap: 14px; overflow: hidden; padding: 10px 4px 8px; align-items: flex-start; min-height: 620px; }
+        .cal-skeleton-card { position: relative; flex: 0 0 var(--cal-card-w, 320px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+        .cal-skeleton-thumb { height: calc(var(--cal-thumb-h, 240px) + 16px); border-radius: 0; flex-shrink: 0; }
+        .cal-skeleton-card-body { padding: 13px 14px 12px; display: flex; flex-direction: column; gap: 9px; }
+        .cal-skeleton-field { height: 31px; border-radius: 8px; }
+        .cal-skeleton-chip { height: 22px; border-radius: 99px; }
+        .cal-skeleton-copy { height: 106px; border-radius: 8px; }
+        .cal-skeleton-status { height: 22px; border-radius: 6px; }
+        .cal-skeleton-status.is-video { --sv-skel-base: var(--cal-status-client-approval-bg); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
+        .cal-skeleton-status.is-thumb { --sv-skel-base: var(--cal-status-for-smm-approval-bg); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
+        .cal-skeleton-status.is-caption { --sv-skel-base: var(--cal-status-approved-bg); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
+        @media (max-width: 760px) { .boot-skeleton-calendar .boot-page-skeleton { padding: 6px 10px 16px; } .cal-skeleton-toolbar { gap: 10px; } .cal-skeleton-toolbar-mid { order: 3; width: 100%; justify-content: flex-start; overflow: hidden; } .cal-skeleton-strip { min-height: 560px; } }
         .cal-skeleton-review { display: flex; flex-direction: column; gap: 12px; }
         .cal-skeleton-review-card { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 14px 16px; display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: 14px; align-items: center; }
         .cal-skeleton-review-thumb { width: 96px; height: 96px; border-radius: 10px; }
@@ -6368,22 +6383,33 @@
         </div>
         <div class="boot-skeleton-variant boot-skeleton-calendar">
             <div class="boot-page-skeleton cal-loader cal-skeleton-loader" role="status" aria-label="Loading">
-                <div class="cal-month-wrap">
-                    <div class="cal-month-header">
-                        <div class="sv-skeleton sv-skeleton-pill" style="width:30px;height:30px;"></div>
-                        <div class="sv-skeleton sv-skeleton-line" style="width:176px;height:18px;"></div>
-                        <div class="sv-skeleton sv-skeleton-pill" style="width:68px;height:30px;"></div>
-                        <div class="sv-skeleton sv-skeleton-pill" style="width:30px;height:30px;"></div>
+                <div class="cal-skeleton-sheet">
+                    <div class="cal-skeleton-toolbar">
+                        <div class="cal-skeleton-toolbar-left">
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:150px;height:34px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:152px;height:34px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:146px;height:34px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:34px;height:34px;"></div>
+                        </div>
+                        <div class="cal-skeleton-toolbar-mid">
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:108px;height:32px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:112px;height:32px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:308px;height:32px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:88px;height:32px;"></div>
+                        </div>
+                        <div class="cal-skeleton-toolbar-right">
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:32px;height:32px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:32px;height:32px;"></div>
+                            <div class="sv-skeleton sv-skeleton-pill" style="width:32px;height:32px;"></div>
+                        </div>
                     </div>
-                    <div class="cal-month-grid">
-                        <div class="cal-month-head">MON</div><div class="cal-month-head">TUE</div><div class="cal-month-head">WED</div><div class="cal-month-head">THU</div><div class="cal-month-head">FRI</div><div class="cal-month-head">SAT</div><div class="cal-month-head">SUN</div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:82%;height:24px;"></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:72%;height:24px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:64%;height:24px;"></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:86%;height:24px;"></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div></div>
-                        <div class="cal-month-cell"><div class="cal-month-cellhead"><div class="sv-skeleton sv-skeleton-pill" style="width:20px;height:20px;"></div></div><div class="sv-skeleton sv-skeleton-pill" style="width:70%;height:24px;"></div></div>
+                    <div class="cal-skeleton-strip">
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:72%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:18px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-thumb" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:58%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:24px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:72%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:18px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:58%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:24px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-thumb" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:72%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:18px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
+                        <div class="cal-skeleton-card"><div class="sv-skeleton cal-skeleton-thumb"></div><div class="cal-skeleton-card-body"><div class="sv-skeleton sv-skeleton-line" style="width:58%;height:18px;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-chip" style="width:92px;"></div><div class="sv-skeleton cal-skeleton-copy" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton-row"><div class="sv-skeleton sv-skeleton-line" style="width:74px;height:12px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:24px;height:18px;"></div></div><div class="sv-skeleton cal-skeleton-field" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-video" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-thumb" style="width:100%;"></div><div class="sv-skeleton cal-skeleton-status is-caption" style="width:100%;"></div></div></div>
                     </div>
                 </div>
             </div>
@@ -17600,16 +17626,48 @@
     }
     function _svCalendarOrganizerSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
-            <div class="cal-skeleton-strip">
-                ${[0, 1, 2].map(i => `<div class="cal-skeleton-card">
-                    ${_svSkel('cal-skeleton-thumb')}
-                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '72%' : '86%') + ';')}
-                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '48%' : '64%') + ';')}
-                    <div class="sv-skeleton-row">
-                        ${_svSkel('sv-skeleton-pill', 'width:58px;height:22px;')}
-                        ${_svSkel('sv-skeleton-pill', 'width:72px;height:22px;')}
+            <div class="cal-skeleton-sheet">
+                <div class="cal-skeleton-toolbar">
+                    <div class="cal-skeleton-toolbar-left">
+                        ${_svSkel('sv-skeleton-pill', 'width:150px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:152px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:146px;height:34px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:34px;height:34px;')}
                     </div>
-                </div>`).join('')}
+                    <div class="cal-skeleton-toolbar-mid">
+                        ${_svSkel('sv-skeleton-pill', 'width:108px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:112px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:308px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:88px;height:32px;')}
+                    </div>
+                    <div class="cal-skeleton-toolbar-right">
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    </div>
+                </div>
+                <div class="cal-skeleton-strip">
+                    ${[0, 1, 2, 3, 4, 5].map(i => `<div class="cal-skeleton-card">
+                        ${_svSkel('cal-skeleton-thumb')}
+                        <div class="cal-skeleton-card-body">
+                            ${_svSkel('sv-skeleton-line', 'width:' + (i % 3 === 1 ? '58%' : '72%') + ';height:18px;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-chip', 'width:92px;')}
+                            ${_svSkel('cal-skeleton-copy', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            <div class="sv-skeleton-row">
+                                ${_svSkel('sv-skeleton-line', 'width:74px;height:12px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:' + (i % 2 ? '24px' : '18px') + ';height:18px;')}
+                            </div>
+                            ${_svSkel('cal-skeleton-field', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-video', 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status ' + (i % 3 === 0 ? 'is-thumb' : 'is-caption'), 'width:100%;')}
+                            ${_svSkel('cal-skeleton-status is-caption', 'width:100%;')}
+                        </div>
+                    </div>`).join('')}
+                </div>
             </div>
         </div>`;
     }

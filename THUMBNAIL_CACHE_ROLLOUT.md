@@ -11,13 +11,15 @@ Thumbnail `<img>` URLs already carry a `_cb` cache-buster (the post's
 whenever the base URL is unchanged (this is what stops a flicker on every
 caption/status save), so a same-link thumbnail swap kept showing the stale image.
 
-Fix: a per-post **`thumb_rev`** token, bumped **only** when a thumbnail/asset
-link is written, appended to the image URL as `_r` and **kept** in the strip's
-reuse key. Because it changes only on a link write, unrelated saves still reuse
-the decoded image (no flicker), but a real link change forces a reload on every
-render path. `thumb_rev` is a **persisted column**, so the new token rides the
-upsert echo + Supabase realtime to every open browser — that's what makes the
-client's and Kasper's views reload live.
+Fix: a per-post **`thumb_rev`** token, appended to the image URL as `_r` and
+**kept** in the strip's reuse key. It is bumped when a thumbnail/asset link is
+written, and also when `graphic_status` moves out of `Tweaks Needed`. That second
+case covers the normal design workflow where the Drive link stays identical but
+the designer replaced the file behind it. Unrelated saves still reuse the decoded
+image (no flicker), but a real thumbnail revision forces a reload on every render
+path. `thumb_rev` is a **persisted column**, so the new token rides the upsert
+echo + Supabase realtime to every open browser - that's what makes the client's
+and Kasper's views reload live.
 
 - **Front end:** sourced session-first (`_calThumbRev[id]`, instant on the editor
   + graceful fallback) then persisted (`post.thumb_rev`, remote viewers + after a
@@ -61,6 +63,7 @@ column exists, the mirror upsert sends an unknown column and errors.
 ## Verify
 
 Two browsers on the same client (e.g. an SMM tab and a client-link tab). Change a
-card's thumbnail link (or re-save the same link after swapping the Drive file).
-The image should update in **both** within ~1s, no refresh. Caption/status/date
-edits must **not** make the thumbnail flicker.
+card's thumbnail link, or move a graphic from `Tweaks Needed` back to review after
+the designer swapped the Drive file behind the same link. The image should update
+in **both** within ~1s, no refresh. Caption/status/date edits must **not** make
+the thumbnail flicker.

@@ -114,6 +114,13 @@ export function shouldCaptureGraphicTweakBaseline(patch: JsonMap, incoming: Json
   return after === "Tweaks Needed" && before !== "Tweaks Needed";
 }
 
+export function shouldScanGraphicTweakResolution(patch: JsonMap, incoming: JsonMap, existing: JsonMap): boolean {
+  if (!has(patch, "graphic_status")) return false;
+  const before = normStatus(sv(existing, "graphic_status"));
+  const after = normStatus(sv(incoming, "graphic_status"));
+  return before === "Tweaks Needed" && after !== "Tweaks Needed";
+}
+
 function serviceAccountConfigured(): boolean {
   if (clean(Deno.env.get("GOOGLE_SERVICE_ACCOUNT_JSON"))) return true;
   return !!(clean(Deno.env.get("GOOGLE_CLIENT_EMAIL")) && clean(Deno.env.get("GOOGLE_PRIVATE_KEY")));
@@ -369,6 +376,19 @@ export async function captureGraphicTweakBaseline(input: CaptureInput): Promise<
     await upsertError(input.supabase, input, thumbnailUrl, fileId, msg).catch(() => null);
     return { captured: false, reason: msg };
   }
+}
+
+export async function scanGraphicTweakResolution(input: CaptureInput): Promise<JsonMap> {
+  if (!shouldScanGraphicTweakResolution(input.patch, input.incoming, input.existing)) {
+    return { checked: 0, changed: 0, unchanged: 0, failed: 0, skipped: 0, reason: "not_graphic_tweaks_resolved_transition" };
+  }
+  return await scanPendingThumbnailRevisions({
+    supabase: input.supabase,
+    surface: input.surface,
+    client: input.client,
+    sourceId: input.sourceId,
+    limit: 1,
+  });
 }
 
 export async function scanPendingThumbnailRevisions(input: ScanInput): Promise<JsonMap> {

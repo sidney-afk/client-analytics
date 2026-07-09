@@ -11,11 +11,13 @@
  * already-decoded <img> whenever the key — _calThumbSrcBase(src) — is unchanged,
  * and that key strips _cb. So a re-render restored the STALE decoded image.
  *
- * Fix: a per-card thumbnail rev (_calThumbRev), appended as _r and bumped ONLY
- * when a link is written. _r is KEPT in the harvest key, so:
+ * Fix: a per-card thumbnail rev (_calThumbRev), appended as _r and bumped when
+ * a media link is written or a graphic leaves Tweaks Needed. _r is KEPT in the
+ * harvest key, so:
  *   - unrelated save (caption/status/date): updated_at → new _cb, rev unchanged →
  *     SAME key → image reused → NO flicker.
- *   - link edit: rev bumped → new _r → DIFFERENT key → image reloaded → auto-update.
+ *   - link edit / graphic resolved: rev bumped -> new _r -> DIFFERENT key ->
+ *     image reloaded -> auto-update.
  *
  * It EXTRACTS the real functions from ../index.html (by name, brace-balanced) so
  * it tests the ACTUAL shipping code, not a paraphrase. The harvest's reuse
@@ -176,10 +178,16 @@ const YT = 'https://youtu.be/dQw4w9WgXcQ';
 
 // ── 10. Wiring: the shipped index.html persists + patches thumb_rev ─────────
 (() => {
-  check('flush sets post.thumb_rev from the rev bump on a link write',
-        /post\.thumb_rev = _calBumpThumbRev\(realId\)/.test(INDEX));
-  check('v2 field-patch sends thumb_rev when a link changed',
-        /if \('thumbnail_url' in edits \|\| 'asset_url' in edits\) wirePost\.thumb_rev = post\.thumb_rev;/.test(INDEX));
+  check('graphic status helper bumps only when leaving Tweaks Needed',
+        /function _calShouldBumpThumbRevForGraphicStatus[\s\S]*before === 'Tweaks Needed' && after !== 'Tweaks Needed'/.test(INDEX));
+  check('calendar flush bumps thumb_rev from a link write or graphic resolution',
+        /const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\);[\s\S]*if \(bumpThumbRev\) post\.thumb_rev = _calBumpThumbRev\(realId\);/.test(INDEX));
+  check('calendar v2 field-patch sends thumb_rev when the bump condition fired',
+        /if \(bumpThumbRev\) wirePost\.thumb_rev = post\.thumb_rev;/.test(INDEX));
+  check('calendar refreshes the visible card when the bump condition fired',
+        /if \(bumpThumbRev\) _calRefreshCardThumb\(realId\);/.test(INDEX));
+  check('samples also bump and refresh on the same condition',
+        /const bumpThumbRev = \('thumbnail_url' in edits \|\| 'asset_url' in edits\)[\s\S]*_calShouldBumpThumbRevForGraphicStatus\(edits, prevSnapshot, post\);[\s\S]*if \(bumpThumbRev\) post\.thumb_rev = _sxrBumpThumbRev\(realId\);[\s\S]*if \(bumpThumbRev\) _sxrForceThumbRefresh\(realId\);/.test(INDEX));
   check('cache-bust prefers session _calThumbRev, falls back to post.thumb_rev',
         /\(p && p\.id && _calThumbRev\[p\.id\]\) \|\| \(p && p\.thumb_rev\)/.test(INDEX));
 })();

@@ -131,9 +131,15 @@
             --up: #16a34a; --up-bg: #f0fdf4; --dn: #dc2626; --dn-bg: #fef2f2;
             --chart-axis: #b4b4ae; --chart-grid: rgba(0,0,0,0.045); --chart-tooltip-bg: rgba(255,255,255,0.97); --chart-tooltip-title: #111110; --chart-tooltip-body: #555555; --chart-tooltip-border: rgba(0,0,0,0.08); --chart-point-border: #ffffff; --chart-negative: #b43c3c; --chart-negative-fill: rgba(180,60,60,0.65);
             --theme-toggle-bg: #ffffff; --theme-toggle-color: #6b6b67; --theme-toggle-border: #e4e4e0; --theme-toggle-active-bg: #111110; --theme-toggle-active-color: #ffffff; --theme-toggle-ring: rgba(108,92,231,0.12); --selection-bg: rgba(108,92,231,0.18); --scrollbar-thumb: #d4d4d0; --scrollbar-thumb-hover: #b4b4ae;
+            --field-bg: var(--sv-bg-f3f3f1); --field-bg-hover: var(--sv-bg-ebebe8); --field-bg-focus: var(--sv-bg-fff); --field-border-focus: var(--text-primary); --field-placeholder: var(--sv-fg-b6b6b1); --field-fade-from: var(--sv-bg-rgba-243-243-241-0); --field-fade-mid: var(--sv-bg-rgba-243-243-241-0_7);
+            --media-tub-bg: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); --media-tub-empty-bg: var(--sv-bg-f4f4f2);
             --cal-status-in-progress-bg: var(--sv-bg-fef08a); --cal-status-in-progress-fg: var(--sv-fg-713f12); --cal-status-for-smm-approval-bg: var(--sv-bg-fce7f3); --cal-status-for-smm-approval-fg: var(--sv-fg-9d174d); --cal-status-kasper-approval-bg: var(--sv-bg-ffe4cc); --cal-status-kasper-approval-fg: var(--sv-fg-9a3412); --cal-status-client-approval-bg: var(--sv-bg-fee2e2); --cal-status-client-approval-fg: var(--sv-fg-991b1b); --cal-status-approved-bg: var(--sv-bg-dcfce7); --cal-status-approved-fg: var(--sv-fg-166534); --cal-status-tweaks-needed-bg: var(--sv-bg-fdba74); --cal-status-tweaks-needed-fg: var(--sv-fg-7c2d12); --cal-status-scheduled-bg: var(--sv-bg-ede9fe); --cal-status-scheduled-fg: var(--sv-fg-5b21b6); --cal-status-posted-bg: var(--sv-bg-064e3b); --cal-status-posted-fg: var(--sv-fg-ecfdf5); --cal-status-archived-bg: var(--sv-bg-f3f4f6); --cal-status-archived-fg: var(--sv-fg-6b7280);
             --cal-comp-video-dot: var(--sv-misc-06b6d4); --cal-comp-graphic-dot: var(--sv-misc-d946ef); --cal-comp-caption-dot: var(--sv-misc-f59e0b); --cal-comp-title-dot: var(--sv-misc-ef4444); --cal-comp-dot-ring: var(--sv-shadow-rgba-255-255-255-0_55);
             --cal-notes-accent: var(--sv-bg-ea580c); --cal-notes-accent-fg: var(--sv-fg-c2410c); --cal-notes-open-bg: var(--sv-bg-fff5e6); --cal-notes-count-fg: var(--sv-fg-fff); --cal-notes-dot-bg: var(--sv-bg-ea580c); --cal-notes-dot-ring: rgba(0,0,0,0); --cal-notes-dot-glow: rgba(234,88,12,0);
+            --wl-status-fg: var(--sv-fg-fff); --wl-progress-section-bg: var(--sv-bg-fefce8); --wl-progress-border: var(--sv-border-fde047); --wl-progress-accent: var(--sv-bg-eab308); --wl-progress-accent-hover: var(--sv-bg-ca8a04); --wl-progress-label: var(--sv-fg-854d0e); --wl-progress-chip-bg: var(--sv-bg-fef9c3); --wl-progress-chip-hover: var(--sv-bg-fef08a); --wl-progress-chip-fg: var(--sv-fg-854d0e);
+            --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
+            --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
+            --upload-progress-track: var(--bg); --upload-progress-fill: var(--sv-bg-111110); --upload-progress-glow: rgba(0,0,0,0);
         }
         html[data-theme="dark"] {
             color-scheme: dark;
@@ -148,9 +154,15 @@
             --up: #4ade80; --up-bg: #14281c; --dn: #f87171; --dn-bg: #30191b;
             --chart-axis: #8e96a3; --chart-grid: rgba(255,255,255,0.08); --chart-tooltip-bg: rgba(24,26,31,0.98); --chart-tooltip-title: #f4f6f8; --chart-tooltip-body: #c2c7cf; --chart-tooltip-border: rgba(255,255,255,0.12); --chart-point-border: #101114; --chart-negative: #f87171; --chart-negative-fill: rgba(248,113,113,0.35);
             --theme-toggle-bg: #20232a; --theme-toggle-color: #c2c7cf; --theme-toggle-border: #343842; --theme-toggle-active-bg: #f4f6f8; --theme-toggle-active-color: #101114; --theme-toggle-ring: rgba(139,124,246,0.28); --selection-bg: rgba(139,124,246,0.35); --scrollbar-thumb: #343842; --scrollbar-thumb-hover: #474d5a;
-            --cal-status-in-progress-bg: #3f320b; --cal-status-in-progress-fg: #fde68a; --cal-status-for-smm-approval-bg: #4b1730; --cal-status-for-smm-approval-fg: #f9a8d4; --cal-status-kasper-approval-bg: #4a2413; --cal-status-kasper-approval-fg: #fdba74; --cal-status-client-approval-bg: #4b1717; --cal-status-client-approval-fg: #fca5a5; --cal-status-approved-bg: #12361f; --cal-status-approved-fg: #86efac; --cal-status-tweaks-needed-bg: #5a2f0f; --cal-status-tweaks-needed-fg: #fdba74; --cal-status-scheduled-bg: #2e245d; --cal-status-scheduled-fg: #c4b5fd; --cal-status-posted-bg: #0f3f2a; --cal-status-posted-fg: #6ee7b7; --cal-status-archived-bg: #242730; --cal-status-archived-fg: #8e96a3;
+            --field-bg: #20242c; --field-bg-hover: #252b35; --field-bg-focus: #1d232c; --field-border-focus: #637083; --field-placeholder: #8792a3; --field-fade-from: rgba(32,36,44,0); --field-fade-mid: rgba(32,36,44,0.74);
+            --media-tub-bg: linear-gradient(155deg, #202a35 0%, #151b24 100%); --media-tub-empty-bg: #1e2530;
+            --cal-status-in-progress-bg: #facc15; --cal-status-in-progress-fg: #101114; --cal-status-for-smm-approval-bg: #f472b6; --cal-status-for-smm-approval-fg: #101114; --cal-status-kasper-approval-bg: #fb923c; --cal-status-kasper-approval-fg: #101114; --cal-status-client-approval-bg: #f87171; --cal-status-client-approval-fg: #101114; --cal-status-approved-bg: #4ade80; --cal-status-approved-fg: #101114; --cal-status-tweaks-needed-bg: #f59e0b; --cal-status-tweaks-needed-fg: #101114; --cal-status-scheduled-bg: #a78bfa; --cal-status-scheduled-fg: #101114; --cal-status-posted-bg: #2dd4bf; --cal-status-posted-fg: #101114; --cal-status-archived-bg: #9ca3af; --cal-status-archived-fg: #101114;
             --cal-comp-video-dot: #22d3ee; --cal-comp-graphic-dot: #e879f9; --cal-comp-caption-dot: #f59e0b; --cal-comp-title-dot: #f87171; --cal-comp-dot-ring: rgba(16,17,20,0.82);
             --cal-notes-accent: #fb923c; --cal-notes-accent-fg: #fdba74; --cal-notes-open-bg: rgba(251,146,60,0.14); --cal-notes-count-fg: #101114; --cal-notes-dot-bg: #fb923c; --cal-notes-dot-ring: #181a1f; --cal-notes-dot-glow: rgba(251,146,60,0.35);
+            --wl-status-fg: #101114; --wl-progress-section-bg: #221f14; --wl-progress-border: #facc15; --wl-progress-accent: #facc15; --wl-progress-accent-hover: #eab308; --wl-progress-label: #facc15; --wl-progress-chip-bg: #fde047; --wl-progress-chip-hover: #facc15; --wl-progress-chip-fg: #101114;
+            --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
+            --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
+            --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
         }
         /* Generated legacy color tokens. Prefer semantic tokens for new UI. */
         :root {
@@ -2821,51 +2833,51 @@
         .workload-capacity-chip.light .wl-cap-label { color: var(--sv-fg-0284c7); }
         .workload-capacity-chip.busy  .wl-cap-label { color: var(--sv-fg-b45309); }
         .workload-capacity-chip.full  .wl-cap-label { color: var(--sv-fg-dc2626); }
-        .workload-in-progress { border: 1.5px solid var(--sv-border-fde047); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--sv-bg-fefce8); }
+        .workload-in-progress { border: 1.5px solid var(--wl-progress-border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--wl-progress-section-bg); }
         .workload-in-progress.empty { display: none; }
-        .workload-in-progress .workload-section-label { color: var(--sv-fg-854d0e); display: flex; align-items: center; gap: 8px; }
-        .workload-section-label .wl-now-total { border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; color: var(--sv-fg-fff); }
-        .workload-in-progress .workload-section-label .wl-now-total { background: var(--sv-bg-eab308); }
+        .workload-in-progress .workload-section-label { color: var(--wl-progress-label); display: flex; align-items: center; gap: 8px; }
+        .workload-section-label .wl-now-total { border-radius: 999px; padding: 1px 8px; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; color: var(--wl-status-fg); }
+        .workload-in-progress .workload-section-label .wl-now-total { background: var(--wl-progress-accent); }
         .workload-in-progress-rollups { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
-        .wl-now-card { background: var(--white); border: 1px solid var(--sv-border-fde047); border-left: 3px solid var(--sv-border-eab308); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+        .wl-now-card { background: var(--white); border: 1px solid var(--wl-progress-border); border-left: 3px solid var(--wl-progress-accent); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
         .wl-now-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-        .wl-now-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--sv-bg-eab308); color: var(--sv-fg-fff); font-size: 0.7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.02em; }
+        .wl-now-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--wl-progress-accent); color: var(--wl-status-fg); font-size: 0.7rem; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; letter-spacing: 0.02em; }
         .wl-now-card-name { flex: 1; min-width: 0; font-size: 0.82rem; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .wl-now-card-total { background: var(--sv-bg-eab308); color: var(--sv-fg-fff); border-radius: 999px; padding: 2px 9px; font-size: 0.7rem; font-weight: 800; flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
-        .wl-now-card-total:hover { background: var(--sv-bg-ca8a04); }
+        .wl-now-card-total { background: var(--wl-progress-accent); color: var(--wl-status-fg); border-radius: 999px; padding: 2px 9px; font-size: 0.7rem; font-weight: 800; flex-shrink: 0; cursor: pointer; transition: background 0.1s; }
+        .wl-now-card-total:hover { background: var(--wl-progress-accent-hover); }
         .wl-now-client-chip-count { font-weight: 800; opacity: 0.65; flex-shrink: 0; cursor: pointer; padding: 0 1px; }
         .wl-now-client-chip-count:hover { opacity: 1; }
         .wl-now-card-clients { display: flex; flex-wrap: wrap; gap: 4px; }
-        .wl-now-client-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--sv-bg-fef9c3); color: var(--sv-fg-854d0e); font-size: 0.7rem; font-weight: 600; text-decoration: none; transition: background 0.1s; max-width: 100%; }
-        .wl-now-client-chip:hover { background: var(--sv-bg-fef08a); }
+        .wl-now-client-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; background: var(--wl-progress-chip-bg); color: var(--wl-progress-chip-fg); font-size: 0.7rem; font-weight: 600; text-decoration: none; transition: background 0.1s; max-width: 100%; }
+        .wl-now-client-chip:hover { background: var(--wl-progress-chip-hover); }
         .wl-now-client-chip-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
         /* Overdue strip — same shape as In progress now / Tweaks needed,
            but red. An overdue sub-issue is the most urgent signal on the
            page (the editor has missed the deadline and the item still sits
            with them), so the strip lives above In progress now. */
-        .workload-overdue { border: 1.5px solid var(--sv-border-fca5a5); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--sv-bg-fef2f2); }
+        .workload-overdue { border: 1.5px solid var(--wl-overdue-border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--wl-overdue-section-bg); }
         .workload-overdue.empty { display: none; }
-        .workload-overdue .workload-section-label { color: var(--sv-fg-991b1b); display: flex; align-items: center; gap: 8px; }
-        .workload-overdue .workload-section-label .wl-now-total { background: var(--sv-bg-dc2626); }
-        .workload-overdue .wl-now-card { border: 1px solid var(--sv-border-fca5a5); border-left: 3px solid var(--sv-border-dc2626); }
-        .workload-overdue .wl-now-avatar { background: var(--sv-bg-dc2626); }
-        .workload-overdue .wl-now-card-total { background: var(--sv-bg-dc2626); }
-        .workload-overdue .wl-now-card-total:hover { background: var(--sv-bg-b91c1c); }
-        .workload-overdue .wl-now-client-chip { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
-        .workload-overdue .wl-now-client-chip:hover { background: var(--sv-bg-fecaca); }
+        .workload-overdue .workload-section-label { color: var(--wl-overdue-label); display: flex; align-items: center; gap: 8px; }
+        .workload-overdue .workload-section-label .wl-now-total { background: var(--wl-overdue-accent); }
+        .workload-overdue .wl-now-card { border: 1px solid var(--wl-overdue-border); border-left: 3px solid var(--wl-overdue-accent); }
+        .workload-overdue .wl-now-avatar { background: var(--wl-overdue-accent); }
+        .workload-overdue .wl-now-card-total { background: var(--wl-overdue-accent); }
+        .workload-overdue .wl-now-card-total:hover { background: var(--wl-overdue-accent-hover); }
+        .workload-overdue .wl-now-client-chip { background: var(--wl-overdue-chip-bg); color: var(--wl-overdue-chip-fg); }
+        .workload-overdue .wl-now-client-chip:hover { background: var(--wl-overdue-chip-hover); }
         /* Tweaks needed strip — same shape as In progress now, but dark
            orange. A tweak is work bounced back to the editor for revision:
            still "owed" but distinct from work they're actively cutting. */
-        .workload-tweaks { border: 1.5px solid var(--sv-border-fdba74); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--sv-bg-fff7ed); }
+        .workload-tweaks { border: 1.5px solid var(--wl-tweaks-border); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; background: var(--wl-tweaks-section-bg); }
         .workload-tweaks.empty { display: none; }
-        .workload-tweaks .workload-section-label { color: var(--sv-fg-9a3412); display: flex; align-items: center; gap: 8px; }
-        .workload-tweaks .workload-section-label .wl-now-total { background: var(--sv-bg-ea580c); }
-        .workload-tweaks .wl-now-card { border: 1px solid var(--sv-border-fdba74); border-left: 3px solid var(--sv-border-ea580c); }
-        .workload-tweaks .wl-now-avatar { background: var(--sv-bg-ea580c); }
-        .workload-tweaks .wl-now-card-total { background: var(--sv-bg-ea580c); }
-        .workload-tweaks .wl-now-card-total:hover { background: var(--sv-bg-c2410c); }
-        .workload-tweaks .wl-now-client-chip { background: var(--sv-bg-ffedd5); color: var(--sv-fg-9a3412); }
-        .workload-tweaks .wl-now-client-chip:hover { background: var(--sv-bg-fed7aa); }
+        .workload-tweaks .workload-section-label { color: var(--wl-tweaks-label); display: flex; align-items: center; gap: 8px; }
+        .workload-tweaks .workload-section-label .wl-now-total { background: var(--wl-tweaks-accent); }
+        .workload-tweaks .wl-now-card { border: 1px solid var(--wl-tweaks-border); border-left: 3px solid var(--wl-tweaks-accent); }
+        .workload-tweaks .wl-now-avatar { background: var(--wl-tweaks-accent); }
+        .workload-tweaks .wl-now-card-total { background: var(--wl-tweaks-accent); }
+        .workload-tweaks .wl-now-card-total:hover { background: var(--wl-tweaks-accent-hover); }
+        .workload-tweaks .wl-now-client-chip { background: var(--wl-tweaks-chip-bg); color: var(--wl-tweaks-chip-fg); }
+        .workload-tweaks .wl-now-client-chip:hover { background: var(--wl-tweaks-chip-hover); }
         .workload-chips { display: flex; flex-wrap: wrap; gap: 6px; }
         .workload-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); font-size: 0.74rem; font-weight: 600; color: var(--text-primary); cursor: pointer; transition: all 0.13s; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
         .workload-chip:hover { border-color: var(--sv-border-aaa); background: var(--white); }
@@ -2926,8 +2938,8 @@
         .workload-rollup:hover { background: var(--sv-bg-fafafa); }
         .workload-rollup.team-video    { border-left-color: var(--sv-border-6c5ce7); }
         .workload-rollup.team-graphics { border-left-color: var(--sv-border-d97706); }
-        .workload-rollup.in-progress   { background: var(--sv-bg-fefce8); border-left-color: var(--sv-border-eab308) !important; }
-        .workload-rollup.in-progress:hover { background: var(--sv-bg-fef9c3); }
+        .workload-rollup.in-progress   { background: var(--wl-progress-section-bg); border-left-color: var(--wl-progress-accent) !important; }
+        .workload-rollup.in-progress:hover { background: var(--wl-progress-chip-bg); }
         .workload-rollup-row           { display: flex; align-items: center; gap: 6px; min-width: 0; }
         .workload-rollup-editor        { font-size: 0.68rem; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
         .workload-rollup-now-tag       { font-size: 0.56rem; font-weight: 800; color: var(--sv-fg-ca8a04); letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0; }
@@ -2936,8 +2948,8 @@
         .workload-grid.week .workload-rollup-client { font-size: 0.76rem; }
         .workload-rollup .rollup-count  { background: var(--bg); border: 1px solid transparent; border-radius: 999px; padding: 1px 8px; font-size: 0.64rem; font-weight: 700; color: var(--text-secondary); flex-shrink: 0; cursor: pointer; transition: all 0.1s; }
         .workload-rollup .rollup-count:hover { background: var(--white); border-color: var(--border); color: var(--text-primary); }
-        .workload-rollup.in-progress .rollup-count { background: var(--sv-bg-eab308); color: var(--white); }
-        .workload-rollup.in-progress .rollup-count:hover { background: var(--sv-bg-ca8a04); border-color: var(--sv-border-eab308); color: var(--white); }
+        .workload-rollup.in-progress .rollup-count { background: var(--wl-progress-accent); color: var(--wl-status-fg); }
+        .workload-rollup.in-progress .rollup-count:hover { background: var(--wl-progress-accent-hover); border-color: var(--wl-progress-accent); color: var(--wl-status-fg); }
         .editor-dot { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--bg); font-size: 0.58rem; font-weight: 700; color: var(--text-primary); flex-shrink: 0; border: 1px solid var(--border); }
         .workload-day-overflow { font-size: 0.62rem; font-weight: 600; color: var(--text-muted); padding: 2px 6px; cursor: default; }
         .workload-legend { display: flex; gap: 14px; margin-top: 12px; font-size: 0.7rem; color: var(--text-muted); flex-wrap: wrap; }
@@ -3053,9 +3065,9 @@
 
         .tpl-field { display: flex; flex-direction: column; gap: 6px; }
         .tpl-field-label { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
-        .tpl-input, .tpl-textarea { width: 100%; border: 1.5px solid transparent; background: var(--bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); transition: border-color 0.13s, background 0.13s; outline: none; resize: none; }
-        .tpl-input:hover, .tpl-textarea:hover { background: var(--sv-bg-ededea); }
-        .tpl-input:focus, .tpl-textarea:focus { border-color: var(--sv-border-111110); background: var(--white); }
+        .tpl-input, .tpl-textarea { width: 100%; border: 1.5px solid transparent; background: var(--field-bg); border-radius: 8px; padding: 10px 12px; font-family: inherit; font-size: 0.88rem; color: var(--text-primary); transition: border-color 0.13s, background 0.13s; outline: none; resize: none; }
+        .tpl-input:hover, .tpl-textarea:hover { background: var(--field-bg-hover); }
+        .tpl-input:focus, .tpl-textarea:focus { border-color: var(--field-border-focus); background: var(--field-bg-focus); }
         .tpl-input::placeholder, .tpl-textarea::placeholder { color: var(--text-muted); font-weight: 500; }
         .tpl-textarea { min-height: 90px; line-height: 1.5; }
 
@@ -3570,7 +3582,7 @@
         .cal-card { position: relative; flex: 0 0 var(--cal-card-w, 420px); background: var(--white); border: 1px solid var(--border); border-radius: 14px; transition: box-shadow 0.12s, border-color 0.12s; overflow: hidden; display: flex; flex-direction: column; }
         .cal-card:hover { box-shadow: 0 4px 14px var(--sv-shadow-rgba-0-0-0-0_07); }
         .cal-card.is-blank { background: var(--sv-bg-fcfcfb); border-style: dashed; border-color: var(--sv-border-d4d4d2); }
-        .cal-card.is-blank .cal-card-thumb { background: var(--sv-bg-f4f4f2); }
+        .cal-card.is-blank .cal-card-thumb { background: var(--media-tub-empty-bg); }
         .cal-card.is-blank:hover { border-color: var(--sv-border-888); }
         /* Saving / error frame is painted by a pseudo-element overlay
            rather than an inset box-shadow on .cal-card itself. The card
@@ -3712,7 +3724,7 @@
            regardless of the image's aspect ratio. Vertical/portrait videos,
            ultrawide videos, etc. are all centered inside without stretching
            it or the parent card. */
-        .cal-card-thumb { width: 100%; height: calc(var(--cal-thumb-h, 184px) + 16px); background: linear-gradient(155deg, var(--sv-bg-f7f7f5) 0%, var(--sv-bg-e7e7e3) 100%); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
+        .cal-card-thumb { width: 100%; height: calc(var(--cal-thumb-h, 184px) + 16px); background: var(--media-tub-bg); display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; flex-shrink: 0; padding: 8px 14px; box-sizing: border-box; }
         .cal-card-thumb img { display: block; max-width: 100%; max-height: var(--cal-thumb-h, 184px); width: auto; height: auto; object-fit: contain; object-position: center; border-radius: 10px; box-shadow: 0 10px 26px var(--sv-shadow-rgba-0-0-0-0_20); }
         .cal-thumb-zoom { position: absolute; bottom: 8px; right: 8px; width: 27px; height: 27px; border-radius: 7px; background: var(--sv-bg-rgba-0-0-0-0_55); color: var(--sv-fg-fff); display: inline-flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s, background 0.12s; cursor: pointer; }
         .cal-thumb-zoom:hover { background: var(--sv-bg-rgba-0-0-0-0_78); }
@@ -3804,7 +3816,7 @@
         .cal-fld-name { width: 100%; box-sizing: border-box; border: 0; outline: 0; background: transparent;
             padding: 3px 4px; font-family: inherit; font-size: 1rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text-primary); }
         .cal-fld-name::placeholder { color: var(--sv-fg-c2c2bd); }
-        .cal-fld-name:focus { background: var(--sv-bg-f3f3f1); border-radius: 7px; }
+        .cal-fld-name:focus { background: var(--field-bg); border-radius: 7px; }
 
         /* Linear sub-issue link — icon at the start of the title row */
         .cal-title-row { display: flex; align-items: center; gap: 4px; }
@@ -3821,8 +3833,8 @@
         .cal-linear-slot:empty { display: none; }
         .cal-linear-btn { display: inline-flex; align-items: center; justify-content: center;
             width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; cursor: pointer;
-            background: var(--sv-bg-f3f3f1); color: var(--sv-fg-bdbdb8); transition: background 0.13s, color 0.13s; text-decoration: none; }
-        .cal-linear-btn:hover { background: var(--sv-bg-ebebe8); color: var(--sv-fg-6b6b66); }
+            background: var(--field-bg); color: var(--sv-fg-bdbdb8); transition: background 0.13s, color 0.13s; text-decoration: none; }
+        .cal-linear-btn:hover { background: var(--field-bg-hover); color: var(--sv-fg-6b6b66); }
         .cal-linear-btn svg { width: 14px; height: 14px; }
         .cal-linear-btn.is-linked { background: var(--sv-bg-ecedfb); color: var(--sv-fg-5e6ad2); }
         .cal-linear-btn.is-linked:hover { background: var(--sv-bg-e0e2f8); }
@@ -3844,7 +3856,7 @@
         .cal-title-status-sq.cal-fld-status-tweaks-needed    { background: var(--cal-status-tweaks-needed-bg); }
         /* Collapse toggle for long Kasper review threads (show 3 most recent). */
         .cal-review-thread-toggle { display: block; width: 100%; text-align: center; background: none; border: 0; color: var(--sv-fg-6b6b66); font-size: 0.72rem; font-weight: 600; padding: 5px; margin: 2px 0; cursor: pointer; border-radius: 6px; }
-        .cal-review-thread-toggle:hover { color: var(--sv-fg-3a3a37); background: var(--sv-bg-f3f3f1); }
+        .cal-review-thread-toggle:hover { color: var(--sv-fg-3a3a37); background: var(--field-bg); }
         .cal-thumb-linear-warn { position: absolute; top: 0; left: 0; right: 0; z-index: 3;
             display: flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px;
             border: 0; cursor: pointer; background: var(--sv-bg-ea580c); color: var(--sv-fg-fff); font-family: inherit;
@@ -3958,11 +3970,11 @@
             box-shadow: 0 1px 2px var(--sv-shadow-rgba-0-0-0-0_15);
             transition: opacity 0.12s, background 0.12s, color 0.12s; }
         .cal-linear-link-wrap:hover .cal-linear-edit { visibility: visible; opacity: 1; pointer-events: auto; }
-        .cal-linear-edit:hover { background: var(--sv-bg-f3f3f1); color: var(--sv-fg-2a2a26); }
+        .cal-linear-edit:hover { background: var(--field-bg); color: var(--sv-fg-2a2a26); }
         .cal-linear-edit svg { width: 8px; height: 8px; }
         .cal-linear-input { flex: 1 1 0; min-width: 0; box-sizing: border-box; padding: 5px 9px;
             border: 1px solid var(--text-primary); border-radius: 7px; font-family: inherit;
-            font-size: 0.78rem; color: var(--text-primary); outline: 0; }
+            font-size: 0.78rem; color: var(--text-primary); background: var(--field-bg-focus); outline: 0; }
 
         /* Linear link already-in-use prompt — replaces the link input when the
            pasted sub-issue is already on another live card. Offers Move / Cancel. */
@@ -3986,9 +3998,9 @@
         /* Date chip */
         .cal-fld-date-wrap { position: relative; }
         .cal-date-chip { display: flex; align-items: center; gap: 6px; width: 100%; box-sizing: border-box;
-            padding: 8px 9px; background: var(--sv-bg-f3f3f1); border-radius: 8px; font-size: 0.73rem; font-weight: 600;
+            padding: 8px 9px; background: var(--field-bg); border-radius: 8px; font-size: 0.73rem; font-weight: 600;
             color: var(--text-primary); transition: background 0.12s; }
-        .cal-fld-date-wrap:hover .cal-date-chip { background: var(--sv-bg-ebebe8); }
+        .cal-fld-date-wrap:hover .cal-date-chip { background: var(--field-bg-hover); }
         .cal-cal-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-muted); }
         .cal-date-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-date-chip.is-empty .cal-date-txt { color: var(--text-muted); font-weight: 500; }
@@ -4043,24 +4055,24 @@
 
         /* Link fields — paste a URL, then it becomes a click-to-open pill */
         .cal-link-field { display: flex; }
-        .cal-link-input { width: 100%; box-sizing: border-box; background: var(--sv-bg-f3f3f1); border: 1px solid transparent;
+        .cal-link-input { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.72rem; color: var(--text-secondary); outline: 0; }
-        .cal-link-input::placeholder { color: var(--sv-fg-b6b6b1); }
-        .cal-link-input:focus { background: var(--sv-bg-fff); border-color: var(--text-primary); }
+        .cal-link-input::placeholder { color: var(--field-placeholder); }
+        .cal-link-input:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
         .cal-link-field.has-link .cal-link-input { display: none; }
         .cal-link-field.has-link.editing .cal-link-input { display: block; }
         .cal-link-field.has-link.editing .cal-link-pill-open,
         .cal-link-field.has-link.editing .cal-link-edit { display: none; }
         .cal-link-pill-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
-            padding: 8px 9px; background: var(--sv-bg-f3f3f1); border: 0; border-radius: 8px 0 0 8px; cursor: pointer;
+            padding: 8px 9px; background: var(--field-bg); border: 0; border-radius: 8px 0 0 8px; cursor: pointer;
             font-family: inherit; font-size: 0.72rem; font-weight: 600; color: var(--text-primary); text-align: left; transition: background 0.12s; }
-        .cal-link-pill-open:hover { background: var(--sv-bg-ebebe8); }
+        .cal-link-pill-open:hover { background: var(--field-bg-hover); }
         .cal-link-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-secondary); }
         .cal-link-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cal-link-edit { flex-shrink: 0; width: 32px; display: inline-flex; align-items: center; justify-content: center;
-            background: var(--sv-bg-f3f3f1); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); border-radius: 0 8px 8px 0;
+            background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); border-radius: 0 8px 8px 0;
             color: var(--text-muted); cursor: pointer; transition: background 0.12s, color 0.12s; }
-        .cal-link-edit:hover { background: var(--sv-bg-ebebe8); color: var(--text-primary); }
+        .cal-link-edit:hover { background: var(--field-bg-hover); color: var(--text-primary); }
         .cal-link-edit svg { width: 12px; height: 12px; }
         /* Coloured link pills once a URL is set */
         .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-bg-eef0fe); color: var(--sv-fg-4f46e5); }
@@ -4076,12 +4088,12 @@
 
         /* Caption */
         .cal-cap-wrap { position: relative; display: flex; flex-direction: column; }
-        .cal-fld-cap { width: 100%; box-sizing: border-box; background: var(--sv-bg-f3f3f1); border: 1px solid transparent;
+        .cal-fld-cap { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.74rem; line-height: 1.5;
             color: var(--text-primary); resize: none; outline: 0;
             scrollbar-width: thin; scrollbar-color: var(--sv-fg-c8c8c3) transparent; }
-        .cal-fld-cap::placeholder { color: var(--sv-fg-b6b6b1); }
-        .cal-fld-cap:focus { background: var(--sv-bg-fff); border-color: var(--text-primary); }
+        .cal-fld-cap::placeholder { color: var(--field-placeholder); }
+        .cal-fld-cap:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
         .cal-fld-cap::-webkit-scrollbar, .cal-fld-tweaks::-webkit-scrollbar { width: 9px; }
         .cal-fld-cap::-webkit-scrollbar-thumb, .cal-fld-tweaks::-webkit-scrollbar-thumb { background: var(--sv-bg-cdcdc8); border-radius: 99px; border: 3px solid transparent; background-clip: padding-box; }
         .cal-fld-cap::-webkit-scrollbar-thumb:hover, .cal-fld-tweaks::-webkit-scrollbar-thumb:hover { background: var(--sv-bg-b1b1aa); background-clip: padding-box; }
@@ -4091,7 +4103,7 @@
            (var(--sv-misc-f3f3f1)); pointer-events:none so clicks fall through to the box. */
         .cal-cap-fade { position: absolute; left: 1px; right: 1px; bottom: 1px; height: 38px;
             border-radius: 0 0 8px 8px; pointer-events: none; opacity: 0; transition: opacity 0.12s;
-            background: linear-gradient(to bottom, var(--sv-bg-rgba-243-243-241-0) 0%, var(--sv-bg-rgba-243-243-241-0_7) 55%, var(--sv-bg-f3f3f1) 100%); }
+            background: linear-gradient(to bottom, var(--field-fade-from) 0%, var(--field-fade-mid) 55%, var(--field-bg) 100%); }
         .cal-cap-wrap.is-clamped .cal-cap-fade { opacity: 1; }
         /* The whole clamped, read-only caption is a tap-to-read-more target. */
         .cal-cap-wrap.is-clamped textarea.cal-fld-cap[readonly] { cursor: pointer; }
@@ -4109,10 +4121,10 @@
         .cal-cap-toggle.is-expanded .cal-cap-toggle-txt { display: none; }
 
         /* CTA + tweaks — clean filled fields */
-        .cal-fld-cta, .cal-fld-tweaks { width: 100%; box-sizing: border-box; background: var(--sv-bg-f3f3f1); border: 1px solid transparent;
+        .cal-fld-cta, .cal-fld-tweaks { width: 100%; box-sizing: border-box; background: var(--field-bg); border: 1px solid transparent;
             border-radius: 8px; padding: 8px 9px; font-family: inherit; font-size: 0.72rem; color: var(--text-primary); outline: 0; }
-        .cal-fld-cta::placeholder, .cal-fld-tweaks::placeholder { color: var(--sv-fg-b6b6b1); }
-        .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: var(--sv-bg-fff); border-color: var(--text-primary); }
+        .cal-fld-cta::placeholder, .cal-fld-tweaks::placeholder { color: var(--field-placeholder); }
+        .cal-fld-cta:focus, .cal-fld-tweaks:focus { background: var(--field-bg-focus); border-color: var(--field-border-focus); }
         .cal-fld-tweaks { line-height: 1.5; resize: none; scrollbar-width: thin; }
 
         /* Alt caption — optional second platform-specific caption on a card.
@@ -4128,8 +4140,8 @@
             font-family: inherit; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.02em; cursor: pointer;
             transition: background 0.1s, color 0.1s; }
         .cal-cap-tab:hover { color: var(--text-primary); }
-        .cal-cap-tab.is-active { background: var(--sv-bg-f3f3f1); color: var(--text-primary); }
-        .cal-capblock:focus-within .cal-cap-tab.is-active { background: var(--sv-bg-fff); }
+        .cal-cap-tab.is-active { background: var(--field-bg); color: var(--text-primary); }
+        .cal-capblock:focus-within .cal-cap-tab.is-active { background: var(--field-bg-focus); }
         .cal-cap-tab-chev { display: inline-flex; }
         .cal-cap-tab-chev svg { width: 8px; height: 8px; opacity: 0.6; }
         .cal-cap-tab-x { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
@@ -4146,7 +4158,7 @@
            of the coloured status fill. */
         .cal-cap-tab-menu-head { padding: 7px 11px 3px; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-muted); }
         .cal-fld-status-item.cal-cap-tab-menu-item { gap: 8px; text-transform: none; letter-spacing: 0; font-size: 0.74rem; font-weight: 700; color: var(--text-primary); background: transparent; }
-        .cal-fld-status-item.cal-cap-tab-menu-item:hover { background: var(--sv-bg-f3f3f1); filter: none; }
+        .cal-fld-status-item.cal-cap-tab-menu-item:hover { background: var(--field-bg); filter: none; }
         .cal-cap-tab-menu-ico { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--sv-fg-fff); flex-shrink: 0; }
         .cal-cap-tab-menu-ico svg { width: 11px; height: 11px; }
 
@@ -4244,7 +4256,7 @@
         .cal-status-archived { background: var(--cal-status-archived-bg); color: var(--cal-status-archived-fg); text-decoration: line-through; }
         /* Status — clearly a dropdown; colour mirrors the chip palette */
         .cal-fld-status-wrap { position: relative; display: flex; align-items: center; justify-content: center;
-            padding: 5px 11px; border-radius: 8px; background: var(--sv-bg-f3f3f1); color: var(--text-secondary);
+            padding: 5px 11px; border-radius: 8px; background: var(--field-bg); color: var(--text-secondary);
             font-family: inherit; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; }
         .cal-fld-status-wrap.is-derived { cursor: default; user-select: none; }
         .cal-fld-status-wrap .cal-fld-status-label { line-height: 1; }
@@ -4301,10 +4313,10 @@
            always; video/graphic only if linked to a Linear sub-issue). */
         .cal-fld-setall { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box;
             padding: 6px 10px; border-radius: 7px; border: 1px dashed var(--sv-border-cfcec7);
-            background: var(--sv-bg-f7f7f5); color: var(--text-secondary);
+            background: var(--field-bg); color: var(--text-secondary);
             font-family: inherit; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.04em;
             text-transform: uppercase; cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s; }
-        .cal-fld-setall:hover { background: var(--sv-bg-f0efea); border-color: var(--text-secondary); color: var(--text-primary); }
+        .cal-fld-setall:hover { background: var(--field-bg-hover); border-color: var(--text-secondary); color: var(--text-primary); }
         .cal-fld-setall svg { width: 13px; height: 13px; flex-shrink: 0; }
         .cal-fld-setall-label { flex: 1 1 auto; text-align: left; }
         .cal-fld-setall-chev { width: 9px; height: 9px; flex-shrink: 0; opacity: 0.55; }
@@ -4315,7 +4327,7 @@
         .cal-fld-setall-menu-head { padding: 7px 11px 8px; margin-bottom: 4px;
             border-bottom: 1px solid var(--border); color: var(--text-secondary);
             font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-        .cal-fld-substatus-wrap { display: block; border-radius: 7px; background: var(--sv-bg-f3f3f1); color: var(--text-secondary); }
+        .cal-fld-substatus-wrap { display: block; border-radius: 7px; background: var(--field-bg); color: var(--text-secondary); }
         .cal-fld-substatus-wrap.is-locked { opacity: 0.55; }
         .cal-fld-substatus-trigger { display: flex; align-items: center; gap: 7px; width: 100%; box-sizing: border-box;
             padding: 5px 9px; border: 0; border-radius: 7px; outline: 0; cursor: pointer; background: transparent;
@@ -4370,7 +4382,7 @@
 
         /* Client-link view — read-only adjustments */
         .cal-fld-date-wrap.is-readonly .cal-date-chip { cursor: default; }
-        .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--bg); }
+        .cal-fld-date-wrap.is-readonly:hover .cal-date-chip { background: var(--field-bg); }
         .cal-client-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
         /* Client view — let the status pill size to its label so it never
            wraps; the date pill takes the remaining width and truncates. */
@@ -4394,8 +4406,8 @@
            pill so the layout doesn't shift when the SMM later fills in the
            link, but greyed out and non-interactive so the client can tell
            it's a slot, not a button. Tooltip on hover spells it out. */
-        .cal-link-field.cal-link-empty .cal-link-pill-open { background: var(--sv-bg-f3f3f1); color: var(--text-muted); cursor: default; font-style: italic; }
-        .cal-link-field.cal-link-empty .cal-link-pill-open:hover { background: var(--sv-bg-f3f3f1); }
+        .cal-link-field.cal-link-empty .cal-link-pill-open { background: var(--field-bg); color: var(--text-muted); cursor: default; font-style: italic; }
+        .cal-link-field.cal-link-empty .cal-link-pill-open:hover { background: var(--field-bg); }
         .cal-link-field.cal-link-empty .cal-link-ico { color: var(--text-muted); opacity: 0.7; }
         /* Global styled tooltip — same dark pill the Collab mode "i" uses,
            applied site-wide by the script at the end of the file in place
@@ -4469,7 +4481,7 @@
            sub-status palette below. */
         .cal-review-sub-pill { display: inline-flex; padding: 2px 8px; border-radius: 5px;
             font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em;
-            text-transform: uppercase; background: var(--sv-bg-f3f3f1); color: var(--text-secondary); }
+            text-transform: uppercase; background: var(--field-bg); color: var(--text-secondary); }
         .cal-review-sub-pill.cal-fld-status-in-progress       { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
         .cal-review-sub-pill.cal-fld-status-for-smm-approval  { background: var(--cal-status-for-smm-approval-bg); color: var(--cal-status-for-smm-approval-fg); }
         .cal-review-sub-pill.cal-fld-status-kasper-approval   { background: var(--cal-status-kasper-approval-bg); color: var(--cal-status-kasper-approval-fg); }
@@ -4643,6 +4655,8 @@
             font-family: inherit; font-size: 0.84rem; color: var(--text-primary);
             resize: vertical; outline: 0; transition: border-color 0.12s, box-shadow 0.12s; }
         .cal-review-textarea:focus { border-color: var(--text-primary); box-shadow: 0 0 0 3px var(--sv-shadow-rgba-0-0-0-0_04); }
+        html[data-theme="dark"] .cal-review-textarea { background: var(--field-bg); }
+        html[data-theme="dark"] .cal-review-textarea:focus { border-color: var(--field-border-focus); background: var(--field-bg-focus); }
         .cal-review-tweak-btn { align-self: flex-end; display: inline-flex; align-items: center; gap: 6px;
             padding: 7px 13px; background: var(--white);
             border: 1px solid var(--text-primary); color: var(--text-primary);
@@ -5159,7 +5173,7 @@
             .kasper-hero-right { padding: 18px 20px 20px; }
         }
         .kcard-strip { display: grid; grid-template-columns: 96px 1fr auto; gap: 14px; padding: 12px; align-items: center; cursor: pointer; }
-        .kcard-thumb { position: relative; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: linear-gradient(135deg,var(--sv-bg-f3f3f1),var(--sv-bg-e6e6e0)); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .kcard-thumb { position: relative; width: 96px; height: 96px; border-radius: 10px; overflow: hidden; background: var(--media-tub-bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .kcard-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .kcard-thumb.is-fallback { color: var(--text-muted); }
         .kcard-thumb-fallback { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--text-muted); }
@@ -5348,6 +5362,9 @@
         .kfilm-pill.kfilm-red   { background: var(--sv-bg-fef2f2); color: var(--sv-fg-b91c1c); }
         .kfilm-pill.kfilm-amber { background: var(--sv-bg-fffbeb); color: var(--sv-fg-b45309); }
         .kfilm-pill.kfilm-green { background: var(--sv-bg-f0fdf4); color: var(--sv-fg-15803d); }
+        html[data-theme="dark"] .kfilm-pill.kfilm-red   { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
+        html[data-theme="dark"] .kfilm-pill.kfilm-amber { background: var(--cal-status-tweaks-needed-bg); color: var(--cal-status-tweaks-needed-fg); }
+        html[data-theme="dark"] .kfilm-pill.kfilm-green { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
         .kfilm-list { display: flex; flex-direction: column; gap: 8px; }
         .kfilm-row { background: var(--white); border: 1px solid var(--border); border-left-width: 3px; border-radius: 12px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; }
         .kfilm-row:hover { box-shadow: 0 2px 10px var(--sv-shadow-rgba-0-0-0-0_05); }
@@ -5374,6 +5391,7 @@
         .kfilm-cell { min-width: 46px; text-align: center; font-size: 0.74rem; font-weight: 600; padding: 6px 8px; border-radius: 7px; background: var(--bg); color: var(--text-muted); border: 1px solid var(--border-light); }
         .kfilm-cell a { color: inherit; text-decoration: none; display: block; }
         .kfilm-cell--on { background: var(--sv-bg-f0fdf4); color: var(--sv-fg-15803d); border-color: var(--sv-border-bbf7d0); }
+        html[data-theme="dark"] .kfilm-cell--on { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); border-color: var(--cal-status-approved-bg); }
         .kfilm-note { font-size: 0.76rem; color: var(--text-secondary); margin-top: 9px; }
         @media (max-width: 760px) {
             .kfilm-main { grid-template-columns: auto 1fr; grid-auto-rows: auto; row-gap: 6px; }
@@ -5661,6 +5679,11 @@
         .sm-appr-pill.is-client   { background:var(--sv-bg-dbeafe); color:var(--sv-fg-1d4ed8); }
         .sm-appr-pill.is-approved { background:var(--sv-bg-dcfce7); color:var(--sv-fg-166534); }
         .sm-appr-pill.is-changes  { background:var(--sv-bg-fee2e2); color:var(--sv-fg-b91c1c); }
+        html[data-theme="dark"] .sm-appr-pill.is-draft    { background:var(--cal-status-archived-bg); color:var(--cal-status-archived-fg); }
+        html[data-theme="dark"] .sm-appr-pill.is-kasper   { background:var(--cal-status-kasper-approval-bg); color:var(--cal-status-kasper-approval-fg); }
+        html[data-theme="dark"] .sm-appr-pill.is-client   { background:var(--cal-status-client-approval-bg); color:var(--cal-status-client-approval-fg); }
+        html[data-theme="dark"] .sm-appr-pill.is-approved { background:var(--cal-status-approved-bg); color:var(--cal-status-approved-fg); }
+        html[data-theme="dark"] .sm-appr-pill.is-changes  { background:var(--cal-status-tweaks-needed-bg); color:var(--cal-status-tweaks-needed-fg); }
         .sm-appr-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
         .sm-appr-note { font-size:0.72rem; color:var(--text-muted); }
         .sm-appr-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:9px; border:1px solid var(--border); background:var(--white);
@@ -5686,6 +5709,9 @@
         .sm-input:focus, .sm-textarea:focus { outline:none; border-color:var(--accent,var(--sv-border-6c5ce7)); background:var(--white); }
         .sm-input::placeholder, .sm-textarea::placeholder { color:var(--text-muted); }
         .sm-input[readonly], .sm-textarea[readonly] { cursor:default; background:var(--bg); }
+        html[data-theme="dark"] .sm-input, html[data-theme="dark"] .sm-textarea { background:var(--field-bg); }
+        html[data-theme="dark"] .sm-input:focus, html[data-theme="dark"] .sm-textarea:focus { border-color:var(--field-border-focus); background:var(--field-bg-focus); }
+        html[data-theme="dark"] .sm-input[readonly], html[data-theme="dark"] .sm-textarea[readonly] { background:var(--field-bg); }
         .sm-media-row { display:flex; gap:6px; }
         .sm-media-row .sm-input { flex:1; min-width:0; }
         .sm-media-save { padding:0 12px; border-radius:8px; border:1px solid var(--border); background:var(--white); cursor:pointer; color:var(--text-secondary); font-family:inherit; font-size:0.74rem; font-weight:700; white-space:nowrap; }
@@ -35002,6 +35028,24 @@
         .tk-preview-music { position: absolute; left: 12px; right: 56px; bottom: 10px; font-size: 0.66rem; color: var(--sv-fg-rgba-255-255-255-0_92); display: flex; align-items: center; gap: 5px; text-shadow: 0 1px 3px var(--sv-shadow-rgba-0-0-0-0_55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tk-preview-meta { margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 8px; font-size: 0.72rem; color: var(--text-secondary); display: flex; justify-content: space-between; gap: 8px; }
         .tk-preview-meta-private { color: var(--sv-fg-92400e); font-weight: 700; }
+        html[data-theme="dark"] .tk-select,
+        html[data-theme="dark"] .tk-drop,
+        html[data-theme="dark"] .tk-file-card,
+        html[data-theme="dark"] .tk-profile-chip,
+        html[data-theme="dark"] .tk-schedule-preview,
+        html[data-theme="dark"] .tk-preview-meta { background: var(--field-bg); }
+        html[data-theme="dark"] .tk-select:hover,
+        html[data-theme="dark"] .tk-drop:hover,
+        html[data-theme="dark"] .tk-drop.tk-drag { background: var(--field-bg-hover); }
+        html[data-theme="dark"] .tk-select:focus { border-color: var(--field-border-focus); background-color: var(--field-bg-focus); }
+        html[data-theme="dark"] .tk-progress { background: var(--upload-progress-track); }
+        html[data-theme="dark"] .tk-progress-bar { background: var(--upload-progress-fill); box-shadow: 0 0 14px var(--upload-progress-glow); }
+        html[data-theme="dark"] .tk-pill.queued { background: var(--cal-status-archived-bg); color: var(--cal-status-archived-fg); }
+        html[data-theme="dark"] .tk-pill.uploading { background: var(--cal-status-posted-bg); color: var(--cal-status-posted-fg); }
+        html[data-theme="dark"] .tk-pill.processing { background: var(--cal-status-scheduled-bg); color: var(--cal-status-scheduled-fg); }
+        html[data-theme="dark"] .tk-pill.scheduled { background: var(--cal-status-in-progress-bg); color: var(--cal-status-in-progress-fg); }
+        html[data-theme="dark"] .tk-pill.posted { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+        html[data-theme="dark"] .tk-pill.failed { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
         `;
         document.head.appendChild(style);
     }
@@ -36063,6 +36107,24 @@
         .ttp-pill.uploading, .ttp-pill.processing { background: var(--sv-bg-dbeafe); color: var(--sv-fg-1e40af); }
         .ttp-pill.posted { background: var(--sv-bg-d1fae5); color: var(--sv-fg-065f46); }
         .ttp-pill.failed { background: var(--sv-bg-fee2e2); color: var(--sv-fg-991b1b); }
+        html[data-theme="dark"] .ttp-select,
+        html[data-theme="dark"] .ttp-input,
+        html[data-theme="dark"] .ttp-account,
+        html[data-theme="dark"] .ttp-connect-cta,
+        html[data-theme="dark"] .ttp-drop,
+        html[data-theme="dark"] .ttp-file-card,
+        html[data-theme="dark"] .ttp-disclosure-box,
+        html[data-theme="dark"] .ttp-note { background: var(--field-bg); }
+        html[data-theme="dark"] .ttp-drop:hover,
+        html[data-theme="dark"] .ttp-drop.ttp-drag { background: var(--field-bg-hover); }
+        html[data-theme="dark"] .ttp-select:focus,
+        html[data-theme="dark"] .ttp-input:focus { border-color: var(--field-border-focus); background-color: var(--field-bg-focus); }
+        html[data-theme="dark"] .ttp-progress { background: var(--upload-progress-track); }
+        html[data-theme="dark"] .ttp-progress-bar { background: var(--upload-progress-fill); box-shadow: 0 0 14px var(--upload-progress-glow); }
+        html[data-theme="dark"] .ttp-pill.uploading,
+        html[data-theme="dark"] .ttp-pill.processing { background: var(--cal-status-posted-bg); color: var(--cal-status-posted-fg); }
+        html[data-theme="dark"] .ttp-pill.posted { background: var(--cal-status-approved-bg); color: var(--cal-status-approved-fg); }
+        html[data-theme="dark"] .ttp-pill.failed { background: var(--cal-status-client-approval-bg); color: var(--cal-status-client-approval-fg); }
         `;
         document.head.appendChild(style);
     }

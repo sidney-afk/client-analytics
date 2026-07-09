@@ -1644,13 +1644,31 @@
         .boot-skeleton .sv-skeleton-card { padding: 22px; }
         .boot-skeleton-row { display: grid; grid-template-columns: 1fr 0.85fr 0.7fr; gap: 12px; }
         @media (max-width: 700px) { .boot-skeleton-row { grid-template-columns: 1fr; } }
-        .analytics-skeleton { max-width: 980px; margin: 0 auto; }
-        .analytics-skeleton .detail-hero { margin-bottom: 20px; }
+        .analytics-overview-skeleton { width: min(1280px, 100%); margin: 128px auto 0; }
+        .analytics-overview-skeleton .overview-controls { padding-bottom: 12px; }
+        .analytics-overview-skeleton .controls-left { display: flex; gap: 6px; }
+        .analytics-overview-table .sv-skeleton { margin: 0 auto; }
+        .analytics-overview-table td:first-child .sv-skeleton { margin: 0; }
+        .analytics-overview-table td:first-child .cell-inner { gap: 8px; }
+        .analytics-overview-table .client-view-btn { background: var(--bg); border-radius: 4px; }
+        .analytics-overview-table .col-ig .sv-skeleton { --sv-skel-base: var(--ig-light); --sv-skel-sheen: var(--ig-mid); }
+        .analytics-overview-table .col-tt .sv-skeleton { --sv-skel-base: var(--tt-light); --sv-skel-sheen: var(--tt-mid); }
+        .analytics-overview-table .col-yt .sv-skeleton { --sv-skel-base: var(--yt-light); --sv-skel-sheen: var(--yt-mid); }
+        @media (max-width: 900px) { .analytics-overview-skeleton { margin-top: 82px; overflow-x: auto; } .analytics-overview-table { min-width: 960px; } }
+        .analytics-detail-skeleton { max-width: 980px; margin: 0 auto; }
+        .analytics-detail-skeleton .detail-hero { margin-bottom: 20px; }
         .analytics-skel-actions { display: flex; gap: 8px; align-items: center; }
-        .analytics-skel-platform { background: var(--white); border: 1px solid var(--border); border-radius: 14px; padding: 16px 20px 20px; margin-bottom: 11px; }
-        .analytics-skel-platform-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 16px; }
+        .analytics-detail-skeleton .gains-bar { margin-bottom: 12px; }
+        .analytics-detail-skeleton .gains-platform-card .sv-skeleton { --sv-skel-base: var(--sv-bg-rgba-255-255-255-0_32); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_5); }
+        .analytics-skel-platform { border-radius: 14px; overflow: hidden; margin-bottom: 11px; }
+        .analytics-skel-platform .sv-skeleton { --sv-skel-base: var(--sv-bg-rgba-255-255-255-0_12); --sv-skel-sheen: var(--sv-bg-rgba-255-255-255-0_25); }
+        .analytics-skel-platform-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--sv-border-rgba-255-255-255-0_12); gap: 16px; }
         .analytics-skel-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
         .analytics-skel-metric { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+        .analytics-skel-platform .analytics-skel-metrics { padding: 18px 20px 20px; }
+        .analytics-skel-top-videos { border-top: 1px solid var(--sv-border-rgba-255-255-255-0_1); padding: 16px 20px 20px; }
+        .analytics-skel-video-row { display: flex; gap: 10px; overflow: hidden; }
+        .analytics-skel-video-card { flex: 0 0 220px; background: var(--sv-bg-rgba-255-255-255-0_07); border: 1px solid var(--sv-border-rgba-255-255-255-0_1); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 9px; }
         .analytics-skel-chart { height: 240px; display: flex; flex-direction: column; gap: 18px; }
         .analytics-skel-chart-bars { flex: 1; display: grid; grid-template-columns: repeat(9, 1fr); align-items: end; gap: 9px; border-bottom: 1px solid var(--border-light); padding-top: 12px; }
         .analytics-skel-chart-bars .sv-skeleton { width: 100%; border-radius: 6px 6px 0 0; }
@@ -6158,22 +6176,38 @@
         <div class="pins-area" id="pinsArea"><div class="pins-row" id="pinsRow"></div><div class="pins-add-row" id="pinsAddRow"></div></div>
     </div>
     <div id="content">
-        <div class="loading-state boot-skeleton" role="status" aria-live="polite" aria-label="Loading">
+        <div class="overview-wrap analytics-overview-skeleton" role="status" aria-live="polite" aria-label="Loading">
             <span class="sr-only" id="bootLoadingText">Loading...</span>
-            <div class="sv-skeleton sv-skeleton-pill" style="width:180px;height:22px;"></div>
-            <div class="sv-skeleton-card">
-                <div class="sv-skeleton sv-skeleton-line" style="width:42%;"></div>
-                <div class="boot-skeleton-row" style="margin-top:18px;">
-                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
-                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
-                    <div class="sv-skeleton sv-skeleton-pill" style="height:42px;"></div>
+            <div class="overview-controls">
+                <div class="controls-left">
+                    <div class="sv-skeleton sv-skeleton-pill" style="width:96px;height:30px;"></div>
+                    <div class="sv-skeleton sv-skeleton-pill" style="width:86px;height:30px;"></div>
                 </div>
+                <div class="sv-skeleton sv-skeleton-pill" style="width:74px;height:31px;"></div>
             </div>
-            <div class="sv-skeleton-card">
-                <div class="sv-skeleton sv-skeleton-line" style="width:32%;"></div>
-                <div class="sv-skeleton sv-skeleton-line" style="width:86%;margin-top:14px;"></div>
-                <div class="sv-skeleton sv-skeleton-line" style="width:68%;margin-top:10px;"></div>
-            </div>
+            <table class="overview-table analytics-overview-table" aria-hidden="true">
+                <colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>
+                <thead>
+                    <tr>
+                        <th rowspan="2" style="text-align:left;vertical-align:middle;"><div class="sv-skeleton sv-skeleton-line" style="width:72px;"></div></th>
+                        <th rowspan="2" style="vertical-align:middle;"><div class="sv-skeleton sv-skeleton-line" style="width:44px;"></div></th>
+                        <th colspan="4" class="group-ig"><div class="sv-skeleton sv-skeleton-line" style="width:86px;"></div></th>
+                        <th colspan="4" class="group-tt"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></th>
+                        <th colspan="4" class="group-yt"><div class="sv-skeleton sv-skeleton-line" style="width:74px;"></div></th>
+                    </tr>
+                    <tr>
+                        <th class="ig-h"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></th><th class="ig-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th><th class="ig-h"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></th><th class="ig-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th>
+                        <th class="tt-h"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></th><th class="tt-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th><th class="tt-h"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></th><th class="tt-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th>
+                        <th class="yt-h"><div class="sv-skeleton sv-skeleton-line" style="width:66px;"></div></th><th class="yt-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th><th class="yt-h"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></th><th class="yt-h"><div class="sv-skeleton sv-skeleton-line" style="width:42px;"></div></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><div class="cell-inner"><span class="client-view-btn"></span><div class="sv-skeleton sv-skeleton-line" style="width:118px;"></div></div></td><td><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-tt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-yt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td></tr>
+                    <tr><td><div class="cell-inner"><span class="client-view-btn"></span><div class="sv-skeleton sv-skeleton-line" style="width:96px;"></div></div></td><td><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:36px;height:18px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-line" style="width:48px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-tt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-line" style="width:56px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:38px;height:18px;"></div></td><td class="col-yt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:38px;height:18px;"></div></td></tr>
+                    <tr><td><div class="cell-inner"><span class="client-view-btn"></span><div class="sv-skeleton sv-skeleton-line" style="width:132px;"></div></div></td><td><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:48px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:40px;height:18px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-tt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:38px;height:18px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-yt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:50px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:38px;height:18px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-line" style="width:58px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td></tr>
+                    <tr><td><div class="cell-inner"><span class="client-view-btn"></span><div class="sv-skeleton sv-skeleton-line" style="width:104px;"></div></div></td><td><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:54px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-ig"><div class="sv-skeleton sv-skeleton-pill" style="width:36px;height:18px;"></div></td><td class="col-tt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:48px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:44px;height:18px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-tt"><div class="sv-skeleton sv-skeleton-pill" style="width:40px;height:18px;"></div></td><td class="col-yt main-metric"><div class="sv-skeleton sv-skeleton-line" style="width:62px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:42px;height:18px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-line" style="width:52px;"></div></td><td class="col-yt"><div class="sv-skeleton sv-skeleton-pill" style="width:40px;height:18px;"></div></td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </main>
@@ -16946,7 +16980,7 @@
                 ${_svSkel('sv-skeleton-pill', 'height:24px;width:70px;')}
             </div>`).join('')}</div>`;
     }
-    function _svCalendarSkeletonHtml(label) {
+    function _svCalendarOrganizerSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
             <div class="cal-skeleton-strip">
                 ${[0, 1, 2].map(i => `<div class="cal-skeleton-card">
@@ -16960,6 +16994,61 @@
                 </div>`).join('')}
             </div>
         </div>`;
+    }
+    function _svCalendarMonthSkeletonHtml(label) {
+        const cells = Array.from({ length: 42 }, (_, i) => `<div class="cal-month-cell${i < 3 || i > 36 ? ' out' : ''}">
+            <div class="cal-month-cellhead">
+                ${_svSkel('sv-skeleton-line', 'width:28px;height:10px;')}
+                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+            </div>
+            ${(i % 4 === 0) ? _svSkel('sv-skeleton-pill', 'width:82%;height:24px;margin-top:10px;') : ''}
+            ${(i % 9 === 0) ? _svSkel('sv-skeleton-pill', 'width:62%;height:24px;margin-top:6px;') : ''}
+        </div>`).join('');
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-month-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:156px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-month-grid">
+                    ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(() => `<div class="cal-month-head">${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}</div>`).join('')}
+                    ${cells}
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarWeekSkeletonHtml(label) {
+        return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
+            <div class="cal-week-wrap">
+                <div class="cal-month-header">
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-line', 'width:190px;height:20px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:32px;height:32px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:62px;height:32px;')}
+                </div>
+                <div class="cal-week-viewport">
+                    <div class="cal-week-grid">
+                        ${[0, 1, 2, 3, 4, 5, 6].map(i => `<div class="cal-week-day">
+                            <div class="cal-month-cellhead">
+                                ${_svSkel('sv-skeleton-line', 'width:34px;height:10px;')}
+                                ${_svSkel('sv-skeleton-pill', 'width:24px;height:18px;')}
+                            </div>
+                            ${_svSkel('sv-skeleton-pill', 'width:86%;height:28px;margin-top:14px;')}
+                            ${(i % 2 === 0) ? _svSkel('sv-skeleton-pill', 'width:66%;height:28px;margin-top:8px;') : ''}
+                        </div>`).join('')}
+                    </div>
+                </div>
+            </div>
+        </div>`;
+    }
+    function _svCalendarSkeletonHtml(label) {
+        const view = (typeof calState !== 'undefined' && calState && calState.view) ? calState.view : '';
+        if (view === 'month') return _svCalendarMonthSkeletonHtml(label);
+        if (view === 'week') return _svCalendarWeekSkeletonHtml(label);
+        if (view === 'review' || view === 'smmreview') return _svReviewSkeletonHtml(label);
+        return _svCalendarOrganizerSkeletonHtml(label);
     }
     function _svReviewSkeletonHtml(label) {
         return `<div class="cal-loader cal-skeleton-loader" role="status" aria-label="${_calEscAttr(label || 'Loading')}">
@@ -17010,14 +17099,64 @@
                 ${(i % 5 === 0 || mode === 'week') ? `<div class="workload-skeleton-card">${_svSkel('sv-skeleton-line', 'width:58%;')}${_svSkel('sv-skeleton-line', 'width:42%;')}</div>` : ''}
             </div>`).join('')}</div>`;
     }
-    function _svAnalyticsSkeletonHtml(name) {
-        const heading = name ? _calEsc(name) : '';
-        return `<div class="client-view analytics-skeleton" role="status" aria-label="Loading">
-            <div class="view-tab-toggle">
-                ${_svSkel('sv-skeleton-pill', 'width:86px;height:31px;')}
-                ${_svSkel('sv-skeleton-pill', 'width:126px;height:31px;')}
-                ${_svSkel('sv-skeleton-pill', 'width:70px;height:31px;')}
+    function _svAnalyticsOverviewSkeletonHtml() {
+        const cell = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-line" style="width:${w};"></div></td>`;
+        const chip = (cls, w) => `<td class="${cls}"><div class="sv-skeleton sv-skeleton-pill" style="width:${w};height:18px;"></div></td>`;
+        const rows = [118, 96, 132, 104, 124].map((nameW, i) => `<tr>
+            <td><div class="cell-inner"><span class="client-view-btn"></span>${_svSkel('sv-skeleton-line', 'width:' + nameW + 'px;')}</div></td>
+            <td>${_svSkel('sv-skeleton-line', 'width:52px;')}</td>
+            ${cell('col-ig main-metric', i % 2 ? '52px' : '60px')}${chip('col-ig', i % 2 ? '36px' : '44px')}${cell('col-ig', i % 2 ? '48px' : '58px')}${chip('col-ig', i % 3 ? '42px' : '36px')}
+            ${cell('col-tt main-metric', i % 2 ? '58px' : '52px')}${chip('col-tt', i % 2 ? '42px' : '38px')}${cell('col-tt', i % 3 ? '56px' : '62px')}${chip('col-tt', i % 2 ? '38px' : '44px')}
+            ${cell('col-yt main-metric', i % 2 ? '50px' : '62px')}${chip('col-yt', i % 2 ? '38px' : '42px')}${cell('col-yt', i % 3 ? '58px' : '52px')}${chip('col-yt', i % 2 ? '44px' : '40px')}
+        </tr>`).join('');
+        return `<div class="overview-wrap analytics-overview-skeleton" role="status" aria-label="Loading">
+            <div class="overview-controls">
+                <div class="controls-left">
+                    ${_svSkel('sv-skeleton-pill', 'width:96px;height:30px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:86px;height:30px;')}
+                </div>
+                ${_svSkel('sv-skeleton-pill', 'width:74px;height:31px;')}
             </div>
+            <table class="overview-table analytics-overview-table" aria-hidden="true">
+                <colgroup><col class="col-name"><col class="col-date"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"><col class="col-num"><col class="col-gain"></colgroup>
+                <thead><tr>
+                    <th rowspan="2" style="text-align:left;vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:72px;')}</th>
+                    <th rowspan="2" style="vertical-align:middle;">${_svSkel('sv-skeleton-line', 'width:44px;')}</th>
+                    <th colspan="4" class="group-ig">${_svSkel('sv-skeleton-line', 'width:86px;')}</th>
+                    <th colspan="4" class="group-tt">${_svSkel('sv-skeleton-line', 'width:62px;')}</th>
+                    <th colspan="4" class="group-yt">${_svSkel('sv-skeleton-line', 'width:74px;')}</th>
+                </tr><tr>
+                    ${['ig-h','ig-h','ig-h','ig-h','tt-h','tt-h','tt-h','tt-h','yt-h','yt-h','yt-h','yt-h'].map((cls, i) => `<th class="${cls}">${_svSkel('sv-skeleton-line', 'width:' + ([54,42,58,42][i % 4]) + 'px;')}</th>`).join('')}
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+    }
+    function _svAnalyticsDetailSkeletonHtml(name) {
+        const heading = name ? _calEsc(name) : '';
+        const metric = (w1, w2) => `<div class="analytics-skel-metric">${_svSkel('sv-skeleton-line', 'width:' + w1 + ';height:10px;')}${_svSkel('sv-skeleton-line', 'width:' + w2 + ';height:24px;')}${_svSkel('sv-skeleton-pill', 'width:58px;height:18px;')}</div>`;
+        const platform = (cls, count, titleW) => `<div class="platform-section analytics-skel-platform ${cls}">
+            <div class="analytics-skel-platform-head">
+                <span class="platform-name"><span class="platform-pill"></span>${_svSkel('sv-skeleton-line', 'width:' + titleW + ';height:12px;')}</span>
+                ${_svSkel('sv-skeleton-pill', 'width:108px;height:22px;')}
+            </div>
+            <div class="metrics-row analytics-skel-metrics">${Array.from({ length: count }, (_, j) => metric(j % 2 ? '58%' : '72%', j % 2 ? '66%' : '48%')).join('')}</div>
+            <div class="analytics-skel-top-videos">
+                <div class="top-videos-head">
+                    ${_svSkel('sv-skeleton-line', 'width:110px;height:10px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:108px;height:24px;')}
+                </div>
+                <div class="analytics-skel-video-row">
+                    ${[0, 1, 2].map(i => `<div class="analytics-skel-video-card">
+                        ${_svSkel('sv-skeleton-pill', 'width:46px;height:18px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '84%' : '92%') + ';height:10px;')}
+                        ${_svSkel('sv-skeleton-line', 'width:' + (i === 2 ? '62%' : '76%') + ';height:10px;')}
+                        <div class="tt-stats">${[0, 1, 2, 3].map(() => _svSkel('sv-skeleton-line', 'width:46px;height:10px;')).join('')}</div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+        return `<div class="client-view analytics-detail-skeleton" role="status" aria-label="Loading">
             <div class="detail-hero">
                 <div class="sv-skeleton-stack">
                     ${heading ? `<div class="detail-name">${heading}</div>` : _svSkel('sv-skeleton-line', 'width:220px;height:28px;')}
@@ -17028,28 +17167,43 @@
                     ${_svSkel('sv-skeleton-pill', 'width:92px;height:32px;')}
                 </div>
             </div>
-            ${[0, 1, 2].map(i => `<div class="analytics-skel-platform">
-                <div class="analytics-skel-platform-head">
-                    ${_svSkel('sv-skeleton-line', 'width:' + (i === 0 ? '120px' : i === 1 ? '88px' : '96px') + ';')}
-                    ${_svSkel('sv-skeleton-pill', 'width:108px;height:22px;')}
-                </div>
-                <div class="analytics-skel-metrics">
-                    ${[0, 1, 2, 3].map(j => `<div class="analytics-skel-metric">
-                        ${_svSkel('sv-skeleton-line', 'width:' + (j % 2 ? '58%' : '72%') + ';height:10px;')}
-                        ${_svSkel('sv-skeleton-line', 'width:' + (j % 2 ? '66%' : '48%') + ';height:24px;')}
-                    </div>`).join('')}
-                </div>
-            </div>`).join('')}
+            <div class="gains-bar">
+                <div class="gains-bar-label">${_svSkel('sv-skeleton-line', 'width:88px;height:10px;')}</div>
+                ${['gp-ig','gp-tt','gp-yt'].map((cls, i) => `<div class="gains-platform-card ${cls}">
+                    <div class="gains-platform-header"><span class="gains-platform-dot"></span>${_svSkel('sv-skeleton-line', 'width:' + (i === 1 ? '48px' : '74px') + ';height:10px;')}</div>
+                    <div class="gains-metrics-row">${_svSkel('sv-skeleton-line', 'width:64px;height:18px;')}${_svSkel('sv-skeleton-line', 'width:78px;height:18px;')}</div>
+                </div>`).join('')}
+            </div>
+            ${platform('ig', 4, '84px')}
+            ${platform('tt', 3, '56px')}
+            ${platform('yt', 2, '70px')}
             <div class="chart-section analytics-skel-chart">
                 <div class="chart-top">
                     ${_svSkel('sv-skeleton-line', 'width:190px;')}
-                    ${_svSkel('sv-skeleton-pill', 'width:220px;height:28px;')}
+                    <div class="chart-plat-toggle">
+                        ${_svSkel('sv-skeleton-pill', 'width:92px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:72px;height:28px;')}
+                        ${_svSkel('sv-skeleton-pill', 'width:86px;height:28px;')}
+                    </div>
                 </div>
                 <div class="analytics-skel-chart-bars">
                     ${[42, 68, 52, 84, 58, 74, 46, 66, 56].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
                 </div>
             </div>
+            <div class="chart-section analytics-skel-chart">
+                <div class="chart-top">
+                    ${_svSkel('sv-skeleton-line', 'width:170px;')}
+                    ${_svSkel('sv-skeleton-pill', 'width:210px;height:28px;')}
+                </div>
+                <div class="analytics-skel-chart-bars">
+                    ${[58, 46, 76, 62, 84, 54, 72, 48, 66].map(h => _svSkel('', 'height:' + h + '%;')).join('')}
+                </div>
+            </div>
         </div>`;
+    }
+    function _svAnalyticsSkeletonHtml(name, variant) {
+        if (variant === 'overview') return _svAnalyticsOverviewSkeletonHtml();
+        return _svAnalyticsDetailSkeletonHtml(name);
     }
     function _svOnboardingSkeletonHtml() {
         return `<div class="onboarding-skeleton" role="status" aria-label="Loading">
@@ -17093,7 +17247,8 @@
     }
     function _svLoadingSkeletonHtml(kind, opts) {
         opts = opts || {};
-        if (kind === 'analytics') return _svAnalyticsSkeletonHtml(opts.name || '');
+        if (kind === 'analytics' || kind === 'analytics-overview') return _svAnalyticsSkeletonHtml(opts.name || '', 'overview');
+        if (kind === 'analytics-client') return _svAnalyticsSkeletonHtml(opts.name || '', 'client');
         if (kind === 'workload') return _svWorkloadSkeletonHtml();
         if (kind === 'samples') return _svSamplesSkeletonHtml(opts.label);
         if (kind === 'review') return _svReviewSkeletonHtml(opts.label);
@@ -31287,8 +31442,10 @@
             const _clientLoaderText = _clientLoaderV === 'calendar'
                 ? 'Loading content calendar...'
                 : (_clientLoaderV === 'samples' ? 'Loading content samples...' : 'Loading your analytics...');
-            const _clientLoaderKind = _clientLoaderV === 'calendar' ? 'calendar' : (_clientLoaderV === 'samples' ? 'samples' : 'analytics');
-            document.getElementById('content').innerHTML = _svLoadingSkeletonHtml(_clientLoaderKind, { label: _clientLoaderText });
+            const _clientLoaderKind = _clientLoaderV === 'calendar' ? 'calendar' : (_clientLoaderV === 'samples' ? 'samples' : 'analytics-client');
+            let _clientLoaderName = '';
+            try { _clientLoaderName = decodeURIComponent(new URLSearchParams(location.search).get('c') || ''); } catch (e) {}
+            document.getElementById('content').innerHTML = _svLoadingSkeletonHtml(_clientLoaderKind, { label: _clientLoaderText, name: _clientLoaderName });
             // The inline hides above now own the chrome; drop the boot gate's
             // pre-paint class so the popstate handler can re-show #pageTop
             // for client profiles exactly as before.

@@ -22603,6 +22603,13 @@
         if (!parent) return;
         _calSetThumbMedia(parent, img.dataset.drive === '1' ? _calDriveWarnHtml() : _calThumbIconHtml());
     }
+    function _calOnReviewThumbError(img) {
+        const wrap = img.closest('.cal-review-preview-thumb');
+        if (!wrap) return;
+        wrap.innerHTML = img.dataset.drive === '1'
+            ? _calDriveWarnHtml()
+            : '<div class="cal-review-preview-empty">Thumbnail could not load.</div>';
+    }
     function _calZoomHintHtml() {
         return `<span class="cal-thumb-zoom" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-8 8M3 21l8-8"/></svg></span>`;
     }
@@ -26362,7 +26369,7 @@
         const expanded = _calReviewState.expanded.has(pid);
         const info = _calDeriveThumbInfo(p);
         const thumbHtml = info.url
-            ? `<img src="${_calEscAttr(info.url)}" alt="" onerror="this.style.display='none'">`
+            ? _calThumbImgTag(info, '_calOnMiniThumbError')
             : info.frame
                 ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind)
                 : `<span class="kcard-thumb-fallback">${_calThumbIconSvg()}</span>`;
@@ -26590,7 +26597,8 @@
         if (comp === 'graphic') {
             const raw = String(p.thumbnail_url || '').trim();
             if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
-            const imgUrl = _calDeriveThumb(p);
+            const info = _calDeriveThumbInfo(p);
+            const imgUrl = info.url;
             // Frame.io share/review links (no public image, block embedding) and
             // folder-of-images links (a Story's frames — no single image to show)
             // can't render as an <img> the way a Drive file link can. Surface the
@@ -26607,7 +26615,8 @@
             // than the Drive sharing URL — the client shouldn't be jumping
             // into Drive just to see a bigger version.
             const escPid = _calEscAttr(p.id);
-            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_calEscAttr(imgUrl || raw)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
+            const imgInfo = imgUrl ? info : { url: raw, isDrive: /drive\.google\.com|docs\.google\.com/i.test(raw) };
+            return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_calOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen">${_calThumbImgTag(imgInfo, '_calOnReviewThumbError')}</button></div>`;
         }
         if (comp === 'title') {
             const t = String(p.name || '').trim();
@@ -34390,7 +34399,7 @@
         const escId = _sxrEscAttr(p.id);
         const expanded = _sxrReviewState.expanded.has(p.id);
         const info = _sxrDeriveThumbInfo(p);
-        const thumbHtml = info.url ? `<img src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const thumbHtml = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
         const pendingLabel = _sxrReviewPendingLabel(p);
         const compPills = _sxrClientCompPillsHtml(p);
         const body = expanded ? _sxrReviewCardBody(p) : '';
@@ -34494,7 +34503,8 @@
         }
         const raw = String(p.thumbnail_url || '').trim();
         if (!raw) return `<div class="cal-review-preview-empty">No thumbnail yet.</div>`;
-        const imgUrl = _sxrDeriveThumb(p);
+        const info = _sxrDeriveThumbInfo(p);
+        const imgUrl = info.url;
         if (!imgUrl) {
             const kind = _sxrIsFrameLink(raw) ? 'frame' : (_sxrIsFolderLink(raw) ? 'folder' : '');
             if (kind) return _sxrReviewFrameHtml(/^https?:\/\//i.test(raw) ? raw : 'https://' + raw, '', kind);
@@ -34505,7 +34515,7 @@
         // lightbox the calendar uses (_calOpenThumbLightbox) instead of a new
         // tab — parity with the SMM Review / Client / Kasper preview.
         const escPid = _sxrEscAttr(p.id);
-        return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_sxrOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen"><img src="${_sxrEscAttr(imgUrl)}" alt="" onerror="this.parentElement.parentElement.innerHTML='<div class=&quot;cal-review-preview-empty&quot;>Thumbnail could not load.</div>'"></button></div>`;
+        return `<div class="cal-review-preview-thumb"><button type="button" class="cal-review-preview-thumb-btn" onclick="_sxrOpenThumbLightbox('${escPid}')" aria-label="Open thumbnail full screen">${_calThumbImgTag(info, '_calOnReviewThumbError')}</button></div>`;
     }
     function _sxrReviewToggleCard(pid) { if (_sxrReviewState.expanded.has(pid)) _sxrReviewState.expanded.delete(pid); else _sxrReviewState.expanded.add(pid); _sxrReviewRepaintCard(pid); }
     function _sxrReviewRepaintCard(pid) {
@@ -35777,7 +35787,7 @@
         const p = item.post, pid = p.id;
         const expanded = !!_sxrKasperState.expanded[pid];
         const info = _sxrDeriveThumbInfo(p);
-        const thumb = info.url ? `<img loading="lazy" src="${_sxrEscAttr(info.url)}" alt="" onerror="this.style.display='none'">` : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
+        const thumb = info.url ? _calThumbImgTag(info, '_calOnMiniThumbError') : info.frame ? _sxrMiniLinkBadgeHtml('kcard-thumb-fallback', info.frameKind) : `<span class="kcard-thumb-fallback">${_sxrThumbIconSvg()}</span>`;
         // Full-screen thumbnail zoom on the card strip (mirrors the calendar's
         // kcard-thumb-zoom → _kasperOpenLightbox); _sxrOpenThumbLightbox resolves
         // the Kasper card from _sxrKasperState.items.
@@ -41031,7 +41041,7 @@
         const thumbInfo = _calDeriveThumbInfo(p);
         const hasThumbUrl = !!thumbInfo.url;
         const thumbHtml = hasThumbUrl
-            ? `<img loading="lazy" src="${_calEscAttr(thumbInfo.url)}"${thumbInfo.isDrive ? ' data-drive="1"' : ''} alt="" onerror="this.style.display='none';this.parentElement.classList.add('is-fallback','is-no-image');">`
+            ? _calThumbImgTag(thumbInfo, '_calOnMiniThumbError')
             : thumbInfo.frame
                 ? _calMiniLinkBadgeHtml('kcard-thumb-fallback', thumbInfo.frameKind)
                 : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 17l-5-5L5 21"/></svg>`;

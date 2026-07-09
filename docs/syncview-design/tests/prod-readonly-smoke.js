@@ -77,6 +77,15 @@ async function newAuthedPage(browser, viewport, errors, requests) {
 }
 
 (async () => {
+  const indexSource = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  if (!indexSource.includes("q.get('prod') === '1') target = 'production'")) {
+    throw new Error('Production query route is not mapped to the Production boot skeleton');
+  }
+  if (!indexSource.includes('html[data-boot-nav="production"] .boot-skeleton-production')
+    || !indexSource.includes('boot-skeleton-variant boot-skeleton-production')) {
+    throw new Error('Production boot skeleton is missing from the pre-paint skeleton set');
+  }
+
   const server = await serve();
   const port = server.address().port;
   const browser = await chromium.launch({ headless: true });

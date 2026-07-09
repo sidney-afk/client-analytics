@@ -93,6 +93,7 @@
                 // hashless ?Kasper=1 URL route to savedNav/home instead.
                 target = 'kasper';
             }
+            else if (q.get('prod') === '1') target = 'production';
             else if (FAST.indexOf(hash) >= 0) target = hash; // exact fast-tab hash
             // Only calendar/samples/templates route sub-path hashes
             // (init()'s hashIsFastTab); linear/workload/tiktok-upload need
@@ -1662,6 +1663,7 @@
         html[data-boot-nav="calendar"] .boot-skeleton-calendar,
         html[data-boot-nav="samples"] .boot-skeleton-samples,
         html[data-boot-nav="sample-reviews"] .boot-skeleton-review,
+        html[data-boot-nav="production"] .boot-skeleton-production,
         html[data-boot-nav="templates"] .boot-skeleton-templates,
         html[data-boot-nav="filming-plans"] .boot-skeleton-filming,
         html[data-boot-nav="tiktok-upload"] .boot-skeleton-tiktok,
@@ -2609,7 +2611,7 @@
         html[data-theme="dark"] .prod-view, html[data-theme="dark"] .prod-layer, html[data-theme="dark"] .prod-tip, html[data-theme="dark"] .prod-toast, html[data-theme="dark"] .prod-cmd-bd { --prod-bg:#070708; --prod-content:#0c0c0d; --prod-surface:#151518; --prod-column:#111113; --prod-hover:#1e1e21; --prod-selected-nav:#1e1e21; --prod-selected:#171923; --prod-menu-hover:#1e1e21; --prod-border:#2a2a2d; --prod-border-soft:#242428; --prod-divider:#1d1d20; --prod-text:#f4f4f5; --prod-strong:#ededee; --prod-dim:#b6b6bb; --prod-muted:#8f8f96; --prod-faint:#6f6f78; --prod-accent:#5e6ad2; --prod-link:#8ea0ff; --prod-danger:#ff5f5f; --prod-overdue:#ff5f5f; --prod-prop-label:#b6b6bb; --prod-shadow-pop:0 14px 32px rgba(0,0,0,.42), 0 3px 12px rgba(0,0,0,.34), 0 0 0 1px rgba(255,255,255,.03); }
         .prod-view { min-height: calc(100vh - 64px); margin: -24px -24px 0; background: var(--prod-bg); color: var(--prod-text); font-family: "Inter Variable", "SF Pro Display", "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; overflow: hidden; }
         .prod-side { width: 244px; flex: 0 0 244px; border-right: 1px solid var(--prod-divider); padding: 12px; display: flex; flex-direction: column; gap: 16px; min-height: calc(100vh - 64px); }
-        .prod-brand { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 2px 4px; font: inherit; font-size: 14px; font-weight: 550; color: var(--prod-strong); background: transparent; border: 0; text-align: left; cursor: pointer; }
+        .prod-brand { display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 0 2px 4px; font: inherit; font-size: 14px; font-weight: 550; color: var(--prod-strong); background: transparent; border: 0; text-align: left; cursor: default; }
         .prod-brand-mark { width: 18px; height: 18px; border-radius: 5px; background: var(--prod-accent); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
         .prod-preview-chip { margin-left: auto; height: 20px; border: 1px solid var(--prod-border); border-radius: 5px; padding: 0 6px; display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 500; color: var(--prod-muted); background: var(--prod-surface); }
         .prod-side-section { display: flex; flex-direction: column; gap: 4px; }
@@ -2719,10 +2721,8 @@
         .prod-side { padding: 8px 7px 6px; gap: 0; background: var(--prod-bg); }
         .prod-side-top { display: flex; align-items: center; gap: 6px; padding: 2px 5px 9px; }
         .prod-brand { flex: 1; min-width: 0; min-height: 26px; padding: 3px 5px; margin: -3px -5px; border-radius: 6px; }
-        .prod-brand:hover { background: var(--prod-hover); }
+        .prod-brand:hover { background: transparent; }
         .prod-brand-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .prod-brand-caret { width: 13px; height: 13px; display: grid; place-items: center; color: var(--prod-faint); flex: none; }
-        .prod-brand-caret svg { width: 13px; height: 13px; }
         .prod-preview-chip { white-space: nowrap; flex: none; }
         .prod-search-btn, .prod-icon-btn { width: 25px; height: 25px; border: 0; border-radius: 6px; display: grid; place-items: center; color: var(--prod-muted); background: transparent; font: inherit; cursor: pointer; }
         .prod-search-btn:hover, .prod-icon-btn:hover { background: var(--prod-hover); color: var(--prod-text); }
@@ -2814,10 +2814,10 @@
         .prod-file-line b { font-weight: 600; }
         .prod-subrow .prod-title { flex: 1; }
         .prod-project-groups { margin-top: 4px; }
-        .prod-project-groups .prod-group { position: static; border-bottom: 0; border-radius: 6px; margin-top: 10px; background: var(--prod-hover); }
+        .prod-project-groups .prod-group { position: static; border-bottom: 0; border-radius: 6px; margin-top: 8px; background: var(--prod-hover); }
         .prod-project-groups .prod-group:first-child { margin-top: 0; }
-        .prod-project-groups .prod-subrow { padding-left: 24px; }
-        .prod-project-groups .prod-subrow:hover { margin-left: -8px; margin-right: -8px; padding-left: 32px; padding-right: 8px; }
+        .prod-project-groups .prod-subrow { padding-left: 24px; border-radius: 6px; }
+        .prod-project-groups .prod-subrow:hover { margin-left: 0; margin-right: 0; padding-left: 24px; padding-right: 0; }
         .prod-actionbar { position: fixed; left: calc(50% + 122px); bottom: 20px; transform: translateX(-50%); z-index: 2000; height: 44px; border: 1px solid var(--prod-border-soft); border-radius: 12px; background: var(--prod-surface); display: inline-flex; align-items: center; gap: 3px; padding: 5px; color: var(--prod-strong); font-size: 12px; box-shadow: var(--prod-shadow-pop); }
         .prod-actionbar .cnt { color: var(--prod-dim); padding: 0 8px 0 9px; white-space: nowrap; }
         .prod-actionbar .abtn { height: 28px; border: 0; border-radius: 7px; background: var(--prod-hover); color: var(--prod-strong); display: inline-flex; align-items: center; gap: 6px; font: inherit; cursor: pointer; padding: 0 10px; }
@@ -6360,6 +6360,42 @@
                 </tbody>
             </table>
         </div>
+        </div>
+        <div class="boot-skeleton-variant boot-skeleton-production">
+            <div class="prod-view" role="status" aria-label="Loading Production preview">
+                <aside class="prod-side">
+                    <div class="prod-side-top">
+                        <span class="prod-brand"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">Preview - read-only</span></span>
+                    </div>
+                    <div class="prod-side-scroll">
+                        <div class="prod-nav">
+                            <div class="sv-skeleton sv-skeleton-line" style="width:92px;height:24px;"></div>
+                            <div class="sv-skeleton sv-skeleton-line" style="width:124px;height:24px;"></div>
+                            <div class="sv-skeleton sv-skeleton-line" style="width:106px;height:24px;"></div>
+                        </div>
+                    </div>
+                </aside>
+                <div class="prod-main">
+                    <div class="prod-topbar"><div class="sv-skeleton sv-skeleton-line" style="width:240px;height:16px;"></div><div class="prod-spacer"></div><div class="sv-skeleton sv-skeleton-pill" style="width:25px;height:25px;"></div><div class="sv-skeleton sv-skeleton-pill" style="width:25px;height:25px;"></div></div>
+                    <div class="prod-content">
+                        <div class="prod-loading-skeleton" role="status" aria-label="Loading">
+                            <div class="prod-loading-list">
+                                <div class="prod-loading-row"><span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span><span class="prod-skeleton" style="height:13px;width:54px;"></span><span class="prod-skeleton" style="height:13px;width:82%;"></span><span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span><span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span></div>
+                                <div class="prod-loading-row"><span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span><span class="prod-skeleton" style="height:13px;width:54px;"></span><span class="prod-skeleton" style="height:13px;width:64%;"></span><span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span><span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span></div>
+                                <div class="prod-loading-row"><span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span><span class="prod-skeleton" style="height:13px;width:54px;"></span><span class="prod-skeleton" style="height:13px;width:78%;"></span><span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span><span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span></div>
+                                <div class="prod-loading-row"><span class="prod-skeleton" style="width:13px;height:13px;border-radius:50%;"></span><span class="prod-skeleton" style="height:13px;width:54px;"></span><span class="prod-skeleton" style="height:13px;width:70%;"></span><span class="prod-skeleton" style="height:22px;width:118px;border-radius:999px;"></span><span class="prod-skeleton" style="height:22px;width:72px;border-radius:999px;"></span></div>
+                            </div>
+                            <aside class="prod-loading-detail">
+                                <span class="prod-skeleton" style="height:24px;width:70%;"></span>
+                                <span class="prod-skeleton" style="height:14px;width:86%;"></span>
+                                <span class="prod-skeleton" style="height:14px;width:64%;"></span>
+                                <span class="prod-skeleton" style="height:32px;width:100%;margin-top:12px;"></span>
+                                <span class="prod-skeleton" style="height:32px;width:100%;"></span>
+                            </aside>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="boot-skeleton-variant boot-skeleton-linear">
             <div class="boot-page-skeleton" role="status" aria-label="Loading">
@@ -29968,6 +30004,12 @@
                 document.addEventListener('dragend', _prodClearBoardDropFx);
                 document.addEventListener('dragover', _prodBoardDragOver);
                 document.addEventListener('drop', _prodBoardDrop);
+                document.addEventListener('contextmenu', e => {
+                    if (!_prodEnabled()) return;
+                    const root = document.getElementById('prodRoot');
+                    if (!root || !(e.target && root.contains(e.target))) return;
+                    if (!e.defaultPrevented) e.preventDefault();
+                });
                 document.addEventListener('visibilitychange', _prodAutoRefreshOnReturn);
                 window.addEventListener('focus', _prodAutoRefreshOnReturn);
                 window.addEventListener('pageshow', _prodAutoRefreshOnReturn);
@@ -30059,20 +30101,6 @@
                 fail();
             }
         }
-        function _prodCopyCurrentLink() {
-            const q = new URLSearchParams(location.search || '');
-            q.set('prod', '1');
-            const url = location.origin + location.pathname + '?' + q.toString() + '#production';
-            try { window.__prodLastCopied = url; } catch (e) {}
-            const done = () => _prodToast('Link copied');
-            const fail = () => _prodToast('Copy failed');
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, fail);
-                else done();
-            } catch (e) {
-                fail();
-            }
-        }
         function _prodReadonlyGuard() {
             _prodToast(_prodPreviewText());
             return false;
@@ -30118,35 +30146,6 @@
             e.preventDefault();
             _prodReadonlyGuard();
             _prodClearBoardDropFx();
-        }
-        function _prodOpenBrandMenu(ev) {
-            if (ev) {
-                ev.preventDefault();
-                ev.stopPropagation();
-            }
-            const items = [
-                { action: 'issues', icon: _prodIcon('issues'), label: 'All issues' },
-                { action: 'projects', icon: _prodIcon('project'), label: 'All projects' },
-                { action: 'copy', icon: _prodIcon('copy'), label: 'Copy current link' }
-            ];
-            const p = _prodLayerPop('<div class="prod-pop-hd">SynchroSocial</div><div class="prod-pop-list">'
-                + items.map(item => '<div class="prod-mi" data-prod-brand-action="' + _calEscAttr(item.action) + '"><span class="mic">' + item.icon + '</span><span class="mlbl">' + _calEsc(item.label) + '</span></div>').join('')
-                + '</div>', ev ? ev.clientX : 220, ev ? ev.clientY : 72);
-            p.querySelectorAll('[data-prod-brand-action]').forEach(el => el.addEventListener('click', e => {
-                e.preventDefault();
-                e.stopPropagation();
-                const action = el.getAttribute('data-prod-brand-action');
-                _prodClearLayer();
-                if (action === 'projects') {
-                    _prodOpenTeamView('all', 'board');
-                } else if (action === 'copy') {
-                    _prodCopyCurrentLink();
-                } else {
-                    _prodOpenTeamView('all', 'list');
-                }
-            }));
-            _prodWirePlainMenu(p);
-            return false;
         }
         // PORT-DELTA: artifact linkify is namespaced and uses host escape helpers.
         function _prodLinkify(s) {
@@ -31372,6 +31371,7 @@
             const root = document.getElementById('prodRoot');
             if (!root) return;
             _prodEnsureOverlays();
+            _prodHideTip();
             _prodCaptureListScroll(root);
             root.innerHTML = _prodSidebar() + '<div class="prod-main">' + _prodTopbar() + '<div class="prod-content">' + _prodBody() + '</div></div>';
             const list = root.querySelector('.prod-listwrap');
@@ -31400,7 +31400,7 @@
                         : '')
                     + '</div>';
             };
-            return '<aside class="prod-side"><div class="prod-side-top"><button class="prod-brand" type="button" data-prod-brandmenu="1" onclick="return _prodOpenBrandMenu(event)" data-prod-tip="Workspace menu"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-brand-caret">' + _prodIcon('chevD') + '</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></button><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
+            return '<aside class="prod-side"><div class="prod-side-top"><div class="prod-brand" aria-label="SyncView workspace"><span class="prod-brand-mark">S</span><span class="prod-brand-name">SyncView</span><span class="prod-preview-chip">' + _prodPreviewText() + '</span></div><button class="prod-search-btn" type="button" onclick="_prodOpenPalette()" title="Search workspace (/)" data-prod-tip="Search workspace|/">' + _prodIcon('search') + '</button></div>'
                 + '<div class="prod-side-scroll"><div class="prod-nav">'
                 + _prodNavItem(_prodIcon('issues'), 'My issues', _prodState.view === 'my', '_prodSetView(' + _jsAttrArg('my') + ')')
                 + '</div>' + favHTML
@@ -31443,10 +31443,11 @@
             const ctxKind = d ? 'issue' : 'batch';
             const ctxId = d ? d.id : batch ? batch.id : '';
             const currentKind = d ? (showParent ? 'Sub-issue' : 'Issue') : 'Batch';
+            const currentId = d && !showParent ? '<b>' + _calEsc(_prodIssueLabel(d)) + '</b>' : !d ? '<b>Batch</b>' : '';
             return '<div class="prod-topbar prod-detail-top"><button class="prod-icon-btn" type="button" onclick="_prodSetView(' + _jsAttrArg('list') + ')" title="Back" data-prod-tip="Back">' + _prodIcon('back') + '</button><div class="prod-detail-crumb">'
                 + '<button class="prod-crumb-link" type="button" data-prod-crumb-client="' + _calEscAttr(clientSlug) + '" data-prod-crumb-project="' + _calEscAttr(clientSlug) + '" onclick="_prodOpenProject(' + _jsAttrArg(clientSlug) + ')" data-prod-tip="Open project"><span style="font-size:12px">' + _prodProjectGlyph(clientSlug) + '</span><span>' + _calEsc(_prodDisplayClient(clientSlug)) + '</span></button>'
                 + (showParent ? '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">Issue</span><button class="prod-crumb-link" type="button" data-prod-crumb-batch="' + _calEscAttr(parent.id) + '" onclick="_prodOpenDeliverable(' + _jsAttrArg(parent.id) + ')" data-prod-tip="Open parent">' + _calEsc(parent.title || _prodIssueLabel(parent)) + '</button>' : '')
-                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span><b>' + _calEsc(d ? _prodIssueLabel(d) : 'Batch') + '</b><span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
+                + '<span class="prod-crumb-sep">' + _prodIcon('chevR') + '</span><span class="prod-crumb-kind">' + currentKind + '</span>' + currentId + '<span class="prod-crumb-title"' + _prodTitleAttrs(title) + '>' + _calEsc(title) + '</span></div><div class="prod-spacer"></div><button class="prod-icon-btn" type="button" data-prod-disabled="favorite-issue" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('star') + '</button><button class="prod-icon-btn" type="button" data-prod-disabled="notifications" onclick="return _prodReadonlyGuard()" title="' + _prodPreviewText() + '" data-prod-tip="' + _prodPreviewText() + '">' + _prodIcon('bell') + '</button><button class="prod-icon-btn" type="button" onclick="return _prodOpenContextMenu(event,' + _jsAttrArg(ctxKind) + ',' + _jsAttrArg(ctxId) + ')" data-prod-tip="More options">' + _prodIcon('dots') + '</button></div>';
         }
         function _prodBody() {
             if (_prodState.loading) return _svLoadingSkeletonHtml('production');

@@ -39,16 +39,29 @@ const src = [
   grabConst('SI_STRIPE_LINKS'),
   grabConst('SI_PRICES'),
   grabConst('SI_REGULAR_TERMINATION'),
+  grabConst('SI_BILLING_LABELS'),
+  grabConst('SI_CADENCE_LABELS'),
+  grabFunc('_siIsStandardBilling'),
+  grabFunc('_siAllowsCustomAmount'),
+  grabFunc('_siRequiresCadence'),
+  grabFunc('_siResolveBillingCadence'),
   grabFunc('_siLinkChoiceForBilling'),
   grabFunc('_siAmountForBilling'),
+  grabFunc('_siParseUsd'),
+  grabFunc('_siPlainUsd'),
+  grabFunc('_siFmtUsd'),
+  grabFunc('_siContractDateWords'),
+  grabFunc('_siDisplayFields'),
   grabFunc('_siResolvePaymentLink'),
   grabFunc('_siValidate'),
   grabFunc('_siBuildSubmission'),
 ].join('\n');
 // eslint-disable-next-line no-new-func
 const api = new Function(src + `
-  return { SI_STRIPE_LINKS, SI_PRICES, SI_REGULAR_TERMINATION,
-    _siLinkChoiceForBilling, _siAmountForBilling, _siResolvePaymentLink,
+  return { SI_STRIPE_LINKS, SI_PRICES, SI_REGULAR_TERMINATION, SI_BILLING_LABELS, SI_CADENCE_LABELS,
+    _siIsStandardBilling, _siAllowsCustomAmount, _siRequiresCadence, _siResolveBillingCadence,
+    _siLinkChoiceForBilling, _siAmountForBilling, _siParseUsd, _siPlainUsd, _siFmtUsd,
+    _siContractDateWords, _siDisplayFields, _siResolvePaymentLink,
     _siValidate, _siBuildSubmission };
 `)();
 
@@ -65,6 +78,7 @@ function valid(over) {
     client_email: 'jane@example.com', contract_start_date: '2026-07-02',
     deliverables: '12 short-form videos per 4-week period',
     billing_type: 'quarterly', invoice_amount: '7991',
+    billing_cadence: '',
     payment_link_choice: 'quarterly', payment_link_custom: '',
     termination_clause_type: 'regular', termination_clause_custom: '',
     referred_by: ''
@@ -86,10 +100,12 @@ ok('regular termination clause is the verbatim quarterly wording',
 // 2) Billing type → link choice / amount auto-fill.
 ok('monthly billing auto-selects the monthly link', api._siLinkChoiceForBilling('monthly') === 'monthly');
 ok('quarterly billing auto-selects the quarterly link', api._siLinkChoiceForBilling('quarterly') === 'quarterly');
+ok('custom recurring billing forces the custom (pasted) link', api._siLinkChoiceForBilling('custom_recurring') === 'custom');
 ok('one-time billing forces the custom (pasted) link', api._siLinkChoiceForBilling('one_time') === 'custom');
-ok('unknown billing defaults to custom', api._siLinkChoiceForBilling('') === 'custom');
+ok('unknown billing does not preselect a payment link', api._siLinkChoiceForBilling('') === '');
 ok('monthly auto-fills 2997', api._siAmountForBilling('monthly') === '2997');
 ok('quarterly auto-fills 7991', api._siAmountForBilling('quarterly') === '7991');
+ok('custom recurring leaves the amount free', api._siAmountForBilling('custom_recurring') === '');
 ok('one-time leaves the amount free', api._siAmountForBilling('one_time') === '');
 
 // 3) Payment-link resolution.
@@ -108,10 +124,18 @@ ok('bad email is flagged', api._siValidate(valid({ client_email: 'not-an-email' 
 ok('zero amount is flagged', api._siValidate(valid({ invoice_amount: '0' })).indexOf('invoice_amount') > -1);
 ok('blank amount is flagged', api._siValidate(valid({ invoice_amount: '' })).indexOf('invoice_amount') > -1);
 ok('missing link choice is flagged', api._siValidate(valid({ payment_link_choice: '' })).indexOf('payment_link_choice') > -1);
+ok('monthly amount cannot differ from the fixed Stripe product',
+  api._siValidate(valid({ billing_type: 'monthly', invoice_amount: '5000', payment_link_choice: 'monthly' })).indexOf('invoice_amount') > -1);
+ok('monthly billing cannot use the quarterly Stripe link',
+  api._siValidate(valid({ billing_type: 'monthly', invoice_amount: '2997', payment_link_choice: 'quarterly' })).indexOf('payment_link_choice') > -1);
 ok('custom link without a URL is flagged',
-  api._siValidate(valid({ payment_link_choice: 'custom', payment_link_custom: '' })).indexOf('payment_link_custom') > -1);
+  api._siValidate(valid({ billing_type: 'one_time', invoice_amount: '5000', payment_link_choice: 'custom', payment_link_custom: '' })).indexOf('payment_link_custom') > -1);
 ok('custom link that is not http(s) is flagged',
-  api._siValidate(valid({ payment_link_choice: 'custom', payment_link_custom: 'stripe.com/abc' })).indexOf('payment_link_custom') > -1);
+  api._siValidate(valid({ billing_type: 'one_time', invoice_amount: '5000', payment_link_choice: 'custom', payment_link_custom: 'stripe.com/abc' })).indexOf('payment_link_custom') > -1);
+ok('custom recurring requires a cadence',
+  api._siValidate(valid({ billing_type: 'custom_recurring', billing_cadence: '', invoice_amount: '4500', payment_link_choice: 'custom', payment_link_custom: 'https://buy.stripe.com/custom' })).indexOf('billing_cadence') > -1);
+ok('custom recurring with cadence + custom link passes',
+  api._siValidate(valid({ billing_type: 'custom_recurring', billing_cadence: 'four_week', invoice_amount: '4500', payment_link_choice: 'custom', payment_link_custom: 'https://buy.stripe.com/custom' })).length === 0);
 ok('custom clause without text is flagged',
   api._siValidate(valid({ termination_clause_type: 'custom', termination_clause_custom: '' })).indexOf('termination_clause_custom') > -1);
 ok('regular clause needs no textarea',
@@ -124,8 +148,10 @@ ok('one-time deal with pasted link + custom clause passes',
   const s = api._siBuildSubmission(valid({ client_email: ' Jane@Example.COM ' }));
   ok('email is trimmed + lowercased', s.client_email === 'jane@example.com', s.client_email);
   ok('amount is numeric', s.invoice_amount === 7991, s.invoice_amount);
+  ok('quarterly cadence travels as twelve_week', s.billing_cadence === 'twelve_week', s.billing_cadence);
   ok('fixed link travels as the real URL', s.payment_link === api.SI_STRIPE_LINKS.quarterly, s.payment_link);
   ok('regular clause travels verbatim in the payload', s.termination_clause_text === api.SI_REGULAR_TERMINATION);
+  ok('quarterly email billing line is exact', s.billing_line === 'billed every 12 weeks', s.billing_line);
   ok('source marks the sales-intake tab', s.source === 'syncview-sales-intake', s.source);
 }
 {
@@ -136,6 +162,18 @@ ok('one-time deal with pasted link + custom clause passes',
   }));
   ok('custom link travels as pasted', s.payment_link === 'https://buy.stripe.com/xyz', s.payment_link);
   ok('custom clause travels trimmed', s.termination_clause_text === 'My custom clause.', s.termination_clause_text);
+  ok('one-time billing wording travels', s.billing_schedule_words === 'The one-time project fee is due upon signing this Agreement.', s.billing_schedule_words);
+}
+{
+  const s = api._siBuildSubmission(valid({
+    billing_type: 'custom_recurring', billing_cadence: 'four_week', invoice_amount: '$4,500',
+    payment_link_choice: 'custom', payment_link_custom: 'https://buy.stripe.com/custom'
+  }));
+  ok('custom recurring amount parses formatted currency', s.invoice_amount === 4500, s.invoice_amount);
+  ok('custom recurring cadence travels', s.billing_cadence === 'four_week', s.billing_cadence);
+  ok('custom recurring billing label includes cadence', s.billing_display_label === 'Custom recurring - Every 4 weeks', s.billing_display_label);
+  ok('custom recurring billing line previews the actual cadence', s.billing_line === 'custom recurring, billed every 4 weeks', s.billing_line);
+  ok('custom recurring contract period matches cadence', s.billing_period_words === 'per four (4) week period', s.billing_period_words);
 }
 
 console.log(fail ? `\n${fail} failed, ${pass} passed ❌` : `\nAll ${pass} checks passed ✅`);

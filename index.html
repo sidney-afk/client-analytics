@@ -195,6 +195,7 @@
             --sv-bg-0e0d0c: #0e0d0c;
             --sv-bg-0ea5e9: #0ea5e9;
             --sv-bg-0f172a: #0f172a;
+            --sv-bg-a020f0: #A020F0;
             --sv-bg-100f0e: #100f0e;
             --sv-bg-101216: #101216;
             --sv-bg-10b981: #10b981;
@@ -751,6 +752,7 @@
             --sv-bg-0e0d0c: #121213;
             --sv-bg-0ea5e9: #135d80;
             --sv-bg-0f172a: #131a2a;
+            --sv-bg-a020f0: #A020F0;
             --sv-bg-100f0e: #141314;
             --sv-bg-101216: #14161a;
             --sv-bg-10b981: #14664e;
@@ -5879,6 +5881,7 @@
         .si-req { color: var(--sv-fg-ef4444); margin-left: 3px; }
         .si-help { font-size: 0.72rem; color: var(--text-muted); line-height: 1.45; }
         .si-input { width: 100%; border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; font: inherit; font-size: 0.85rem; color: var(--text-primary); background: var(--white); box-sizing: border-box; }
+        .si-input[readonly] { background: var(--bg); color: var(--text-secondary); }
         .si-input:focus { outline: none; border-color: var(--sv-border-9aa3f0); box-shadow: 0 0 0 2px var(--sv-shadow-rgba-94-106-210-_12); }
         textarea.si-input { resize: vertical; min-height: 92px; line-height: 1.5; }
         .si-radios { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -5887,9 +5890,25 @@
         .si-pill span { display: inline-flex; align-items: center; padding: 7px 13px; border: 1px solid var(--border); border-radius: 99px; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); cursor: pointer; transition: all 0.12s; user-select: none; }
         .si-pill span:hover { border-color: var(--sv-border-aaa); color: var(--text-primary); }
         .si-pill input:checked + span { border-color: var(--sv-border-5e6ad2); background: var(--sv-bg-rgba-94-106-210-_08); color: var(--sv-fg-4a54b8); }
+        .si-pill input:disabled + span { cursor: default; opacity: 0.7; }
+        .si-pill input:disabled:not(:checked) + span { background: var(--bg); }
         .si-linkprev { font-size: 0.72rem; color: var(--text-muted); word-break: break-all; }
         .si-linkprev b { color: var(--text-secondary); font-weight: 700; }
         .si-clause { font-size: 0.74rem; color: var(--text-secondary); line-height: 1.55; background: var(--bg); border: 1px solid var(--border-light); border-radius: 9px; padding: 10px 12px; }
+        .si-preview { border-top: 1px solid var(--border-light); margin-top: 18px; padding-top: 18px; }
+        .si-preview-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+        .si-preview-title { font-size: 0.78rem; font-weight: 800; color: var(--text-primary); }
+        .si-preview-subject { font-size: 0.72rem; color: var(--text-muted); text-align: right; }
+        .si-email-preview { border: 1px solid var(--border-light); border-radius: 10px; background: var(--white); padding: 16px; color: var(--text-primary); font-family: Arial, sans-serif; font-size: 0.8rem; line-height: 1.45; }
+        .si-email-preview p { margin: 12px 0; }
+        .si-email-preview .si-email-logo { width: 42px; height: 42px; border-radius: 9px; display: block; margin-bottom: 12px; }
+        .si-email-preview .si-email-divider { padding-bottom: 12px; border-bottom: 1px solid var(--border-light); margin-bottom: 14px; }
+        .si-email-preview .si-email-btn { display: inline-block; border-radius: 8px; padding: 10px 14px; color: var(--sv-fg-fff); font-weight: 700; text-decoration: none; }
+        .si-email-preview .si-email-btn.sign { background: var(--sv-bg-a020f0); }
+        .si-email-preview .si-email-btn.pay { background: var(--sv-bg-111); }
+        .si-email-preview .si-email-signature { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+        .si-email-preview .si-email-signature img { width: 34px; height: 34px; border-radius: 8px; }
+        .si-email-preview .si-email-sig-text { border-left: 2px solid var(--sv-bg-a020f0); padding-left: 10px; line-height: 1.45; }
         .si-q.si-missing .si-input, .si-q.si-missing .si-pill span { border-color: var(--sv-border-ef4444); }
         .si-q.si-missing .si-label { color: var(--sv-fg-ef4444); }
         .si-err { display: none; font-size: 0.78rem; font-weight: 600; color: var(--sv-fg-b91c1c); background: var(--sv-bg-fef2f2); border: 1px solid var(--sv-border-fecaca); border-radius: 9px; padding: 10px 12px; margin-top: 16px; }
@@ -5908,7 +5927,7 @@
         .si-done-row:last-child { border-bottom: none; }
         .si-done-row .k { color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
         .si-done-row .v { color: var(--text-primary); font-weight: 600; text-align: right; word-break: break-all; }
-        @media (max-width: 640px) { .si-grid { grid-template-columns: 1fr; } .si-card { padding: 20px 16px 22px; } }
+        @media (max-width: 640px) { .si-grid { grid-template-columns: 1fr; } .si-card { padding: 20px 16px 22px; } .si-preview-head { align-items: flex-start; flex-direction: column; } .si-preview-subject { text-align: left; } }
     </style>
 </head>
 <body>
@@ -36864,7 +36883,7 @@
     const SI_DRAFT_KEY = 'syncview_sales_intake_draft_v1';
     // Fixed Stripe payment links (from Kasper, 2026-07-02 — SALES_INTAKE_DESIGN.md).
     // Monthly = per-4-week subscription, Quarterly = per-12-week subscription.
-    // One-time / custom deals get a pasted link instead.
+    // Custom recurring / one-time deals get a pasted link instead.
     const SI_STRIPE_LINKS = {
         monthly: 'https://buy.stripe.com/00waEW0TI6Sb2Y1cl0ao80g',
         quarterly: 'https://buy.stripe.com/28E00i6e2ekD569dp4ao80q'
@@ -36873,19 +36892,87 @@
     // Standard termination clause — verbatim from Kasper (2026-07-02). The wording
     // is quarterly-specific by design; for other deals Kasper picks Custom.
     const SI_REGULAR_TERMINATION = 'This Agreement may not be terminated during any active Quarterly Term. Upon acceptance, the Client is committed to completing the full three (3) consecutive four-week terms and shall remain responsible for all fees associated with that Quarterly Term, whether billed in advance or outstanding, regardless of whether the Client continues to use the services.';
-    const SI_BILLING_LABELS = { monthly: 'Monthly — $2,997 / 4 weeks', quarterly: 'Quarterly — $7,991 / 12 weeks', one_time: 'One-time project fee' };
+    const SI_BILLING_LABELS = { monthly: 'Monthly - $2,997 / 4 weeks', quarterly: 'Quarterly - $7,991 / 12 weeks', custom_recurring: 'Custom recurring', one_time: 'One-time project fee' };
+    const SI_CADENCE_LABELS = { four_week: 'Every 4 weeks', twelve_week: 'Every 12 weeks' };
     const SI_LINK_LABELS = { monthly: '4-week Stripe link', quarterly: '12-week Stripe link', custom: 'Custom link' };
 
     // ---- pure helpers (unit-tested in test/sales-intake-form.js) ----
-    // Which payment-link radio a billing type auto-selects: the two
-    // subscriptions map to their fixed Stripe links; one-time is always a
-    // pasted custom link. Kasper can still override the radio by hand.
+    function _siIsStandardBilling(billing) {
+        return billing === 'monthly' || billing === 'quarterly';
+    }
+    function _siAllowsCustomAmount(billing) {
+        return billing === 'custom_recurring' || billing === 'one_time';
+    }
+    function _siRequiresCadence(billing) {
+        return billing === 'custom_recurring';
+    }
+    function _siResolveBillingCadence(d) {
+        if (d.billing_type === 'monthly') return 'four_week';
+        if (d.billing_type === 'quarterly') return 'twelve_week';
+        if (d.billing_type === 'custom_recurring') return String(d.billing_cadence || '').trim();
+        return '';
+    }
+    // Which payment-link radio a billing type locks to. Standard subscriptions
+    // use fixed Stripe links; custom recurring and one-time require a pasted
+    // Stripe link that matches the exact invoice amount.
     function _siLinkChoiceForBilling(billing) {
-        return billing === 'monthly' || billing === 'quarterly' ? billing : 'custom';
+        if (billing === 'monthly' || billing === 'quarterly') return billing;
+        if (billing === 'custom_recurring' || billing === 'one_time') return 'custom';
+        return '';
     }
     // Auto-fill amount for the fixed-price subscriptions; '' = free entry.
     function _siAmountForBilling(billing) {
         return Object.prototype.hasOwnProperty.call(SI_PRICES, billing) ? String(SI_PRICES[billing]) : '';
+    }
+    function _siParseUsd(v) {
+        const raw = String(v == null ? '' : v).replace(/[$,\s]/g, '');
+        return raw ? Number(raw) : NaN;
+    }
+    function _siPlainUsd(n) {
+        const amount = Number(n || 0);
+        const hasCents = Math.round((amount % 1) * 100) !== 0;
+        return amount.toLocaleString('en-US', { minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: hasCents ? 2 : 0 });
+    }
+    function _siFmtUsd(n) {
+        const amount = Number(n || 0);
+        const hasCents = Math.round((amount % 1) * 100) !== 0;
+        return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: hasCents ? 2 : 0, maximumFractionDigits: hasCents ? 2 : 0 });
+    }
+    function _siContractDateWords(value) {
+        const d = new Date(String(value || '') + 'T12:00:00Z');
+        return isNaN(d) ? String(value || '') : new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', month: 'long', day: 'numeric', year: 'numeric' }).format(d);
+    }
+    function _siDisplayFields(d) {
+        const amount = _siParseUsd(d.invoice_amount);
+        const amountVal = amount > 0 ? amount : 0;
+        const cadence = _siResolveBillingCadence(d);
+        const isTwelve = cadence === 'twelve_week';
+        const isOneTime = d.billing_type === 'one_time';
+        const firstName = String(d.client_name || '').trim().split(/\s+/)[0] || 'there';
+        const billingLabel = d.billing_type === 'custom_recurring' && SI_CADENCE_LABELS[cadence]
+            ? SI_BILLING_LABELS.custom_recurring + ' - ' + SI_CADENCE_LABELS[cadence]
+            : (SI_BILLING_LABELS[d.billing_type] || d.billing_type || '');
+        return {
+            billing_cadence: cadence,
+            billing_display_label: billingLabel,
+            first_name: firstName,
+            amount_plain: _siPlainUsd(amountVal),
+            amount_fmt: _siFmtUsd(amountVal),
+            billing_line: d.billing_type === 'monthly' ? 'billed every 4 weeks'
+                : d.billing_type === 'quarterly' ? 'billed every 12 weeks'
+                : d.billing_type === 'custom_recurring' ? (isTwelve ? 'custom recurring, billed every 12 weeks' : cadence === 'four_week' ? 'custom recurring, billed every 4 weeks' : 'custom recurring')
+                : 'one-time project fee',
+            contract_date_words: _siContractDateWords(d.contract_start_date),
+            billing_period_words: isOneTime ? 'as a one-time project fee' : isTwelve ? 'per twelve (12) week period' : 'per four (4) week period',
+            commitment_words: isOneTime
+                ? 'This is a one-time engagement with a fixed scope; no recurring commitment applies.'
+                : 'This Agreement operates on a minimum commitment of three (3) consecutive four-week terms ("Quarterly Term"), billed in advance.',
+            billing_schedule_words: isOneTime
+                ? 'The one-time project fee is due upon signing this Agreement.'
+                : isTwelve
+                ? 'Payment is due on the same weekday every twelve (12) weeks from the original start date and will be automatically charged using the card on file.'
+                : 'Payment is due on the same weekday every four (4) weeks from the original start date and will be automatically charged using the card on file.'
+        };
     }
     // The URL that will actually be emailed to the client.
     function _siResolvePaymentLink(d) {
@@ -36896,10 +36983,13 @@
         const miss = [];
         ['client_name', 'closed_by', 'instagram', 'client_email', 'contract_start_date', 'deliverables', 'billing_type', 'termination_clause_type'].forEach(k => { if (!String(d[k] || '').trim()) miss.push(k); });
         if (d.client_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(d.client_email).trim())) if (!miss.includes('client_email')) miss.push('client_email');
-        const amt = Number(d.invoice_amount);
+        const amt = _siParseUsd(d.invoice_amount);
         if (!(amt > 0)) miss.push('invoice_amount');
-        if (!d.payment_link_choice) miss.push('payment_link_choice');
+        const expectedLinkChoice = _siLinkChoiceForBilling(d.billing_type);
+        if (_siRequiresCadence(d.billing_type) && !SI_CADENCE_LABELS[d.billing_cadence]) miss.push('billing_cadence');
+        if (!d.payment_link_choice || (expectedLinkChoice && d.payment_link_choice !== expectedLinkChoice)) miss.push('payment_link_choice');
         else if (d.payment_link_choice === 'custom' && !/^https?:\/\/\S+$/i.test(String(d.payment_link_custom || '').trim())) miss.push('payment_link_custom');
+        if (_siIsStandardBilling(d.billing_type) && amt !== SI_PRICES[d.billing_type] && !miss.includes('invoice_amount')) miss.push('invoice_amount');
         if (d.termination_clause_type === 'custom' && !String(d.termination_clause_custom || '').trim()) miss.push('termination_clause_custom');
         return miss;
     }
@@ -36907,6 +36997,7 @@
     // payload (not just the type) so n8n never needs its own copy of the
     // wording — the form is the single source of truth.
     function _siBuildSubmission(d) {
+        const display = _siDisplayFields(d);
         return {
             closed_by: String(d.closed_by || '').trim(),
             client_name: String(d.client_name || '').trim(),
@@ -36915,16 +37006,40 @@
             contract_start_date: String(d.contract_start_date || '').trim(),
             deliverables: String(d.deliverables || '').trim(),
             billing_type: d.billing_type,
-            invoice_amount: Number(d.invoice_amount),
+            billing_cadence: display.billing_cadence,
+            invoice_amount: _siParseUsd(d.invoice_amount),
             payment_link: _siResolvePaymentLink(d),
             termination_clause_type: d.termination_clause_type,
             termination_clause_text: d.termination_clause_type === 'custom' ? String(d.termination_clause_custom || '').trim() : SI_REGULAR_TERMINATION,
             referred_by: String(d.referred_by || '').trim(),
             source: 'syncview-sales-intake',
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            billing_display_label: display.billing_display_label,
+            first_name: display.first_name,
+            amount_plain: display.amount_plain,
+            amount_fmt: display.amount_fmt,
+            billing_line: display.billing_line,
+            contract_date_words: display.contract_date_words,
+            billing_period_words: display.billing_period_words,
+            commitment_words: display.commitment_words,
+            billing_schedule_words: display.billing_schedule_words
         };
     }
-    function _siFmtUsd(n) { return '$' + Number(n || 0).toLocaleString('en-US'); }
+    function _siEmailSubject(s) { return (s.first_name || 'there') + ', your Synchro Social agreement + first invoice'; }
+    function _siBuildEmailHtml(s, signUrl) {
+        const signHref = signUrl || '#agreement-link-after-submit';
+        const payHref = s.payment_link || '#payment-link';
+        return '<div class="si-email-divider"><img class="si-email-logo" src="https://synchrosocial.com/images/logo.png" alt="Synchro Social"></div>' +
+            '<p>Hi ' + _obEsc(s.first_name || 'there') + ',</p>' +
+            '<p>It was great talking with you — welcome aboard. Here&#39;s everything to make it official. Two quick steps and we get to work:</p>' +
+            '<p><strong>Step 1 — Review and sign your agreement.</strong> It takes about two minutes:</p>' +
+            '<p><a class="si-email-btn sign" href="' + _obEsc(signHref) + '">Review &amp; sign the agreement</a></p>' +
+            '<p><strong>Step 2 — Take care of your first invoice</strong> — ' + _obEsc(s.amount_fmt) + ' (' + _obEsc(s.billing_line) + '):</p>' +
+            '<p><a class="si-email-btn pay" href="' + _obEsc(payHref) + '">Pay the invoice</a></p>' +
+            '<p>Once both are done, your onboarding email lands in your inbox and the team gets moving on your content. If anything looks off, just reply to this email.</p>' +
+            '<p>Warmly,</p>' +
+            '<div class="si-email-signature"><img src="https://synchrosocial.com/images/logo.png" alt="Synchro Social"><div class="si-email-sig-text"><strong>Kasper</strong><br><a href="https://www.synchrosocial.com">synchrosocial.com</a></div></div>';
+    }
 
     // ---- view ----
     function _siField(f) {
@@ -36937,7 +37052,7 @@
             inner = '<div class="si-radios" data-si-radio="' + f.id + '">' +
                 f.options.map(o => '<label class="si-pill"><input type="radio" name="si_' + f.id + '" value="' + _obEsc(o[0]) + '"><span>' + _obEsc(o[1]) + '</span></label>').join('') + '</div>';
         } else {
-            inner = '<input class="si-input" type="' + (f.type || 'text') + '" data-si="' + f.id + '" placeholder="' + _obEsc(f.placeholder || '') + '"' + (f.step ? ' step="' + f.step + '"' : '') + (f.min ? ' min="' + f.min + '"' : '') + '>';
+            inner = '<input class="si-input" type="' + (f.type || 'text') + '" data-si="' + f.id + '" placeholder="' + _obEsc(f.placeholder || '') + '"' + (f.inputmode ? ' inputmode="' + _obEsc(f.inputmode) + '"' : '') + (f.step ? ' step="' + f.step + '"' : '') + (f.min ? ' min="' + f.min + '"' : '') + '>';
         }
         return '<div class="si-q' + (f.full ? ' si-full' : '') + '" data-si-q="' + f.id + '"><label class="si-label">' + _obEsc(f.label) + req + '</label>' + help + inner + (f.after || '') + '</div>';
     }
@@ -36950,27 +37065,30 @@
             _siField({ id: 'client_email', label: 'Client email', type: 'email', placeholder: 'client@email.com', help: 'The agreement + invoice email goes here.' }) +
             _siField({ id: 'contract_start_date', label: 'Contract start date', type: 'date' }) +
             _siField({ id: 'referred_by', label: 'Referred by', required: false, placeholder: 'Optional' }) +
-            _siField({ id: 'deliverables', label: 'Deliverables for client', type: 'textarea', full: true, placeholder: 'What the client gets — free text, goes straight into the agreement.' }) +
-            _siField({ id: 'billing_type', label: 'Billing type', type: 'radio', full: true, options: [['monthly', SI_BILLING_LABELS.monthly], ['quarterly', SI_BILLING_LABELS.quarterly], ['one_time', SI_BILLING_LABELS.one_time]] }) +
-            _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'number', step: '0.01', min: '1', placeholder: '0.00', help: 'Auto-fills from the billing type — editable.' }) +
+            _siField({ id: 'deliverables', label: 'Deliverables for client', type: 'textarea', full: true, placeholder: 'What the client gets - free text, goes straight into the agreement.' }) +
+            _siField({ id: 'billing_type', label: 'Billing type', type: 'radio', full: true, options: [['monthly', SI_BILLING_LABELS.monthly], ['quarterly', SI_BILLING_LABELS.quarterly], ['custom_recurring', SI_BILLING_LABELS.custom_recurring], ['one_time', SI_BILLING_LABELS.one_time]] }) +
+            _siField({ id: 'billing_cadence', label: 'Recurring cadence', type: 'radio', full: true, options: [['four_week', SI_CADENCE_LABELS.four_week], ['twelve_week', SI_CADENCE_LABELS.twelve_week]], help: 'Required only for custom recurring packages.' }) +
+            _siField({ id: 'invoice_amount', label: 'Invoice amount (USD)', type: 'text', inputmode: 'decimal', placeholder: '0.00', help: 'Standard packages are fixed. Custom recurring and one-time deals use a custom amount.' }) +
             _siField({
                 id: 'payment_link_choice', label: 'Payment link', type: 'radio',
                 options: [['monthly', SI_LINK_LABELS.monthly], ['quarterly', SI_LINK_LABELS.quarterly], ['custom', SI_LINK_LABELS.custom]],
-                after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/…" style="display:none;margin-top:6px">' +
+                help: 'Locked by billing type. Custom recurring and one-time deals require a custom Stripe link.',
+                after: '<input class="si-input" type="url" data-si="payment_link_custom" placeholder="https://buy.stripe.com/..." style="display:none;margin-top:6px">' +
                     '<div class="si-linkprev" id="siLinkPrev"></div>'
             }) +
             _siField({
                 id: 'termination_clause_type', label: 'Termination clause', type: 'radio', full: true,
                 options: [['regular', 'Regular'], ['custom', 'Custom']],
-                help: 'Regular is the standard minimum-commitment (quarterly) wording — one-time deals usually need Custom.',
+                help: 'Regular is the standard minimum-commitment wording. One-time deals usually need Custom.',
                 after: '<div class="si-clause" id="siClausePrev" style="display:none">' + _obEsc(SI_REGULAR_TERMINATION) + '</div>' +
-                    '<textarea class="si-input" data-si="termination_clause_custom" rows="4" placeholder="Paste the custom termination clause…" style="display:none;margin-top:6px"></textarea>'
+                    '<textarea class="si-input" data-si="termination_clause_custom" rows="4" placeholder="Paste the custom termination clause..." style="display:none;margin-top:6px"></textarea>'
             });
         return '<div class="si-wrap">' +
             '<div class="si-head"><div class="si-title">Fill this right after closing a client</div>' +
             '<div class="si-sub">It creates the Sales &amp; Service Agreement and emails the client the signing link with their invoice — one email, both links.</div></div>' +
             '<div class="si-card" id="siCard"><form id="siForm" onsubmit="return false;" novalidate>' +
             '<div class="si-grid">' + fields + '</div>' +
+            '<div class="si-preview" id="siEmailPreview"></div>' +
             '<div class="si-err" id="siErr"></div>' +
             '<div class="si-actions"><button type="button" class="si-btn" id="siSubmit" onclick="_siSubmit()">Create agreement &amp; send</button>' +
             '<button type="button" class="si-btn-ghost" onclick="_siClearForm()">Clear form</button></div>' +
@@ -36988,10 +37106,36 @@
         const g = document.querySelector('[data-si-radio="' + name + '"]'); if (!g) return;
         g.querySelectorAll('input').forEach(i => { i.checked = (i.value === val); });
     }
+    function _siSyncBillingControls(resetAmount) {
+        const d = _siSerialize();
+        const amount = document.querySelector('[data-si="invoice_amount"]');
+        const standardAmount = _siAmountForBilling(d.billing_type);
+        if (amount) {
+            const customAmount = _siAllowsCustomAmount(d.billing_type);
+            amount.readOnly = !customAmount;
+            if (_siIsStandardBilling(d.billing_type)) amount.value = standardAmount;
+            else if (resetAmount) amount.value = '';
+        }
+        const expectedLink = _siLinkChoiceForBilling(d.billing_type);
+        if (expectedLink) _siSetRadio('payment_link_choice', expectedLink);
+        const linkGroup = document.querySelector('[data-si-radio="payment_link_choice"]');
+        if (linkGroup) linkGroup.querySelectorAll('input').forEach(i => { i.disabled = !!expectedLink; });
+        const cadenceQ = document.querySelector('[data-si-q="billing_cadence"]');
+        if (cadenceQ) cadenceQ.style.display = _siRequiresCadence(d.billing_type) ? '' : 'none';
+        if (!_siRequiresCadence(d.billing_type)) _siSetRadio('billing_cadence', '');
+    }
+    function _siRenderEmailPreview() {
+        const box = document.getElementById('siEmailPreview');
+        if (!box) return;
+        const s = _siBuildSubmission(_siSerialize());
+        box.innerHTML = '<div class="si-preview-head"><div class="si-preview-title">Email preview</div>' +
+            '<div class="si-preview-subject">' + _obEsc(_siEmailSubject(s)) + '</div></div>' +
+            '<div class="si-email-preview">' + _siBuildEmailHtml(s) + '</div>';
+    }
     // Reflect current picks into the dependent controls: custom-link input,
-    // link preview, clause preview/textarea. Never touches the amount — that
-    // only auto-fills on an explicit billing-type change (see _siBillingChanged).
+    // link preview, clause preview/textarea, and the email preview.
     function _siSyncVisibility() {
+        _siSyncBillingControls(false);
         const d = _siSerialize();
         const customUrl = document.querySelector('[data-si="payment_link_custom"]');
         if (customUrl) customUrl.style.display = d.payment_link_choice === 'custom' ? '' : 'none';
@@ -37004,15 +37148,13 @@
         if (clausePrev) clausePrev.style.display = d.termination_clause_type === 'regular' ? '' : 'none';
         const clauseTa = document.querySelector('[data-si="termination_clause_custom"]');
         if (clauseTa) clauseTa.style.display = d.termination_clause_type === 'custom' ? '' : 'none';
+        _siRenderEmailPreview();
     }
     // Billing type drives the amount AND the link choice (spec fields 7–9):
-    // overwrite both on every explicit change; one-time clears the amount for
-    // free entry and forces the pasted-link path.
+    // overwrite both on every explicit change; custom paths clear the amount
+    // for free entry and force the pasted-link path.
     function _siBillingChanged() {
-        const d = _siSerialize();
-        const amt = document.querySelector('[data-si="invoice_amount"]');
-        if (amt) amt.value = _siAmountForBilling(d.billing_type);
-        _siSetRadio('payment_link_choice', _siLinkChoiceForBilling(d.billing_type));
+        _siSyncBillingControls(true);
         _siSyncVisibility();
     }
 
@@ -37039,11 +37181,11 @@
         const d = _siSerialize();
         if (!d.closed_by) _siSetRadio('closed_by', 'Kasper'); // only closer today
         _siSyncVisibility();
-        form.addEventListener('input', _siSaveDraftDebounced);
+        form.addEventListener('input', () => { _siSyncVisibility(); _siSaveDraftDebounced(); });
         form.addEventListener('change', e => {
             const t = e.target;
             if (t && t.name === 'si_billing_type') _siBillingChanged();
-            else if (t && (t.name === 'si_payment_link_choice' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
+            else if (t && (t.name === 'si_payment_link_choice' || t.name === 'si_billing_cadence' || t.name === 'si_termination_clause_type')) _siSyncVisibility();
             _siSaveDraftDebounced();
         });
         // Live link preview while a custom URL is being typed.
@@ -37090,7 +37232,7 @@
             '<p>The agreement is being created and ' + _obEsc(s.client_email) + ' gets one email with the signing link and the invoice.</p>' +
             '<div class="si-done-summary">' +
             row('Client', _obEsc(s.client_name)) +
-            row('Billing', _obEsc(SI_BILLING_LABELS[s.billing_type] || s.billing_type)) +
+            row('Billing', _obEsc(s.billing_display_label || SI_BILLING_LABELS[s.billing_type] || s.billing_type)) +
             row('Invoice amount', _siFmtUsd(s.invoice_amount)) +
             row('Payment link', _obEsc(s.payment_link)) +
             row('Termination clause', s.termination_clause_type === 'regular' ? 'Regular' : 'Custom') +

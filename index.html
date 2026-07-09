@@ -23532,9 +23532,10 @@
        returns to rest. stopPropagation keeps this Escape from also tripping
        the document-level handlers (e.g. exiting multi-select). */
     function _calOnCaptionKey(e, ta) {
+        if (!e) return;
+        e.stopPropagation();
         if (e.key !== 'Escape' || !ta) return;
         e.preventDefault();
-        e.stopPropagation();
         const wrap = ta.closest('.cal-cap-wrap');
         if (wrap) wrap.classList.remove('expanded');
         ta.blur();
@@ -33647,7 +33648,29 @@
         const eyeOn = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M1 8s2.5-4.5 7-4.5S15 8 15 8s-2.5 4.5-7 4.5S1 8 1 8z"/><circle cx="8" cy="8" r="2"/></svg>`;
         const eyeOff = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 3.2A6.8 6.8 0 0 1 8 3.5c4.5 0 7 4.5 7 4.5a12 12 0 0 1-2 2.6M9.6 9.4A2 2 0 0 1 6.6 6.6"/><path d="M3 3l10 10"/></svg>`;
         const eye = _isClientLink ? '' : `<button type="button" class="sxr-cd-eye${hidden ? ' is-hidden' : ''}" onclick="_sxrToggleCreativeVisibility('${pid}')" title="${hidden ? 'Hidden from client — click to show' : 'Visible to client — click to hide'}" aria-label="Toggle client visibility">${hidden ? eyeOff : eyeOn}</button>`;
-        return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onblur="_sxrOnFieldBlur(this)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
+        return `<div class="sxr-cd-wrap"><textarea class="sxr-cd-input" rows="2" data-pid="${pid}" data-fld="creative_direction" placeholder="Creative direction" oninput="_sxrOnFieldInput(this);_sxrAutosize(this)" onfocus="_sxrOnTextEditFocus(this)" onblur="_sxrOnTextEditBlur(this)" onkeydown="_sxrOnTextEditKey(event)"${editableText ? '' : ' readonly'}>${_sxrEsc(v)}</textarea>${eye}</div>`;
+    }
+    function _sxrTextDragLock(el, lock) {
+        const card = el && el.closest('.cal-card');
+        if (!card) return;
+        if (lock) {
+            if (card.dataset.sxrDragPrev == null) card.dataset.sxrDragPrev = card.getAttribute('draggable') || 'false';
+            card.setAttribute('draggable', 'false');
+        } else if (card.dataset.sxrDragPrev != null) {
+            card.setAttribute('draggable', card.dataset.sxrDragPrev);
+            delete card.dataset.sxrDragPrev;
+        }
+    }
+    function _sxrOnTextEditFocus(el) {
+        _sxrTextDragLock(el, true);
+        if (el && el.tagName === 'TEXTAREA') _sxrAutosize(el);
+    }
+    function _sxrOnTextEditBlur(el) {
+        _sxrTextDragLock(el, false);
+        _sxrOnFieldBlur(el);
+    }
+    function _sxrOnTextEditKey(e) {
+        if (e) e.stopPropagation();
     }
     function _sxrToggleCreativeVisibility(pid) {
         if (_isClientLink) return;
@@ -33976,6 +33999,8 @@
         const strip = document.getElementById('sxrStrip');
         if (!strip) return;
         strip.querySelectorAll('.cal-card[draggable="true"]').forEach(_sxrWireDragOnCard);
+        _calWireShiftScroll(strip);
+        _calWireDragEdgeScroll(strip);
         if (strip.dataset.dropWired === '1') return;
         strip.dataset.dropWired = '1';
         strip.addEventListener('dragover', (e) => e.preventDefault());   // make the strip a valid drop target

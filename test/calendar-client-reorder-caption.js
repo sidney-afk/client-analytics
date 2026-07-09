@@ -104,6 +104,11 @@ ok(/function _calCaptionDragLock\(/.test(INDEX) &&
 ok(/card\.dataset\.dragPrev = card\.getAttribute\('draggable'\)/.test(INDEX) &&
    /card\.setAttribute\('draggable', card\.dataset\.dragPrev\);/.test(INDEX),
    'it stashes + restores the pre-focus draggable value (blank/select-mode safe)');
+ok(/function _calOnCaptionKey\(e, ta\) \{\s*if \(!e\) return;\s*e\.stopPropagation\(\);/.test(INDEX),
+   'caption key events stop at the textarea so arrows/Enter/Space do not leak to card/page handlers');
+ok(/if \(e\.key !== 'Escape' \|\| !ta\) return;/.test(INDEX) &&
+   /ta\.blur\(\);/.test(INDEX),
+   'Escape remains the explicit way to leave/collapse the caption field');
 
 console.log('\n============================================================');
 console.log('SUMMARY');

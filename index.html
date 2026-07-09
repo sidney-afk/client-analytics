@@ -4243,6 +4243,7 @@
         .cal-link-field.has-link .cal-link-input { display: none; }
         .cal-link-field.has-link.editing .cal-link-input { display: block; }
         .cal-link-field.has-link.editing .cal-link-pill-open,
+        .cal-link-field.has-link.editing .cal-link-folder,
         .cal-link-field.has-link.editing .cal-link-edit { display: none; }
         .cal-link-pill-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px;
             padding: 8px 9px; background: var(--field-bg); border: 0; border-radius: 8px 0 0 8px; cursor: pointer;
@@ -4250,21 +4251,30 @@
         .cal-link-pill-open:hover { background: var(--field-bg-hover); }
         .cal-link-ico { width: 13px; height: 13px; flex-shrink: 0; color: var(--text-secondary); }
         .cal-link-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cal-link-folder,
         .cal-link-edit { flex-shrink: 0; width: 32px; display: inline-flex; align-items: center; justify-content: center;
             background: var(--field-bg); border: 0; border-left: 1px solid var(--sv-border-e3e3e0); border-radius: 0 8px 8px 0;
             color: var(--text-muted); cursor: pointer; transition: background 0.12s, color 0.12s; }
+        .cal-link-folder { border-radius: 0; }
+        .cal-link-folder + .cal-link-edit { border-radius: 0 8px 8px 0; }
+        .cal-link-folder:hover,
         .cal-link-edit:hover { background: var(--field-bg-hover); color: var(--text-primary); }
+        .cal-link-folder svg,
         .cal-link-edit svg { width: 12px; height: 12px; }
         /* Coloured link pills once a URL is set */
         .cal-link-thumb.has-link .cal-link-pill-open { background: var(--sv-bg-eef0fe); color: var(--sv-fg-4f46e5); }
         .cal-link-thumb.has-link .cal-link-pill-open:hover { background: var(--sv-bg-e4e6fc); }
         .cal-link-thumb.has-link .cal-link-ico { color: var(--sv-fg-4f46e5); }
+        .cal-link-thumb.has-link .cal-link-folder,
         .cal-link-thumb.has-link .cal-link-edit { background: var(--sv-bg-eef0fe); color: var(--sv-fg-7c79d8); border-left-color: var(--sv-border-dcdcfa); }
+        .cal-link-thumb.has-link .cal-link-folder:hover,
         .cal-link-thumb.has-link .cal-link-edit:hover { background: var(--sv-bg-e4e6fc); color: var(--sv-fg-4f46e5); }
         .cal-link-post.has-link .cal-link-pill-open { background: var(--sv-bg-fde8f3); color: var(--sv-fg-be2d72); }
         .cal-link-post.has-link .cal-link-pill-open:hover { background: var(--sv-bg-fbdcec); }
         .cal-link-post.has-link .cal-link-ico { color: var(--sv-fg-be2d72); }
+        .cal-link-post.has-link .cal-link-folder,
         .cal-link-post.has-link .cal-link-edit { background: var(--sv-bg-fde8f3); color: var(--sv-fg-cf6f9e); border-left-color: var(--sv-border-f6d3e4); }
+        .cal-link-post.has-link .cal-link-folder:hover,
         .cal-link-post.has-link .cal-link-edit:hover { background: var(--sv-bg-fbdcec); color: var(--sv-fg-be2d72); }
 
         /* Caption */
@@ -16044,6 +16054,7 @@
     const CAL_SUPABASE_ANON_KEY = 'sb_publishable_P4-NdUWJqjtACWZOB6LPEA_8GANHAUA'; // browser-safe publishable key; read-only via RLS
     const CAL_SUPABASE_LIB_URL  = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'; // UMD → window.supabase
     const CLIENT_TOKEN_VERIFY_URL = CAL_SUPABASE_URL + '/functions/v1/client-token-verify';
+    const THUMBNAIL_FOLDER_RESOLVE_EF_URL = CAL_SUPABASE_URL + '/functions/v1/thumbnail-folder-resolve';
     const CAL_V2_LS_KEY         = 'syncview_calendar_v2';
     const CAL_V2_KILL_KEY       = 'syncview_calendar_v2_off'; // Phase 3: ?v2=0 sets this (sticky opt-out); v2 is now the default
     const CAL_V2_RT_DEBOUNCE_MS = 350;
@@ -16393,6 +16404,7 @@
         // computeOverallStatus (which ignores it anyway) is unaffected.
         p.title_status = String(p.title_status || '').trim() ? _calNormStatus(p.title_status) : '';
         ['video_deliverable_id', 'graphic_deliverable_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { if (p[k] == null) p[k] = ''; });
         p.video_comments   = _calLoadCommentsField(p, 'video_tweaks',   p.tweaks);
         p.graphic_comments = _calLoadCommentsField(p, 'graphic_tweaks', '');
         p.caption_comments = _calLoadCommentsField(p, 'caption_tweaks', '');
@@ -21763,6 +21775,7 @@
         // colour must update).
         const keys = ['id','order_index','scheduled_date','status','name',
                       'asset_url','thumbnail_url','caption','caption_alt','caption_alt_platform','cta',
+                      'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
                       'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status','caption_status','title_status',
                       'updated_at'];
@@ -22315,6 +22328,68 @@
         if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
         return u;
     }
+    function _calThumbFolderIconSvg() {
+        return `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 4.7a1.4 1.4 0 0 1 1.4-1.4h3l1.2 1.3h5.4a1.4 1.4 0 0 1 1.4 1.4v5.3a1.4 1.4 0 0 1-1.4 1.4H3.2a1.4 1.4 0 0 1-1.4-1.4z"/></svg>`;
+    }
+    function _calThumbnailFolderUrl(post, thumbUrl) {
+        const raw = String(thumbUrl || '').trim();
+        if (!raw || _calIsFolderLink(raw)) return '';
+        return String((post && post.thumbnail_folder_url) || '').trim();
+    }
+    function _calClearThumbnailFolderMeta(post) {
+        if (!post) return;
+        post.thumbnail_folder_url = '';
+        post.thumbnail_folder_id = '';
+        post.thumbnail_file_id = '';
+        post.thumbnail_folder_resolved_at = '';
+    }
+    function _calApplyThumbnailFolderFields(post, fields) {
+        if (!post || !fields) return;
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => {
+            post[k] = String(fields[k] || '');
+        });
+    }
+    function _calStripThumbnailFolderFields(row) {
+        if (!row) return row;
+        ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { delete row[k]; });
+        return row;
+    }
+    function _calRefreshLinkField(pid, fld, post, sxr) {
+        const field = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"]`);
+        if (!field || field.classList.contains('editing')) return;
+        const input = field.querySelector('.cal-link-input');
+        const placeholder = input ? input.placeholder : (fld === 'thumbnail_url' ? 'Thumbnail URL (Google Drive image)' : 'Video URL (Frame.io / Drive)');
+        if (sxr) field.outerHTML = _sxrLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, post);
+        else field.outerHTML = _calLinkFieldHtml(pid, fld, post ? post[fld] : '', placeholder, false, false, post);
+    }
+    function _calResolveThumbnailFolder(surface, clientSlug, pid, thumbnailUrl, post, opts) {
+        if (_isClientLink || !clientSlug || !pid) return;
+        const url = String(thumbnailUrl || '').trim();
+        if (!url) _calClearThumbnailFolderMeta(post);
+        if (post && String(post.thumbnail_file_id || '') && String(post.thumbnail_url || '').trim() === url &&
+            (String(post.thumbnail_folder_url || '') || String(post.thumbnail_folder_resolved_at || ''))) return;
+        fetch(THUMBNAIL_FOLDER_RESOLVE_EF_URL, {
+            method: 'POST',
+            headers: _syncviewEfHeaders({ 'Content-Type': 'application/json', 'X-Syncview-Source': 'ui' }, THUMBNAIL_FOLDER_RESOLVE_EF_URL),
+            body: JSON.stringify({ surface, client: clientSlug, id: pid, thumbnail_url: url })
+        }).then(resp => resp.ok ? resp.json() : null).then(json => {
+            if (!json || !json.ok || !post) return;
+            if (json.skipped === 'not_found' && !(opts && opts.retry)) {
+                setTimeout(() => _calResolveThumbnailFolder(surface, clientSlug, pid, url, post, Object.assign({}, opts || {}, { retry: true })), 2000);
+                return;
+            }
+            if (String(post.thumbnail_url || '').trim() !== url) return;
+            _calApplyThumbnailFolderFields(post, json.fields);
+            _calRefreshLinkField(pid, 'thumbnail_url', post, opts && opts.sxr);
+        }).catch(e => {
+            console.warn('[Thumbnail folder] resolve failed', e);
+        });
+    }
+    function _calOpenThumbnailFolder(pid) {
+        const post = calState.posts.find(p => p.id === pid);
+        const url = _calThumbnailFolderUrl(post, post && post.thumbnail_url);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    }
     function _calDeriveThumbInfo(p) {
         const raw = String((p && (p.thumbnail_url || p.asset_url)) || '').trim();
         const url = _calDeriveThumb(p);
@@ -22536,12 +22611,15 @@
         try { return new URL(/^https?:\/\//i.test(u) ? u : 'https://' + u).hostname.replace(/^www\./, ''); }
         catch { return u.length > 26 ? u.slice(0,26) + '…' : u; }
     }
-    function _calLinkFieldHtml(pid, fld, val, placeholder, ro, showEmptyPlaceholder) {
+    function _calLinkFieldHtml(pid, fld, val, placeholder, ro, showEmptyPlaceholder, post) {
         const v = String(val || '').trim();
         const isThumb = fld === 'thumbnail_url';
         const kind = isThumb ? 'thumb' : 'post';
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
+        const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_calOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         if (ro) {
             // Client-link view — links can be opened but never edited.
@@ -22569,6 +22647,7 @@
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_calOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                ${folderBtn}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_calEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
                 ${input}
             </div>`;
@@ -22600,7 +22679,8 @@
         }
         const field = input.closest('.cal-link-field');
         if (!field) return;
-        field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder);
+        const post = calState.posts.find(p => p.id === input.dataset.pid);
+        field.outerHTML = _calLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, false, post);
     }
     function _calOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -22958,8 +23038,8 @@
                 ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_calEscAttr(_calDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_calEsc(_calDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_calTitleRowHtml(pid, p, ro, editableText)}</div>
                 <div class="cal-meta-row">${dateHtml}</div>
-                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank)}
-                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank)}
+                ${_calLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, _isClientLink && !isBlank, p)}
+                ${_calLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, _isClientLink && !isBlank, p)}
                 <div class="cal-capblock" data-capblock="${pid}">${_calCapBlockHtml(pid, p, editableText, isBlank)}</div>
                 <input class="cal-fld-cta" type="text" data-pid="${pid}" data-fld="cta" value="${_calEsc(p.cta)}" placeholder="Call to action" oninput="_calOnFieldInput(this)" onblur="_calOnFieldBlur(this)"${!editableText ? ' readonly' : ''}>
                 ${canApprove ? `<button class="cal-approve-bar" type="button" onclick="_calClientApprove('${pid}')"><svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7.5L6 11l5.5-7"/></svg>Approve post</button>` : ''}
@@ -23526,7 +23606,10 @@
         // user's typing visibly reverts while the DB ends up with the new value
         // (rename-during-create-save divergence, found by qa/probes/p89 2026-07-02).
         const post = calState.posts.find(p => p.id === pid);
-        if (post) post[fld] = val;
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
         if (_calSaveTimers[pid]) clearTimeout(_calSaveTimers[pid]);
         _calSaveTimers[pid] = setTimeout(() => { _calSaveTimers[pid] = null; _calFlushCardSave(pid); }, CAL_SAVE_DEBOUNCE_MS);
     }
@@ -23537,7 +23620,10 @@
         _calPendingEdits[pid][fld] = val;
         // Same optimistic state mirror as _calOnFieldInput (SXR parity).
         const post = calState.posts.find(p => p.id === pid);
-        if (post) post[fld] = val;
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
         if (_calSaveTimers[pid]) { clearTimeout(_calSaveTimers[pid]); _calSaveTimers[pid] = null; }
         _calFlushCardSave(pid);
     }
@@ -23712,6 +23798,7 @@
                 delete wirePost.title_comments;
                 delete wirePost._baseAt;
                 delete wirePost._saveError;
+                _calStripThumbnailFolderFields(wirePost);
                 _calApplyClearSentinels(wirePost, edits);
             }
             // comments_base_at = the sheet's updated_at this browser last saw.
@@ -23818,6 +23905,10 @@
             // flash. (_calRefreshCardThumb's base-URL guard also no-ops a pure
             // _cb bump, so this is belt-and-suspenders.)
             if ('thumbnail_url' in edits || 'asset_url' in edits) _calRefreshCardThumb(realId);
+            if ('thumbnail_url' in edits) {
+                const thumbPost = calState.posts.find(p => p.id === realId);
+                if (thumbPost) _calResolveThumbnailFolder('calendar', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost);
+            }
             // A freshly-promoted blank card carries the blank-time layout in
             // the DOM (no media slots, no status pills, etc.) — _calPromoteBlankCard
             // only rewrites identifiers, not the visual shape. Without a
@@ -32703,7 +32794,7 @@
     function _sxrMigrateShape(p) {
         if (!p) return p;
         SXR_COMPONENTS.forEach(c => { if (p[c + '_status'] == null || p[c + '_status'] === '') p[c + '_status'] = 'In Progress'; });
-        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id'].forEach(k => { if (p[k] == null) p[k] = ''; });
+        ['name','creative_direction','hide_creative_direction','asset_url','thumbnail_url','linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id','thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => { if (p[k] == null) p[k] = ''; });
         // Parse the per-component comment threads from the *_tweaks string columns
         // (so the Review/Notes surfaces can read them); seed the local kasper-seen
         // cache from the cross-device kasper_seen CSV.
@@ -32999,12 +33090,21 @@
     }
 
     /* ── Media link pills (Video / Thumbnail only — no caption link) ── */
-    function _sxrLinkFieldHtml(pid, fld, val, placeholder, ro) {
+    function _sxrOpenThumbnailFolder(pid) {
+        const post = sxrState.posts.find(p => p.id === pid);
+        const url = _calThumbnailFolderUrl(post, post && post.thumbnail_url);
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
+    function _sxrLinkFieldHtml(pid, fld, val, placeholder, ro, post) {
         const v = String(val || '').trim();
         const isThumb = fld === 'thumbnail_url';
         const kind = isThumb ? 'thumb' : 'post';
         const label = isThumb ? 'Thumbnail' : 'Video';
         const extIco = `<svg class="cal-link-ico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h4v4M13 3L7.5 8.5"/><path d="M11.5 9.5V12a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5"/></svg>`;
+        const folderBtn = (isThumb && _calThumbnailFolderUrl(post, v))
+            ? `<button type="button" class="cal-link-folder" tabindex="-1" onclick="_sxrOpenThumbnailFolder('${pid}')" title="Open parent folder">${_calThumbFolderIconSvg()}</button>`
+            : '';
         const pencil = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.4 2.6l2 2L6 12l-2.6.6L4 10z"/></svg>`;
         if (ro) {
             if (!v) return '';
@@ -33016,6 +33116,7 @@
         if (v) {
             return `<div class="cal-link-field has-link cal-link-${kind}" data-pid-wrap="${pid}" data-fld-wrap="${fld}">
                 <button type="button" class="cal-link-pill-open" onclick="_sxrOpenLink('${pid}','${fld}')" title="Open in a new tab">${extIco}<span class="cal-link-label">${label}</span></button>
+                ${folderBtn}
                 <button type="button" class="cal-link-edit" tabindex="-1" onclick="_sxrEditLink('${pid}','${fld}')" title="Edit link">${pencil}</button>
                 ${input}
             </div>`;
@@ -33034,7 +33135,10 @@
             if (typeof _sxrUpdateReviewBadge === 'function') _sxrUpdateReviewBadge();
         }
         const field = input.closest('.cal-link-field');
-        if (field) field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false);
+        if (field) {
+            const post = sxrState.posts.find(p => p.id === input.dataset.pid);
+            field.outerHTML = _sxrLinkFieldHtml(input.dataset.pid, input.dataset.fld, input.value.trim(), input.placeholder, false, post);
+        }
     }
     function _sxrOpenLink(pid, fld) {
         const input = document.querySelector(`.cal-link-field[data-pid-wrap="${pid}"][data-fld-wrap="${fld}"] .cal-link-input`);
@@ -33468,8 +33572,8 @@
             <div class="cal-card-body">
                 ${dupePeers.length ? `<div class="cal-dupe-warn" title="${_sxrEscAttr(_sxrDupeWarnText(dupePeers))}. Two cards can't own the same Linear sub-issue — archive one of them, or change one card's link.">⚠ ${_sxrEsc(_sxrDupeWarnText(dupePeers))} — archive one or change its link</div>` : ''}
                 <div class="cal-title-row" data-title-row="${pid}">${_sxrTitleRowHtml(pid, p, ro, editableText)}</div>
-                ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro)}
-                ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro)}
+                ${_sxrLinkFieldHtml(pid, 'thumbnail_url', p.thumbnail_url, 'Thumbnail URL (Google Drive image)', _isClientLink || ro, p)}
+                ${_sxrLinkFieldHtml(pid, 'asset_url', p.asset_url, 'Video URL (Frame.io / Drive)', _isClientLink || ro, p)}
                 ${_sxrCreativeDirectionHtml(pid, p, editableText)}
                 <div class="cal-card-foot">
                     ${_sxrCommentsBtnHtml(p, pid)}
@@ -33763,7 +33867,10 @@
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrPendingEdits[pid][fld] = val;
         const post = sxrState.posts.find(p => p.id === pid);
-        if (post) post[fld] = val;
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
         if (_sxrSaveTimers[pid]) clearTimeout(_sxrSaveTimers[pid]);
         _sxrSaveTimers[pid] = setTimeout(() => { _sxrSaveTimers[pid] = null; _sxrFlushCardSave(pid); }, SXR_SAVE_DEBOUNCE_MS);
     }
@@ -33773,7 +33880,10 @@
         if (!_sxrPendingEdits[pid]) _sxrPendingEdits[pid] = {};
         _sxrPendingEdits[pid][fld] = val;
         const post = sxrState.posts.find(p => p.id === pid);
-        if (post) post[fld] = val;
+        if (post) {
+            post[fld] = val;
+            if (fld === 'thumbnail_url') _calClearThumbnailFolderMeta(post);
+        }
         if (_sxrSaveTimers[pid]) { clearTimeout(_sxrSaveTimers[pid]); _sxrSaveTimers[pid] = null; }
         _sxrFlushCardSave(pid);
     }
@@ -33916,6 +34026,7 @@
                     wirePost.tweaks = wirePost.video_tweaks;
                     delete wirePost.comments; delete wirePost.video_comments; delete wirePost.graphic_comments;
                     delete wirePost._baseAt; delete wirePost._saveError;
+                    _calStripThumbnailFolderFields(wirePost);
                     _sxrApplyClearSentinels(wirePost, edits);
                 }
                 _sxrLastLocalWriteAt = Date.now();
@@ -33949,6 +34060,10 @@
                 if (_okPost && _okPost._saveError) delete _okPost._saveError;
                 _sxrSetCardStatus(realId, 'saved');
                 if ('thumbnail_url' in edits || 'asset_url' in edits) _sxrForceThumbRefresh(realId);
+                if ('thumbnail_url' in edits) {
+                    const thumbPost = sxrState.posts.find(p => p.id === realId);
+                    if (thumbPost) _calResolveThumbnailFolder('samples', _saveSlug, realId, thumbPost.thumbnail_url, thumbPost, { sxr: true });
+                }
                 if (isBlank && wasNewRow) {
                     const focusInThisCard = document.activeElement && document.activeElement.closest && document.activeElement.closest(`.cal-card[data-pid="${realId}"]`);
                     if (!focusInThisCard) { try { _sxrRenderBody({ preserveScroll: true }); } catch (e) {} }
@@ -34926,6 +35041,7 @@
         if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
         const keys = ['id','order_index','status','name',
                       'asset_url','thumbnail_url','creative_direction','hide_creative_direction',
+                      'thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at',
                       'linear_issue_id','video_deliverable_id','graphic_linear_issue_id','graphic_deliverable_id',
                       'video_status','graphic_status',
                       'updated_at'];

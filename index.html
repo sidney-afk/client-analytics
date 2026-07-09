@@ -20676,7 +20676,7 @@
             const newPosts = fetchedPosts.map(fp => {
                 const lp = prevById.get(fp.id);
                 if (!lp) { fp._baseAt = fp.updated_at || ''; return fp; }
-                const winner = (() => {
+                let winner = (() => {
                     // A save for this card is mid-flight: our optimistic local
                     // state hasn't been acknowledged by the sheet yet, so the
                     // fetched row is by definition pre-change. Never let a poll
@@ -20755,6 +20755,7 @@
                     }
                     return fp;
                 })();
+                winner = _calAdoptThumbnailFolderMeta(winner, fp);
                 if (_calV2DebugOn() && winner === lp &&
                     (lp.video_status !== fp.video_status || lp.graphic_status !== fp.graphic_status ||
                      lp.caption_status !== fp.caption_status || lp.title_status !== fp.title_status || lp.status !== fp.status)) {
@@ -22389,6 +22390,19 @@
         ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'].forEach(k => {
             post[k] = String(fields[k] || '');
         });
+    }
+    function _calAdoptThumbnailFolderMeta(post, serverPost) {
+        if (!post || !serverPost) return post;
+        if (String(post.thumbnail_url || '').trim() !== String(serverPost.thumbnail_url || '').trim()) return post;
+        const keys = ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'];
+        let changed = false;
+        for (const k of keys) {
+            if (String(post[k] || '') !== String(serverPost[k] || '')) { changed = true; break; }
+        }
+        if (!changed) return post;
+        const next = Object.assign({}, post);
+        keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
+        return next;
     }
     function _calStripThumbnailFolderFields(row) {
         if (!row) return row;
@@ -35168,13 +35182,27 @@
         const local = sxrState.posts || [];
         const localById = new Map(local.map(p => [p.id, p]));
         const out = [], serverIds = new Set();
+        const adoptThumbnailMeta = (post, serverPost) => {
+            if (!post || !serverPost) return post;
+            if (String(post.thumbnail_url || '').trim() !== String(serverPost.thumbnail_url || '').trim()) return post;
+            const keys = ['thumbnail_folder_url','thumbnail_folder_id','thumbnail_file_id','thumbnail_folder_resolved_at'];
+            let changed = false;
+            for (const k of keys) {
+                if (String(post[k] || '') !== String(serverPost[k] || '')) { changed = true; break; }
+            }
+            if (!changed) return post;
+            const next = Object.assign({}, post);
+            keys.forEach(k => { next[k] = String(serverPost[k] || ''); });
+            return next;
+        };
         for (const srv of server) {
             serverIds.add(srv.id);
             const loc = localById.get(srv.id);
             // In-flight save or queued edit: the server row is by definition
             // pre-change for this card — keep local, fold in the server's comments.
             if (loc && (_sxrPendingEdits[srv.id] || _sxrSaveInFlight[srv.id])) {
-                _sxrMergePostComments(loc, srv); out.push(loc); continue;
+                const kept = adoptThumbnailMeta(loc, srv);
+                _sxrMergePostComments(kept, srv); out.push(kept); continue;
             }
             // Recent local status write (5-min grace): keep our just-set status
             // against a stale reconciler / self echo — BUT adopt any sub-status the
@@ -35188,8 +35216,13 @@
                 // reconciled is a clone of loc with the adopted server status, so
                 // fold the SERVER row's comments in (Kasper's new tweak note lives
                 // there, not on loc) — mirrors the calendar's merge(winner, fp).
-                if (reconciled) { _sxrMergePostComments(reconciled, srv); out.push(reconciled); }
-                else { _sxrMergePostComments(loc, srv); out.push(loc); }
+                if (reconciled) {
+                    const kept = adoptThumbnailMeta(reconciled, srv);
+                    _sxrMergePostComments(kept, srv); out.push(kept);
+                } else {
+                    const kept = adoptThumbnailMeta(loc, srv);
+                    _sxrMergePostComments(kept, srv); out.push(kept);
+                }
                 continue;
             }
             // Default: adopt the server copy (fold local comments in).

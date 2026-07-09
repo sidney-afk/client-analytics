@@ -37976,6 +37976,7 @@
         if (clausePrev) clausePrev.style.display = d.termination_clause_type === 'regular' ? '' : 'none';
         const clauseTa = document.querySelector('[data-si="termination_clause_custom"]');
         if (clauseTa) clauseTa.style.display = d.termination_clause_type === 'custom' ? '' : 'none';
+        _siRefreshMissingState();
         _siRenderEmailPreview();
     }
     // Billing type drives the amount AND the link choice (spec fields 7–9):
@@ -38005,6 +38006,11 @@
         if (_siAgreementPreview) _siAgreementPreview = null;
     }
 
+    function _siQuestionForMissingKey(k) {
+        return document.querySelector('[data-si-q="' + k + '"]') ||
+            document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_choice') + '"]') ||
+            document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_type') + '"]');
+    }
     function _siShowMissing(miss, message) {
         const err = document.getElementById('siErr');
         document.querySelectorAll('.si-q.si-missing').forEach(q => q.classList.remove('si-missing'));
@@ -38014,10 +38020,22 @@
         }
         let first = null;
         miss.forEach(k => {
-            const q = document.querySelector('[data-si-q="' + k + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_choice') + '"]') || document.querySelector('[data-si-q="' + k.replace(/_custom$/, '_type') + '"]');
+            const q = _siQuestionForMissingKey(k);
             if (q) { q.classList.add('si-missing'); if (!first) first = q; }
         });
         if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    function _siRefreshMissingState() {
+        const marked = Array.from(document.querySelectorAll('.si-q.si-missing'));
+        if (!marked.length) return;
+        const miss = _siValidate(_siSerialize());
+        const stillMissing = new Set(miss.map(_siQuestionForMissingKey).filter(Boolean));
+        marked.forEach(q => { if (!stillMissing.has(q)) q.classList.remove('si-missing'); });
+        const err = document.getElementById('siErr');
+        if (err && !miss.length) {
+            err.style.display = 'none';
+            err.textContent = '';
+        }
     }
 
     function mountSalesIntakeView() {
@@ -38056,7 +38074,7 @@
         const submission = _siBuildSubmission(d);
         _obPost(SALES_INTAKE_SUBMIT_URL, { action: 'preview_contract', submission }, 45000)
             .then(resp => {
-                if (!resp || !resp.sign_url || !resp.contract_id || !resp.id) throw new Error('preview_missing_sign_url');
+                if (!resp || !resp.sign_url || !resp.contract_id || !resp.id) throw new Error((resp && (resp.error || resp.message)) || 'agreement preview did not return a signing link');
                 _siAgreementPreview = {
                     id: String(resp.id),
                     contract_id: String(resp.contract_id),

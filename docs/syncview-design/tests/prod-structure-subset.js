@@ -283,6 +283,11 @@ async function assertNoWriteRequests(requests) {
     await expectCount(page, '[data-prod-detail-card="properties"]', 1, 'Properties detail card');
     await expectCount(page, '[data-prod-detail-card="project"]', 1, 'Project detail card');
     if (!(await text(page, '.prod-activity')).includes('Activity')) throw new Error('Activity section missing');
+    const activityLinesAreCompact = await page.evaluate(() => {
+      const act = document.querySelector('.prod-act');
+      return !act || (!!act.querySelector('.prod-act-text') && !act.querySelector('.prod-act-meta'));
+    });
+    if (!activityLinesAreCompact) throw new Error('Activity events should render as compact one-line rows');
     if (!(await page.locator('[data-prod-disabled="composer"][title="Preview - read-only"]').count())) throw new Error('Guarded composer missing');
     await page.locator('[data-prod-disabled="composer"]').click();
     await page.waitForSelector('#prodToast.show', { timeout: 3000 });
@@ -297,6 +302,29 @@ async function assertNoWriteRequests(requests) {
     if (await page.locator('.prod-parent-link').count()) {
       await expectCount(page, '[data-prod-detail-card="parent"]', 1, 'Parent issue detail card');
     }
+    const parentWithChild = await page.evaluate(() => {
+      const rows = _prodIssues();
+      const parent = rows.find(d => rows.some(k => k.parent === d.id));
+      return parent ? parent.id : '';
+    });
+    if (parentWithChild) {
+      await page.evaluate(id => window._prodOpenDeliverable(id), parentWithChild);
+      await page.waitForSelector('[data-prod-section="subissues"] .prod-subrow', { timeout: 10000 });
+      await expectCount(page, '[data-prod-disabled="add-subissue"][title="Preview - read-only"]', 1, 'guarded add sub-issue affordance');
+      const parentSubIssueShape = await page.evaluate(() => {
+        const row = document.querySelector('[data-prod-section="subissues"] .prod-subrow');
+        const id = row ? row.getAttribute('data-prod-subrow') : '';
+        const issue = id ? _prodIssue(id) : null;
+        const label = issue ? _prodIssueLabel(issue) : '';
+        const text = row ? row.textContent.replace(/\s+/g, ' ').trim() : '';
+        return !!row && !!row.querySelector('.prod-title') && !!row.querySelector('.prod-chip-client') && (!label || !text.includes(label));
+      });
+      if (!parentSubIssueShape) throw new Error('Parent sub-issue rows should show title plus project metadata, without child issue IDs');
+      await page.locator('[data-prod-section="subissues"] .prod-subrow').first().click();
+      await page.waitForSelector('[data-prod-subissue-of]', { timeout: 10000 });
+      if (!(await text(page, '[data-prod-subissue-of]')).includes('Sub-issue of')) throw new Error('Child issue missing Sub-issue of body context');
+      await expectCount(page, '.prod-detail-context .prod-context-project', 1, 'child issue project context chip');
+    }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });
     const zeroChildRow = page.locator('.prod-row[data-prod-child-count="0"]').first();
@@ -306,6 +334,7 @@ async function assertNoWriteRequests(requests) {
       if (await page.locator('[data-prod-section="subissues"]').count()) {
         throw new Error('Empty Sub-issues section should be hidden');
       }
+      await expectCount(page, '[data-prod-section="subissues-empty"] [data-prod-disabled="add-subissue"]', 1, 'leaf issue guarded Add sub-issues affordance');
     }
     await page.evaluate(() => window._prodSetView('list'));
     await page.waitForSelector('.prod-row, .prod-empty', { timeout: 10000 });

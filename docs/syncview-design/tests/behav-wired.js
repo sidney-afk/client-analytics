@@ -894,14 +894,19 @@ async function txt(page, sel) {
       const after = await page.evaluate(() => JSON.stringify(_prodIssues().map(i => [i.id, i.due])));
       return opened && before === after && (await txt(page, '#prodToast')).includes('Preview - read-only');
     }); await reset();
-    await ok('actTextWrap', async () => {
+    await ok('activityLineCompact', async () => {
       const id = await page.locator('.prod-row').first().getAttribute('data-prod-row');
       await page.evaluate(rowId => _prodOpenDeliverable(rowId), id);
       await page.waitForSelector('.prod-detail');
       return await page.evaluate(() => {
-        const el = document.querySelector('.prod-act-text') || document.querySelector('.prod-desc');
+        const host = document.createElement('div');
+        host.innerHTML = _prodActivity([{ actor: 'system', action: 'updated', ts: new Date().toISOString() }]);
+        document.body.appendChild(host);
+        const el = host.querySelector('.prod-act-text');
         const cs = el && getComputedStyle(el);
-        return !!cs && (cs.overflowWrap === 'anywhere' || cs.wordBreak === 'break-word');
+        const ok = !!cs && cs.whiteSpace === 'nowrap' && cs.textOverflow === 'ellipsis' && cs.overflow === 'hidden';
+        host.remove();
+        return ok;
       });
     }); await reset();
     await ok('boardJK', async () => {

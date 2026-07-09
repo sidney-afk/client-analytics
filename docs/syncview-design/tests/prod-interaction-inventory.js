@@ -365,6 +365,23 @@ async function selectionChecks(page) {
   if (parentWithChild) {
     await page.evaluate(id => _prodOpenDeliverable(id), parentWithChild);
     await page.waitForSelector('#prodRoot .prod-subrow', { timeout: 5000 });
+    const parentSubrow = await page.evaluate(() => {
+      const row = document.querySelector('#prodRoot .prod-subrow');
+      const id = row ? row.getAttribute('data-prod-subrow') : '';
+      const issue = id ? _prodIssue(id) : null;
+      return {
+        id,
+        label: issue ? _prodIssueLabel(issue) : '',
+        text: row ? row.textContent.replace(/\s+/g, ' ').trim() : '',
+        hasProjectChip: !!(row && row.querySelector('.prod-chip-client')),
+        hasAddButton: !!document.querySelector('#prodRoot [data-prod-disabled="add-subissue"]'),
+      };
+    });
+    if (!parentSubrow.hasAddButton) failures.push('parent detail did not expose the guarded add-sub-issue affordance');
+    if (!parentSubrow.hasProjectChip) failures.push('parent sub-issue row did not expose project metadata');
+    if (parentSubrow.label && parentSubrow.text.includes(parentSubrow.label)) {
+      failures.push('parent sub-issue row still shows the child issue id instead of title-first Linear styling');
+    }
     await page.evaluate(() => {
       const main = document.querySelector('#prodRoot .prod-detail-main');
       if (main) main.scrollTop = main.scrollHeight;
@@ -379,12 +396,16 @@ async function selectionChecks(page) {
         scrollTop: main ? main.scrollTop : -1,
         bodyTop: window.scrollY,
         crumbText: crumb ? crumb.textContent.replace(/\s+/g, ' ').trim() : '',
+        contextText: (document.querySelector('#prodRoot [data-prod-subissue-of]') || {}).textContent || '',
+        hasContextProject: !!document.querySelector('#prodRoot .prod-detail-context .prod-context-project'),
       };
     });
     if (subDetail.scrollTop > 2) failures.push('sub-issue detail did not reset its internal scroll to the top');
     if (!/Issue/.test(subDetail.crumbText) || !/Sub-issue/.test(subDetail.crumbText)) {
       failures.push('sub-issue breadcrumb did not expose Issue/Sub-issue context');
     }
+    if (!/Sub-issue of/.test(subDetail.contextText)) failures.push('sub-issue detail did not expose the body-level Sub-issue of context');
+    if (!subDetail.hasContextProject) failures.push('sub-issue detail did not expose the project context chip');
   }
   await reset(page, 'board');
   const cardCursor = await page.locator('#prodRoot .prod-card[data-prod-client-card]').first().evaluate(el => getComputedStyle(el).cursor).catch(() => '');

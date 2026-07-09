@@ -12,7 +12,7 @@ Excluded surfaces:
 
 ## Rollback
 
-User rollback: click the sun/moon toggle back to Light. The preference is per-browser in `localStorage`.
+User rollback: click the sun/moon toggle back to Light. To restore the pre-refresh status colors, click the adjacent palette toggle; both preferences are per-browser in `localStorage`.
 
 Code rollback: revert the dark-mode PR. No runtime flags, Supabase Edge Functions, migrations, n8n workflows, or save/write paths are part of this change.
 
@@ -47,16 +47,16 @@ Platform colors keep brand identity while dark mode swaps pale fills to dark tin
 | TikTok | `--tt`, `--tt-light`, `--tt-mid`, `--tt-dark` | neutral/cyan accents plus dark neutral surfaces |
 | YouTube | `--yt`, `--yt-light`, `--yt-mid`, `--yt-dark` | red accents plus dark red surfaces |
 
-Status colors use the same high-separation scheme in light and dark mode. Operational status pills use brighter mid-tone fills with near-black text so states stay easy to distinguish without becoming neon. Urgent uses the same warm family as Tweaks Needed, Kasper Approval uses a light blue, SMM Approval uses orchid, Client/Sidney Approval uses coral-red, Scheduled uses a colder blue, and Posted uses dark green with white text.
+Status colors use the same high-separation scheme in light and dark mode by default. Operational status pills use brighter mid-tone fills with near-black text so states stay easy to distinguish without becoming neon. Urgent uses the same warm family as Tweaks Needed, Kasper Approval uses a light blue, SMM Approval uses orchid, Client/Sidney Approval uses coral-red, Scheduled uses a colder blue, and Posted uses dark green with white text.
 
-Calendar status pills use dedicated `--cal-status-*` variables. Light and dark values now share the same vibrant fills with black text so component pills, dropdown rows, review pills, title-status squares, and TikTok queue pills stay distinct across themes. Notes notifications use `--cal-notes-*` variables for the unread dot, count badge, and active/open state.
+Calendar status pills use dedicated `--cal-status-*` variables. Light and dark values now share the same vibrant fills with black text so component pills, dropdown rows, review pills, title-status squares, and TikTok queue pills stay distinct across themes. Staff can click the palette toggle beside the theme toggle to set `data-status-palette="classic"` and restore the original softer status palette; the default/new palette is restored by removing `syncview_status_palette` from `localStorage`. Notes notifications use `--cal-notes-*` variables for the unread dot, count badge, and active/open state.
 
 ## Variable Map
 
 Hardcoded colors are migrated into variables in three layers:
 
 1. Existing semantic variables: reusable app-wide roles such as `--bg`, `--white`, `--border`, `--text-primary`, `--text-muted`, `--ig-*`, `--yt-*`, `--up-*`, and `--dn-*`.
-2. New semantic variables: dark-mode-specific roles such as `--surface-raised`, `--surface-hover`, `--text-inverse`, `--focus-ring`, `--shadow-sm`, `--chart-*`, `--theme-toggle-*`, `--toast-*`, `--selection-bg`, and `--scrollbar-*`.
+2. New semantic variables: dark-mode-specific roles such as `--surface-raised`, `--surface-hover`, `--text-inverse`, `--focus-ring`, `--shadow-sm`, `--chart-*`, `--theme-toggle-*`, `--toast-*`, `--selection-bg`, `--scrollbar-*`, and the status palette variables used by the new/classic palette switch.
 3. Generated legacy tokens for one-off colors that do not yet have a clean semantic owner:
    - `--sv-bg-<literal>` for background/fill colors.
    - `--sv-fg-<literal>` for text/icon/stroke colors.

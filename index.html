@@ -54,6 +54,13 @@
                     de.removeAttribute('data-theme');
                 }
             } catch (e) {}
+            try {
+                if (localStorage.getItem('syncview_status_palette') === 'classic') {
+                    de.setAttribute('data-status-palette', 'classic');
+                } else {
+                    de.removeAttribute('data-status-palette');
+                }
+            } catch (e) {}
             var authed = false;
             try { authed = localStorage.getItem('syncview_auth_v1') === 'ok'; } catch (e) {}
             if (!authed) { de.classList.add('boot-password'); return; }
@@ -165,6 +172,16 @@
             --wl-overdue-section-bg: #2a191d; --wl-overdue-border: #f87171; --wl-overdue-accent: #f87171; --wl-overdue-accent-hover: #ef4444; --wl-overdue-label: #f87171; --wl-overdue-chip-bg: #fca5a5; --wl-overdue-chip-hover: #f87171; --wl-overdue-chip-fg: #101114;
             --wl-tweaks-section-bg: #2a1f16; --wl-tweaks-border: #fb923c; --wl-tweaks-accent: #fb923c; --wl-tweaks-accent-hover: #f97316; --wl-tweaks-label: #fb923c; --wl-tweaks-chip-bg: #fdba74; --wl-tweaks-chip-hover: #fb923c; --wl-tweaks-chip-fg: #101114;
             --upload-progress-track: #26303a; --upload-progress-fill: #67e8f9; --upload-progress-glow: rgba(103,232,249,0.45);
+        }
+        html[data-status-palette="classic"] {
+            --cal-status-in-progress-bg: var(--sv-bg-fef08a); --cal-status-in-progress-fg: var(--sv-fg-713f12); --cal-status-for-smm-approval-bg: var(--sv-bg-fce7f3); --cal-status-for-smm-approval-fg: var(--sv-fg-9d174d); --cal-status-kasper-approval-bg: var(--sv-bg-ffe4cc); --cal-status-kasper-approval-fg: var(--sv-fg-9a3412); --cal-status-client-approval-bg: var(--sv-bg-fee2e2); --cal-status-client-approval-fg: var(--sv-fg-991b1b); --cal-status-approved-bg: var(--sv-bg-dcfce7); --cal-status-approved-fg: var(--sv-fg-166534); --cal-status-tweaks-needed-bg: var(--sv-bg-fdba74); --cal-status-tweaks-needed-fg: var(--sv-fg-7c2d12); --cal-status-scheduled-bg: var(--sv-bg-ede9fe); --cal-status-scheduled-fg: var(--sv-fg-5b21b6); --cal-status-posted-bg: var(--sv-bg-064e3b); --cal-status-posted-fg: var(--sv-fg-ecfdf5); --cal-status-archived-bg: var(--sv-bg-f3f4f6); --cal-status-archived-fg: var(--sv-fg-6b7280);
+            --cal-urgent-bg: var(--sv-bg-dc2626); --cal-urgent-hover-bg: var(--sv-bg-b91c1c); --cal-urgent-fg: var(--sv-fg-fff); --cal-urgent-disabled-bg: var(--sv-bg-9ca3af); --cal-urgent-sent-bg: var(--sv-bg-166534);
+            --wl-status-fg: var(--sv-fg-fff); --wl-progress-section-bg: var(--sv-bg-fefce8); --wl-progress-border: var(--sv-border-fde047); --wl-progress-accent: var(--sv-bg-eab308); --wl-progress-accent-hover: var(--sv-bg-ca8a04); --wl-progress-label: var(--sv-fg-854d0e); --wl-progress-chip-bg: var(--sv-bg-fef9c3); --wl-progress-chip-hover: var(--sv-bg-fef08a); --wl-progress-chip-fg: var(--sv-fg-854d0e);
+            --wl-overdue-section-bg: var(--sv-bg-fef2f2); --wl-overdue-border: var(--sv-border-fca5a5); --wl-overdue-accent: var(--sv-bg-dc2626); --wl-overdue-accent-hover: var(--sv-bg-b91c1c); --wl-overdue-label: var(--sv-fg-991b1b); --wl-overdue-chip-bg: var(--sv-bg-fee2e2); --wl-overdue-chip-hover: var(--sv-bg-fecaca); --wl-overdue-chip-fg: var(--sv-fg-991b1b);
+            --wl-tweaks-section-bg: var(--sv-bg-fff7ed); --wl-tweaks-border: var(--sv-border-fdba74); --wl-tweaks-accent: var(--sv-bg-ea580c); --wl-tweaks-accent-hover: var(--sv-bg-c2410c); --wl-tweaks-label: var(--sv-fg-9a3412); --wl-tweaks-chip-bg: var(--sv-bg-ffedd5); --wl-tweaks-chip-hover: var(--sv-bg-fed7aa); --wl-tweaks-chip-fg: var(--sv-fg-9a3412);
+        }
+        html[data-theme="dark"][data-status-palette="classic"] {
+            --cal-status-in-progress-bg: #3f320b; --cal-status-in-progress-fg: #fde68a; --cal-status-for-smm-approval-bg: #4b1730; --cal-status-for-smm-approval-fg: #f9a8d4; --cal-status-kasper-approval-bg: #4a2413; --cal-status-kasper-approval-fg: #fdba74; --cal-status-client-approval-bg: #4b1717; --cal-status-client-approval-fg: #fca5a5; --cal-status-approved-bg: #12361f; --cal-status-approved-fg: #86efac; --cal-status-tweaks-needed-bg: #5a2f0f; --cal-status-tweaks-needed-fg: #fdba74; --cal-status-scheduled-bg: #2e245d; --cal-status-scheduled-fg: #c4b5fd; --cal-status-posted-bg: #0f3f2a; --cal-status-posted-fg: #6ee7b7; --cal-status-archived-bg: #242730; --cal-status-archived-fg: #8e96a3;
         }
         /* Generated legacy color tokens. Prefer semantic tokens for new UI. */
         :root {
@@ -1298,6 +1315,8 @@
         .theme-toggle .theme-icon-sun { display: none; }
         html[data-theme="dark"] .theme-toggle .theme-icon-moon { display: none; }
         html[data-theme="dark"] .theme-toggle .theme-icon-sun { display: block; }
+        html[data-status-palette="classic"] .palette-toggle { background: var(--theme-toggle-active-bg); color: var(--theme-toggle-active-color); border-color: var(--theme-toggle-active-bg); }
+        html[data-status-palette="classic"] .palette-toggle:hover { color: var(--theme-toggle-active-color); }
         .main { padding: 32px 32px 80px; }
         .page-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
         .page-title-row { display: flex; align-items: center; gap: 12px; }
@@ -6015,6 +6034,9 @@
         </a>
     </div>
     <div class="header-actions">
+        <button class="theme-toggle palette-toggle" id="statusPaletteToggle" type="button" onclick="toggleSyncViewStatusPalette()" title="Switch to original status colors" aria-label="Switch to original status colors" aria-pressed="false">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.1" fill="currentColor"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.1" stroke="currentColor" stroke-width="1.35"/></svg>
+        </button>
         <button class="theme-toggle" id="themeToggle" type="button" onclick="toggleSyncViewTheme()" title="Switch to dark mode" aria-label="Switch to dark mode" aria-pressed="false">
             <svg class="theme-icon-moon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M13.2 10.4A5.8 5.8 0 0 1 5.6 2.8 5.8 5.8 0 1 0 13.2 10.4Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
             <svg class="theme-icon-sun" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="3.1" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.8V3M8 13v1.2M13 8h1.2M1.8 8H3M11.7 4.3l.8-.8M3.5 12.5l.8-.8M11.7 11.7l.8.8M3.5 3.5l.8.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
@@ -6057,6 +6079,7 @@
 </main>
 <script>
     const SYNCVIEW_THEME_KEY = 'syncview_theme';
+    const SYNCVIEW_STATUS_PALETTE_KEY = 'syncview_status_palette';
     function _syncviewThemeAllowed() {
         try {
             const q = new URLSearchParams(location.search);
@@ -6066,6 +6089,10 @@
     function _syncviewStoredTheme() {
         try { return localStorage.getItem(SYNCVIEW_THEME_KEY) === 'dark' ? 'dark' : 'light'; }
         catch (e) { return 'light'; }
+    }
+    function _syncviewStoredStatusPalette() {
+        try { return localStorage.getItem(SYNCVIEW_STATUS_PALETTE_KEY) === 'classic' ? 'classic' : 'vibrant'; }
+        catch (e) { return 'vibrant'; }
     }
     function _syncviewApplyTheme(theme, rerenderCharts) {
         const allowed = _syncviewThemeAllowed();
@@ -6083,6 +6110,19 @@
             try { renderChart(currentClientHistory); renderViewsChart(currentClientHistory); } catch (e) {}
         }
     }
+    function _syncviewApplyStatusPalette(palette) {
+        const allowed = _syncviewThemeAllowed();
+        const next = allowed && palette === 'classic' ? 'classic' : 'vibrant';
+        if (next === 'classic') document.documentElement.setAttribute('data-status-palette', 'classic');
+        else document.documentElement.removeAttribute('data-status-palette');
+        const btn = document.getElementById('statusPaletteToggle');
+        if (btn) {
+            btn.hidden = !allowed;
+            btn.setAttribute('aria-pressed', next === 'classic' ? 'true' : 'false');
+            btn.setAttribute('aria-label', next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors');
+            btn.title = next === 'classic' ? 'Switch to new status colors' : 'Switch to original status colors';
+        }
+    }
     function toggleSyncViewTheme() {
         if (!_syncviewThemeAllowed()) return;
         const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -6092,6 +6132,16 @@
         } catch (e) {}
         _syncviewApplyTheme(next);
     }
+    function toggleSyncViewStatusPalette() {
+        if (!_syncviewThemeAllowed()) return;
+        const next = document.documentElement.getAttribute('data-status-palette') === 'classic' ? 'vibrant' : 'classic';
+        try {
+            if (next === 'classic') localStorage.setItem(SYNCVIEW_STATUS_PALETTE_KEY, 'classic');
+            else localStorage.removeItem(SYNCVIEW_STATUS_PALETTE_KEY);
+        } catch (e) {}
+        _syncviewApplyStatusPalette(next);
+    }
+    _syncviewApplyStatusPalette(_syncviewStoredStatusPalette());
     _syncviewApplyTheme(_syncviewStoredTheme(), false);
     // ── Confirmation modal ───────────────────────────────────────────────
     let _confirmCb = null;

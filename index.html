@@ -2778,6 +2778,8 @@
         .prod-detail-top { border-bottom: 1px solid var(--prod-divider); }
         .prod-detail-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; font-weight: 500; color: var(--prod-strong); }
         .prod-detail-crumb span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .prod-detail-crumb b { flex: none; white-space: nowrap; }
+        .prod-detail-crumb .prod-crumb-title { flex: 1 1 auto; }
         .prod-detail-inner { max-width: 760px; }
         .prod-desc { margin-bottom: 16px; }
         .prod-file-line { margin: 14px 0 0; color: var(--prod-strong); font-size: 13px; }
@@ -5998,9 +6000,22 @@
            Clients review on phones: the chrome must fit a narrow screen and
            every hover-revealed control needs a touch equivalent. */
         @media (max-width: 760px) {
-            .header { padding: 0 14px; gap: 10px; }
+            .header {
+                height: auto;
+                min-height: 60px;
+                padding: 10px 14px 8px;
+                gap: 8px 10px;
+                display: grid !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                grid-template-areas:
+                    "logo actions"
+                    "nav nav" !important;
+                align-items: center !important;
+            }
+            .header .logo { grid-area: logo; min-width: 0; }
+            .header-actions { grid-area: actions; justify-self: end; }
             .header-meta { display: none; }
-            .header-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; }
+            .header-nav { grid-area: nav; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%; padding-bottom: 2px; }
             .header-nav::-webkit-scrollbar { display: none; }
             .header-nav-btn { flex-shrink: 0; }
             .main { padding: 18px 14px 80px; }
@@ -30024,6 +30039,7 @@
                 }
                 if (e.key === 'Escape') {
                     e.preventDefault();
+                    e.stopPropagation();
                     _prodClearLayer();
                 }
             });

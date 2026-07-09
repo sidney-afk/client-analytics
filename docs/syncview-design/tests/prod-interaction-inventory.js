@@ -1,0 +1,417 @@
+'use strict';
+/*
+ * Finished-read-only interaction inventory for the wired ?prod=1 tab.
+ *
+ * This is intentionally broader than the parity spot checks: it walks the main
+ * Production states and proves that visible controls either change local state,
+ * navigate, open guarded chrome, show the read-only guard, or are intentionally
+ * disabled/active no-ops. It also checks right-click menus, hover tips, browser
+ * errors, and the no-write request invariant.
+ */
+const fs = require('fs');
+const http = require('http');
+const path = require('path');
+const { chromium } = require('playwright');
+
+const root = path.resolve(__dirname, '..', '..', '..');
+const mime = {
+  '.html': 'text/html; charset=utf-8',
+  '.css': 'text/css',
+  '.js': 'text/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+};
+
+function serve() {
+  const server = http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://127.0.0.1');
+    let p = decodeURIComponent(u.pathname === '/' ? '/index.html' : u.pathname);
+    p = path.normalize(p).replace(/^([.][\\/])+/, '');
+    const full = path.join(root, p);
+    if (!full.startsWith(root) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
+      res.writeHead(404);
+      res.end('not found');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': mime[path.extname(full).toLowerCase()] || 'application/octet-stream' });
+    fs.createReadStream(full).pipe(res);
+  });
+  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server)));
+}
+
+const candidateSelector = [
+  '#prodRoot button',
+  '#prodRoot [onclick]',
+  '#prodRoot [oncontextmenu]',
+  '#prodRoot .prod-row',
+  '#prodRoot .prod-card[data-prod-client-card]',
+  '#prodRoot .prod-subrow',
+  '#prodRoot .prod-group',
+  '#prodRoot .prod-status[data-st]',
+  '#prodRoot .prod-due',
+  '#prodRoot .prod-assign-hot',
+  '#prodRoot [data-prod-pstatus]',
+  '#prodRoot [data-prod-plead]',
+  '#prodRoot [data-prod-ptarget]',
+].join(',');
+
+function writeLike(req) {
+  const method = req.method();
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return false;
+  const url = req.url();
+  return /supabase|n8n|webhook|syncview|rest\/v1|functions\/v1/i.test(url);
+}
+
+async function reset(page, stateName) {
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.evaluate(name => {
+    window._prodClearLayer && window._prodClearLayer();
+    document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+    const toast = document.getElementById('prodToast');
+    if (toast) { toast.classList.remove('show'); toast.textContent = ''; }
+    _prodState.paletteOpen = false;
+    _prodState.view = 'list';
+    _prodState.team = 'all';
+    _prodState.clientSlug = '';
+    _prodState.openId = '';
+    _prodState.openBatchId = '';
+    _prodState.openProjectId = '';
+    _prodState.tab = 'active';
+    _prodState.projectTab = 'open';
+    _prodState.projectDetailsOpen = true;
+    _prodState.groupBy = 'status';
+    _prodState.orderBy = 'due';
+    _prodState.showSubIssues = true;
+    _prodState.filters = [];
+    _prodState.collapsed = new Set();
+    _prodState.colCollapsed = new Set();
+    _prodState.selected = new Set();
+    _prodState.selAnchor = '';
+    _prodState.cardSel = new Set();
+    _prodState.cardAnchor = '';
+    _prodState.focusRow = '';
+    _prodState.hoverRow = '';
+    _prodState.focusCard = '';
+    _prodState.hoverCard = '';
+    if (name === 'detail') {
+      const first = _prodIssueRows()[0] || _prodIssues()[0];
+      if (first) _prodOpenDeliverable(first.id);
+      return;
+    }
+    if (name === 'board' || name === 'boardSelected') {
+      _prodOpenTeamView('video', 'board');
+      if (name === 'boardSelected') {
+        const first = _prodBoardFlat()[0];
+        if (first) _prodState.cardSel = new Set([first]);
+      }
+      _prodRender();
+      return;
+    }
+    if (name === 'project') {
+      const projectId = Object.keys(_prodProjects()).find(k => _prodIssues().some(i => i.project === k && !i.parent));
+      if (projectId) _prodOpenProject(projectId);
+      return;
+    }
+    if (name === 'filteredEmpty') {
+      _prodState.filters = [{ field: 'status', values: ['__none__'] }];
+      _prodRender();
+      return;
+    }
+    if (name === 'listSelected') {
+      _prodRender();
+      const first = _prodIssueRows()[0];
+      if (first) _prodState.selected = new Set([first.id]);
+      _prodRender();
+      return;
+    }
+    _prodRender();
+  }, stateName);
+  await page.waitForTimeout(80);
+}
+
+async function snapshot(page) {
+  return await page.evaluate(() => {
+    const layer = document.getElementById('prodLayer');
+    const toast = document.getElementById('prodToast');
+    const root = document.getElementById('prodRoot');
+    const text = root ? root.innerText : '';
+    return {
+      url: location.href,
+      view: _prodState.view,
+      team: _prodState.team,
+      clientSlug: _prodState.clientSlug,
+      openId: _prodState.openId,
+      openBatchId: _prodState.openBatchId,
+      openProjectId: _prodState.openProjectId,
+      tab: _prodState.tab,
+      projectTab: _prodState.projectTab,
+      secOpen: JSON.stringify(_prodState.secOpen || {}),
+      filters: JSON.stringify(_prodState.filters || []),
+      groupBy: _prodState.groupBy,
+      orderBy: _prodState.orderBy,
+      selected: _prodState.selected ? _prodState.selected.size : 0,
+      cardSel: _prodState.cardSel ? _prodState.cardSel.size : 0,
+      layerOpen: !!(layer && layer.innerHTML),
+      cmdOpen: !!document.querySelector('.prod-cmd-bd'),
+      toast: toast && toast.classList.contains('show') ? toast.textContent.trim() : '',
+      textLen: text.length,
+    };
+  });
+}
+
+function changed(a, b) {
+  return Object.keys(a).some(k => a[k] !== b[k]);
+}
+
+async function candidates(page) {
+  return await page.evaluate(sel => {
+    const seen = new Set();
+    const all = Array.from(document.querySelectorAll(sel)).filter(el => {
+      if (!el || seen.has(el)) return false;
+      seen.add(el);
+      if (el.classList && el.classList.contains('prod-row')) return false;
+      if (el.classList && el.classList.contains('prod-check')) return false;
+      if (el.classList && el.classList.contains('prod-status') && el.hasAttribute('onclick')) return false;
+      if (el.classList && el.classList.contains('prod-due')) return false;
+      if (el.classList && el.classList.contains('prod-assign-hot')) return false;
+      if (el.classList && el.classList.contains('prod-chip-client')) return false;
+      const r = el.getBoundingClientRect();
+      const cs = getComputedStyle(el);
+      return r.width > 1 && r.height > 1 && cs.visibility !== 'hidden' && cs.display !== 'none';
+    }).map((el, i) => {
+      const attrs = {};
+      for (const a of el.attributes) {
+        if (/^(id|class|onclick|oncontextmenu|data-prod|data-|title|disabled|aria-disabled)$/i.test(a.name)) attrs[a.name] = a.value;
+      }
+      return {
+        el,
+        i,
+        tag: el.tagName,
+        text: (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 90),
+        cls: el.className || '',
+        disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true',
+        attrs,
+      };
+    });
+    const bucketCounts = new Map();
+    const sampled = [];
+    for (const item of all) {
+      const attrs = item.attrs || {};
+      const prodKeys = Object.keys(attrs)
+        .filter(k => (k.startsWith('data-prod') && !k.startsWith('data-prod-probe')) || k === 'onclick' || k === 'oncontextmenu' || k === 'id')
+        .sort()
+        .map(k => `${k}=${attrs[k]}`)
+        .join(',');
+      const textShape = item.text.replace(/\d+/g, '#').replace(/[A-Z]{2,}-#/g, 'ID-#').slice(0, 36);
+      const key = [item.tag, item.cls, prodKeys, textShape].join('|');
+      const n = bucketCounts.get(key) || 0;
+      if (n >= 2) continue;
+      bucketCounts.set(key, n + 1);
+      item.key = key;
+      item.occ = n;
+      sampled.push(item);
+      if (sampled.length >= 70) break;
+    }
+    sampled.forEach((item, i) => {
+      item.i = i;
+      item.el.setAttribute('data-prod-probe-idx', String(i));
+      delete item.el;
+    });
+    return sampled;
+  }, candidateSelector);
+}
+
+function allowedNoop(c) {
+  const cls = String(c.cls || '');
+  const attrs = c.attrs || {};
+  const text = c.text || '';
+  return c.disabled
+    || attrs['data-prod-disabled']
+    || /\bactive\b/.test(cls)
+    || /\bprod-readonly-control\b/.test(cls)
+    || /\bprod-preview-chip\b/.test(cls)
+    || /\bprod-created\b/.test(cls)
+    || (c.attrs && c.attrs.oncontextmenu && !c.attrs.onclick)
+    || (c.tag === 'BUTTON' && !attrs.onclick && /^All projects$|^Open$|^Active$/.test(text));
+}
+
+function sameCandidate(a, b) {
+  return a && b && a.key === b.key && a.occ === b.occ;
+}
+
+async function clickInventory(page, stateName) {
+  await reset(page, stateName);
+  const list = await candidates(page);
+  const failures = [];
+  for (const c of list) {
+    if (c.disabled) continue;
+    await reset(page, stateName);
+    const fresh = await candidates(page);
+    const target = fresh.find(x => sameCandidate(x, c)) || fresh.find(x => x.key === c.key);
+    if (!target) continue;
+    await page.evaluate(() => {
+      window._prodClearLayer && window._prodClearLayer();
+      document.querySelectorAll('.prod-cmd-bd').forEach(el => el.remove());
+    });
+    const before = await snapshot(page);
+    const beforeErrors = await page.evaluate(() => window.__prodProbeErrors.length);
+    await page.evaluate(i => {
+      const el = document.querySelector(`#prodRoot [data-prod-probe-idx="${i}"]`);
+      if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    }, target.i);
+    await page.waitForTimeout(220);
+    const after = await snapshot(page);
+    const afterErrors = await page.evaluate(() => window.__prodProbeErrors.length);
+    if (afterErrors > beforeErrors) failures.push(`${stateName} JS error after click: ${c.tag}.${c.cls} "${c.text}"`);
+    if (!changed(before, after) && !allowedNoop(c)) {
+      failures.push(`${stateName} silent no-op: ${c.tag}.${c.cls} "${c.text}" matched=${target.tag}.${target.cls} "${target.text}" attrs=${JSON.stringify(c.attrs)}`);
+    }
+  }
+  return { stateName, checked: list.length, failures };
+}
+
+async function rightClickChecks(page) {
+  const checks = [
+    ['list', '.prod-row'],
+    ['board', '.prod-card[data-prod-client-card]'],
+    ['detail', '.prod-detail'],
+    ['detail', '.prod-subrow'],
+    ['project', '[data-prod-project-issue]'],
+  ];
+  const failures = [];
+  for (const [stateName, sel] of checks) {
+    await reset(page, stateName);
+    const loc = page.locator(sel).first();
+    if (!(await loc.count())) continue;
+    await loc.click({ button: 'right', timeout: 2500, force: true });
+    await page.waitForTimeout(150);
+    const ok = await page.locator('#prodLayer .prod-pop [data-prod-ctx="copy"], #prodLayer .prod-pop [data-prod-ctx="status"]').count();
+    if (!ok) failures.push(`${stateName} right-click did not open a Production context menu for ${sel}`);
+    await page.evaluate(() => window._prodClearLayer && window._prodClearLayer());
+  }
+  return failures;
+}
+
+async function hoverChecks(page) {
+  await reset(page, 'list');
+  const tips = await page.locator('#prodRoot [data-prod-tip]').count();
+  const limit = Math.min(tips, 16);
+  const failures = [];
+  for (let i = 0; i < limit; i++) {
+    const loc = page.locator('#prodRoot [data-prod-tip]').nth(i);
+    const raw = await loc.getAttribute('data-prod-tip');
+    if (!raw) continue;
+    await loc.hover({ timeout: 2500, force: true });
+    await page.waitForTimeout(460);
+    const shown = await page.locator('#prodTip').evaluate(el => (el.textContent || '').trim()).catch(() => '');
+    if (!shown) failures.push(`hover tip did not render for "${raw}"`);
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(30);
+  }
+  return { checked: limit, failures };
+}
+
+async function selectionChecks(page) {
+  const failures = [];
+  await reset(page, 'list');
+  const firstRowId = await page.locator('#prodRoot .prod-row').first().getAttribute('data-prod-row');
+  await page.locator('#prodRoot .prod-row').first().click({ timeout: 2500, force: true });
+  await page.waitForTimeout(120);
+  const openedRow = await page.evaluate(expected => _prodState.openId === expected && _prodState.view === 'detail', firstRowId);
+  if (!openedRow) failures.push('row click did not open the deliverable detail path');
+  await reset(page, 'list');
+  const before = await page.evaluate(() => _prodState.selected.size);
+  await page.locator('#prodRoot .prod-check').first().click({ timeout: 2500, force: true });
+  await page.waitForTimeout(120);
+  const after = await page.evaluate(() => ({
+    selected: _prodState.selected.size,
+    actionbar: !!document.querySelector('[data-prod-actionbar]'),
+    view: _prodState.view,
+  }));
+  if (!(before === 0 && after.selected === 1 && after.actionbar && after.view === 'list')) {
+    failures.push('row checkbox did not select locally without navigating');
+  }
+  await reset(page, 'list');
+  await page.locator('#prodRoot .prod-status[onclick]').first().click({ timeout: 2500, force: true });
+  await page.waitForTimeout(120);
+  const statusLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
+  if (!statusLayer) failures.push('row status icon did not open the guarded status picker');
+  await reset(page, 'list');
+  await page.locator('#prodRoot .prod-due').first().click({ timeout: 2500, force: true });
+  await page.waitForTimeout(120);
+  const dueLayer = await page.locator('#prodLayer .prod-duepop').count();
+  if (!dueLayer) failures.push('row due pill did not open the guarded due-date picker');
+  await reset(page, 'list');
+  await page.locator('#prodRoot .prod-assign-hot').first().click({ timeout: 2500, force: true });
+  await page.waitForTimeout(120);
+  const assignLayer = await page.locator('#prodLayer .prod-pop [data-prod-pick]').count();
+  if (!assignLayer) failures.push('row assignee avatar did not open the guarded assignee picker');
+  await reset(page, 'list');
+  const slug = await page.locator('#prodRoot .prod-chip-client').first().getAttribute('data-prod-crumbclient');
+  if (slug) {
+    await page.locator('#prodRoot .prod-chip-client').first().click({ timeout: 2500, force: true });
+    await page.waitForTimeout(120);
+    const opened = await page.evaluate(expected => _prodState.openProjectId === expected || _prodState.clientSlug === expected, slug);
+    if (!opened) failures.push('row client chip did not open the project/client path');
+  }
+  return failures;
+}
+
+(async () => {
+  const server = await serve();
+  const port = server.address().port;
+  const browser = await chromium.launch({ headless: true });
+  const errors = [];
+  const requests = [];
+  const page = await browser.newPage({ viewport: { width: 1440, height: 950 } });
+  page.on('pageerror', e => errors.push(e.message));
+  page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); });
+  page.on('request', req => requests.push(req));
+  await page.addInitScript(() => {
+    window.__prodProbeErrors = [];
+    window.addEventListener('error', e => window.__prodProbeErrors.push(e.message || String(e.error || e)));
+    window.addEventListener('unhandledrejection', e => window.__prodProbeErrors.push(String(e.reason || e)));
+    localStorage.setItem('syncview_auth_v1', 'ok');
+    try {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async text => { window.__prodCopied = text; } },
+      });
+    } catch (_) {}
+  });
+
+  try {
+    await page.goto(`http://127.0.0.1:${port}/?prod=1`, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('.prod-row, .prod-empty-state, .prod-error', { timeout: 30000 });
+    if (await page.locator('.prod-error').count()) throw new Error('Production preview rendered an error card');
+
+    const states = ['list', 'listSelected', 'filteredEmpty', 'detail', 'board', 'boardSelected', 'project'];
+    const results = [];
+    const failures = [];
+    for (const state of states) {
+      const r = await clickInventory(page, state);
+      results.push(`${state}:${r.checked}`);
+      failures.push(...r.failures);
+    }
+    failures.push(...await rightClickChecks(page));
+    const hover = await hoverChecks(page);
+    failures.push(...hover.failures);
+    failures.push(...await selectionChecks(page));
+
+    const writes = requests.filter(writeLike);
+    if (writes.length) failures.push('write-like requests observed: ' + writes.slice(0, 5).map(r => `${r.method()} ${r.url()}`).join(' | '));
+    if (errors.length) failures.push('browser errors: ' + errors.slice(0, 5).join(' | '));
+    const probeErrors = await page.evaluate(() => window.__prodProbeErrors || []);
+    if (probeErrors.length) failures.push('page probe errors: ' + probeErrors.slice(0, 5).join(' | '));
+
+    if (failures.length) throw new Error(failures.join('\n'));
+    console.log(`prod-interaction-inventory: click states ${results.join(', ')}, right-click menus, ${hover.checked} hover tips, no writes/errors passed`);
+  } finally {
+    await browser.close().catch(() => {});
+    server.close();
+  }
+})().catch(err => {
+  console.error(err && err.stack ? err.stack : String(err));
+  process.exit(1);
+});

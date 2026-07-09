@@ -6,6 +6,21 @@ Source of truth: `docs/syncview-design/SyncView.html`. Status values:
 - 🔒 deferred-B3: artifact behavior mutates data and remains guarded until write authority moves.
 - ⬜ pending: read-only-safe artifact behavior still needs transplant/adaptation.
 
+## 2026-07-09 Foundation Hardening Audit
+
+Full report: `docs/audits/2026-07-09-production-foundation-audit.md`.
+
+| Behavior | Source | Status | Notes |
+|---|---|---:|---|
+| Finished read-only product standard | owner direction, Track B B2/B3 boundary | ported | The Production tab is treated as finished-quality read-only chrome: each visible control must work locally, navigate, open a guarded picker/menu, or be clearly disabled. |
+| Project toolbar overlay Escape cascade | `projectToolbarMenusAndDetailsToggle`, overlay key handling | ported | Fixed a real loose end where Escape inside a project Filter/Display popover also bubbled to the page-level handler and navigated from project detail back to board. |
+| Phone app-header layout | human/vision review at 390px wide | ported | The global header switches to a two-row mobile layout so the active Production tab is visible in its own horizontally scrollable nav row instead of colliding with the theme toggle. |
+| Phone detail breadcrumb | human/vision review at 390px wide | ported | Production detail breadcrumbs keep the issue/project label on one line and truncate the trailing title, avoiding `VID-10440`-style line breaks in the top bar. |
+| Existing behavioral gate | `docs/syncview-design/tests/behav-wired.js` | ported | After the Escape fix, guard-mode coverage is green at `156/156`; mutation-only behaviors remain explicitly reported as `deferred-B3`. |
+| Finished-surface inventory gate | `docs/syncview-design/tests/prod-interaction-inventory.js` | ported | Samples unique visible controls across list/detail/board/project states, right-click context zones, hover tips, row open/checkbox/status/due/assignee/client-chip pointer controls, and the no-write/no-error invariant. |
+| Existing visual gate | `docs/syncview-design/tests/pixel-wired.js` | ported | Light and dark wired pixel/parity checks pass; screenshots remain local/private under `.codex-tmp/prod-pixel-wired`. |
+| Rollback scope | frontend-only `_prod*` hardening | ported | Revert the July 9 PR/commit to undo this pass. No Supabase data, runtime flags, n8n workflows, or backend write paths were touched. |
+
 ## 2026-07-06 Foundation Session
 
 | Behavior | Source | Status | Notes |

@@ -47,7 +47,7 @@ Platform colors keep brand identity while dark mode swaps pale fills to dark tin
 | TikTok | `--tt`, `--tt-light`, `--tt-mid`, `--tt-dark` | neutral/cyan accents plus dark neutral surfaces |
 | YouTube | `--yt`, `--yt-light`, `--yt-mid`, `--yt-dark` | red accents plus dark red surfaces |
 
-Status colors use the same high-separation scheme in light and dark mode. Operational status pills use brighter mid-tone fills with near-black text so states stay easy to distinguish without becoming neon. Urgent uses the same warm family as Tweaks Needed, while Kasper Approval moves to blue so it does not compete with orange action states.
+Status colors use the same high-separation scheme in light and dark mode. Operational status pills use brighter mid-tone fills with near-black text so states stay easy to distinguish without becoming neon. Urgent uses the same warm family as Tweaks Needed, Kasper Approval uses a light blue, SMM Approval uses orchid, Client/Sidney Approval uses coral-red, and Scheduled uses a colder blue.
 
 Calendar status pills use dedicated `--cal-status-*` variables. Light and dark values now share the same vibrant fills with black text so component pills, dropdown rows, review pills, title-status squares, and TikTok queue pills stay distinct across themes. Notes notifications use `--cal-notes-*` variables for the unread dot, count badge, and active/open state.
 
